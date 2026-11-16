@@ -193,3 +193,18 @@ def test_a_google_button_that_would_submit_a_form_is_never_pressed():
                 provider_sign_in.with_google(page, ACCOUNT, "Example", None, wait=2)
         browser.close()
 
+
+def test_a_mailed_password_reset_link_is_never_opened():
+    # Fault (KAN-878's review): on a reopened form, now signing in, Claude pressed Forgot password and called the page
+    # "link sent", and Apply opened the newest mail from the site: the reset's link.
+    from types import SimpleNamespace
+
+    from apply.account_pages import AccountPages
+
+    opened = []
+    accounts = SimpleNamespace(login=ACCOUNT, link=lambda *a: "https://acme.example/reset-password?token=1")
+    pages = AccountPages(accounts, {})
+    page = SimpleNamespace(goto=opened.append)
+    with pytest.raises(Handoff, match="password reset, and Apply never opens one"):
+        pages._link(page, "acme.example", None, "https://acme.example/jobs/1")
+    assert opened == []

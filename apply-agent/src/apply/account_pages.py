@@ -36,7 +36,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Page
 
 from apply import captcha
-from apply.accounts import NO_PASSWORD, Accounts
+from apply.accounts import NEEDS_SIGN_IN, NO_PASSWORD, Accounts
 from apply.model import Handoff
 from apply.oracle import MAIL_SEARCH as ORACLE_MAIL_SEARCH
 
@@ -84,6 +84,12 @@ class _Click:
 
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_LOCK = threading.Lock()
+
+
+# A mailed link that resets a password ("/reset-password?token=", "forgotpassword"): Lisul's, never opened by Apply.
+RESETS = re.compile(r"reset|forgot|recover|change.?password|new.?password", re.IGNORECASE)
+RESET_LINK = (NEEDS_SIGN_IN + "The newest mail from {site} is a password reset, and Apply never opens one. Sign in "
+              "on the page yourself: Apply goes on by itself once you have.")
 
 
 class AccountPages:
@@ -208,6 +214,8 @@ class AccountPages:
         self._hold(search)
         link = self._accounts.link(search, since, (site, *mail_domains(site)))
         self.release()
+        if RESETS.search(link):  # a reset's link, never Apply's to open (KAN-878's review: a reset can end the old
+            raise Handoff(RESET_LINK.format(site=site))  # password, and a reopened form now drives account pages)
         page.goto(link)
         _settle(page)
         page.goto(posting)

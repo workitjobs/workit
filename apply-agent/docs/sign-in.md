@@ -40,15 +40,23 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Apply signs in with Google where it is offered and `policies.yaml: provider_sign_in` is `google`
   (the default, KAN-878): plain code presses the one Google button, through the guards as its account
   click, then picks Lisul's account (`identity.email`) in Google's chooser, in the page or the window
-  the button opened, and presses Continue on Google's consent for the site the first time
-  (`provider_sign_in.with_google`, sharing `google_sign_in.py` with Workday's Google sign-in). Claude
+  the button opened, once, and only where that window's own URL asks for a sign-in alone
+  (`provider_sign_in.with_google`, sharing `google_sign_in.py` with Workday's Google sign-in). It
+  never presses Google's consent: a site's first Google sign-in shows one ("Google will share your
+  name and email ... Continue"), and that is Lisul's, once per site, after which the pause goes on by
+  itself. Round 2 of the review reached a Drive consent whose scopes no URL showed (a `login_hint`
+  straight to consent, a second hop after an honest pick, a basic scope seen in another window), so
+  only the chooser's own URL counts, and `include_granted_scopes` makes it unknown. Claude
   fill then drives again from the signed-in page, once per form. It never types into Google's pages
   and never sees a password: a page that asks for a password, a code or a passkey, Google's refusal of
   the browser, a site that doesn't come back signed in within 60 s, no or two Google buttons, and a
   Google button that is, holds or labels a form's submit button are each a Needs sign-in Handoff. So
   is a sign-in whose Google URLs ask for more than `openid`, `email` and `profile`, or say nothing of
   what they ask (`provider_sign_in.BASIC_SCOPES`): the review of KAN-878 opened another app's request
-  for Drive from a page's Google button, and Apply picked the account and pressed Continue on it. So is a sign-in that
+  for Drive from a page's Google button, and Apply picked the account and pressed Continue on it.
+- Claude never presses Forgot password (its rules), and a mailed link that resets a password is never
+  opened (`account_pages.RESETS`): a reopened form now drives account pages, and a reset can end the
+  password Lisul uses. So is a sign-in that
   offers no Google, and every sign-in when the policy is anything else: Lisul signs in on the page.
   Signed in means no provider button shows and the account menu does (Eightfold's "Account manager
   for <name>", or a Sign out); Microsoft's header shows a "Sign in" button until then. The pause then
