@@ -1,8 +1,9 @@
-// A pretend Apply, in the shape of `Dashboard.state()`: the window's fixtures.
-// Pick one with ?scenario=start|needs|ready|quiet. Answers and approvals change
-// it as Apply would, so the whole flow can be clicked through.
+// A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
+// Usage: the window's fixtures. Pick one with ?scenario=start|needs|ready|quiet,
+// and the day's model use with ?usage=near|cap. Answers and approvals change it
+// as Apply would, so the whole flow can be clicked through.
 import type { ApplyState, Shown } from "./apply.ts";
-import type { Bridge } from "./bridge.ts";
+import type { Bridge, Queued, Usage } from "./bridge.ts";
 
 const ramp: Shown = {
   id: "live-1",
@@ -74,7 +75,17 @@ const SCENARIOS: Record<string, () => ApplyState> = {
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4 } }),
 };
 
-export function mock(scenario: string): Bridge {
+const QUEUE: Queued[] = [
+  { url: "https://stripe/1", company: "Stripe", title: "Software Engineer Intern" },
+  { url: "https://jobs.ashbyhq.com/ramp/1", company: "Ramp", title: "New Grad Software Engineer" },
+  { url: "https://jobs.ashbyhq.com/notion/1", company: "Notion", title: "Software Engineer" },
+  { url: "https://nvidia.wd5.myworkdayjobs.com/1", company: "NVIDIA", title: "SWE Intern, Summer 2027" },
+];
+
+const CAP = 400_000;
+const USED: Record<string, number> = { near: 340_000, cap: CAP };
+
+export function mock(scenario: string, used = USED[new URLSearchParams(location.search).get("usage") ?? ""] ?? 52_000): Bridge {
   let state = structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)());
   const listeners = new Set<(s: ApplyState) => void>();
   const push = () => listeners.forEach((on) => on(structuredClone(state)));
@@ -104,13 +115,21 @@ export function mock(scenario: string): Bridge {
       const ready = [...state.tiles, ...state.items].find((s) => s.worker === worker && s.tone === "ready");
       if (ready) later(() => Object.assign(ready, { tone: "submitted" }), 2500);
     },
-    async add(link) {
-      state.tiles.push({ tone: "filling", company: new URL(link).hostname.split(".").at(-2) ?? "New job", role: "Opening the posting…", posting_url: link, filled: 0, asked: 1 });
+    async fillAgain(id) {
+      const item = find(id);
+      if (item) Object.assign(item, { tone: "filling", kind: undefined, filled: 2, asked: 22 });
       push();
     },
-    async start() {
-      state = structuredClone(SCENARIOS.quiet());
-      push();
-    },
+    app: Promise.resolve({
+      queue: async () => QUEUE,
+      async start(links: string[]) {
+        state = structuredClone(SCENARIOS.quiet());
+        push();
+        return links.length;
+      },
+      status: async () => ({ running: false, said: "" }),
+      usage: async (): Promise<Usage> => ({ used, cap: CAP, resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() }),
+      settings: async () => alert("Settings: #613's page opens here."),
+    }),
   };
 }

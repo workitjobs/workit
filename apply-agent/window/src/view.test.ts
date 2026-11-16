@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { classify, headline, view } from "./view.ts";
+import { classify, headline, limit, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -95,4 +95,13 @@ test("a question answered in the window leaves the pile while its form fills it 
   const tile = job({ tone: "needs", kind: "missing fact" });
   const live = job({ tone: "needs", kind: "missing fact", id: "live-0", questions: ["When can you start?"], answered: true });
   assert.equal(view({ tiles: [tile], items: [live] }).todo.length, 0);
+});
+
+test("the daily limit is said in words only from 80%, never as tokens", () => {
+  const at = (d: Date) => d.toISOString().slice(11, 16);
+  const usage = (used: number) => ({ used, cap: 1000, resets_at: "2026-11-16T05:00:00Z" });
+  assert.equal(limit(usage(799), at), "");
+  assert.equal(limit(usage(800), at), "You're close to today's limit.");
+  assert.equal(limit(usage(1000), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
+  assert.equal(limit(usage(1200), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
 });

@@ -1,6 +1,7 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Shown } from "./apply.ts";
+import type { Usage } from "./bridge.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
 
@@ -104,4 +105,12 @@ export function headline(v: View): string {
   if (v.todo.every((j) => j.ask === "question")) return `${plural(n, "quick question")} for you`;
   if (v.todo.every((j) => j.ask === "submit")) return `${plural(n, "application")} ready to submit`;
   return `${plural(n, "thing")} for you to do`;
+}
+
+const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+// Today's model use against the Usage cap, in words: nothing under 80%, and never a token count.
+export function limit(usage: Usage, at: (resets: Date) => string = clock): string {
+  if (usage.used >= usage.cap) return `You've reached today's limit, so applying is paused. It starts again at ${at(new Date(usage.resets_at))}.`;
+  return usage.used >= usage.cap * 0.8 ? "You're close to today's limit." : "";
 }
