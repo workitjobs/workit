@@ -17,6 +17,8 @@ export type Shown = {
   role?: string;
   posting_url?: string;
   system?: string; // the job system: Greenhouse, Workday...
+  company_domain?: string; // the logo's sources, from the WorkIt job posting when Apply has one (logo.ts)
+  logo_url?: string;
   worker?: number;
   at?: string;
   from?: string; // "tracker": an Application from an earlier run

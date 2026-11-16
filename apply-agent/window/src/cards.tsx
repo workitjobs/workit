@@ -13,7 +13,7 @@ export function TodoCard(props: Props) {
   return (
     <div key={job.key} className="rise overflow-hidden rounded-[18px] border border-border bg-panel shadow-[var(--shadow-focus)]">
       <div className="flex items-center gap-3 px-6 pt-5">
-        <Logo company={job.company} />
+        <Logo company={job.company} src={job.source} />
         <div className="min-w-0">
           <div className="font-semibold">{job.company}</div>
           <div className="truncate text-xs text-ink-meta">{job.role}</div>

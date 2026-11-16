@@ -368,7 +368,11 @@ jobs:
           cache-dependency-path: apply-agent/window/package-lock.json
       - run: npm ci
       - run: npm test
+      # The page's logos load from Brandfetch with the website's public client id (KAN-871), as deploy.yml builds
+      # the website with it; the committed page is built with it too.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_BRANDFETCH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID }}
       - run: git diff --exit-code -- ../src/apply/student_page
 
   # The submit guard's hostile pages (KAN-666) on a runner of their own, beside the apply job, so a PR waits for the

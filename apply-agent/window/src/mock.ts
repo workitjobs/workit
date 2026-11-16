@@ -11,6 +11,7 @@ const ramp: Shown = {
   tone: "needs",
   kind: "missing fact",
   company: "Ramp",
+  company_domain: "ramp.com",
   role: "New Grad Software Engineer",
   posting_url: "https://jobs.ashbyhq.com/ramp/1",
   system: "Ashby",
@@ -47,6 +48,7 @@ const nvidia: Shown = {
   tone: "needs",
   kind: "needs sign-in",
   company: "NVIDIA",
+  company_domain: "nvidia.com",
   role: "SWE Intern, Summer 2027",
   posting_url: "https://nvidia.wd5.myworkdayjobs.com/1",
   system: "Workday",
@@ -58,6 +60,7 @@ const figma: Shown = {
   tone: "needs",
   kind: "held",
   company: "Figma",
+  company_domain: "figma.com",
   role: "Software Engineer Intern",
   posting_url: "https://boards.greenhouse.io/figma/1",
   system: "Greenhouse",
@@ -72,6 +75,7 @@ const figma: Shown = {
 const notion: Shown = {
   tone: "ready",
   company: "Notion",
+  company_domain: "notion.so",
   role: "Software Engineer",
   posting_url: "https://jobs.ashbyhq.com/notion/1",
   system: "Ashby",
@@ -86,10 +90,10 @@ const notion: Shown = {
     },
   ],
 };
-const stripe: Shown = { tone: "filling", company: "Stripe", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22 };
-const linear: Shown = { tone: "verifying", company: "Linear", role: "Backend Engineer Intern", posting_url: "https://linear/1", worker: 2 };
-const vercel: Shown = { tone: "submitted", company: "Vercel", role: "Software Engineer, New Grad", posting_url: "https://vercel/1", from: "tracker" };
-const datadog: Shown = { tone: "submitted", company: "Datadog", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
+const stripe: Shown = { tone: "filling", company: "Stripe", company_domain: "stripe.com", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22 };
+const linear: Shown = { tone: "verifying", company: "Linear", company_domain: "linear.app", role: "Backend Engineer Intern", posting_url: "https://linear/1", worker: 2 };
+const vercel: Shown = { tone: "submitted", company: "Vercel", company_domain: "vercel.com", role: "Software Engineer, New Grad", posting_url: "https://vercel/1", from: "tracker" };
+const datadog: Shown = { tone: "submitted", company: "Datadog", company_domain: "datadoghq.com", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
 
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
@@ -100,10 +104,10 @@ const SCENARIOS: Record<string, () => ApplyState> = {
 };
 
 const QUEUE: Queued[] = [
-  { url: "https://stripe/1", company: "Stripe", title: "Software Engineer Intern" },
-  { url: "https://jobs.ashbyhq.com/ramp/1", company: "Ramp", title: "New Grad Software Engineer" },
-  { url: "https://jobs.ashbyhq.com/notion/1", company: "Notion", title: "Software Engineer" },
-  { url: "https://nvidia.wd5.myworkdayjobs.com/1", company: "NVIDIA", title: "SWE Intern, Summer 2027" },
+  { url: "https://stripe/1", company: "Stripe", title: "Software Engineer Intern", company_domain: "stripe.com" },
+  { url: "https://jobs.ashbyhq.com/ramp/1", company: "Ramp", title: "New Grad Software Engineer", company_domain: "ramp.com" },
+  { url: "https://jobs.ashbyhq.com/notion/1", company: "Notion", title: "Software Engineer", company_domain: "notion.so" },
+  { url: "https://nvidia.wd5.myworkdayjobs.com/1", company: "NVIDIA", title: "SWE Intern, Summer 2027", company_domain: "nvidia.com" },
 ];
 
 const CAP = 400_000;

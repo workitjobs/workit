@@ -116,7 +116,7 @@ function Row({ job }: { job: Job }) {
   const submitted = job.status === "submitted";
   return (
     <div className="flex items-center gap-3 py-2.5">
-      <Logo company={job.company} size={32} />
+      <Logo company={job.company} src={job.source} size={32} />
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{job.company}</div>
         <div className="truncate text-xs text-ink-meta">{job.role}</div>
@@ -186,7 +186,7 @@ function Start({ app }: { app: AppMethods }) {
                     onChange={() => setTicked(ticked.map((t, j) => (j === i ? !t : t)))}
                     className="size-[18px] accent-brand"
                   />
-                  <Logo company={q.company} size={32} />
+                  <Logo company={q.company} src={q} size={32} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{q.title || "A job"}</span>
                     <span className="block text-xs text-ink-meta">{q.company}</span>

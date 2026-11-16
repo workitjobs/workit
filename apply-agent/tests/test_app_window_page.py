@@ -94,3 +94,36 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert settings.is_visible("#remove-sure")  # a second press removes: one press never does
         browser.close()
     assert errors == []
+
+
+def test_a_logo_that_fails_to_load_falls_back_to_the_next_source_then_to_initials(monkeypatch):
+    """Fault: a broken image in a queue row, or the initials kept when the scraper's logo loads (KAN-871)."""
+    import base64
+
+    from apply import dashboard
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
+    logo = "https://logos.example/acme.png"
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+    queue = [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern", "logo_url": logo,
+              "company_domain": "acme.com"},
+             {"url": "https://jobs.lever.co/beta/1", "company": "Beta", "title": "Analyst", "logo_url": None,
+              "company_domain": "beta.com"}]
+    with Dashboard(0, OneFrame(), serve=False) as board, sync_playwright() as playwright:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        # Brandfetch (and every other host) unreachable; only the scraper's logo for Acme loads.
+        page.route("**/*", lambda route: route.fulfill(body=png, content_type="image/png") if route.request.url == logo
+                   else route.abort())
+        page.expose_function("__bridge", lambda name, args: bridge.request(*args) if name == "request"
+                             else {"queue": queue, "status": {"running": False, "said": ""}}.get(name, {}))
+        page.set_content(app_window.student_page(board), wait_until="domcontentloaded")
+        page.evaluate(PYWEBVIEW)
+        page.wait_for_selector("text=Analyst", timeout=5000)
+        page.wait_for_function(f"""[...document.images].some(i => i.src === {logo!r} && i.naturalWidth > 0
+                                   && !i.className.includes('opacity-0'))""", timeout=5000)
+        page.wait_for_function("document.images.length === 1", timeout=5000)  # Beta's failed Brandfetch icon: gone
+        beta = page.locator("label", has_text="Analyst")
+        assert beta.locator("span[aria-hidden]").inner_text() == "B"
+        browser.close()

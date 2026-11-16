@@ -8,7 +8,7 @@
 import type { ApplyState } from "./apply.ts";
 
 export type Upload = { name: string; data: string }; // a file's name and its bytes in base64
-export type Queued = { url: string; company: string; title: string };
+export type Queued = { url: string; company: string; title: string; logo_url?: string | null; company_domain?: string | null };
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
 // #613's app methods. Each is there only when the window gives it.
