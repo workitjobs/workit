@@ -364,6 +364,17 @@ _TEMPLATE = r"""
   // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
   const armed = () => S.account;
   let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
+  // The forms that had a button that sends as the last press went down (KAN-868): a page's pointerdown or mousedown
+  // handler can rename or take away a Submit before the click, which is when a press is recorded. The guard's own
+  // listener runs before any of the page's, so this is the form as it stood (pointerdown's, then mousedown's: each
+  // adds, as mousedown comes once a pointerdown handler may have renamed it). It only ever adds to what is blocked.
+  let downSending = [];
+  const wentDown = judged(() => {
+    const now_ = sendingForms();
+    for (let i = 0; i < now_.length; i++) if (!any(downSending, (f) => f === now_[i])) push(downSending, now_[i]);
+  });
+  on('pointerdown', wentDown);
+  on('mousedown', wentDown);
   let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
   const user = (event) => event.isTrusted || event === userClick;
   on('click', judged((event) => {
@@ -376,8 +387,9 @@ _TEMPLATE = r"""
     if (!userClick) return;
     const target = targetGet(event);
     press = isEl(target) && (!at || at === true || contains(at, target))
-      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sendingForms()}
+      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sentAll()}
       : null;
+    downSending = [];  // each press's own: what went down before this click is in its record now
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -392,6 +404,8 @@ _TEMPLATE = r"""
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
   const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  // Those as the press went down, and as it landed.
+  const sentAll = () => { const out = sendingForms(); for (let i = 0; i < downSending.length; i++) push(out, downSending[i]); return out; };
   const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
@@ -1024,9 +1038,27 @@ _TEMPLATE = r"""
   const BUTTONS = 'button, input[type=submit], input[type=image], input[type=button], [role=button]';
   const formSends = (form) => any(all(form, BUTTONS), (n) => buttonSends(n)) || any(fields(form), (n) => buttonSends(n));
   const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image|button)$/i, typeOf(n)) || attr(n, 'role') === 'button') && sends(n);
-  const posts = (form, submitter) => {
-    const method = (isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get';
-    return lower(method) === 'post';
+  const methodOf = (form, submitter) =>
+    lower((isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get');
+  const posts = (form, submitter) => methodOf(form, submitter) === 'post';
+  // A GET form (no method, or an unknown one, which a browser reads as GET); a dialog's form sends nothing.
+  const gets = (form, submitter) => !posts(form, submitter) && methodOf(form, submitter) !== 'dialog';
+  // A sign-in or account step (iCIMS's email step, KAN-703): its only boxes are an email or user name, passwords,
+  // ticks and hidden ones. Nothing of an application is in it, so its GET submit goes on as before (KAN-868).
+  const LOGIN_BOX = /e-?mail|user|login|account/i;
+  const loginForm = (form) => {
+    const all_ = fields(form);
+    let named = false;
+    for (let i = 0; i < all_.length; i++) {
+      const n = all_[i], kind = lower(typeOf(n));
+      if (test(/^(hidden|password|checkbox|submit|button|reset|image)$/, kind) || tag(n) === 'FIELDSET' || tag(n) === 'BUTTON') continue;
+      if (tag(n) !== 'INPUT' || !test(/^(email|text)$/, kind)) return false;
+      if (kind !== 'email' && !test(LOGIN_BOX, text(attr(n, 'name')) + ' ' + text(attr(n, 'id')) + ' ' + text(attr(n, 'autocomplete'))
+        + ' ' + text(attr(n, 'aria-label')))) return false;
+      if (named) return false;  // one such box: a second is a field of something else
+      named = true;
+    }
+    return named;
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -1184,11 +1216,13 @@ _TEMPLATE = r"""
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
-    // A GET form that has a button that sends: its own submit handler is how it sends (a React form's onSubmit posts
-    // the application), so no handler of the page's hears its submit, whatever pressed it (a Next, a dropdown made
-    // of a submit button, one the page turned into one as it was pressed). Only a POST form was judged, and the
-    // adversarial review of KAN-861 sent the application this way past both guards (KAN-868).
-    const scripted = !posts(form, by) && !step && formSends(form);
+    // A GET form's submit reaches none of the page's handlers, whatever pressed it (KAN-868). Its own submit handler
+    // is how it sends (a React form's onSubmit posts the application by fetch, to any URL), so it can't be told from
+    // a step by where it goes, and the review of KAN-868 sent it past every test of the form's buttons: a Submit the
+    // press renamed or took away, one outside the form, a <div> of no role, words only in CSS. Only a POST form was
+    // judged, and the adversarial review of KAN-861 sent the application this way past both guards. So a wizard
+    // whose Next submits a GET form is a step no code presses: a Handoff, and the student's press on the held page.
+    const scripted = gets(form, by) && !loginForm(form);
     if (final || scripted) stopNow(event);
     if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
@@ -1202,6 +1236,20 @@ _TEMPLATE = r"""
   // leaves (the navigate check) all the same.
   const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
   const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  // A root the page wrote (a declarative shadow root) that no press passes through: heard as a script submits a form
+  // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
+  // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
+  const hearRootOf = (node) => { try { const root = rootOf(node); if (isRoot(root)) hearRoot(root); } catch (e) {} };
+  const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+  if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
+    hearRootOf(this);
+    return apply(pageRequestSubmit, this, args);
+  }, writable: true, configurable: true});
+  const pageDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(...args) {
+    hearRootOf(this);
+    return apply(pageDispatch, this, args);
+  }, writable: true, configurable: true});
   const attachShadowOf = EP.attachShadow;
   EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
   const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };

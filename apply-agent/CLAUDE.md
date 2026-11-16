@@ -360,16 +360,26 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
-- **A GET form's submit is judged as a POST form's** (KAN-868). A form with
-  no method whose own submit handler posts the application (a React form's
-  onSubmit) sent it past both guards when a press of anything else of the
-  form's submitted it: a Next, a dropdown made of a submit button, one the
-  page turned into a submit button as it was pressed (the adversarial review
-  of KAN-861). While a guard is on, the submit of a GET form that has a
-  button that sends reaches none of the page's handlers, as a final one never
-  does; a held page's own press of the student's goes through as before. A
-  wizard whose Next submits the same GET form as its Submit is now a step
-  plain code can't press: a Handoff.
+- **A GET form's submit reaches none of the page's handlers while a guard
+  is on** (KAN-868). A form with no method whose own submit handler posts
+  the application (a React form's onSubmit, by fetch to any URL) sent it past
+  both guards when a press of anything else of the form's submitted it: a
+  Next, a dropdown made of a submit button, one the page turned into a submit
+  button as it was pressed (the adversarial review of KAN-861). A test of the
+  form's buttons was got round each way the review of KAN-868 tried: a
+  Submit the press renamed, blanked or took away, one renamed on pointerdown,
+  one outside the form with no `form=`, a `<div>` of no role, words only in
+  CSS. So every GET form's submit is stopped (a dialog's form, which sends
+  nothing, still closes, and so does a sign-in step whose only boxes are an
+  email or user name and passwords: iCIMS's email step), and a wizard whose Next submits a GET form is a
+  step no code or model presses: a Handoff, the student's on the held page,
+  whose own press goes through as before. A form in a shadow root the page
+  wrote is heard as a script submits it or dispatches an event in its root
+  (`hearRootOf`), as one a press passes through always was. The guard
+  scripts are one function each, built from shared parts: a name two parts
+  declare stops the whole script with no error Apply sees, and every page
+  is unguarded. That happened twice while KAN-868 was built;
+  `tests/test_guard_scripts_compile.py` (CI) compiles each script.
 - **A request body is read as its server reads it, never by a regex on
   its text** (KAN-791). One regex on Ashby's `operationName` let through
   escaped JSON, a submit named only in `query`, a batch, and form or

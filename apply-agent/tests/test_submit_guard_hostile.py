@@ -679,6 +679,39 @@ GET_FORM_PAGES = {
     "a GET form whose Next turns into a submit button as it is pressed": {START: _GET_FORM % """<button type=button id=b>Next</button>
         <script>b.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);
         b.addEventListener('mousedown', (e) => e.currentTarget.type = 'submit', true);</script>"""},
+    # The Submit stops saying it sends during the press, before the submit fires (the review of KAN-868): the guard
+    # judges the form as it stood when the press went down or landed.
+    "a GET form whose Next renames its Submit as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => { s.textContent = 'Saving'; });</script>"},
+    "a GET form whose Next blanks its Submit as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => { s.textContent = ''; });</script>"},
+    "a GET form whose Next takes its Submit away as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => s.remove());</script>"},
+    "a GET form whose Submit is renamed as the Next goes down": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % """<button id=b>Next</button><script>for (const k of ['pointerdown', 'mousedown'])
+        b.addEventListener(k, () => { s.textContent = 'Saving'; }, true);</script>"""},
+    "a GET form a Next submits by script with its Submit renamed for the moment": {START: _GET_FORM.replace(
+        "<button type=submit>", "<button id=s type=submit>") % """<button id=b type=button>Next</button><script>
+        b.addEventListener('click', () => { s.textContent = 'Saving'; f.requestSubmit(); s.textContent = 'Submit application'; });
+        </script>"""},
+    # A Submit no test of the form's buttons sees, so a Next's submit went through as a step's (the review of KAN-868).
+    "a GET form whose Submit sits outside it with no form attribute": {START: _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % "<button id=b>Next</button>"
+        + "<footer><button type=button onclick='f.requestSubmit()'>Submit application</button></footer>"},
+    "a GET form whose Submit is a div of no role": {START: _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button id=b>Next</button>
+        <div onclick='f.requestSubmit()'>Submit application</div>"""},
+    "a GET form whose Submit says so in its CSS alone": {START: "<style>#s::before { content: 'Submit application' }</style>"
+        + _GET_FORM.replace("<button type=submit>Submit application</button>", "") % """<button id=b>Next</button>
+        <button id=s type=button onclick='f.requestSubmit()'></button>"""},
+    # A GET form in a shadow root the page wrote, submitted by a Next outside it: its submit stays in the root.
+    "a GET form in a declarative shadow root that a Next outside it submits": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button>
+        <div id=h><template shadowrootmode=open><form id=f><input name=first value=Test>
+        <button type=submit>Submit application</button></form></template></div>
+        <script>const f = h.shadowRoot.getElementById('f'); f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
+        b.addEventListener('click', () => f.requestSubmit());</script>"""},
 }
 PAGES |= GET_FORM_PAGES
 BUTTON = {"a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
