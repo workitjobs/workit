@@ -273,6 +273,7 @@ def rehearse(
     stopped: each opens in its own Worker, keeps what it held, and stops at
     a sign-in for Lisul (Accounts.hands_off). Returns the
     links' first summaries in the order they ended."""
+    fill_engine.ready()  # WorkIt's engine downloaded and checked before any Worker opens: a refusal stops the run (W7)
     adapters.board.run(mode="rehearsal", queued=len(urls), waiting=list(urls))
     if unchecked := adapters.applied_before.problem():  # no silent pass: the window and the terminal say so
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))

@@ -115,7 +115,7 @@ checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
 `extension`), the `apply-setup` action (`ci.yml`'s `apply` and
 `apply-hostile`, and `apply-nightly.yml`), `extension-nightly.yml`,
-`live-canary.yml` and `publish-extension.yml` — six places, one pattern. If `actions/checkout`
+`live-canary.yml`, `publish-extension.yml` and `publish-engine.yml` — seven places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -136,11 +136,11 @@ for `autofiller_extension/test/autofiller_extension/fill-engine`, found
 nothing, and failed every run with "fatal: cannot change to
 'autofiller_extension/fill-engine': No such file or directory" right after a
 successful submodule checkout. Fixed by adding `working-directory: .` on the
-pin step itself in every job that sets a non-root default (five of the six:
-all but `publish-extension.yml`, which sets no job-wide default and was
-never affected). A step's own `working-directory:` is always resolved from
+pin step itself in every job that sets a non-root default (five of the seven:
+all but `publish-extension.yml` and `publish-engine.yml`, which set no
+job-wide default). A step's own `working-directory:` is always resolved from
 `$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
-to copy into a sixth place if one is ever added. The `apply-setup` action's
+to copy into another place if one is ever added. The `apply-setup` action's
 copy sets it too.
 
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
@@ -636,6 +636,73 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Publish the Fill engine (`workflows/publish-engine.yml`, KAN-836)
+
+Signs the engine that `main`'s fill-engine pointer records and puts it last
+in the private `ApplyEngine` Storage bucket's `builds.json`, where WorkIt
+Auto Apply downloads it (`GET /apply-app/engine`, W7 of
+`../docs/desktop_application_auto_apply.md`). It runs
+`backend/app/scripts/publish_engine.py publish`.
+
+- **When.** A push to `main` that moves the engine pointer or
+  `backend/app/scripts/engine_min_app.txt`, and by hand from `main`
+  (`gh workflow run publish-engine.yml`). Never on a PR: whoever holds the
+  key makes every app run what it signs, and a PR's run is the PR's code.
+  A run whose engine is already last in `builds.json` at that min app
+  uploads nothing, so a re-run is safe. A pointer moved back to an older
+  engine puts that build last again, so a revert rolls the engine back.
+  An edit to the workflow starts no publish.
+- **The min app** (`engine_min_app.txt`) is the oldest app version that the
+  pointer's engine fits. Raise it in the PR that moves the pointer to an
+  engine older apps can't run: they keep the build before it. The workflow
+  publishes only `main`'s engine, so a fix for older apps alone is a
+  hand-run publish with its own `--engine` and `--min-app`.
+- **It signs only a reviewed engine.** The pin step makes it the commit
+  `main` records, and on the pointer's PR `ci.yml`'s `extension` job
+  checked that this commit's `dist/` is what its `src/` builds.
+- **The script refuses a key whose public half Apply doesn't hold**
+  (`PUBLIC_KEY` in `apply-agent/src/apply/engine_download.py`). Signed by
+  another key, the build is refused by every app, with a message that
+  blames the student's network. When W0 moves Apply to its own repo,
+  `publish_engine.APP_KEY` must read the key from there.
+- **Secrets:**
+  - `APPLY_ENGINE_SIGNING_KEY`, the private key's PEM from `make-key`, is a
+    secret of the **`apply-engine` environment**, never a repo secret. The
+    environment takes jobs from `main` only, so a workflow pushed to any
+    other branch can't read it; a repo secret reaches every branch's
+    workflows. A job that names an environment that doesn't exist makes it
+    with no branch rule, so make the environment before the first run.
+  - `CF_API_SECRETS_JSON`: the step takes its `SUPABASE_URL` and
+    `SUPABASE_SERVICE_KEY`, so the build goes to the project the deployed
+    API reads, with no second copy of the service key. It masks the key it
+    takes out: GitHub masks only a secret's whole value.
+  - `FILL_ENGINE_TOKEN`, for the submodule, as in `publish-extension.yml`.
+    Without it the job fails at checkout.
+- **One run at a time** (group `publish-engine`): each run reads
+  `builds.json` and writes it back, so never run the script by hand while a
+  run is going.
+- **A failed run leaves the last build served.** GitHub emails the person
+  whose merge started it; nothing else tells the team.
+- **Setup, once, in this order.** The key and the bucket are the user's
+  steps (a script that writes production Storage, the dashboard), never
+  Claude's.
+  1. `cd backend && uv run python -m app.scripts.publish_engine make-key
+     <file outside every checkout>`, and a PR that puts the public half it
+     prints in `engine_download.PUBLIC_KEY`. Merge it before the first run.
+  2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
+     bucket, Public off.
+  3. The environment, then its secret:
+     `gh api -X PUT repos/workitjobs/workit/environments/apply-engine -F
+     'deployment_branch_policy[protected_branches]=false' -F
+     'deployment_branch_policy[custom_branch_policies]=true'`, then
+     `gh api -X POST
+     repos/workitjobs/workit/environments/apply-engine/deployment-branch-policies
+     -f name=main -f type=branch`, then `gh secret set
+     APPLY_ENGINE_SIGNING_KEY --env apply-engine --repo workitjobs/workit <
+     <file>`.
+  4. `gh workflow run publish-engine.yml --ref main`, then check its log for
+     "Published".
 
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 

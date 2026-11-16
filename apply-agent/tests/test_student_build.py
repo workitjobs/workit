@@ -278,3 +278,17 @@ def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch)
     runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
 
     assert site.busy == 0
+
+
+def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
+    """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
+    removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""
+    from apply.home import HOME
+    from apply.tracker import EmployerAccount, WorkItTracker
+
+    applicant = profile.ApplicantProfile.load(HOME / "applicant-profile.yaml")
+    account = EmployerAccount("Acme", "acme.wd1.myworkdayjobs.com", "test.person@example.com", date(2026, 11, 15))
+    first = student.adapters(applicant)
+    assert isinstance(first.tracker, WorkItTracker)
+    first.tracker.add_employer_account(account)
+    assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's
