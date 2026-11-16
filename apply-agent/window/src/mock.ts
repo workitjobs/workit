@@ -1,7 +1,8 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|ready|quiet,
-// and the day's model use with ?usage=near|cap. Answers and approvals change it
-// as Apply would, so the whole flow can be clicked through.
+// the day's model use with ?usage=near|cap, and the start screen's queue with
+// ?queue=empty|unread|refused (refused: Start gives #613's error). Answers and
+// approvals change it as Apply would, so the whole flow can be clicked through.
 import type { ApplyState, Shown } from "./apply.ts";
 import type { Bridge, Queued, Usage } from "./bridge.ts";
 
@@ -85,7 +86,11 @@ const QUEUE: Queued[] = [
 const CAP = 400_000;
 const USED: Record<string, number> = { near: 340_000, cap: CAP };
 
-export function mock(scenario: string, used = USED[new URLSearchParams(location.search).get("usage") ?? ""] ?? 52_000): Bridge {
+export function mock(
+  scenario: string,
+  used = USED[new URLSearchParams(location.search).get("usage") ?? ""] ?? 52_000,
+  queued = new URLSearchParams(location.search).get("queue") ?? "",
+): Bridge {
   let state = structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)());
   const listeners = new Set<(s: ApplyState) => void>();
   const push = () => listeners.forEach((on) => on(structuredClone(state)));
@@ -121,8 +126,13 @@ export function mock(scenario: string, used = USED[new URLSearchParams(location.
       push();
     },
     app: Promise.resolve({
-      queue: async () => QUEUE,
+      async queue() {
+        if (queued === "unread") throw new Error("WorkIt Auto Apply couldn't read your queue (WorkIt didn't answer). Paste a link instead.");
+        return queued === "empty" ? [] : QUEUE;
+      },
       async start(links: string[]) {
+        await new Promise((done) => setTimeout(done, 800));
+        if (queued === "refused") throw new Error("Chrome isn't installed. Get it from google.com/chrome, then press Start again.");
         state = structuredClone(SCENARIOS.quiet());
         push();
         return links.length;
