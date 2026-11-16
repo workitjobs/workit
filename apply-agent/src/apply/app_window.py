@@ -387,15 +387,25 @@ class Bridge:
         """The student's queued, open jobs on WorkIt, oldest first, as {url, company, title, logo_url, company_domain}
         (the logo sources the website draws each job with); or {error}."""
         try:
-            rows = self._client.call("GET", f"/applicants/{self._client.applicant_id()}/applications?stage=queued")
+            rows = self._applications("queued")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
-        jobs = [row["job"] for row in reversed(rows) if row.get("open")]
-        queued = [{"url": job.get("form_url") or job["apply_url"]}
-                  | {key: job.get(key) or ("" if key in ("company", "title") else None) for key in QUEUED_JOB}
-                  for job in jobs]
+        queued = [_job(row["job"]) for row in reversed(rows) if row.get("open")]
         self._queued |= {job["url"]: {key: job[key] for key in QUEUED_JOB} for job in queued}
         return queued
+
+    def applied(self) -> list[dict] | dict:
+        """What the student applied to, on WorkIt (their Tracker's Applied, from any run or by hand), newest first,
+        each as queue() names a job, with its `applied_at`; or {error}. The student page's Applied lists these
+        after this run's."""
+        try:
+            rows = self._applications("applied")
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt Auto Apply couldn't read what you applied to ({error})."}
+        return [_job(row["job"]) | {"applied_at": row.get("applied_at")} for row in rows]
+
+    def _applications(self, stage: str) -> list[dict]:
+        return self._client.call("GET", f"/applicants/{self._client.applicant_id()}/applications?stage={stage}")
 
     def usage(self) -> dict:
         """Today's model use: {used, cap, resets_at}, or {error}."""
@@ -500,6 +510,13 @@ class Bridge:
         if not self.signed_in():
             return SIGN_IN
         return self._page() if self._first.step() == READY else FIRST_RUN
+
+
+def _job(job: dict) -> dict:
+    """A WorkIt job as the window names it (QUEUED_JOB), by the link Apply opens: its employer's form when the
+    posting named one, else its job board's page."""
+    return {"url": job.get("form_url") or job["apply_url"]} \
+        | {key: job.get(key) or ("" if key in ("company", "title") else None) for key in QUEUED_JOB}
 
 
 def notify(title: str, message: str) -> None:

@@ -273,6 +273,31 @@ def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path
         ]
 
 
+def test_applied_is_what_the_student_applied_to_on_workit_newest_first(board, tmp_path):
+    """Fault (story 36): the Applied page lists only this run's jobs, not what the student applied to before."""
+    from fake_workit import Reply
+
+    rows = [
+        {"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                 "company_domain": "acme.com"}, "stage": "applied", "applied_at": "2026-11-14T10:00:00Z", "open": False},
+        {"job": {"apply_url": "https://www.linkedin.com/jobs/2", "form_url": "https://boards.greenhouse.io/y/1",
+                 "company": "Y", "title": "Analyst"}, "stage": "applied", "applied_at": None, "open": True},
+    ]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications",
+                   lambda seen, fake: Reply(200, rows) if seen.path.endswith("stage=applied") else Reply(400))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        assert Bridge(board, client).applied() == [
+            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern", "logo_url": None,
+             "company_domain": "acme.com", "applied_at": "2026-11-14T10:00:00Z"},
+            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst", "logo_url": None,
+             "company_domain": None, "applied_at": None},
+        ]
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(500))
+        assert "error" in Bridge(board, client).applied()
+
+
 def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board, tmp_path):
     """Fault: a job ticked in the queue lost its logo once its run started (KAN-871)."""
     from fake_workit import Reply
