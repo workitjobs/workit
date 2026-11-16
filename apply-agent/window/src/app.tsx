@@ -6,7 +6,7 @@ import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -273,10 +273,11 @@ function Row({ job }: { job: Job }) {
         <span className="w-28 text-right">
           <span className="block text-xs text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
           <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
-            <span
-              className={cx("block h-full rounded-full bg-brand transition-[width] duration-700", job.status === "checking" && "animate-pulse")}
-              style={{ width: `${job.status === "checking" ? 95 : Math.max(8, (job.progress ?? 0.3) * 100)}%` }}
-            />
+            {bar(job) === "unknown" ? (
+              <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
+            ) : (
+              <span className="block h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${Math.max(8, (bar(job) as number) * 100)}%` }} />
+            )}
           </span>
         </span>
       )}

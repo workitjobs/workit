@@ -79,8 +79,24 @@ textarea {
 .rise {
   animation: rise 0.25s ease-out;
 }
+/* A bar with no count yet: a third of it sweeps across, so it moves without claiming a share. */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.sweep {
+  animation: sweep 1.4s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .rise {
     animation: none;
+  }
+  .sweep {
+    animation: none;
+    opacity: 0.5;
   }
 }

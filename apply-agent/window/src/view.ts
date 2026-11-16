@@ -157,6 +157,10 @@ export function checks(s: Shown): string[] {
   ].filter((line): line is string => !!line);
 }
 
+// How far a job still being worked on has got, for its bar: the share of questions filled, or "unknown" while Apply
+// hasn't counted them (it counts them when a fill pauses or ends) or checks the answers. Never a made-up share.
+export const bar = (job: Job): number | "unknown" => (job.progress === undefined ? "unknown" : job.progress);
+
 // + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run,
 // since app_window.Bridge.start refuses a second while one goes.
 export const addsJobs = (v: View, canStart: boolean) => canStart && !v.running;

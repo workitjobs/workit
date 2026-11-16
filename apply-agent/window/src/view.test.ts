@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, checks, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -361,4 +361,13 @@ test("the Submit card lists only what Apply says it did: checked against the pro
   ]);
   assert.deepEqual(checks(job({ tone: "ready", files: [{ label: "Unofficial transcript", name: "t.pdf" }] })), ["Every question answered"]);
   assert.deepEqual(checks(job({ tone: "ready", files: [{ label: "Upload your résumé", name: "r.pdf" }] })), ["Every question answered", "Resume attached"]);
+});
+
+test("a form filling with no count yet shows a bar that moves, never a made-up share", () => {
+  const [counted] = view({ tiles: [job({ filled: 14, asked: 22 })], items: [] }).working;
+  const [uncounted] = view({ tiles: [job({})], items: [] }).working;
+  const [checking] = view({ tiles: [job({ tone: "verifying" })], items: [] }).working;
+  assert.equal(bar(counted), 14 / 22);
+  assert.equal(bar(uncounted), "unknown");
+  assert.equal(bar(checking), "unknown");
 });
