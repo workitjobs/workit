@@ -2,7 +2,7 @@
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Run, Shown, Waiting } from "./apply.ts";
 import type { AppliedJob, Queued, Usage } from "./bridge.ts";
-import { DEVELOPER } from "./words.ts";
+import { DEVELOPER, said } from "./words.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
 
@@ -203,6 +203,17 @@ export function chosen(queue: Queued[], ticked: boolean[], pasted: string): stri
 }
 
 export const startWords = (n: number) => `Start applying to ${plural(n, "job")}`;
+
+// How long "Starting N applications…" waits for the run's board before it asks Apply whether the run is going.
+export const STARTING_WAIT = 30_000;
+
+// Why a run whose board never showed didn't start, from app_window.Bridge.status() (or its failure): "" while it
+// is still going, so the page keeps waiting; else the line under Start, with the queue back.
+export function notStarted(status: { running: boolean; said: string } | Error): string {
+  if (status instanceof Error) return "Your applications didn't start. Press Start to try again.";
+  if (status.running) return "";
+  return status.said ? said(status.said) : "Your applications didn't start. Press Start to try again.";
+}
 
 // The line over the paste box: why there is no queue to tick. Nothing while it is read, or once it lists jobs.
 export function queueNote(queue: Queued[] | Error | null): string {

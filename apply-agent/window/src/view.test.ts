@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -370,4 +370,15 @@ test("a form filling with no count yet shows a bar that moves, never a made-up s
   assert.equal(bar(counted), 14 / 22);
   assert.equal(bar(uncounted), "unknown");
   assert.equal(bar(checking), "unknown");
+});
+
+test("a run whose board never showed brings the queue back, saying why it didn't start", () => {
+  assert.equal(notStarted({ running: true, said: "" }), ""); // still starting: keep waiting
+  assert.equal(notStarted({ running: false, said: "" }), "Your applications didn't start. Press Start to try again.");
+  assert.equal(
+    notStarted({ running: false, said: "Google Chrome isn't installed. Install it." }),
+    "Google Chrome isn't installed. Get it from google.com/chrome, then press Start again.",
+  );
+  assert.equal(notStarted({ running: false, said: "The run stopped: KeyError: 'x'" }), "Applying stopped because something went wrong. Press Start to try again.");
+  assert.equal(notStarted(new Error("Apply didn't take that.")), "Your applications didn't start. Press Start to try again."); // status() itself failed
 });

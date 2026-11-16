@@ -6,7 +6,7 @@ import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -306,6 +306,19 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
   const jobs = Array.isArray(queue) ? queue : [];
   const links = chosen(jobs, ticked, link);
   const note = queueNote(queue);
+  // A run whose board never shows: once STARTING_WAIT has passed, and each 5 s after, ask whether it still goes.
+  useEffect(() => {
+    if (!started || !app.status) return;
+    let live = true;
+    let timer = setTimeout(function look() {
+      app.status!().then(notStarted, (e: Error) => notStarted(e)).then((line) => {
+        if (!live) return;
+        if (line) setStarted(false), setWhy(line);
+        else timer = setTimeout(look, 5_000);
+      });
+    }, STARTING_WAIT);
+    return () => ((live = false), clearTimeout(timer));
+  }, [started, app]);
   const start = () => {
     setStarted(true);
     setWhy("");
