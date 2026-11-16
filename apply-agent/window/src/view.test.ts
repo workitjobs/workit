@@ -150,6 +150,21 @@ test("the heading names the one kind of to-do there is, or that there is none", 
   assert.equal(headline(view({ tiles: [], items: [] })), "You're all caught up");
 });
 
+test("the heading counts the questions waiting, not the jobs that ask them", () => {
+  const six = job({ tone: "needs", kind: "missing fact", questions: ["a", "b", "c", "d", "e", "f"] });
+  assert.equal(headline(view({ tiles: [], items: [six] })), "6 quick questions for you");
+  const one = job({ tone: "needs", kind: "missing fact", posting_url: "https://o", questions: ["a"] });
+  assert.equal(headline(view({ tiles: [], items: [six, one] })), "7 quick questions for you");
+});
+
+test("with only jobs that didn't go through left, the heading says so", () => {
+  const failed = (url: string) => job({ tone: "failed", posting_url: url });
+  assert.equal(headline(view({ tiles: [], items: [failed("https://a"), failed("https://b")] })), "2 applications didn't go through");
+  assert.equal(headline(view({ tiles: [], items: [failed("https://a")] })), "1 application didn't go through");
+  const sent = job({ tone: "submitted", posting_url: "https://s" });
+  assert.equal(headline(view({ tiles: [], items: [failed("https://a"), sent] })), "1 application didn't go through");
+});
+
 test("a tile's to-do is answered through its item and opened through its tile", () => {
   // A form still filling asks its Missing fact at once: the tile says so, and its live item carries the question.
   const tile = job({ tone: "needs", kind: "missing fact" });

@@ -157,7 +157,11 @@ function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
             <CheckIcon weight="bold" className="size-5" />
           </span>
           <p className="flex-1 text-ink-meta">
-            {v.working.length || v.queued ? "Nothing needs you right now. We'll send a notification when something does." : "Every application is done."}
+            {v.working.length || v.queued
+              ? "Nothing needs you right now. We'll send a notification when something does."
+              : v.stopped.length
+                ? "Each one is below, with why. Try again where it's offered."
+                : "Every application is done."}
           </p>
         </div>
       )}

@@ -131,11 +131,16 @@ export function view(state: ApplyState): View {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-// The page's heading: what the student should do now, in a few words.
+// The page's heading: what the student should do now, in a few words. Questions count one by one, since a job
+// asks each on its own card.
 export function headline(v: View): string {
   const n = v.todo.length;
-  if (!n) return v.working.length || v.queued ? "We're on it" : "You're all caught up";
-  if (v.todo.every((j) => j.ask === "question")) return `${plural(n, "quick question")} for you`;
+  if (!n && (v.working.length || v.queued)) return "We're on it";
+  if (!n) return v.stopped.length ? `${plural(v.stopped.length, "application")} didn't go through` : "You're all caught up";
+  if (v.todo.every((j) => j.ask === "question")) {
+    const asked = v.todo.reduce((sum, j) => sum + Math.max(1, j.source.questions?.length ?? 0), 0);
+    return `${plural(asked, "quick question")} for you`;
+  }
   if (v.todo.every((j) => j.ask === "submit")) return `${plural(n, "application")} ready to submit`;
   return `${plural(n, "thing")} for you to do`;
 }
