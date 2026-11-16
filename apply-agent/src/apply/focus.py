@@ -41,6 +41,7 @@ from contextlib import contextmanager
 CLICKED = 1.0  # s: an app that came forward this soon after a click or Cmd-Tab came forward by it
 HELD = 3.0  # s: the longest Cmd is held down for one Cmd-Tab
 EVERY = 0.2  # s between looks at the front app
+COMING = 2.0  # s an app Lisul asked for (bring) may take to come to the front
 # CoreGraphics' event source state of the hardware, and its event types.
 HID_STATE = 1
 MOUSE_DOWNS = (1, 3, 25)  # left, right, other
@@ -175,6 +176,7 @@ class FocusKeeper:
         self._watched: dict[int, float] = {}  # pid -> when to stop watching it (inf: till forgotten)
         self._launching = 0
         self._yours: int | None = None
+        self._coming = float("-inf")  # till when the app he asked for (bring) may still be on its way
         self._seen = float("-inf")  # when his app was last seen in front
         self._under: int | None = None  # whose window was under the pointer then, after a click
         self._command = float("-inf")  # when a look last saw Cmd held down
@@ -208,7 +210,7 @@ class FocusKeeper:
         """Bring `pid` to the front for Lisul, who asked for it (Open in Chrome
         in the Apply window): it is his app now, however long it takes to come."""
         with self._lock:
-            self._yours = pid
+            self._yours, self._coming = pid, self._now() + COMING
         return self._give(pid)
 
     def front(self) -> int | None:
@@ -222,9 +224,12 @@ class FocusKeeper:
         if command:
             self._command = now
         if front is not None and front == self._yours:
+            self._coming = float("-inf")  # it came
             self._seen = now
             self._under = self._pointed() if self._clicked() < CLICKED else None  # where a click landed
         if front is None or front == self._yours:
+            return
+        if now < self._coming:  # the app he left, still in front a moment before the one he asked for comes
             return
         with self._lock:
             self._watched = {pid: until for pid, until in self._watched.items() if until > now}

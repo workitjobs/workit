@@ -14,10 +14,13 @@ class FakeMac:
         self.under: int | None = None  # whose window is under the pointer
         self.key, self.modifier, self.command = 60.0, 60.0, False  # since a key, a modifier; Cmd held
         self.running = {MAIL, NOTES, WORKER, WINDOW}
+        self.late: set[int] = set()  # apps macOS brings only a moment after they are asked to (bring them by hand)
 
     def give(self, pid: int) -> bool:
         if pid not in self.running:
             return False
+        if pid in self.late:
+            return True
         self.front = pid
         return True
 
@@ -134,6 +137,39 @@ def test_a_workers_chrome_lisul_asks_for_comes_forward_and_stays():
     keeper.turn()
 
     assert mac.front == WORKER
+
+
+def test_a_chrome_lisul_asks_for_that_comes_forward_late_is_not_sent_back_to_the_window():
+    """Seen live: Open form brought the Worker's Chrome, then the focus went straight back to the Apply window. macOS
+    brings an app a moment after it is asked to, so a look in between still saw the window in front, took it for his
+    own switch, and handed the focus back to it once the Chrome came."""
+    mac = FakeMac(front=WINDOW)
+    mac.late = {WORKER}
+    keeper = mac.keeper()
+    keeper.watch(WORKER)
+
+    assert keeper.bring(WORKER)
+    mac.now, mac.clicked = 0.2, 60.0
+    keeper.turn()  # the window is still in front
+    mac.now, mac.front = 0.4, WORKER  # the Chrome comes
+    keeper.turn()
+
+    assert mac.front == WORKER
+
+
+def test_lisul_leaving_a_chrome_he_asked_for_before_it_came_is_his_choice():
+    mac = FakeMac(front=WINDOW)
+    mac.late = {WORKER}
+    keeper = mac.keeper()
+    keeper.watch(WORKER)
+
+    keeper.bring(WORKER)
+    mac.now, mac.front = 5.0, MAIL  # it never came; long after, he is in Mail, and a Worker pops up
+    keeper.turn()
+    mac.front = WORKER
+    keeper.turn()
+
+    assert mac.front == MAIL
 
 
 def test_a_click_in_the_apply_window_just_before_a_chrome_comes_forward_keeps_the_window_in_front():
