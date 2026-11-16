@@ -52,6 +52,16 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
 The scraper never touches the database, and the website never touches the
 database. Each hands its output to the next stage.
 
+**Two pipelines, one import.** Jobs enter the database through two paths:
+the **CLI scraper** (`python3 -m workit_scraper`) writes `feed.json` and a
+separate `import_jobs.py` run loads it, while the **backend worker**
+(`backend/app/scraper/worker.py`) reads boards as a library and calls
+`import_feed` directly, with no feed file. Both paths converge at
+`import_feed` (`backend/app/scripts/import_jobs.py`), which owns the upsert,
+location resolution and role tagging. The CLI path is
+simpler and useful for development and offline testing; the worker is the
+production path with per-board checkpoint resilience (section 3.3).
+
 ---
 
 ## 2. Finding companies
@@ -144,18 +154,38 @@ on the computer.
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
-**The worker (`backend/app/scraper/worker.py`) runs the same scraper as a
-library in two phases** (KAN-733). Phase 1 reads each board's listing and
-filters by title only — no description pages are fetched during the board
-read. Providers that return descriptions inline (Lever, Ashby, Recruitee)
-stamp them during phase 1. Phase 2, after all boards finish, fetches
-description pages for postings that need them: up to 500 per cycle,
-ordered by board and first-seen time, in 8 threads. A description is enrichment only: it
-updates the posting's page-derived fields (description, salary, job type,
-work style, experience level, start term, sponsorship) but never filters a
-posting out. Version tracking on `job_sources.description_version` means only
-new or stale descriptions are fetched, and a failure is retried only on the
-next `PAGE_VERSION` bump.
+### 3.3 The backend worker
+
+The **backend worker** (`backend/app/scraper/worker.py`, KAN-733) runs the
+same scraper as a library and publishes directly to the database through
+`import_feed`, with no feed file. It is the production path; the CLI scraper
+above is for development and offline testing.
+
+| | CLI scraper | Backend worker |
+|---|---|---|
+| **State** | `jobs.json` (flat file) | `scraper_schedules`, `scraper_tasks`, `job_sources` (database tables) |
+| **Output** | `feed.json` → `import_jobs.py` as a script | Calls `import_feed` directly per board |
+| **Checkpoint** | All boards finish, then one feed, one import | Each board publishes independently |
+| **Closures** | Feed diff: a job not in the feed is closed | Two-complete-read rule on `job_sources` |
+
+**Phase 1** reads each board's listing through `asyncio.to_thread`, filters
+by `classify(title)` alone (no page fetches) and publishes each board's kept
+jobs through `import_feed` as soon as it finishes. A failed board logs and
+continues; it never stalls the rest. Providers that return descriptions
+inline (Lever, Ashby, Recruitee) stamp them during phase 1.
+
+**Phase 2**, after all boards finish, fetches description pages for postings
+that need them: up to 500 per cycle, ordered by board and first-seen time,
+in 8 threads. A description is enrichment only: it updates the posting's
+page-derived fields (description, salary, job type, work style, experience
+level, start term, sponsorship) but never filters a posting out. Version
+tracking on `job_sources.description_version` means only new or stale
+descriptions are fetched, and a failure is retried only on the next
+`PAGE_VERSION` bump.
+
+**Closure detection** runs globally after phase 2. A job stale on every
+enabled board (two complete reads without it, tracked in `job_sources`) is
+closed with reason `gone_from_board`.
 
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
@@ -299,6 +329,13 @@ transaction**: if any step fails, nothing changes.
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
 | 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens. A job a student added from its form (KAN-515, `added_by_student`) is never closed, since the feed never had it; a feed that lists its link makes it an ordinary scraped job, keeping its applications. A student can't reopen a closed job by adding its form: that link is refused. Apply's tracking (`track_only`) puts the student's application on the closed job and leaves it closed |
+
+**Repost detection.** The scraper's feed.json carries a `repost` boolean
+for offline inspection: a job whose `posted_at` is more than 7 days after
+its `first_seen_at` (`_REPOST_DAYS` in `shortlist.py`). The database stores
+no repost column; a consumer that needs it computes
+`posted_at::date - created_at::date > 7` from the two dates already on the
+row.
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.

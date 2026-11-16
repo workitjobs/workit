@@ -360,6 +360,16 @@ rejected. Tag names are the `Tag` enum, which the page's filter chips read.
 the employer's claim and can be re-stamped; our own observation cannot, which
 is what makes it worth more.
 
+## Repost detection
+
+`shortlist._is_repost`: a same-URL repost is a job whose `posted_at` is more
+than `_REPOST_DAYS` (7) after `first_seen_at`. The employer refreshed the
+listing at the same URL, bumping its date forward. Both timestamps already
+live on every `Job`; no new stored field is needed. The flag rides on `Role`,
+through `feed.row` into `feed.json` for offline inspection. The database
+stores no repost column; a consumer computes it from `posted_at` and
+`created_at` on the row.
+
 ## "New today" lives in `store.py`
 
 `Store.is_new`: **first seen in the 24 hours up to the scrape, on a board we
