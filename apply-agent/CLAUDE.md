@@ -385,7 +385,14 @@ into it and the window shows "Sample data".
   in its root, and a closed one as its element's internals hand it over
   (`hearRootOf`), as one a press passes through always was; an open one as
   a script first reaches it (`shadowRoot`, `getRootNode()`, an event's
-  `composedPath()`), so the guard's listener there is the first. The guard
+  `composedPath()`), so the guard's listener there is the first. That
+  order can still be beaten from inside a root (a custom element in it
+  that listens on its root as it connects: round 4 of the review), so the
+  press itself is stopped too: a click on a submit button of a form that
+  doesn't POST is cancelled at the window, before any of the page's
+  listeners, and a script's `requestSubmit()` of one is refused. The sign-in
+  step's page check also reads same-origin frames and every root the guard
+  has heard, closed ones too. The guard
   scripts are one function each, built from shared parts: a name two parts
   declare stops the whole script with no error Apply sees, and every page
   is unguarded. That happened twice while KAN-868 was built;

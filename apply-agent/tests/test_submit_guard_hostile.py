@@ -761,6 +761,18 @@ GET_FORM_PAGES = {
         </template></div><script>const r = h.shadowRoot; r.addEventListener('submit', (e) => { e.preventDefault();
         fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);
         b.addEventListener('click', () => r.getElementById('f').requestSubmit());</script>"""},
+    # Round 4: a page's listener on its declarative root, added from inside the root before any press, so the press
+    # itself is stopped at the window; a dressed-up sign-in whose answers sit in a frame or a closed root.
+    "a declarative root a script inside it listens on": {START: """<title>Apply</title><div id=h><template shadowrootmode=open>
+        <form id=f><input name=first value=Test><button id=b>Next</button><button>Submit application</button>
+        <x-hook></x-hook></form></template></div><script>customElements.define('x-hook', class extends HTMLElement {
+        connectedCallback() { let n = this; while (n.parentNode) n = n.parentNode; n.addEventListener('submit', (e) => {
+        e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true); } });</script>"""},
+    "a GET form dressed as a sign-in step with its answers in a frame": {START: _LOGIN_DRESS
+        % '<iframe srcdoc="<label>Why us? <textarea>Because</textarea></label>"></iframe>'},
+    "a GET form dressed as a sign-in step with its answers in a closed root": {START: _LOGIN_DRESS % """<x-q></x-q><script>
+        customElements.define('x-q', class extends HTMLElement { constructor() { super();
+        this.attachShadow({mode: 'closed'}).innerHTML = '<label>Phone <input name=phone value=555></label>'; } });</script>"""},
 }
 PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under

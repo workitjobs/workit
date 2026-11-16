@@ -432,7 +432,9 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.evaluate("document.getElementById('login').requestSubmit()")
         page.wait_for_timeout(500)
         assert server.sign_ins == []
-        assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+        # The script's requestSubmit() of the GET sign-in form is refused before its submit (KAN-868), by its own note.
+        assert drive.blocked()[0] == 'the "Sign In" click' and len(drive.blocked()) == 2
+        assert drive.blocked()[1] in ("a sign-in", "a form submission (GET https://jobs.smartrecruiters.com/Acme/7431/login, by a script)")
 
 
 @pytest.mark.parametrize("invisible_captcha", [True, False])

@@ -1049,6 +1049,9 @@ _TEMPLATE = r"""
   // anywhere, or a shown box another form doesn't hold: round 2 of KAN-868's review put the answers outside the
   // form, or moved them out as the Next was pressed). Its GET submit goes on as before (KAN-868).
   const LOGIN_BOX = /e-?mail|user|login|account/i;
+  const iframeDoc = get(HTMLIFrameElement.prototype, 'contentDocument'), frameDoc = get(HTMLFrameElement.prototype, 'contentDocument');
+  const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
+  const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
   const loginForm = (form) => {
     const all_ = fields(form);
     let named = false;
@@ -1072,6 +1075,15 @@ _TEMPLATE = r"""
     }
     // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
     // can't be read: the residual of this exemption, with answers a script holds.
+    const BOX = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]';
+    // Every root the guard has heard, closed ones too, and each frame of the page's own origin (round 4).
+    for (let i = 0; i < knownRoots.length; i++) { try { if (qs(knownRoots[i], BOX)) return false; } catch (e) { return false; } }
+    const frames = all(D, 'iframe, frame');
+    for (let i = 0; i < frames.length; i++) {
+      let doc = null;
+      try { doc = frameDocOf(frames[i]); } catch (e) { continue; }  // another site's frame: null, its own document
+      try { if (doc && docQs(doc, BOX)) return false; } catch (e) { return false; }
+    }
     const hosts = all(D, '*');
     for (let i = 0; i < hosts.length; i++) {
       let root = null;
@@ -1253,12 +1265,40 @@ _TEMPLATE = r"""
     }
   });
   on('submit', judgeSubmit);
+  // A press that would submit a form that doesn't POST is cancelled at the window, before the press reaches the page
+  // (round 4 of KAN-868's review): a listener of the page's own on a shadow root, added before the guard heard that
+  // root (by a script inside it), heard the submit first, so the submit event can't be the only place it is stopped.
+  // A sign-in step under plain code's own sign-in press goes on, as at the submit; a held page's own press too.
+  const wouldSubmit = (event) => {
+    const path = composedPath(event);
+    const at = path.length ? path[0] : targetGet(event);
+    const button = up(at, 'button, input');
+    if (!button || !submitButton(button)) return null;
+    const form = formOf(button);
+    return form && !posts(form, button) ? {form, button} : null;
+  };
+  // What the submit judge lets go on, judged as the press comes: the Posting's Apply (KAN-725), plain code's sign-in
+  // with a password, a profile step's own click (KAN-647), and a sign-in step under plain code's sign-in press.
+  const pressAllowed = (form, button) => (starting !== null && button === starting)
+    || (fromPress(form, button) && password(form) && !postsFinal(form, button))
+    || (profileClick() && profileStep(button))
+    || (fromPress(form, button) && S.signIn === true && loginForm(form));
+  on('click', judged((event) => {
+    if (lifted() || held()) return;
+    const found = wouldSubmit(event);
+    if (!found) return;
+    if (pressAllowed(found.form, found.button)) return;
+    prevent(event);
+    note(formNamed(found.form, found.button));
+  }));
   // A form in a shadow root: its submit event stays in the root (it isn't composed), so the guard hears it at each
   // root a script makes, and at each one a press passes through (one the page wrote, KAN-710). Such a form is never a
   // step's, a relay or an upload's: the guard can't be sure what of it the window misses. Its post is judged as it
   // leaves (the navigate check) all the same.
   const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
-  const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  const hearRoot = (root) => {
+    if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); push(knownRoots, root); listen(root, 'submit', judgeSubmit, true); }
+  };
   // A root the page wrote (a declarative shadow root) that no press passes through: heard as a script submits a form
   // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
   // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
@@ -1266,6 +1306,14 @@ _TEMPLATE = r"""
   const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
   if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
     hearRootOf(this);
+    // A script's submit of a form that doesn't POST, while guarded: refused before any listener hears it (round 4),
+    // but a sign-in step's under plain code's own sign-in press.
+    try {
+      if (isForm(this) && !lifted() && !held() && !posts(this, args[0])
+          && !pressAllowed(this, args[0] || null)) {
+        return note(formNamed(this, args[0] || null));
+      }
+    } catch (e) { return note('what the guard could not read (a form a script submitted)'); }
     return apply(pageRequestSubmit, this, args);
   }, writable: true, configurable: true});
   // A closed root the page wrote is reached only through its element's internals; a press there by script is its
