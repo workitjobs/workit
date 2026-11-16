@@ -172,6 +172,9 @@ class Reopening:
     since: dict[str, str] = field(default_factory=dict)
 
 
+# Stop applying (KAN-874): the run's last line, and how long it waits for a form mid-fill to stop before it ends anyway.
+STOPPED_APPLYING = "Stopped applying: nothing was submitted, and each filled form was left as it was."
+STOP_WAIT = 10.0
 # The history line of a reopened form, first on its tile.
 REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
 
@@ -322,6 +325,20 @@ def rehearse(
         return True
     if removing := getattr(adapters.board, "removing", None):
         removing(remove)
+    stopped = threading.Event()
+
+    def stop() -> None:
+        """End the run (Stop applying in the student's window): no link waiting starts, and each held page is let
+        go, unsubmitted. A fill under way goes on to its own end, which never submits, unless the run's Workers
+        close first."""
+        with writing:
+            dropped.update(waiting)
+            waiting.clear()
+            told()
+        stopped.set()
+        release.set()
+    if stopping := getattr(adapters.board, "stopping", None):
+        stopping(stop)
 
     def one(n: int, url: str, worker: int | None = None) -> None:
         """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
@@ -621,25 +638,31 @@ def rehearse(
     # The waits sleep rather than block on a lock: Ctrl-C landing inside
     # Thread.join() leaves that thread looking finished to a later join.
     try:
-        while len(ended) + len(dropped & set(range(len(urls)))) < len(urls):
+        while not stopped.is_set() and len(ended) + len(dropped & set(range(len(urls)))) < len(urls):
             try:
                 ended.append(finished.get_nowait())
             except queue.Empty:
                 time.sleep(0.2)
                 continue
             out(ended[-1].line())
-        on_done()
-        if keep_open and all(done.outcome == ALREADY for done in ended):
-            out("Apply opened no form: you already applied to each link. The Apply window shows it; "
-                "press Ctrl-C to end.")
-        elif keep_open and any(thread.is_alive() for thread in threads):
-            out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
-                "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
-                "close the windows, or press Ctrl-C, to end.")
-        while any(thread.is_alive() for thread in list(threads) + feeders):
+        if not stopped.is_set():
+            on_done()
+            if keep_open and all(done.outcome == ALREADY for done in ended):
+                out("Apply opened no form: you already applied to each link. The Apply window shows it; "
+                    "press Ctrl-C to end.")
+            elif keep_open and any(thread.is_alive() for thread in threads):
+                out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
+                    "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
+                    "close the windows, or press Ctrl-C, to end.")
+        while not stopped.is_set() and any(thread.is_alive() for thread in list(threads) + feeders):
             while not finished.empty():  # a link sent in since (--into): its summary line as it ends
                 out(finished.get_nowait().line())
             time.sleep(0.5)
+        if stopped.is_set():
+            ending = time.monotonic() + STOP_WAIT
+            for thread in list(threads) + feeders:
+                thread.join(max(0.0, ending - time.monotonic()))
+            out(STOPPED_APPLYING)
     except KeyboardInterrupt:
         release.set()
         for thread in list(threads):

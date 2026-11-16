@@ -1903,3 +1903,30 @@ def test_a_removed_job_leaves_waiting_to_start_and_never_runs(monkeypatch, tmp_p
     assert waiting[0]["waiting"] == [ARC_URL, later] and waiting[-1]["waiting"] == []
     assert [run["queued"] for run in board.runs if "queued" in run][-1] == 0
     assert 1 not in board.captions  # no tile ever filled it
+
+
+def test_stop_applying_ends_the_run_with_nothing_submitted_and_no_waiting_job_started(monkeypatch, tmp_path):
+    """Fault: Stop leaves the run going till Ctrl-C, starts the job that waited, or submits a form."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+
+    class Board(StoppingBoard):
+        def update(self, worker: int, **caption: object) -> None:
+            super().update(worker, **caption)
+            if caption.get("status") == "filling" and self._stop:  # the student presses Stop mid-fill
+                self._stop()
+
+    board, lines = Board(lambda stop, remove: None), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)  # a run Stop never ends fails, never hangs
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert submissions == [] and opened == 1  # the waiting job never started
+    assert lines[-1] == rehearsal.STOPPED_APPLYING
+    assert [run["waiting"] for run in board.runs if "waiting" in run][-1] == []
