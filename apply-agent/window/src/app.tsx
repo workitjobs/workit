@@ -80,7 +80,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (
-          <Home v={v} bridge={bridge} fail={setToast} add={app.queue && app.start ? add : undefined} />
+          <Home v={v} bridge={bridge} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
         )}
         <Limit app={app} run={state?.run} />
       </main>
