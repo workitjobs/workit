@@ -24,7 +24,7 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 | Skill overlap | Each distinct bank skill searched for in the posting on its own (`fts @@ plainto_tsquery(skill)`); the fraction found, never compared with other results | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; an additive part (1.0 / 0.5 / 0.0), never a gate | Built — `scoring.py` `eligibility()` |
-| Freshness | `max(0.7, 1.0 - 0.3 * days_old / 300)`, future dates count as today — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
+| Freshness | `max(0.85, 1.0 - 0.15 * days_old / 300)`, future dates count as today — newer postings rank higher, old ones don't drop below 85% | Built — `scoring.py` `freshness()` |
 
 Nothing in this folder may assume what a software job is. Two consequences:
 
@@ -231,10 +231,26 @@ again on their next run. Tests: `tests/test_embeddings.py`,
 
 Pure functions, no DB access. Weights: `W_SEMANTIC=0.45`, `W_SKILL=0.25`,
 `W_TITLE=0.15`, `W_ELIGIBILITY=0.15`. When no embedding exists, semantic
-weight is redistributed across the others. Final score is
-`round(weighted_sum * freshness * 100)`, clamped 0-100. `compute_breakdown()`
-returns each part's weight and points too, sent as `score_breakdown`; equal
-scores sort by the unrounded score, then job id.
+weight is redistributed across the others. A **score curve** (KAN-722)
+stretches mid-range scores upward: `raw = max(0.0, weighted_sum * freshness)`,
+then `curved = raw ** CURVE_POWER` (`CURVE_POWER = 0.6`). A negative
+`weighted_sum * freshness` (possible when cosine similarity is negative) is
+floored at 0 before the power, so `nan` never appears. Final score is
+`round(curved * 100)`, clamped 0-100. Component points are scaled by
+`curved / weighted_sum` so they still sum to `score_before_rounding`.
+`weighted_score` is the pre-curve sum (`weighted_sum * 100`).
+`compute_breakdown()` returns each part's weight and points too, sent as
+`score_breakdown`; equal scores sort by the unrounded score, then job id.
+The curve is monotonic, so the ordering of jobs by score is preserved.
+
+**Skill overlap ceiling** (KAN-722): `recommendations.py` caps the denominator
+at `SKILL_CEILING` (12), so a posting with 30 required skills does not
+penalise a student who matches 10 of them. The ceiling is tuned with real
+data later.
+
+**Freshness floor** (KAN-722): raised from 0.70 to 0.85. A 300-day posting
+loses 15% instead of 30%. The penalty exists to prefer newer postings, not
+to hide old ones.
 
 ## Highlights — `highlights.py`
 
@@ -281,8 +297,8 @@ raises `EmptyBank`, which the route answers as a 404.
   `min_match`) applies before `offset`, so a page never comes back short with
   more matches behind it.
 - **`min_match` (0–100, default 0)** drops jobs scored below it. Auto apply
-  asks for 60 (`auto-apply/architecture.md`, "Match (built)"). It moves with the
-  weights: retune it when they change.
+  asks for 74 (`auto-apply/architecture.md`, "Match (built)"). It moves with the
+  weights and the curve: retune it when they change.
 
 ## Still open
 

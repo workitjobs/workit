@@ -1,0 +1,12 @@
+{
+  "name": "workit-sandcastle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx main.mts"
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.14.0",
+    "tsx": "^4.23.15"
+  }
+}

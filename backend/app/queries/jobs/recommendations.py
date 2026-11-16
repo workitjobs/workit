@@ -39,6 +39,8 @@ from app.services.matching.scoring import (
 # ponytail: a fixed cap; a job ranked past it by semantic alone can't surface
 # on its skills or title. Raise it, or pre-score skills in SQL, if that bites.
 CANDIDATES = 500
+# A posting with more required skills than this is not penalised for the excess.
+SKILL_CEILING = 12
 
 # The bank embed inside a request: short, so a missing or slow provider
 # degrades to scoring without the semantic part instead of hanging the
@@ -186,7 +188,10 @@ async def score_job_sets(
     for row in rows:
         semantic_val = row.semantic
         matched_skills = [skill for skill in (row.matched_skills or []) if skill is not None]
-        skill_norm = len(matched_skills) / len(skills) if skills else 0.0
+        skill_norm = (
+            min(1.0, len(matched_skills) / min(len(skills), SKILL_CEILING))
+            if skills else 0.0
+        )
         t_fit = title_fit(row.title, titles, field_of_study)
         days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
         fresh = freshness(days_old)

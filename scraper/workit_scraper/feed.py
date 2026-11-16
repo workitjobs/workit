@@ -69,6 +69,7 @@ def row(
         "start_term": role.facts.start_term,
         # "sponsors", "no_sponsorship", "citizens_only" or None (details.py).
         "sponsorship": role.facts.sponsorship,
+        "repost": role.repost,
         # Its categories, first first, then its specialties: ["data_ai", "software",
         # "data_ai/ml"] (shortlist.Tag). The backend ignores them since KAN-155: it
         # tags each job from its title with its own job_roles list.
