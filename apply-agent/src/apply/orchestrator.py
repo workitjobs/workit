@@ -33,7 +33,6 @@ from apply.adapters import (
     Claude,
     JobSite,
     SetupError,
-    UsageLimitHit,
     UsageReading,
 )
 from apply.answer_bank import Entry
@@ -440,13 +439,13 @@ class _Run:
         )
 
     def _before_submit(self, posting: Posting) -> str:
-        """Once the limit is hit, every Worker is paused: none submits. During
-        the Calibration run the Application is held instead (the reason is
-        returned). The row says Submitting before the form is sent, so an
-        interrupted run is never submitted twice."""
-        usage = self._adapters.usage.reading()
-        if usage.limited:
-            raise UsageLimitHit(usage.resets_at)
+        """During the Calibration run the Application is held instead (the
+        reason is returned). The row says Submitting before the form is sent,
+        so an interrupted run is never submitted twice. A usage limit never
+        stops a submit, which makes no model call: at a limit no new
+        Application starts (`_resume_at`), and one still filling is paused by
+        its own refused call. Paused here, a form whose pre-submit review
+        reached WorkIt's Usage cap was filled again after the reset."""
         with self._writing:
             hold = "" if posting.id in self._approved else self._calibration_hold(posting)
         if not hold:

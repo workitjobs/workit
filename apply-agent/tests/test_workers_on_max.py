@@ -16,7 +16,7 @@ from fakes import (
 from test_claude_answers import ResearchForm
 from test_claude_answers import run as run_form
 
-from apply.adapters import Adapters, UsageReading
+from apply.adapters import Adapters, UsageLimitHit, UsageReading
 from apply.cli import main
 from apply.model import Posting
 from apply.orchestrator import INTERRUPTED_SUBMIT
@@ -40,13 +40,27 @@ class PostingsFeed:
         return self._postings
 
 
-def run(job_server, *, postings=3, workers=3, usage=None, clock=None, tracker=None, **more) -> InMemoryTracker:
+class RefusedAtTheLimit(FakeClaude):
+    """Claude refusing each call while `usage` reads limited, as the live one does once the limit is hit."""
+
+    def __init__(self, usage: ScriptedUsage):
+        super().__init__()
+        self._usage = usage
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if (reading := self._usage.reading()).limited:
+            raise UsageLimitHit(reading.resets_at)
+        return super().ask_kind(kind, data)
+
+
+def run(job_server, *, postings=3, workers=3, usage=None, clock=None, tracker=None, claude=None,
+        **more) -> InMemoryTracker:
     tracker = tracker if tracker is not None else InMemoryTracker()
     adapters = Adapters(
         feed=PostingsFeed(postings),
         tracker=tracker,
         site=job_server,
-        claude=FakeClaude(),
+        claude=claude or FakeClaude(),
         mailbox=FakeMailbox(),
         usage=usage or ScriptedUsage(),
         clock=clock or FakeClock(START),
@@ -116,18 +130,37 @@ def test_a_limit_hit_pauses_every_worker_then_resumes_after_the_reset():
     clock = FakeClock(START, on_sleep=lambda: paused_rows.append(statuses(tracker)))
     tracker = InMemoryTracker()
     with FakeJobServer(ARC_FORM, together=3) as job_server:
-        # The limit is hit while all three Workers have a form open.
+        # The limit is hit while all three Workers have a form open: each one's next call is refused.
         usage = ScriptedUsage(lambda: (
             UsageReading(five_hour=1.0, limited=True, resets_at=RESET)
             if len(job_server.workers) >= 3 and clock.now() < RESET else UsageReading()
         ))
-        run(job_server, postings=3, workers=3, usage=usage, clock=clock, tracker=tracker)
+        run(job_server, postings=3, workers=3, usage=usage, clock=clock, tracker=tracker,
+            claude=RefusedAtTheLimit(usage))
 
     assert paused_rows == [{f"posting-{n}": "paused" for n in (1, 2, 3)}]
     assert clock.slept == [RESET]
     assert statuses(tracker) == {f"posting-{n}": "submitted" for n in (1, 2, 3)}
     assert {row.date_applied for row in tracker.rows()} == {RESET.date()}
     assert len(job_server.submissions) == 3
+
+
+def test_a_form_whose_last_call_reaches_the_limit_is_sent_not_filled_again():
+    # Fault: the check before submit pausing at the limit. WorkIt checks its Usage cap before each call, so the
+    # pre-submit review can be the call that reaches it: the form was filled, paused at submit, then filled again
+    # from the start after the reset, its tokens spent twice.
+    clock, claude = FakeClock(START), FakeClaude()
+    usage = ScriptedUsage(lambda: (
+        UsageReading(limited=True, resets_at=RESET)
+        if any(asked["kind"] == "presubmit.review" for asked in claude.kinds) and clock.now() < RESET
+        else UsageReading()
+    ))
+    with FakeJobServer(ARC_FORM) as job_server:
+        tracker = run(job_server, postings=1, workers=1, usage=usage, clock=clock, claude=claude)
+
+    assert clock.slept == [] and len(job_server.submissions) == 1
+    assert statuses(tracker) == {"posting-1": "submitted"}
+    assert {row.date_applied for row in tracker.rows()} == {START.date()}
 
 
 def test_a_second_run_never_reapplies():
