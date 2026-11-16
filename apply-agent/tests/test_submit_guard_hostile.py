@@ -669,6 +669,9 @@ PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 # A GET form (no method) whose own submit handler posts the application, as a React form's onSubmit does: the guard
 # judged only a POST form's submit, so any press that submitted this one sent it (the adversarial review of KAN-861,
 # KAN-868). Each holds a Submit; the press is on something else of the form's.
+# Code inside a declarative root that walks up to the root and listens there for submit, as the page loads.
+_ROOT_HOOK = ("""<img src="data:," onerror="let n = this; while (n.parentNode) n = n.parentNode; n.addEventListener('submit', """
+              """(e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);">""")
 _LOGIN_DRESS = """<title>Apply</title>%s<form id=f><label>Email <input type=email name=email value=t@example.com></label>
   <button id=b>Next</button><button>Submit application</button></form>
 <script>f.addEventListener('submit', (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'why=x'}); });
@@ -773,6 +776,14 @@ GET_FORM_PAGES = {
     "a GET form dressed as a sign-in step with its answers in a closed root": {START: _LOGIN_DRESS % """<x-q></x-q><script>
         customElements.define('x-q', class extends HTMLElement { constructor() { super();
         this.attachShadow({mode: 'closed'}).innerHTML = '<label>Phone <input name=phone value=555></label>'; } });</script>"""},
+    # Round 5: a GET application with a password box (one that makes an account as it applies); and a declarative
+    # root that code inside it listens on, its form submitted by a Next the page turns into a submit as it is
+    # clicked, or by an Enter with no button at all.
+    "a GET application with a password box": {START: _GET_FORM % """<label>Why us? <textarea name=why>Because</textarea></label>
+        <label>Create a password <input type=password name=pw value=x></label><button id=b>Next</button>"""},
+    "a hooked declarative root whose Next turns into a submit as it is clicked": {START: """<title>Apply</title><div id=h>
+        <template shadowrootmode=open><form><input name=first value=Test><button id=b type=button onclick="this.type='submit'">Next</button>
+        <button>Submit application</button>""" + _ROOT_HOOK + """</form></template></div>"""},
 }
 PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
@@ -2203,3 +2214,19 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
     assert set(CONTROLS_ON_PRS) <= set(PAGES)
     # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
     assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)
+
+
+# Round 5 of KAN-868's review: an Enter in a lone box of a form in a declarative root that code inside it listens on.
+# Apply's typing presses Enter in every box it fills; the submit it starts needs no click, so only the guard's listener
+# on the root, added before the page's (the addEventListener wrapper), can stop it.
+ENTER_IN_A_HOOKED_ROOT = """<title>Apply</title><div id=h><template shadowrootmode=open><form>
+    <label>First name <input name=first value=Test></label>""" + _ROOT_HOOK + """</form></template></div>"""
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_an_enter_in_a_hooked_roots_form_sends_nothing(guarded):
+    with cdp({START: ENTER_IN_A_HOOKED_ROOT}, guarded=guarded) as (page, _, site):
+        page.wait_for_timeout(300)  # the hook's image errored, and its listener is on the root
+        page.get_by_label("First name").press("Enter")
+        _settle(page, 1500)
+    assert (site.applications() == []) is guarded

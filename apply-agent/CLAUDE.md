@@ -392,7 +392,13 @@ into it and the window shows "Sample data".
   doesn't POST is cancelled at the window, before any of the page's
   listeners, and a script's `requestSubmit()` of one is refused. The sign-in
   step's page check also reads same-origin frames and every root the guard
-  has heard, closed ones too. The guard
+  has heard, closed ones too. Whenever page code adds a `submit` listener,
+  the guard first hears that node's root (the `addEventListener` wrapper),
+  so code inside a root that walks up to it can't get there first, and an
+  Enter that submits with no click is stopped there (round 5). Plain
+  code's sign-in with a password goes on for a form that doesn't POST only
+  under Apply's own sign-in press and as a sign-in step: an application
+  that makes an account as it applies is a GET form with a password box. The guard
   scripts are one function each, built from shared parts: a name two parts
   declare stops the whole script with no error Apply sees, and every page
   is unguarded. That happened twice while KAN-868 was built;

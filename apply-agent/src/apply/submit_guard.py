@@ -1051,6 +1051,10 @@ _TEMPLATE = r"""
   const LOGIN_BOX = /e-?mail|user|login|account/i;
   const iframeDoc = get(HTMLIFrameElement.prototype, 'contentDocument'), frameDoc = get(HTMLFrameElement.prototype, 'contentDocument');
   const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
+  // A form with a password box that plain code's sign-in posts: a POST form, as ever, or one that doesn't POST only
+  // under Apply's own sign-in press and as a sign-in step (round 5 of KAN-868's review: an application that makes an
+  // account as it applies, a GET form with a password box, went through every path's account click).
+  const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
   const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
   const loginForm = (form) => {
     const all_ = fields(form);
@@ -1239,7 +1243,7 @@ _TEMPLATE = r"""
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     const apply_ = fromPress(form, by);
-    if (apply_ && password(form) && !postsFinal(form, by)) return;
+    if (apply_ && password(form) && !postsFinal(form, by) && passwordStep(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by) : formSends(form);
     // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
@@ -1280,7 +1284,7 @@ _TEMPLATE = r"""
   // What the submit judge lets go on, judged as the press comes: the Posting's Apply (KAN-725), plain code's sign-in
   // with a password, a profile step's own click (KAN-647), and a sign-in step under plain code's sign-in press.
   const pressAllowed = (form, button) => (starting !== null && button === starting)
-    || (fromPress(form, button) && password(form) && !postsFinal(form, button))
+    || (fromPress(form, button) && password(form) && !postsFinal(form, button) && passwordStep(form, button))
     || (profileClick() && profileStep(button))
     || (fromPress(form, button) && S.signIn === true && loginForm(form));
   on('click', judged((event) => {
@@ -1303,6 +1307,14 @@ _TEMPLATE = r"""
   // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
   // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
   const hearRootOf = (node) => { try { const root = rootOf(node); if (isRoot(root)) hearRoot(root); } catch (e) {} };
+  // A listener the page adds for submit, anywhere: the guard hears that node's root first, so its own listener there
+  // comes before the page's whatever way the page reached the root (round 5 of KAN-868's review: code inside a
+  // declarative root walked parentNode up to it, past every wrapped getter).
+  const pageListen = EventTarget.prototype.addEventListener;
+  defineProp(EventTarget.prototype, 'addEventListener', {value: function addEventListener(...args) {
+    try { if (lower(Str(args[0])) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
+    return apply(pageListen, this, args);
+  }, writable: true, configurable: true});
   const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
   if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
     hearRootOf(this);
@@ -2319,8 +2331,9 @@ def _tells(page) -> dict:
 
 def let_account_click(page, let: bool = True) -> None:
     """Let Apply's own next click on an account form's button through both guards (Workday's "Submit" in its Sign
-    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back."""
-    control(page, {"account": let})
+    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back. It is a sign-in's press
+    (`signIn`, KAN-868), so a sign-in step's form that doesn't POST goes on too."""
+    control(page, {"account": let, "signIn": let})
 
 
 @contextmanager
