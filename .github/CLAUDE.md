@@ -253,6 +253,24 @@ fake that a page saves to keeps the newest save and the test waits for the
 answers, never a fixed time. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
+**The `apply-window` job** (KAN-867) checks the student page, the Student
+build's window (`apply-agent/window/`, Vite + React). On Ubuntu, in that
+folder, it runs `npm ci`, `npm test` (the view model's and bridge's tests,
+Node's own runner), `npm run build`, then `git diff --exit-code` on
+`apply-agent/src/apply/student_page/`. That folder holds the built page,
+one self-contained HTML file committed into the Python package so a
+Student build ships it with no Node. So a PR that changes the page's source
+without rebuilding, or rebuilds it differently, fails here. The build bakes
+in Brandfetch's public client id from the repo variable
+`NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, as `deploy.yml` builds the website with
+it. The committed page is built with it too, so a local rebuild must set it
+(`apply-agent/docs/apply-window.md`), or the diff fails. It runs only when
+the `changes` job's **`apply_window` filter** matches: `apply-agent/window/**`,
+the built page, `.nvmrc` (its Node) or `ci.yml`. It needs no fill-engine
+submodule and no Python, so it is not in the `apply` filter, and an Apply
+change that leaves the page alone skips it. The build is deterministic on a
+Mac. A Linux build that differs from a Mac's would show here first.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
