@@ -1,5 +1,5 @@
 // The window: one screen that answers "what do I do now?".
-import { CheckIcon, GearSixIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState } from "./apply.ts";
@@ -28,7 +28,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   }, [v]);
   if (!v) return null;
   // No run going: the queue, when the window has one to show (#613's app methods).
-  const first = !!app.queue && !v.todo.length && !v.working.length && !v.queued && !v.applied.length;
+  const first = !!app.queue && !v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length;
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-10 flex h-[52px] items-center gap-2 border-b border-border bg-app/90 pr-5 pl-[84px] backdrop-blur">
@@ -108,7 +108,40 @@ function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
           {v.queued > 0 && <p className="px-0.5 pt-2 text-[13px] text-ink-faint">and {v.queued} more waiting to start</p>}
         </section>
       )}
+      {v.stopped.length > 0 && (
+        <section className="mt-10">
+          <h3 className="mb-2 text-[13px] font-semibold text-ink-meta">Didn't go through</h3>
+          {v.stopped.map((job) => (
+            <Stopped key={job.key} job={job} bridge={bridge} fail={fail} />
+          ))}
+        </section>
+      )}
     </>
+  );
+}
+
+// A job that failed or was skipped, with why, and Try again where Apply still holds its form to fill anew. Once
+// pressed, the job moves to "Still working on" as Apply starts filling it.
+function Stopped({ job, bridge, fail }: { job: Job; bridge: Bridge; fail: Fail }) {
+  const [trying, setTrying] = useState(false);
+  const retry = () => {
+    setTrying(true);
+    bridge.fillAgain(job.retry!).catch((e: Error) => (setTrying(false), fail(e.message)));
+  };
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <Logo company={job.company} src={job.source} size={32} />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">{job.company}</div>
+        <div className="truncate text-xs text-ink-meta">{job.role}</div>
+        <div className="mt-0.5 text-xs text-ink-faint">{job.reason}</div>
+      </div>
+      {job.retry && (
+        <Button className="h-8 px-3 text-[13px]" disabled={trying} onClick={retry}>
+          <ArrowClockwiseIcon className="size-3.5" /> {trying ? "Trying again…" : "Try again"}
+        </Button>
+      )}
+    </div>
   );
 }
 

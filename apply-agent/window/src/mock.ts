@@ -1,5 +1,5 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
-// Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet,
+// Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
 // ?queue=empty|unread|refused (refused: Start gives #613's error). Answers and
 // approvals change it as Apply would, so the whole flow can be clicked through.
@@ -95,12 +95,19 @@ const linear: Shown = { tone: "verifying", company: "Linear", company_domain: "l
 const vercel: Shown = { tone: "submitted", company: "Vercel", company_domain: "vercel.com", role: "Software Engineer, New Grad", posting_url: "https://vercel/1", from: "tracker" };
 const datadog: Shown = { tone: "submitted", company: "Datadog", company_domain: "datadoghq.com", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
 
+// Didn't go through: a failed form and a ruled-out one whose pages Apply holds (Try again), and three it can't retry.
+const plaid: Shown = { tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond", company: "Plaid", company_domain: "plaid.com", role: "Software Engineer Intern", posting_url: "https://plaid/1", again: true };
+const duolingo: Shown = { tone: "ended", kind: "skipped", status: "not eligible", label: "Skipped: you don't qualify (needs a graduation date in 2026)", company: "Duolingo", company_domain: "duolingo.com", role: "Software Engineer, New Grad", posting_url: "https://duolingo/1", again: true };
+const airbnb: Shown = { tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications", company: "Airbnb", company_domain: "airbnb.com", role: "Software Engineer Intern", posting_url: "https://airbnb/1", id: 21 };
+const coinbase: Shown = { tone: "ended", kind: "skipped", status: "already applied", label: "Already applied", company: "Coinbase", company_domain: "coinbase.com", role: "Software Engineer Intern", posting_url: "https://coinbase/1", id: 22 };
+
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
   questions: () => ({ tiles: [stripe], items: [ramp], run: { queued: 2 } }),
   needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6 } }),
   ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3 } }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4 } }),
+  stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: { queued: 1 } }),
 };
 
 const QUEUE: Queued[] = [
@@ -148,9 +155,9 @@ export function mock(
       if (ready) later(() => Object.assign(ready, { tone: "submitted" }), 2500);
     },
     async fillAgain(id) {
-      const item = find(id);
-      if (item) Object.assign(item, { tone: "filling", kind: undefined, filled: 2, asked: 22 });
-      push();
+      // Apply opens the form anew a moment later, on the tile that held it.
+      const held = id.startsWith("tile-") ? state.tiles[Number(id.slice(5))] : find(id);
+      if (held) later(() => Object.assign(held, { tone: "filling", kind: undefined, status: "filling", label: undefined, again: false, filled: 2, asked: 22 }), 800);
     },
     app: Promise.resolve({
       async queue() {
