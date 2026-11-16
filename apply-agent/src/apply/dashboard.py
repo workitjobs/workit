@@ -595,6 +595,8 @@ class Dashboard:
         self._shown = list(range(workers))
         self._tile_tabs: dict[int, int] = {}  # tile -> the tab its form is on in its plain Worker (showing)
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
+        self._stop: Callable[[], None] | None = None  # ends the run (stopping)
+        self._remove: Callable[[str], bool] | None = None  # takes a job not started out of the run (removing)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
         self.accounts = accounts  # the Accounts tab: each Employer account, its password in Keychain
@@ -678,6 +680,28 @@ class Dashboard:
         """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
+
+    def stopping(self, stop: Callable[[], None]) -> None:
+        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop."""
+        self._stop = stop
+
+    def stop(self) -> None:
+        """Stop applying. Raises Refused when this window has no run to stop."""
+        if self._stop is None:
+            raise Refused("No run is going.", 409)
+        self._stop()
+
+    def removing(self, remove: Callable[[str], bool]) -> None:
+        """`remove(link)` takes the job of `link` out of the run before it starts, and says whether it could (False:
+        it started already): Remove in the student's window (KAN-874), through POST /remove."""
+        self._remove = remove
+
+    def remove(self, link: str) -> None:
+        """Remove the job of `link`, not started yet, from the run. Raises Refused when it can't be."""
+        if self._remove is None:
+            raise Refused("No run is going.", 409)
+        if not self._remove(link):
+            raise Refused("That job has started already: it isn't waiting any more.", 409)
 
     def aim(self, workers: list[int]) -> None:
         """Tile k shows Worker `workers[k]`: a reopened form's, whose profile holds its sign-in (KAN-720)."""
@@ -1326,6 +1350,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._fill_again()
         if parts.path == "/regenerate":
             return self._regenerate()
+        if parts.path == "/stop":
+            return self._stop()
+        if parts.path == "/remove":
+            return self._remove()
         if parts.path == "/goto":
             return self._go_to()
         if parts.path == "/rehearse":
@@ -1658,6 +1686,31 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(refused.status, {"error": str(refused)})
         print(f"Took {url} into Browser {taken['worker'] + 1} (tile {taken['tile'] + 1})")
         self._json(200, taken)
+
+    def _stop(self) -> None:
+        """Stop applying, from the page itself (KAN-874)."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may stop the run."})
+        try:
+            self.dashboard.stop()
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._send(204, "text/plain", b"")
+
+    def _remove(self) -> None:
+        """Remove one job that hasn't started from the run, from the page itself (KAN-874). Body {link}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may remove a job."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            link = str(body["link"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a job to remove."})
+        try:
+            self.dashboard.remove(link)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._send(204, "text/plain", b"")
 
     def _regenerate(self) -> None:
         """Lisul pressed Regenerate on an answer Claude wrote, from the page itself, with his context."""

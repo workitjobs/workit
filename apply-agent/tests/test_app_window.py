@@ -206,6 +206,37 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
     assert bridge.status() == {"running": False, "said": "WorkIt refused this Fill engine."}
 
 
+def test_stop_applying_through_the_bridge_returns_the_window_to_the_queue(board):
+    """KAN-874. Fault: the shim can't reach /stop, or the window stays on a stopped run's board."""
+    import threading
+
+    shown, stopped = [], threading.Event()
+
+    def start(links, show):
+        with Dashboard(len(links), OneFrame(), serve=False) as run_board:
+            run_board.stopping(stopped.set)  # as rehearsal.rehearse hands it its stop
+            show(run_board)
+            shown.append(run_board)
+            stopped.wait(5)
+
+    window = Window()
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=start)
+    bridge._window = window
+    bridge.start(["https://jobs.lever.co/acme/1"])
+    for _ in range(100):
+        if shown:
+            break
+        threading.Event().wait(0.02)
+    assert bridge.request("POST", "/stop", {"X-Apply-Token": "guessed"}, "")["status"] == 403
+    assert not stopped.is_set()
+    assert bridge.request("POST", "/stop", {"X-Apply-Token": shown[0].token}, "")["status"] == 204
+    for _ in range(100):
+        if not bridge.status()["running"]:
+            break
+        threading.Event().wait(0.02)
+    assert window.loaded[-1] == app_window.student_page(board)  # the idle board: the queue again
+
+
 def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path):
     """Fault: a closed job in the queue, a job board's page where its employer's form was named, or a job without the
     logo sources the website draws it with."""

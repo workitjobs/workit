@@ -1517,6 +1517,37 @@ def test_start_holds_until_the_window_presses_it_and_only_the_window_may():
         assert board.state()["run"]["start"] == "started"
 
 
+def test_stop_applying_ends_the_run_and_only_the_window_may():
+    """KAN-874. Fault: a page of another site stops the student's run, or Stop does nothing."""
+    stopped = []
+    with Dashboard(2, FakeFrames({})) as board:
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 409  # no run
+        board.stopping(lambda: stopped.append(True))
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": "guessed"}) == 403
+        assert _status(board.url + "/stop", data=b"{}") == 403
+        assert stopped == []
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 204
+
+    assert stopped == [True]
+
+
+def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():
+    """KAN-874. Fault: another site's page removes a job, or Remove takes out one that already started."""
+    removed = []
+    post = lambda body, token: _status(board.url + "/remove", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(2, FakeFrames({})) as board:
+        assert post({"link": "https://jobs.example/2"}, board.token) == 409  # no run takes a removal
+        board.removing(lambda link: removed.append(link) or link == "https://jobs.example/2")
+        assert post({"link": "https://jobs.example/2"}, "guessed") == 403
+        assert removed == []
+        assert post({"link": "https://jobs.example/1"}, board.token) == 409  # started: it isn't waiting any more
+        assert post({}, board.token) == 400
+        assert post({"link": "https://jobs.example/2"}, board.token) == 204
+
+    assert removed == ["https://jobs.example/1", "https://jobs.example/2"]
+
+
 # A bot block (KAN-590): LinkedIn's SmartRecruiters form, refused by DataDome, finished in Lisul's own Chrome.
 BLOCKED = {"company": "LinkedIn", "role": "Software Engineer Intern", "job_system": "other",
            "posting_url": "https://jobs.smartrecruiters.com/LinkedIn3/744000158394370", "status": "handoff",
