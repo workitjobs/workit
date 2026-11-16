@@ -910,8 +910,10 @@ class Dashboard:
             if not 0 <= k < self._workers:
                 raise Refused("No such form.", 404)
             # A rehearsal's held page, until he presses Submit (rehearsal._Ask); or one whose job site ended its
-            # session (`refill`, apply.keepalive): held no more, but Fill again is how it comes back.
-            if not (self._captions[k].get("askable") or self._captions[k].get("refill")):
+            # session (`refill`, apply.keepalive): held no more, but Fill again is how it comes back; or any page
+            # its Worker holds once the fill stopped (`again`), a Student run's too, which has no Ask Claude.
+            caption = self._captions[k]
+            if not (caption.get("askable") or caption.get("refill") or caption.get("again")):
                 raise Refused("That form isn't held for you now: Fill again works once Apply has stopped on it, "
                               "before Submit.", 409)
             self._again.add(k)
