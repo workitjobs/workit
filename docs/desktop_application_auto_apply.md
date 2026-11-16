@@ -812,23 +812,15 @@ logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 
 **Goal.** v1 fills without `drive` (D13).
 
-**Who builds it.** Step 1 is built (below). Step 2 is a teammate's
-(2026-11-15), beside the Fillers they write for each job system: one
-person owns all filling, so the generic Filler and the Fillers never
-collide in `fillers.py` or `orchestrator._apply_with`. KAN-861 built a
-first version of it ("Built, step 2", below). What step 2 can
-count on:
-
-- Only a Filler that fills with plain code runs in the Student build. A
-  job system that Claude fill fills in the Developer checkout (iCIMS,
-  Oracle, and every other one with no entry in `FILLERS`) is held for the
-  student until a Filler of its own or the generic Filler fills it.
-- W1's Model route is built: the small question below is a new kind in
-  `backend/app/apply_prompts/`, which deploys with the API.
-- What a Filler can't place goes to step 1's paths: a Needs-you item
-  with its planned answer, or the held form (`orchestrator.ForTheStudent`).
-- Each new click path needs the adversarial review (KAN-666) and its cases
-  in `tests/test_submit_guard_hostile.py`.
+**Who builds it.** Both steps are built (below): step 1 in KAN-855,
+step 2 in KAN-861. The generic Filler stays with this workstream, not
+with the teammate who writes a Filler for each job system (2026-11-16,
+reversing #617's hand-over). A Filler of a job system's own still comes
+first: `by_filler` uses the generic Filler only where `FILLERS` has none,
+so the two never meet in `fillers.py`. What a Filler can't place goes to
+step 1's paths: a Needs-you item with its planned answer, or a Handoff
+of the held form. Each new click path needs the adversarial review
+(KAN-666) and its cases in `tests/test_submit_guard_hostile.py`.
 
 **Design.**
 
@@ -896,9 +888,7 @@ two frames a second, so W5's first run asks for the permission.
 | An emailed code after Submit | No mail read: once the code field comes, Needs you says to type the code (`code_box.TypeTheCode`) |
 
 `docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
-and `tests/test_student_handoffs.py` (Chromium) test them. Left for
-step 2, a teammate's (above): the generic Filler, which fills a form
-with no Filler of its own.
+and `tests/test_student_handoffs.py` (Chromium) test them. Step 2, below, fills a form with no Filler of its own.
 
 **Built (2026-11-15, step 2, KAN-861: the generic Filler).** In the Student build a job system with no Filler gets
 the generic Filler (`apply-agent/src/apply/generic_fill.py`, `apply-agent/docs/generic-filler.md`), in place of
