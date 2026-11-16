@@ -791,14 +791,16 @@ class Dashboard:
             self._tell()
 
     def logos(self, by_link: dict[str, dict]) -> None:
-        """The logo sources WorkIt gave each queued job (`company_domain`, `logo_url`), by the link the run was
-        given: each tile and item of that link carries them, as the website draws its logo (KAN-871)."""
+        """What WorkIt gave each queued job, by the link the run was given: its logo sources (`company_domain`,
+        `logo_url`), which each tile and item of that link carries, as the website draws its logo (KAN-871); and its
+        `company` and `title`, which name it while it waits to start (the run's `waiting`, KAN-874)."""
         with self._lock:
             self._logos = {link: {k: v for k, v in sources.items() if v} for link, sources in by_link.items()}
 
     def _logo(self, shown: dict) -> dict:
         """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave."""
-        return self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
+        job = self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
+        return {key: job[key] for key in ("company_domain", "logo_url") if key in job}
 
     def focused(self, front: bool) -> None:
         """The window's page says whether it is in front, with each poll."""
@@ -1110,6 +1112,8 @@ class Dashboard:
             captions = [dict(caption) for caption in self._captions]
             items = [dict(item) for item in reversed(self._items)]
             run = dict(self._run)
+            if "waiting" in run:  # each link not started yet, named as the queue named it
+                run["waiting"] = [{"link": link} | self._logos.get(link, {}) for link in run["waiting"]]
         for k, caption in enumerate(captions):
             caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
             if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \

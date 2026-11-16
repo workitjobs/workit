@@ -282,6 +282,32 @@ def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board,
     assert (tile["company_domain"], tile["logo_url"]) == ("acme.com", "https://www.google.com/s2/favicons?domain=acme.com")
 
 
+def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, tmp_path):
+    """KAN-874. Fault: the jobs waiting to start show as bare links, so the student can't tell which to remove."""
+    from fake_workit import Reply
+
+    rows = [{"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                     "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
+             "open": True}]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(200, rows))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge.queue()
+    with Dashboard(2, OneFrame(), serve=False) as run_board:
+        bridge.show_board(run_board)
+        run_board.run(waiting=["https://jobs.lever.co/acme/3", "https://jobs.example/pasted"])
+        run_board.update(0, company="Acme Corp", link="https://jobs.lever.co/acme/3", status="filling")
+        state = run_board.state()
+    assert state["run"]["waiting"] == [
+        {"link": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern", "company_domain": "acme.com",
+         "logo_url": "https://www.google.com/s2/favicons?domain=acme.com"},
+        {"link": "https://jobs.example/pasted"},  # a pasted link: no WorkIt job to name it
+    ]
+    assert state["tiles"][0]["company"] == "Acme Corp"  # the queue's name never covers the form's own
+
+
 def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
     """Fault: a run that ignores the Worker count (D24: one to three), shows no window of its own, or leaves its plain
     Workers' Chromes running after it."""

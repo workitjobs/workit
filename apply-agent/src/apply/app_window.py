@@ -386,7 +386,7 @@ class Bridge:
         queued = [{"url": job.get("form_url") or job["apply_url"], "company": job.get("company") or "",
                    "title": job.get("title") or "", "logo_url": job.get("logo_url"),
                    "company_domain": job.get("company_domain")} for job in jobs]
-        self._logos |= {job["url"]: {"logo_url": job["logo_url"], "company_domain": job["company_domain"]}
+        self._logos |= {job["url"]: {key: job[key] for key in ("company", "title", "logo_url", "company_domain")}
                         for job in queued}
         return queued
 
