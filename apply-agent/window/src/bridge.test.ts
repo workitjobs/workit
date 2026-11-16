@@ -59,3 +59,17 @@ test("an action Apply never got says Apply didn't take it, in words", async () =
   globalThis.fetch = (async () => { throw new TypeError("Failed to fetch"); }) as typeof fetch;
   await assert.rejects(routes("tok", Promise.resolve({})).stop(), { message: "Apply didn't take that. Is it still running?" });
 });
+
+test("an app method that breaks says Apply didn't take it, and one that refuses says why", async () => {
+  globalThis.window = {
+    pywebview: {
+      api: {
+        start: async () => { throw new Error("Traceback (most recent call last): KeyError 'url'"); },
+        queue: async () => ({ error: "WorkIt Auto Apply couldn't read your queue." }),
+      },
+    },
+  } as unknown as Window & typeof globalThis;
+  const app = await routes("tok").app;
+  await assert.rejects(app.start!(["https://a/1"]), { message: "Apply didn't take that." });
+  await assert.rejects(app.queue!(), { message: "WorkIt Auto Apply couldn't read your queue." });
+});

@@ -41,9 +41,12 @@ declare global {
 const failed = (said: unknown) => new Error(typeof said === "string" && said ? said : "Apply didn't take that.");
 const UNANSWERED = "Apply didn't take that. Is it still running?";
 
-// The app's answer, or its {error} as a thrown Error.
+// The app's answer, or its {error} as a thrown Error. A method that broke (a Python exception) says only that
+// Apply didn't take it: its own words are for the log, not the student.
 async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...args: unknown[]): Promise<T> {
-  const got = (await method(...args)) as { error?: string } | T;
+  const got = (await method(...args).catch(() => {
+    throw failed("");
+  })) as { error?: string } | T;
   if (got && typeof got === "object" && "error" in got) throw failed(got.error);
   return got as T;
 }

@@ -67,7 +67,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         {first ? <Start app={app} /> : page === "applied" ? <Applied jobs={v.applied} /> : <Home v={v} bridge={bridge} fail={setToast} />}
         <Limit app={app} run={state?.run} />
       </main>
-      {toast && <div className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
+      {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
     </div>
   );
 }
