@@ -220,6 +220,12 @@ export default function PrivacyPage() {
           their own privacy policies.
         </li>
         <li>
+          <strong>Company logos.</strong> To show each company&apos;s logo, the app asks Brandfetch
+          for it by the company&apos;s website, as WorkIt&apos;s website does, so Brandfetch learns
+          which companies&apos; logos were asked for. Where Brandfetch has none, the logo comes from
+          the company&apos;s job board, or from Google&apos;s website icons, the same way.
+        </li>
+        <li>
           <strong>The Worker extension.</strong> WorkIt Auto Apply Worker, the app&apos;s Chrome
           extension, works only in the app&apos;s own Chrome windows, never in your own Chrome
           profiles. It sends what it reads from a page only to the app on your Mac, never to WorkIt
