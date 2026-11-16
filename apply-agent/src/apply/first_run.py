@@ -29,7 +29,7 @@ from apply.tracker import TRACKER, FileTracker
 
 STATE = HOME / "app.json"
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
-DISCLOSURE = 1
+DISCLOSURE = 2  # 2: logos load from Brandfetch (KAN-871)
 EULA = CODE / "legal" / "EULA.txt"
 # The third-party notices: W8 puts them in the app's bundle; a checkout makes them with scripts/third_party_notices.py.
 NOTICES = CODE / "dist" / "THIRD-PARTY-NOTICES.txt"
