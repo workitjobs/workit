@@ -17,11 +17,17 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   verifier to `POST /apply-app/session`, which answers a new Supabase
   session of Apply's own (`backend/app/services/app_sign_in.py`). A code
   works once, for 5 minutes, and only with the verifier its challenge was
-  made from; a refused one is `SignInOver`. Pasting is the Developer
-  checkout's way, since macOS hands the page's `workit-auto-apply://` link
-  only to the built app (W8), and the page shows the code only to
-  WorkIt's admins (`WORKIT_ADMINS`; `../docs/auth.md` says why). The link
-  itself, pasted in place of the code, works too. The line with the page's
+  made from; a refused one is `SignInOver`. Pasting is `apply login`'s
+  way, since macOS hands the page's `workit-auto-apply://` link only to
+  an app bundle that claims the scheme, and the page shows the code only
+  to WorkIt's admins (`WORKIT_ADMINS`; `../docs/auth.md` says why). The
+  link itself, pasted in place of the code, works too. The window
+  (`apply app`) needs no paste (KAN-883): before the page opens, a
+  checkout's window makes and registers a small helper applet in the data
+  folder (`sign_in_link.py`, `WorkIt Auto Apply Sign-In.app`) that claims
+  the scheme and writes the link to `sign-in-link`, readable by this user
+  alone, and the window trades it (`apply-window.md`). The built app (W8)
+  claims the scheme in its own `Info.plist`. The line with the page's
   link goes straight to the terminal, past the shell's mask
   (`apply.masked` hides the challenge, a long opaque value): a developer
   whose browser doesn't open needs it, and the challenge is no secret.
