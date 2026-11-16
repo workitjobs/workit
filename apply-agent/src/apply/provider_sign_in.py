@@ -123,11 +123,13 @@ def scopes(url: str) -> set[str] | None:
     names none."""
     found: set[str] = set()
     seen = url
-    for _ in range(4):  # each level of nesting is one more quoting
+    while True:  # each level of nesting is one more quoting: every level searched, to the last (KAN-878's review)
         for match in SCOPE.finditer(seen):
             found |= {s for s in re.split(r"[\s+]+", unquote(match[1])) if s}
-        seen = unquote(seen)
-    return found or None
+        once = unquote(seen)
+        if once == seen:
+            return found or None
+        seen = once
 
 
 def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOOGLE_WAIT_S) -> None:

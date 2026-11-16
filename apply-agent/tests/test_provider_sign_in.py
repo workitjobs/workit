@@ -208,3 +208,15 @@ def test_a_mailed_password_reset_link_is_never_opened():
     with pytest.raises(Handoff, match="password reset, and Apply never opens one"):
         pages._link(page, "acme.example", None, "https://acme.example/jobs/1")
     assert opened == []
+
+
+def test_a_scope_nested_redirects_deep_is_still_read():
+    # Fault (KAN-878's review): scopes() decoded a fixed four times and searched only the first three, so a Drive
+    # request three redirects deep under a chooser that showed "openid" read as a sign-in alone.
+    from urllib.parse import quote
+
+    deep = "https://accounts.google.com/o/oauth2/v2/auth?scope=" + quote("openid https://www.googleapis.com/auth/drive")
+    for _ in range(5):
+        deep = "https://accounts.google.com/ServiceLogin?continue=" + quote(deep, safe="")
+    url = "https://accounts.google.com/v3/signin/accountchooser?scope=openid&continue=" + quote(deep, safe="")
+    assert "https://www.googleapis.com/auth/drive" in provider_sign_in.scopes(url)
