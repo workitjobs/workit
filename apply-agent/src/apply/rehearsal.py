@@ -412,9 +412,15 @@ def rehearse(
             # A Board of an older shape (a test's, a run's) has no Fill again from outside the page: never asked.
             keep = keepalive.Keeper(done.posting.company or done.title, session_lost,
                                     lambda line: adapters.board.update(n, session=line), now=adapters.clock.now)
+            # Its page is held: Fill again from the window (`POST /fill-again`) fills it anew, in a Student run too,
+            # which has no Ask Claude (KAN-873). Held no more once hold() returns (unheld).
+            adapters.board.update(n, again=True)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep}
+
+        def unheld() -> None:
+            adapters.board.update(n, again=False)
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool | str:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
@@ -470,6 +476,7 @@ def rehearse(
                                 ask=asker, **holds())
             finally:
                 asker.close()
+                unheld()
                 gate.acquire()
             if how == RESUME:
                 site.rearm()
@@ -518,6 +525,7 @@ def rehearse(
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
                                     ask=asker, **holds())
                     asker.close()
+                    unheld()
                     if offered and (how == RESUME or not how and site.empty() and pressed_anyway()):
                         return RESUME
                     return how

@@ -1089,6 +1089,47 @@ def test_fill_again_from_the_window_fills_its_form_once_more_with_no_click_on_th
     assert filler.fills == 2 and submissions == []
 
 
+class FailsOnce(Counted):
+    """Counted whose first fill fails, as a page that broke mid-form."""
+
+    def fill(self, page, questions, answers):
+        if not self.fills:
+            self.fills += 1
+            raise RuntimeError("the page broke")
+        return super().fill(page, questions, answers)
+
+
+def test_try_again_in_a_student_window_fills_a_failed_form_anew(monkeypatch, tmp_path):
+    """KAN-873: a Student run has no Ask Claude, so its held page is never askable; its Worker still holds the
+    failed form's page, and Try again in the window (`/fill-again`) fills it anew."""
+    from apply import build
+    from apply.dashboard import Dashboard, NoFrames, Refused
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    filler = FailsOnce(GreenhouseFiller())
+    monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    lisul_on_the_held_page(monkeypatch, lambda n: [])
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    seen = []
+
+    with FakeJobServer(ARC_FORM) as fake, Dashboard(1, NoFrames()) as board:
+        def press() -> None:
+            for _ in range(300):
+                try:
+                    board.fill_again("tile-0")
+                    seen.append(board.state()["tiles"][0]["tone"])
+                    return
+                except Refused:
+                    time.sleep(0.2)  # not held yet
+        threading.Thread(target=press, daemon=True).start()
+        lines = hold_until(fake, profile, lambda lines: any("ready to submit" in line for line in lines),
+                           with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert seen == ["failed"]  # tried again from the failed form, not a held one
+    assert filler.fills == 2 and any("ready to submit" in line for line in lines) and submissions == []
+
+
 def test_a_field_the_filler_cannot_fill_is_reported_and_the_rest_still_filled(tmp_path):
     profile = profile_with(tmp_path, **{"education.school": "Example State University"})
     # A board whose school search names two Example States: the Filler won't guess between them.
