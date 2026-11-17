@@ -718,18 +718,22 @@ prompt, and before a model joins the chain.
   keys written by hand, scored with `--set reading_set_private`. Never
   commit one; the made-up set's layouts are ours, and real ones are harder.
 
-**First scores** (2026-11-17, `main` at `8dc611af`, the 19 resumes both
-models read; fields right):
+**First scores** (2026-11-17, `main` at `8dc611af`, the 19 resumes every
+model read; fields right):
 
-| Reading | Gemini 3.5 Flash-Lite | Groq gpt-oss-20b |
-| --- | --- | --- |
-| This parser alone | 71.5% | 71.5% |
-| The AI reading alone | 93.0% | 90.2% |
-| Combined (saved) | 96.8% | 95.7% |
+| Reading | Gemini 3.5 Flash-Lite | Groq gpt-oss-20b | Groq gpt-oss-120b |
+| --- | --- | --- | --- |
+| This parser alone | 71.5% | 71.5% | 71.5% |
+| The AI reading alone | 93.0% | 90.2% | 90.6% |
+| Combined (saved) | 96.8% | 95.7% | 94.4% |
 
 Per reading, Gemini took 4.3 s (median; slowest 8.3 s) and about 2,600
-tokens; gpt-oss-20b 1.6 s (slowest 4.2 s) and about 2,700. Extraction and
-this parser take under 0.2 s. That day Gemini's free tier answered 503
+tokens; gpt-oss-20b 1.6 s (slowest 4.2 s) and about 2,700; gpt-oss-120b
+5.0 s (slowest 9.7 s) and about 4,000, most of it reasoning. Extraction and
+this parser take under 0.2 s. gpt-oss-120b copied a Word list's "•" into
+21 bullets, and twice sent a reply that failed the schema. Its combined
+reading also took more of this parser's junk (18 extra entries and 43
+lines, against Gemini's 14 and 27). That day Gemini's free tier answered 503
 ("high demand") to about half the calls, and Groq's 429 to readings back to
 back: an upload saves this parser's reading on each. What the combined
 reading still gets wrong: the merge adds this parser's junk (14 extra

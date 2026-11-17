@@ -154,7 +154,11 @@ class CachedLLM:
             try:
                 reply = await self.llm.complete_json(messages, schema, identity=identity, **kwargs)
                 break
-            except Exception:
+            except Exception as exc:
+                # A reply that fails the schema came back from a call that
+                # answered, so the call itself shows no error: name it here.
+                if self.llm.meter and "error" not in self.llm.meter[-1]:
+                    self.llm.meter[-1]["error"] = type(exc).__name__
                 if attempt == self.retries:
                     self.meter = self.llm.meter
                     raise
