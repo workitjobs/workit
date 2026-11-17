@@ -14,6 +14,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
@@ -290,6 +291,22 @@ def test_workit_with_no_login_warns_and_says_rehearsals_still_work(tmp_path):
     assert "rehearsals work without it" in found.detail
     assert "apply login" in found.fix
     assert fake.requests == []  # no login: nothing to ask WorkIt
+
+
+@pytest.mark.parametrize("way", ["no login", "expired", "company account"])
+def test_workit_fails_each_way_its_login_cant_serve_ask_model_workit(tmp_path, way):
+    # Fault: with ask_model: workit, the default, a way the login can't serve the Model route only warns, though a
+    # rehearsal then stops at its first written answer. Each way is its own branch.
+    with FakeWorkIt(account_type="company" if way == "company account" else "applicant") as fake:
+        if way != "no login":
+            logged_in(tmp_path, fake)
+        if way == "expired":
+            fake.revoke()
+        client = lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        found = check(machine(tmp_path, profile=profile(tmp_path, ask_model="workit"), workit=client), "WorkIt")
+    assert found.level == doctor.FAIL
+    if way == "no login":
+        assert "first written answer" in found.detail and "apply app" in found.fix
 
 
 def test_workit_expired_login_warns_to_log_in_again(tmp_path):
