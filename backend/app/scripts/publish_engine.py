@@ -90,8 +90,8 @@ def entry(bundle: bytes, private: Ed25519PrivateKey, min_app: str, now: datetime
 
 def publish(storage, bundle: bytes, line: dict) -> list[dict] | None:
     """Uploads the bundle, then the list with its line last; the new list, or None when the list already ends with
-    this bundle at this min_app. A bundle published before moves to the end, so a reverted engine pointer serves
-    the older build again."""
+    this bundle at this min_app. A bundle published before moves to the end, so an engine pointer moved back serves
+    the older build again at this min_app; an app that a build of a higher min_app fits keeps that build."""
     bucket = storage.from_(BUCKET)
     builds = json.loads(bucket.download(INDEX)) if _has(bucket, INDEX) else []
     if builds and (builds[-1]["sha256"], builds[-1]["min_app"]) == (line["sha256"], line["min_app"]):

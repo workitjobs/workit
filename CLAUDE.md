@@ -38,7 +38,8 @@ none.
   package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
-  checkout). Batch
+  checkout; moving it: `autofiller_extension/CLAUDE.md`, "Move the engine
+  pointer"). Batch
   apply (KAN-369) fills up to five tabs at once and gave it routes of its
   own in `backend/app/routers/auto_apply.py` (a tab's state, its written
   questions and answers, the answer bank, finish), plus the connector its
