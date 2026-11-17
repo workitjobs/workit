@@ -523,7 +523,7 @@ by hand (W8).
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
-| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). Left by hand: the signing key, the `ApplyEngine` bucket and the workflow's environment and secret. Open: the WorkIt extension's public copy of the engine |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
@@ -1527,12 +1527,13 @@ and comes only from WorkIt (D3, D27, D28).
    it does.
 
 **Left, by hand, before a student can run it** (the steps are in
-`.github/CLAUDE.md`, "Publish the Fill engine"). Make the key
-(`make-key`) and put its public half in `engine_download.PUBLIC_KEY`; make
-the private `ApplyEngine` bucket in the Supabase dashboard; make the
-`apply-engine` environment and its secret; run the workflow once by hand
-for the first build. Until the key is in, the Student build refuses every
-download (`NO_KEY`).
+`.github/CLAUDE.md`, "Publish the Fill engine"). Done 2026-11-17: the key
+(`make-key`), with its public half in `engine_download.PUBLIC_KEY`. Left:
+make the private `ApplyEngine` bucket in the Supabase dashboard; give the
+`apply-engine` environment its branch rule, then its secret; run the
+workflow once by hand for the first build. Until that build is published,
+the API answers 503 and the app says that WorkIt did not send the Fill
+engine.
 
 **A dependency outside this design.** The WorkIt extension ships the
 minified engine in its public store package today, so anyone can read

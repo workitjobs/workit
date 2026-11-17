@@ -687,9 +687,12 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
 - **Setup, once, in this order.** The key and the bucket are the user's
   steps (a script that writes production Storage, the dashboard), never
   Claude's.
-  1. `cd backend && uv run python -m app.scripts.publish_engine make-key
-     <file outside every checkout>`, and a PR that puts the public half it
-     prints in `engine_download.PUBLIC_KEY`. Merge it before the first run.
+  1. Done 2026-11-17: the key (`cd backend && uv run python -m
+     app.scripts.publish_engine make-key <file outside every checkout>`;
+     it makes no folder, so the file's folder must exist) and the PR that
+     put the public half it prints in `engine_download.PUBLIC_KEY`. Keep a
+     backup of the file outside GitHub, which never shows a secret again.
+     A new key needs a new app: every installed app refuses its builds.
   2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
      bucket, Public off.
   3. The environment, then its secret:
