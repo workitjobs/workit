@@ -1,0 +1,114 @@
+{
+ "file": "11_docx_plain.docx",
+ "layout": "docx_plain",
+ "person": {
+  "name": "Zoe Martin",
+  "email": "zmartin@example.com",
+  "phone": "(555) 0107-0773",
+  "links": [
+   "github.com/zmartin"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Northfield College",
+   "location": "Northfield, MN",
+   "degree": "B.A.",
+   "field_of_study": "Mathematics",
+   "start": "2023-08",
+   "end": "2027-05",
+   "expected": true
+  },
+  {
+   "section": "experience",
+   "title": "Product Design Intern",
+   "organization": "Fernway",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Ran 12 user interviews and turned findings into three journey maps",
+    "Designed and tested a new onboarding flow in Figma that raised activation by 7%"
+   ],
+   "location": "Remote"
+  },
+  {
+   "section": "experience",
+   "title": "Backend Engineer Intern",
+   "organization": "Quillstack",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Designed a GraphQL endpoint for invoice search that serves 3,000 requests a minute",
+    "Cut p95 latency from 900 ms to 240 ms by adding Redis caching to account lookups"
+   ],
+   "location": "San Francisco, CA"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Course Planner",
+   "tools": [
+    "TypeScript",
+    "Next.js",
+    "PostgreSQL"
+   ],
+   "bullets": [
+    "Built a planner that checks prerequisites and suggests a four-year course plan",
+    "Used by 450 students during registration week"
+   ],
+   "end": "2024"
+  },
+  {
+   "section": "projects",
+   "title": "Pixel Chess",
+   "tools": [
+    "Java"
+   ],
+   "bullets": [
+    "Wrote a chess engine with alpha-beta search that plays at about 1500 Elo"
+   ],
+   "end": "2024",
+   "link": "github.com/zmartin/pixel-chess"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Distance running, jazz piano and cooking"
+   ]
+  }
+ ],
+ "skills": [
+  "JavaScript",
+  "TypeScript",
+  "Java",
+  "Go",
+  "Swift",
+  "Node.js",
+  "Next.js",
+  "React",
+  "Figma",
+  "PostgreSQL",
+  "Tableau",
+  "Docker",
+  "Jira",
+  "GraphQL",
+  "Redis",
+  "MongoDB"
+ ]
+}

@@ -1,0 +1,109 @@
+{
+ "file": "15_latex_left.pdf",
+ "layout": "latex_left",
+ "person": {
+  "name": "Elena Petrova",
+  "email": "epetrova@example.com",
+  "phone": "(555) 0108-0870",
+  "links": [
+   "github.com/epetrova"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Northfield College",
+   "location": "Northfield, MN",
+   "degree": "Bachelor of Arts",
+   "field_of_study": "Economics",
+   "start": "2024-09",
+   "end": "2028-05",
+   "expected": true,
+   "gpa": 3.95,
+   "coursework": [
+    "Discrete Mathematics",
+    "Software Engineering",
+    "Computer Networks"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Machine Learning Intern",
+   "organization": "Northwind Analytics",
+   "start": "2025-09",
+   "end": "present",
+   "bullets": [
+    "Built a demand forecasting model in scikit-learn that beat the old baseline by 9% MAPE",
+    "Set up Airflow jobs to retrain the model weekly on fresh sales data"
+   ],
+   "location": "Seattle, WA"
+  },
+  {
+   "section": "experience",
+   "title": "Data Engineering Intern",
+   "organization": "Bluefin Logistics",
+   "start": "2024-05",
+   "end": "2024-08",
+   "bullets": [
+    "Built Spark jobs that load 40 GB of shipment events into Snowflake each night",
+    "Wrote data quality checks that caught a broken vendor feed within an hour"
+   ],
+   "location": "Miami, FL"
+  },
+  {
+   "section": "projects",
+   "title": "Pixel Chess",
+   "tools": [
+    "Java"
+   ],
+   "bullets": [
+    "Wrote a chess engine with alpha-beta search that plays at about 1500 Elo"
+   ],
+   "end": "2024",
+   "link": "github.com/epetrova/pixel-chess"
+  },
+  {
+   "section": "projects",
+   "title": "Budget Buddy",
+   "tools": [
+    "React",
+    "Firebase"
+   ],
+   "bullets": [
+    "Built a shared budgeting app for roommates with real-time expense splitting",
+    "Reached 300 users across three campuses in its first semester"
+   ],
+   "start": "2025-01",
+   "end": "2025-04",
+   "link": "github.com/epetrova/budget-buddy"
+  },
+  {
+   "section": "leadership",
+   "title": "Volunteer Coordinator",
+   "organization": "Harbor Food Pantry",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Scheduled 60 volunteers a month and set up a sign-up sheet that cut no-shows in half"
+   ],
+   "location": "Baltimore, MD"
+  }
+ ],
+ "skills": [
+  "Python",
+  "Java",
+  "Swift",
+  "C++",
+  "React",
+  "Node.js",
+  "PyTorch",
+  "Figma",
+  "Git",
+  "scikit-learn",
+  "Airflow",
+  "pandas",
+  "Spark",
+  "Snowflake",
+  "Firebase"
+ ]
+}

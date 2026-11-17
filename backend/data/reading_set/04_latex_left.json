@@ -1,0 +1,143 @@
+{
+ "file": "04_latex_left.pdf",
+ "layout": "latex_left",
+ "person": {
+  "name": "Daniel Okafor",
+  "email": "dokafor@example.com",
+  "phone": "(555) 0107-0742",
+  "links": [
+   "github.com/dokafor"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "University of Cedar Falls",
+   "location": "Cedar Falls, IA",
+   "degree": "B.A.",
+   "field_of_study": "Cognitive Science",
+   "end": "2028-05",
+   "expected": true,
+   "gpa": 3.86,
+   "coursework": [
+    "Software Engineering",
+    "Operating Systems",
+    "Machine Learning",
+    "Computer Architecture",
+    "Human-Computer Interaction",
+    "Data Structures"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Undergraduate Researcher",
+   "organization": "Systems and Networks Lab",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Measured tail latency of three key-value stores under mixed workloads",
+    "Wrote a Go load generator that replays production traces at 50,000 operations per second"
+   ],
+   "location": "Albany, NY"
+  },
+  {
+   "section": "experience",
+   "title": "Cloud Infrastructure Intern",
+   "organization": "Stratus Bank",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Wrote Terraform modules for 30 internal services on Azure",
+    "Cut monthly cloud spend by $11,000 by right-sizing idle virtual machines"
+   ],
+   "location": "Charlotte, NC"
+  },
+  {
+   "section": "experience",
+   "title": "Frontend Developer Intern",
+   "organization": "Brightline Health",
+   "start": "2023-05",
+   "end": "2023-08",
+   "bullets": [
+    "Rebuilt the patient intake form in React and TypeScript, reducing drop-off by 12%",
+    "Added accessibility checks to CI and fixed 60 WCAG issues across 14 pages",
+    "Worked with two designers in Figma to ship a new appointment calendar"
+   ],
+   "location": "New York, NY"
+  },
+  {
+   "section": "projects",
+   "title": "Study Room Finder",
+   "tools": [
+    "Kotlin",
+    "Firebase"
+   ],
+   "bullets": [
+    "Made an Android app that shows open library study rooms in real time"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Line Following Robot",
+   "tools": [
+    "C++",
+    "Arduino"
+   ],
+   "bullets": [
+    "Programmed a PID controller that finished a 10 meter track in 14 seconds",
+    "Placed second of 22 teams at the spring robotics showcase"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Course Planner",
+   "tools": [
+    "TypeScript",
+    "Next.js",
+    "PostgreSQL"
+   ],
+   "bullets": [
+    "Built a planner that checks prerequisites and suggests a four-year course plan",
+    "Used by 450 students during registration week"
+   ],
+   "end": "2023",
+   "link": "courseplanner.example.com"
+  },
+  {
+   "section": "leadership",
+   "title": "Treasurer",
+   "organization": "Robotics Club",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Managed a $12,000 annual budget and wrote two successful grant requests"
+   ]
+  },
+  {
+   "section": "awards",
+   "title": "Best Design Award",
+   "organization": "Product Design Society",
+   "date": "2024"
+  }
+ ],
+ "skills": [
+  "Go",
+  "TypeScript",
+  "Kotlin",
+  "C++",
+  "Java",
+  "React",
+  "Next.js",
+  "Node.js",
+  "Linux",
+  "Figma",
+  "PostgreSQL",
+  "Kubernetes",
+  "Terraform",
+  "Azure",
+  "Firebase",
+  "Arduino"
+ ]
+}

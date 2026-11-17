@@ -1,0 +1,114 @@
+{
+ "file": "07_html_twocol.pdf",
+ "layout": "html_twocol",
+ "person": {
+  "name": "Aisha Rahman",
+  "email": "aisharahman@example.com",
+  "phone": "(555) 0111-1149",
+  "links": [
+   "github.com/aisharahman"
+  ]
+ },
+ "entries": [
+  {
+   "section": "custom",
+   "title": "Summary",
+   "bullets": [
+    "Computer science student who likes building tools people use every day, looking for a summer 2027 software internship."
+   ]
+  },
+  {
+   "section": "education",
+   "title": "Eastgate College",
+   "location": "Albany, NY",
+   "degree": "B.S.",
+   "field_of_study": "Computer Engineering",
+   "end": "2028-05",
+   "expected": true,
+   "gpa": 3.8,
+   "coursework": [
+    "Econometrics",
+    "Computer Architecture",
+    "Algorithms",
+    "Human-Computer Interaction"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "iOS Developer Intern",
+   "organization": "Pocketwise",
+   "start": "2025-09",
+   "end": "present",
+   "bullets": [
+    "Shipped a budgeting widget in Swift and SwiftUI used by 20,000 people in its first month",
+    "Fixed memory leaks that caused crashes on older iPhones"
+   ],
+   "location": "Los Angeles, CA"
+  },
+  {
+   "section": "experience",
+   "title": "Data Engineering Intern",
+   "organization": "Bluefin Logistics",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Built Spark jobs that load 40 GB of shipment events into Snowflake each night",
+    "Wrote data quality checks that caught a broken vendor feed within an hour"
+   ],
+   "location": "Miami, FL"
+  },
+  {
+   "section": "projects",
+   "title": "Sentiment Tracker",
+   "tools": [
+    "Python",
+    "pandas",
+    "scikit-learn"
+   ],
+   "bullets": [
+    "Classified 50,000 product reviews by sentiment with 91% accuracy",
+    "Charted weekly sentiment for five brands in a small Flask dashboard"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Portfolio Optimizer",
+   "tools": [
+    "Python",
+    "NumPy"
+   ],
+   "bullets": [
+    "Built a mean-variance optimizer that rebalances a 20-stock portfolio monthly",
+    "Back-tested the strategy over ten years of daily prices"
+   ],
+   "end": "2024"
+  },
+  {
+   "section": "awards",
+   "title": "Undergraduate Research Award",
+   "organization": "College of Engineering",
+   "date": "2024"
+  },
+  {
+   "section": "awards",
+   "title": "Dean's List",
+   "organization": "Eastgate College",
+   "date": "2025-05"
+  }
+ ],
+ "skills": [
+  "Swift",
+  "Python",
+  "Kotlin",
+  "Flask",
+  "Node.js",
+  "PyTorch",
+  "PostgreSQL",
+  "Excel",
+  "Spark",
+  "Snowflake",
+  "pandas",
+  "scikit-learn",
+  "NumPy"
+ ]
+}

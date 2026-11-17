@@ -1,0 +1,122 @@
+{
+ "file": "16_html_modern.pdf",
+ "layout": "html_modern",
+ "person": {
+  "name": "Jamal Wright",
+  "email": "jwright@example.com",
+  "phone": "(555) 0107-0767",
+  "links": [
+   "github.com/jwright"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Harbor City University",
+   "location": "Baltimore, MD",
+   "degree": "B.S.",
+   "field_of_study": "Computer Engineering",
+   "start": "2023-08",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.42
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Financial Analyst Intern",
+   "organization": "Granite Peak Capital",
+   "start": "2024-05",
+   "end": "2024-08",
+   "bullets": [
+    "Built a three-statement model in Excel for a $40M acquisition target",
+    "Prepared weekly market summaries for the investment committee"
+   ],
+   "location": "Denver, CO"
+  },
+  {
+   "section": "projects",
+   "title": "Course Planner",
+   "tools": [
+    "TypeScript",
+    "Next.js",
+    "PostgreSQL"
+   ],
+   "bullets": [
+    "Built a planner that checks prerequisites and suggests a four-year course plan",
+    "Used by 450 students during registration week"
+   ],
+   "link": "courseplanner.example.com"
+  },
+  {
+   "section": "projects",
+   "title": "Study Room Finder",
+   "tools": [
+    "Kotlin",
+    "Firebase"
+   ],
+   "bullets": [
+    "Made an Android app that shows open library study rooms in real time"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Portfolio Optimizer",
+   "tools": [
+    "Python",
+    "NumPy"
+   ],
+   "bullets": [
+    "Built a mean-variance optimizer that rebalances a 20-stock portfolio monthly",
+    "Back-tested the strategy over ten years of daily prices"
+   ],
+   "end": "2023"
+  },
+  {
+   "section": "leadership",
+   "title": "Treasurer",
+   "organization": "Robotics Club",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Managed a $12,000 annual budget and wrote two successful grant requests"
+   ]
+  },
+  {
+   "section": "certifications",
+   "title": "Tableau Desktop Specialist",
+   "issuer": "Tableau"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Board games, hiking and volunteering at the animal shelter"
+   ]
+  }
+ ],
+ "skills": [
+  "TypeScript",
+  "Kotlin",
+  "Python",
+  "C++",
+  "Next.js",
+  "TensorFlow",
+  "Django",
+  "Excel",
+  "PostgreSQL",
+  "Tableau",
+  "Firebase",
+  "NumPy"
+ ]
+}

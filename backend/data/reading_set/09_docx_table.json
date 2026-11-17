@@ -1,0 +1,119 @@
+{
+ "file": "09_docx_table.docx",
+ "layout": "docx_table",
+ "person": {
+  "name": "Grace Liu",
+  "email": "graceliu@example.com",
+  "phone": "(555) 0108-0844",
+  "links": [
+   "github.com/graceliu"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "University of Cedar Falls",
+   "location": "Cedar Falls, IA",
+   "degree": "Bachelor of Science",
+   "field_of_study": "Information Systems",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.8,
+   "coursework": [
+    "Thermodynamics",
+    "Software Engineering",
+    "Linear Algebra",
+    "Machine Learning",
+    "Data Structures"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Frontend Developer Intern",
+   "organization": "Brightline Health",
+   "start": "2026-06",
+   "end": "2026-08",
+   "bullets": [
+    "Rebuilt the patient intake form in React and TypeScript, reducing drop-off by 12%",
+    "Added accessibility checks to CI and fixed 60 WCAG issues across 14 pages"
+   ],
+   "location": "New York, NY"
+  },
+  {
+   "section": "experience",
+   "title": "Machine Learning Intern",
+   "organization": "Northwind Analytics",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Built a demand forecasting model in scikit-learn that beat the old baseline by 9% MAPE",
+    "Set up Airflow jobs to retrain the model weekly on fresh sales data"
+   ],
+   "location": "Seattle, WA"
+  },
+  {
+   "section": "projects",
+   "title": "Pixel Chess",
+   "tools": [
+    "Java"
+   ],
+   "bullets": [
+    "Wrote a chess engine with alpha-beta search that plays at about 1500 Elo"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Trailcast",
+   "tools": [
+    "Python",
+    "Flask",
+    "PostgreSQL"
+   ],
+   "bullets": [
+    "Made a web app that combines trail reports and weather into one daily hiking score",
+    "Scraped 1,200 trail pages and stored them in a normalized schema"
+   ]
+  },
+  {
+   "section": "leadership",
+   "title": "Resident Assistant",
+   "organization": "Office of Residential Life",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Supported 45 first-year students on a residence hall floor",
+    "Planned monthly events on study skills and wellness"
+   ]
+  },
+  {
+   "section": "awards",
+   "title": "Undergraduate Research Award",
+   "organization": "College of Engineering",
+   "date": "2024"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Distance running, jazz piano and cooking"
+   ]
+  }
+ ],
+ "skills": [
+  "TypeScript",
+  "Java",
+  "Python",
+  "Swift",
+  "React",
+  "Flask",
+  "PyTorch",
+  "Next.js",
+  "Figma",
+  "PostgreSQL",
+  "Docker",
+  "Git",
+  "scikit-learn",
+  "Airflow",
+  "pandas"
+ ]
+}

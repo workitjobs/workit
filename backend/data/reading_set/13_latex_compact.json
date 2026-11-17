@@ -1,0 +1,104 @@
+{
+ "file": "13_latex_compact.pdf",
+ "layout": "latex_compact",
+ "person": {
+  "name": "Nadia Haddad",
+  "email": "nhaddad@example.com",
+  "phone": "(555) 0107-0708",
+  "links": [
+   "github.com/nhaddad"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Northfield College",
+   "location": "Northfield, MN",
+   "degree": "Bachelor of Arts",
+   "field_of_study": "Mathematics",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.86
+  },
+  {
+   "section": "experience",
+   "title": "Mechanical Engineering Co-op",
+   "organization": "Torrent Pumps",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Redesigned a pump housing in SolidWorks, cutting its weight by 14%",
+    "Ran tolerance stack-ups and wrote test plans for two new impellers",
+    "Worked with the machine shop to reduce scrap on one part from 6% to 2%"
+   ],
+   "location": "Milwaukee, WI"
+  },
+  {
+   "section": "experience",
+   "title": "IT Support Technician",
+   "organization": "Campus Technology Services",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Resolved about 25 hardware and network tickets a week for students and staff",
+    "Imaged and deployed 150 laptops for the fall semester",
+    "Wrote a how-to guide for the campus VPN that cut related tickets by a third"
+   ],
+   "location": "Riverside, CA"
+  },
+  {
+   "section": "projects",
+   "title": "Budget Buddy",
+   "tools": [
+    "React",
+    "Firebase"
+   ],
+   "bullets": [
+    "Built a shared budgeting app for roommates with real-time expense splitting",
+    "Reached 300 users across three campuses in its first semester"
+   ],
+   "start": "2025-01",
+   "end": "2025-04",
+   "link": "github.com/nhaddad/budget-buddy"
+  },
+  {
+   "section": "projects",
+   "title": "Trailcast",
+   "tools": [
+    "Python",
+    "Flask",
+    "PostgreSQL"
+   ],
+   "bullets": [
+    "Made a web app that combines trail reports and weather into one daily hiking score",
+    "Scraped 1,200 trail pages and stored them in a normalized schema"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Distance running, jazz piano and cooking"
+   ]
+  }
+ ],
+ "skills": [
+  "MATLAB",
+  "Python",
+  "Kotlin",
+  "TypeScript",
+  "React",
+  "Flask",
+  "PyTorch",
+  "Linux",
+  "PostgreSQL",
+  "Jira",
+  "AWS",
+  "Docker",
+  "SolidWorks",
+  "Bash",
+  "Firebase"
+ ]
+}

@@ -1,0 +1,134 @@
+{
+ "file": "18_html_twocol.pdf",
+ "layout": "html_twocol",
+ "person": {
+  "name": "Ryan Walsh",
+  "email": "rwalsh@example.com",
+  "phone": "(555) 0106-0657",
+  "links": [
+   "github.com/rwalsh"
+  ]
+ },
+ "entries": [
+  {
+   "section": "custom",
+   "title": "Summary",
+   "bullets": [
+    "Computer science student who likes building tools people use every day, looking for a summer 2027 software internship."
+   ]
+  },
+  {
+   "section": "education",
+   "title": "Eastgate College",
+   "location": "Albany, NY",
+   "degree": "Bachelor of Science",
+   "field_of_study": "Computer Science",
+   "start": "2023-08",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.71
+  },
+  {
+   "section": "experience",
+   "title": "Software Engineering Intern",
+   "organization": "Acme Robotics",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Built a Python service that schedules charging for 40 warehouse robots, cutting idle time by 18%",
+    "Wrote integration tests in pytest for the fleet API, raising coverage from 52% to 81%",
+    "Moved three nightly batch jobs to Docker containers on AWS ECS"
+   ],
+   "location": "Boston, MA"
+  },
+  {
+   "section": "experience",
+   "title": "Undergraduate Researcher",
+   "organization": "Systems and Networks Lab",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Measured tail latency of three key-value stores under mixed workloads",
+    "Wrote a Go load generator that replays production traces at 50,000 operations per second"
+   ],
+   "location": "Albany, NY"
+  },
+  {
+   "section": "experience",
+   "title": "iOS Developer Intern",
+   "organization": "Pocketwise",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Shipped a budgeting widget in Swift and SwiftUI used by 20,000 people in its first month",
+    "Fixed memory leaks that caused crashes on older iPhones"
+   ],
+   "location": "Los Angeles, CA"
+  },
+  {
+   "section": "projects",
+   "title": "Wind Turbine Blade Study",
+   "tools": [
+    "MATLAB",
+    "SolidWorks"
+   ],
+   "bullets": [
+    "Modeled three blade shapes and tested scale versions in the school wind tunnel",
+    "Found a shape that raised power output by 6% at low wind speeds"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Study Room Finder",
+   "tools": [
+    "Kotlin",
+    "Firebase"
+   ],
+   "bullets": [
+    "Made an Android app that shows open library study rooms in real time"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "leadership",
+   "title": "Volunteer Coordinator",
+   "organization": "Harbor Food Pantry",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Scheduled 60 volunteers a month and set up a sign-up sheet that cut no-shows in half"
+   ],
+   "location": "Baltimore, MD"
+  },
+  {
+   "section": "awards",
+   "title": "Dean's List",
+   "organization": "Eastgate College",
+   "date": "2024"
+  },
+  {
+   "section": "awards",
+   "title": "Undergraduate Research Award",
+   "organization": "College of Engineering",
+   "date": "2024-12"
+  }
+ ],
+ "skills": [
+  "Python",
+  "Go",
+  "Swift",
+  "MATLAB",
+  "Kotlin",
+  "C++",
+  "Django",
+  "Docker",
+  "AWS",
+  "Linux",
+  "Excel",
+  "SolidWorks",
+  "Firebase"
+ ]
+}

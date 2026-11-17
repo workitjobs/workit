@@ -144,6 +144,8 @@ uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
+uv run python -m app.scripts.reading_score     score the resume reading against data/reading_set's answer keys, KAN-900 (by hand, never CI; app/utils/CLAUDE.md, The reading score)
+uv run python -m app.scripts.make_reading_set  make the made-up scoring set again (needs Tectonic and a Chrome; commit its output)
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)

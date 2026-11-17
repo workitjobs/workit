@@ -1,0 +1,94 @@
+{
+ "file": "20_docx_table.docx",
+ "layout": "docx_table",
+ "person": {
+  "name": "Victor Huang",
+  "email": "vhuang@example.com",
+  "phone": "(555) 0106-0649",
+  "links": [
+   "github.com/vhuang"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Harbor City University",
+   "location": "Baltimore, MD",
+   "degree": "B.S.",
+   "field_of_study": "Information Systems",
+   "start": "2022-08",
+   "end": "2026-05",
+   "gpa": 3.8
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2025-09",
+   "end": "present",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Frontend Developer Intern",
+   "organization": "Brightline Health",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Rebuilt the patient intake form in React and TypeScript, reducing drop-off by 12%",
+    "Added accessibility checks to CI and fixed 60 WCAG issues across 14 pages",
+    "Worked with two designers in Figma to ship a new appointment calendar"
+   ],
+   "location": "New York, NY"
+  },
+  {
+   "section": "projects",
+   "title": "Portfolio Optimizer",
+   "tools": [
+    "Python",
+    "NumPy"
+   ],
+   "bullets": [
+    "Built a mean-variance optimizer that rebalances a 20-stock portfolio monthly",
+    "Back-tested the strategy over ten years of daily prices"
+   ],
+   "end": "2023"
+  },
+  {
+   "section": "leadership",
+   "title": "Resident Assistant",
+   "organization": "Office of Residential Life",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Supported 45 first-year students on a residence hall floor",
+    "Planned monthly events on study skills and wellness"
+   ]
+  },
+  {
+   "section": "certifications",
+   "title": "Tableau Desktop Specialist",
+   "issuer": "Tableau"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Rock climbing, film photography and chess"
+   ]
+  }
+ ],
+ "skills": [
+  "TypeScript",
+  "Python",
+  "R",
+  "React",
+  "TensorFlow",
+  "Figma",
+  "PostgreSQL",
+  "NumPy"
+ ]
+}

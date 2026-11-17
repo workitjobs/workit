@@ -1,0 +1,140 @@
+{
+ "file": "05_html_modern.pdf",
+ "layout": "html_modern",
+ "person": {
+  "name": "Hannah Kim",
+  "email": "hannahkim@example.com",
+  "phone": "(555) 0109-0943",
+  "links": [
+   "github.com/hannahkim"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Eastgate College",
+   "location": "Albany, NY",
+   "degree": "Bachelor of Science",
+   "field_of_study": "Computer Engineering",
+   "start": "2022-08",
+   "end": "2026-05",
+   "coursework": [
+    "Machine Learning",
+    "Corporate Finance",
+    "Operating Systems",
+    "Linear Algebra",
+    "Algorithms"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Teaching Assistant",
+   "organization": "Department of Computer Science",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Led two weekly lab sections of 30 students for Introduction to Programming in Java",
+    "Held office hours and graded assignments with a rubric shared by six TAs"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Sales Associate",
+   "organization": "Target",
+   "start": "2025-06",
+   "end": "2025-08",
+   "bullets": [
+    "Helped about 80 customers a shift and kept the electronics section stocked",
+    "Trained four new associates on the register and returns process"
+   ],
+   "location": "Austin, TX"
+  },
+  {
+   "section": "experience",
+   "title": "Data Analyst Intern",
+   "organization": "Lakeside Labs",
+   "start": "2024-05",
+   "end": "2024-08",
+   "bullets": [
+    "Cleaned and joined 2.3 million loan records in SQL to find causes of late payments",
+    "Built a Tableau dashboard that the credit team now reviews every Monday"
+   ],
+   "location": "Chicago, IL"
+  },
+  {
+   "section": "projects",
+   "title": "Study Room Finder",
+   "tools": [
+    "Kotlin",
+    "Firebase"
+   ],
+   "bullets": [
+    "Made an Android app that shows open library study rooms in real time"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "end": "2024"
+  },
+  {
+   "section": "projects",
+   "title": "Habit Garden",
+   "tools": [
+    "Swift"
+   ],
+   "bullets": [
+    "Designed and built an iOS habit tracker that grows a garden as streaks continue",
+    "Wrote 40 unit tests and published it to TestFlight for 60 testers"
+   ]
+  },
+  {
+   "section": "leadership",
+   "title": "Mentor",
+   "organization": "First-Gen Scholars Program",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Met weekly with three first-year students to plan courses and internships"
+   ]
+  },
+  {
+   "section": "awards",
+   "title": "National Merit Finalist",
+   "date": "2025"
+  },
+  {
+   "section": "certifications",
+   "title": "Google Data Analytics Certificate",
+   "issuer": "Google"
+  }
+ ],
+ "skills": [
+  "Java",
+  "SQL",
+  "Kotlin",
+  "JavaScript",
+  "Swift",
+  "MATLAB",
+  "C++",
+  "Node.js",
+  "Spring Boot",
+  "PyTorch",
+  "Next.js",
+  "Tableau",
+  "Excel",
+  "Linux",
+  "Git",
+  "Firebase",
+  "MongoDB"
+ ]
+}

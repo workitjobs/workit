@@ -1,0 +1,91 @@
+{
+ "file": "03_latex_twocol.pdf",
+ "layout": "latex_twocol",
+ "person": {
+  "name": "Sofia Alvarez",
+  "email": "salvarez@example.com",
+  "phone": "(555) 0108-0872",
+  "links": [
+   "github.com/salvarez"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Pinecrest State University",
+   "location": "Flagstaff, AZ",
+   "degree": "B.S.",
+   "field_of_study": "Mechanical Engineering",
+   "start": "2023-08",
+   "end": "2027-05",
+   "expected": true,
+   "coursework": [
+    "Data Structures",
+    "Human-Computer Interaction",
+    "Probability and Statistics"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2026-06",
+   "end": "2026-08",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Software Engineering Intern",
+   "organization": "Acme Robotics",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Built a Python service that schedules charging for 40 warehouse robots, cutting idle time by 18%",
+    "Wrote integration tests in pytest for the fleet API, raising coverage from 52% to 81%",
+    "Moved three nightly batch jobs to Docker containers on AWS ECS"
+   ],
+   "location": "Boston, MA"
+  },
+  {
+   "section": "projects",
+   "title": "Wind Turbine Blade Study",
+   "tools": [
+    "MATLAB",
+    "SolidWorks"
+   ],
+   "bullets": [
+    "Modeled three blade shapes and tested scale versions in the school wind tunnel",
+    "Found a shape that raised power output by 6% at low wind speeds"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "leadership",
+   "title": "Resident Assistant",
+   "organization": "Office of Residential Life",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Supported 45 first-year students on a residence hall floor",
+    "Planned monthly events on study skills and wellness"
+   ]
+  }
+ ],
+ "skills": [
+  "Python",
+  "MATLAB",
+  "Kotlin",
+  "C++",
+  "TensorFlow",
+  "React",
+  "Docker",
+  "AWS",
+  "Linux",
+  "Excel",
+  "SolidWorks"
+ ]
+}

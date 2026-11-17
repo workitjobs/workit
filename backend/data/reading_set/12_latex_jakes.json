@@ -1,0 +1,114 @@
+{
+ "file": "12_latex_jakes.pdf",
+ "layout": "latex_jakes",
+ "person": {
+  "name": "Kevin Tran",
+  "email": "kevintran@example.com",
+  "phone": "(555) 0109-0978",
+  "links": [
+   "github.com/kevintran"
+  ]
+ },
+ "entries": [
+  {
+   "section": "custom",
+   "title": "Summary",
+   "bullets": [
+    "Computer science student who likes building tools people use every day, looking for a summer 2027 software internship."
+   ]
+  },
+  {
+   "section": "education",
+   "title": "Lakeshore Institute of Technology",
+   "location": "Chicago, IL",
+   "degree": "Bachelor of Science",
+   "field_of_study": "Computer Engineering",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.92,
+   "coursework": [
+    "Computer Networks",
+    "Econometrics",
+    "Data Structures",
+    "Software Engineering",
+    "Databases",
+    "Discrete Mathematics"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Frontend Developer Intern",
+   "organization": "Brightline Health",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Rebuilt the patient intake form in React and TypeScript, reducing drop-off by 12%",
+    "Added accessibility checks to CI and fixed 60 WCAG issues across 14 pages"
+   ],
+   "location": "New York, NY"
+  },
+  {
+   "section": "experience",
+   "title": "IT Support Technician",
+   "organization": "Campus Technology Services",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Resolved about 25 hardware and network tickets a week for students and staff",
+    "Imaged and deployed 150 laptops for the fall semester",
+    "Wrote a how-to guide for the campus VPN that cut related tickets by a third"
+   ],
+   "location": "Riverside, CA"
+  },
+  {
+   "section": "projects",
+   "title": "Portfolio Optimizer",
+   "tools": [
+    "Python",
+    "NumPy"
+   ],
+   "bullets": [
+    "Built a mean-variance optimizer that rebalances a 20-stock portfolio monthly",
+    "Back-tested the strategy over ten years of daily prices"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Budget Buddy",
+   "tools": [
+    "React",
+    "Firebase"
+   ],
+   "bullets": [
+    "Built a shared budgeting app for roommates with real-time expense splitting",
+    "Reached 300 users across three campuses in its first semester"
+   ],
+   "end": "2023"
+  },
+  {
+   "section": "awards",
+   "title": "Dean's List",
+   "organization": "Lakeshore Institute of Technology",
+   "date": "2025-05"
+  },
+  {
+   "section": "awards",
+   "title": "Undergraduate Research Award",
+   "organization": "College of Engineering",
+   "date": "2025-05"
+  }
+ ],
+ "skills": [
+  "TypeScript",
+  "Python",
+  "MATLAB",
+  "React",
+  "TensorFlow",
+  "Figma",
+  "Linux",
+  "Git",
+  "Bash",
+  "NumPy",
+  "Firebase"
+ ]
+}
