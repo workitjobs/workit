@@ -1489,8 +1489,10 @@ and comes only from WorkIt (D3, D27, D28).
    or cost): `<sha256>.js`, and a line in `builds.json` (`sha256`,
    `signature`, `min_app`, `published_at`). It refuses a bundle that names a
    source map, so no source map ships, and a key whose public half Apply
-   doesn't hold. A run with nothing new uploads nothing, and a reverted
-   pointer serves the older build again. `make-key <file>` makes the key
+   doesn't hold. A run with nothing new uploads nothing, and a pointer
+   moved back serves the older build again, unless the bad build had a
+   higher min app (`autofiller_extension/CLAUDE.md`, "Move the engine
+   pointer"). `make-key <file>` makes the key
    once; its private half is a secret of the `apply-engine` environment,
    which takes jobs from `main` only, since whoever holds it can make every
    app run their code (`.github/CLAUDE.md`, "Publish the Fill engine").

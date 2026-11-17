@@ -6,7 +6,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
-of its own, so one engine pin serves both. To use another engine checkout
+of its own, so one engine pin serves both (moving it:
+`../../autofiller_extension/CLAUDE.md`, "Move the engine pointer"). To use another engine checkout
 (for example, a branch of the engine that you work on), set
 `APPLY_FILL_ENGINE` to its folder (`~` is expanded). Apply then loads
 `dist/engine.js` from that folder. The tests read the saved forms

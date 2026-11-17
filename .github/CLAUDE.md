@@ -651,7 +651,11 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
   key makes every app run what it signs, and a PR's run is the PR's code.
   A run whose engine is already last in `builds.json` at that min app
   uploads nothing, so a re-run is safe. A pointer moved back to an older
-  engine puts that build last again, so a revert rolls the engine back.
+  engine puts that build last again, so moving it back rolls the engine
+  back, as long as `engine_min_app.txt` stays: lowered in the same PR, it
+  leaves the apps at the higher version on the bad build. The steps to move
+  the pointer, and to roll it back, are in `../autofiller_extension/CLAUDE.md`,
+  "Move the engine pointer".
   An edit to the workflow starts no publish.
 - **The min app** (`engine_min_app.txt`) is the oldest app version that the
   pointer's engine fits. Raise it in the PR that moves the pointer to an
