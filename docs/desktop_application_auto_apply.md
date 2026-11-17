@@ -529,7 +529,7 @@ by hand (W8).
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
-| W13 | Measure quality and model use | W1 | Yes, for the cap | Not started |
+| W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
 Every workstream that adds or changes a click path, or touches
 `submit_guard.py`, `plain/guards.py`, `send_click.py` or a guard flag,
@@ -1286,8 +1286,9 @@ its usage line, and Settings. `tests/test_first_run.py` and
 KAN-869), in place of the developer Apply window: one to-do card at a
 time, "Still working on", Applied (this run's, then those on WorkIt from
 before), the queue and Start when no run goes (Add jobs brings it back
-whenever no run is going; a run refuses a second), the Usage cap in words
-from 80%, and Settings. Its source is
+whenever no run is going; a run refuses a second), today's usage as a bar
+(the share of the Usage cap used, never a token count, read again as each
+form is filled; KAN-837) with words from 80%, and Settings. Its source is
 `apply-agent/window/` (React, Tailwind, the website's tokens and Inter),
 built by Vite into one self-contained file committed in the package
 (`apply/student_page/index.html`), so the app ships it with no Node; CI
@@ -1767,7 +1768,30 @@ adversarial review.
    2026-11-10 found Groq's plainer but correct, `apply-agent/docs/ask-model.md`).
 2. Count calls and tokens by call kind on about 20 forms across hiring
    systems: the tokens of one Application, which sets the app's "about N
-   Applications left".
+   Applications left". **Parked (KAN-837, 2026-11-17)** on branch
+   `KAN-837-tokens-by-kind`, not merged; W13 starts again from it:
+   - Each WorkIt call's Trace event gets the `tokens` WorkIt counted
+     against the cap, or the status it `failed` with
+     (`WorkItAsk._post`). Each fill already ends with a `result` event.
+   - `uv run apply tokens [--since YYYY-MM-DD] [--cap N]` adds them up
+     over the Traces: by call kind, by job system, and a fill's tokens
+     divided into the cap. Each `start` in a Trace is one fill, so a Fill
+     again counts on its own.
+   - **Fix before it merges:** it divides by every fill, so a fill that
+     stopped early (a sign-in, a closed posting, a failure) counts as a
+     whole form, and "about N" comes out too high (15 forms of 8,000
+     tokens and 5 stops of 300 gave 13; the right answer is 9). Divide
+     all tokens by the fills whose `result` reached the form's end (held
+     or submitted). Name job systems with `preflight.job_system`:
+     `Posting.job_system` puts Jobvite, SmartRecruiters, iCIMS, BambooHR
+     and Paylocity under "other".
+   - It can't see what a failed call spent (WorkIt counts it; its answer
+     doesn't say), or calls outside a fill (`apply story-map`, a held
+     page's Regenerate or Ask Claude).
+   - The measurement: rehearse about 20 postings across hiring systems
+     with `ask_model: workit`, against a local API with a higher
+     `APPLY_APP_DAILY_TOKENS` (on the real server they count against the
+     developer's own cap), then run `apply tokens --since` that day.
 3. With W2: the generic Filler's share of fields filled right, against
    Claude fill.
 

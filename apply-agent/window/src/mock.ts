@@ -146,8 +146,8 @@ const MATCHES: Match[] = [
   match("Zillow", "zillow.com", "Data Engineer Intern", 72, { location: "Remote (US)", work_style: "remote", highlights: [{ text: "Uses 4 of your skills", met: true }, { text: "Missing Spark", met: false }] }),
 ];
 
-const CAP = 400_000;
-const USED: Record<string, number> = { near: 340_000, cap: CAP };
+const CAP = 80_000; // production's Usage cap (D6)
+const USED: Record<string, number> = { near: 68_000, cap: CAP };
 
 export function mock(
   scenario: string,

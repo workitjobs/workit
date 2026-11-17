@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -58,8 +58,8 @@ test("a failed or skipped job didn't go through, with its reason in the student'
     [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "Already applied"],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied to this job"],
     [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Stopped at today's limit. Try again once it resets"],
-    // A Student run's job at WorkIt's Usage cap: rehearsal ends it failed, and nothing starts it again by itself.
-    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: Max usage limit hit; resumes after 2026-11-16 00:00:00" }, "Stopped at today's limit. Try again once it resets"],
+    // A job that reached WorkIt's Usage cap and ended failed, in UsageLimitHit's words (KAN-837).
+    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: UsageLimitHit: Usage limit reached; resets at 2026-11-17 19:00:00" }, "Stopped at today's limit. Try again once it resets"],
   ];
   for (const [over, reason] of cases) {
     const v = view({ tiles: [], items: [job({ id: 3, ...over })] });
@@ -188,12 +188,23 @@ test("a question answered in the window leaves the pile while its form fills it 
   assert.equal(view({ tiles: [tile], items: [live] }).todo.length, 0);
 });
 
+test("the usage bar shows the share of today's limit used, never as tokens and never past full", () => {
+  // Faults: the bar counting what is left, a share rounded up (100% and amber before `limit` says so), a share past
+  // 100% at a cap a failed call went over, a cap of 0 as empty.
+  const at = (d: Date) => d.toISOString().slice(11, 16);
+  const usage = (used: number, cap = 80_000) => ({ used, cap, resets_at: "2026-11-16T05:00:00Z" });
+  const shares = [0, 20_000, 52_400, 63_700, 79_700, 80_000, 86_000].map((used) => usedShare(usage(used)));
+  assert.deepEqual(shares, [0, 25, 65, 79, 99, 100, 100]);
+  assert.equal(usedShare(usage(0, 0)), 100);
+  assert.equal(usageLine(usage(52_400), at), "65% used · resets at 05:00");
+});
+
 test("the daily limit is said in words only from 80%, never as tokens", () => {
   const at = (d: Date) => d.toISOString().slice(11, 16);
   const usage = (used: number) => ({ used, cap: 1000, resets_at: "2026-11-16T05:00:00Z" });
   assert.equal(limit(usage(799), at), "");
   assert.equal(limit(usage(800), at), "You're close to today's limit.");
-  // A Student run doesn't wait for the reset by itself (rehearsal), so the reading says only when applying works again.
+  // At the cap with no run paused (none going, or a reading before the run's pause shows), when applying works again.
   assert.equal(limit(usage(1000), at), "You've reached today's limit. You can apply again from 05:00.");
   assert.equal(limit(usage(1200), at), "You've reached today's limit. You can apply again from 05:00.");
 });
