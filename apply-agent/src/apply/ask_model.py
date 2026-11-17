@@ -486,15 +486,20 @@ class WorkItAsk:
             except (NotLoggedIn, LoginExpired):
                 raise SetupError("ask_model: workit needs a WorkIt sign-in: run uv run apply login") from None
             except Unreachable as e:
+                # WorkIt counts what a failed call spent, and doesn't say how much (`apply tokens` counts the call).
+                trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, failed=e.status)
                 # No answer, or every model busy (503): asked again. A 502 (no answer fit) would fail again.
                 if e.status in (None, 503) and busy:
                     self._sleep(busy.pop(0))
                     continue
                 raise ClaudeError(f"WorkIt's Model route: {e}") from None
             except WorkItError as e:
+                trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, failed=e.status)
                 raise ClaudeError(f"WorkIt's Model route refused {kind}: {e}") from None
-            self._spent.tokens = getattr(self._spent, "tokens", 0) + int(reply.get("tokens") or 0)
-            trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, answer=reply.get("answer"))
+            tokens = int(reply.get("tokens") or 0)
+            self._spent.tokens = getattr(self._spent, "tokens", 0) + tokens
+            # The tokens WorkIt counted against the Usage cap: `apply tokens` adds them up by kind (W13).
+            trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, tokens=tokens, answer=reply.get("answer"))
             return reply["answer"]
 
 def _said(reply: dict) -> str:

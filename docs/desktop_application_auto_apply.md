@@ -529,7 +529,7 @@ by hand (W8).
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
-| W13 | Measure quality and model use | W1 | Yes, for the cap | Not started |
+| W13 | Measure quality and model use | W1 | Yes, for the cap | Step 2's count built (KAN-837): each WorkIt call's tokens in its Trace, and `apply tokens`. Left: step 2's numbers from about 20 forms; step 1, which needs the developer prompt route (`developer_apply_agent_testing_framework.md`); step 3, with W2 |
 
 Every workstream that adds or changes a click path, or touches
 `submit_guard.py`, `plain/guards.py`, `send_click.py` or a guard flag,
@@ -1766,7 +1766,13 @@ adversarial review.
    2026-11-10 found Groq's plainer but correct, `apply-agent/docs/ask-model.md`).
 2. Count calls and tokens by call kind on about 20 forms across hiring
    systems: the tokens of one Application, which sets the app's "about N
-   Applications left".
+   Applications left". **The count is built (KAN-837):** each WorkIt
+   call's Trace event has its tokens, or the status it failed with, and
+   `uv run apply tokens` adds them up by kind and job system and divides
+   a fill's mean into the cap (`apply-agent/docs/ask-model.md`, "Counting
+   tokens"). It can't see what a failed call spent, or the calls outside
+   a fill (`apply story-map`, a held page's Regenerate or Ask Claude).
+   The numbers are not in yet.
 3. With W2: the generic Filler's share of fields filled right, against
    Claude fill.
 

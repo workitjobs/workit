@@ -2,11 +2,11 @@
 
 import json
 import urllib.error
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from apply import ask_model, doctor, workit
+from apply import ask_model, doctor, trace, workit
 from apply.adapters import ClaudeError, SetupError, UsageLimitHit, UsageReading, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
 from apply.claude_cli import ClaudeCLI
@@ -309,6 +309,30 @@ def test_workit_sends_a_kind_and_its_data_and_counts_its_tokens():
     assert timeout == ask_model.ASK_TIMEOUT and asks.spent() == 125
     with pytest.raises(SetupError):  # never a prompt
         asks.ask(model="opus", system="s", prompt="p", schema={"type": "object"})
+
+
+def test_a_fills_workit_tokens_add_up_by_kind_from_its_trace(tmp_path):
+    # W13: a fill's tokens set the app's "about N Applications left". Faults: a call's tokens not traced, a failed
+    # call not counted, a Fill again's calls added to the fill before it, a Trace without tokens counted as a fill.
+    asks, _, _ = workit_ask({"answer": {"a": 1}, "tokens": 3000}, {"answer": {"problems": []}, "tokens": 1200},
+                            workit.Unreachable("api: 502", 502), {"answer": {"problems": []}, "tokens": 1000})
+    url, today = "https://job-boards.greenhouse.io/arc/jobs/1", date(2026, 11, 16)
+    with trace.tracing("arc", url, tmp_path, today):
+        asks.ask_kind("essays.write", {})
+        asks.ask_kind("presubmit.review", {})
+        with pytest.raises(ClaudeError):  # no answer fit
+            asks.ask_kind("presubmit.review", {})
+    with trace.tracing("arc", url, tmp_path, today):  # Fill again: the same Trace
+        asks.ask_kind("presubmit.review", {})
+    with trace.tracing("before", "https://jobs.lever.co/x/1", tmp_path, today):  # traced before the tokens were
+        trace.event("claude", block="ask", ask_kind="essays.write", backend="workit", answer={})
+
+    found = trace.fills(tmp_path)
+    assert [(fill.job_system, dict(fill.tokens), dict(fill.failed)) for fill in found] == [
+        ("greenhouse", {"essays.write": 3000, "presubmit.review": 1200}, {"presubmit.review": 1}),
+        ("greenhouse", {"presubmit.review": 1000}, {}),
+    ]
+    assert "about 3 fills in a day's Usage cap of 8,000" in trace.tokens_report(found, 8_000)  # 2,600 a fill
 
 
 def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():

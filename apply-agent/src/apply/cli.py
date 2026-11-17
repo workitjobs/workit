@@ -139,6 +139,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                                "Trace, or the newest whose Posting matches QUERY")
     traced.add_argument("query", nargs="?", default="", help="part of a Posting link, a company or an Application id")
     traced.add_argument("--path", action="store_true", help="print only the Trace file's path")
+    counted = commands.add_parser("tokens", help="add up WorkIt's model tokens in the Traces: by call kind and job "
+                                                 "system, and how many fills a day's Usage cap holds (W13)")
+    counted.add_argument("--since", type=date.fromisoformat, help="only the Traces of this day (YYYY-MM-DD) and after")
+    counted.add_argument("--cap", type=int, default=80_000,
+                         help="the Usage cap to divide by (WorkIt's APPLY_APP_DAILY_TOKENS: 80,000 in production)")
     check = commands.add_parser("doctor", help="check the setup a run needs, read-only: one line per check, "
                                                "with how to fix it; exits non-zero if any check fails")
     check.add_argument("--profile", type=Path, default=DEFAULT_PROFILE, help="the Applicant profile (YAML)")
@@ -363,6 +368,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         if path is None:
             sys.exit(f"No Trace{' matches ' + repr(args.query) if args.query else ''} in {trace.TRACES}.")
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
+    elif args.command == "tokens":
+        print(trace.tokens_report(trace.fills(since=args.since), args.cap))
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
     elif args.command == "app":

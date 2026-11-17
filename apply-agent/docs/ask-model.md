@@ -151,6 +151,29 @@ route, and behind it is `student.NoClaude`, never `claude -p`, so
   policies, so a test always runs on `claude`. `LeanClaude` in
   `tests/test_claude_answers.py` checks the lean prompts.
 
+## Counting tokens (W13)
+
+Each WorkIt call's Trace event (`kind: claude`, `backend: workit`) has
+the `tokens` WorkIt counted against the Usage cap, or the status it
+`failed` with (KAN-837, 2026-11-16). `uv run apply tokens` adds them up
+over the Traces: by call kind, by job system, and the mean tokens of a
+fill, divided into a day's cap (`--cap`, 80,000 by default, production's
+`APPLY_APP_DAILY_TOKENS`). That sets the app's "about N Applications
+left". `--since YYYY-MM-DD` keeps the measurement's own fills; Traces are
+kept 14 days. Each `start` in a Trace is one fill, so a Fill again counts
+on its own.
+
+What it can't count, so the real use is a little higher:
+
+- **Failed calls** (502, 503, 413): WorkIt counts what they spent, and its
+  answer doesn't say how much. `apply tokens` gives how many failed.
+- **Calls outside a fill**: `apply story-map`, and a held page's
+  Regenerate or Ask Claude, run outside any Trace.
+
+To measure about 20 forms in a day, run the rehearsals against your local
+API (`APPLY_WORKIT_API`) with a higher `APPLY_APP_DAILY_TOKENS` in its
+`.env`: on the real server they count against your own cap.
+
 ## What a comparison showed (2026-11-10, Test Person's sample data)
 
 - **Groq alone on the free tier** can't write essays with the full prompts,
