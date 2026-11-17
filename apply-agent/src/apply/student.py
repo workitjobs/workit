@@ -8,6 +8,7 @@ starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse
 
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 from apply import (
@@ -27,6 +28,7 @@ from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
+from apply.awake import awake
 from apply.browsers import ProfileInUse
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
@@ -161,12 +163,17 @@ class Runs:
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
 
     def __init__(self, profile: ApplicantProfile, make: Callable[[ApplicantProfile], Adapters] = adapters,
-                 rehearse: Callable[..., object] = rehearsal.rehearse):
-        self._profile, self._make, self._rehearse = profile, make, rehearse
+                 rehearse: Callable[..., object] = rehearsal.rehearse,
+                 keep_awake: Callable[[], AbstractContextManager] = awake):
+        self._profile, self._make, self._rehearse, self._awake = profile, make, rehearse, keep_awake
         self._site = None  # the run's Workers, to stop when the app quits
 
     def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
         """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed."""
+        with self._awake():  # the Mac never sleeps mid-run (KAN-885)
+            self._rehearse_shown(links, show)
+
+    def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
         made = self._make(self._profile)
         self._site = site = made.site
         try:

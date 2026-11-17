@@ -4,6 +4,7 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import json
+import os
 import plistlib
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from types import SimpleNamespace
 import platformdirs
 import pytest
 
-from apply import browsers, captcha, chrome_finder, focus, home, native_host
+from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
 from apply.plain import launcher, seed_setup
@@ -141,6 +142,33 @@ def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
             keeper.watch(4243, seconds=5)
         keeper.forget(4242)
         assert keeper.bring(4242) is False  # its caller brings the Worker through Chrome
+
+
+def test_only_the_mac_is_kept_awake_and_only_while_apply_runs():
+    assert awake.command("darwin", 4242) == ["/usr/bin/caffeinate", "-dims", "-w", "4242"]
+    for system in ("win32", "linux"):
+        assert awake.command(system) is None
+        with awake.awake(system, popen=lambda *a, **k: pytest.fail("an OS call off the Mac")):
+            pass
+
+
+def test_on_the_mac_caffeinate_runs_for_the_block_only():
+    started = []
+
+    class Caffeinate:
+        def __init__(self, arguments, **kwargs):
+            self.arguments, self.stopped = arguments, False
+            started.append(self)
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    with awake.awake("darwin", popen=Caffeinate):
+        assert started[0].arguments[-1] == str(os.getpid()) and not started[0].stopped
+    assert started[0].stopped
 
 
 @pytest.mark.parametrize("system, detached", [

@@ -428,8 +428,8 @@ def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, t
 
 def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
     """Fault: a run that ignores the Worker count (D24: one to three), shows no window of its own, or leaves its plain
-    Workers' Chromes running after it."""
-    from contextlib import nullcontext
+    Workers' Chromes running after it, or lets the Mac sleep mid-run."""
+    from contextlib import contextmanager, nullcontext
     from types import SimpleNamespace
 
     from apply import first_run, student, worker_tiles
@@ -449,12 +449,22 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
                            everyday=lambda url: None, board=None)
     profile = SimpleNamespace(get=lambda key: None)
 
-    def rehearse(links, adapters, profile, workers):
-        rehearsed.append((links, workers, adapters.board is shown[0]))
+    awake = []
 
-    runs = student.Runs(profile, make=lambda profile: made, rehearse=rehearse)
+    @contextmanager
+    def keep_awake():
+        awake.append(True)
+        yield
+        awake.append(False)
+
+    def rehearse(links, adapters, profile, workers):
+        rehearsed.append((links, workers, adapters.board is shown[0], awake == [True]))
+
+    runs = student.Runs(profile, make=lambda profile: made, rehearse=rehearse, keep_awake=keep_awake)
     runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
-    assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True)]
+    assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True,
+                          True)]
+    assert awake == [True, False]  # the Mac stays awake for the run, and no longer (KAN-885)
     assert shown[0].url == NO_PORT and closed == [site]
     # History's link goes to the student's Applications Tracker on WorkIt, opened in the default browser.
     assert shown[0].state()["context"]["tracker_url"] == f"{workit.site().web}/applications"
