@@ -24,7 +24,7 @@ from typing import Literal
 
 from pydantic import ValidationError
 from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
-from workit_scout.llm import LLM
+from workit_scout.llm import LLM, InvalidReply
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import SECTION_FIELDS, YEAR_DATES, DraftEntry, ModelReading
@@ -379,7 +379,14 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
     no title is dropped, and dates that do not fit together are dropped.
     Given the resume's `text`, a field the text does not back goes too
     (`_backed_fields`), and an entry whose title goes with it."""
+    return checked_drafts(reading, text)[0]
+
+
+def checked_drafts(reading: ModelReading, text: str | None = None) -> tuple[list[DraftEntry], int]:
+    """`model_drafts`, and how many fields the check against `text` dropped
+    (KAN-898's reading log counts them; 0 with no text)."""
     words = set(_words(text)) if text else None
+    dropped = 0
     drafts: list[DraftEntry] = []
     for entry in reading.entries:
         raw = entry.model_dump()
@@ -437,7 +444,8 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
                 text and raw["end_month"] and _says_expected(text, raw["end_month"])):
             raw["end_kind"] = entry_end_kind.month
         if words is not None:
-            raw = _backed_fields(raw, words)
+            raw, unbacked = _backed_fields(raw, words)
+            dropped += unbacked
         # A degree only as the resume writes it: "Bachelor's" for "Bachelor
         # of Science" passed the word check ("bachelor" and "s" are both on
         # most resumes), and "B.S." became "BS". Dropped, the parser's
@@ -446,7 +454,7 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
             raw["degree"] = None
         if draft := _valid(raw):
             drafts.append(draft)
-    return drafts
+    return drafts, dropped
 
 
 def role_tools(reading: ModelReading, text: str | None = None) -> list[str]:
@@ -467,6 +475,17 @@ def model_skills(reading: ModelReading, text: str | None = None) -> list[tuple[s
         (s.name, s.group) for s in reading.skills
         if not _withheld(s.name) and (words is None or _backed(s.name, words))
     ]
+
+
+def unbacked_skills(reading: ModelReading, text: str) -> int:
+    """How many of the model's skills, and the tools it gave an entry that
+    is not a project, `model_skills` and `role_tools` drop because the text
+    does not back them (a placeholder is not counted: the seam made it)."""
+    words = set(_words(text))
+    names = [s.name for s in reading.skills] + [
+        tool for entry in reading.entries if entry.section is not bank_section.projects for tool in entry.tools
+    ]
+    return sum(1 for name in names if not _withheld(name) and not _backed(name, words))
 
 
 # --- Every upload read by the model, the parser behind it (KAN-732, ADR 0007) ---
@@ -492,11 +511,28 @@ _TEXT_FIELDS = ("title", "organization", "location", "degree", "field_of_study",
 
 @dataclass
 class Reading:
-    """One reading of an upload: what goes into the bank, and who read it."""
+    """One reading of an upload: what goes into the bank, who read it, and
+    for the reading log (KAN-898, models/resume_readings.py) why the
+    parser's was saved and how many of the model's fields the check
+    against the text dropped (None when no reply came back to check)."""
 
     entries: list[DraftEntry]
     skills: list[tuple[str, str | None]]
     read_by: Literal["parser", "model"] = "parser"
+    # One of models/resume_readings.py's PARSER_REASONS; None for the model's.
+    reason: str | None = None
+    fields_dropped: int | None = None
+
+
+def _failure(exc: Exception) -> str:
+    """Why the model gave no reading, as the reading log names it."""
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, InvalidReply):
+        return "wrong_shape"
+    # ScoutUnavailable (down, out of quota, the request too large) or
+    # anything else the call raised
+    return "model_unavailable"
 
 
 async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Identity | None = None) -> Reading:
@@ -508,11 +544,15 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     model is given (no AI reading left today) or there is no text, and when
     the model fails, answers in the wrong shape, runs past
     MODEL_WAIT_SECONDS or keeps no entry the text backs. Never raises: an
-    upload never fails because of its reading."""
+    upload never fails because of its reading. The reading says why the
+    parser's was saved (`reason`), which changes nothing it saves."""
     entries, skills = read(raw_text)
-    parsed = Reading(entries, skills)
-    if llm is None or identity is None or not raw_text:
-        return parsed
+    if not raw_text:
+        return Reading(entries, skills, reason="no_text")
+    if llm is None or identity is None:
+        # The caller gives no model when the student has no AI reading left
+        # today (services/resume_reading.py)
+        return Reading(entries, skills, reason="no_uses_left")
     # "Chick-ﬁl-A": the PDF's ligatures and other compatibility characters,
     # which the parser's clean-up fixes, would be copied by the model as is.
     text = unicodedata.normalize("NFKC", fix_symbols(raw_text))
@@ -523,10 +563,11 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
         # ScoutUnavailable (down, out of quota, the wrong shape), the wait
         # running out, or anything else: the parser's reading still stands.
         logger.warning("The model could not read a resume, so the parser's reading is saved: %r", exc)
-        return parsed
-    drafts = model_drafts(with_own_wording(reading, entries), text)
+        return Reading(entries, skills, reason=_failure(exc))
+    drafts, dropped = checked_drafts(with_own_wording(reading, entries), text)
+    dropped += unbacked_skills(reading, text)
     if not drafts:
-        return parsed
+        return Reading(entries, skills, reason="nothing_backed", fields_dropped=dropped)
     drafts, tools = with_tools_split(drafts)
     drafts = with_parsers_reading(with_links(with_award_givers(drafts), entries), entries)
     # The model's skills first, so its groups win; then each project's
@@ -534,7 +575,7 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     # a skill the model left out is kept.
     beside = tools + [tool for draft in drafts for tool in draft.tools] + role_tools(reading, text)
     found = model_skills(reading, text) + [(tool, None) for tool in beside] + skills
-    return Reading(tidy_drafts(drafts), skill_pairs(found), "model")
+    return Reading(tidy_drafts(drafts), skill_pairs(found), "model", fields_dropped=dropped)
 
 
 def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:
@@ -804,22 +845,30 @@ def _number_backed(value: float, words: set[str]) -> bool:
     return any(_backed(form, words) for form in (f"{value:g}", f"{value:.1f}", f"{value:.2f}"))
 
 
-def _backed_fields(raw: dict, words: set[str]) -> dict:
+def _backed_fields(raw: dict, words: set[str]) -> tuple[dict, int]:
     """The model's entry less what the resume's words do not back: a title,
     organization, location, bullet or course, all of the entry's dates when
-    one names a year the resume lacks, and a GPA it lacks with its scale."""
+    one names a year the resume lacks, and a GPA it lacks with its scale.
+    Also how many it dropped: each field, bullet, course and tool, each
+    date the entry had, and a GPA."""
     raw = {**raw}
+    dropped = 0
     for field in _TEXT_FIELDS:
         if raw[field] and not _backed(raw[field], words):
             raw[field] = None
-    raw["bullets"] = [b for b in raw["bullets"] if _backed(b, words)]
-    raw["coursework"] = [c for c in raw["coursework"] if _backed(c, words)]
-    raw["tools"] = [t for t in raw["tools"] if _backed(t, words)]
-    if any(raw[f] and raw[f][:4] not in words for f in ("start_month", "end_month", "award_date")):
+            dropped += 1
+    for field in ("bullets", "coursework", "tools"):
+        kept = [item for item in raw[field] if _backed(item, words)]
+        dropped += len(raw[field]) - len(kept)
+        raw[field] = kept
+    dates = [raw[f] for f in ("start_month", "end_month", "award_date") if raw[f]]
+    if any(date[:4] not in words for date in dates):
         raw.update(start_month=None, end_month=None, end_kind=None, award_date=None)
+        dropped += len(dates)
     if raw["gpa"] is not None and not _number_backed(raw["gpa"], words):
         raw.update(gpa=None, gpa_scale=None)
-    return raw
+        dropped += 1
+    return raw, dropped
 
 
 def _degree_key(value: str) -> str:

@@ -207,6 +207,33 @@ async def test_fill_events_past_90_days_are_deleted(database):
     assert names == ["recent"]
 
 
+async def test_resume_readings_past_90_days_are_deleted(database):
+    period = datetime.timedelta(days=90)
+    async with database() as session:
+        applicant_id = await _account(session)
+        await session.execute(
+            text("INSERT INTO applicant_profiles (id, email, full_name) VALUES (:id, 'jr@example.com', 'Jordan')"),
+            {"id": applicant_id},
+        )
+        for route, at in (("upload", NOW - period - MINUTE), ("preview", NOW - period + MINUTE)):
+            await session.execute(
+                text(
+                    "INSERT INTO resume_readings (applicant_id, created_at, route, read_by, duration_ms,"
+                    " entries, skills) VALUES (:a, :at, :route, 'model', 1000, 3, 2)"
+                ),
+                {"a": applicant_id, "at": at, "route": route},
+            )
+        await session.commit()
+
+    async with database() as session:
+        counts = await purge(session, now=NOW)
+        await session.commit()
+
+    assert counts["resume_readings"] == 1
+    async with database() as session:
+        assert (await session.scalars(text("SELECT route FROM resume_readings"))).all() == ["preview"]
+
+
 async def test_rules_tokens_past_a_day_and_rules_fetches_past_90_days_are_deleted(database):
     async with database() as session:
         account_id = await _account(session)

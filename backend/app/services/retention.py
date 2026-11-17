@@ -61,6 +61,10 @@ RETENTION: tuple[Rule, ...] = (
     # The Rules table's fetch log (KAN-756), for anomaly review and tracing a
     # leaked table: 90 days, as fill events.
     Rule("rules_fetches", "created_at", 90),
+    # The log of each upload's reading (KAN-898): which reader, why the
+    # parser's, the time and counts, no resume text. 90 days shows how often
+    # the model fails (KAN-806); the account's delete cascades it sooner.
+    Rule("resume_readings", "created_at", 90),
     # apply_reports (KAN-837, WorkIt Auto Apply's Send report) has no rule on
     # purpose: the privacy policy says a report is kept until its problem is
     # fixed, and the team then deletes it (DELETE /admin/apply-reports/{id}).

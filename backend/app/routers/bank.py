@@ -63,8 +63,9 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        (ADR 0005). Answers what it wrote (`entries_added`, `skills_added`),
        who read it (`read_by`, "model" or "parser") and `uses_left`. A model
        reading counts one parsing use (cap 1, 10% of the pool), committed
-       with the bank writes; a failed or refused model reading falls back to
-       the parser and counts none. A resume nothing can read leaves the
+       with the bank writes, as is its row in the reading log (KAN-898); a
+       failed or refused model reading falls back to the parser and counts
+       none. A resume nothing can read leaves the
        upload with nothing; no uploaded resume (or another student's)
        answers 404.
 
@@ -456,7 +457,7 @@ async def import_resume(
     # (KAN-498) come through the combined reading: the AI reads only the
     # fixed sections, so they have no twin there.
     raw_text = await _text_again(resume)
-    reading, left = await read_upload(session, applicant_id, account, raw_text, llm)
+    reading, left = await read_upload(session, applicant_id, account, raw_text, llm, route="import_again")
     async with _writing(session):
         await _keep_text(session, applicant_id, resume, raw_text)
         imported = await service.import_upload(session, applicant_id, resume.id, reading.entries, reading.skills)
