@@ -146,28 +146,54 @@ copy sets it too.
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
-The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
-macOS: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
-files. The list holds only the 44 files that need no browser, no network
-and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
-with `uv sync --locked` and ruff, timed in a Linux container
-(`ghcr.io/astral-sh/uv:python3.12-bookworm`) on 2026-11-02. The tests read
-the engine's saved forms, so the job needs the fill-engine submodule: it
-needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
-that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job). Its setup is two actions it shares
-with `apply-hostile` and `apply-nightly.yml`: `apply-setup` (the engine pin,
-Python, `uv sync`) and, after the fast tests and the tile's, `apply-browsers`,
-which installs Chrome for Testing (cached by `uv.lock`). **The fast tests run
-before the browsers are installed**: some of their files have browser cases
-that skip without one, and with the browsers installed first they ran in
-parallel and hung the fast tests at 96% until the step's 5 minutes ran out
-(2026-11-15). Then it runs `test_plain_focus.py`, `test_plain_guards.py`,
-`test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
-`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795, in a parallel step of their own,
-since only plain-Worker cases need one process). macOS, because a
-plain Worker starts through `open` and the browser's `.app`; a step fails the
-job if the browser is missing, since these tests skip without it.
+**Apply (`apply-agent/`, KAN-535) is three jobs side by side: `apply-fast`
+on Ubuntu, `apply` and `apply-hostile` on macOS** (KAN-837, 2026-11-17).
+**Only what needs a Mac runs on one.** The organization (GitHub Free) runs
+at most 5 macOS jobs at once, shared by every PR and the nightly runs, which
+GitHub starts hours late, into the working day. On 2026-11-17 PRs' `apply`
+and `apply-hostile` waited in the queue while Ubuntu runners stood free,
+and twice GitHub cancelled them after 15 minutes with no step run. So:
+
+- **`apply-fast` (Ubuntu)** runs `uv run ruff check .`, the fast tests and
+  the tile's tests, on any PR that touches `apply-agent/`, the engine
+  pointer, the backend's `truth.py`, `ci.yml`, `engine-token.yml` or the
+  Apply setup actions (the `apply` output: `apply_agent` or
+  `apply_shared`). The fast tests are a fixed list of the files that need no
+  browser, no network and no `claude` CLI. In a Linux container with 4
+  CPUs (2026-11-17) they took 34 s and the tile's 57 s, against 69 s and
+  60 s on the Mac runner; the one difference was
+  `test_restart.py`'s first test, which needs Google Chrome installed
+  (Ubuntu's runner has it, the container did not). **It never installs the
+  browsers**: some of the fast tests' files have browser cases that skip
+  without one, and with the browsers installed first they ran in parallel
+  and hung the fast tests at 96% until the step's 5 minutes ran out
+  (2026-11-15).
+- **`apply` (macOS)** runs `test_plain_focus.py`, `test_plain_guards.py`,
+  `test_plain_routing.py` and `test_upload_origin.py`, the last three on a
+  real plain Worker (KAN-667; `test_upload_origin.py`'s hostile upload pages
+  also run on CDP, KAN-795, in a parallel step of their own, since only
+  plain-Worker cases need one process). macOS, because a plain Worker
+  starts through `open` and the browser's `.app`; a step fails the job if
+  the browser is missing, since these tests skip without it.
+- **The Mac jobs run only on a change a Mac step can read** (the
+  `apply_mac` output): the same paths as `apply-fast`, less
+  `apply-agent/window/**`, the built student page, `apply-agent/docs/**` and
+  Markdown under `apply-agent/`. Those have their own checks
+  (`apply-window`, and `apply-fast`'s `test_app_window.py`), so a PR that
+  changes only them, as #637 did, starts no Mac job. A second
+  `dorny/paths-filter` step (`apply_code`) takes them out with `!` patterns
+  under `predicate-quantifier: every`; in the first step's default
+  (`some`) a `!` pattern takes nothing out. A new folder that no Mac step
+  reads can join its `!` list.
+
+The tests read the engine's saved forms, so every Apply job needs the
+fill-engine submodule: each needs `FILL_ENGINE_TOKEN` and is skipped
+without it. Their setup is two actions shared with `apply-nightly.yml`:
+`apply-setup` (the engine pin, Python, `uv sync`) and, in the Mac jobs
+only, `apply-browsers`, which installs Chrome for Testing (cached by
+`uv.lock`). A test file that needs no browser, network or `claude` CLI joins
+`apply-fast`'s list; one that needs a plain Worker joins `apply`'s
+Plain-Worker step.
 **`test_submit_guard_hostile.py` runs in its own job, `apply-hostile`**, on a
 second runner beside `apply` (KAN-780, 2026-11-14), so a PR waits for the
 longer of the two, not their sum (the one job took 9 to 15 minutes).
@@ -267,8 +293,9 @@ it. The committed page is built with it too, so a local rebuild must set it
 (`apply-agent/docs/apply-window.md`), or the diff fails. It runs only when
 the `changes` job's **`apply_window` filter** matches: `apply-agent/window/**`,
 the built page, `.nvmrc` (its Node) or `ci.yml`. It needs no fill-engine
-submodule and no Python, so it is not in the `apply` filter, and an Apply
-change that leaves the page alone skips it. The build is deterministic on a
+submodule and no Python, so it has its own filter, and an Apply change that
+leaves the page alone skips it. A change to the page alone starts no Mac
+job (`apply_mac`, above). The build is deterministic on a
 Mac. A Linux build that differs from a Mac's would show here first.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.

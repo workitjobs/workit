@@ -252,10 +252,13 @@ into it and the window shows "Sample data".
 - Run `uv run ruff check .` here before you commit. It uses the backend's
   ruff config. `pyproject.toml` lists the findings that Apply keeps on
   purpose, each with its reason.
-- CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
-  a fixed list of fast test files: the files that need no browser, no
-  network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. Its test steps run in parallel
+- CI (the `apply-fast` job in `../.github/workflows/ci.yml`, on Ubuntu)
+  runs ruff and only a fixed list of fast test files: the files that need
+  no browser, no network and no `claude` CLI. When you add a test file that
+  needs none of them, add it to that list. Only the browser tests run on
+  macOS (`apply`, `apply-hostile`), since the organization has few macOS
+  runners (`../.github/CLAUDE.md`), and a change to only the student page
+  or the docs starts neither. Its test steps run in parallel
   (`pytest -n auto`), so a new test there can't share a fixed port or
   path with another. A test of `rehearse` with `keep_open` picks out the
   lines it checks, and never counts all it printed: when a form's thread
