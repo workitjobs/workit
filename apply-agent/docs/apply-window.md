@@ -167,14 +167,22 @@ for a student, not from `dashboard_page.py`.
   `/fill-again` for that tile, and the job moves back to "Still working
   on" as the form fills anew. A job whose Worker moved on, one never
   opened (already applied) and one paused have none.
-- **The Usage cap in a Student run.** A rehearsal doesn't wait for the cap
-  to reset: a job that hits it ends failed ("Max usage limit hit"), and the
-  jobs after it hit it too. So the page never says it goes on by itself:
-  such a job reads "Stopped at today's limit. Try again once it resets"
-  (Try again where its page is held), and a usage reading at the cap says
-  when the student can apply again. Only a run Apply paused itself
-  (`run.paused`, a live run's `paused_until`) says it starts again at the
-  reset. Pausing a Student run at the cap is a follow-up.
+- **Today's usage (KAN-837).** On top of every page, a bar shows the
+  share of today's Usage cap used ("66% used · resets at 7:00 PM"), like
+  Claude's usage bar, never a token count, which means nothing to a
+  student. The window reads `usage` (`GET /apply-app/usage`) each minute,
+  and again each time a form leaves "Still working on", so the bar moves on
+  by what that form used. A failed reading keeps the last one, and an older
+  reading that arrives late never moves the bar back. The share is rounded
+  down: rounded, 79,700 of 80,000 read "100% used" while forms still
+  filled. From 80% the bar turns amber and says "You're
+  close to today's limit."; at the cap a banner on top says when applying
+  works again. A Student run waits at the cap until it resets
+  (`rehearsal._after_the_limit`): its `paused_until` makes `run.paused`,
+  and the banner says when it starts again. A job that reached the cap
+  mid-form ends there and reads "Stopped at today's limit. Try again once
+  it resets" (Try again where its page is held), from UsageLimitHit's
+  "Usage limit reached" (before KAN-837, "Max usage limit hit").
 - **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
   the header has Stop applying, asked once more before it posts `/stop`.
   The run ends (`rehearse`'s stop): no job waiting starts, each held page
@@ -187,8 +195,9 @@ for a student, not from `dashboard_page.py`.
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
-  (`view`), names the pile in the heading (`headline`) and says the Usage
-  cap in words (`limit`). For the start screen it picks what Start runs
+  (`view`), names the pile in the heading (`headline`), says the Usage
+  cap in words (`limit`) and gives its bar's share and line (`usedShare`,
+  `usageLine`). For the start screen it picks what Start runs
   (`chosen`: the ticked jobs, then a pasted link not ticked already) and
   says why there is no queue to tick (`queueNote`). A tile wins over its
   item for the same posting, but the job keeps the item's `id` and questions (what `/answer` names),

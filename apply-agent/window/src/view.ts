@@ -81,8 +81,9 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
 export const reason = (shown: Shown) => {
   const label = (shown.label ?? "").replace(/^Skipped: /, "");
   if (/^today's limit reached/.test(label)) return "Today's limit was reached before it started";
-  // At the Usage cap: a Student run ends the job there, and nothing starts it again by itself (KAN-875's follow-up).
-  if (shown.status === "paused" || /usage limit hit/i.test(label)) return "Stopped at today's limit. Try again once it resets";
+  // A job that reached the Usage cap mid-form ends there; the run waits for the reset before the next one
+  // (rehearsal._after_the_limit). "Usage limit reached" since KAN-837 (adapters.UsageLimitHit); "hit" before.
+  if (shown.status === "paused" || /usage limit (hit|reached)/i.test(label)) return "Stopped at today's limit. Try again once it resets";
   if (DEVELOPER.test(label)) return "We couldn't finish filling it out";
   return label ? label[0].toUpperCase() + label.slice(1) : "Something went wrong";
 };
@@ -185,9 +186,18 @@ const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "
 
 const pausedAt = (resets: Date, at: (resets: Date) => string) => `You've reached today's limit, so applying is paused. It starts again at ${at(resets)}.`;
 
-// Today's model use against the Usage cap, in words: nothing under 80%, and never a token count. A run Apply
-// paused at the cap (a live run, which waits for the reset) says so, from /state; at the cap a reading says only when
-// applying works again, since a Student run doesn't wait for the reset by itself.
+// The share of today's Usage cap used, 0 to 100, for the usage bar (Usage): never a token count, which means nothing
+// to a student. Rounded down, so it says 100% and turns amber at 80% only once `limit` says so too: rounded, 79,700
+// of 80,000 read "100% used" while forms still filled. A cap of 0 is a cap reached.
+export const usedShare = (usage: Usage) => (usage.cap > 0 ? Math.min(100, Math.floor((usage.used / usage.cap) * 100)) : 100);
+
+// The bar's own line: how much of today's limit is used, and when it starts again from nothing.
+export const usageLine = (usage: Usage, at: (resets: Date) => string = clock) =>
+  `${usedShare(usage)}% used · resets at ${at(new Date(usage.resets_at))}`;
+
+// Today's model use against the Usage cap, in words beside the bar: nothing under 80%. A run paused at the cap says so,
+// and when it goes on, from /state (the run waits for the reset: rehearsal._after_the_limit); a reading at the cap
+// with no run paused says when applying works again.
 export function limit(usage: Usage | null, at: (resets: Date) => string = clock, run?: Run): string {
   if (run?.paused && run.paused_until) return pausedAt(new Date(run.paused_until), at);
   if (!usage) return "";

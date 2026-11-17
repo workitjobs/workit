@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, usageLine, usedShare, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -84,7 +84,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         </nav>
       </header>
       <main className={cx("mx-auto px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
-        <Limit app={app} run={state?.run} />
+        <Limit app={app} run={state?.run} filling={v.working.map((j) => j.key).join("\n")} />
         {lost && (
           <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
@@ -150,25 +150,44 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
   );
 }
 
-// The Usage cap in words, read again each minute: nothing until the student is close to it. A run Apply paused
-// at the cap says so from /state as well.
-function Limit({ app, run }: { app: AppMethods; run?: Run }) {
+// Today's usage: a bar of the share of the Usage cap used, never a token count. It is read each minute, and again
+// whenever a form leaves "Still working on" (`filling` changes), so the bar moves on by what that form used. A failed
+// reading keeps the last one, so a WorkIt hiccup doesn't make the bar vanish; a reading from before a newer one
+// started is dropped (`live`), so a slow one can't move the bar back. From 80% the words say so; at the cap (or a run
+// paused at it) a banner on top, so no "We're on it" below reads as if applying goes on.
+function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: string }) {
   const [usage, setUsage] = useState<Usage | null>(null);
   useEffect(() => {
     if (!app.usage) return;
-    const read = () => app.usage!().then(setUsage, () => setUsage(null));
+    let live = true;
+    const read = () => app.usage!().then((u) => live && setUsage(u), () => {});
     read();
     const t = setInterval(read, 60_000);
-    return () => clearInterval(t);
-  }, [app]);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [app, filling]);
   const line = limit(usage, undefined, run);
-  if (!line) return null;
-  // At the cap (or paused at it), a banner on top, so no "We're on it" below reads as if applying goes on.
   const reached = !!run?.paused || (!!usage && usage.used >= usage.cap);
-  return reached ? (
-    <p role="status" className="mb-6 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>
-  ) : (
-    <p role="status" className="mb-6 text-note text-ink-meta">{line}</p>
+  if (!usage && !line) return null;
+  const share = usage ? usedShare(usage) : 0;
+  return (
+    <section className="mb-6">
+      {reached && line && <p role="status" className="mb-3 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>}
+      {usage && (
+        <>
+          <div className="flex items-baseline justify-between gap-4 text-note text-ink-meta">
+            <span>Today's usage</span>
+            <span>{usageLine(usage)}</span>
+          </div>
+          <div role="progressbar" aria-label="Today's usage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={share} className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border">
+            <span className={cx("block h-full rounded-full transition-[width] duration-700", share >= 80 ? "bg-warning-fill" : "bg-brand")} style={{ width: `${share}%` }} />
+          </div>
+          {!reached && line && <p role="status" className="mt-1.5 text-note text-ink-meta">{line}</p>}
+        </>
+      )}
+    </section>
   );
 }
 
