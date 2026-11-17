@@ -29,9 +29,10 @@ from apply.model import FillError
 if TYPE_CHECKING:
     from apply.workit import WorkIt
 
-# The public half of WorkIt's engine-signing key (`publish_engine make-key`), base64 of its 32 bytes. Only builds
-# its private half signed run. Empty until the key is made: then every download is refused.
-PUBLIC_KEY = ""
+# The public half of WorkIt's engine-signing key (`publish_engine make-key`, made 2026-11-17), base64 of its 32
+# bytes. Only builds its private half signed run; that half is the apply-engine environment's secret
+# (.github/CLAUDE.md, "Publish the Fill engine"). A new key needs a new app: every installed app refuses its builds.
+PUBLIC_KEY = "yeZhwmvme9x7H7Xi4zaS7ifioYXXzMTu3XaU2o35zrk="
 
 NO_KEY = "this copy of WorkIt Auto Apply has no engine key, so it can't check the Fill engine"
 BAD_SIGNATURE = ("the Fill engine from WorkIt failed its signature check, so it did not run. Someone may be "
