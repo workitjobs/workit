@@ -86,7 +86,10 @@ jobs:
       pull-requests: read
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
-      apply: ${{ steps.filter.outputs.apply }}
+      # Apply's jobs: apply-fast (Ubuntu) on any Apply change; the Mac jobs (apply, apply-hostile) on one a Mac step
+      # can read, which leaves out the student page and the docs (KAN-837).
+      apply: ${{ steps.filter.outputs.apply_shared == 'true' || steps.filter.outputs.apply_agent == 'true' }}
+      apply_mac: ${{ steps.filter.outputs.apply_shared == 'true' || steps.apply_code.outputs.code == 'true' }}
       apply_window: ${{ steps.filter.outputs.apply_window }}
       hostile_pages: ${{ steps.filter.outputs.hostile_pages }}
       backend: ${{ steps.filter.outputs.backend }}
@@ -111,8 +114,10 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
               - .github/actions/extension-setup/**
-            apply:
+            apply_agent:
               - apply-agent/**
+            # What every Apply job reads outside apply-agent/
+            apply_shared:
               - autofiller_extension/fill-engine
               # Apply's truth check is a copy of this file; its test compares them
               - backend/app/auto_apply/truth.py
@@ -139,6 +144,20 @@ jobs:
               - .github/workflows/ci.yml
               - .github/actions/apply-setup/**
               - .github/actions/apply-browsers/**
+      # apply-agent/ less what no Mac step reads: the student page (its own job, apply-window, and apply-fast's
+      # test_app_window.py check it), its built file and the docs (KAN-837). A file counts only when it matches every
+      # pattern here, so each `!` takes a folder out; under the first step's default ('some') a `!` takes nothing out.
+      - uses: dorny/paths-filter@v3
+        id: apply_code
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - apply-agent/**
+              - '!apply-agent/window/**'
+              - '!apply-agent/src/apply/student_page/**'
+              - '!apply-agent/docs/**'
+              - '!apply-agent/**/*.md'
 
   # The extension's smoke specs (autofiller_extension/test/ci-smoke.txt),
   # headless, on the engine the submodule pins (KAN-464). The whole suite, 40
@@ -191,21 +210,22 @@ jobs:
           path: autofiller_extension/test/test-results
           retention-days: 7
 
-  # Apply (apply-agent/, KAN-535): ruff, the fast tests (the files that need no
-  # browser, no network and no `claude` CLI) and the plain-Worker tests (KAN-667).
-  # The tests read the engine's saved forms, so the job needs the fill-engine
-  # submodule and is skipped without FILL_ENGINE_TOKEN (the engine job). The hostile
-  # pages run beside it in apply-hostile (KAN-780).
+  # Apply (apply-agent/, KAN-535) in three jobs side by side. apply-fast, on Ubuntu: ruff, the fast tests (the files
+  # that need no browser, no network and no `claude` CLI) and the tile's tests. apply, on macOS: the plain-Worker
+  # tests (KAN-667). apply-hostile, on macOS: the hostile pages (KAN-780). The tests read the engine's saved forms, so
+  # each job needs the fill-engine submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  #
+  # Why apart (KAN-837): the organization runs at most 5 macOS jobs at once, shared by every PR and the nightly
+  # runs, and a Mac job waited in the queue while Ubuntu runners stood free. Only what needs a Mac runs on one,
+  # and a PR that changes only the student page or the docs starts no Mac job (apply_mac).
   #
   # Each step has its own limit, and the job's is their sum, so a hang fails in its own step and the
   # job's limit never stops a run whose every step is inside its own (KAN-780).
-  apply:
+  apply-fast:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
-    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
-    # (apply/plain/launcher.py), as on the Macs Apply runs on.
-    runs-on: macos-latest
-    timeout-minutes: 34
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
     defaults:
       run:
         working-directory: apply-agent
@@ -325,8 +345,28 @@ jobs:
             tests/test_plain_stale_extension.py \
             tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py
-      # After the fast tests and the tile's, whose files have browser cases that skip without one: with
-      # the browsers first they ran in parallel and hung the fast tests (2026-11-15, apply-browsers).
+      # No apply-browsers here: the fast tests' and the tile's files have browser cases that skip without one, and
+      # with the browsers installed first they ran in parallel and hung the fast tests (2026-11-15).
+
+  apply:
+    needs: [changes, engine]
+    if: needs.changes.outputs.apply_mac == 'true' && needs.engine.outputs.set == 'true'
+    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
+    # (apply/plain/launcher.py), as on the Macs Apply runs on.
+    runs-on: macos-latest
+    timeout-minutes: 24
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 3
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/apply-setup
+        timeout-minutes: 5
       - uses: ./.github/actions/apply-browsers
         timeout-minutes: 5
       # The worker extension's page scripts in a window without focus (KAN-709).
@@ -383,7 +423,7 @@ jobs:
   # longer of the two, not their sum (KAN-780). Limits as in the apply job: the job's is its steps' sum.
   apply-hostile:
     needs: [changes, engine]
-    if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
+    if: needs.changes.outputs.apply_mac == 'true' && needs.engine.outputs.set == 'true'
     runs-on: macos-latest
     timeout-minutes: 29
     defaults:
