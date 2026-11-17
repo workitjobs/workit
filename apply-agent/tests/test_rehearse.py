@@ -1526,7 +1526,7 @@ def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch,
     assert [(label, value) for label, value, _ in rescued] == [("Email", "lisul@example.com")]
     assert board.captions[0]["missing"] == ["Last Name"]  # what is still left blank
     assert board.captions[0]["filled"] == board.before + 1  # the window counts the field filled
-    assert "Left blank: Email" in notes[0] and "Email" not in notes[1] and "Last Name" in notes[1]  # the note on the form too
+    assert "Please fill in: Last Name, Email" in notes[0] and "Email" not in notes[1] and "Last Name" in notes[1]  # the note on the form too
     assert fake.submissions == []
 
 
@@ -1762,7 +1762,7 @@ def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismi
                            with_adapters={"applied_before": AppliedTo()})
         submissions = len(fake.submissions)
 
-    assert seen["note"].startswith("You already applied on 2026-10-28, don’t submit.")
+    assert seen["note"].startswith("WorkIt You already applied on 2026-10-28\nWorkIt keeps Submit blocked")
     assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
     assert submissions == 1  # his, once he dismissed the note on purpose
     assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)
@@ -1772,8 +1772,9 @@ def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismi
 def test_a_page_apply_stopped_on_before_the_last_never_says_submit_is_yours(outcome):
     done = rehearsal.Rehearsed(Posting("p", "JPMorgan Chase", "Intern", "https://jpmc.fa.oraclecloud.com/x"), outcome,
                                "element is not editable")
-    assert done.warning().startswith("Apply stopped before the form's last page")
-    assert "isn't ready to submit" in done.warning() and done.wrong()
+    said = done.warning()
+    assert said == (rehearsal.NOT_SIGNED_IN if outcome == rehearsal.SIGN_IN else rehearsal.NOT_LAST) and done.wrong()
+    assert "element is not editable" not in said  # Apply's detail stays in its summary line, never on the page
 
 
 def test_a_form_filled_to_its_last_page_keeps_its_plain_note():

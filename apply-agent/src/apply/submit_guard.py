@@ -62,7 +62,7 @@ it, and Claude fill hands the form over.
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
-(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small "Apply rehearsal" note on the page,
+(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small WorkIt card on the page (BLOCKED_CARD),
 once the page has had a click or key: one its own script makes first (a
 cookie banner, analytics) is blocked without one.
 
@@ -107,7 +107,7 @@ form, Submit and all), and a frame with scripts off runs no guard.
 
 Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
-through, and a green note says so, with a Fill again button. The page tells
+through, and a purple WorkIt card says so, with a Fill again button. The page tells
 Apply when he clicks a button that sends, so a rehearsal can keep his
 submission in the Tracker. A rehearsal paused mid-form is lifted the same
 way while Lisul fixes its page; Resume puts both guards back on with
@@ -341,12 +341,12 @@ _TEMPLATE = r"""
       if (!box) {
         box = D.createElement('div');
         box.id = '@BOX@';
-        // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
-          + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
+        box.setAttribute('role', 'status');
+        box.setAttribute('data-tone', 'fix');
+        box.style.cssText = @BLOCKED_CSS@;  // a WorkIt card (BLOCKED_CARD), under a captcha's challenge
         (D.body || D.documentElement).appendChild(box);
       }
-      box.textContent = '@NAME@: blocked ' + what + '. Nothing was sent.';
+      box.textContent = @BLOCKED_WORDS@;  // what it blocked is in the console line above, never on the page
     } catch (e) {}
   };
   // A guard listener that throws blocks what it was judging, as a page that could make it throw would want it not to.
@@ -1926,7 +1926,9 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
                                "@AT_OPEN@": _js(at_open), "@UPLOAD_RULE@": upload_origin.RULE_JS,
                                "@UPLOAD_HOSTS@": json.dumps(upload_origin.JOB_SYSTEM_HOSTS),
-                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED)}.items():
+                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED),
+                               "@BLOCKED_CSS@": json.dumps(BLOCKED_CARD[0]), "@BLOCKED_WORDS@": json.dumps(BLOCKED_CARD[1]),
+                               "@CARD@": json.dumps(CARD), "@CORNER@": json.dumps(CORNER), "@TONES@": json.dumps(TONES)}.items():
         script = script.replace(placeholder, value)
     return script
 
@@ -1971,45 +1973,82 @@ PORT_TOUCH = ("\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; co
 PORT_SAID = "\n      dispatch(D, new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 NO_NOTE = "  const showNote = () => {};"
+# How Apply's notes on a job site's page look: a WorkIt card (the Apply window's colors and face, theme.css), styled
+# from `all:initial` so the site's own CSS changes nothing in it. It lets clicks through to the page under it but for
+# its buttons, so it never stands between the student and a field. Its tone is a colored edge and its data-tone.
+CARD = ("all:initial;box-sizing:border-box;display:block;width:340px;max-width:calc(100vw - 32px);padding:12px 36px 12px 14px;"
+        "background:#fff;color:#121a28;font:14px/20px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;"
+        "border:1px solid #e8e8e8;border-radius:10px;box-shadow:0 2px 4px rgba(18,26,40,.04),0 10px 24px rgba(18,26,40,.12);"
+        "pointer-events:none;text-align:left;white-space:pre-line;")
+# Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+CORNER = "position:fixed;bottom:16px;right:16px;z-index:1999999999;"
+TONES = {"fix": "#c02a3d", "check": "#f2a516", "done": "#6d3fd8"}  # WorkIt's danger, warning and brand
+# The card the guard shows when it blocked a send the student or Apply's own press caused: what it blocked goes to
+# the console (`warn`) and Apply's logs, never the card.
+BLOCKED_CARD = (CARD + CORNER + "border-left:4px solid " + TONES["fix"] + ";", "WorkIt blocked this step, so nothing was sent.")
 # Lisul's note on a lifted page (lift): what Apply found wrong, its Fill again, a held Submit's Dismiss and a × that
 # hides it; and on a held page of a Posting he applied to already (KAN-621) the red "You already applied" note,
-# whose second press of Dismiss tells Apply. Only his own press of a button counts.
+# whose second press of Dismiss tells Apply. Only his own press of a button counts. Its words are the student's:
+# Apply's detail stays in its logs (rehearsal.Rehearsed.line).
 NOTE = r"""
   const onBody = (f) => { if (document.body) f(); else document.addEventListener('DOMContentLoaded', f); };
+  const FONT = "font:500 13px/18px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;";
+  const PRIMARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#6d3fd8;color:#fff;border:1px solid #6d3fd8';
+  const SECONDARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#fff;color:#121a28;border:1px solid #d9d9d9';
+  const CLOSE = 'all:initial;position:absolute;top:6px;right:8px;pointer-events:auto;cursor:pointer;padding:2px 6px;'
+    + 'font:18px/20px system-ui,sans-serif;color:#8893a4';
+  const span = (words, css) => { const s = document.createElement('span'); s.textContent = words; s.style.cssText = 'all:initial;display:block;' + css; return s; };
   const button = (words, act, css) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = words;
-    b.style.cssText = css || 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+    b.style.cssText = css || SECONDARY;
     b.addEventListener('click', (event) => {
       event.stopPropagation();
       if (user(event)) act(b);
     });
     return b;
   };
+  // The card's head: WorkIt's name in its purple, then what the note asks in a line.
+  const head = (title) => {
+    const h = document.createElement('div');
+    h.style.cssText = 'all:initial;display:block';
+    h.appendChild(span('WorkIt', "display:inline;font:700 12px/16px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#6d3fd8"));
+    h.appendChild(document.createTextNode(' '));
+    h.appendChild(span(title, "display:inline;font:600 14px/20px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#121a28"));
+    return h;
+  };
+  const body = (words) => span(words, "margin-top:4px;font:400 13px/18px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#3b3e46;white-space:pre-line");
   const showNote = () => onBody(() => {
     const n = S.note;
     if (!S.lifted || !n) return;
     const warning = String(n.warning || ''), wrong = n.wrong !== false, holding = String(n.held || '');
     const box = document.getElementById('@BOX@') || document.createElement('div');
     box.id = '@BOX@';
-    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (holding || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20')
-      + ';color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
-    box.textContent = holding
-      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + holding
-      : warning
-      ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
-      : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
-    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold')));  // his say that it is fixed
-    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain')));
-    const close = button('×', () => { box.style.display = 'none'; },  // hides the note on this page only
-      'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;background:none;border:none;color:#fff;padding:0 2px');
+    box.setAttribute('role', 'status');
+    const tone = holding || (warning && wrong) ? 'fix' : warning ? 'check' : 'done';
+    box.setAttribute('data-tone', tone);
+    box.style.cssText = @CARD@ + @CORNER@ + 'border-left:4px solid ' + @TONES@[tone];
+    box.textContent = '';
+    if (holding) {
+      box.appendChild(head('Check this answer before you submit'));
+      box.appendChild(body(holding + '\nFix it on the form, then press Dismiss.'));
+    } else if (warning) {
+      box.appendChild(head(wrong ? 'Please fix this before you submit' : 'Please check before you submit'));
+      box.appendChild(body(warning));
+    } else {
+      box.appendChild(head('Your application is filled in'));
+      box.appendChild(body('Look it over, then press Submit on the form when you are ready.'));
+    }
+    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold'), PRIMARY));  // his say that it is fixed
+    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain'), holding ? SECONDARY : PRIMARY));
+    const close = button('×', () => { box.style.display = 'none'; }, CLOSE);  // hides the note on this page only
     close.setAttribute('aria-label', 'Hide this note');
     box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
-    box.style.display = '';
+    box.style.display = 'block';
   });
   const dropNote = () => onBody(() => { const box = document.getElementById('@BOX@'); if (box) box.remove(); });
   const showApplied = () => {
@@ -2018,12 +2057,11 @@ NOTE = r"""
       const box = document.createElement('div');
       box.id = 'apply-already-applied';
       box.setAttribute('role', 'alert');
-      box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
-        + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
-        + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-      const words = document.createElement('span');
-      words.textContent = 'You already applied on ' + S.applied + ', don’t submit. Apply keeps Submit blocked on this page.';
-      box.appendChild(words);
+      box.setAttribute('data-tone', 'fix');
+      box.style.cssText = @CARD@ + 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+        + 'width:420px;border-left:4px solid ' + @TONES@.fix;
+      box.appendChild(head('You already applied on ' + S.applied));
+      box.appendChild(body('WorkIt keeps Submit blocked on this page, so you don’t apply twice.'));
       let asked = false;
       box.appendChild(button('Dismiss', (b) => {
         if (!asked) {
@@ -2034,7 +2072,7 @@ NOTE = r"""
         S.appliedDismissed = true;
         box.remove();
         tell('__applyDismissApplied');
-      }, 'margin-left:10px;cursor:pointer;font:13px sans-serif'));
+      }, SECONDARY));
       (document.body || document.documentElement).appendChild(box);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
@@ -2355,7 +2393,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
     or verification code step's (the script's signInStep: it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread, and only for his own press (the guard tells
-    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber when
+    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber (WorkIt's warning) when
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so what hears his presses is there already, and
     its note keeps the Fill again button. A `held` reason (a legal answer the

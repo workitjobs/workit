@@ -199,7 +199,7 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
             {v.working.length || v.queued
               ? "Nothing needs you right now. We'll send a notification when something does."
               : v.stopped.length
-                ? "Each one is below, with why. Try again where it's offered."
+                ? "The reason for each one is below. Try again where it's offered."
                 : "Every application is done."}
           </p>
           {add && !v.working.length && !v.queued && (

@@ -157,7 +157,12 @@ OUTCOMES = {
 }
 # Outcomes that stop before the form's last page: the page held then is never one to submit from (KAN-636).
 STOPPED = (FAILED, SIGN_IN, OUTCOMES[Status.HANDOFF])
-NOT_LAST = "Apply stopped before the form's last page ({}): this page isn't ready to submit"
+# The held page's note when Apply stopped before the form's last page, in the student's words: why it stopped
+# (the outcome and its detail) stays in the summary line and the Record, never on the page.
+NOT_LAST = "WorkIt filled what it could, but this form isn't finished yet. Please finish it yourself, or press Fill again."
+NOT_SIGNED_IN = "WorkIt filled what it could. Please finish signing in, then press Fill again."
+SIGNS_IN = re.compile(r"sign(?:ed|ing)?[ -]?in|log(?:ged|ging)?[ -]?in", re.IGNORECASE)
+REVIEWED = "Pre-submit review: "  # how a problem the review found begins (worker.Worker): Apply's words, not the note's
 
 
 @dataclass
@@ -220,11 +225,14 @@ class Rehearsed:
             verify.dismiss(self.posting.id, f, why)
 
     def warning(self) -> str:
-        """What to fix on the held page before submitting it, if anything."""
-        found = list(self.problems) + [f"Left blank: {q}" for q in self.missing]
+        """What to fix on the held page before submitting it, if anything, a line each, in the student's words."""
+        found = [p.removeprefix(REVIEWED) for p in self.problems]
+        if self.missing:
+            found.append("Please fill in: " + ", ".join(self.missing))
         if self.outcome in STOPPED:  # a failure or a pause mid-form: never "done, Submit is yours"
-            found.insert(0, NOT_LAST.format(f"{self.outcome}: {self.why}" if self.why else self.outcome))
-        return "; ".join(one_line(f) for f in found)
+            signing_in = self.outcome == SIGN_IN or SIGNS_IN.search(self.why or "")
+            found.insert(0, NOT_SIGNED_IN if signing_in else NOT_LAST)
+        return "\n".join(one_line(f) for f in found)
 
     def wrong(self) -> bool:
         """Whether the held page's note is red: an answer is wrong, or Apply stopped before the last page."""
