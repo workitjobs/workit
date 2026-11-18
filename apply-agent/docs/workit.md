@@ -67,10 +67,14 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).
-- `apply doctor` has a "WorkIt" line. It is optional, as Gmail is: no
-  login, an expired login, WorkIt that cannot be reached, and a company
-  account are each a warn with a fix line, never a fail. A user with no
-  WorkIt account still rehearses. Doctor, as a new process, refreshes the
+- `apply doctor` has a "WorkIt" line. With `ask_model: workit`, the
+  default, the login is needed: no login, an expired login and a company
+  account each fail, since a rehearsal then stops at its first written
+  answer. The fix names `apply login` and the window's sign-in (`apply
+  app`), which needs no code to paste. With another `ask_model` the login
+  is optional, as Gmail is, and each of those is a warn. WorkIt that
+  cannot be reached is always a warn: the login is still kept. Doctor, as
+  a new process, refreshes the
   access token once and saves the rotated refresh token in the keychain.
   This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
