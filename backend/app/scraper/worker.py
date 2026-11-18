@@ -240,10 +240,24 @@ async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -
         await conn.commit()
         summary["jobs_scraped"] += len(done.listings)
     except Exception as exc:
-        await conn.rollback()
-        await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
-        await conn.commit()
-        logger.exception("Board %s checkpoint failed; continuing", done.schedule_id)
+        try:
+            await conn.rollback()
+            await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
+            await conn.commit()
+        except Exception:
+            # Connection itself is broken; the task's lease will expire and
+            # another worker or the next cycle will retry it.
+            logger.exception(
+                "Board %s recovery failed (connection lost?); "
+                "original error: %s; task %s will expire and be retried",
+                done.schedule_id,
+                exc,  # noqa: TRY401 — outer exc, not the one logger.exception includes
+                done.task_id,
+            )
+        else:
+            logger.exception(
+                "Board %s checkpoint failed; continuing", done.schedule_id
+            )
         summary["boards_failed"] += 1
 
 
@@ -344,15 +358,38 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
 
 
 async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) -> None:
-    """One worker: claim and process boards until none remain."""
+    """One worker: claim and process boards until none remain.
+
+    Never raises: a broken connection logs and exits the loop so that
+    ``asyncio.gather`` in ``run_cycle`` completes cleanly and phases 5–6
+    (descriptions, closures) still run."""
     while True:
-        task = await claim_task(conn, worker_id)
-        await conn.commit()
+        try:
+            task = await claim_task(conn, worker_id)
+            await conn.commit()
+        except Exception:
+            logger.exception(
+                "Worker %s: claim failed (connection lost?); stopping",
+                worker_id,
+            )
+            break
         if task is None:
             break
-        done = await _process_task(conn, task, summary)
-        if done is not None:
-            await _checkpoint_board(conn, done, summary)
+        try:
+            done = await _process_task(conn, task, summary)
+            if done is not None:
+                await _checkpoint_board(conn, done, summary)
+        except Exception:
+            # _checkpoint_board's own handler already tried recovery; if we
+            # land here, the connection is unusable.  The task's lease will
+            # expire and another worker or the next cycle will retry it.
+            logger.exception(
+                "Worker %s: task %s failed unexpectedly; stopping",
+                worker_id,
+                task.id,
+            )
+            summary["boards_failed"] += 1
+            break
 
 
 # ---------------------------------------------------------------------------

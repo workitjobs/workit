@@ -1,6 +1,6 @@
 # Apply's Employer account passwords in the user's everyday Chrome
 
-**Status (2026-11-05):** Built: the Accounts tab, `apply chrome-passwords` and the native host (`apply-agent/README.md`, step 9). Read this note for why. The code descriptions are from the research date.
+**Status (2026-11-05):** Built: the Accounts tab, `apply chrome-passwords` and the native host (`apply-agent/README.md`, step 10). Read this note for why. The code descriptions are from the research date.
 
 Researched 2026-11-03. The code was read at WorkIt `origin/main` `a346d259`, read-only. No Keychain password was read or printed.
 

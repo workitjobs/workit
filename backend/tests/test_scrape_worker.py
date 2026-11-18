@@ -10,9 +10,41 @@ import pytest
 from sqlalchemy import text
 
 from app.db import get_engine
-from app.scraper import schedules, worker
+from app.scraper import schedules, tasks, worker
 
 pytestmark = pytest.mark.anyio
+
+
+# ---------------------------------------------------------------------------
+# Error string sanitization (KAN-912, pure — no database)
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_error_strips_api_key():
+    raw = "Connection failed: https://api.example.com?api_key=sk-1234abc&page=1"
+    assert "sk-1234abc" not in tasks._sanitize_error(raw)
+    assert "api_key=***" in tasks._sanitize_error(raw)
+
+
+def test_sanitize_error_strips_multiple_credentials():
+    raw = "token=secret123 password=hunter2 authorization=Bearer xyz"
+    cleaned = tasks._sanitize_error(raw)
+    assert "secret123" not in cleaned
+    assert "hunter2" not in cleaned
+    assert "Bearer xyz" not in cleaned
+    assert "token=***" in cleaned
+    assert "password=***" in cleaned
+    assert "authorization=***" in cleaned
+
+
+def test_sanitize_error_truncates_to_2000():
+    raw = "x" * 3000
+    assert len(tasks._sanitize_error(raw)) == 2000
+
+
+def test_sanitize_error_preserves_safe_messages():
+    raw = "publish failed: board returned HTTP 500"
+    assert tasks._sanitize_error(raw) == raw
 
 
 @pytest.fixture
@@ -454,6 +486,38 @@ async def test_version_bump_retries_despite_max_attempts(database, boards_csv):
             )
         ).all()
         assert len(rows) == 1, "version-stale row must not be blocked by attempts cap"
+
+
+async def test_broken_connection_in_checkpoint_does_not_propagate(database, boards_csv, monkeypatch):
+    """When the connection breaks during checkpoint *and* during recovery,
+    the worker exits cleanly: boards_failed increments, the exception does
+    not propagate, and run_cycle still runs closures (phase 6)."""
+    from app.scripts import import_jobs
+
+    _read_one_intern(monkeypatch, boards_csv)
+
+    # Simulate a broken connection: import_feed raises, then rollback also
+    # raises (the connection is dead).
+    class DeadConnection(Exception):
+        pass
+
+    async def break_on_import(*args, **kwargs):
+        # Make the connection's rollback fail too, simulating a lost connection.
+        conn = args[0]
+
+        async def broken_rollback():
+            raise DeadConnection("connection lost")
+
+        conn.rollback = broken_rollback
+        raise DeadConnection("connection reset by peer")
+
+    monkeypatch.setattr(import_jobs, "import_feed", break_on_import)
+
+    async with get_engine().connect() as conn:
+        summary = await worker.run_cycle(conn)
+
+    # The exception did not propagate (run_cycle returned), closures ran.
+    assert summary["boards_failed"] >= 1
 
 
 async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch):
