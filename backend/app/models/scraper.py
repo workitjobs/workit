@@ -137,6 +137,9 @@ class Job_Source(Base):
     apply_url: Mapped[str] = mapped_column(Text, index=True)
     external_id: Mapped[str | None] = mapped_column(Text)
     description_version: Mapped[int | None] = mapped_column(SmallInteger)
+    description_attempts: Mapped[int] = mapped_column(
+        SmallInteger, default=0, server_default=text("0")
+    )
     description_fetched_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True)
     )

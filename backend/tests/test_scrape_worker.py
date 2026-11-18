@@ -327,6 +327,167 @@ async def test_select_due_skips_fingerprint_resting(database, boards_csv):
 # ---------------------------------------------------------------------------
 
 
+async def _seed_source(conn, boards_csv):
+    """Seed a schedule, a job posting and a job_source row for description tests.
+    Returns (schedule_id, apply_url)."""
+    await schedules.sync_catalog(conn, boards_csv)
+    schedule = await _schedule(conn)
+    apply_url = "https://jobs.ashbyhq.com/acme/1"
+    await conn.execute(
+        text(
+            "INSERT INTO job_postings (apply_url, company_name, title, status, added_by_student)"
+            " VALUES (:url, 'Acme', 'SWE Intern', 'published', false)"
+        ),
+        {"url": apply_url},
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO job_sources (schedule_id, apply_url, external_id)"
+            " VALUES (:sid, :url, '1')"
+        ),
+        {"sid": schedule.id, "url": apply_url},
+    )
+    await conn.commit()
+    return schedule.id, apply_url
+
+
+async def _source_row(conn, schedule_id, apply_url):
+    return (
+        await conn.execute(
+            text(
+                "SELECT description_version, description_attempts, description_fetched_at"
+                " FROM job_sources WHERE schedule_id = :sid AND apply_url = :url"
+            ),
+            {"sid": schedule_id, "url": apply_url},
+        )
+    ).one()
+
+
+async def test_description_failure_is_retried(database, boards_csv):
+    """A failed fetch increments attempts and leaves version NULL so the row
+    is picked up again on the next cycle."""
+    async with get_engine().connect() as conn:
+        sid, url = await _seed_source(conn, boards_csv)
+
+        # Simulate one failure.
+        row = SimpleNamespace(apply_url=url, schedule_id=sid)
+        await worker._commit_description_batch(conn, [(row, None, "timeout")])
+
+        src = await _source_row(conn, sid, url)
+        assert src.description_attempts == 1
+        assert src.description_version is None
+        assert src.description_fetched_at is None
+
+
+async def test_description_gives_up_after_max_attempts(database, boards_csv):
+    """After MAX_DESCRIPTION_ATTEMPTS failures the row is no longer picked
+    by _STALE_QUERY."""
+    from workit_scraper import providers
+
+    async with get_engine().connect() as conn:
+        sid, url = await _seed_source(conn, boards_csv)
+
+        # Set attempts to the max.
+        await conn.execute(
+            text(
+                "UPDATE job_sources SET description_attempts = :max"
+                " WHERE schedule_id = :sid AND apply_url = :url"
+            ),
+            {"max": worker.MAX_DESCRIPTION_ATTEMPTS, "sid": sid, "url": url},
+        )
+        await conn.commit()
+
+        rows = (
+            await conn.execute(
+                worker._STALE_QUERY,
+                {
+                    "version": providers.PAGE_VERSION,
+                    "cap": 100,
+                    "max_attempts": worker.MAX_DESCRIPTION_ATTEMPTS,
+                },
+            )
+        ).all()
+        assert len(rows) == 0
+
+
+async def test_description_success_resets_attempts(database, boards_csv):
+    """A successful fetch stamps the version and resets attempts to 0."""
+    from workit_scraper import providers
+    from workit_scraper.details import Facts
+    from workit_scraper.providers import Job
+    from workit_scraper.providers.model import Page
+
+    async with get_engine().connect() as conn:
+        sid, url = await _seed_source(conn, boards_csv)
+
+        # Bump attempts to simulate prior failures.
+        await conn.execute(
+            text(
+                "UPDATE job_sources SET description_attempts = 2"
+                " WHERE schedule_id = :sid AND apply_url = :url"
+            ),
+            {"sid": sid, "url": url},
+        )
+        await conn.commit()
+
+        # Simulate a success with a minimal described job.
+        page = Page(
+            version=providers.PAGE_VERSION,
+            description="A great job.",
+            facts=Facts(),
+        )
+        described = Job(
+            ats="greenhouse",
+            token="acme",
+            company="Acme",
+            external_id="1",
+            title="SWE Intern",
+            apply_url=url,
+            page=page,
+        )
+        row = SimpleNamespace(apply_url=url, schedule_id=sid)
+        await worker._commit_description_batch(conn, [(row, described, None)])
+
+        src = await _source_row(conn, sid, url)
+        assert src.description_attempts == 0
+        assert src.description_version == providers.PAGE_VERSION
+        assert src.description_fetched_at is not None
+
+
+async def test_version_bump_retries_despite_max_attempts(database, boards_csv):
+    """A row that succeeded at an old version but hit max attempts on the bump
+    must still be picked by _STALE_QUERY when PAGE_VERSION increases again."""
+    from workit_scraper import providers
+
+    async with get_engine().connect() as conn:
+        sid, url = await _seed_source(conn, boards_csv)
+
+        # Simulate: succeeded at version 1, then failed 3 times on version 2.
+        await conn.execute(
+            text(
+                "UPDATE job_sources SET description_version = 1,"
+                " description_attempts = :max"
+                " WHERE schedule_id = :sid AND apply_url = :url"
+            ),
+            {"max": worker.MAX_DESCRIPTION_ATTEMPTS, "sid": sid, "url": url},
+        )
+        await conn.commit()
+
+        # The row has a version (not NULL) below PAGE_VERSION, so it must
+        # appear regardless of attempts.
+        rows = (
+            await conn.execute(
+                worker._STALE_QUERY,
+                {
+                    "version": providers.PAGE_VERSION,
+                    "cap": 100,
+                    "max_attempts": worker.MAX_DESCRIPTION_ATTEMPTS,
+                },
+            )
+        ).all()
+        assert len(rows) == 1, "version-stale row must not be blocked by attempts cap"
+
+
 async def test_broken_connection_in_checkpoint_does_not_propagate(database, boards_csv, monkeypatch):
     """When the connection breaks during checkpoint *and* during recovery,
     the worker exits cleanly: boards_failed increments, the exception does

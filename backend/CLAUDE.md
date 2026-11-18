@@ -33,9 +33,9 @@ cycle, ordered by `schedule_id` then `first_seen_at`, in 8 threads
 (`DESCRIPTION_WORKERS`) with a shared `Robots` instance. Each success
 updates the posting's page-derived fields (description, salary, job_type,
 work_style, experience_level, start_term, sponsorship) on `job_postings` and
-stamps the source; a failure stamps `description_version` without
-`description_fetched_at`, so the posting is retried only on the next
-`PAGE_VERSION` bump. Results commit in batches of 50
+stamps the source; a failure increments `description_attempts` without
+stamping `description_version`, so the posting is retried on the next cycle
+up to `MAX_DESCRIPTION_ATTEMPTS` (3) times before it gives up. Results commit in batches of 50
 (`DESCRIPTION_BATCH_SIZE`). Enrichment failures roll back the active batch
 and still allow closure detection. Preserve listing work style when rebuilding
 provider jobs, and retain stored currency/period when absent from a page: both
