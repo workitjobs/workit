@@ -18,10 +18,10 @@ class _Response:
 
     def read(self, size: int = -1):
         if size < 0:
-            chunk = self._data[self._pos:]
+            chunk = self._data[self._pos :]
             self._pos = len(self._data)
             return chunk
-        chunk = self._data[self._pos:self._pos + size]
+        chunk = self._data[self._pos : self._pos + size]
         self._pos += len(chunk)
         return chunk
 

@@ -65,9 +65,7 @@ def _send(request: urllib.request.Request, timeout: float) -> bytes:
                 break
             total += len(chunk)
             if total > MAX_BODY:
-                raise ValueError(
-                    f"response body exceeds {MAX_BODY} bytes"
-                )
+                raise ValueError(f"response body exceeds {MAX_BODY} bytes")
             chunks.append(chunk)
         body = b"".join(chunks)
     with _lock:
