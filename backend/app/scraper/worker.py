@@ -60,6 +60,7 @@ MAX_DESCRIPTIONS_PER_CYCLE = 500
 DESCRIPTION_BATCH_SIZE = 50
 DESCRIPTION_WORKERS = 8
 BOARD_WORKERS = 4
+MAX_DESCRIPTION_ATTEMPTS = 3
 
 
 def read_board_listing(board: Board) -> tuple[BoardRead, list[Job], float]:
@@ -372,6 +373,7 @@ _STALE_QUERY = text("""\
         JOIN job_postings jp ON jp.apply_url = js.apply_url
         WHERE (js.description_version IS NULL
                OR js.description_version < :version)
+          AND js.description_attempts < :max_attempts
           AND jp.status = 'published'
           AND jp.company_id IS NULL
           AND jp.added_by_student = FALSE
@@ -406,10 +408,17 @@ _UPDATE_POSTING = text("""\
       AND status = 'published'
 """)
 
-_STAMP_SOURCE = text("""\
+_STAMP_SOURCE_OK = text("""\
     UPDATE job_sources
     SET description_version = :version,
-        description_fetched_at = CASE WHEN :fetched THEN now() ELSE description_fetched_at END
+        description_fetched_at = now(),
+        description_attempts = 0
+    WHERE apply_url = :apply_url AND schedule_id = :schedule_id
+""")
+
+_STAMP_SOURCE_FAIL = text("""\
+    UPDATE job_sources
+    SET description_attempts = description_attempts + 1
     WHERE apply_url = :apply_url AND schedule_id = :schedule_id
 """)
 
@@ -454,7 +463,11 @@ async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
     rows = (
         await conn.execute(
             _STALE_QUERY,
-            {"version": providers.PAGE_VERSION, "cap": MAX_DESCRIPTIONS_PER_CYCLE},
+            {
+                "version": providers.PAGE_VERSION,
+                "cap": MAX_DESCRIPTIONS_PER_CYCLE,
+                "max_attempts": MAX_DESCRIPTION_ATTEMPTS,
+            },
         )
     ).all()
 
@@ -510,23 +523,29 @@ async def _commit_description_batch(
                     "sponsorship": facts.sponsorship if facts else None,
                 },
             )
+            await conn.execute(
+                _STAMP_SOURCE_OK,
+                {
+                    "apply_url": row.apply_url,
+                    "schedule_id": row.schedule_id,
+                    "version": providers.PAGE_VERSION,
+                },
+            )
             fetched += 1
         else:
+            await conn.execute(
+                _STAMP_SOURCE_FAIL,
+                {
+                    "apply_url": row.apply_url,
+                    "schedule_id": row.schedule_id,
+                },
+            )
             failed += 1
             logger.warning(
                 "Description fetch failed for %s: %s",
                 row.apply_url,
                 error or "provider returned no description page",
             )
-        await conn.execute(
-            _STAMP_SOURCE,
-            {
-                "apply_url": row.apply_url,
-                "schedule_id": row.schedule_id,
-                "version": providers.PAGE_VERSION,
-                "fetched": bool(described and described.page),
-            },
-        )
 
     await conn.commit()
     return fetched, failed

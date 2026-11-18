@@ -1458,11 +1458,13 @@ paragraph. Invariants for `Job_Source`:
   the provider's `Job.external_id`. Phase 2 needs it to build the description
   page URL via `providers.job_url(ats, token, external_id)`.
 - **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
-  the last description fetch. NULL means "needs fetch" for postings without
-  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
-  queries `WHERE description_version IS NULL OR description_version <
-  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
-  so the posting is retried only on the next `PAGE_VERSION` bump.
+  the last successful description fetch. NULL means "needs fetch" for postings
+  without inline descriptions; a value equal to `PAGE_VERSION` means current.
+  Only a success stamps it; a failure leaves it NULL so the posting is retried.
+- **`description_attempts`** (SmallInteger, NOT NULL, default 0): how many
+  times phase 2 has tried and failed to fetch this posting's description.
+  Phase 2 skips rows at `MAX_DESCRIPTION_ATTEMPTS` (3). A success resets it
+  to 0. Migration: `c5b587c8098e`.
 - **`description_fetched_at`** (DateTime with timezone, nullable): when the
   description was last successfully fetched. NULL for postings that failed or
   have not been fetched yet.
