@@ -3854,8 +3854,18 @@ student who opened a resume from Experiences landed on another view.
     no + yet. Each button is 24px, WCAG 2.2's smallest target.
   - **A press on the handle with no drag picks the block**, outlined in
     brand. The toolbar's middle then shows where it sits, as a breadcrumb
-    ("Experience › Acme › Bullet 2", `Crumbs`), with Move Up and Move Down;
-    an open line shows its breadcrumb too. A step of it picks that block.
+    ("Experience › Acme › Bullet 2", `Crumbs`); an open line shows its
+    breadcrumb too. A step of it picks that block.
+  - **A picked block gets its own bar**, at its right end just over its
+    first line (`actionsOf`, `BlockAction`; at its left it covered the
+    section heading over a picked entry), in the Sections panel's words and
+    glyphs: a bullet's Edit (opens it for typing), Add Bullet, Move Up, Move
+    Down and Remove From Resume; an entry's Edit (its form, for the dates
+    and place the page does not type), Add Bullet (an empty row last in its
+    form), the moves and Remove From Resume; a section's Add <noun>, the
+    moves and Remove From Resume (every entry, or every skill). Remove is
+    the panel's hide, with Undo, the bank keeping the item. With the bar,
+    nothing a panel row does needs the panel.
     **Esc climbs**: an open line to its entry, an entry to its section, a
     section to nothing; it only closed the line before. **Option with an
     arrow moves** the picked block, or the open line while its field has no

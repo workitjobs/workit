@@ -7,10 +7,12 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 
 import { PlusIcon } from "@/components/icons";
+import { IconButton } from "@/components/ui/icon-button";
 import { Tip } from "@/components/ui/tip";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -44,6 +46,11 @@ import {
  * sections), and the drop goes to the editor, which shows the move at once.
  * A press on the handle with no drag picks the block (the breadcrumb's
  * level), and its arrow keys move it, as the panel's handles do.
+ *
+ * A picked block gets a bar of its own just over its first line
+ * (`actionsOf`): Edit, Add Bullet, Move Up, Move Down and Remove From
+ * Resume, whichever fit it, in the Sections panel's words and glyphs. With
+ * it, nothing the panel's rows do needs the panel.
  */
 
 export type PageOutline = {
@@ -57,6 +64,19 @@ export type PageOutline = {
   /** Adds a sibling after the block, and what it adds ("School",
    *  "Bullet"); null where nothing can be added. */
   addOf: (block: OutlineBlock) => { noun: string; add: (opener: HTMLElement) => void } | null;
+  /** The picked block's actions, for the bar over it. */
+  actionsOf: (block: OutlineBlock) => BlockAction[];
+};
+
+/** One button of the bar over a picked block (KAN-920): `label` names it in
+ *  full for a screen reader, `tooltip` in short. */
+export type BlockAction = {
+  key: string;
+  label: string;
+  tooltip: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  onClick: (opener: HTMLElement) => void;
 };
 
 type Drag = {
@@ -228,9 +248,40 @@ export function OutlineLayer({
     );
   };
   const add = shown && !state.drag ? outline.addOf(shown) : null;
+  const actions = picked && !state.drag ? outline.actionsOf(picked) : [];
+  const pickedBand = picked && bandOn(picked, page, size.height);
   return (
     <>
       {picked && ring(picked, "ring-brand ring-2")}
+      {picked && pickedBand && picked.start.page === page && actions.length > 0 && (
+        // The picked block's own bar, just over its first line (Canva's and
+        // Notion's, made for a resume): what can be done to it, where it is
+        <div
+          data-keeps-selection
+          role="toolbar"
+          aria-label={`${picked.label}: actions`}
+          className="bg-panel border-border-surface rounded-control absolute z-30 flex -translate-y-full items-center gap-0.5 border p-0.5 shadow-md"
+          // At its right end: a heading or a title starts at the left, and
+          // the bar there covered the section heading over a picked entry
+          style={{
+            right: pct(size.width - picked.x1 - 4, size.width),
+            top: pct(pickedBand.top - 4, size.height),
+          }}
+        >
+          {actions.map((action) => (
+            <IconButton
+              key={action.key}
+              place="row"
+              label={action.label}
+              tooltip={action.tooltip}
+              disabled={action.disabled}
+              onClick={(event) => action.onClick(event.currentTarget)}
+            >
+              {action.icon}
+            </IconButton>
+          ))}
+        </div>
+      )}
       {dragged && ring(dragged, "bg-brand/5 ring-brand/40 ring-1")}
       {line && line.page === page && (
         <div

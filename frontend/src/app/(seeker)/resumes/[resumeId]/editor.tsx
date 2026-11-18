@@ -1,6 +1,12 @@
 "use client";
 
-import { CloudSlashIcon, ScissorsIcon, StackIcon } from "@phosphor-icons/react/ssr";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CloudSlashIcon,
+  ScissorsIcon,
+  StackIcon,
+} from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import {
   Suspense,
@@ -15,7 +21,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { CloseIcon } from "@/components/icons";
+import { CloseIcon, PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { closeScout, setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -91,7 +97,7 @@ import {
 } from "./model";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import { OutlineEntryDialog } from "./outline-entry";
-import type { PageOutline } from "./page-handles";
+import type { BlockAction, PageOutline } from "./page-handles";
 import { outlineOf, sectionStrip, type BlockKind, type OutlineBlock } from "./page-outline";
 import {
   afterStrips,
@@ -2575,6 +2581,126 @@ export function Editor({
         ),
     };
   };
+  /** The bar over a picked block (KAN-920): what the Sections panel's row
+   *  does for it, in its words and glyphs, plus its moves. Edit opens a
+   *  bullet for typing on the page, an entry's form for its details (dates,
+   *  location), which the page does not type; Add Bullet puts an empty row
+   *  last in the entry's form; Remove From Resume is the panel's hide, with
+   *  Undo, the bank keeping it. */
+  const actionsOf = (block: OutlineBlock): BlockAction[] => {
+    const at = { kind: block.kind, id: block.id };
+    const index = indexOf(at);
+    const moves: BlockAction[] = [
+      {
+        key: "up",
+        label: `Move ${block.label} up`,
+        tooltip: "Move Up",
+        icon: <ArrowUpIcon aria-hidden />,
+        disabled: index <= 0,
+        onClick: () => moveBlock(at, index - 1),
+      },
+      {
+        key: "down",
+        label: `Move ${block.label} down`,
+        tooltip: "Move Down",
+        icon: <ArrowDownIcon aria-hidden />,
+        disabled: index < 0 || index >= siblingCount(at) - 1,
+        onClick: () => moveBlock(at, index + 1),
+      },
+    ];
+    const remove = (changes: ChoicesUpdate): BlockAction => ({
+      key: "remove",
+      label: `Remove ${block.label} from this resume`,
+      tooltip: "Remove From Resume",
+      icon: <TrashIcon />,
+      onClick: () => {
+        setPicked(null);
+        void apply(changes);
+      },
+    });
+    if (block.kind === "bullet") {
+      const add = addAfter(block);
+      return [
+        {
+          key: "edit",
+          label: `Edit ${block.label}`,
+          tooltip: "Edit",
+          icon: <PencilIcon />,
+          onClick: () => select(`${block.id}.bullet`),
+        },
+        ...(add
+          ? [
+              {
+                key: "add",
+                label: `Add Bullet after ${block.label}`,
+                tooltip: "Add Bullet",
+                icon: <PlusIcon />,
+                onClick: add.add,
+              },
+            ]
+          : []),
+        ...moves,
+        remove({ bullets: [{ bullet_id: block.id, shown: false }] }),
+      ];
+    }
+    if (block.kind === "entry") {
+      const entry = bank.entries.find((e) => e.id === block.id);
+      if (!entry) return moves;
+      const form = (opener: HTMLElement, newBulletAfter?: string) =>
+        openEntryForm(
+          {
+            target: entry,
+            section: entry.section,
+            customSectionId: entry.custom_section_id ?? null,
+            newBulletAfter,
+          },
+          opener,
+        );
+      return [
+        {
+          key: "edit",
+          label: `Edit ${block.label}`,
+          tooltip: "Edit",
+          icon: <PencilIcon />,
+          onClick: (opener) => form(opener),
+        },
+        {
+          key: "add",
+          label: `Add Bullet to ${block.label}`,
+          tooltip: "Add Bullet",
+          icon: <PlusIcon />,
+          onClick: (opener) => form(opener, ""),
+        },
+        ...moves,
+        remove({ entries: [{ entry_id: block.id, shown: false }] }),
+      ];
+    }
+    const section = printed.find((s) => s.id === block.id);
+    const add = addAfter(block);
+    return [
+      ...(add
+        ? [
+            {
+              key: "add",
+              label: `Add ${add.noun} to ${block.label}`,
+              tooltip: `Add ${add.noun}`,
+              icon: <PlusIcon />,
+              onClick: add.add,
+            },
+          ]
+        : []),
+      ...moves,
+      remove(
+        block.id === "skills"
+          ? {
+              skills: choices.skills
+                .filter((c) => c.shown)
+                .map((c) => ({ skill_id: c.skill_id, shown: false })),
+            }
+          : { entries: (section?.entries ?? []).map((e) => ({ entry_id: e.id, shown: false })) },
+      ),
+    ];
+  };
   // The page's own handles, on the editor's own page (not Tailor's review,
   // whose page is for reading its changes)
   const pageOutline: PageOutline | undefined = suggestions
@@ -2585,6 +2711,7 @@ export function Editor({
         onPick: (block) => pick({ kind: block.kind, id: block.id }),
         onMove: (block, to) => moveBlock(block, to),
         addOf: addAfter,
+        actionsOf,
       };
   if (phone) {
     const start = line && box && startText(line, box);
@@ -2683,7 +2810,6 @@ export function Editor({
         const at = target.indexOf(":");
         pick({ kind: target.slice(0, at) as BlockKind, id: target.slice(at + 1) });
       }}
-      blockMoves={blockMoves}
       choices={choices}
       handlers={handlers}
       rendered={rendered}
