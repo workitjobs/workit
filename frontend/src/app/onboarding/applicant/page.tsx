@@ -37,9 +37,10 @@ export const metadata: Metadata = {
  * `/extension-setup` now, KAN-495) -- reached instead through that page's
  * "I Already Have One" button, signed out by way of sign-in. ?step=2 is
  * honoured only with saved answers (./steps' startStep), since the first
- * step holds the answers that must be given; ?step=extension also for a
- * seeker who finished onboarding, so loading the extension never sends
- * them back to the first step.
+ * step holds the answers that must be given. A seeker who already finished
+ * onboarding never sees this step at all: this page redirects them to
+ * Home (?installed=1) before startStep ever runs (KAN-864), since
+ * onboarding's Extension step has nothing new to tell them.
  *
  * The Role step's pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
@@ -58,6 +59,16 @@ export default async function ApplicantOnboardingPage({
   }
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
+
+  const { step } = await searchParams;
+  if (step === "extension" && account?.onboarding_completed === true) {
+    // /extension-setup's "I Already Have One" (KAN-495) comes back here
+    // after sign-in; a seeker who already finished onboarding has nothing
+    // new to see on this step, so send them to Home instead (KAN-864) with
+    // a success message, rather than showing onboarding's Extension step
+    // again.
+    redirect("/home?installed=1");
+  }
 
   const [options, saved, savedAnswers, { profile }, params] = await Promise.all([
     getRoleOptions(),
@@ -84,7 +95,7 @@ export default async function ApplicantOnboardingPage({
       }
       email={user.email}
       claudeLink={claudeConnectorLink()}
-      startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
+      startStep={startStep(params.step, saved != null)}
     />
   );
 }

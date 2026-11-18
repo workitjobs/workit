@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getAppliedApplications, getHeadline } from "./data";
 import { HomeFrame } from "./frame";
 import { Headline, HeadlineSkeleton } from "./headline";
+import { InstalledToast } from "./installed-toast";
 import { Streak, StreakFailed, StreakSkeleton } from "./streak";
 import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
@@ -123,6 +124,11 @@ export default async function HomePage() {
 
   return (
     <HomeFrame
+      installedToast={
+        <Suspense fallback={null}>
+          <InstalledToast />
+        </Suspense>
+      }
       tiles={
         <Suspense fallback={<HeadlineSkeleton />}>
           <HeadlineTiles stats={stats} />

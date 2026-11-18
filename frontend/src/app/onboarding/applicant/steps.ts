@@ -58,28 +58,24 @@ export function railStep(page: number): number {
 /** The extension step's link. Not opened directly by the extension's
  *  install anymore (that was KAN-471; its own tab is now /extension-setup,
  *  autofiller_extension/src/background/install.js) -- reached today
- *  through that page's "I Already Have One" button (KAN-495), so a
- *  student who already finished onboarding still has a route to the
- *  Practice step after it. */
+ *  through that page's "I Already Have One" button (KAN-495). A seeker who
+ *  already finished onboarding never reaches this step: ./page.tsx redirects
+ *  them to Home instead (KAN-864), since onboarding's Extension step has
+ *  nothing new to tell them. */
 export const EXTENSION_STEP_PATH = "/onboarding/applicant?step=extension";
 
 /**
  * The step ./page opens on, from its `?step=`: "2" opens Profile, the third
  * step, and "extension" the extension's install step, which
  * `/extension-setup`'s "I Already Have One" button links to (KAN-495).
- * "2" only with saved answers (`saved`): the
- * first step holds the answers that must be given, and Profile's Next saves
- * them as preferences, so a seeker who never gave them starts there.
- * "extension" also for a seeker who finished onboarding (`finished`): its
- * steps save nothing, and loading the extension must never send a finished
- * seeker back to fill in everything again (2026-11-01).
+ * "2" only with saved answers (`saved`): the first step holds the answers
+ * that must be given, and Profile's Next saves them as preferences, so a
+ * seeker who never gave them starts there. A finished seeker's "extension"
+ * never reaches this function at all: ./page.tsx redirects to Home first
+ * (KAN-864), so there is no `finished` case to honour here any more.
  */
-export function startStep(
-  param: string | string[] | undefined,
-  saved: boolean,
-  finished = false,
-): number {
-  if (param === "extension" && (saved || finished)) return WIZARD_PAGES.indexOf("Extension");
+export function startStep(param: string | string[] | undefined, saved: boolean): number {
+  if (param === "extension" && saved) return WIZARD_PAGES.indexOf("Extension");
   if (!saved) return 0;
   if (param === "2") return 2;
   return 0;
