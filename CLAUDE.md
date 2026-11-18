@@ -80,26 +80,17 @@ every teammate's Alembic on 2026-09-21 (`backend/alembic/CLAUDE.md`).
 
 ## Auth
 
-Supabase Auth issues the session; the Python API authorizes. The Next server
-keeps the session in Supabase's cookies and forwards the access token to
-FastAPI as a Bearer header; FastAPI verifies it and decides what the account
-may do. Signup goes through FastAPI, which creates the auth user (account type
-in `app_metadata`) and the profile row with the same id.
-
-- SQLAlchemy connects as one privileged role that bypasses RLS, so
-  authorization lives in Python.
-- **Every new table's migration enables RLS with no policies**: a deny-all
-  backstop against the public anon key.
-- The **anon** key goes to `frontend/`; the **service-role** key and every
-  connection string stay in `backend/`. A secret added to `frontend/` is one
-  typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
-
-To test a page behind sign-in, use the shared test account and its rules in
-`frontend/CLAUDE.md`, "Auth and the API"; never create one.
+Supabase Auth issues session tokens; the Python API authorizes requests. The
+Next server forwards the access token as a Bearer header; FastAPI verifies it
+and decides what the account may do. Signup goes through FastAPI so the account
+type lands in `app_metadata`. Authorization lives in Python (SQLAlchemy
+bypasses RLS); every new table's migration enables RLS with no policies as a
+deny-all backstop. The **anon** key goes to `frontend/`; the **service-role**
+key and every connection string stay in `backend/`.
 
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
-section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
-"Auth and the API".
+section and `frontend/CLAUDE.md`'s "Auth and the API". To test a page behind
+sign-in, use the shared test account in `frontend/CLAUDE.md`; never create one.
 
 ## Commands
 
