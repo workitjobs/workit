@@ -358,7 +358,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict, *, robots: R
     )
 
 
-async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) -> None:
+async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict, *, robots: Robots | None = None) -> None:
     """One worker: claim and process boards until none remain.
 
     Never raises: a broken connection logs and exits the loop so that
@@ -377,7 +377,7 @@ async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) ->
         if task is None:
             break
         try:
-            done = await _process_task(conn, task, summary)
+            done = await _process_task(conn, task, summary, robots=robots)
             if done is not None:
                 await _checkpoint_board(conn, done, summary)
         except Exception:

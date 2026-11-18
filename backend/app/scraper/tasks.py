@@ -24,7 +24,6 @@ LEASE_DURATION = timedelta(minutes=30)
 _CREDENTIAL_RE = re.compile(
     r"(access_token|refresh_token|api_key|authorization|password|secret|token)"
     r"[=:]\s*[^\s&]+",
-    r"[=:]\s*\S+",
     re.IGNORECASE,
 )
 
