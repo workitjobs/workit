@@ -102,7 +102,11 @@ async def test_no_page_is_a_failure_not_a_successful_fetch():
     conn = AsyncMock()
     row = SimpleNamespace(apply_url=URL_A, schedule_id="board")
     assert await worker._commit_description_batch(conn, [(row, None, None)]) == (0, 1)
-    assert conn.execute.await_args.args[1]["fetched"] is False
+    # The failure path uses _STAMP_SOURCE_FAIL which increments attempts.
+    params = conn.execute.await_args.args[1]
+    assert params["apply_url"] == URL_A
+    assert params["schedule_id"] == "board"
+    assert "version" not in params  # _STAMP_SOURCE_OK would have this
 
 
 async def test_stale_candidates_deduplicate_before_cap(database):
