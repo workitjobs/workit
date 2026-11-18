@@ -371,9 +371,10 @@ _STALE_QUERY = text("""\
         FROM job_sources js
         JOIN scraper_schedules ss ON js.schedule_id = ss.id
         JOIN job_postings jp ON jp.apply_url = js.apply_url
-        WHERE (js.description_version IS NULL
-               OR js.description_version < :version)
-          AND js.description_attempts < :max_attempts
+        WHERE ((js.description_version IS NULL
+                   AND js.description_attempts < :max_attempts)
+               OR (js.description_version IS NOT NULL
+                   AND js.description_version < :version))
           AND jp.status = 'published'
           AND jp.company_id IS NULL
           AND jp.added_by_student = FALSE

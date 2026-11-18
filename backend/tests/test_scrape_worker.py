@@ -422,6 +422,40 @@ async def test_description_success_resets_attempts(database, boards_csv):
         assert src.description_fetched_at is not None
 
 
+async def test_version_bump_retries_despite_max_attempts(database, boards_csv):
+    """A row that succeeded at an old version but hit max attempts on the bump
+    must still be picked by _STALE_QUERY when PAGE_VERSION increases again."""
+    from workit_scraper import providers
+
+    async with get_engine().connect() as conn:
+        sid, url = await _seed_source(conn, boards_csv)
+
+        # Simulate: succeeded at version 1, then failed 3 times on version 2.
+        await conn.execute(
+            text(
+                "UPDATE job_sources SET description_version = 1,"
+                " description_attempts = :max"
+                " WHERE schedule_id = :sid AND apply_url = :url"
+            ),
+            {"max": worker.MAX_DESCRIPTION_ATTEMPTS, "sid": sid, "url": url},
+        )
+        await conn.commit()
+
+        # The row has a version (not NULL) below PAGE_VERSION, so it must
+        # appear regardless of attempts.
+        rows = (
+            await conn.execute(
+                worker._STALE_QUERY,
+                {
+                    "version": providers.PAGE_VERSION,
+                    "cap": 100,
+                    "max_attempts": worker.MAX_DESCRIPTION_ATTEMPTS,
+                },
+            )
+        ).all()
+        assert len(rows) == 1, "version-stale row must not be blocked by attempts cap"
+
+
 async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch):
     """Four boards, four workers: every board is claimed and processed."""
     from workit_scraper.board_read import BoardRead, ReadStatus
