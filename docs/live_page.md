@@ -132,8 +132,21 @@ Built so far (option A, the typed line only):
   compile twice, not five times. Every click still saves. A skipped step
   keeps no PDF, nor does the step after it on its before side, so Undo
   renders those, and any step while a page's render is queued renders too,
-  or that render would print over it. Typed lines and choice changes are not skipped: a render
-  is what refuses a bad one, and each carries only its own edit.
+  or that render would print over it.
+- **A choice change's compile is skipped when another choice change is
+  next in the queue, and that render carries both** (KAN-919): three quick
+  hides or ticks compile twice, the first and one for the other two, not
+  three times, at 4 to 5 s a compile in production. The skipped change
+  stays on its way (`unanswered`, its swap, hide and lines) until the
+  render that carries it answers, which sends the changes joined in order
+  (`joined`; the API applies them in order, later wins). A skipped step
+  keeps no PDF on either side, and the step after it none on its before
+  side, so Undo and Redo render those. Every change still saves on its
+  own. A refusal of changes carried together reloads the saved resume,
+  since only the saves know which one was refused. A Fit's cycles never
+  join (their plan reads their own PDF), and typed lines are never
+  skipped: the render reads the typed text (a GPA, a link) into the copy
+  the next edit needs.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
   save goes; an older step, past the newest 7 that keep their PDFs,

@@ -737,7 +737,7 @@ async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(st
 async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template, page):
+    def missing(view, identity, template, page, **_):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.routers.built_resumes.render", missing)

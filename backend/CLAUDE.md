@@ -1138,7 +1138,10 @@ Find files with a directory listing; these are the rules for where code goes.
   (`deps.token_applicant`, no profile row read). No ownership check of the
   path's resume is needed, since nothing of it is read and the PDF prints
   only what the student sent; `test_a_render_reads_no_database` refuses
-  every session to hold it. It saves nothing. It answers
+  every session to hold it. It saves nothing. It compiles with one TeX
+  pass and no PDF outline (`bookmarks=False`, KAN-919;
+  `app/services/resume_render/CLAUDE.md`): the page is the same, and the
+  compile is most of an edit's wait in production. It answers
   what the edit changed in the copy (`choices`, `entry`; the header is
   `render.identity`), so the browser never parses typed text. `PUT
   .../lines` saves a typed line with no read first and never renders:
