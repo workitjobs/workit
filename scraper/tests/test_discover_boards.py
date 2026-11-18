@@ -332,8 +332,11 @@ def test_http_keeps_identifying_agent_and_auth_headers(monkeypatch):
         def __exit__(self, *_):
             pass
 
-        def read(self):
-            return b"{}"
+        _body = b"{}"
+
+        def read(self, size=-1):
+            data, self._body = self._body, b""
+            return data
 
     def open_request(request, *, timeout):
         assert request.get_header("Authorization") == "Bearer test"

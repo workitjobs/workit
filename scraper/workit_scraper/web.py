@@ -17,6 +17,9 @@ from urllib.parse import urlsplit
 
 USER_AGENT = "workit-scraper/0.1 (+https://github.com/workitjobs)"
 
+MAX_BODY = 50 * 1024 * 1024  # 50 MB; a normal page is under 1 MB
+_CHUNK = 64 * 1024
+
 
 def origin(url: str) -> str:
     parts = urlsplit(url)
@@ -54,7 +57,17 @@ def _send(request: urllib.request.Request, timeout: float) -> bytes:
     with _lock:
         _requests += 1
     with _OPENER.open(request, timeout=timeout) as response:
-        body = response.read()
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = response.read(_CHUNK)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_BODY:
+                raise ValueError(f"response body exceeds {MAX_BODY} bytes")
+            chunks.append(chunk)
+        body = b"".join(chunks)
     with _lock:
         _received_bytes += len(body)
     return body
