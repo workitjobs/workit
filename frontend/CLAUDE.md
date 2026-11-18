@@ -1487,7 +1487,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   view's pane the panel is flat, the bar takes the pane, the content under
   it stops at 736px (`JOB_COLUMN`), and the tile shows there too
   (2026-11-10; it was hidden, since the list card beside it has a score,
-  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
+  but that small tile has no reasons and the open job read as unscored).
+  **The facts beside the tile are their own `@container`**
+  (`job-detail-header.tsx`, KAN-917): measured on the header, they took
+  three columns beside the 240px tile, about 85px each in a narrow pane, and
+  "Berkeley" broke inside the word. Every page outside the Jobs page and a
   posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
   Profile, Tailor) is a workspace of tables, grids or columns and keeps
   `max-w-dashboard`.
@@ -2085,15 +2089,43 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   job's 768px pane leaves** (320px to 544px, 2026-11-09), so the pane holds
   the job's 736px column and no empty strip; each list card shows its score
   as a small tile (`MatchScoreTile`), as the large card does, without the
-  reasons. **The split view's job pane is `relative`** (2026-11-09): a screen-reader
+  reasons; a card under 26rem shows the ring alone under Save and lets its
+  title take three lines (`MatchScoreRing`, KAN-917), since at the 320px list
+  (a 1180px window) the tile left the title about 64px ("Business Develop…").
+  The card is its own `@container/card` with the grid inside it: a container's
+  own classes cannot ask its width. **The split view's job pane is `relative`** (2026-11-09): a screen-reader
   label in the description, absolutely placed, was placed against `<main>`,
   past the frame's `overflow-hidden`, and the whole page scrolled into
   blank space under the split view. Anything absolutely placed in a frame
   that clips must have a positioned ancestor inside that frame.
   **Only the split view has a rail** (2026-11-09, `JobsRailFrame`): a job
-  opened from the Cards view, /search or Home is its page alone, with Back.
+  opened from the Cards view or Home is its page alone, with Back.
   From KAN-297 it drew the rail of jobs on its left too, and the user saw
   Cards open into what looked like the split view, the two views mixed.
+  **/search's split view is the same frame** (KAN-917): `search/layout.tsx`
+  draws `JobsRailFrame` as the jobs layout does, /search draws only the first
+  result and hands the list to the rail with the search's count and fact
+  chips (`count` and `facts` on the shown list), and the frame draws the
+  search's own header (`SearchTopRow`: the field with its words, the count,
+  the switch; the filters with no Sort; the chips under them, FeedHeader's
+  `below`) on /search and beside any job opened from it, where it reads them
+  from the shown list. A pick there goes to /search (`list` on `JobFilters`).
+  Keep `search/layout.tsx` the same as `jobs/layout.tsx` (`FilterOptionsProvider`,
+  the cookie's `view`): the first result opened mounts the jobs layout's
+  frame in its place (they are different segments), so the two must draw
+  the same, and the rail takes back its scroll on the remount
+  (`railScroll`). It also makes `jobs/(list)/layout.tsx`'s per-visit reads
+  (`ListDataProvider`, no bank prompt), so **/search draws both views from
+  one read too**, through `ListViews` (`count`, `facts`, `above`, `heading`
+  are its search's props) and its own Card View frame
+  (`search/search-list-frame.tsx`): its switch is instant as /jobs's is.
+  The split view waits for the count, which lands in the frame's header
+  with the list; the Card View streams it in its own row. The open result
+  passes `fromList` as /jobs's does: its row's score, not scored again, the
+  same as a switch's `openJob`. Until KAN-917 /search's split view
+  was a list alone named List View (`listOnly`), half a 1440px window empty,
+  and a job opened from it dropped the list; the switch now says Split View
+  on both pages.
 - **The Cards view is 1008px wide at most** (`max-w-feed`, 2026-11-09): a
   944px card at every window from there, its match rail 240px (sized to
   its short labels; 288px left the tile mostly empty) beside a 704px body

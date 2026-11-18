@@ -18,7 +18,7 @@ import {
  *   Card View    wide cards, one a row: the Jobs feed ("Cards View" until
  *                2026-11-11) and the Tracker's cards
  *   Grid View    small cards, several a row: Documents' first pages
- *   Split View   a list beside the open item: the Jobs page only
+ *   Split View   a list beside the open item: the Jobs page and /search
  *
  * A new view takes one of these when it is the same layout, whatever its
  * page calls its items; a layout none of them is joins this list first.

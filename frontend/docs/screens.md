@@ -248,7 +248,7 @@ read as one of them. The Sort By pills beside the view switch read as one kind
 of choice, and in words the two switches looked alike. Sort stays at every width,
 so each facet steps out one width sooner on the Jobs page, and on a phone Sort
 takes Location's place, which All Filters still holds. /search has one order, so
-its row is as it was.
+its row has no Sort, in either view.
 
 Split shows the heading and filters over the compact list and the open job,
 each pane scrolling on its own, after Handshake. **It is the job page's frame,
@@ -263,8 +263,8 @@ order and filters from the shown list, since the URL has none; a filter pick
 there goes to /jobs with that list's order (`list` on `JobFilters`), which opens
 the new list's first job. Back hides from `@4xl/main`, where the list is on
 screen. Below `@4xl/main` the switch draws a list: the rail is the page, its rows in
-one white card as /search's compact list is (KAN-558; they sat on the grey
-ground with only a hairline until then), and a job opens alone with Back.
+one white card (KAN-558; they sat on the grey ground with only a hairline until
+then), and a job opens alone with Back.
 
 **A compact card is a list item with one text edge** (2026-11-09,
 `jobs/compact-job-card.tsx`): the logo has its column alone, and every line
@@ -278,7 +278,12 @@ tier on `bg-well`, no reasons, which the open job shows beside the list.
 Several places read as a count ("3 locations"), the whole list in the
 tooltip, so a long list never pushes the work style and type off the line.
 Each line is one line, cut short with a tooltip; the pay gives way before
-the age does. It replaced a layout whose place and type ran under the logo
+the age does. **Under 26rem of card the score is its ring alone** (KAN-917,
+`MatchScoreRing`), under Save, with the company and place stopping beside it,
+and the title may take three lines: at a 1180px window the list sits at its
+320px floor, and beside the tile and Save a title had about 64px ("Business
+Develop…"); it has about 150px now. A phone's list follows the same rule, since
+the card measures itself (`@container/card`). It replaced a layout whose place and type ran under the logo
 (a second left edge), whose buttons and match stacked at no line's height,
 whose job type took a row alone, and whose age was a green pill that
 outshouted the match.
@@ -310,10 +315,25 @@ panel's own edge is `border-control` too, and so are the two lines that divide
 it, the list's edge and the rule under the job's action bar: in `border-subtle`
 inside the dark-edged panel they read as a different kind of line. 
 
-/search has the same choice, as Cards or List: a list of compact cards
-(`compact` on `FeedList`), and a job opens beside the rail with Back. The split
-frame's header is the Jobs page's, with no place for its count and fact chips, so
-a list with `q` keeps the plain frame.
+**/search has the same choice, Cards or Split, under the same names**
+(KAN-917). Its split view is the same frame: `search/layout.tsx` draws
+`JobsRailFrame`, and /search draws only the first result beside the list,
+handing the list, the count of every match and the fact chips to the frame
+(`RememberShownList`). The frame then draws the search's own header: the field
+holding the words, the count, the switch, the filters with no Sort, and "Your
+search also filters by" under them. A click opens the result beside the list,
+and the header stays the search's, read from the shown list since the job's
+address has no `?q`; a filter pick there goes to /search, and the field's cross
+ends the search, as on /search. Searching from the Jobs page's split view, and
+clearing the search, keep the frame: the same width, panel and header place,
+and the sidebar's Jobs row stays lit (`also: ["/search"]`). /search is outside
+the jobs layout, so the first result opened mounts that layout's frame in its
+place; it draws the same, and the rail takes back its scroll (`railScroll`).
+Below `@4xl/main` it is the list alone and a result opens as its own page with
+Back, as on /jobs. The switch is instant here too (KAN-916): the page reads the
+results once and draws both views from them (`jobs/list-views.tsx`). Until KAN-917 the split view on /search was a list alone
+named "List View" (KAN-519's choice: the open job was to be its own page): half
+a 1440px window stood empty, and opening a result dropped the list.
 
 **Still open:** on a fresh visit with saved filters the frame reads the bare
 address, so the filter row shows them only once `CanonicalUrl` has written it
@@ -333,7 +353,7 @@ The page is capped at `max-w-dashboard`, as every seeker page is
 (2026-10-27); 1024px had left its facts and checklist cramped (KAN-279).
 **In the split view, a rail of jobs sits on its left** (KAN-297, after
 Cooper's job board; since 2026-11-09 only there: a job opened from the
-Cards view, /search or Home is its page alone, with Back). The rail holds the
+Cards view or Home is its page alone, with Back). The rail holds the
 roles the seeker last saw on /jobs or /search, in that list's order, the open
 one marked. Each is a compact card (`jobs/compact-job-card.tsx`, KAN-519, after
 Handshake's and then Simplify's lists): a 44px logo, a title of up to three lines,

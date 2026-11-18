@@ -3,20 +3,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 
 import { keep, keepSnapshot, readKept, readSnapshot, subscribe } from "./feed-pages";
 import { leavesFeed, onFeed, stagesNow } from "./feed-stages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
-import { CompactJobCard } from "./compact-job-card";
 import { ListingCard } from "./listing-card";
 import { useHydrated } from "../local-time";
 import { nextPage, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-list";
-import type { JobsView } from "./view";
-import { useJobsView } from "./view-store";
 
 /**
  * The feed's cards on /jobs and /search, and its Load More (KAN-171). The
@@ -68,11 +64,6 @@ import { useJobsView } from "./view-store";
  * shows a job saved since as gone. Load More asks from the offset less every
  * job that has left: more than the API moved up at worst, and a role it
  * sends twice is dropped by id.
- *
- * `view` makes the list follow the view switch (/search, KAN-519): in the
- * split view, which /search shows as its List view, the compact cards in a
- * plain list rather than the large cards. It is the view the server drew;
- * a switch changes it in the browser (./view-store, KAN-916).
  */
 export function FeedList({
   initial,
@@ -82,7 +73,6 @@ export function FeedList({
   tailored,
   canMarkApplied,
   source = "feed",
-  view,
   drawnAt,
 }: {
   initial: JobListing[];
@@ -96,14 +86,12 @@ export function FeedList({
   /** An applicant account, which a card's Apply Now may ask "Did You Apply?". */
   canMarkApplied: boolean;
   source?: ListSource;
-  view?: JobsView;
   /** When the server drew the first page and `stages` (ms since the epoch). */
   drawnAt: number;
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
   const stored = useSyncExternalStore(subscribe, readKept, () => null);
-  const compact = useJobsView(view ?? "cards") === "split" && view != null;
   const mine = stored?.query === query ? stored : null;
   // First-page roles marked applied here, gone until the server's next draw
   // leaves them out itself.
@@ -210,62 +198,45 @@ export function FeedList({
     });
   }
 
-  const card = (job: JobListing) =>
-    compact ? (
-      <CompactJobCard job={job} stage={now[job.id] ?? null} />
-    ) : (
-      <ListingCard
-        job={job}
-        stage={now[job.id] ?? null}
-        tailored={tailoredIds.has(job.id)}
-        canMarkApplied={canMarkApplied}
-        onApplied={() => markedApplied(job)}
-      />
-    );
-
-  const items = (
-    <ul
-      ref={list}
-      className={compact ? "divide-border-subtle divide-y" : "mt-4 flex flex-col gap-3"}
-    >
-      {first.map((job, i) => (
-        // The cards rise in as the feed arrives, 50ms apart and capped at
-        // the sixth, about a screenful, so the list never makes anyone wait.
-        <li
-          key={job.id}
-          data-job-id={job.id}
-          style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
-          className={fromSnapshot ? undefined : "animate-rise"}
-        >
-          {card(job)}
-        </li>
-      ))}
-      {loaded.map((job, i) => (
-        // A loaded page rises in the same way, counted within its own page.
-        <li
-          key={job.id}
-          data-job-id={job.id}
-          style={
-            fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
-          }
-          className={fromSnapshot ? undefined : "animate-rise"}
-        >
-          {card(job)}
-        </li>
-      ))}
-    </ul>
+  const card = (job: JobListing) => (
+    <ListingCard
+      job={job}
+      stage={now[job.id] ?? null}
+      tailored={tailoredIds.has(job.id)}
+      canMarkApplied={canMarkApplied}
+      onApplied={() => markedApplied(job)}
+    />
   );
 
   return (
     <>
-      {/* The compact list is one white card, as on /jobs (./jobs-rail.tsx). */}
-      {compact ? (
-        <Card padding="none" className="mt-4 max-w-3xl overflow-hidden">
-          {items}
-        </Card>
-      ) : (
-        items
-      )}
+      <ul ref={list} className="mt-4 flex flex-col gap-3">
+        {first.map((job, i) => (
+          // The cards rise in as the feed arrives, 50ms apart and capped at
+          // the sixth, about a screenful, so the list never makes anyone wait.
+          <li
+            key={job.id}
+            data-job-id={job.id}
+            style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className={fromSnapshot ? undefined : "animate-rise"}
+          >
+            {card(job)}
+          </li>
+        ))}
+        {loaded.map((job, i) => (
+          // A loaded page rises in the same way, counted within its own page.
+          <li
+            key={job.id}
+            data-job-id={job.id}
+            style={
+              fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
+            }
+            className={fromSnapshot ? undefined : "animate-rise"}
+          >
+            {card(job)}
+          </li>
+        ))}
+      </ul>
 
       <div className="mt-6 flex flex-col items-center gap-2">
         {more ? (

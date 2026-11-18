@@ -15,7 +15,7 @@ import { JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import type { ListSource } from "./list-pages";
 import { useFilterOptions, useListData } from "./list-data";
-import type { JobListing } from "./listings";
+import type { JobListing, SearchFact } from "./listings";
 import { openJob } from "./open-job";
 import { RememberShownList } from "./remember-shown-list";
 import type { JobsView } from "./view";
@@ -28,7 +28,10 @@ import { useJobsView } from "./view-store";
  * open job); each view draws from that, so a switch is a render in the
  * browser, under 100 ms, with no request for the list. `drawnView` is the
  * view the server drew, from the cookie; the shown one is the browser's
- * (./view-store).
+ * (./view-store). /search draws its results the same way (KAN-917,
+ * ../search/page.tsx), with its own Card View frame
+ * (../search/search-list-frame.tsx) and the extras a search has: its count,
+ * the filters its words set, and their chips over the cards.
  *
  * The Card View draws the page's column here: the header and filter row, the
  * empty bank's prompt and the large cards. The split view's header and rail
@@ -98,21 +101,25 @@ export function JobsListFrame({
 
 /** The list's Suspense fallback in either view: the Card View's last first
  *  page or skeleton (./feed-fallback), or the split view's job skeleton
- *  (`split`, the job page's loading.tsx, which only the server can draw). */
+ *  (`split`, the job page's loading.tsx, which only the server can draw).
+ *  `cards` replaces the Card View's: /search's skeleton, since its chips
+ *  land over the cards with them and would push a kept page down. */
 export function ListFallback({
   drawnView,
   query,
   altQuery,
   split,
+  cards,
 }: {
   drawnView: JobsView;
   query: string;
   altQuery?: string;
   split: ReactNode;
+  cards?: ReactNode;
 }) {
   const view = useJobsView(drawnView);
   if (view === "split") return <div className="hidden @4xl/main:contents">{split}</div>;
-  return <FeedFallback query={query} altQuery={altQuery} />;
+  return cards ?? <FeedFallback query={query} altQuery={altQuery} />;
 }
 
 /**
@@ -120,6 +127,12 @@ export function ListFallback({
  * server's states for an error and for no jobs; `open` the split view's open
  * job, drawn by the server when it drew the split view, else read here when
  * the student switches to it (OpenJob); `loading` its skeleton.
+ *
+ * /search's (KAN-917): `count` and `facts` go to the split frame's header
+ * with the list; the count is a promise, which only the split view waits
+ * for, as the Card View streams it in its own row. `above` draws over the
+ * cards and the empty state (the search's chips), and `heading` names the
+ * cards for a screen reader.
  */
 export function ListViews({
   drawnView,
@@ -131,6 +144,10 @@ export function ListViews({
   empty,
   open,
   loading,
+  count,
+  facts,
+  above,
+  heading,
 }: {
   drawnView: JobsView;
   jobs: JobListing[];
@@ -141,6 +158,10 @@ export function ListViews({
   empty: ReactNode;
   open: ReactNode;
   loading: ReactNode;
+  count?: Promise<number | null>;
+  facts?: SearchFact[];
+  above?: ReactNode;
+  heading?: string;
 }) {
   const view = useJobsView(drawnView);
   const data = useListData();
@@ -158,6 +179,8 @@ export function ListViews({
           more={more}
           stages={stages}
           drawnAt={data.drawnAt}
+          count={count ? use(count) : undefined}
+          facts={facts}
         />
         {/* The rail is the whole list below @4xl/main, so the job shows only
             from there. */}
@@ -173,13 +196,21 @@ export function ListViews({
   }
 
   if (failed) return failed;
-  if (jobs.length === 0) return empty;
+  if (jobs.length === 0) {
+    return (
+      <>
+        {above}
+        {empty}
+      </>
+    );
+  }
   return (
     <>
+      {above}
       {/* The level between the page's h1 and each card's h3. The card stays
           an h3 because the company preview nests it under headings of its
           own. */}
-      <h2 className="sr-only">{source === "feed" ? "Newest Jobs" : "Best Matches"}</h2>
+      <h2 className="sr-only">{heading ?? (source === "feed" ? "Newest Jobs" : "Best Matches")}</h2>
       {/* The first page, and a Load More for the rest (./feed-list). */}
       <FeedList
         initial={jobs}

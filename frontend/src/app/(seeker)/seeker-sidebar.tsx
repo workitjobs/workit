@@ -32,9 +32,9 @@ import { INBOX_LIVE } from "./inbox/live";
  * renders for someone signed in, and the layout sends anyone else to
  * /login.
  *
- * There is no Search row. /search is where the bar's own field lands a query
- * (and, on a phone, the bar's magnifier), and a row beside that field would
- * be a second, contradictory way to reach it.
+ * There is no Search row. /search is where the Jobs page's field lands a
+ * query, and a row beside that field would be a second, contradictory way to
+ * reach it; Jobs is lit there (`also`, KAN-917).
  *
  * Auto Apply sits between Jobs and Applications, in the order the work goes:
  * find the jobs, apply to them, track what was sent. It carries the queue's
@@ -85,7 +85,9 @@ const GROUPS: SidebarNavGroup[] = [
     // No caption: with one group there is nothing to tell it apart from.
     items: [
       { href: "/home", label: "Home", Icon: HouseIcon },
-      { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
+      // /search is the Jobs page's search, in its frame (KAN-917): a search
+      // left no row lit, and the row lit again on the first result opened.
+      { href: "/jobs", also: ["/search"], label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
       { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
       // KAN-766: Experiences is the source every resume, match and answer
