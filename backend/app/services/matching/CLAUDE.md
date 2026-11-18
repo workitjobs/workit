@@ -211,12 +211,26 @@ has no vector. Python scoring never runs over the whole feed.
 - **The index is approximate, and half precision.** On a local copy of the
   shared database's 41,489 vectors (2026-11-18), with the test account's
   bank and 20 job vectors as banks, its 500 held 97 to 100% of the exact
-  500 (median 99.2%), and 92 to 100% for a filter keeping 15%; the jobs it
-  swaps are at the cap's edge, the least similar of the 500. Its distance
+  500 (median 99.2%), and 92 to 100% for a filter keeping 15%; on the
+  shared database's own index, 99.2% for the test account (2026-11-18,
+  one exact pass, which reads every vector for 45 s). The jobs it swaps
+  are at the cap's edge, the least similar of the 500. Its distance
   only picks the ids: every score's similarity comes from the full vector,
   in `_read`. Taking 600 from the index and keeping the 500 nearest by the
   full vector raised the median from 99.2% to 99.4% for 20% more reads:
   not done.
+- **What a pass costs** (2026-11-18, the shared database, the test
+  account; from a laptop, where each statement costs at
+  least 83 ms of round trips: the container sits beside the database and
+  pays a few). With no filters the candidates statement runs in 18 ms on
+  the database and a whole first page in 1.7 to 1.9 s, against 69 to 77 s
+  before; a kept page (a repeat, Load More, Back) in 0.21 to 0.24 s.
+  Through the local API and app it was 2.2 s for the first page and 0.47
+  to 0.65 s for Load More and Back, beside the page's other requests.
+  Auto Apply Supported took 1.8 to 2.4 s and Home's first visit 2.0 to
+  2.6 s. Past Week reads about 7,600 rows' pages to check their dates
+  (500 with no filters) and took 4.6 to 6 s: see "The database host pages
+  out its memory" under Still open.
 - **Why halfvec, not the vector column.** The index over the vector itself
   is 144 MB and the halfvec one 72 MB. Locally, with Postgres's default 128
   MB of shared buffers, the vector index answered in 58 ms and the halfvec
@@ -352,6 +366,14 @@ raises `EmptyBank`, which the route answers as a 404.
   (2026-11-18). A student's candidates repeat, so only their first visit
   after the pages leave the cache pays it. Storing the vectors inline
   (above) is the next step if it bites.
+- **The database host pages out its memory** (2026-11-18). With the
+  database idle, a read of `job_postings`' 45 MB of rows took 4.0 s with
+  every page counted as a hit, then 27 ms; Past Week's candidates took
+  2.7 to 15 s after a minute or two of idle and 52 ms when repeated. The
+  host has about 1 GB, and its operating system moves Postgres's shared
+  buffers to disk, which no plan shows. A list that checks more rows
+  against its filters pays more of it. A larger compute size is the fix;
+  until then the kept lists are what make a return fast.
 - **A query keeps running after the browser leaves.** FastAPI (0.141 on
   Starlette 1.7) runs a handler to its end when its client disconnects, so
   each filter click under the old 70 s pass left another one running on

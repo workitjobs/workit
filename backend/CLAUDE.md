@@ -2163,10 +2163,14 @@ go then. A change needs to work on Cloudflare only.
 - **`c48811c7e5af` (KAN-915's two indexes) is safe before or after its
   deploy.** It only adds `job_postings_embedding_hnsw_idx` and
   `job_postings_updated_at_idx`, `CONCURRENTLY`, so the API and the import
-  keep running while it builds (a few minutes on the shared database, with
-  128 MB of `maintenance_work_mem`, which it sets for its own session along
-  with no `statement_timeout`). Until it is applied, the new code still
-  scores right, as slowly as before: the planner sorts every vector.
+  keep running while it builds (with 128 MB of `maintenance_work_mem`,
+  which it sets for its own session along with no `statement_timeout`).
+  Until it is applied, the new code still scores right, as slowly as
+  before: the planner sorts every vector. **Both indexes are already on
+  the shared database** (built 2026-11-18 with the migration's own
+  statements, outside Alembic, to measure KAN-915 before it merged: the
+  HNSW index in 71 s, 72 MB; the btree in 0.6 s). So `upgrade head` there
+  finds them, skips them (`IF NOT EXISTS`) and only records the revision.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
