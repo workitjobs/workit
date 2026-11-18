@@ -444,6 +444,16 @@ type Printed = Pick<ResumeCopy, "identity" | "template" | "file_name">;
  *  last PDF printed (KAN-391). An Undo step keeps one on each side. */
 type Held = { bank: Bank; choices: Choices; printed: Printed | null };
 
+/** A choice change whose compile was skipped for the one after it
+ *  (KAN-919): its id, its changes, the lines drawn over the page for it and
+ *  its step, all answered by the render that carries it. */
+type Carried = {
+  id: string;
+  changes: ChoicesUpdate;
+  lines: string[];
+  step: Step<Held, RenderedPdf> | null;
+};
+
 function printedBy(pdf: RenderedPdf): Printed | null {
   return pdf.identity
     ? { identity: pdf.identity, template: pdf.template, file_name: pdf.file_name }
@@ -585,6 +595,14 @@ export function Editor({
   const jobs = useRef(0);
   const pageJobs = useRef(new Set<number>());
   const skippedPage = useRef(false);
+  // The same for choice changes (KAN-919): a change whose next job is
+  // another change skips its compile, and that one renders both. Each
+  // compile is 4 to 5 s in production, so three quick hides waited for
+  // three PDFs in a row. What a skipped change left for the next one
+  // (`Carried`), and whether the last change skipped (its PDF is no step's)
+  const choiceJobs = useRef(new Set<number>());
+  const carried = useRef<Carried[]>([]);
+  const skippedChoice = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
@@ -1134,26 +1152,65 @@ export function Editor({
       // The save goes now, beside the render; a refusal is the render's to
       // show, and any other failure puts the saved resume back
       sendChoices(changes);
+      // A Fit's cycle (`into`, `hold`) never joins another change: its plan
+      // reads the page its own PDF prints
+      const joins = !into && !hold;
+      const job = jobs.current + 1;
+      if (joins) choiceJobs.current.add(job);
       return enqueue(async () => {
+        choiceJobs.current.delete(job);
+        // Skipped: the change stays on its way (`unanswered`, its swap and
+        // its lines), so the next change's copy holds it, and that render
+        // answers it. Its step keeps no PDF on either side: Undo and Redo
+        // render it (`travel`)
+        if (joins && choiceJobs.current.has(job + 1)) {
+          if (step) {
+            step.before = settled();
+            step.pdfBefore = skippedChoice.current ? null : lastPdf.current;
+          }
+          carried.current.push({ id, changes, lines, step });
+          skippedChoice.current = true;
+          return;
+        }
+        const along = carried.current;
+        carried.current = [];
         const current = begin();
         started.current = performance.now();
         if (step && !into) {
           step.before = settled();
-          step.pdfBefore = lastPdf.current;
+          step.pdfBefore = skippedChoice.current ? null : lastPdf.current;
         }
-        const { data, error, status } = await renderEdit(resumeId, { changes }, copy());
-        unanswered.current.delete(id);
-        answered(id);
-        lines.forEach(answered);
+        skippedChoice.current = false;
+        const sending = along.reduce<ChoicesUpdate>(
+          (all, c) => joined({ changes: all }, c.changes),
+          {},
+        );
+        const { data, error, status } = await renderEdit(
+          resumeId,
+          { changes: along.length ? joined({ changes: sending }, changes) : changes },
+          copy(),
+        );
+        for (const c of [...along, { id, lines }]) {
+          unanswered.current.delete(c.id);
+          answered(c.id);
+          c.lines.forEach(answered);
+        }
         // A render that failed twice for any other reason (a timeout, a
-        // compile) says nothing of the save beside it
-        if (!data && !refused(status)) reload(lostChange(error, "shown"));
+        // compile) says nothing of the save beside it. Nor does a refusal
+        // of changes carried together: which one was refused, the saves
+        // beside them know, so the saved resume comes back
+        if (!data && (!refused(status) || along.length)) reload(lostChange(error, "shown"));
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
+        // A carried step's after was never a page of its own (its after is
+        // null, so Redo renders it); refused, it has nothing to undo
+        for (const c of along) if (!data && c.step) forget(c.step);
         if (!data) {
-          setSwaps((s) => s.filter((x) => x.id !== id));
-          setHides((h) => h.filter((x) => x.id !== id));
+          const gone = new Set([id, ...along.map((c) => c.id)]);
+          setSwaps((s) => s.filter((x) => !gone.has(x.id)));
+          setHides((h) => h.filter((x) => !gone.has(x.id)));
           lines.forEach(drop);
+          along.forEach((c) => c.lines.forEach(drop));
           // The record is gone once its last change was: `waiting` still has it
           const now = latestReview.current ?? waiting;
           if (now && unmarked.length) {

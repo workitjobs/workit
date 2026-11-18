@@ -136,8 +136,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   It needs no bucket, tag cache or queue (none to create on Cloudflare),
   and its keys carry the build ID, so a deploy never serves the last
   build's HTML. **It is read-only**: a page given `revalidate` would never
-  refresh, and the data cache stays off, as under "dummy", so
-  `apiGet`'s `revalidate` fetches reach the API every time. **A
+  refresh, and the data cache stays off, as under "dummy", so a fetch's
+  `revalidate` keeps nothing: the Jobs page's facets, places and jobs
+  passed one and reached the API on every filter change (KAN-916), and
+  `apiGet` no longer takes one. A slow public read is kept by the API
+  (`backend/CLAUDE.md`, "The filter row's options are kept per process")
+  or read once per visit in a layout. **A
   prerendered page reads no runtime value** (`API_URL`, a Worker var or
   secret): it is served as the build drew it, and CI builds with none of
   them. `/docs/mcp`'s Add WorkIt to Claude link read `API_URL` and would
@@ -1483,7 +1487,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   view's pane the panel is flat, the bar takes the pane, the content under
   it stops at 736px (`JOB_COLUMN`), and the tile shows there too
   (2026-11-10; it was hidden, since the list card beside it has a score,
-  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
+  but that small tile has no reasons and the open job read as unscored).
+  **The facts beside the tile are their own `@container`**
+  (`job-detail-header.tsx`, KAN-917): measured on the header, they took
+  three columns beside the 240px tile, about 85px each in a narrow pane, and
+  "Berkeley" broke inside the word. Every page outside the Jobs page and a
   posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
   Profile, Tailor) is a workspace of tables, grids or columns and keeps
   `max-w-dashboard`.
@@ -1593,6 +1601,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.
+- **A list of job links prefetches on hover only**
+  (`components/hover-prefetch-link.tsx`, KAN-916): the large card's and the
+  compact card's title links. A job page has a `loading.tsx`, so a link in
+  view prefetches down to it, and that prefetch runs the page's
+  `generateMetadata`, which reads `GET /jobs/{id}`: about 100 API calls for
+  a Jobs page of 50 cards once production stopped keeping that read (the
+  data cache is off, Deployment). A hover leads a click by a quarter of a
+  second, enough for the skeleton; a touch prefetches on touch start. A new
+  list of links to a page with a loading boundary uses it.
 - **A slow seeker page gets a `loading.tsx` drawn in its own frame**
   (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
   route only down to a loading boundary, so a click changed nothing on screen
@@ -2043,7 +2060,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   draws only the first job, and a click opens that job's page, so Best Match
   is never scored again per click. Never draw the open job with a query on
   /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
-  links. A height set with `flex-1` on the same element does nothing: the frame
+  links. **The switch changes the view in the browser, with no request**
+  (`jobs/view-store.ts`, KAN-916): it writes the cookie with
+  `document.cookie`, and every part that differs between the views reads
+  `useJobsView(drawn)`, starting from the view the server drew. It set the
+  cookie in a server action, and an action that sets a cookie draws the
+  whole page again: the shell, the layouts and the list, Best Match scored
+  again (0.6 to 3 s and 8 to 15 API calls per switch, 2026-11-18). **/jobs
+  draws both views from one list** (`jobs/list-views.tsx`): the page reads
+  the list once and hands it to `ListViews` with what only the server draws
+  (the empty and error states, and in the split view the open job, which
+  `fromList` gives the list row's score: `jobs/[jobId]/job-view.tsx` skips
+  `/match`, the built resumes and `/applied`, 5 reads where there were 8).
+  A switch to the split view from a Card View the server drew reads the
+  open job alone through the server action `openJob` (`jobs/open-job.tsx`,
+  which returns the job's page). Never set the cookie on the server again,
+  and never make a view read the list itself. **Still open:** on a hard load
+  of the split view the rail is a skeleton until the page's script runs
+  (it reads the list from sessionStorage, written by `RememberShownList`);
+  drawing it on the server needs the rail inside the page on /jobs, which
+  waits on KAN-917's rail rewrite. A height set with `flex-1` on the same element does nothing: the frame
   needs `flex-none` at its fixed height, or the rail grows with its list and
   never scrolls. It is one panel in the page's gutters, after Simplify's,
   rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
@@ -2055,15 +2091,43 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   job's 768px pane leaves** (320px to 544px, 2026-11-09), so the pane holds
   the job's 736px column and no empty strip; each list card shows its score
   as a small tile (`MatchScoreTile`), as the large card does, without the
-  reasons. **The split view's job pane is `relative`** (2026-11-09): a screen-reader
+  reasons; a card under 26rem shows the ring alone under Save and lets its
+  title take three lines (`MatchScoreRing`, KAN-917), since at the 320px list
+  (a 1180px window) the tile left the title about 64px ("Business Develop…").
+  The card is its own `@container/card` with the grid inside it: a container's
+  own classes cannot ask its width. **The split view's job pane is `relative`** (2026-11-09): a screen-reader
   label in the description, absolutely placed, was placed against `<main>`,
   past the frame's `overflow-hidden`, and the whole page scrolled into
   blank space under the split view. Anything absolutely placed in a frame
   that clips must have a positioned ancestor inside that frame.
   **Only the split view has a rail** (2026-11-09, `JobsRailFrame`): a job
-  opened from the Cards view, /search or Home is its page alone, with Back.
+  opened from the Cards view or Home is its page alone, with Back.
   From KAN-297 it drew the rail of jobs on its left too, and the user saw
   Cards open into what looked like the split view, the two views mixed.
+  **/search's split view is the same frame** (KAN-917): `search/layout.tsx`
+  draws `JobsRailFrame` as the jobs layout does, /search draws only the first
+  result and hands the list to the rail with the search's count and fact
+  chips (`count` and `facts` on the shown list), and the frame draws the
+  search's own header (`SearchTopRow`: the field with its words, the count,
+  the switch; the filters with no Sort; the chips under them, FeedHeader's
+  `below`) on /search and beside any job opened from it, where it reads them
+  from the shown list. A pick there goes to /search (`list` on `JobFilters`).
+  Keep `search/layout.tsx` the same as `jobs/layout.tsx` (`FilterOptionsProvider`,
+  the cookie's `view`): the first result opened mounts the jobs layout's
+  frame in its place (they are different segments), so the two must draw
+  the same, and the rail takes back its scroll on the remount
+  (`railScroll`). It also makes `jobs/(list)/layout.tsx`'s per-visit reads
+  (`ListDataProvider`, no bank prompt), so **/search draws both views from
+  one read too**, through `ListViews` (`count`, `facts`, `above`, `heading`
+  are its search's props) and its own Card View frame
+  (`search/search-list-frame.tsx`): its switch is instant as /jobs's is.
+  The split view waits for the count, which lands in the frame's header
+  with the list; the Card View streams it in its own row. The open result
+  passes `fromList` as /jobs's does: its row's score, not scored again, the
+  same as a switch's `openJob`. Until KAN-917 /search's split view
+  was a list alone named List View (`listOnly`), half a 1440px window empty,
+  and a job opened from it dropped the list; the switch now says Split View
+  on both pages.
 - **The Cards view is 1008px wide at most** (`max-w-feed`, 2026-11-09): a
   944px card at every window from there, its match rail 240px (sized to
   its short labels; 288px left the tile mostly empty) beside a 704px body
@@ -2127,7 +2191,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the first page alone (asked for 2026-10-10). The snapshot lives apart from
   the kept pages so that dropping one never drops the other, and only a
   fetched page dates either: a rewrite on every mount would restart
-  `LIST_FRESH_FOR` and keep stale pages alive for good.
+  `LIST_FRESH_FOR` and keep stale pages alive for good. **A wait past five
+  seconds says it is still working** (`jobs/still-loading.tsx`, KAN-916),
+  in the Card View's fallback and the split view's rail: a skeleton alone
+  once held 49 seconds and never said so. Best Match says it is scoring.
+- **A filter or sort change on /jobs asks the API for its list alone**
+  (KAN-916, `jobs/list-data.tsx`). What no filter changes is read once per
+  visit in a layout, which Next draws again only on a hard load, a
+  refresh or an arrival from another page, never when the address's query
+  changes: the filter row's options in `jobs/layout.tsx` (in either view,
+  since the split view's header stays beside a job's page), and the stages,
+  tailored resumes, account type and bank prompt in `jobs/(list)/layout.tsx`,
+  a route group so a job's page reads none of them. The page read all of
+  them on every change: 8 API calls in the Card View, about 14 in the split
+  view. A new read the list needs goes in a layout's context, never the
+  page, unless the filters change it. Within a visit they go stale on
+  purpose: a stage set in the tab is laid over them (`drawnAt`), and
+  `router.refresh()` reads them again. **A filter and a sort both replace
+  the address** (`jobs/filters.tsx`), so Back leaves the list whatever was
+  picked on it: the sort pushed until then, and Back stepped through the
+  orders but skipped the filters.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -2485,7 +2568,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `updateChoices` (writes only; `?read_back=false`). **The render goes through a route
   handler, `app/api/resume-edit`**, never a server action: Next runs one
   client's actions one at a time, and as two actions the render waited
-  behind the save. Renders run one at a time (`enqueue`), and each carries
+  behind the save. Renders run one at a time (`enqueue`); a page setting
+  or a choice change with another of its kind next in the queue skips its
+  compile (KAN-919, `../docs/live_page.md`), and each carries
   the editor's copy of the bank, choices, printed header, template and
   file name (`ResumeCopy`, built from the `held` ref; the last three from
   the last render, `printedBy`), so the API renders with no database

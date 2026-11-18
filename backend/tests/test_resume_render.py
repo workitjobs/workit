@@ -320,6 +320,25 @@ def test_position_markers_leave_the_page_unchanged(view) -> None:
     assert _content_streams(marked.pdf) == _content_streams(plain.pdf)
 
 
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view(), _one_row_view()],
+                         ids=["one page", "two pages", "tools", "one row"])
+def test_one_pass_prints_the_same_page_without_bookmarks(view) -> None:
+    # KAN-919: the editor's live page runs TeX once. The second pass only
+    # adds the PDF's outline, so the page itself, every box and the page
+    # count must match the two-pass file that downloads
+    from pypdf import PdfReader
+
+    _tectonic_or_skip()
+    both = render(view, IDENTITY, "jakes")
+    once = render(view, IDENTITY, "jakes", bookmarks=False)
+
+    assert _content_streams(once.pdf) == _content_streams(both.pdf)
+    assert once.boxes == both.boxes and once.page_count == both.page_count
+    assert once.points == both.points and once.area == both.area and once.shrinks == both.shrinks
+    assert PdfReader(io.BytesIO(both.pdf)).outline
+    assert not PdfReader(io.BytesIO(once.pdf)).outline
+
+
 def _text_lines(pdf: bytes) -> list[tuple[str, int, tuple[float, float, float, float]]]:
     '''Each text line pdfminer finds: (text, page, (x0, top, x1, bottom)) in
     PDF points from the page's top left, like a box.'''

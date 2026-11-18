@@ -412,11 +412,20 @@ FIT_RENDER_TRIES = 2
 
 
 async def _render(
-    view, identity: HeaderIdentity, template: str, page: resume_render.PageSettings, tries: int = 1
+    view,
+    identity: HeaderIdentity,
+    template: str,
+    page: resume_render.PageSettings,
+    tries: int = 1,
+    *,
+    bookmarks: bool = True,
 ) -> Rendered:
+    # `bookmarks` False for a PDF only the editor's page shows (an edit, a
+    # fit): one TeX pass, no outline (resume_render.compile_document). GET
+    # .../render keeps it, since Download and the first page read it
     for attempt in range(1, tries + 1):
         try:
-            return await asyncio.to_thread(render, view, identity, template, page)
+            return await asyncio.to_thread(render, view, identity, template, page, bookmarks=bookmarks)
         except TectonicUnavailable as exc:
             if attempt == tries:
                 logger.error("resume render failed: %s", exc)
@@ -456,7 +465,7 @@ async def fit(
     page = service.page_of(resume)
 
     async def draw(view) -> Rendered:
-        return await _render(view, identity, resume.template, page, tries=FIT_RENDER_TRIES)
+        return await _render(view, identity, resume.template, page, tries=FIT_RENDER_TRIES, bookmarks=False)
 
     cuts, rendered = await service.fit_to_one_page(session, applicant_id, resume_id, draw)
     await _commit(session, "Failed to save the resume")
@@ -606,7 +615,7 @@ async def render_edit(
         raise HTTPException(404, "Resume or bank item not found")
     page = resume_render.PageSettings(**(body.page or source.page_settings).model_dump())
     try:
-        rendered = await _render(build_view(held, after), identity, source.template, page)
+        rendered = await _render(build_view(held, after), identity, source.template, page, bookmarks=False)
     except ValueError:
         raise HTTPException(422, "Unknown template")
     response = _render_response(rendered, "", identity, source.template, page)

@@ -5,7 +5,8 @@ import { TailorIcon } from "@/components/icons";
 import { JOB_CARD_IN_PANEL, JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
@@ -17,7 +18,7 @@ import { getApplicationStage } from "../../auto-apply/applications";
 import { placesOf } from "../format";
 import { listingFacts } from "../listing-card";
 import type { Highlight } from "../data";
-import { getApplied, getJobListing, getJobMatch, type JobListing } from "../listings";
+import { getApplied, getJobListing, getJobMatch, isApplicant, type JobListing } from "../listings";
 import { MatchRail } from "../match-rail";
 import { NotInterestedButton } from "../not-interested-button";
 import { SaveJobButton } from "../save-job-button";
@@ -30,6 +31,7 @@ import { getCompany, type JobCompany } from "./company-tab";
 import { getRequirements, KeyRequirementsCard, type Requirement } from "./key-requirements";
 import { AppliedNote } from "./page-actions";
 import { SentNote } from "./sent-note";
+import { TailorLabel } from "./tailor-label";
 import { jobLogo } from "@/lib/job-logo";
 
 /**
@@ -67,8 +69,18 @@ export type KnownApplication = { stage: ApplicationStage | null; appliedAt: stri
 /** No requirements to read: About the Role alone draws no card. */
 const NO_REQUIREMENTS: Promise<Requirement[]> = Promise.resolve([]);
 
+/** No built resumes read: the split view's open job (`fromList`). */
+const NO_RESUMES: Promise<{ data: null }> = Promise.resolve({ data: null });
+
 /** No Company tab: the application's page draws none. */
 const NO_COMPANY: Promise<JobCompany | null> = Promise.resolve(null);
+
+/** A job's match for the viewer, as its card's rail draws it; null for none. */
+export type JobMatch = { score: number; highlights: Highlight[] } | null;
+
+/** What the split view's list already knows about its open job (KAN-916):
+ *  its score, so `/jobs/{id}/match` does not score it again. */
+export type FromList = { match: JobMatch };
 
 /**
  * Everything the job page reads, in parallel. `job` is null for one that has
@@ -84,26 +96,41 @@ const NO_COMPANY: Promise<JobCompany | null> = Promise.resolve(null);
  * says the stage and when it was applied, so those two reads are skipped
  * and the row's answers taken instead. It is a promise, not the row, so the
  * tracker read and these run together rather than one after the other.
+ *
+ * The split view's open job passes `fromList` (KAN-916), what its list row
+ * already holds, and three reads go: the score is the row's (no
+ * `/jobs/{id}/match`, which scored the job again, about 1 s), "Did You
+ * Apply?" is offered to an applicant from the token (a listed job is never
+ * applied: the feed leaves applied jobs out), and the Tailor button's label
+ * comes from the tailored ids /jobs read once (./tailor-label.tsx), not a
+ * second read of every built resume. 5 reads where there were 8.
  */
 export async function loadJobView(
   jobId: string,
   {
     descriptionOnly = false,
     application,
-  }: { descriptionOnly?: boolean; application?: Promise<KnownApplication> } = {},
+    fromList,
+  }: {
+    descriptionOnly?: boolean;
+    application?: Promise<KnownApplication>;
+    fromList?: FromList;
+  } = {},
 ) {
   const [{ job, error }, resumes, sent, applied, stage, requirements, company, match] =
     await Promise.all([
       getJobListing(jobId),
-      listBuiltResumes(),
+      fromList ? NO_RESUMES : listBuiltResumes(),
       listSentResumes(),
       application
         ? application.then((known) => known && { appliedAt: known.appliedAt })
-        : getApplied(jobId),
+        : fromList
+          ? isApplicant().then((applicant) => (applicant ? { appliedAt: null } : null))
+          : getApplied(jobId),
       application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
       descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
       descriptionOnly ? NO_COMPANY : getCompany(jobId),
-      getJobMatch(jobId),
+      fromList ? fromList.match : getJobMatch(jobId),
     ]);
   // The sent resumes linked to this posting, newest first, so the first is
   // the last one sent.
@@ -139,15 +166,17 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         data-phone-first
         className="contents max-md:flex max-md:basis-full max-md:flex-wrap max-md:gap-2 max-md:*:grow"
       >
-        <ButtonLink
+        {/* Prefetched on hover only (components/hover-prefetch-link.tsx):
+            Tailor's metadata reads GET /jobs/{id}, and in view this link
+            was prefetched twice per open job, two reads of a job the page
+            had just read (KAN-916). */}
+        <HoverPrefetchLink
           href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-          variant="secondary"
-          size="sm"
-          className="shrink-0"
+          className={buttonClasses({ variant: "secondary", size: "sm", className: "shrink-0" })}
         >
           <TailorIcon className="size-4" />
-          {tailored ? "Tailored Resume" : "Tailor My Resume"}
-        </ButtonLink>
+          <TailorLabel jobId={job.id} tailored={tailored} />
+        </HoverPrefetchLink>
       </div>
       {/* One Apply where auto apply can fill the form (Greenhouse for now):
           Auto Apply, with Apply Manually under its arrow

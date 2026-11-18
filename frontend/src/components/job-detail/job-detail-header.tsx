@@ -149,7 +149,11 @@ export function JobDetailHeader({
   );
 
   const facts = (
-    <div className="min-w-0 flex-1">
+    // Its own container, so the facts take three columns only once they have
+    // 448px themselves (KAN-917). Measured on the header, they took three
+    // beside the 240px match tile with about 85px a column, and "Berkeley"
+    // broke inside the word.
+    <div className="@container min-w-0 flex-1">
       <JobFacts posting={posting} />
 
       {/* Fills the space the facts leave under themselves when the rail

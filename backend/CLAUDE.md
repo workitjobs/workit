@@ -973,8 +973,36 @@ Find files with a directory listing; these are the rules for where code goes.
   `GET .../applications?scored=true`, which narrows it with
   `JobFilters.job_ids`. Home's `GET /jobs/recommended/{id}/home` scores
   its three lists in one `score_job_sets` pass and keeps the result per
-  applicant (`queries/jobs/home.py`, KAN-425). One scoring path, one
-  number per job.
+  applicant (`queries/jobs/home.py`, KAN-425). `GET /jobs/recommended`
+  keeps each applicant's scored list per filters too, so Load More and
+  Back read it (`queries/jobs/kept.py`, KAN-915); auto apply's callers
+  score fresh. Each pass picks its 500 candidates from the HNSW index over
+  the job vectors and reads only those rows (`app/services/matching/CLAUDE.md`,
+  Candidates). One scoring path, one number per job.
+- **A feed page picks its rows before it reads them** (KAN-916,
+  `queries/jobs/listings.py` `listing_page`): the page's ids by
+  `posted_at`, then `LISTING_COLUMNS` for those rows only. `FORM_URL` runs
+  regular expressions on every row it is computed for, and in one query
+  Postgres computed it for all 41,000 listed jobs before the sort cut them
+  to a page: 1.2 s a page against 0.14 s (2026-11-18). A query that lists
+  jobs and selects `LISTING_COLUMNS` picks its rows first the same way, or
+  narrows them by an indexed WHERE before `FORM_URL` runs.
+  `job_postings_feed_idx` (`f45841235b98`) is the feed's order over the
+  listed jobs; its WHERE spells out `LISTED`, and a test holds the two
+  together, since Postgres uses a partial index only for a query whose
+  WHERE implies it. With it a page reads about 51 index rows, the Auto
+  Apply Supported filter included (0.8 ms on 65,000 rows locally).
+- **The filter row's options are kept per process** (KAN-916,
+  `queries/jobs/kept_options.py`): `GET /jobs/facets` and `GET
+  /jobs/locations` answer from memory until the newest
+  `job_postings.updated_at` moves (read at most once a minute, from
+  `job_postings_updated_at_idx`) or an hour passes. The Jobs page asked for both on every filter change and every
+  search, 1.6 to 2.0 s and 0.8 to 6.7 s on production, and Next's
+  `revalidate` never kept them, since production's Next has no data cache
+  (`frontend/CLAUDE.md`, Deployment). A count that changes without moving
+  `updated_at` (a hand edit in the dashboard) shows within the hour. Route
+  tests that stand in a fetch patch `kept_options.feed_version` and call
+  `kept_options.forget()` (`tests/test_jobs.py`'s `no_database`).
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and its match), the keyword match and Apply load a posting through
@@ -1139,7 +1167,10 @@ Find files with a directory listing; these are the rules for where code goes.
   (`deps.token_applicant`, no profile row read). No ownership check of the
   path's resume is needed, since nothing of it is read and the PDF prints
   only what the student sent; `test_a_render_reads_no_database` refuses
-  every session to hold it. It saves nothing. It answers
+  every session to hold it. It saves nothing. It compiles with one TeX
+  pass and no PDF outline (`bookmarks=False`, KAN-919;
+  `app/services/resume_render/CLAUDE.md`): the page is the same, and the
+  compile is most of an edit's wait in production. It answers
   what the edit changed in the copy (`choices`, `entry`; the header is
   `render.identity`), so the browser never parses typed text. `PUT
   .../lines` saves a typed line with no read first and never renders:
@@ -1933,6 +1964,14 @@ go then. A change needs to work on Cloudflare only.
   (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
   main"). The runner's scrape needs none of this: each run checks out the
   commit it runs.
+- **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
+  has merged, never from its branch.** A revision that `main` lacks breaks
+  every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's
+  `c48811c7e5af`, so `upgrade head` takes that one first. It only adds an
+  index, so the deploy may land before or after it. Until it is applied,
+  each feed page still sorts every listed job (about 50 ms in Postgres) and
+  the Auto Apply Supported filter runs its regular expressions on every
+  listed job (1.25 s a page).
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.
@@ -2174,6 +2213,17 @@ go then. A change needs to work on Cloudflare only.
   `applicant_profiles.default_built_resume_id`, which the model maps, so the
   new code's signup INSERT fails on a database without it
   (`app/models/CLAUDE.md`, "A new column reaches the database...").
+- **`c48811c7e5af` (KAN-915's two indexes) is safe before or after its
+  deploy.** It only adds `job_postings_embedding_hnsw_idx` and
+  `job_postings_updated_at_idx`, `CONCURRENTLY`, so the API and the import
+  keep running while it builds (with 128 MB of `maintenance_work_mem`,
+  which it sets for its own session along with no `statement_timeout`).
+  Until it is applied, the new code still scores right, as slowly as
+  before: the planner sorts every vector. **Both indexes are already on
+  the shared database** (built 2026-11-18 with the migration's own
+  statements, outside Alembic, to measure KAN-915 before it merged: the
+  HNSW index in 71 s, 72 MB; the btree in 0.6 s). So `upgrade head` there
+  finds them, skips them (`IF NOT EXISTS`) and only records the revision.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX

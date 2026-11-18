@@ -16,7 +16,7 @@
 import type { ApplicationStage } from "../auto-apply/actions";
 import { withChange, type StageChange } from "./feed-stages";
 import { LIST_FRESH_FOR, type ListSource } from "./list-pages";
-import type { JobListing } from "./listings";
+import type { JobListing, SearchFact } from "./listings";
 import { sessionStore } from "./session-store";
 
 export type ShownList = {
@@ -30,6 +30,12 @@ export type ShownList = {
   /** Each job's application, for the Save button on a compact card. A job
    *  saved and then taken out is null. Lists kept by an older build have none. */
   stages?: Record<string, ApplicationStage | null>;
+  /** A search's header in the split view (KAN-917): every match, and the
+   *  filters its words set (../search/search-facts.tsx). /search writes them
+   *  with its first page, so the header beside a job opened from the results
+   *  says what /search said. Absent on any other list. */
+  count?: number | null;
+  facts?: SearchFact[];
   at: number;
 };
 

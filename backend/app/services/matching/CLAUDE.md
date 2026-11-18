@@ -178,39 +178,96 @@ the recommender reads changed; the scoring did not.
 `GET /jobs/recommended` applies `GET /jobs`' filters (`matching()` in
 `queries/jobs/filters.py`), the hard-filter stage, then `score_jobs`
 (`queries/jobs/recommendations.py`) scores at most `CANDIDATES` (500) of what
-is left: the nearest to the bank by embedding, ordered in SQL with jobs that
-have no vector last, or the newest when the bank has no vector. Python scoring never runs over
-the whole feed.
+is left: the nearest to the bank by embedding, or the newest when the bank
+has no vector. Python scoring never runs over the whole feed.
 
-- **The query ranks on the vector alone, then reads the picked rows whole**
-  (KAN-425). A subquery reads each filtered job's id, distance and posting
-  date and ranks them; only the kept rows are joined back for the listing
-  columns and the skill text search. With the skills in the ranking query,
-  Postgres ran every skill's search on every listed job before the cap,
-  reading each posting's text once per skill (438,713 buffers against
-  52,803), and a pass took 10 to 15 s on the shared database instead of 4
-  to 6. Keep anything costly per row out of the ranking subquery.
-- **`score_job_sets` serves several candidate sets from one scan**: each
-  named set is a condition on top of the filters, ranked and capped on its
-  own (a window per set), so each list equals what its own `score_jobs`
-  call returns, and a job in two sets is scored once. `score_jobs` is the
-  one-set case.
+- **Two reads: the ids from an HNSW index, then those rows by primary key**
+  (KAN-915). `_candidates` asks `job_postings_embedding_hnsw_idx`, an HNSW
+  index over `embedding::halfvec(768)` (migration `c48811c7e5af`), for each
+  set's nearest `CANDIDATES` ids, every set in one `UNION ALL` statement;
+  `_read` then reads only those rows. Before, one statement read every
+  listed job's vector from TOAST (41,489 of 3 KB each, stored out of line:
+  45 s on the shared database, whose 224 MB of shared buffers never hold
+  them) and ranked them with a window per set: a pass took 69 to 77 s
+  (2026-11-18).
+- **The ORDER BY is spelled as the index is** (`JOB_HALF`:
+  `CAST(embedding AS HALFVEC(768)) <=> bank`), or the planner can't use the
+  index. `tests/test_recommended.py` EXPLAINs it.
+- **Sorting is off for that one statement** (`_INDEX_ORDER`, put back by
+  `_PLANNER_DEFAULTS`, both `SET LOCAL`). The planner prices "read every
+  filtered job, then sort" as cheap because it can't see the TOAST read
+  behind each vector, and took that plan for a filter keeping 15% of the
+  jobs (local copy, 2026-11-18); on the shared database it would read
+  thousands of vectors. `hnsw.iterative_scan = relaxed_order` keeps the
+  index scan reading until `LIMIT` rows pass the filters, or until
+  `hnsw.max_scan_tuples` (20,000) entries were read.
+- **A set the index can't fill is ranked exactly** (`_nearest_exactly`):
+  one with fewer jobs than the cap, or a filter so narrow that 20,000 index
+  entries hold fewer than 500 of its jobs. That query orders by the full
+  vector's similarity, which no index serves, with the jobs that have no
+  vector last, newest first, so they still come in when there is room.
+  Filters that name their jobs (`job_ids`: the feed's 50 cards, one job's
+  page, the Applications page) take this query at once.
+- **The index is approximate, and half precision.** On a local copy of the
+  shared database's 41,489 vectors (2026-11-18), with the test account's
+  bank and 20 job vectors as banks, its 500 held 97 to 100% of the exact
+  500 (median 99.2%), and 92 to 100% for a filter keeping 15%; on the
+  shared database's own index, 99.2% for the test account (2026-11-18,
+  one exact pass, which reads every vector for 45 s). The jobs it swaps
+  are at the cap's edge, the least similar of the 500. Its distance
+  only picks the ids: every score's similarity comes from the full vector,
+  in `_read`. Taking 600 from the index and keeping the 500 nearest by the
+  full vector raised the median from 99.2% to 99.4% for 20% more reads:
+  not done.
+- **What a pass costs** (2026-11-18, the shared database, the test
+  account; from a laptop, where each statement costs at
+  least 83 ms of round trips: the container sits beside the database and
+  pays a few). With no filters the candidates statement runs in 18 ms on
+  the database and a whole first page in 1.7 to 1.9 s, against 69 to 77 s
+  before; a kept page (a repeat, Load More, Back) in 0.21 to 0.24 s.
+  Through the local API and app it was 2.2 s for the first page and 0.47
+  to 0.65 s for Load More and Back, beside the page's other requests.
+  Auto Apply Supported took 1.8 to 2.4 s and Home's first visit 2.0 to
+  2.6 s. Past Week reads about 7,600 rows' pages to check their dates
+  (500 with no filters) and took 4.6 to 6 s: see "The database host pages
+  out its memory" under Still open.
+- **Why halfvec, not the vector column.** The index over the vector itself
+  is 144 MB and the halfvec one 72 MB. Locally, with Postgres's default 128
+  MB of shared buffers, the vector index answered in 58 ms and the halfvec
+  one in 5 ms, which fits. The shared database has 224 MB for every table.
+  The column keeps its type, so the import, the bank job and every read stay
+  as they were. Storing the vectors as `halfvec(768)` would keep them in
+  the row (1.5 KB, under TOAST's 2 KB) and save the TOAST reads `_read`
+  still makes, at the cost of a table rewrite: not done.
+- **Skills are matched in the read, against each row's terms read once.**
+  `_read` takes `strip(fts)` in an `OFFSET 0` subquery, so each posting's
+  terms come from TOAST once, not once per skill (258 skills on 500 rows
+  were 129,000 reads, 4 to 8 s). `strip` drops positions, which
+  `plainto_tsquery`'s AND of words never reads. Keep anything costly per
+  row out of the candidates statement: a skill match there ran on every
+  listed job before the cap (KAN-425).
+- **`score_job_sets` serves several sets at once**: each named set is a
+  condition on top of the filters, picked and capped on its own, so each
+  list equals what its own `score_jobs` call returns, and a job in two sets
+  is read and scored once. `score_jobs` is the one-set case.
 - **Home asks once** (`GET /jobs/recommended/{id}/home`,
   `queries/jobs/home.py`): the top `limit`, the top `limit` auto apply
   fills, and the posting dates of the recent ones scoring at least
-  `min_match`. The result is kept in the process for `HOME_CACHE_SECONDS`
-  (600) under the bank's `updated_at`, the newest `job_postings.updated_at`
-  (every import write, embedding and closing sets it) and a hash of the
-  applicant's applied jobs; any change there is a new key. Only Home reads
-  the kept result: `fetch_recommended` and auto apply's callers score
-  fresh every time, as before.
-- **The scan itself is the cost, and the shared database's compute sets
-  it.** 18,000 vectors took 4.4 to 6.7 s there with every page in memory,
-  and 22 to 43 ms on a laptop's Postgres (2026-10-28). An HNSW index is no
-  answer at this size (Still open). The cost of the cap: a job ranked past it by semantic alone
-can't surface on its skills or title. The Jobs page's Best Match order sends
-its filter row's picks as those filters: the seeker's saved preferences on a
-fresh visit (KAN-231, KAN-288).
+  `min_match`. The result is kept in `home.KEPT` for `HOME_CACHE_SECONDS`
+  (600) under what it was made from (`queries/jobs/kept.py`, `made_from`):
+  the bank's `updated_at`, the newest `job_postings.updated_at` (every
+  import write, embedding, closing and Tailor keyword cache sets it; an
+  index reads it, `c48811c7e5af`) and a hash of the applicant's Tracker
+  jobs. Any change there is a new key.
+- **Best Match's lists are kept too** (KAN-915): `GET /jobs/recommended`
+  keeps each applicant's whole scored list per filters in
+  `kept.BEST_MATCH` (600 s, at most 32 lists of about 2.5 MB each, on the
+  container's 1 GiB) under the same key, so Load More, Back, a repeat and
+  another `min_match` read it. Date Posted's cutoff counts to the hour in
+  the key, since it is now minus the days and moves on every request.
+  Only through `fetch_recommended(keep=True)`: auto apply leaves out every
+  application (`no_application_by`), which the key doesn't cover, so it and
+  the job alerts score fresh.
 
 ## The columns
 
@@ -291,34 +348,44 @@ the account, not only its id, because the bank's embedding text reads the
 student's identity (`load_identity`). A bank with no entries and no skills
 raises `EmptyBank`, which the route answers as a 404.
 
-- **It scores every listed job each call, then sorts and slices**, and
-  keeps nothing between calls (Home's kept result is its own route's). Every
-  query parameter that narrows the list (the Jobs page's filters,
-  `min_match`) applies before `offset`, so a page never comes back short with
-  more matches behind it.
+- **It scores the candidates, then sorts and slices.** Every query
+  parameter that narrows the list (the Jobs page's filters, `min_match`)
+  applies before `offset`, so a page never comes back short with more
+  matches behind it. With `keep=True` (the route) it reads and keeps the
+  scored list in `kept.BEST_MATCH` (Candidates, above); every other caller
+  scores fresh.
 - **`min_match` (0–100, default 0)** drops jobs scored below it. Auto apply
   asks for 74 (`auto-apply/architecture.md`, "Match (built)"). It moves with the
   weights and the curve: retune it when they change.
 
 ## Still open
 
-- **An HNSW index on `job_postings.embedding` is not worth it yet**
-  (assessed 2026-10-28, KAN-425). On a laptop Postgres 17 with pgvector
-  0.8.2 (the shared database's version), 18,000 vectors: the exact top 500
-  took 22 to 43 ms, HNSW with `hnsw.iterative_scan = relaxed_order` 22 to
-  75 ms, and HNSW found 428 of the exact 500 (random vectors, its worst
-  case). So the index saves little at this size and changes which jobs
-  reach the cap. It also needs the query rewritten to `ORDER BY embedding
-  <=> :vec` ascending with a `LIMIT` per set (today's ranking window never
-  uses an index), a second read for the jobs with no vector, and a build of
-  about 27 s locally. Storing the vectors inline (`SET STORAGE PLAIN`, then
-  rewriting the rows) cut the exact scan by a third locally, and moved the
-  vectors into the table's own pages (70 MB there, against 1.2 MB with them
-  out of line). Look first at the database's compute (the same scan is 100
-  times slower there than on a laptop), and revisit HNSW past about 100,000
-  postings. A migration for it was written and checked with `--sql`, never
-  applied or committed: `CREATE INDEX CONCURRENTLY ... USING hnsw (embedding
-  extensions.vector_cosine_ops)` in an autocommit block.
+- **A cold cache still costs seconds.** The index (72 MB) answers from
+  memory, but `_read` reads each picked row's vector and terms from TOAST:
+  2.2 s for 500 rows the first time on the shared database, 0.15 s after
+  (2026-11-18). A student's candidates repeat, so only their first visit
+  after the pages leave the cache pays it. Storing the vectors inline
+  (above) is the next step if it bites.
+- **The database host pages out its memory** (2026-11-18). With the
+  database idle, a read of `job_postings`' 45 MB of rows took 4.0 s with
+  every page counted as a hit, then 27 ms; Past Week's candidates took
+  2.7 to 15 s after a minute or two of idle and 52 ms when repeated. The
+  host has about 1 GB, and its operating system moves Postgres's shared
+  buffers to disk, which no plan shows. A list that checks more rows
+  against its filters pays more of it. A larger compute size is the fix;
+  until then the kept lists are what make a return fast.
+- **A query keeps running after the browser leaves.** FastAPI (0.141 on
+  Starlette 1.7) runs a handler to its end when its client disconnects, so
+  each filter click under the old 70 s pass left another one running on
+  the shared database, up to its 120 s `statement_timeout`. A pass is now
+  short enough that this costs little; cancelling the handler on
+  disconnect would stop it entirely.
+- **The HNSW index costs every new vector a graph insert**, and each
+  vacuum of `job_postings` repairs the graph around the dead ones. The
+  import clears a posting's vector on any change and re-embeds it, so
+  every changed posting is one insert: 20,523 in the 24 hours to
+  2026-11-18, most of them in a few busy hours. If the import slows down
+  or the index bloats, look first at why so many postings change each day.
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the

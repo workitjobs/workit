@@ -3,7 +3,8 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
 
     render(view, identity, template, page)  a built resume view -> Rendered
                         (PDF bytes, page count, characters the font lacks,
-                        a box for each marked line)
+                        a box for each marked line); bookmarks=False for
+                        the editor's live page, one TeX pass (KAN-919)
     latex(view, identity, template, page)   the same resume as a .tex source, unmarked
     PageSettings        how the page is set: type, spacing, margins, style (KAN-435)
     escape(text)        the one way applicant text enters the LaTeX
@@ -464,14 +465,21 @@ class Rendered:
         return line_count((box for box in self.boxes if box.page >= 2), self.wrapped_line)
 
 
-def render(view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE) -> Rendered:
+def render(
+    view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE, *, bookmarks: bool = True
+) -> Rendered:
     '''
     A built resume view (services/resume_view.py) as a PDF in `template`, set
     by `page`. Raises ValueError for a template id it does not know, and
-    TectonicUnavailable when the compile cannot run or fails.
+    TectonicUnavailable when the compile cannot run or fails. `bookmarks`
+    False skips the PDF's outline, and with it TeX's second pass
+    (`compile_document`): for the editor's live page, never a file the
+    student keeps or sends.
     '''
     printed: dict[str, str] = {}
-    rendered = compile_document(_document(view, identity, template, page, marks=True, printed=printed))
+    rendered = compile_document(
+        _document(view, identity, template, page, marks=True, printed=printed), bookmarks=bookmarks
+    )
     boxes = tuple(replace(b, text=printed.get(f"{b.item_id}.{b.kind}", "")) for b in rendered.boxes)
     return replace(rendered, boxes=boxes, wrapped_line=page.wrapped_line)
 
@@ -666,11 +674,21 @@ def compile_pdf(tex: str, *, cache: Path | None = None, offline: bool = True) ->
     return compile_document(tex, cache=cache, offline=offline).pdf
 
 
-def compile_document(tex: str, *, cache: Path | None = None, offline: bool = True) -> Rendered:
+def compile_document(
+    tex: str, *, cache: Path | None = None, offline: bool = True, bookmarks: bool = True
+) -> Rendered:
     '''
     Compile a whole document with Tectonic, `--untrusted` and (unless the
     build script is warming the cache) `--only-cached`, so a render never
     reaches the network. Raises TectonicUnavailable on any failure.
+
+    Each compile starts in an empty folder, so the first pass writes a new
+    .aux and Tectonic always runs TeX again. The only thing that second pass
+    adds is hyperref's PDF outline (the section bookmarks a viewer lists in
+    its sidebar), read back from the .aux: the page, its text, links and
+    every marker's place are the same after one pass (KAN-919). So
+    `bookmarks` False runs one pass (`--reruns 0`), about 30% less compile
+    time (175 ms against 255 ms on an M-series Mac, 2026-11-18).
     '''
     binary = _binary()
     cache = cache or _cache()
@@ -680,6 +698,8 @@ def compile_document(tex: str, *, cache: Path | None = None, offline: bool = Tru
         command = [str(binary), "-X", "compile", "--untrusted", "--keep-logs", "--outdir", work, str(source)]
         if offline:
             command.insert(3, "--only-cached")
+        if not bookmarks:
+            command[3:3] = ["--reruns", "0"]
         try:
             result = subprocess.run(
                 command, env=_env(cache, work), capture_output=True, text=True, errors="replace",

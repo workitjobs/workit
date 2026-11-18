@@ -15,6 +15,20 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   `Rendered(pdf, page_count, missing_characters, boxes, wrapped_line)`. An unknown template
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
+- **The editor's live page runs TeX once; every file a student keeps runs
+  it twice** (`bookmarks`, KAN-919). Each compile starts in an empty
+  folder, so Tectonic always ran a second pass for the new `.aux`, and
+  that pass only adds hyperref's PDF outline (the section bookmarks a
+  viewer's sidebar lists): the page, its text, links, boxes, points and
+  shrinks are the same after one (`test_one_pass_prints_the_same_page_without_bookmarks`).
+  One pass is about 30% less compile time (175 against 255 ms on an
+  M-series Mac, 2026-11-18), and on the API's 1/4-vCPU container the
+  compile is nearly all of an edit's 4.5 to 5.4 s. So `POST .../render`
+  and `POST .../fit` pass `bookmarks=False`; `GET .../render` (the first
+  page, Download, Tailor's preview) and sent resumes keep the default. A
+  new caller whose PDF leaves the editor keeps it too. A template that
+  reads the `.aux` for its page (a `\pageref`, "page 1 of 2") would need
+  the second pass back: the test catches it.
 - **A template is a function from the view and identity to a LaTeX body**
   (`jakes.py`), registered by its stable id in `_document()`. The id is stored
   on `built_resumes.template`, so never rename one.

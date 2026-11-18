@@ -436,7 +436,7 @@ export function readQuery(params: Params): string {
   return (first(params.q) ?? "").trim().slice(0, 200);
 }
 
-/** The two orders of the Jobs page's one list (./page, KAN-288). */
+/** The two orders of the Jobs page's one list (./(list)/page.tsx, KAN-288). */
 export type Sort = "match" | "newest";
 
 /** The row's Sort, in the page's default order first. */

@@ -9,11 +9,14 @@ import { QueryField } from "./query-field";
  * top bar it showed on every page, and took the room the page's title has now
  * (../bar-title.tsx). A GET form to /search, so Enter lands the query there as
  * ?q; next/form makes that a client-side navigation.
+ *
+ * `query` is the search the field shows where the address has none: a job's
+ * page beside a search's results in the split view (KAN-917).
  */
-export function JobSearch() {
+export function JobSearch({ query }: { query?: string }) {
   return (
     <Form action="/search" role="search" className={PAGE_SEARCH}>
-      <QueryField id="job-search" />
+      <QueryField id="job-search" query={query} />
     </Form>
   );
 }
