@@ -5,38 +5,22 @@ until something they depend on changes.
 
 ONE PASS, NOT THREE. Home asked GET /jobs/recommended three times at once
 (the top 12, the top 12 auto apply fills, and every recent Excellent Match a
-page of 500 at a time), and the tracker scored a fourth. Each pass scans
-every listed job's vector, so the three ran side by side on one small
-Postgres: on 2026-10-28 one pass took 4 to 6 s alone and three at once 13
-to 23 s. score_job_sets scans once and ranks each set on its own, so each
-list is the one its own GET /jobs/recommended call returns.
+page of 500 at a time), and the tracker scored a fourth. score_job_sets
+picks every set's candidates in one statement and reads and scores each job
+once, so each list is the one its own GET /jobs/recommended call returns.
 
-KEPT UNTIL IT GOES STALE. A return to Home scored everything again. The
-result is kept in this process under what it was made from: the bank's
-updated_at (every entry, bullet or skill change sets it, services/bank.py),
-the newest job_postings.updated_at (the import, its embeddings and every
-closing set it), and the jobs the applicant marked applied, which GET
-/jobs/recommended leaves out. Any change makes a new key, so a kept result
-is never served after one; HOME_CACHE_SECONDS bounds the rest (a posting's
-freshness and the Excellent Matches window move with the clock). Each process
-keeps its own: a Vercel Function's lasts while the instance does, the
-container's for good. Reading the key costs one small query.
+KEPT UNTIL IT GOES STALE (queries/jobs/kept.py has the key): the route
+serves KEPT while the bank, the job postings and the applicant's Tracker
+are as they were, for at most HOME_CACHE_SECONDS.
 """
 
 import datetime
-import time
-import uuid
-from collections import OrderedDict
 
-from sqlalchemy import Text, cast, func, select
-from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import dto
-from app.models.applications import Job_Application
-from app.models.bank import Experience_Bank
 from app.models.jobs import Job_Post
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, JobFilters
+from app.queries.jobs.kept import Kept
 from app.queries.jobs.recommendations import score_job_sets
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import HomeMatches
@@ -47,49 +31,7 @@ HOME_CACHE_SECONDS = 600
 # The most applicants kept at once; the least recently read goes first.
 HOME_CACHE_SIZE = 256
 
-_kept: OrderedDict[tuple, tuple[float, HomeMatches]] = OrderedDict()
-
-
-async def home_version(db: AsyncSession, applicant_id: uuid.UUID) -> tuple:
-    """What a kept result was made from, read in one query: the bank's
-    updated_at, the newest job posting change, and a hash of the jobs on
-    this applicant's Tracker (saved, applied and after), which
-    Top Matches leaves out: a Save changes the key."""
-    applied = (
-        select(func.md5(func.coalesce(func.string_agg(
-            cast(Job_Application.job_id, Text),
-            aggregate_order_by(",", Job_Application.job_id),
-        ), "")))
-        .where(
-            Job_Application.applicant_id == applicant_id,
-            Job_Application.stage.not_in(dto.ON_THE_JOBS_PAGE),
-        )
-        .scalar_subquery()
-    )
-    row = (await db.execute(select(
-        select(Experience_Bank.updated_at)
-        .where(Experience_Bank.applicant_id == applicant_id)
-        .scalar_subquery(),
-        select(func.max(Job_Post.updated_at)).scalar_subquery(),
-        applied,
-    ))).one()
-    return tuple(row)
-
-
-def kept(key: tuple) -> HomeMatches | None:
-    """The result kept under this key, while it is young enough."""
-    hit = _kept.get(key)
-    if hit is None or time.monotonic() - hit[0] > HOME_CACHE_SECONDS:
-        return None
-    _kept.move_to_end(key)
-    return hit[1]
-
-
-def keep(key: tuple, matches: HomeMatches) -> None:
-    _kept[key] = (time.monotonic(), matches)
-    _kept.move_to_end(key)
-    while len(_kept) > HOME_CACHE_SIZE:
-        _kept.popitem(last=False)
+KEPT: Kept[HomeMatches] = Kept(HOME_CACHE_SECONDS, HOME_CACHE_SIZE)
 
 
 async def home_matches(

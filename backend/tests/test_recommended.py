@@ -12,7 +12,7 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from app.deps import get_current_account, get_signed_in_applicant_id
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -282,3 +282,130 @@ async def test_another_students_home_matches_are_forbidden(student, database):
     async with database() as session:
         other = await _seed_applicant(session)
     assert (await _home(client, other)).status_code == 403
+
+
+def _vector(near: int) -> str:
+    """A job vector whose first `near` of 768 values agree with VECTOR's sign:
+    768 is the bank's own direction, fewer is further from it."""
+    return "[" + ",".join(["0.1"] * near + ["-0.1"] * (768 - near)) + "]"
+
+
+async def _seed_vectors(database) -> dict[str, str]:
+    """Listed postings at known distances from the bank's VECTOR, and one the
+    import has not embedded yet. "far" and "none" are the recent ones. Ids
+    by name."""
+    ids = {}
+    async with database() as session:
+        for name, near, days in [
+            ("nearest", 768, 200), ("near", 700, 200), ("far", 500, 0),
+            ("farthest", 300, 200), ("none", None, 0),
+        ]:
+            ids[name] = str((await session.execute(
+                text(
+                    "INSERT INTO job_postings (title, company_name, apply_url, status, experience_level,"
+                    " posted_at, embedding) VALUES ('Engineer', 'Acme', :url, 'published', 'new_grad',"
+                    " now() - make_interval(days => :days), CAST(:vector AS vector))"
+                    " RETURNING id"
+                ),
+                {"url": f"https://jobs.example/{name}", "days": days,
+                 "vector": None if near is None else _vector(near)},
+            )).scalar())
+        await session.commit()
+    return ids
+
+
+async def test_the_candidates_are_the_nearest_jobs_from_the_index(student, gemini, database, monkeypatch):
+    # KAN-915: a set's CANDIDATES are its nearest jobs by the HNSW index; a
+    # job with no vector comes in only when the index can't fill the set.
+    from app.queries.jobs import recommendations
+
+    client, me, _ = student
+    ids = await _seed_vectors(database)
+    await _add(client, me, "skills", {"name": "Python"})
+    monkeypatch.setattr(recommendations, "CANDIDATES", 2)
+
+    res = await client.get(f"/jobs/recommended/{me}")
+    assert res.status_code == 200, res.text
+    assert {j["id"] for j in res.json()} == {ids["nearest"], ids["near"]}
+
+    # Two recent jobs, one with a vector: the index finds one, so the set is
+    # ranked exactly over its own jobs, the one with no vector after it.
+    res = await client.get(f"/jobs/recommended/{me}?posted_within=30")
+    assert {j["id"] for j in res.json()} == {ids["far"], ids["none"]}
+
+
+async def test_the_nearest_query_reads_the_hnsw_index(database):
+    # The ORDER BY must be spelled as the index's expression, or the planner
+    # sorts every listed job's vector, read from TOAST (45 s on the shared
+    # database). Sorting off, as _candidates turns it off.
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    from app.models.jobs import Job_Post
+    from app.queries.jobs import recommendations
+    from app.queries.jobs.filters import LISTED
+
+    query = (
+        select(Job_Post.id).where(LISTED)
+        .order_by(recommendations.JOB_HALF.cosine_distance(VECTOR))
+        .limit(recommendations.CANDIDATES)
+    )
+    sql = str(query.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    async with database() as session:
+        await session.execute(recommendations._INDEX_ORDER)
+        plan = "\n".join((await session.execute(text("EXPLAIN " + sql))).scalars())
+        await session.execute(recommendations._PLANNER_DEFAULTS)
+        assert (await session.execute(text("SHOW enable_sort"))).scalar() == "on"
+    assert "job_postings_embedding_hnsw_idx" in plan, plan
+
+
+async def test_best_match_is_kept_for_load_more_and_back(student, gemini, database, monkeypatch):
+    # KAN-915: the scored list is kept per applicant and filters, so the next
+    # page, Back and another min_match read it; a change to the bank or the
+    # Tracker, or other filters, score again.
+    from app.routers import jobs
+
+    client, me, _ = student
+    await _seed_vectors(database)
+    await _add(client, me, "skills", {"name": "Python"})
+    passes = []
+    score_jobs = jobs.score_jobs
+
+    async def counted(*args, **kwargs):
+        passes.append(1)
+        return await score_jobs(*args, **kwargs)
+
+    monkeypatch.setattr(jobs, "score_jobs", counted)
+    # The Jobs page's filters read the viewer on their own (read_filters).
+    monkeypatch.setitem(app.dependency_overrides, get_signed_in_applicant_id, lambda: me)
+
+    def page(query: str = ""):
+        return client.get(f"/jobs/recommended/{me}?limit=2{query}")
+
+    first = (await page()).json()
+    assert len(passes) == 1
+    assert (await page()).json() == first  # Back, or the same page again
+    more = (await page("&offset=2")).json()  # Load More
+    assert len(passes) == 1
+    assert len({j["id"] for j in first + more}) == 4
+    strong = (await page("&min_match=50")).json()
+    assert all(j["match"] >= 50 for j in strong)
+    assert len(passes) == 1
+
+    await page("&posted_within=30")
+    assert len(passes) == 2  # other filters are another list
+
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id, stage, applied_at)"
+                 " VALUES (:a, :j, 'saved', NULL)"),
+            {"a": me, "j": first[0]["id"]},
+        )
+        await session.commit()
+    after_save = (await page()).json()
+    assert len(passes) == 3  # a Save takes the job off the Jobs page
+    assert first[0]["id"] not in [j["id"] for j in after_save]
+
+    await _add(client, me, "skills", {"name": "SQL"})
+    await page()
+    assert len(passes) == 4  # a bank change scores again

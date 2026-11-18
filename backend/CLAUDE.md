@@ -972,8 +972,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `GET .../applications?scored=true`, which narrows it with
   `JobFilters.job_ids`. Home's `GET /jobs/recommended/{id}/home` scores
   its three lists in one `score_job_sets` pass and keeps the result per
-  applicant (`queries/jobs/home.py`, KAN-425). One scoring path, one
-  number per job.
+  applicant (`queries/jobs/home.py`, KAN-425). `GET /jobs/recommended`
+  keeps each applicant's scored list per filters too, so Load More and
+  Back read it (`queries/jobs/kept.py`, KAN-915); auto apply's callers
+  score fresh. Each pass picks its 500 candidates from the HNSW index over
+  the job vectors and reads only those rows (`app/services/matching/CLAUDE.md`,
+  Candidates). One scoring path, one number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and its match), the keyword match and Apply load a posting through
@@ -2156,6 +2160,13 @@ go then. A change needs to work on Cloudflare only.
   `applicant_profiles.default_built_resume_id`, which the model maps, so the
   new code's signup INSERT fails on a database without it
   (`app/models/CLAUDE.md`, "A new column reaches the database...").
+- **`c48811c7e5af` (KAN-915's two indexes) is safe before or after its
+  deploy.** It only adds `job_postings_embedding_hnsw_idx` and
+  `job_postings_updated_at_idx`, `CONCURRENTLY`, so the API and the import
+  keep running while it builds (a few minutes on the shared database, with
+  128 MB of `maintenance_work_mem`, which it sets for its own session along
+  with no `statement_timeout`). Until it is applied, the new code still
+  scores right, as slowly as before: the planner sorts every vector.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX

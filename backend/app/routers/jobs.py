@@ -90,7 +90,7 @@ from app.deps import (
     get_signed_in_applicant_id,
 )
 from app.models import dto
-from app.queries.jobs import home
+from app.queries.jobs import home, kept
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
@@ -298,6 +298,7 @@ async def fetch_recommended(
     min_match: int = 0,
     limit: int = 50,
     offset: int = 0,
+    keep: bool = False,
 ) -> list[ScoredJob]:
     '''
     the published scraped jobs scored against this applicant's experience bank
@@ -312,12 +313,26 @@ async def fetch_recommended(
 
     `min_match` leaves out jobs scored below it before `offset`, so a page
     never comes back short with more matches behind it.
-    '''
-    bank = await load_bank(db, account.id)
-    if not bank.entries and not bank.skills:
-        raise EmptyBank("Your experience bank is empty")
 
-    scored = await score_jobs(db, account, bank, filters)
+    `keep` serves the whole scored list from kept.BEST_MATCH while what it
+    was made from is unchanged, and keeps a new one there, so Load More,
+    Back and a repeat read it (KAN-915). Only for the Jobs page's filters:
+    the key covers the Tracker's jobs (tracked_by), not every application.
+    '''
+    key = None
+    scored = None
+    if keep:
+        if filters.no_application_by is not None:
+            raise ValueError("a kept list's key covers tracked_by, not no_application_by")
+        key = (account.id, await kept.made_from(db, account.id), kept.filters_key(filters))
+        scored = kept.BEST_MATCH.get(key)
+    if scored is None:
+        bank = await load_bank(db, account.id)
+        if not bank.entries and not bank.skills:
+            raise EmptyBank("Your experience bank is empty")
+        scored = await score_jobs(db, account, bank, filters)
+        if key is not None:
+            kept.BEST_MATCH.put(key, scored)
     # score_jobs sorts best first; drop those under min_match before offset
     scored = [s for s in scored if s.match >= min_match]
     return scored[offset:offset + limit]
@@ -337,11 +352,14 @@ async def recommended_jobs(
     """Jobs scored against the applicant's experience bank (fetch_recommended).
     Returns `match` (0-100), its `score_breakdown` (effective weights,
     component points before freshness, the final rounded score) and up to 3
-    `highlights`. 404 while the bank is empty."""
+    `highlights`. 404 while the bank is empty. The scored list is kept per
+    applicant and filters, so the next page, Back and a repeat read it
+    (queries/jobs/kept.py)."""
     assert_applicant_owns(account, applicant_id)
     try:
         return await fetch_recommended(
-            db, account, filters=filters, min_match=min_match, limit=limit, offset=offset
+            db, account, filters=filters, min_match=min_match, limit=limit, offset=offset,
+            keep=True,
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -363,8 +381,8 @@ async def recommended_home(
     up. Served from the kept result while nothing it was made from has
     changed. 404 while the bank is empty."""
     assert_applicant_owns(account, applicant_id)
-    key = (account.id, await home.home_version(db, account.id), posted_within, min_match, limit)
-    if (hit := home.kept(key)) is not None:
+    key = (account.id, await kept.made_from(db, account.id), posted_within, min_match, limit)
+    if (hit := home.KEPT.get(key)) is not None:
         return hit
     bank = await load_bank(db, account.id)
     if not bank.entries and not bank.skills:
@@ -372,7 +390,7 @@ async def recommended_home(
     matches = await home.home_matches(
         db, account, bank, posted_within=posted_within, min_match=min_match, limit=limit
     )
-    home.keep(key, matches)
+    home.KEPT.put(key, matches)
     return matches
 
 

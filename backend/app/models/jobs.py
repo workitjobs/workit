@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     desc,
+    literal_column,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
@@ -163,6 +164,18 @@ class Job_Post(BaseModel):
         
         # a search's fts @@ query (a70c641b2f99)
         Index("job_postings_fts_idx", "fts", postgresql_using="gin"),
+
+        # Best Match's nearest jobs (c48811c7e5af, KAN-915): each vector as a
+        # halfvec, so the index is half the column's size. Declared here so
+        # autogenerate doesn't propose dropping it; the migration builds it.
+        Index(
+            "job_postings_embedding_hnsw_idx",
+            literal_column("(embedding::halfvec(768))").label("embedding_half"),
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding_half": "extensions.halfvec_cosine_ops"},
+        ),
+        # The kept results' key reads the newest change (queries/jobs/kept.py)
+        Index("job_postings_updated_at_idx", "updated_at"),
 
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
