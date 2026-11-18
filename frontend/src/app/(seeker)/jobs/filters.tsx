@@ -374,7 +374,12 @@ export function JobFilters({
   const [shownSort, showSort] = useOptimistic(sort);
 
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
-   *  /search). The server draws the feed again, narrowed. */
+   *  /search). The server draws the feed again, narrowed.
+   *
+   *  ONE BACK RULE (KAN-916): a filter and a sort both replace the address,
+   *  so Back leaves the list for the page before it, whatever was picked on
+   *  it. The sort pushed until then, so Back stepped through each order but
+   *  skipped every filter, and a student could not tell what Back would undo. */
   function apply(next: FeedFilters) {
     // The feed's transition, so the list dims the moment this starts
     // (./feed-transition).
@@ -396,7 +401,7 @@ export function JobFilters({
   function applySort(next: Sort) {
     startFeedTransition(() => {
       showSort(next);
-      router.push(sortHref(next, shown), { scroll: false });
+      router.replace(sortHref(next, shown), { scroll: false });
     });
   }
 

@@ -17,6 +17,7 @@ import {
   JobPanel,
   JobViewHeader,
   loadJobView,
+  type FromList,
 } from "./job-view";
 import { BackToJobs } from "./page-actions";
 
@@ -26,10 +27,19 @@ import { BackToJobs } from "./page-actions";
  *
  * `listed`: the job came from a list, so one that has closed since draws
  * nothing beside it, and its title is an h2 under the bar's "Jobs" h1. On its
- * own page it is not found.
+ * own page it is not found. `fromList` is what that list's row already
+ * holds, which the page then does not read again (./job-view.tsx, KAN-916).
  */
-export async function JobPage({ jobId, listed = false }: { jobId: string; listed?: boolean }) {
-  const view = await loadJobView(jobId);
+export async function JobPage({
+  jobId,
+  listed = false,
+  fromList,
+}: {
+  jobId: string;
+  listed?: boolean;
+  fromList?: FromList;
+}) {
+  const view = await loadJobView(jobId, { fromList });
   const { job, error } = view;
 
   if (error != null) {

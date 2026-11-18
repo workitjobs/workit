@@ -15,6 +15,8 @@ import { useHydrated } from "../local-time";
 import { nextPage, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-list";
+import type { JobsView } from "./view";
+import { useJobsView } from "./view-store";
 
 /**
  * The feed's cards on /jobs and /search, and its Load More (KAN-171). The
@@ -67,8 +69,10 @@ import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-l
  * job that has left: more than the API moved up at worst, and a role it
  * sends twice is dropped by id.
  *
- * `compact` draws the compact cards in a plain list (/search's List view,
- * KAN-519) rather than the large cards.
+ * `view` makes the list follow the view switch (/search, KAN-519): in the
+ * split view, which /search shows as its List view, the compact cards in a
+ * plain list rather than the large cards. It is the view the server drew;
+ * a switch changes it in the browser (./view-store, KAN-916).
  */
 export function FeedList({
   initial,
@@ -78,7 +82,7 @@ export function FeedList({
   tailored,
   canMarkApplied,
   source = "feed",
-  compact = false,
+  view,
   drawnAt,
 }: {
   initial: JobListing[];
@@ -92,13 +96,14 @@ export function FeedList({
   /** An applicant account, which a card's Apply Now may ask "Did You Apply?". */
   canMarkApplied: boolean;
   source?: ListSource;
-  compact?: boolean;
+  view?: JobsView;
   /** When the server drew the first page and `stages` (ms since the epoch). */
   drawnAt: number;
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
   const stored = useSyncExternalStore(subscribe, readKept, () => null);
+  const compact = useJobsView(view ?? "cards") === "split" && view != null;
   const mine = stored?.query === query ? stored : null;
   // First-page roles marked applied here, gone until the server's next draw
   // leaves them out itself.

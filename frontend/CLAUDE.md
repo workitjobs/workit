@@ -136,8 +136,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   It needs no bucket, tag cache or queue (none to create on Cloudflare),
   and its keys carry the build ID, so a deploy never serves the last
   build's HTML. **It is read-only**: a page given `revalidate` would never
-  refresh, and the data cache stays off, as under "dummy", so
-  `apiGet`'s `revalidate` fetches reach the API every time. **A
+  refresh, and the data cache stays off, as under "dummy", so a fetch's
+  `revalidate` keeps nothing: the Jobs page's facets, places and jobs
+  passed one and reached the API on every filter change (KAN-916), and
+  `apiGet` no longer takes one. A slow public read is kept by the API
+  (`backend/CLAUDE.md`, "The filter row's options are kept per process")
+  or read once per visit in a layout. **A
   prerendered page reads no runtime value** (`API_URL`, a Worker var or
   secret): it is served as the build drew it, and CI builds with none of
   them. `/docs/mcp`'s Add WorkIt to Claude link read `API_URL` and would
@@ -1593,6 +1597,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.
+- **A list of job links prefetches on hover only**
+  (`components/hover-prefetch-link.tsx`, KAN-916): the large card's and the
+  compact card's title links. A job page has a `loading.tsx`, so a link in
+  view prefetches down to it, and that prefetch runs the page's
+  `generateMetadata`, which reads `GET /jobs/{id}`: about 100 API calls for
+  a Jobs page of 50 cards once production stopped keeping that read (the
+  data cache is off, Deployment). A hover leads a click by a quarter of a
+  second, enough for the skeleton; a touch prefetches on touch start. A new
+  list of links to a page with a loading boundary uses it.
 - **A slow seeker page gets a `loading.tsx` drawn in its own frame**
   (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
   route only down to a loading boundary, so a click changed nothing on screen
@@ -2041,7 +2054,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   draws only the first job, and a click opens that job's page, so Best Match
   is never scored again per click. Never draw the open job with a query on
   /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
-  links. A height set with `flex-1` on the same element does nothing: the frame
+  links. **The switch changes the view in the browser, with no request**
+  (`jobs/view-store.ts`, KAN-916): it writes the cookie with
+  `document.cookie`, and every part that differs between the views reads
+  `useJobsView(drawn)`, starting from the view the server drew. It set the
+  cookie in a server action, and an action that sets a cookie draws the
+  whole page again: the shell, the layouts and the list, Best Match scored
+  again (0.6 to 3 s and 8 to 15 API calls per switch, 2026-11-18). **/jobs
+  draws both views from one list** (`jobs/list-views.tsx`): the page reads
+  the list once and hands it to `ListViews` with what only the server draws
+  (the empty and error states, and in the split view the open job, which
+  `fromList` gives the list row's score: `jobs/[jobId]/job-view.tsx` skips
+  `/match`, the built resumes and `/applied`, 5 reads where there were 8).
+  A switch to the split view from a Card View the server drew reads the
+  open job alone through the server action `openJob` (`jobs/open-job.tsx`,
+  which returns the job's page). Never set the cookie on the server again,
+  and never make a view read the list itself. **Still open:** on a hard load
+  of the split view the rail is a skeleton until the page's script runs
+  (it reads the list from sessionStorage, written by `RememberShownList`);
+  drawing it on the server needs the rail inside the page on /jobs, which
+  waits on KAN-917's rail rewrite. A height set with `flex-1` on the same element does nothing: the frame
   needs `flex-none` at its fixed height, or the rail grows with its list and
   never scrolls. It is one panel in the page's gutters, after Simplify's,
   rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
@@ -2125,7 +2157,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the first page alone (asked for 2026-10-10). The snapshot lives apart from
   the kept pages so that dropping one never drops the other, and only a
   fetched page dates either: a rewrite on every mount would restart
-  `LIST_FRESH_FOR` and keep stale pages alive for good.
+  `LIST_FRESH_FOR` and keep stale pages alive for good. **A wait past five
+  seconds says it is still working** (`jobs/still-loading.tsx`, KAN-916),
+  in the Card View's fallback and the split view's rail: a skeleton alone
+  once held 49 seconds and never said so. Best Match says it is scoring.
+- **A filter or sort change on /jobs asks the API for its list alone**
+  (KAN-916, `jobs/list-data.tsx`). What no filter changes is read once per
+  visit in a layout, which Next draws again only on a hard load, a
+  refresh or an arrival from another page, never when the address's query
+  changes: the filter row's options in `jobs/layout.tsx` (in either view,
+  since the split view's header stays beside a job's page), and the stages,
+  tailored resumes, account type and bank prompt in `jobs/(list)/layout.tsx`,
+  a route group so a job's page reads none of them. The page read all of
+  them on every change: 8 API calls in the Card View, about 14 in the split
+  view. A new read the list needs goes in a layout's context, never the
+  page, unless the filters change it. Within a visit they go stale on
+  purpose: a stage set in the tab is laid over them (`drawnAt`), and
+  `router.refresh()` reads them again. **A filter and a sort both replace
+  the address** (`jobs/filters.tsx`), so Back leaves the list whatever was
+  picked on it: the sort pushed until then, and Back stepped through the
+  orders but skipped the filters.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**

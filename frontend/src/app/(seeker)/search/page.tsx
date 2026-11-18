@@ -180,7 +180,7 @@ async function Results({
         stages={stages}
         tailored={tailored}
         canMarkApplied={canMarkApplied}
-        compact={view === "split"}
+        view={view}
         drawnAt={drawn}
       />
     </>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { jobLogo } from "@/lib/job-logo";
@@ -83,14 +83,14 @@ export function CompactJobCard({
         className="text-label rounded-control row-span-2 size-10 self-start"
       />
       <h3 className="text-subtitle text-ink line-clamp-2 font-medium">
-        <Link
+        <HoverPrefetchLink
           href={`/jobs/${encodeURIComponent(job.id)}`}
           title={job.title}
           aria-current={current ? "page" : undefined}
           className="focus-visible:ring-brand-ring rounded-control after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
         >
           {job.title}
-        </Link>
+        </HoverPrefetchLink>
       </h3>
       <div className="relative z-2 -mt-1 -mr-1 flex gap-3">
         <NotInterestedButton title={job.title} quiet />

@@ -235,7 +235,12 @@ heading's right end (`jobs/view-switch.tsx`), named by its tooltips, kept in the
 (`jobs/view.ts`), so the server draws the chosen view with no flash of the
 other. Cards stays the default. It is a layout choice, so it stays with the
 browser after sign-out. The new view is in no URL: `?view=` is taken by old links
-(`readSort`).
+(`readSort`). **A switch changes the view at once, in the browser** (KAN-916,
+`jobs/view-store.ts`): both views draw from the list already on screen, and
+the cookie is written with no request, so the list is not read or scored
+again. A switch to Split from Cards the server drew reads only the open job.
+A filter and a sort both replace the address, so Back leaves the Jobs page
+for the page before it.
 
 Best Match and Newest sit in the filter row as Sort (`SortMenu`), first in the
 row, with Clear Filters and All Filters at the right end: between those two it

@@ -33,18 +33,15 @@ import {
 import { JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
-import type { JobFacets, JobLocationOption } from "./listings";
+import { useFilterOptions } from "./list-data";
 import { leavesFeed, onFeed } from "./feed-stages";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
+import { StillLoading } from "./still-loading";
+import type { JobsView } from "./view";
+import { useJobsView } from "./view-store";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
 const JOB_PAGE = /^\/jobs\/([^/]+)$/;
-
-/** The filter row's options, which the layout starts in the split view. */
-type FilterOptions = {
-  locations: Promise<JobLocationOption[]>;
-  facets: Promise<JobFacets>;
-};
 
 /**
  * The jobs layout's frame (./layout.tsx): the split view's, and nothing else.
@@ -58,32 +55,33 @@ type FilterOptions = {
  * user saw the Cards view open into what looked like the split view, the two
  * views mixed. Choosing Split is how a seeker asks for a list beside a job.
  *
- * THE SPLIT VIEW IS THIS FRAME (`filterOptions`, KAN-519), on /jobs and on
+ * THE SPLIT VIEW IS THIS FRAME (KAN-519), on /jobs and on
  * a job's page: the Jobs page's header over the rail and the job, each pane
  * scrolling on its own under it, held to the height under the shell's 64px bar.
- * /jobs draws only the list's first job (./page.tsx) and a click opens that
+ * /jobs draws only the list's first job (./(list)/page.tsx) and a click opens that
  * job's page, so a job is one read of its own: the list and its Best Match
  * scores are never read again, and the rail never moves. A list from /search
  * keeps the plain frame, since the Jobs page's header is not its header.
  *
  * Below `@4xl/main` the frame flows with the page, so the header sticks as it
  * does on the cards: on /jobs the rail is the whole width, the job does not
- * show (./page.tsx), and a job's page is the job alone with Back.
+ * show (./(list)/page.tsx), and a job's page is the job alone with Back.
+ *
+ * THE VIEW IS THE BROWSER'S (./view-store, KAN-916): `view` is the one the
+ * server drew, and a switch moves this frame in or out at once, with no
+ * request. On /jobs the page draws both views from the one list it read
+ * (./list-views.tsx).
  */
-export function JobsRailFrame({
-  filterOptions,
-  children,
-}: {
-  filterOptions?: FilterOptions;
-  children: ReactNode;
-}) {
+export function JobsRailFrame({ view, children }: { view: JobsView; children: ReactNode }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const list = useSyncExternalStore(subscribe, readShownList, () => null);
+  const options = useFilterOptions();
+  const shownView = useJobsView(view);
   const jobId = JOB_PAGE.exec(pathname)?.[1];
   const onList = pathname === "/jobs";
   const searched = list != null && new URLSearchParams(list.query).has("q");
-  const split = filterOptions != null && (onList || (jobId != null && !searched));
+  const split = shownView === "split" && (onList || (jobId != null && !searched));
 
   const pane = useRef<HTMLDivElement>(null);
   // The pane stays mounted, so each job would open scrolled as far as the last.
@@ -113,15 +111,15 @@ export function JobsRailFrame({
           split && "@4xl/main:mx-auto @4xl/main:w-full @4xl/main:max-w-[86rem]",
         )}
       >
-        {split && filterOptions && (
+        {split && (
           <FeedHeader
             flush
-            top={<JobsTopRow view="split" />}
+            top={<JobsTopRow view={view} />}
             className={cn("@4xl/main:shrink-0", !onList && "hidden @4xl/main:block")}
           >
             <JobFilters
-              locations={filterOptions.locations}
-              facets={filterOptions.facets}
+              locations={options.locations}
+              facets={options.facets}
               filters={filters}
               sort={sort}
               list={
@@ -419,7 +417,11 @@ function JobsRail({
             )}
           </>
         ) : error ? null : (
-          <RailSkeleton split={split} />
+          <>
+            {/* A long wait says it is still working (./still-loading). */}
+            <StillLoading match={wanted?.sort === "match"} className="px-4 pt-3" />
+            <RailSkeleton split={split} />
+          </>
         )}
         {error && (
           <p role="alert" className="text-body text-danger mt-3 px-4">
