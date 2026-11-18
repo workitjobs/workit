@@ -2,11 +2,12 @@ import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { TailorIcon } from "@/components/icons";
 import { AutoApplyChip } from "@/components/auto-apply-chip";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { TailoredChip } from "@/components/tailored-chip";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -160,14 +161,16 @@ export function ListingCard({
       actions={
         <>
           <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:grow">
-            <ButtonLink
+            {/* On hover only, as the title (components/hover-prefetch-link):
+                Tailor's metadata reads GET /jobs/{id}, so five cards in
+                view cost five API calls on every filter change (KAN-916). */}
+            <HoverPrefetchLink
               href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-              variant="secondary"
-              size="sm"
+              className={buttonClasses({ variant: "secondary", size: "sm" })}
             >
               <TailorIcon className="size-4" />
               {tailored ? "Tailored Resume" : "Tailor My Resume"}
-            </ButtonLink>
+            </HoverPrefetchLink>
           </div>
 
           {/* The job posting page's own dialog (KAN-290): which resume to

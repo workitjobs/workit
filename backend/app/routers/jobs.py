@@ -38,7 +38,9 @@ rules below in full); the pure word and season parsing in app/services/
 ?location= narrows the feed to jobs offered in any of the places named, by
 their job_locations rows: a country code ("US") matches every job in that
 country, a state code ("US-CA") its state. GET /jobs/locations lists the
-places that have jobs, with names, for the job board's Location filter. A job
+places that have jobs, with names, for the job board's Location filter (kept
+in the process until the job postings change, as GET /jobs/facets is:
+queries/jobs/kept_options.py, KAN-916). A job
 the location resolver couldn't place has no rows, so any location filter
 leaves it out (models/CLAUDE.md, the resolver section), except a remote one:
 a posting whose location is only "Remote" names no place to be in, so it
@@ -90,13 +92,14 @@ from app.deps import (
     get_signed_in_applicant_id,
 )
 from app.models import dto
-from app.queries.jobs import home
+from app.queries.jobs import home, kept
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
     fetch_role_options,
 )
 from app.queries.jobs.filters import YEARLY, JobFilters
+from app.queries.jobs.kept_options import kept_options
 from app.queries.jobs.listings import fetch_count, fetch_listing, fetch_listings
 from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
@@ -275,14 +278,16 @@ async def list_roles(db: AsyncSession = Depends(get_session)) -> list[JobRoleOpt
 
 @router.get("/locations", response_model=list[JobLocationOption])
 async def list_locations(db: AsyncSession = Depends(get_session)) -> list[JobLocationOption]:
-    """The places GET /jobs?location= can narrow to: only those with a job."""
-    return await fetch_location_options(db)
+    """The places GET /jobs?location= can narrow to: only those with a job.
+    Kept until the job postings change (queries/jobs/kept_options.py)."""
+    return await kept_options(db, "locations", fetch_location_options)
 
 
 @router.get("/facets", response_model=JobFacets)
 async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
-    """Each filter option's job count, for the job board's filter row."""
-    return await fetch_facets(db)
+    """Each filter option's job count, for the job board's filter row. Kept
+    until the job postings change (queries/jobs/kept_options.py)."""
+    return await kept_options(db, "facets", fetch_facets)
 
 
 class EmptyBank(Exception):
@@ -298,6 +303,7 @@ async def fetch_recommended(
     min_match: int = 0,
     limit: int = 50,
     offset: int = 0,
+    keep: bool = False,
 ) -> list[ScoredJob]:
     '''
     the published scraped jobs scored against this applicant's experience bank
@@ -312,12 +318,26 @@ async def fetch_recommended(
 
     `min_match` leaves out jobs scored below it before `offset`, so a page
     never comes back short with more matches behind it.
-    '''
-    bank = await load_bank(db, account.id)
-    if not bank.entries and not bank.skills:
-        raise EmptyBank("Your experience bank is empty")
 
-    scored = await score_jobs(db, account, bank, filters)
+    `keep` serves the whole scored list from kept.BEST_MATCH while what it
+    was made from is unchanged, and keeps a new one there, so Load More,
+    Back and a repeat read it (KAN-915). Only for the Jobs page's filters:
+    the key covers the Tracker's jobs (tracked_by), not every application.
+    '''
+    key = None
+    scored = None
+    if keep:
+        if filters.no_application_by is not None:
+            raise ValueError("a kept list's key covers tracked_by, not no_application_by")
+        key = (account.id, await kept.made_from(db, account.id), kept.filters_key(filters))
+        scored = kept.BEST_MATCH.get(key)
+    if scored is None:
+        bank = await load_bank(db, account.id)
+        if not bank.entries and not bank.skills:
+            raise EmptyBank("Your experience bank is empty")
+        scored = await score_jobs(db, account, bank, filters)
+        if key is not None:
+            kept.BEST_MATCH.put(key, scored)
     # score_jobs sorts best first; drop those under min_match before offset
     scored = [s for s in scored if s.match >= min_match]
     return scored[offset:offset + limit]
@@ -337,11 +357,14 @@ async def recommended_jobs(
     """Jobs scored against the applicant's experience bank (fetch_recommended).
     Returns `match` (0-100), its `score_breakdown` (effective weights,
     component points before freshness, the final rounded score) and up to 3
-    `highlights`. 404 while the bank is empty."""
+    `highlights`. 404 while the bank is empty. The scored list is kept per
+    applicant and filters, so the next page, Back and a repeat read it
+    (queries/jobs/kept.py)."""
     assert_applicant_owns(account, applicant_id)
     try:
         return await fetch_recommended(
-            db, account, filters=filters, min_match=min_match, limit=limit, offset=offset
+            db, account, filters=filters, min_match=min_match, limit=limit, offset=offset,
+            keep=True,
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -363,8 +386,8 @@ async def recommended_home(
     up. Served from the kept result while nothing it was made from has
     changed. 404 while the bank is empty."""
     assert_applicant_owns(account, applicant_id)
-    key = (account.id, await home.home_version(db, account.id), posted_within, min_match, limit)
-    if (hit := home.kept(key)) is not None:
+    key = (account.id, await kept.made_from(db, account.id), posted_within, min_match, limit)
+    if (hit := home.KEPT.get(key)) is not None:
         return hit
     bank = await load_bank(db, account.id)
     if not bank.entries and not bank.skills:
@@ -372,7 +395,7 @@ async def recommended_home(
     matches = await home.home_matches(
         db, account, bank, posted_within=posted_within, min_match=min_match, limit=limit
     )
-    home.keep(key, matches)
+    home.KEPT.put(key, matches)
     return matches
 
 

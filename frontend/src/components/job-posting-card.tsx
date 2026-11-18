@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import {
   JobTypeIcon,
   CalendarIcon,
@@ -334,7 +335,7 @@ export function JobPostingCard({
           dead. The title, company and actions sit above it (z-2); the facts
           stay under it, so a click on one opens the role too. */}
       {job.titleHref && (
-        <Link
+        <HoverPrefetchLink
           href={job.titleHref}
           tabIndex={-1}
           aria-hidden="true"
@@ -390,12 +391,12 @@ export function JobPostingCard({
                 className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5 @max-md:line-clamp-2 @max-md:whitespace-normal"
               >
                 {job.titleHref ? (
-                  <Link
+                  <HoverPrefetchLink
                     href={job.titleHref}
                     className={cn(INK_LINK, "group-hover/card:text-brand relative z-2")}
                   >
                     {job.title}
-                  </Link>
+                  </HoverPrefetchLink>
                 ) : (
                   job.title
                 )}
