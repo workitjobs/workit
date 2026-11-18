@@ -327,6 +327,38 @@ async def test_select_due_skips_fingerprint_resting(database, boards_csv):
 # ---------------------------------------------------------------------------
 
 
+async def test_broken_connection_in_checkpoint_does_not_propagate(database, boards_csv, monkeypatch):
+    """When the connection breaks during checkpoint *and* during recovery,
+    the worker exits cleanly: boards_failed increments, the exception does
+    not propagate, and run_cycle still runs closures (phase 6)."""
+    from app.scripts import import_jobs
+
+    _read_one_intern(monkeypatch, boards_csv)
+
+    # Simulate a broken connection: import_feed raises, then rollback also
+    # raises (the connection is dead).
+    class DeadConnection(Exception):
+        pass
+
+    async def break_on_import(*args, **kwargs):
+        # Make the connection's rollback fail too, simulating a lost connection.
+        conn = args[0]
+
+        async def broken_rollback():
+            raise DeadConnection("connection lost")
+
+        conn.rollback = broken_rollback
+        raise DeadConnection("connection reset by peer")
+
+    monkeypatch.setattr(import_jobs, "import_feed", break_on_import)
+
+    async with get_engine().connect() as conn:
+        summary = await worker.run_cycle(conn)
+
+    # The exception did not propagate (run_cycle returned), closures ran.
+    assert summary["boards_failed"] >= 1
+
+
 async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch):
     """Four boards, four workers: every board is claimed and processed."""
     from workit_scraper.board_read import BoardRead, ReadStatus

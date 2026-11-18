@@ -62,7 +62,7 @@ def _read_robots(origin: str) -> RobotFileParser | None:
             parser.parse([])
             return parser
         return None
-    except OSError:  # DNS, refused connection, timeout: unreachable
+    except (OSError, ValueError):  # DNS, refused, timeout, body too large: unreachable
         return None
     text = body.decode("utf-8", "replace")
     parser.parse((text.lower() if _folds(origin) else text).splitlines())

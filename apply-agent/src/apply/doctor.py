@@ -419,24 +419,37 @@ def _folder(machine: Machine) -> Path:
 
 
 LOGIN = "run `uv run apply login`"
+# ask_model: workit, the default, writes every answer through WorkIt's Model route as the signed-in student.
+NEEDED = "a rehearsal stops at its first written answer (ask_model: workit writes every answer through WorkIt)"
 
 
 def _workit(machine: Machine) -> Check:
-    """Optional, as Gmail is: only Apply's writes to the Applications Tracker need the login."""
+    """Needed with ask_model: workit, the default: without a student's login a rehearsal stops at its first written
+    answer, so each way the login can't serve fails. With another ask_model it is optional, as Gmail is: only Apply's
+    writes to the Applications Tracker need it. WorkIt not answering only warns: the login is still kept."""
     client = machine.workit()
+    try:
+        needed = ask_model.WORKIT in ask_model.chain({"ask_model": _policy(machine, "ask_model")})
+    except SetupError:  # the Ask model line fails on it
+        needed = False
+    level = FAIL if needed else WARN
     if not client.logged_in():
+        if needed:
+            return Check("WorkIt", FAIL, f"off: not logged in, so {NEEDED}",
+                         f"{LOGIN} from apply-agent/ (or `uv run apply app`, whose window needs no code to paste)")
         return Check("WorkIt", WARN, "off: not logged in, so Apply can't write to your Applications Tracker "
                                      "(rehearsals work without it)", f"{LOGIN} if you have a WorkIt student account")
     try:
         account = client.me()
     except LoginExpired:
-        return Check("WorkIt", WARN, "the login expired or was signed out", f"{LOGIN} again")
+        return Check("WorkIt", level, "the login expired or was signed out" + (f", so {NEEDED}" if needed else ""),
+                     f"{LOGIN} again")
     except Unreachable as e:
         return Check("WorkIt", WARN, f"can't reach WorkIt ({e})",
                      f"check your network, and that {client.site.api} answers; Apply's login is still kept")
     if account.account_type != "applicant":
-        return Check("WorkIt", WARN, f"logged in as {account.email}, a {account.account_type} account",
-                     f"{LOGIN} with a student account: the Applications Tracker needs one")
+        return Check("WorkIt", level, f"logged in as {account.email}, a {account.account_type} account",
+                     f"{LOGIN} with a student account: the Model route and the Applications Tracker need one")
     return Check("WorkIt", OK, f"logged in as {account.email}")
 
 
