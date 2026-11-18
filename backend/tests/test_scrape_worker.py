@@ -10,9 +10,41 @@ import pytest
 from sqlalchemy import text
 
 from app.db import get_engine
-from app.scraper import schedules, worker
+from app.scraper import schedules, tasks, worker
 
 pytestmark = pytest.mark.anyio
+
+
+# ---------------------------------------------------------------------------
+# Error string sanitization (KAN-912, pure — no database)
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_error_strips_api_key():
+    raw = "Connection failed: https://api.example.com?api_key=sk-1234abc&page=1"
+    assert "sk-1234abc" not in tasks._sanitize_error(raw)
+    assert "api_key=***" in tasks._sanitize_error(raw)
+
+
+def test_sanitize_error_strips_multiple_credentials():
+    raw = "token=secret123 password=hunter2 authorization=Bearer xyz"
+    cleaned = tasks._sanitize_error(raw)
+    assert "secret123" not in cleaned
+    assert "hunter2" not in cleaned
+    assert "Bearer xyz" not in cleaned
+    assert "token=***" in cleaned
+    assert "password=***" in cleaned
+    assert "authorization=***" in cleaned
+
+
+def test_sanitize_error_truncates_to_2000():
+    raw = "x" * 3000
+    assert len(tasks._sanitize_error(raw)) == 2000
+
+
+def test_sanitize_error_preserves_safe_messages():
+    raw = "publish failed: board returned HTTP 500"
+    assert tasks._sanitize_error(raw) == raw
 
 
 @pytest.fixture
