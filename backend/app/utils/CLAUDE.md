@@ -733,7 +733,17 @@ tokens; gpt-oss-20b 1.6 s (slowest 4.2 s) and about 2,700; gpt-oss-120b
 this parser take under 0.2 s. gpt-oss-120b copied a Word list's "•" into
 21 bullets, and twice sent a reply that failed the schema. Its combined
 reading also took more of this parser's junk (18 extra entries and 43
-lines, against Gemini's 14 and 27). That day Gemini's free tier answered 503
+lines, against Gemini's 14 and 27).
+
+**The KAN-888 group, scored before it merged** (2026-11-17, the 15
+resumes every model read on both; combined reading, `main` then the
+group): Gemini 96.2% to 96.7%, gpt-oss-120b 94.4% to 94.7%, gpt-oss-20b
+95.5% to 93.1%. This parser alone went from 74.9% to 76.4%, and the junk
+entries the merge adds fell by a third (Gemini 9 to 6, gpt-oss-120b 12 to
+6). gpt-oss-20b fell because KAN-893's `organization_note` took the place:
+it filed "Milwaukee, WI" as the note and left the location empty, 26
+times over 20 resumes (location 96% to 68%); gpt-oss-120b did it less
+(88% to 75%), and Gemini never. Gemini read all 20 that run, with no 503. That day Gemini's free tier answered 503
 ("high demand") to about half the calls, and Groq's 429 to readings back to
 back: an upload saves this parser's reading on each. What the combined
 reading still gets wrong: the merge adds this parser's junk (14 extra

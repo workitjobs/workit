@@ -48,6 +48,7 @@ import argparse
 import asyncio
 import datetime
 import hashlib
+import inspect
 import json
 import logging
 import re
@@ -103,12 +104,14 @@ class MeteredLLM(LLM):
         super().__init__(chain)
         self.meter: list[dict] = []
 
-    async def _complete_schema(self, client, endpoint, messages, name, schema, max_tokens=None):
+    async def _complete_schema(self, client, endpoint, messages, *args, **kwargs):
+        # The rest goes through as given: the seam's own arguments change
+        # (KAN-889 added a temperature), and the meter needs none of them.
         start = time.perf_counter()
         call = {"model": endpoint.model, "sent": [m["content"] for m in messages]}
         self.meter.append(call)
         try:
-            text, spent = await super()._complete_schema(client, endpoint, messages, name, schema, max_tokens)
+            text, spent = await super()._complete_schema(client, endpoint, messages, *args, **kwargs)
         except Exception as exc:
             call |= {"seconds": time.perf_counter() - start, "error": type(exc).__name__}
             raise
@@ -180,13 +183,19 @@ class Readings:
     meter: list[dict] = field(default_factory=list)
 
 
-async def read_three(raw_text: str | None, llm: CachedLLM, identity: Identity) -> Readings:
+async def read_three(raw_text: str | None, llm: CachedLLM, identity: Identity, links=()) -> Readings:
+    # The links behind a PDF's words (KAN-896) go where an upload sends them,
+    # on code that has them.
+    more = {"links": links} if "links" in inspect.signature(bank_import.read_resume).parameters else {}
     start = time.perf_counter()
-    rules_entries, rules_skills = bank_import.read(raw_text)
+    rules_entries, _ = bank_import.read(raw_text)
+    # The rule-based reading as an upload with no AI reading saves it.
+    rules = await bank_import.read_resume(raw_text, None, None, **more)
     rules_seconds = time.perf_counter() - start
+    rules_skills = rules.skills
     llm.last = None
     llm.meter = []
-    combined = await bank_import.read_resume(raw_text, llm, identity)
+    combined = await bank_import.read_resume(raw_text, llm, identity, **more)
     ai_entries: list[DraftEntry] = []
     ai_skills: list[str] = []
     if llm.last is not None and raw_text:
@@ -199,7 +208,7 @@ async def read_three(raw_text: str | None, llm: CachedLLM, identity: Identity) -
         ai_skills = [name for name, _ in bank_import.skill_pairs(found)]
     return Readings(
         raw_text,
-        {"rule-based": rules_entries, "AI": ai_entries, "combined": combined.entries},
+        {"rule-based": rules.entries, "AI": ai_entries, "combined": combined.entries},
         {
             "rule-based": [name for name, _ in rules_skills],
             "AI": ai_skills,
@@ -403,11 +412,14 @@ def _resume_file(key_path: Path, answer: dict) -> Path:
     return path
 
 
-async def read_file(path: Path) -> str | None:
+async def read_file(path: Path) -> tuple[str | None, tuple]:
+    """The file's text, and the links behind its words where extraction
+    reads them (KAN-896); before that, extraction gave the text alone."""
     data = path.read_bytes()
     if path.suffix == ".txt":
-        return data.decode("utf-8")
-    return await extract(data, path.suffix)
+        return data.decode("utf-8"), ()
+    got = await extract(data, path.suffix)
+    return (got.text, got.links) if hasattr(got, "links") else (got, ())
 
 
 def _pct(right: int, total: int) -> str:
@@ -477,9 +489,9 @@ async def main(args: argparse.Namespace) -> int:
         person = answer.get("person", {})
         identity = Identity(person.get("name"), person.get("email"), person.get("phone"), person.get("links", ()))
         start = time.perf_counter()
-        raw_text = await read_file(_resume_file(key_path, answer))
+        raw_text, links = await read_file(_resume_file(key_path, answer))
         extract_seconds = time.perf_counter() - start
-        readings = await read_three(raw_text, llm, identity)
+        readings = await read_three(raw_text, llm, identity, links)
         if args.show:
             show(key_path.stem, raw_text, readings)
         if readings.ai_failed:
