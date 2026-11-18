@@ -308,12 +308,9 @@ async def test_broken_connection_in_checkpoint_does_not_propagate(database, boar
     class DeadConnection(Exception):
         pass
 
-    original_rollback = {}
-
     async def break_on_import(*args, **kwargs):
         # Make the connection's rollback fail too, simulating a lost connection.
         conn = args[0]
-        original_rollback["fn"] = conn.rollback
 
         async def broken_rollback():
             raise DeadConnection("connection lost")

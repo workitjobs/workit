@@ -248,8 +248,9 @@ async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -
             # another worker or the next cycle will retry it.
             logger.exception(
                 "Board %s recovery failed (connection lost?); "
-                "task %s will expire and be retried",
+                "original error: %s; task %s will expire and be retried",
                 done.schedule_id,
+                exc,  # noqa: TRY401 — outer exc, not the one logger.exception includes
                 done.task_id,
             )
         else:
