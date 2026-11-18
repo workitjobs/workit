@@ -118,7 +118,7 @@ async def test_stale_candidates_deduplicate_before_cap(database):
             await update_sources(conn, board, [(URL_A, "a"), (URL_B, "b")])
         rows = (
             await conn.execute(
-                worker._STALE_QUERY, {"version": providers.PAGE_VERSION, "cap": 2}
+                worker._STALE_QUERY, {"version": providers.PAGE_VERSION, "cap": 2, "max_attempts": worker.MAX_DESCRIPTION_ATTEMPTS}
             )
         ).all()
         assert {row.apply_url for row in rows} == {URL_A, URL_B}
