@@ -529,7 +529,7 @@ async def test_a_save_never_compiles(student, monkeypatch):
     from app.routers import built_resumes
     from app.services.resume_render import TectonicUnavailable
 
-    def broken(*args):
+    def broken(*args, **kwargs):
         raise TectonicUnavailable("no tectonic")
 
     monkeypatch.setattr(built_resumes, "render", broken)

@@ -2483,7 +2483,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `updateChoices` (writes only; `?read_back=false`). **The render goes through a route
   handler, `app/api/resume-edit`**, never a server action: Next runs one
   client's actions one at a time, and as two actions the render waited
-  behind the save. Renders run one at a time (`enqueue`), and each carries
+  behind the save. Renders run one at a time (`enqueue`); a page setting
+  or a choice change with another of its kind next in the queue skips its
+  compile (KAN-919, `../docs/live_page.md`), and each carries
   the editor's copy of the bank, choices, printed header, template and
   file name (`ResumeCopy`, built from the `held` ref; the last three from
   the last render, `printedBy`), so the API renders with no database
