@@ -38,7 +38,9 @@ rules below in full); the pure word and season parsing in app/services/
 ?location= narrows the feed to jobs offered in any of the places named, by
 their job_locations rows: a country code ("US") matches every job in that
 country, a state code ("US-CA") its state. GET /jobs/locations lists the
-places that have jobs, with names, for the job board's Location filter. A job
+places that have jobs, with names, for the job board's Location filter (kept
+in the process until the job postings change, as GET /jobs/facets is:
+queries/jobs/kept_options.py, KAN-916). A job
 the location resolver couldn't place has no rows, so any location filter
 leaves it out (models/CLAUDE.md, the resolver section), except a remote one:
 a posting whose location is only "Remote" names no place to be in, so it
@@ -97,6 +99,7 @@ from app.queries.jobs.facets import (
     fetch_role_options,
 )
 from app.queries.jobs.filters import YEARLY, JobFilters
+from app.queries.jobs.kept_options import kept_options
 from app.queries.jobs.listings import fetch_count, fetch_listing, fetch_listings
 from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
@@ -275,14 +278,16 @@ async def list_roles(db: AsyncSession = Depends(get_session)) -> list[JobRoleOpt
 
 @router.get("/locations", response_model=list[JobLocationOption])
 async def list_locations(db: AsyncSession = Depends(get_session)) -> list[JobLocationOption]:
-    """The places GET /jobs?location= can narrow to: only those with a job."""
-    return await fetch_location_options(db)
+    """The places GET /jobs?location= can narrow to: only those with a job.
+    Kept until the job postings change (queries/jobs/kept_options.py)."""
+    return await kept_options(db, "locations", fetch_location_options)
 
 
 @router.get("/facets", response_model=JobFacets)
 async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
-    """Each filter option's job count, for the job board's filter row."""
-    return await fetch_facets(db)
+    """Each filter option's job count, for the job board's filter row. Kept
+    until the job postings change (queries/jobs/kept_options.py)."""
+    return await kept_options(db, "facets", fetch_facets)
 
 
 class EmptyBank(Exception):

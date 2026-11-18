@@ -177,6 +177,21 @@ class Job_Post(BaseModel):
         # The kept results' key reads the newest change (queries/jobs/kept.py)
         Index("job_postings_updated_at_idx", "updated_at"),
 
+        # The feed's order over the listed jobs only (f45841235b98, KAN-916):
+        # GET /jobs reads a page by walking it, where every page sorted all
+        # 41,000 listed jobs, and a filter Postgres can't index (Auto Apply
+        # Supported's regular expressions) stops after about one page of
+        # rows. Its WHERE is services/postings.py's LISTED, written out: the
+        # planner uses it only for a query whose WHERE implies it.
+        Index(
+            "job_postings_feed_idx",
+            desc("posted_at").nulls_last(),
+            "id",
+            postgresql_where=text(
+                "company_id IS NULL AND status = 'published' AND added_by_student IS false"
+            ),
+        ),
+
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
         # when a search title comes in, split into 3, it looks for jobs that are in all buckets
