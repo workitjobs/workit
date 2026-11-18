@@ -63,12 +63,13 @@ BOARD_WORKERS = 4
 MAX_DESCRIPTION_ATTEMPTS = 3
 
 
-def read_board_listing(board: Board) -> tuple[BoardRead, list[Job], float]:
+def read_board_listing(board: Board, robots: Robots | None = None) -> tuple[BoardRead, list[Job], float]:
     """Read one board's listing and filter by title only (phase 1).
 
     Descriptions are fetched separately in phase 2.  Blocking: run in a
     thread.  Returns ``(result, kept_jobs, boards_s)``."""
-    robots = Robots()
+    if robots is None:
+        robots = Robots()
     t0 = time.monotonic()
     result = read_board(board, robots)
     boards_s = time.monotonic() - t0
@@ -177,16 +178,17 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool 
 
     # 4. Claim, process and checkpoint boards in parallel.
     engine = conn.engine
+    robots = Robots()
 
     async def _spawn(i: int) -> None:
         async with engine.connect() as wconn:
-            await _board_worker(wconn, f"{worker_id}-{i}", summary)
+            await _board_worker(wconn, f"{worker_id}-{i}", summary, robots=robots)
 
     await asyncio.gather(*(_spawn(i) for i in range(workers)))
 
     # 5. Enrich descriptions for postings that need them.
     try:
-        await _fetch_descriptions(conn, summary)
+        await _fetch_descriptions(conn, summary, robots=robots)
     except Exception:
         await conn.rollback()
         logger.exception("Description enrichment failed; continuing to closures")
@@ -261,7 +263,7 @@ async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -
         summary["boards_failed"] += 1
 
 
-async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | None:
+async def _process_task(conn: AsyncConnection, task, summary: dict, *, robots: Robots | None = None) -> _Read | None:
     """Scrape one board. A board read whole comes back as a `_Read` for
     `run_cycle` to publish and checkpoint; any other outcome is recorded here
     and comes back as None."""
@@ -289,7 +291,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     await conn.commit()
 
     board = Board(schedule.ats, schedule.token, schedule.company)
-    result, jobs, boards_s = await asyncio.to_thread(read_board_listing, board)
+    result, jobs, boards_s = await asyncio.to_thread(read_board_listing, board, robots)
     if result.status is ReadStatus.MISSING:
         logger.info("Board %s/%s: not found", schedule.ats, schedule.token)
         await record_missing(conn, task.schedule_id)
@@ -357,7 +359,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     )
 
 
-async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) -> None:
+async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict, *, robots: Robots | None = None) -> None:
     """One worker: claim and process boards until none remain.
 
     Never raises: a broken connection logs and exits the loop so that
@@ -376,7 +378,7 @@ async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) ->
         if task is None:
             break
         try:
-            done = await _process_task(conn, task, summary)
+            done = await _process_task(conn, task, summary, robots=robots)
             if done is not None:
                 await _checkpoint_board(conn, done, summary)
         except Exception:
@@ -492,7 +494,7 @@ def _describe_one(row, robots: Robots) -> tuple[object, Job | None, str | None]:
         return row, None, str(exc)[:200]
 
 
-async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
+async def _fetch_descriptions(conn: AsyncConnection, summary: dict, *, robots: Robots | None = None) -> None:
     """Phase 2: fetch descriptions for postings that lack a current one.
 
     Queries job_sources for rows whose description_version is NULL or stale,
@@ -513,7 +515,8 @@ async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
         return
 
     logger.info("Phase 2: %d descriptions to fetch", len(rows))
-    robots = Robots()
+    if robots is None:
+        robots = Robots()
     loop = asyncio.get_running_loop()
     with concurrent.futures.ThreadPoolExecutor(max_workers=DESCRIPTION_WORKERS) as pool:
         results = await asyncio.gather(
