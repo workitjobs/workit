@@ -45,7 +45,7 @@ def test_stats_count_failed_requests_but_not_their_bytes(monkeypatch):
 
 
 def test_body_over_max_raises(monkeypatch):
-    big = b"x" * (web.MAX_BODY + 1)
-    monkeypatch.setattr(web._OPENER, "open", lambda req, *, timeout: _Response(big))
+    monkeypatch.setattr(web, "MAX_BODY", 100)
+    monkeypatch.setattr(web._OPENER, "open", lambda req, *, timeout: _Response(b"x" * 101))
     with pytest.raises(ValueError, match="exceeds"):
         web.get("https://boards.example.com/huge", timeout=3)
