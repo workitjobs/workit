@@ -23,7 +23,7 @@ LEASE_DURATION = timedelta(minutes=30)
 # Longest alternatives first so access_token wins over bare token.
 _CREDENTIAL_RE = re.compile(
     r"(access_token|refresh_token|api_key|authorization|password|secret|token)"
-    r"[=:]\s*\S+",
+    r"[=:]\s*[^\s&]+",
     re.IGNORECASE,
 )
 
