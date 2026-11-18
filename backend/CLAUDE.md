@@ -2092,6 +2092,19 @@ go then. A change needs to work on Cloudflare only.
   `load_bank`, and its `bank_section` has no `custom`, so once a student
   adds a custom entry, every sweep that reaches that bank fails and stale
   banks wait until the restart.
+- **`8bf848bb95e5` (`applicant_preferences.custom_roles`, KAN-270) went on
+  before the code that maps it** (applied to the shared database on
+  2026-11-17). The model selects the column on every preferences read and
+  write, so a database without it fails onboarding's Find Jobs, Settings'
+  Job Preferences, My Profile's preferences and the Jobs page's first
+  visit. It only adds a column with a default and a CHECK every row meets.
+  It sits on `57e574a6f597` (below).
+- **`57e574a6f597` renames `ai_ml_engineer` to "AI/ML Engineer"** (KAN-270,
+  applied to the shared database on 2026-11-17). It changes one
+  `job_roles.name` and no schema; the slug every preference, link, job tag
+  and the role resolver use stays. A database without it still shows "AI
+  Machine Learning Engineer", which wraps onto two lines on onboarding's
+  role tile.
 - **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
   it merges.** It only adds a JSONB column whose default `{}` is Jake's own
   page, and no code maps it yet, so it is safe for every deploy. The Format
