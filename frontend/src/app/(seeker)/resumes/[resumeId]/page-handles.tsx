@@ -32,6 +32,12 @@ import {
  * read them. The panel copied Jobright's side list, and teammates found the
  * editor too like it; the page is now the outline, and the panel optional.
  *
+ * The + means one thing where it shows: on a section heading it adds an
+ * entry ("Add Job"), on a bullet a bullet. An entry's own rows (title,
+ * organization, dates) take only the handle: a + there read as either, and
+ * the user found it made no sense (2026-11-18). Each button is 24px, the
+ * smallest target WCAG 2.2 allows.
+ *
  * A drag is the pointer's own (not HTML drag and drop): the drop line is
  * drawn on the page, snapped to the dragged block's siblings only (a bullet
  * within its entry, an entry within its section, a section between
@@ -240,16 +246,16 @@ export function OutlineLayer({
       {shown && shown.start.page === page && (
         <div
           data-keeps-selection
-          className="absolute z-20 flex -translate-x-full -translate-y-1 items-center"
+          className="absolute z-20 flex -translate-x-full -translate-y-[5px] items-center"
           style={{ left: pct(shown.x0 - 3, size.width), top: pct(shown.anchor, size.height) }}
         >
           {add && (
             <Tip label={`Add ${add.noun}`}>
               <button
                 type="button"
-                aria-label={`Add ${add.noun} after ${shown.label}`}
+                aria-label={`Add ${add.noun} ${shown.kind === "section" ? "to" : "after"} ${shown.label}`}
                 onClick={(event) => add.add(event.currentTarget)}
-                className="text-ink-meta hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring flex size-5 items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+                className="text-ink-meta hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
               >
                 <PlusIcon className="size-3.5" />
               </button>
@@ -259,7 +265,7 @@ export function OutlineLayer({
             type="button"
             aria-label={`Move ${shown.label}`}
             {...state.grip(shown)}
-            className="text-ink-meta hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring flex h-5 w-4 cursor-grab touch-none items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+            className="text-ink-meta hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring flex size-6 cursor-grab touch-none items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
           >
             <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
           </button>

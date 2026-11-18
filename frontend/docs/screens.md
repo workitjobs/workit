@@ -3845,10 +3845,13 @@ student who opened a resume from Experiences landed on another view.
     sit on one page (`sectionStrip`, `orderSwaps`; a section is a page
     setting, so across a page break it waits for its PDF). Near the
     window's top or foot the page scrolls under the drag.
-  - **The + adds one more after it**: a bullet row in its entry's form,
-    after that bullet (`newBulletAfter`), or a new entry in its section's
-    form, put after the hovered entry, or first from the heading's +
-    (`place`). Skills and a Lines section have no +.
+  - **The + means one thing where it shows**: on a bullet, a bullet row in
+    its entry's form, after that bullet (`newBulletAfter`); on a section
+    heading, a new entry in that section's form, put first in it (`place`).
+    An entry's own rows (title, organization, dates) take only the handle:
+    a + there read as either another entry or another bullet, which the
+    user found made no sense (2026-11-18). Skills and a Lines section have
+    no + yet. Each button is 24px, WCAG 2.2's smallest target.
   - **A press on the handle with no drag picks the block**, outlined in
     brand. The toolbar's middle then shows where it sits, as a breadcrumb
     ("Experience › Acme › Bullet 2", `Crumbs`), with Move Up and Move Down;

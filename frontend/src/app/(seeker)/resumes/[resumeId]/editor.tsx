@@ -2556,8 +2556,11 @@ export function Editor({
           ),
       };
     }
-    const sectionId = block.kind === "section" ? block.id : block.parent;
-    const section = printed.find((s) => s.id === sectionId);
+    // An entry's own rows (its title, organization, dates) take no +: one
+    // there read as either another entry or another bullet. A section's
+    // heading adds an entry, first in it; a bullet adds a bullet
+    if (block.kind === "entry") return null;
+    const section = printed.find((s) => s.id === block.id);
     if (!section?.addable) return null;
     return {
       noun: section.noun,
@@ -2566,7 +2569,7 @@ export function Editor({
           {
             target: null,
             ...sectionOf(section.id),
-            place: { after: block.kind === "entry" ? block.id : null },
+            place: { after: null },
           },
           opener,
         ),
