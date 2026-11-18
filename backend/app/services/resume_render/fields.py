@@ -136,20 +136,60 @@ def degree_leads(entry: ViewEntry, education_first: str) -> bool:
     return education_first == "degree" and entry.section == "education" and bool(_degree_line(entry))
 
 
-def heading(entry: ViewEntry, date_format: str = "short", education_first: str = "school") -> Heading:
+def company_leads(entry: ViewEntry, experience_first: str) -> bool:
+    '''Whether a job or a club role prints its company over its role
+    (`experience_first`, 2026-11-17): the company and its place on the top
+    row, the role and its dates under it. An entry with no company keeps
+    the role on top, or that row would print empty.'''
+    return (
+        experience_first == "company"
+        and entry.section in TWO_ROW
+        and entry.section != "education"
+        and bool(entry.organization)
+    )
+
+
+def tools_lead(entry: ViewEntry, project_tools: str) -> bool:
+    '''Whether an entry prints its tools after its name ("Gitlytics |
+    Python, Flask", `project_tools`, 2026-11-17), its context then on the
+    line under it. Only an entry with tools: one without keeps its context
+    after the name.'''
+    return (
+        project_tools == "after_name"
+        and entry.section not in TWO_ROW
+        and entry.section != "certifications"
+        and bool(entry.tools)
+    )
+
+
+def heading(
+    entry: ViewEntry,
+    date_format: str = "short",
+    education_first: str = "school",
+    experience_first: str = "role",
+    project_tools: str = "below",
+) -> Heading:
     when = dates(entry, date_format)
     if entry.section == "education":
         if degree_leads(entry, education_first):
             return Heading(_degree_line(entry), entry.location or "", entry.title, when)
         return Heading(entry.title, entry.location or "", _degree_line(entry), when)
     if entry.section in TWO_ROW:
+        if company_leads(entry, experience_first):
+            return Heading(entry.organization or "", entry.location or "", entry.title, when)
         return Heading(entry.title, when, entry.organization or "", entry.location or "")
+    # the link as the header prints one ("github.com/jd/robot"), not its
+    # whole address; the PDF makes it clickable (`jakes._entry`)
+    link = entry.link and link_text(entry.link)
     if entry.section == "certifications":
         tag = entry.issuer or entry.organization or ""
+    elif tools_lead(entry, project_tools):
+        return Heading(
+            entry.title, when, tag=" | ".join(x for x in (tools(entry), link) if x),
+            subtitle=entry.organization or "",
+        )
     else:  # projects, awards, and a custom section's entries (KAN-498)
-        # the link as the header prints one ("github.com/jd/robot"), not its
-        # whole address; the PDF makes it clickable (`jakes._entry`)
-        tag = " | ".join(x for x in (entry.organization, entry.link and link_text(entry.link)) if x)
+        tag = " | ".join(x for x in (entry.organization, link) if x)
     return Heading(entry.title, when, tag=tag, subtitle=tools(entry))
 
 
@@ -172,17 +212,39 @@ def tools(entry: ViewEntry) -> str:
     return ", ".join(entry.tools)
 
 
-def heading_fields(section: str, degree_first: bool = False) -> dict[str, str]:
+def heading_fields(
+    section: str, degree_first: bool = False, company_first: bool = False, tools_first: bool = False
+) -> dict[str, str]:
     '''Which entry field each of heading()'s slots shows, by slot name: the
     `kind` of the slot's click target in the editor (KAN-209). Education's
     subtitle is the degree line, which also names the school; `degree_first`
-    swaps the two rows (`degree_leads`).'''
+    swaps the two rows (`degree_leads`), `company_first` a job's
+    (`company_leads`), and `tools_first` a project's tools and context
+    (`tools_lead`).'''
     if section == "education":
         top, under = ("degree", "title") if degree_first else ("title", "degree")
         return {"title": top, "right": "location", "subtitle": under, "subright": "dates"}
     if section in TWO_ROW:
+        if company_first:
+            return {"title": "organization", "right": "location", "subtitle": "title", "subright": "dates"}
         return {"title": "title", "right": "dates", "subtitle": "organization", "subright": "location"}
+    if tools_first:
+        return {"title": "title", "tag": "tools", "right": "dates", "subtitle": "organization"}
     return {"title": "title", "tag": "organization", "right": "dates", "subtitle": "tools"}
+
+
+def page_heading(entry: ViewEntry, page) -> tuple[Heading, dict[str, str]]:
+    '''An entry's heading and its slots' kinds on this page: every layout
+    choice of the page's (`resume_render.PageSettings`) read in one place,
+    for the PDF and the Word file alike.'''
+    h = heading(entry, page.date_format, page.education_first, page.experience_first, page.project_tools)
+    kinds = heading_fields(
+        entry.section,
+        degree_leads(entry, page.education_first),
+        company_leads(entry, page.experience_first),
+        tools_lead(entry, page.project_tools),
+    )
+    return h, kinds
 
 
 def details(entry: ViewEntry) -> list[tuple[str, str]]:

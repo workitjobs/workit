@@ -20,7 +20,10 @@ moving at `/design-kit/motion`. The rules:
 - **Every control answers the pointer.** A button presses to 98%, an icon
   button or a calendar arrow to 90%, a segment or a chip to 96%, and a card
   that is one whole target lifts 2px onto `--shadow-lift` and settles on the
-  press (the welcome page's two choices are such cards). The presses live in
+  press (the welcome page's two choices are such cards). A `ChoiceCard`
+  (onboarding's resume question) does the same, and on a pick its check
+  badge pops (`animate-pop`) and its glyph bounces once (`animate-pick`,
+  no fade). The presses live in
   `ui/button.tsx`, `ui/icon-button.tsx`, `ui/segmented-control.tsx` and
   `ui/chip.tsx`, so a new control gets one by using them. A
   colour change eases rather than snaps, an underline fades in

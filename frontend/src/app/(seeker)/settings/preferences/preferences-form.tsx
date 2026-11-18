@@ -39,7 +39,10 @@ export function PreferencesForm({
 
   const changed = JSON.stringify(answers) !== JSON.stringify(saved);
   const complete =
-    answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0;
+    // A role the student typed counts as a role (2026-11-16).
+    answers.roles.length + answers.customRoles.length > 0 &&
+    answers.jobTypes.length > 0 &&
+    answers.workStyles.length > 0;
   useUnsavedChanges(changed);
 
   async function save() {

@@ -145,15 +145,17 @@ function DialogFooter({
   );
 }
 
-/** WorkIt's type: `text-subtitle`, 16px at 600, a block's name
- *  (docs/design.md, Type sizes), where shadcn's was 16px medium, a pairing
- *  nothing else uses; every dialog passed the token until KAN-820. Line
- *  height 1 keeps one line centred on the Close beside it. */
+/** WorkIt's type: `text-title`, 20px at 600 (2026-11-17). It was
+ *  `text-subtitle`, 16px, from KAN-820, and over onboarding's 40px question
+ *  the user found a dialog's title too small to lead it; every dialog took
+ *  the larger size, so they stay one size. shadcn's was 16px medium, a
+ *  pairing nothing else uses. `leading-tight`, not 1: a long title wraps
+ *  (`break-words` at some call sites), and at 20px lines set solid touched. */
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-heading text-subtitle leading-none", className)}
+      className={cn("font-heading text-title leading-tight", className)}
       {...props}
     />
   );

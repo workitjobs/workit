@@ -27,6 +27,10 @@ class BuiltResumeCreate(BaseModel):
 
     name: Name | None = None
     allow_duplicate: bool = False
+    # Start from scratch (2026-11-18, onboarding's build): the header alone,
+    # every bank entry and skill hidden (`services/built_resumes.blank_choices`),
+    # with no duplicate check.
+    blank: bool = False
 
 
 class BuiltResumeCopy(BaseModel):
@@ -181,6 +185,11 @@ class PageSettings(BaseModel):
     body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
     date_format: Literal["short", "long", "year", "numeric"] = "short"
     education_first: Literal["school", "degree"] = "school"
+    # A job's two rows, role over company or company over role, and where a
+    # project's tools print (2026-11-17; resume_render's EXPERIENCE_FIRST and
+    # PROJECT_TOOLS)
+    experience_first: Literal["role", "company"] = "role"
+    project_tools: Literal["below", "after_name"] = "below"
     # The header fields this resume leaves out (KAN-436, resume_render's
     # HEADER_FIELDS): checked off in the editor's Header panel
     hidden_header: list[HeaderField] = Field([], max_length=len(HEADER_FIELD_NAMES))

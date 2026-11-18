@@ -11,7 +11,10 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        "built_resume_id", "name"}} when the new resume would print the same
        as one the student has (KAN-267); nothing is written. With
        `allow_duplicate` (the student confirmed a copy, KAN-444) it skips
-       that check.
+       that check. With `blank` (2026-11-18, onboarding's "No, build one
+       for me") the resume starts from scratch: every bank entry and skill
+       gets a hidden choice row, so it prints its header alone, with no
+       duplicate check (`services/built_resumes.blank_choices`).
 POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
        The same Generate, streamed so the Resumes page can show its steps
        (KAN-444): `{"type": "phase", "phase": "checking"}` before the
@@ -255,7 +258,9 @@ async def generate(
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
     try:
-        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
+        resume = await service.generate(
+            session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate, blank=body.blank
+        )
     except service.DuplicateResume as exc:
         raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id), "name": exc.resume.name})
     default_id = await service.default_built_id(session, applicant_id)
@@ -301,7 +306,9 @@ async def _generated(
 ) -> AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]:
     """Generate's lines: each step as it starts, then `done` once the
     resume is committed, or `error` with what the JSON route answers."""
-    steps = service.generate_steps(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
+    steps = service.generate_steps(
+        session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate, blank=body.blank
+    )
     try:
         async for step in steps:
             if isinstance(step, Built_Resume):

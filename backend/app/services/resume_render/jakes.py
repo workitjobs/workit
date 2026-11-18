@@ -30,12 +30,10 @@ from app.services.resume_render.fields import (
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
-    degree_leads,
     details,
-    heading,
-    heading_fields,
     link_text,
     one_row,
+    page_heading,
     phone_text,
     skill_lines,
 )
@@ -152,16 +150,18 @@ def _fitted(measure: tuple[str, str, str, str], item: str, rows: Sequence[tuple[
 
 
 def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) -> list[str]:
-    h = heading(entry, page.date_format, page.education_first)
-    kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
+    h, kinds = page_heading(entry, page)
 
     def slot(name: str) -> str:
         text = getattr(h, name)
         latex = escape(text)
-        # A project's link is clickable, as the header's are
+        # A project's link is clickable, as the header's are, after what
+        # leads the tag: its context, or its tools on a page that puts them
+        # after the name (`tools_lead`)
         if name == "tag" and entry.link and entry.section not in TWO_ROW and entry.section != "certifications":
             shown = link_text(entry.link)
-            org = escape(entry.organization) + r" $|$ " if entry.organization else ""
+            lead = ", ".join(entry.tools) if kinds["tag"] == "tools" else entry.organization
+            org = escape(lead) + r" $|$ " if lead else ""
             latex = org + rf"\href{{{escape_url(entry.link)}}}{{\underline{{{escape(shown)}}}}}"
         return _marked(entry.id, kinds[name], latex, text, marks, printed)
 

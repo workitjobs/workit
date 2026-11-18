@@ -217,7 +217,15 @@ export type PrintedSection = {
   entries: PrintedEntry[];
   noun: string;
   addable: boolean;
+  /** Listed with nothing on the resume yet (`withEmpty`), for its Add. */
+  empty?: boolean;
 };
+
+/** The sections the Sections panel lists even when empty (2026-11-17), so a
+ *  resume with nothing in them still has their Add: a new resume, made in
+ *  onboarding with only its header, listed no section at all, and its
+ *  student had no way to add a first school. */
+const ALWAYS_LISTED = new Set(["education", "experience", "projects", "skills"]);
 
 // `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
 const SECTION_LABELS: Record<string, string> = {
@@ -233,21 +241,46 @@ const SECTION_LABELS: Record<string, string> = {
 /** What prints, section by section in `order` (`printedOrder`, so a
  *  custom section prints where the PDF puts it, KAN-498): the outline the
  *  Sections panel drags. A section with nothing on the resume is left out. */
-export function printedSections(bank: Bank, choices: Choices, order: string[]): PrintedSection[] {
+export function printedSections(
+  bank: Bank,
+  choices: Choices,
+  order: string[],
+  { withEmpty = false }: { withEmpty?: boolean } = {},
+): PrintedSection[] {
   const entry = (id: string) => choices.entries.find((c) => c.entry_id === id);
   const bullet = (id: string) => choices.bullets.find((c) => c.bullet_id === id);
   const custom = groupsOf(bank).filter((g) => g.custom);
   return printedOrder(order, custom).flatMap((id): PrintedSection[] => {
     if (id === "skills") {
       const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
-      return shown
-        ? [{ id, label: SECTION_LABELS[id], entries: [], noun: "Skill", addable: false }]
+      return shown || withEmpty
+        ? [
+            {
+              id,
+              label: SECTION_LABELS[id],
+              entries: [],
+              noun: "Skill",
+              addable: false,
+              ...(!shown && { empty: true }),
+            },
+          ]
         : [];
     }
     const entries = ordered(
       bank.entries.filter((e) => groupOf(bank, e) === id),
       entry,
     );
+    if (!entries.length && withEmpty && ALWAYS_LISTED.has(id))
+      return [
+        {
+          id,
+          label: SECTION_LABELS[id],
+          noun: NOUNS[id as keyof typeof NOUNS]?.[0] ?? "Entry",
+          addable: true,
+          entries: [],
+          empty: true,
+        },
+      ];
     if (!entries.length) return [];
     const group = custom.find((g) => g.id === id);
     return [

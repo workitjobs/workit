@@ -1,5 +1,6 @@
 import type {
   BankEntry,
+  EndKind,
   EntryFields,
   EntrySection,
   Section,
@@ -23,10 +24,26 @@ export const SECTIONS: readonly {
   label: string;
   title: string;
   organization: string;
+  /** The organization box's placeholder, where its label alone doesn't say
+   *  what goes there. */
+  organizationHint?: string;
 }[] = [
   { id: "education", label: "Education", title: "School", organization: "College or Department" },
   { id: "experience", label: "Work Experience", title: "Job Title", organization: "Company" },
-  { id: "projects", label: "Projects", title: "Project Name", organization: "Team or Course" },
+  // A project's second field is its context: a course, a hackathon, a few
+  // words on what it is (2026-11-17). Named by what it means, never where it
+  // prints, since the resume's Format moves it (after the name, or under it
+  // once the tools take that place), with general kinds of answer as its
+  // hint, never one example: "Team or Course" named one use, "After the
+  // Name" broke once tools could print there, and a specific example read
+  // as the only right answer.
+  {
+    id: "projects",
+    label: "Projects",
+    title: "Project Name",
+    organization: "Context",
+    organizationHint: "Course, hackathon or personal project",
+  },
   {
     id: "leadership",
     label: "Leadership & Activities",
@@ -151,6 +168,19 @@ export type EntryDraft<S extends EntrySection = EntrySection> = EntryFields<S> &
    *  resume leaves out; the bank keeps it. */
   bullets: { id?: string; text: string; off?: boolean }[];
 };
+
+/** A school's Graduation Date (2026-11-17): one month and year, as a
+ *  student thinks of it, in place of End's four kinds. A month after `today`
+ *  ("yyyy-MM") is Expected, this month or before is Ended, and no month is
+ *  no end. A school still "Present" from an import keeps its kind until the
+ *  student picks a date. */
+export function graduationEnd(
+  month: string,
+  today: string,
+): { end_kind: EndKind | null; end_month: string | null } {
+  if (month === "") return { end_kind: null, end_month: null };
+  return { end_kind: month > today ? "expected" : "month", end_month: month };
+}
 
 /** A draft as the API takes it: no empty bullet box, which makes the API
  *  refuse the whole entry, and no end month on an entry that runs to

@@ -86,7 +86,7 @@ export default function TypePage() {
 
       <Group
         title="shadcn Sizes"
-        note="What a vendored component's stock size resolves to. Bound in globals.css rather than restyled per component, the same way its colour roles are, so a menu row moves with --text-body. Its rows are medium, set there too by data-slot. A stock title was 16px medium, a pairing the scale has no token for, so the forked DialogTitle and SheetTitle are text-subtitle themselves, the size and weight of an empty state's heading, and no call site passes a size."
+        note="What a vendored component's stock size resolves to. Bound in globals.css rather than restyled per component, the same way its colour roles are, so a menu row moves with --text-body. Its rows are medium, set there too by data-slot. A stock title was 16px medium, a pairing the scale has no token for, so the forked DialogTitle is text-title (20px, from 2026-11-17: 16px was too small to lead a dialog) and SheetTitle text-subtitle, and no call site passes a size."
       >
         {SHADCN_SIZES.map(({ token, cls, role }) => (
           <Row key={token} name={token} role={role}>

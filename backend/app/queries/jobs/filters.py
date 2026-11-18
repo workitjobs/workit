@@ -133,6 +133,11 @@ class JobFilters:
     # The job_roles slugs the Role filter asked for; none means every role. A
     # job matches when it is tagged with any of them (job_role_tags).
     roles: Sequence[str] = ()
+    # The roles the student typed that job_roles lacks (?custom_role=, as
+    # raw_words reads them): a job matches when its title says one, its words
+    # in order (title_says). Any of these or of `roles` keeps a job: they are
+    # one Role filter.
+    custom_roles: Sequence[Sequence[str]] = ()
     levels: Sequence[str] = ()
     # "internship" is a job type of its own (KAN-233).
     job_types: Sequence[str] = ()
@@ -301,8 +306,13 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(offered_in(filters.places))
     if filters.work_styles:
         clauses.append(Job_Post.work_style.in_(filters.work_styles))
-    if filters.roles:
-        clauses.append(tagged_with(filters.roles))
+    # One Role filter, any of: a picked role's tag, or a custom role's words
+    # in the title (2026-11-16). A custom role has no tag, since no job_roles
+    # row names it, so the title is all there is to match.
+    either = [tagged_with(filters.roles)] if filters.roles else []
+    either += [title_says([words]) for words in filters.custom_roles if words]
+    if either:
+        clauses.append(or_(*either))
     if filters.levels:
         clauses.append(Job_Post.experience_level.in_(filter_levels(filters.levels)))
     if filters.job_types:

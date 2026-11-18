@@ -51,6 +51,10 @@ class Applicant_Preferences(BaseModel):
     levels: Mapped[list[str]] = _list_column()          # ["student", "new_grad"]
     job_types: Mapped[list[str]] = _list_column()       # ["full_time", "internship"]
     start_terms: Mapped[list[str]] = _list_column()     # ["summer-2027"]
+    # Roles the student typed that job_roles lacks ("UX Researcher"): text,
+    # not rows with a foreign key like the picked roles, since no job_roles
+    # row exists for them (2026-11-16, migration 8bf848bb95e5).
+    custom_roles: Mapped[list[str]] = _list_column()
     # A pay range in US dollars per pay_per, either end open; stored as
     # entered so the form shows it back as typed.
     min_pay: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
@@ -74,6 +78,10 @@ class Applicant_Preferences(BaseModel):
         # The same caps GET /jobs puts on its query.
         CheckConstraint(
             "cardinality(start_terms) <= 12", name="applicant_preferences_start_terms_cap"
+        ),
+        # schemas/jobs.py's MAX_CUSTOM_ROLES.
+        CheckConstraint(
+            "cardinality(custom_roles) <= 5", name="applicant_preferences_custom_roles_cap"
         ),
         CheckConstraint(
             "min_pay IS NULL OR min_pay > 0", name="applicant_preferences_min_pay"

@@ -52,11 +52,26 @@ export const LINKS = [
 export function LocationField({
   value,
   onChange,
+  labelledBy,
 }: {
   value: string | null;
   onChange: (next: string) => void;
+  /** The page's own question, which names the box: its page asks only this
+   *  (2026-11-17), so it draws no heading of its own. */
+  labelledBy?: string;
 }) {
   const id = fieldId("Location");
+  if (labelledBy)
+    return (
+      <TextInput
+        size="lg"
+        aria-labelledby={labelledBy}
+        placeholder="Stony Brook, NY"
+        maxLength={100}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
   return (
     <Field Icon={PinIcon} label="Location" hint="Where you live, as forms ask it: city and state.">
       {/* Named by the question's heading, so the bare box: a typed answer at
@@ -78,43 +93,50 @@ export function LinkFields({
   contact,
   onChange,
   invalid,
+  bare = false,
 }: {
   contact: Contact;
   onChange: (change: Partial<Contact>) => void;
   /** The links that are not web addresses, from the last Finish. */
   invalid: ReadonlySet<keyof Contact>;
+  /** Without the Links heading: its page asks only this (2026-11-17). */
+  bare?: boolean;
 }) {
+  const fields = (
+    <div className="flex flex-col gap-4">
+      {LINKS.map(({ key, label, Icon, placeholder }) => {
+        const id = `onboarding-${key}`;
+        const bad = invalid.has(key);
+        return (
+          <div key={key} className="flex flex-col gap-1.5">
+            <TextField
+              id={id}
+              label={label}
+              labelIcon={Icon}
+              size="lg"
+              type="text"
+              inputMode="url"
+              placeholder={placeholder}
+              maxLength={500}
+              value={contact[key] ?? ""}
+              onChange={(event) => onChange({ [key]: event.target.value })}
+              aria-invalid={bad || undefined}
+              aria-describedby={bad ? `${id}-error` : undefined}
+            />
+            {bad && (
+              <p id={`${id}-error`} role="alert" className="text-body text-danger">
+                Enter a web address, such as {placeholder}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+  if (bare) return fields;
   return (
     <Field Icon={OtherLinkGlyph} label="Links" hint="Forms ask for these by name.">
-      <div className="flex flex-col gap-4">
-        {LINKS.map(({ key, label, Icon, placeholder }) => {
-          const id = `onboarding-${key}`;
-          const bad = invalid.has(key);
-          return (
-            <div key={key} className="flex flex-col gap-1.5">
-              <TextField
-                id={id}
-                label={label}
-                labelIcon={Icon}
-                size="lg"
-                type="text"
-                inputMode="url"
-                placeholder={placeholder}
-                maxLength={500}
-                value={contact[key] ?? ""}
-                onChange={(event) => onChange({ [key]: event.target.value })}
-                aria-invalid={bad || undefined}
-                aria-describedby={bad ? `${id}-error` : undefined}
-              />
-              {bad && (
-                <p id={`${id}-error`} role="alert" className="text-body text-danger">
-                  Enter a web address, such as {placeholder}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {fields}
     </Field>
   );
 }

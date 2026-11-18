@@ -214,6 +214,10 @@ export type SegmentedToggleOption = {
   /** Draws the option as this glyph alone, sized by the caller (`size-4`);
    *  `label` is then its tooltip and, as text, its accessible name. */
   icon?: ReactNode;
+  /** Greyed and not pressable (onboarding's Pay: Yearly for an
+   *  internship). The caller says why near the control, since a disabled
+   *  option shows no tooltip. */
+  disabled?: boolean;
 };
 
 export function SegmentedToggle({
@@ -253,8 +257,12 @@ export function SegmentedToggle({
           <Toggle
             key={option.value}
             value={option.value}
+            disabled={option.disabled}
             aria-label={option.icon ? String(option.label) : option.ariaLabel}
-            className={itemClass(size, option.value === value, Boolean(option.icon))}
+            className={cn(
+              itemClass(size, option.value === value, Boolean(option.icon)),
+              "disabled:hover:text-ink-meta disabled:cursor-not-allowed disabled:opacity-40",
+            )}
           >
             {option.icon ?? option.label}
           </Toggle>

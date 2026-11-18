@@ -31,6 +31,10 @@ export type FeedFilters = {
   /** `job_roles` slugs ("software_engineer"), any of them; none is every
    *  role. */
   roles: string[];
+  /** Roles the student typed that the Role filter doesn't list ("UX
+   *  Researcher", 2026-11-16), as typed: the API finds each in job titles.
+   *  One Role filter with `roles`: a job matching either is kept. */
+  customRoles: string[];
   levels: Level[];
   jobTypes: JobTypeKey[];
   /** 1, 7 or 30 from the row; null for any time. */
@@ -54,6 +58,7 @@ export const NO_FILTERS: FeedFilters = {
   places: [],
   workStyles: [],
   roles: [],
+  customRoles: [],
   levels: [],
   jobTypes: [],
   postedWithin: null,
@@ -122,13 +127,24 @@ export function statesNarrowCountries(filters: FeedFilters): FeedFilters {
   };
 }
 
-/** Which pay units a salary filter offers for these job types: hourly when
- *  only internships are wanted, yearly when none are, both otherwise. Shared
- *  by All Filters and onboarding. */
+/** How each job type is usually paid: internships and part-time jobs by the
+ *  hour, full-time jobs by the year, contracts either way. */
+const PAID_BY: Record<JobTypeKey, PayPer[]> = {
+  internship: ["hour"],
+  part_time: ["hour"],
+  contract: ["hour", "year"],
+  full_time: ["year"],
+};
+
+/** Which pay units a salary filter offers for these job types: every unit
+ *  any of them is paid in (PAID_BY), hourly first, and both when none is
+ *  picked. Shared by All Filters, Settings and onboarding, whose Pay page
+ *  greys out the other unit. Until 2026-11-17 only internships were hourly,
+ *  so Part-Time and Contract offered a yearly salary alone. */
 export function payUnits(jobTypes: readonly JobTypeKey[]): PayPer[] {
-  const interns = jobTypes.includes("internship");
-  if (interns && jobTypes.length === 1) return ["hour"];
-  return interns || jobTypes.length === 0 ? ["hour", "year"] : ["year"];
+  if (jobTypes.length === 0) return ["hour", "year"];
+  const paid = new Set(jobTypes.flatMap((t) => PAID_BY[t]));
+  return (["hour", "year"] as const).filter((unit) => paid.has(unit));
 }
 
 /** Internship first: the pick a student makes, now that Job Type is the one
@@ -175,6 +191,7 @@ export const FILTER_KEYS = [
   "location",
   "work_style",
   "role",
+  "custom_role",
   "experience",
   "job_type",
   "posted_within",
@@ -193,6 +210,71 @@ const MAX_PAY = 10_000_000;
 /** The API's shape and limit for ?start_term= (routers/jobs.py SeasonKey). */
 const SEASON = /^((winter|spring|summer|fall)-)?20[0-9]{2}$/;
 const MAX_SEASONS = 12;
+/** The API's limits for ?custom_role= (backend schemas/jobs.py CustomRole,
+ *  MAX_CUSTOM_ROLES): 2 to 60 characters holding a letter or digit, 5 at
+ *  most. */
+export const MAX_CUSTOM_ROLES = 5;
+const CUSTOM_ROLE_LENGTH = 60;
+
+/** Typed roles as the API takes them: trimmed, its shape only, each once
+ *  ignoring case (the first spelling kept), and no more than its cap. */
+export function tidyCustomRoles(typed: string[]): string[] {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const raw of typed) {
+    const role = raw.trim();
+    const key = role.toLowerCase();
+    if (role.length < 2 || role.length > CUSTOM_ROLE_LENGTH || !/[A-Za-z0-9]/.test(role)) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(role);
+  }
+  return kept.slice(0, MAX_CUSTOM_ROLES);
+}
+
+/** A custom role among a Role picker's values: the pickers hold one list of
+ *  values, so a typed role rides in it as "custom:<text>" beside the slugs
+ *  (a slug never holds a colon), and `splitRoleValues` takes it back out. */
+const CUSTOM = "custom:";
+
+/** The Role picker's values for these filters: the picked slugs, then each
+ *  custom role. */
+export function roleValues(filters: Pick<FeedFilters, "roles" | "customRoles">): string[] {
+  return [...filters.roles, ...filters.customRoles.map((r) => CUSTOM + r)];
+}
+
+/** The Role picker's options: the custom roles first, so a typed role is
+ *  in view when the list opens, then the listed roles. */
+export function roleOptions<O extends { value: string; label: string }>(
+  options: O[],
+  customRoles: string[],
+): (O | { value: string; label: string })[] {
+  return [...customRoles.map((r) => ({ value: CUSTOM + r, label: r })), ...options];
+}
+
+/** A Role picker's "Add" row (SearchPicker's `create`), for every picker
+ *  that offers roles: the typed role joins `customRoles`. None once the cap
+ *  is reached, so the row never offers what the API would refuse. */
+export function addCustomRole(
+  customRoles: string[],
+  onAdd: (customRoles: string[]) => void,
+): { label: (typed: string) => string; onCreate: (typed: string) => void } | undefined {
+  if (customRoles.length >= MAX_CUSTOM_ROLES) return undefined;
+  return {
+    label: (typed) => `Add “${typed}” as your own role`,
+    onCreate: (typed) => onAdd(tidyCustomRoles([...customRoles, typed])),
+  };
+}
+
+/** A Role picker's values back as filters. */
+export function splitRoleValues(values: string[]): Pick<FeedFilters, "roles" | "customRoles"> {
+  return {
+    roles: values.filter((v) => !v.startsWith(CUSTOM)),
+    customRoles: tidyCustomRoles(
+      values.filter((v) => v.startsWith(CUSTOM)).map((v) => v.slice(CUSTOM.length)),
+    ),
+  };
+}
 
 type Params = Record<string, string | string[] | undefined>;
 
@@ -236,6 +318,7 @@ export function readFilters(params: Params): FeedFilters {
     places: [...new Set(all(params.location).filter((p) => PLACE.test(p)))].slice(0, MAX_PLACES),
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
     roles: [...new Set(all(params.role).filter((r) => ROLE.test(r)))].slice(0, MAX_ROLES),
+    customRoles: tidyCustomRoles(all(params.custom_role)),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
     jobTypes: withLegacyStudent(params, pick(params.job_type, JOB_TYPE_OPTIONS)),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
@@ -258,6 +341,7 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
     ...filters.places.map((p): [string, string] => ["location", p]),
     ...filters.workStyles.map((w): [string, string] => ["work_style", w]),
     ...filters.roles.map((r): [string, string] => ["role", r]),
+    ...filters.customRoles.map((r): [string, string] => ["custom_role", r]),
     ...filters.levels.map((l): [string, string] => ["experience", l]),
     ...filters.jobTypes.map((t): [string, string] => ["job_type", t]),
     ...(filters.postedWithin != null
@@ -284,6 +368,10 @@ export type SavedPreferences = {
   location: string[];
   work_style: string[];
   role: string[];
+  /** Absent when none: the API before 2026-11-16 refuses a key it does not
+   *  know (`extra="forbid"`), so a web deployed ahead of it could still save
+   *  every set of preferences without a typed role. Absent reads as none. */
+  custom_role?: string[];
   experience: string[];
   job_type: string[];
   min_pay: number | null;
@@ -303,6 +391,7 @@ export function preferencesBody(filters: FeedFilters): SavedPreferences {
     location: filters.places,
     work_style: filters.workStyles,
     role: filters.roles,
+    ...(filters.customRoles.length ? { custom_role: filters.customRoles } : {}),
     experience: filters.levels,
     job_type: filters.jobTypes,
     min_pay: cents(filters.minPay),
@@ -398,7 +487,8 @@ export function facetsOn(filters: FeedFilters): number {
   return [
     f.places.length,
     f.workStyles.length,
-    f.roles.length,
+    // One Role filter, whether picked or typed.
+    f.roles.length + f.customRoles.length,
     f.levels.length,
     f.jobTypes.length,
     f.postedWithin != null,

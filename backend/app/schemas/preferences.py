@@ -16,7 +16,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, model_validator
 
 from app.models import dto
-from app.schemas.jobs import JobTypeKey, PlaceCode, RoleSlug, SeasonKey
+from app.schemas.jobs import (
+    MAX_CUSTOM_ROLES,
+    CustomRole,
+    JobTypeKey,
+    PlaceCode,
+    RoleSlug,
+    SeasonKey,
+)
 
 # Above any posting's pay, as GET /jobs caps ?min_pay=.
 _MAX_PAY = 10_000_000
@@ -35,6 +42,9 @@ class JobPreferences(BaseModel):
     location: list[PlaceCode] = Field(default_factory=list, max_length=60)
     work_style: list[dto.work_style] = Field(default_factory=list, max_length=3)
     role: list[RoleSlug] = Field(default_factory=list, max_length=60)
+    # Roles the student typed that `role` can't hold (2026-11-16): any of
+    # these or of `role` keeps a job, as GET /jobs' ?custom_role= does.
+    custom_role: list[CustomRole] = Field(default_factory=list, max_length=MAX_CUSTOM_ROLES)
     experience: list[Literal["student", "new_grad", "experienced"]] = Field(
         default_factory=list, max_length=3
     )
@@ -51,6 +61,15 @@ class JobPreferences(BaseModel):
         # range meant, as read_filters reads it.
         for name in ("location", "work_style", "role", "experience", "job_type", "start_term"):
             setattr(self, name, list(dict.fromkeys(getattr(self, name))))
+        # A custom role once, ignoring case: "UX Researcher" and "ux
+        # researcher" find the same titles. The first spelling is kept.
+        seen: set[str] = set()
+        kept: list[str] = []
+        for typed in self.custom_role:
+            if typed.casefold() not in seen:
+                seen.add(typed.casefold())
+                kept.append(typed)
+        self.custom_role = kept
         if self.min_pay is not None and self.max_pay is not None and self.min_pay > self.max_pay:
             self.min_pay, self.max_pay = self.max_pay, self.min_pay
         return self

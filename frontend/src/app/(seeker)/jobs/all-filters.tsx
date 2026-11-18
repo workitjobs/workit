@@ -26,6 +26,7 @@ import { OptionChip as Chip, SalaryPicker, SearchPicker } from "@/components/fil
 
 import { countJobs } from "./actions";
 import {
+  addCustomRole,
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
   feedQuery,
@@ -33,7 +34,10 @@ import {
   NO_FILTERS,
   PAY_OPTIONS,
   payUnits,
+  roleOptions,
+  roleValues,
   seasonLabel,
+  splitRoleValues,
   statesNarrowCountries,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
@@ -156,13 +160,16 @@ function PanelBody({
           label="Roles"
           placeholder="Search a role"
           empty="No role by that name."
-          options={facetOptions.role.map((o) => ({
-            value: o.value,
-            label: o.label,
-            nested: false,
-          }))}
-          values={draft.roles}
-          onChange={(next) => set({ roles: next })}
+          // The student's own typed roles ride beside the listed ones
+          // (filter-query's roleValues), and a role the list lacks can be
+          // added from the search (2026-11-16).
+          options={roleOptions(
+            facetOptions.role.map((o) => ({ value: o.value, label: o.label, nested: false })),
+            draft.customRoles,
+          )}
+          values={roleValues(draft)}
+          onChange={(next) => set(splitRoleValues(next))}
+          create={addCustomRole(draft.customRoles, (customRoles) => set({ customRoles }))}
         />
       </FilterSection>
 

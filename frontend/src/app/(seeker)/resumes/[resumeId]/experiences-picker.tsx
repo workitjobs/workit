@@ -87,16 +87,20 @@ export function ExperiencesPicker({
   bank,
   choices,
   onApply,
+  opened = [],
 }: {
   bank: Bank;
   choices: Choices;
   onApply: (changes: ChoicesUpdate) => void;
+  /** Groups open from the start: the walkthrough's practice examples
+   *  (./walkthrough.tsx), where folded groups hid what to tick. */
+  opened?: string[];
 }) {
   const [resume, setResume] = useState<Pick>(ALL);
   const [groups, setGroups] = useState<string[]>([]);
   const [choosing, setChoosing] = useState(false);
   // The groups the student pressed: open, or closed where narrowing opened them
-  const [pressed, setPressed] = useState<string[]>([]);
+  const [pressed, setPressed] = useState<string[]>(opened);
   const narrowed = resume !== ALL || groups.length > 0;
 
   const allEntries = pickerEntries(bank, choices);
