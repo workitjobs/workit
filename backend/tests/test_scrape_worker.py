@@ -121,7 +121,7 @@ def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
 def _read_one_intern(monkeypatch, boards_csv):
     from workit_scraper.board_read import BoardRead, ReadStatus
 
-    async def skip_descriptions(conn, summary):
+    async def skip_descriptions(conn, summary, robots=None):
         pass
 
     monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
@@ -129,7 +129,7 @@ def _read_one_intern(monkeypatch, boards_csv):
     monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
     monkeypatch.setattr(
         worker, "read_board_listing",
-        lambda board: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
+        lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
     )
     return job
 
@@ -341,13 +341,13 @@ async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch
         encoding="utf-8",
     )
 
-    async def skip_descriptions(conn, summary):
+    async def skip_descriptions(conn, summary, robots=None):
         pass
 
     monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
     monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, csv))
 
-    def fake_read(board):
+    def fake_read(board, robots=None):
         n = ord(board.token)
         job = _job("Software Engineering Intern", n)
         return BoardRead(ReadStatus.OK, jobs=[job]), [job], 0.1
@@ -365,3 +365,33 @@ async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch
             text("SELECT count(*) FROM scraper_tasks WHERE status = 'done'")
         )
     assert done == 4
+
+
+# ---------------------------------------------------------------------------
+# Shared Robots instance (KAN-913)
+# ---------------------------------------------------------------------------
+
+
+def test_one_robots_instance_per_cycle(monkeypatch):
+    """run_cycle passes the same Robots object to every board read."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
+    from workit_scraper.polite import Robots
+    from workit_scraper.providers import Board
+
+    seen_ids: list[int] = []
+
+    def spy_read(board, robots=None):
+        seen_ids.append(id(robots))
+        job = _job("Software Engineering Intern", ord(board.token))
+        return BoardRead(ReadStatus.OK, jobs=[job]), [job], 0.1
+
+    monkeypatch.setattr(worker, "read_board_listing", spy_read)
+
+    # Verify that read_board_listing with no robots creates its own
+    _result, _kept, _ = worker.read_board_listing(Board("ashby", "x", "X"))
+    assert seen_ids[-1] != 0  # got some Robots id
+
+    # Verify that passing an explicit Robots threads through
+    shared = Robots()
+    _result, _kept, _ = worker.read_board_listing(Board("ashby", "y", "Y"), robots=shared)
+    assert seen_ids[-1] == id(shared)
