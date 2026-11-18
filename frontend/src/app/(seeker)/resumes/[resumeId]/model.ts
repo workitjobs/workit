@@ -203,6 +203,55 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
+/** The PATCH that puts a bullet or an entry at `to` among its shown
+ *  siblings (KAN-920, a drag on the page), renumbering them all as `move`
+ *  does; null when it stays where it is or is not shown. */
+export function moveTo(
+  bank: Bank,
+  choices: Choices,
+  kind: "bullet" | "entry",
+  id: string,
+  to: number,
+): ChoicesUpdate | null {
+  const entry =
+    kind === "bullet"
+      ? bank.entries.find((e) => e.bullets.some((b) => b.id === id))
+      : bank.entries.find((e) => e.id === id);
+  if (!entry) return null;
+  const siblings =
+    kind === "bullet"
+      ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+      : ordered(
+          bank.entries.filter((e) => groupOf(bank, e) === groupOf(bank, entry)),
+          (e) => choices.entries.find((c) => c.entry_id === e),
+        );
+  const from = siblings.findIndex((s) => s.id === id);
+  if (from < 0 || to === from || to < 0 || to >= siblings.length) return null;
+  const order = moveItem(
+    siblings.map((s) => s.id),
+    from,
+    to,
+  );
+  return kind === "bullet"
+    ? { bullets: order.map((bullet_id, position) => ({ bullet_id, position })) }
+    : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
+}
+
+/** The page's section order once the printed section at `from` moves to
+ *  `to` (the Sections panel's drag, and the page's, KAN-920). Only the
+ *  sections that print move; the rest keep their places after them, so a
+ *  section the student adds later lands in its usual spot, and a custom
+ *  section that no longer prints leaves the order (KAN-498). */
+export function sectionOrderAfter(
+  printed: string[],
+  order: string[],
+  from: number,
+  to: number,
+): string[] {
+  const moved = moveItem(printed, from, to);
+  return [...moved, ...order.filter((id) => !moved.includes(id) && !id.startsWith("custom:"))];
+}
+
 export type PrintedEntry = {
   id: string;
   title: string;
@@ -483,7 +532,25 @@ export function withWording(
 /** Two neighbours a change swaps: an entry within its section, or a
  *  bullet within its entry, `a` the one above before the change. The page
  *  shows the swap at once (KAN-391). */
-export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
+export type Swap = { kind: "entry" | "bullet" | "section"; a: string; b: string };
+
+/** A reorder as neighbour swaps in order, each against the order after the
+ *  ones before it (a bubble sort); empty when the two lists do not hold the
+ *  same ids, or nothing moves. */
+export function orderSwaps(kind: Swap["kind"], before: string[], after: string[]): Swap[] {
+  const want = new Map(after.map((id, i) => [id, i]));
+  if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
+  const now = [...before];
+  const out: Swap[] = [];
+  for (let end = now.length - 1; end > 0; end--) {
+    for (let i = 0; i < end; i++) {
+      if (want.get(now[i])! < want.get(now[i + 1])!) continue;
+      out.push({ kind, a: now[i], b: now[i + 1] });
+      [now[i], now[i + 1]] = [now[i + 1], now[i]];
+    }
+  }
+  return out;
+}
 
 /** Any reorder of one entry's bullets, or of one section's entries, as
  *  neighbour swaps in order, each against the order after the ones before
@@ -495,20 +562,7 @@ export function swapsOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): S
     list &&
     list.length >= 2 &&
     list.every((c) => Object.keys(c).length === 2 && c.position != null);
-  const steps = (kind: Swap["kind"], before: string[], after: string[]): Swap[] => {
-    const want = new Map(after.map((id, i) => [id, i]));
-    if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
-    const now = [...before];
-    const out: Swap[] = [];
-    for (let end = now.length - 1; end > 0; end--) {
-      for (let i = 0; i < end; i++) {
-        if (want.get(now[i])! < want.get(now[i + 1])!) continue;
-        out.push({ kind, a: now[i], b: now[i + 1] });
-        [now[i], now[i + 1]] = [now[i + 1], now[i]];
-      }
-    }
-    return out;
-  };
+  const steps = orderSwaps;
   if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
     const ids = changes.bullets!.map((c) => c.bullet_id);
     const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));

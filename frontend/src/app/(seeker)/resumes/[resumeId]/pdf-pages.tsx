@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { OutlineLayer, usePageOutline, type PageOutline } from "./page-handles";
 import type { Mark } from "./tailor-review";
 import { Tip } from "@/components/ui/tip";
 
@@ -132,6 +133,7 @@ export function loadPdfjs() {
 
 /** A Letter page's proportions, in points: 8.5 by 11 inches. */
 const LETTER = "612 / 792";
+const NO_SIZES: Size[] = [];
 
 /**
  * A page's place while the PDF is on its way: the page's own box (white,
@@ -181,6 +183,7 @@ export function PdfPages({
   focus,
   dots,
   onDot,
+  outline,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -221,6 +224,9 @@ export function PdfPages({
   /** Tailor's margin dots, by box key, and what a click on one does. */
   dots?: Map<string, Dot>;
   onDot?: (key: string) => void;
+  /** The page's own handles (KAN-920, ./page-handles.tsx): drag and add
+   *  sections, entries and bullets where they print. */
+  outline?: PageOutline;
 }) {
   const [doc, setDoc] = useState<{
     pdf: PDFDocumentProxy;
@@ -253,6 +259,15 @@ export function PdfPages({
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
     );
+  // The page as sections, entries and bullets, where they show now
+  const blocks = outline && !readOnly ? outline.blocksOf(shown) : [];
+  const pageFrames = useRef<(HTMLDivElement | null)[]>([]);
+  const handles = usePageOutline({
+    outline: readOnly ? undefined : outline,
+    blocks,
+    pages: pageFrames,
+    sizes: doc?.sizes ?? NO_SIZES,
+  });
   const [failed, setFailed] = useState(false);
   const painted = useRef(new Set<number>());
   const drawn = useRef(onDrawn);
@@ -309,10 +324,18 @@ export function PdfPages({
   if (!doc) return placeholder ?? <p className="text-body text-ink-meta">Drawing the PDF…</p>;
 
   return (
-    <div ref={frame} className="flex flex-col gap-4">
+    <div
+      ref={frame}
+      className="flex flex-col gap-4"
+      onPointerMove={handles.onPointerMove}
+      onPointerLeave={handles.onPointerLeave}
+    >
       {doc.sizes.map((size, i) => (
         <div
           key={i}
+          ref={(node) => {
+            pageFrames.current[i] = node;
+          }}
           className={cn(
             "bg-panel border-border-subtle @container relative w-full border shadow-sm",
             // A popup at a page's foot runs over the next page, not under it
@@ -370,6 +393,15 @@ export function PdfPages({
               );
             })}
           {dots && <MarginDots boxes={shown} page={i + 1} size={size} dots={dots} onDot={onDot} />}
+          {outline && !readOnly && (
+            <OutlineLayer
+              outline={outline}
+              blocks={blocks}
+              page={i + 1}
+              size={size}
+              state={handles}
+            />
+          )}
           {popupBox?.page === i + 1 && (
             <LinePopup
               key={popup?.line}

@@ -77,6 +77,10 @@ import {
   NO_CUTS,
   mergeChoices,
   move,
+  moveTo,
+  orderSwaps,
+  printedSections,
+  sectionOrderAfter,
   withWording,
   swapsOf,
   typed,
@@ -87,6 +91,8 @@ import {
 } from "./model";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import { OutlineEntryDialog } from "./outline-entry";
+import type { PageOutline } from "./page-handles";
+import { outlineOf, sectionStrip, type BlockKind, type OutlineBlock } from "./page-outline";
 import {
   afterStrips,
   boxKey,
@@ -118,6 +124,7 @@ import {
   type HistoryTools,
   type LineHandlers,
   type MoveTools,
+  type Crumb,
   PanelTabs,
   type PanelTab,
   type Side,
@@ -444,6 +451,9 @@ type Printed = Pick<ResumeCopy, "identity" | "template" | "file_name">;
  *  last PDF printed (KAN-391). An Undo step keeps one on each side. */
 type Held = { bank: Bank; choices: Choices; printed: Printed | null };
 
+/** A block picked as a whole (KAN-920, ./page-outline.ts). */
+type Picked = { kind: BlockKind; id: string };
+
 /** A choice change whose compile was skipped for the one after it
  *  (KAN-919): its id, its changes, the lines drawn over the page for it and
  *  its step, all answered by the render that carries it. */
@@ -601,6 +611,8 @@ export function Editor({
   // three PDFs in a row. What a skipped change left for the next one
   // (`Carried`), and whether the last change skipped (its PDF is no step's)
   const choiceJobs = useRef(new Set<number>());
+  // The section moves of skipped page compiles, drawn until a page lands
+  const carriedPages = useRef<string[]>([]);
   const carried = useRef<Carried[]>([]);
   const skippedChoice = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
@@ -611,6 +623,10 @@ export function Editor({
   // entries and bullets each change hides, by change id
   const [hides, setHides] = useState<{ id: string; items: string[] }[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  // The block picked from its handle on the page or the breadcrumb (KAN-920):
+  // a section, an entry or a bullet as a whole, which Option with an arrow
+  // moves and Esc climbs from. A line opened for typing clears it
+  const [picked, setPicked] = useState<Picked | null>(null);
   // Typed text by box key (KAN-391): the selected line's, and each line
   // left before the PDF that prints it has painted. The page draws it over
   // the line until then, so leaving a line never shows its old text.
@@ -1055,6 +1071,22 @@ export function Editor({
     async (settings: PageSettings, recorded = true) => {
       const step = recorded ? record({ page: settings }) : null;
       if (step) step.undo = { page: pageNow.current };
+      // A section moved shows at once (KAN-920), as an entry's move does: its
+      // strip of the page trades places with its neighbours' until the PDF
+      // lands. Only the sections that print can move
+      const { bank: nowBank, choices: nowChoices } = held.current;
+      const printedIn = (order: string[]) =>
+        printedSections(nowBank, nowChoices, order).map((s) => s.id);
+      const moved = orderSwaps(
+        "section",
+        printedIn(pageNow.current.section_order),
+        printedIn(settings.section_order),
+      );
+      const id = moved.length ? `page:${++changeCount.current}` : null;
+      if (id) {
+        sent(id);
+        setSwaps((s) => [...s, ...moved.map((m) => ({ ...m, id }))]);
+      }
       keepPage(settings);
       sendPage(settings);
       const job = jobs.current + 1;
@@ -1067,8 +1099,12 @@ export function Editor({
         // does the step's before after it: Undo renders those
         if (pageJobs.current.has(job + 1)) {
           skippedPage.current = true;
+          // Its section moves stay drawn until the page that replaces it lands
+          if (id) carriedPages.current.push(id);
           return;
         }
+        const drawnFor = [...carriedPages.current, ...(id ? [id] : [])];
+        carriedPages.current = [];
         const current = begin();
         started.current = performance.now();
         if (step) {
@@ -1077,6 +1113,9 @@ export function Editor({
         }
         skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
+        drawnFor.forEach(answered);
+        // Failed, the moves leave the page with the change
+        if (!data) setSwaps((s) => s.filter((x) => !drawnFor.includes(x.id)));
         if (data) {
           lastPdf.current = data.render;
           if (step) {
@@ -1387,6 +1426,7 @@ export function Editor({
       placed.current = null;
       selectedNow.current = key;
       setSelected(key);
+      if (key !== null) setPicked(null);
       if (key === null) refresh();
     },
     [drop, flush, refresh],
@@ -1405,11 +1445,27 @@ export function Editor({
     setSide(to);
   };
 
+  // Esc climbs, as the breadcrumb reads (KAN-920): an open line to its
+  // entry, an entry to its section, a section to nothing. It closed the
+  // line and nothing more until then. Option with an arrow moves the picked
+  // block, or the open line while its field does not have the focus (in a
+  // field it moves the caret by a paragraph). Each render hands over its own
+  // (`keys`), since they read the line and the outline as drawn
+  const keys = useRef<{ climb: () => void; nudge: (by: -1 | 1) => boolean }>({
+    climb: () => select(null),
+    nudge: () => false,
+  });
   useEffect(() => {
-    const clear = (event: KeyboardEvent) => event.key === "Escape" && select(null);
-    window.addEventListener("keydown", clear);
-    return () => window.removeEventListener("keydown", clear);
-  }, [select]);
+    const press = (event: KeyboardEvent) => {
+      if (event.key === "Escape") return keys.current.climb();
+      if (!event.altKey || event.metaKey || event.ctrlKey) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if ((event.target as Element).closest?.("input, textarea, [contenteditable='true']")) return;
+      if (keys.current.nudge(event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
+    };
+    window.addEventListener("keydown", press);
+    return () => window.removeEventListener("keydown", press);
+  }, []);
 
   /** The page as a step left it: its state and its PDF, at once. */
   const restore = useCallback(
@@ -1529,6 +1585,16 @@ export function Editor({
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [selected, phone, select]);
+  // A picked block lets go the same way (KAN-920): a press off the page and
+  // the bar. A press on a line opens it instead (`select`)
+  useEffect(() => {
+    if (!picked || phone) return;
+    const away = (event: PointerEvent) => {
+      if (!(event.target as Element).closest?.(`[${KEEPS_SELECTION}], [data-box]`)) setPicked(null);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [picked, phone]);
 
   function type(key: string, text: string) {
     setDrafts((d) => ({ ...d, [key]: text }));
@@ -1681,6 +1747,8 @@ export function Editor({
     const strips: Strip[] = [];
     let placed = boxes;
     const regionOf = (kind: Swap["kind"], id: string) => {
+      // A section is its heading and everything under it (KAN-920)
+      if (kind === "section") return sectionStrip(placed, bank, id);
       const bullets = new Set(
         kind === "entry" ? bank.entries.find((e) => e.id === id)?.bullets.map((b) => b.id) : [],
       );
@@ -2155,6 +2223,10 @@ export function Editor({
     target: BankEntry | null;
     section: EntrySection;
     customSectionId: string | null;
+    /** A page's + (KAN-920): a new entry goes after this one, or first in
+     *  its section when null; a new bullet row opens after this bullet. */
+    place?: { after: string | null };
+    newBulletAfter?: string;
   } | null>(null);
   const formOpener = useRef<() => HTMLElement | null>(() => null);
   const openEntryForm = (form: NonNullable<typeof entryForm>, opener: HTMLElement) => {
@@ -2250,9 +2322,25 @@ export function Editor({
           customSectionId={entryForm.customSectionId}
           returnTo={formOpener}
           tip={walkChapter === entryForm.section ? ENTRY_TIPS[entryForm.section] : undefined}
+          newBulletAfter={entryForm.newBulletAfter}
           onClose={() => setEntryForm(null)}
           onSaved={async ({ entryId, bankChanged, bullets, shows }) => {
             if (bankChanged) await reload(null);
+            // A page's + puts the new entry where it was pressed (KAN-920):
+            // a new entry lands last in its section, so it moves from there
+            const place = !entryForm.target ? entryForm.place : undefined;
+            if (place && entryId) {
+              const { bank: nowBank, choices: nowChoices } = held.current;
+              const created = nowBank.entries.find((e) => e.id === entryId);
+              const ids =
+                created &&
+                printedSections(nowBank, nowChoices, pageNow.current.section_order)
+                  .find((s) => s.entries.some((e) => e.id === entryId))
+                  ?.entries.map((e) => e.id);
+              const to = ids ? (place.after ? ids.indexOf(place.after) + 1 : 0) : -1;
+              const changes = to >= 0 && moveTo(nowBank, nowChoices, "entry", entryId, to);
+              if (changes) void apply(changes);
+            }
             const entry = held.current.bank.entries.find((e) => e.id === entryId);
             if (!entry || !bullets) return;
             // A school's switches join the same change, one Undo step
@@ -2316,6 +2404,185 @@ export function Editor({
       : null;
   // What the open line's tools act through, on both layouts (KAN-799)
   const handlers: LineHandlers = { moves };
+
+  // The page as its outline (KAN-920): the sections that print, in order,
+  // for the breadcrumb, the picked block's moves and the page's handles
+  const printed = printedSections(bank, choices, page.section_order);
+  const sectionHolding = (entryId: string) =>
+    printed.find((s) => s.entries.some((e) => e.id === entryId));
+  const pick = (block: Picked | null) => {
+    select(null);
+    setPicked(block);
+  };
+  /** Moves a section, an entry or a bullet to `to` among its siblings, with
+   *  Undo, as any move: an entry or a bullet shows its move at once
+   *  (`swapsOf`); a section is a page setting, so it moves when its PDF lands. */
+  const moveBlock = (block: Picked, to: number) => {
+    flush();
+    if (block.kind === "section") {
+      const now = pageNow.current;
+      const ids = printedSections(held.current.bank, held.current.choices, now.section_order).map(
+        (s) => s.id,
+      );
+      const from = ids.indexOf(block.id);
+      if (from < 0 || to < 0 || to >= ids.length || to === from) return;
+      void applyPage({
+        ...now,
+        section_order: sectionOrderAfter(ids, now.section_order, from, to),
+      });
+      return;
+    }
+    const changes = moveTo(held.current.bank, held.current.choices, block.kind, block.id, to);
+    if (changes) void apply(changes);
+  };
+  /** A block's place among its siblings, for a move by one. */
+  const indexOf = (block: Picked): number => {
+    if (block.kind === "section") return printed.findIndex((s) => s.id === block.id);
+    if (block.kind === "entry")
+      return sectionHolding(block.id)?.entries.findIndex((e) => e.id === block.id) ?? -1;
+    for (const section of printed)
+      for (const entry of section.entries) {
+        const at = entry.bullets.findIndex((b) => b.id === block.id);
+        if (at >= 0) return at;
+      }
+    return -1;
+  };
+  const siblingCount = (block: Picked): number => {
+    if (block.kind === "section") return printed.length;
+    if (block.kind === "entry") return sectionHolding(block.id)?.entries.length ?? 0;
+    const entry = printed
+      .flatMap((s) => s.entries)
+      .find((e) => e.bullets.some((b) => b.id === block.id));
+    return entry?.bullets.length ?? 0;
+  };
+  // Only a block the page still prints counts as picked
+  const pickedNow = picked && indexOf(picked) >= 0 ? picked : null;
+  const blockMoves: MoveTools | null = pickedNow
+    ? {
+        up: indexOf(pickedNow) > 0,
+        down: indexOf(pickedNow) < siblingCount(pickedNow) - 1,
+        onMove: (by) => moveBlock(pickedNow, indexOf(pickedNow) + by),
+      }
+    : null;
+  /** The breadcrumb's steps for the picked block or the open line: its
+   *  section, then its entry, then the bullet or field itself. */
+  const crumbs = ((): Crumb[] => {
+    const sectionStep = (id: string, last: boolean): Crumb => ({
+      label: printed.find((s) => s.id === id)?.label ?? id,
+      ...(!last && { target: `section:${id}` }),
+    });
+    const entryStep = (entryId: string, last: boolean): Crumb[] => {
+      const section = sectionHolding(entryId);
+      const entry = section?.entries.find((e) => e.id === entryId);
+      if (!section || !entry) return [];
+      return [
+        sectionStep(section.id, false),
+        {
+          label: entry.title || section.noun,
+          ...(!last && { target: `entry:${entryId}` }),
+        },
+      ];
+    };
+    const bulletStep = (entryId: string, bulletId: string): Crumb[] => {
+      const entry = sectionHolding(entryId)?.entries.find((e) => e.id === entryId);
+      const n = (entry?.bullets.findIndex((b) => b.id === bulletId) ?? -1) + 1;
+      return [...entryStep(entryId, false), { label: n > 0 ? `Bullet ${n}` : "Bullet" }];
+    };
+    if (pickedNow?.kind === "section") return [sectionStep(pickedNow.id, true)];
+    if (pickedNow?.kind === "entry") return entryStep(pickedNow.id, true);
+    if (pickedNow?.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
+      return entry ? bulletStep(entry.id, pickedNow.id) : [];
+    }
+    if (line?.kind === "bullet") return bulletStep(line.entry.id, line.bullet.id);
+    if (line?.kind === "entry" && box)
+      return [...entryStep(line.entry.id, false), { label: kindLabel(box.kind) }];
+    if (line?.kind === "skill")
+      return printed.some((s) => s.id === "skills")
+        ? [sectionStep("skills", false), { label: line.skill.name }]
+        : [];
+    return [];
+  })();
+  /** What Esc climbs to from the open line or the picked block. */
+  const parentOf = (): Picked | null => {
+    if (line?.kind === "bullet") return { kind: "entry", id: line.entry.id };
+    if (line?.kind === "entry") return { kind: "entry", id: line.entry.id };
+    if (line?.kind === "skill") return { kind: "section", id: "skills" };
+    if (pickedNow?.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
+      return entry ? { kind: "entry", id: entry.id } : null;
+    }
+    if (pickedNow?.kind === "entry") {
+      const section = sectionHolding(pickedNow.id);
+      return section ? { kind: "section", id: section.id } : null;
+    }
+    return null;
+  };
+  const keysNow: typeof keys.current = {
+    climb: () => (selected || pickedNow ? pick(parentOf()) : undefined),
+    nudge: (by) => {
+      if (blockMoves) {
+        if (by < 0 ? blockMoves.up : blockMoves.down) blockMoves.onMove(by);
+        return true;
+      }
+      if (!moves) return false;
+      if (by < 0 ? moves.up : moves.down) moves.onMove(by);
+      return true;
+    },
+  };
+  useEffect(() => {
+    keys.current = keysNow;
+  });
+  /** What a block's + adds after it: a bullet in its entry's form, an entry
+   *  in its section's, in the place after it; null where nothing can be (the
+   *  skills, a Lines section). */
+  const addAfter = (
+    block: OutlineBlock,
+  ): { noun: string; add: (opener: HTMLElement) => void } | null => {
+    if (block.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.id === block.parent);
+      if (!entry) return null;
+      return {
+        noun: "Bullet",
+        add: (opener) =>
+          openEntryForm(
+            {
+              target: entry,
+              section: entry.section,
+              customSectionId: entry.custom_section_id ?? null,
+              newBulletAfter: block.id,
+            },
+            opener,
+          ),
+      };
+    }
+    const sectionId = block.kind === "section" ? block.id : block.parent;
+    const section = printed.find((s) => s.id === sectionId);
+    if (!section?.addable) return null;
+    return {
+      noun: section.noun,
+      add: (opener) =>
+        openEntryForm(
+          {
+            target: null,
+            ...sectionOf(section.id),
+            place: { after: block.kind === "entry" ? block.id : null },
+          },
+          opener,
+        ),
+    };
+  };
+  // The page's own handles, on the editor's own page (not Tailor's review,
+  // whose page is for reading its changes)
+  const pageOutline: PageOutline | undefined = suggestions
+    ? undefined
+    : {
+        blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
+        picked: pickedNow,
+        onPick: (block) => pick({ kind: block.kind, id: block.id }),
+        onMove: (block, to) => moveBlock(block, to),
+        addOf: addAfter,
+      };
   if (phone) {
     const start = line && box && startText(line, box);
     // A bullet's field is a rich one, as on the desktop, so the sheet's bold
@@ -2407,6 +2674,13 @@ export function Editor({
     <Bar
       line={line}
       box={box}
+      crumbs={crumbs}
+      onCrumb={(target) => {
+        // At the first colon: a custom section's id has its own ("custom:x")
+        const at = target.indexOf(":");
+        pick({ kind: target.slice(0, at) as BlockKind, id: target.slice(at + 1) });
+      }}
+      blockMoves={blockMoves}
       choices={choices}
       handlers={handlers}
       rendered={rendered}
@@ -2499,8 +2773,10 @@ export function Editor({
               !(e.target as Element).closest(
                 "[data-box], [data-popup], input, textarea, button, [contenteditable]",
               )
-            )
+            ) {
               select(null);
+              setPicked(null);
+            }
           }}
         >
           {pdfPane((pdf) => (
@@ -2518,6 +2794,7 @@ export function Editor({
               gaps={gapsOn}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
+              outline={pageOutline}
               marks={showMarks ? allMarks : undefined}
               lit={lit}
               focus={showMarks ? focus : undefined}

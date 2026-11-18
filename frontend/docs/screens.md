@@ -3826,6 +3826,40 @@ student who opened a resume from Experiences landed on another view.
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
   response's boxes is a button laid over its line in percent of the page,
   so the targets follow the canvas at any width without a redraw.
+- **The page is its own outline** (KAN-920): teammates and students found
+  the editor too like Jobright's, a preview beside a side list of sections,
+  entries and bullets, so the page itself moves and adds, and the Sections
+  panel is optional.
+  - **Hover a section heading, an entry or a bullet**, and a + and a drag
+    handle (the Sections panel's six dots) show in the margin beside its
+    first line (`page-handles.tsx`). Where each block sits is read from the
+    line boxes (`page-outline.ts`, tested): an entry is its fields' and
+    bullets' boxes, and a section, whose heading has no box, starts where
+    the block above it ends. A section's handle clears its heading (Jake's
+    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`).
+  - **Drag the handle** (pointer events, not HTML drag and drop): a brand
+    drop line shows where it lands, among its siblings only (a bullet in
+    its entry, an entry in its section, a section between sections). The
+    drop is a move with Undo, as the panel's: an entry or a bullet shows it
+    at once (`swapsOf`), and so does a section when it and its neighbour
+    sit on one page (`sectionStrip`, `orderSwaps`; a section is a page
+    setting, so across a page break it waits for its PDF). Near the
+    window's top or foot the page scrolls under the drag.
+  - **The + adds one more after it**: a bullet row in its entry's form,
+    after that bullet (`newBulletAfter`), or a new entry in its section's
+    form, put after the hovered entry, or first from the heading's +
+    (`place`). Skills and a Lines section have no +.
+  - **A press on the handle with no drag picks the block**, outlined in
+    brand. The toolbar's middle then shows where it sits, as a breadcrumb
+    ("Experience › Acme › Bullet 2", `Crumbs`), with Move Up and Move Down;
+    an open line shows its breadcrumb too. A step of it picks that block.
+    **Esc climbs**: an open line to its entry, an entry to its section, a
+    section to nothing; it only closed the line before. **Option with an
+    arrow moves** the picked block, or the open line while its field has no
+    focus, and the handle's own arrow keys move its block.
+  - Not on Tailor's review or a phone. Still open: a toolbar beside the
+    selection, empty sections drawn on the page, and the panel as an
+    optional Outline (KAN-920's later slices).
 - **Click a line and type** (`editor.tsx`). A text field opens over the
   line's first box, in type sized in `cqw` of the page (each page is a size
   container), so the typed text shows at once. The field is set in Latin
