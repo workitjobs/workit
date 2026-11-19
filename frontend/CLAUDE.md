@@ -3595,19 +3595,29 @@ WorkIt's look.
 `/admin/scrape-health` (the scraper's health, KAN-879) is a dashboard
 beside a details rail, each with its own scroll from lg up, read from `GET
 /admin/scrape-health` under the same `WORKIT_ADMINS` gate (403 → the 404).
-The day pills at the top are links and pick the period for all of it. Top
+The day pills at the top are links and pick the period for the tiles and
+the table. **The page always asks the API for `HISTORY` (90) days**
+(`lib/fill-health.ts`) and cuts the period itself, so the chart can move
+through all 90 and the API keeps one answer, not one per period. Top
 to bottom, each part its own file in `admin/scrape-health/`:
 
 - **Four filled tiles** (`tiles.tsx`): boards ever read, new jobs seen,
   tasks pending and failed reads. White text sits only on a fill that
   holds 4.5:1 (`bg-brand`, `bg-positive-ink`, `bg-advanced`, `bg-danger`),
   and the red tile is the failure number only.
-- **Board Reads per Day** (`charts.tsx`, `DailyReads`): stacked columns,
-  done in brand under failed in red, on one axis. Every day of the period
-  has a column's place, so a day with no reads is a gap.
-- **Boards by Hiring System** (`SystemBars`): one bar per system, its
-  length the system's boards and its dark part the boards ever read, with
-  both numbers on the row. **Bars, never a donut**: 13 systems are
+- **Board Reads per Day** (`daily-reads.tsx`, a client component):
+  stacked columns, done in brand under failed in red, on one axis whose
+  top follows the tallest day in view (2 reads or 20,000, with short
+  labels such as 1.5K). Zoom Out and Zoom In pick how many days show (7,
+  14, 30 or 90), and the arrows move the window back or forward a week or
+  a month, as its Move By menu says. All of it is in the browser. Every
+  day in view has a column's place, so a day with no reads is a gap. It
+  opens on the page's period (`key={days}` starts it again on a new pill).
+- **Boards by Hiring System** (`system-bars.tsx`, a client component): one
+  bar per system, its length the system's boards and its dark part the
+  boards ever read, with both numbers on the row. It shows the five
+  largest until its arrow (Show All 13) opens the rest, so the card is no
+  taller than the chart beside it. **Bars, never a donut**: 13 systems are
   compared with each other, which a donut's slices cannot show, and 13
   slice colours cannot be told apart.
 - **Board Reads** (`reads-table.tsx`, a client component): the table,
@@ -3615,8 +3625,15 @@ to bottom, each part its own file in `admin/scrape-health/`:
   failed reads. The rows are the page's own, so a filter asks the API
   nothing.
 - **The rail** (`rail.tsx` in `closable-rail.tsx`): the counts now and the
-  failing boards with their last error. Close Details hides it and Show
-  Details in its place brings it back.
+  failing boards with their last error. Close Details hides it, and Show
+  Details is then a small icon tab fixed to the window's right edge. As a
+  column of its own, the closed rail still took a strip of the page, which
+  the user found wasted.
+
+**A value a server file reads never lives in a `"use client"` file**:
+the page read `HISTORY` from `daily-reads.tsx`, got Next's client stub (a
+function) in its place, sent that as `?days=`, and the API's 422 drew the
+404. Typecheck and lint both passed. Shared constants go in `lib/`.
 
 The charts are plain HTML and CSS with no chart library, and a mark's
 tooltip is its `title`. A section's card is `Panel` (`admin/panel.tsx`:
