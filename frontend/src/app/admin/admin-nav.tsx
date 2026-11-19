@@ -29,7 +29,7 @@ export function AdminNav() {
               "rounded-control text-label flex items-center gap-2.5 px-3 py-2 whitespace-nowrap",
               "focus-visible:outline-on-inverse focus-visible:outline-2",
               current
-                ? "text-on-inverse bg-white/10"
+                ? "bg-brand text-on-brand"
                 : "text-on-inverse/65 hover:text-on-inverse hover:bg-white/5",
             )}
           >
