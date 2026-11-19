@@ -71,7 +71,6 @@
   :is(
     .slop-word,
     .line-scan,
-    .wordmark-drift,
     .bridge-float,
     .hero-city .streak,
     .hero-city .msolid,
@@ -267,32 +266,6 @@ html:has(.landing) {
 @media (width >= 64rem) {
   .hero-city {
     width: max(1600px, 115cqw);
-  }
-}
-
-/*
- * The footer wordmark's rows drift slowly once they have settled
- * (footer-wordmark.tsx): each row's track holds its titles twice and moves
- * by half its width, so the loop has no seam. Paused while the word is not
- * on screen, and off with reduced motion.
- */
-@keyframes wordmark-drift {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.wordmark-drift {
-  animation: wordmark-drift 180s linear infinite;
-}
-
-[data-paused] .wordmark-drift {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wordmark-drift {
-    animation: none;
   }
 }
 

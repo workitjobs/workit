@@ -1,27 +1,21 @@
 import Link from "next/link";
 
-import { Logo } from "@/components/logo";
+import { Logo, LOGO_WORD } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
-import { stages } from "./board-data";
-import { site, streams } from "./data";
-import { followedJob, matchingFeature } from "./feature-data";
+import { site } from "./data";
 import { featurePages } from "./features/catalog";
 import { PANEL } from "./layout-parts";
-import { FooterWordmark } from "./footer-wordmark";
 import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
 
-/** The wordmark's job titles: the board's, Matching's and the
- *  hiring-systems stream's. Read here, on the server, so the data files
- *  stay out of every marketing page's bundle. */
-const TITLES = [
-  ...new Set([
-    ...stages.flatMap((stage) => stage.jobs.map((job) => job.title)),
-    ...matchingFeature.jobs.map((job) => job.title),
-    ...Object.values(streams).flatMap((list) => list.map((posting) => posting.title)),
-  ]),
-];
+/**
+ * How much of the word's height shows above the panel's foot, in the
+ * outline's units (its box is 91 tall, the letters' baseline at 77.7): the
+ * cut runs through the lower letters, so the word reads as cropped by the
+ * panel, a signature rather than a second logo.
+ */
+const WORD_SHOWN = 62;
 
 /** The header's two menus, then the footer's own columns. */
 const COLUMNS = [
@@ -43,9 +37,13 @@ const COLUMNS = [
 
 /**
  * A dark rounded panel inset from the window, like the bands above it, that
- * opens on the site's tagline set large and closes on "workit" drawn from
- * job titles (footer-wordmark.tsx). The logo turns white with a filter:
- * the shared Logo draws its word in ink, which would vanish on ink.
+ * opens on the site's tagline set large and closes on "workit", the logo's
+ * own outline (`LOGO_WORD`), still and in one flat tone (white at 7%),
+ * cropped by the panel's foot (KAN-923, the user's pick). It replaced the
+ * word filled with rows of job titles that slid in and drifted, which the
+ * user found an eyesore: nothing here moves now. The logo turns white with
+ * a filter: the shared Logo draws its word in ink, which would vanish on
+ * ink.
  */
 export function Footer() {
   const year = new Date().getFullYear();
@@ -58,7 +56,7 @@ export function Footer() {
             is still wide enough for "Application Tracker" on one line. */}
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-3 lg:grid-cols-5 lg:px-8 xl:grid-cols-[2fr_repeat(5,1fr)]">
           <div className="col-span-2 max-w-sm md:col-span-3 lg:col-span-5 xl:col-span-1">
-            <p className="font-display text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+            <p className="font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>
             <Logo size="card" className="mt-10 brightness-0 invert" />
@@ -101,8 +99,20 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="px-4 pt-4 pb-6 sm:px-8 lg:px-10 lg:pb-10">
-          <FooterWordmark titles={TITLES} followed={followedJob.title} />
+        {/* The signature: the word's top, the panel's foot cutting through
+            its lower letters (`WORD_SHOWN`). Decorative: the logo above
+            names WorkIt. */}
+        <div
+          aria-hidden="true"
+          className="mx-auto mt-4 w-full max-w-6xl overflow-hidden px-6 sm:mt-8 sm:px-10 lg:px-8"
+        >
+          <svg
+            viewBox={`0 0 ${LOGO_WORD.width} ${WORD_SHOWN}`}
+            preserveAspectRatio="xMidYMin slice"
+            className="block w-full fill-white/[0.07]"
+          >
+            <path d={LOGO_WORD.d} />
+          </svg>
         </div>
       </div>
     </footer>

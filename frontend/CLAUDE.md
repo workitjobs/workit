@@ -1336,18 +1336,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   time, once it is well on screen (`useArrived` in `hooks.ts`), and keeps
   its placeholder copy, hidden for now. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
-  `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
-  HTML rows of the page's job titles, the followed one in the pale
-  brand violet a weight up (each row one run of text, with only that
-  title in an element of its own: a span per title made the wordmark
-  about 950 of the 1,400 elements on a legal page, all styled, laid out
-  and hydrated on every marketing page; the titles are read by
-  `footer.tsx` on the server and passed in, or the three data files they
-  come from load on every page), which slide in from alternate sides, in time,
-  once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
-  threshold: a line a third up the screen was out of reach on a tall
-  window), then keep drifting slowly (`.wordmark-drift`, a track of the
-  titles twice moved by half its width), paused off screen. Its copyright year is `new Date().getFullYear()` read
+  `LOGO_WORD` from `components/logo.tsx`) as a still signature: one SVG
+  path in white at 7% on the ink panel, its lower letters cut by the
+  panel's foot (`WORD_SHOWN` in `footer.tsx`), with nothing moving and no
+  script (KAN-923, the user's pick of four directions). It was the word
+  filled with rows of job titles that slid in and drifted, which the user
+  found an eyesore; that component (`footer-wordmark.tsx`) and its CSS are
+  deleted. The tagline above the columns is weight 500, as every heading
+  is (it was 600). Its copyright year is `new Date().getFullYear()` read
   on the server, so on a prerendered page it is frozen at build time and
   rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
@@ -1395,8 +1391,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `useLoopClock`, stopped off screen, in a hidden tab and on Pause
     Animations (`useLoopsHeld`): the coin ring, the sorting line's flow,
     the bridge's floating postings (CSS).
-  - A reveal on arrival (the testimonial's words, the footer wordmark's
-    rows, the headings' and the FAQ's `FocusIn`) plays in time once the
+  - A reveal on arrival (the testimonial's words, the headings' and
+    Pricing's FAQ's `FocusIn`, the home page's scenes' `Arrive`) plays in time once the
     element is well on screen (`useArrived`), and resets only once it is
     wholly below the screen, with a second observer: one observer that
     reset at the arrival line undid reveals in full view whenever the
@@ -1449,7 +1445,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stops once `isSmooth` is false). Ticked on every frame, it kept the
   browser drawing a main-thread frame at rest on every marketing page, and
   each of those frames updated every running CSS animation: at the footer,
-  with the wordmark's 29 drifting rows, the main thread was 96% busy at
+  with the old wordmark's 29 drifting rows (since removed), the main thread was 96% busy at
   rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
   these pages runs a frame loop at rest (a `keepAlive` frame, an endless
   `requestAnimationFrame`): a composited CSS animation is free only while
@@ -1630,9 +1626,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     Apply's upload bar, the hiring-systems strike), and a sweep moves by
     `x` on a layer the size of the card it crosses.
   - Nothing scroll-linked is SVG: the browser never moves SVG content on
-    its own layer, so the footer wordmark's 29 rows of titles (some
+    its own layer, so the old footer wordmark's 29 rows of titles (some
     12,000 glyphs, once SVG text under a clip path) repainted the whole
-    word on every frame. They are HTML under a CSS mask of the outline.
+    word on every frame. A still SVG, as the footer's word is now, costs
+    nothing.
   - Never fade a `preserve-3d` root: below full opacity it flattens. The
     hiring-systems coins fade their faces, and each coin's pose is one
     `transform` string a frame.
@@ -1660,8 +1657,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   into one bundle that every marketing page loads, `/privacy` included.
   So a client component only some pages draw is lazy
   (`features/animations.tsx`), and data a client component in the shell
-  needs is read on the server and passed in (the footer wordmark's
-  titles). Check after changing a layout, the header, the footer or a
+  needs is read on the server and passed in (the old footer wordmark's
+  titles were). Check after changing a layout, the header, the footer or a
   content file: on `next build` and `next start`, `/privacy` loads about
   215 KB compressed of JavaScript up to its load event (340 KB before this
   rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to

@@ -98,8 +98,8 @@ export function Logo({ size = "bar", decorative = false, className }: LogoProps)
   );
 }
 
-/** The word's outline and its box, for a page that fills the word its own
- *  way: the marketing footer draws it from job titles. */
+/** The word's outline and its box, for a page that draws the word its own
+ *  way: the marketing footer's still signature, cropped by its panel. */
 export const LOGO_WORD = { d: WORD, width: WORD_WIDTH, height: HEIGHT } as const;
 
 /**
