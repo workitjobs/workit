@@ -315,17 +315,21 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     blur(14px) saturate(1.2)` that smooths the grain, a white hairline and
     a brighter top edge). Postings light up as bright glass cards
     (`.board-lit`: near-white over the tile's frost, a white edge and a
-    slate shadow), each a real employer, **anywhere on the grid, in no
-    order the eye learns** (the user found seven fixed tiles on one 14s
-    loop too orderly): every tile is a place, each of the seven postings
-    has four spread over the grid (`POSTING_OF` in hero-board.tsx), and
-    each posting has its own loop length (`LOOPS`, 22 to 34s) that shares
-    no rhythm with the others, its four tiles a quarter loop apart in a
-    shuffled order. A light takes 15% of its loop (21.5% below lg, where a
-    screen shows only 8 or 12 tiles), under a quarter, so a posting never
-    shows twice at once. Simulated over two hours: no duplicates; two to
-    four lit at once on a laptop or a monitor; a phone blank about a
-    seventh of the time (a third before). With reduced motion one tile per
+    slate shadow), each a real employer, **one card at a time, anywhere on
+    the grid**: every tile the screen shows takes one 3.4 s turn (0.45 s
+    in, a hold, out by 3.35 s, its match bar filling in its first second)
+    in a shuffled order per layout (`ORDERS` in hero-board.tsx, by the 8,
+    12, 20, 24 or 28 tiles a layout shows), never two neighbouring tiles
+    and never the same posting twice in a row (`POSTING_OF`), so the next
+    card appears somewhere else as the last one goes. A tile's turn in
+    each order is `--s<n>` on it, and landing.css picks the layout's
+    `--slot`, `--n` and keyframes (`board-lit-<n>`, `board-bar-<n>`, made
+    by a script from the turn's times). Measured at five layouts, 375 ×
+    812 to 2560 × 1080: never more than one card shown, the grid empty
+    about 5% of the time (the crossfade's edge). Before, every posting
+    looped on its own (two to six lit at once, which the user found
+    overlapping), and before that seven fixed tiles on one 14 s loop (too
+    orderly). With reduced motion one tile per
     posting is lit and still (`STILL`, `data-still`). Each card has ink
     text in the Jobs page job card's weights (`compact-job-card.tsx`: role medium, company
     regular, match semibold) and the match in the app's own colours, as on
@@ -371,9 +375,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     tile opens a new row). From lg up the headline is
     `clamp(2.75rem,6.4svh,4.5rem)`, so it fits three rows at 1024 × 768.
     Each lit tile's match bar fills from empty as the tile comes up
-    (`.board-bar`: a translate inside the clipped track, from 1.5% to 6% of
-    the tile's loop, about a second, inheriting its `--cycle` and `--d`, on the Pause
-    Animations list, full with reduced motion), the user's first ask for
+    (`.board-bar`: a translate inside the clipped track, from 0.45 s to
+    1.45 s into the tile's turn, reading its tile's `--n`, `--turn` and
+    `--slot`, full with reduced motion), the user's first ask for
     more motion. After any change to the hero, check 1024 × 768, 1366 × 768, 1440 ×
     900, 1920 × 1080, 768 × 1024 and 375 × 812: no bare ground beside the
     grid, the headline inside its tile, and the next section starting

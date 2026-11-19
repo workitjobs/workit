@@ -117,9 +117,9 @@ heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 The first screen and nothing else: a grainy violet panel the screen's
 height, filled edge to edge by frosted glass tiles. The headline sits in
 one large solid white tile in the middle, the brightest surface.
-Postings light up as bright glass cards anywhere on the grid, in no order
-the eye can learn (each posting on four tiles, each with its own loop
-length; never the same posting twice at once), each a real employer, the
+Postings light up as bright glass cards one at a time, each on a
+different tile in a shuffled order (never two neighbours, never the same
+posting twice in a row), each a real employer, the
 role and the match's strength in the app's bands ("Excellent Match" or
 "Good Match", from `lib/match.ts`) behind the app's own 14px match ring
 (`MatchGlyph`), over a slim bar in the band's colour that fills, the

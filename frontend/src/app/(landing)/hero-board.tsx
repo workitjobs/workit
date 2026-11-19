@@ -16,51 +16,50 @@ import { FaviconLogo } from "./favicon-logo";
 const TILES = 28;
 
 /**
- * Where each posting can light (KAN-923): every tile is a place, and each
- * posting (an index into `heroFits`) has four, spread over the top, the
- * sides and the bottom, so a fit turns up anywhere, not on the same seven
- * tiles in the same order, which the user found too orderly. The eight a
- * phone shows (tiles 0 to 7) hold all seven postings.
+ * Each tile's posting (an index into `heroFits`): every posting on four
+ * tiles spread over the top, the sides and the bottom, so a fit turns up
+ * anywhere. The eight a phone shows (tiles 0 to 7) hold all seven postings.
  */
 const POSTING_OF = [
   3, 0, 5, 1, 6, 2, 4, 3, 6, 0, 2, 4, 1, 5, 0, 3, 1, 2, 4, 6, 5, 6, 2, 3, 0, 4, 1, 5,
 ];
 
 /**
- * Each posting's own loop, in s. The lengths share no rhythm, so the lights
- * across the grid never settle into a pattern a visitor could learn: the
- * whole grid only repeats after hours. Each tile lights for about an eighth
- * of its posting's loop (`board-lit` in landing.css), 2.6 to 4 s.
+ * The order the tiles light, one at a time, for each layout, by how many
+ * tiles it shows (`.hero-grid` in landing.css: 8 on a phone, 12 from sm,
+ * 20, 24 or 28 from lg by the screen's shape): every shown tile once a
+ * loop. Shuffled so the cards turn up all over the grid, never two
+ * neighbours (tiles within two of each other) in a row and never the same
+ * posting twice in a row, the loop's end into its start included. Picked
+ * by a script; keep both rules if you change one. The user found several
+ * cards lit at once overlapping, and one 14s loop over seven fixed tiles,
+ * before that, too orderly.
  */
-const LOOPS = [23, 29, 26, 31, 22, 34, 27];
+const ORDERS: Record<number, number[]> = {
+  8: [4, 0, 5, 2, 7, 3, 6, 1],
+  12: [3, 10, 6, 0, 9, 4, 11, 2, 5, 8, 1, 7],
+  20: [1, 5, 2, 18, 8, 17, 6, 19, 0, 16, 11, 4, 7, 14, 3, 15, 10, 13, 9, 12],
+  24: [12, 17, 1, 6, 10, 21, 14, 7, 3, 20, 9, 16, 4, 23, 19, 11, 8, 0, 13, 22, 15, 5, 2, 18],
+  28: [
+    23, 6, 21, 27, 12, 20, 10, 4, 22, 2, 24, 11, 17, 26, 1, 15, 5, 19, 13, 18, 3, 9, 25, 0, 8, 16,
+    7, 14,
+  ],
+};
 
-/** Where each posting's loop starts, as a share of it, so the grid opens
- *  mid-flow with a few tiles already lit. */
-const PHASES = [0.13, 0.71, 0.42, 0.88, 0.27, 0.56, 0.95];
-
-/**
- * The order a posting's four tiles take their turns, a quarter loop apart:
- * one at a time, since a tile is lit for less than a quarter of the loop,
- * so the same posting never shows twice at once. Not in tile order, which
- * would walk it along the grid.
- */
-const TURN_ORDER = [0, 2, 1, 3];
+/** A tile's turn in each layout that shows it, as `--s<n>` for landing.css
+ *  (`.board-lit`), which picks the one for the screen. */
+function turnsOf(tile: number) {
+  const turns: Record<string, number> = {};
+  for (const [count, order] of Object.entries(ORDERS)) {
+    const turn = order.indexOf(tile);
+    if (turn >= 0) turns[`--s${count}`] = turn;
+  }
+  return turns as CSSProperties;
+}
 
 /** The tiles lit, and still, with reduced motion: one per posting, spread
  *  over the grid at every width. */
 const STILL = new Set([1, 6, 10, 13, 16, 19, 23]);
-
-/** A tile's posting and its place in that posting's loop, as CSS's delay. */
-function lightOf(tile: number) {
-  const posting = POSTING_OF[tile];
-  const turn = POSTING_OF.slice(0, tile).filter((p) => p === posting).length;
-  const loop = LOOPS[posting];
-  return {
-    posting: heroFits[posting],
-    loop,
-    delay: -(PHASES[posting] + TURN_ORDER[turn] / 4) * loop,
-  };
-}
 
 /**
  * The home hero's grid (KAN-923, the user's pick): square glass tiles over a
@@ -76,8 +75,8 @@ function lightOf(tile: number) {
  * for; before them a board of wide grey posting cards, which the user found
  * unsatisfying beside the sketch of this grid, and a violet mesh gradient,
  * too close to Calendly's. A server component with no script: the
- * lights are CSS loops on opacity and transform (`.board-lit`), one length
- * per posting (`LOOPS`); with reduced motion one
+ * lights are one CSS loop on opacity and transform (`.board-lit`), a card at
+ * a time in a shuffled order (`ORDERS`); with reduced motion one
  * tile per posting is lit and still (`STILL`). The grid fills the
  * hero panel edge to edge, the headline's tile in its middle and the small
  * tiles flowing round it, with as many columns as keep the tiles near
@@ -88,13 +87,13 @@ export function HeroGrid({ children }: { children: ReactNode }) {
     <div className="hero-grid">
       <div className="hero-copy">{children}</div>
       {Array.from({ length: TILES }, (_, i) => {
-        const { posting, loop, delay } = lightOf(i);
+        const posting = heroFits[POSTING_OF[i]];
         return (
           <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl">
             <div
               data-still={STILL.has(i) || undefined}
               className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
-              style={{ "--d": `${delay.toFixed(2)}s`, "--cycle": `${loop}s` } as CSSProperties}
+              style={turnsOf(i)}
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <FaviconLogo

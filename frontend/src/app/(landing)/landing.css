@@ -1281,15 +1281,16 @@ html[data-tab-flight="flying"] .tour-tabs {
  * A tile lights up (hero-board.tsx): its bright glass card fades in over
  * the tile, settling from just under its size to its place (never bigger
  * than its cell: lifted 4% it stood out of line with its neighbours, which
- * the user flagged), holds and fades out, once per `--cycle`, after its own
- * `--d` (negative, so the grid opens mid-flow with a few already lit).
- * Every tile has one, and each posting's four tiles share a loop of their
- * own length, a quarter loop apart (`LOOPS`, `TURN_ORDER` in
- * hero-board.tsx). The light takes 15% of the loop, under a quarter, so a
- * posting never shows on two tiles at once, and the different lengths
- * keep the grid from falling into an order the eye learns (the user found
- * one 14s loop over seven fixed tiles too orderly). About two to four
- * tiles are lit at once on a laptop or a monitor, one on a phone.
+ * the user flagged), holds and fades out. **One card at a time** (the
+ * user's call: lit together, two to six at once, they read as
+ * overlapping): every tile the screen shows takes one turn of `--turn`
+ * (3.4 s: 0.45 s in, a hold to 2.85 s, out by 3.35 s) in a shuffled order
+ * (`ORDERS` in hero-board.tsx), so the loop is `--n` turns long, one per
+ * shown tile, and the next card appears somewhere else just as the last
+ * has gone. Each layout has its own order and keyframes, since each shows
+ * a different number of tiles (8, 12, 20, 24 or 28, the `.hero-grid`
+ * rules above): a tile's turn is `--s<n>`, set on it, and the layout picks
+ * its `--slot`. The order starts 0.6 s in, so a card shows on load.
  * Opacity and transform only, so it runs off the main thread. With
  * reduced motion one tile per posting (`data-still`) is lit and still.
  */
@@ -1304,72 +1305,184 @@ html[data-tab-flight="flying"] .tour-tabs {
  * the light costs only its opacity and transform.
  */
 .board-lit {
+  --turn: 3.4s;
+  --n: 8;
+  --slot: var(--s8);
   opacity: 0;
-  animation: board-lit var(--cycle, 18s) ease-in-out var(--d, 0s) infinite;
+  animation: board-lit-8 calc(var(--n) * var(--turn)) ease-in-out
+    calc((var(--slot) - var(--n)) * var(--turn) - 0.6s) infinite;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.74));
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.8),
     0 18px 32px -18px rgb(18 26 40 / 0.5);
 }
-@keyframes board-lit {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  2%,
-  12% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  15% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-}
-/* Below lg a screen shows 8 or 12 tiles, so each light holds longer
- * (21.5% of the loop, still under a quarter, so a posting never shows
- * twice): with the 15% light a phone's tiles were all dark a third of the
- * time, and for up to 12s at once; with this one, about a seventh. */
-@media (max-width: 63.99rem) {
-  .board-lit {
-    animation-name: board-lit-long;
-  }
-}
-@keyframes board-lit-long {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  2%,
-  18.5% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  21.5% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-}
 /*
  * A lit tile's match bar fills from empty as the tile comes up (KAN-923, the
  * user's "progress bars loading"): the fill slides in from the left of its
  * track (the track clips it, so its rounded end keeps its shape), from
- * 1.5% of the loop, once the tile is mostly lit, to 6%, about a second on
- * a 22 to 34s loop, then holds; it snaps back to empty at the loop's end,
- * while the tile is out. Same `--cycle` and `--d` as the tile's
- * light, which it inherits from it. Transform only, off the main thread.
+ * 0.45 s into the tile's turn, once it is lit, to 1.45 s, then holds; it
+ * snaps back to empty at the loop's end, while the tile is out. It reads
+ * its tile's `--n`, `--turn` and `--slot`. Transform only, off the main
+ * thread.
  */
 .board-bar {
-  animation: board-bar var(--cycle, 18s) cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) infinite;
+  animation: board-bar-8 calc(var(--n) * var(--turn)) cubic-bezier(0.16, 1, 0.3, 1)
+    calc((var(--slot) - var(--n)) * var(--turn) - 0.6s) infinite;
 }
-@keyframes board-bar {
+@media (min-width: 40rem) {
+  .board-lit {
+    --n: 12;
+    --slot: var(--s12);
+    animation-name: board-lit-12;
+  }
+  .board-bar {
+    animation-name: board-bar-12;
+  }
+}
+@media (min-width: 64rem) {
+  .board-lit {
+    --n: 20;
+    --slot: var(--s20);
+    animation-name: board-lit-20;
+  }
+  .board-bar {
+    animation-name: board-bar-20;
+  }
+}
+@media (min-width: 64rem) and (min-aspect-ratio: 8/5) {
+  .board-lit {
+    --n: 24;
+    --slot: var(--s24);
+    animation-name: board-lit-24;
+  }
+  .board-bar {
+    animation-name: board-bar-24;
+  }
+}
+@media (min-width: 64rem) and (min-aspect-ratio: 21/10) {
+  .board-lit {
+    --n: 28;
+    --slot: var(--s28);
+    animation-name: board-lit-28;
+  }
+  .board-bar {
+    animation-name: board-bar-28;
+  }
+}
+/* One turn as a share of each layout's loop (made by a script: 0.45, 2.85
+ * and 3.35 s of n turns of 3.4 s for the light, 0.45 to 1.45 s for the
+ * bar). Change `--turn` or a time, and make them again. */
+@keyframes board-lit-8 {
   0%,
-  1.5% {
+  12.316%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  1.654%,
+  10.478% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes board-bar-8 {
+  0%,
+  1.654% {
     transform: translateX(-101%);
   }
-  6%,
+  5.331%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes board-lit-12 {
+  0%,
+  8.211%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  1.103%,
+  6.985% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes board-bar-12 {
+  0%,
+  1.103% {
+    transform: translateX(-101%);
+  }
+  3.554%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes board-lit-20 {
+  0%,
+  4.926%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  0.662%,
+  4.191% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes board-bar-20 {
+  0%,
+  0.662% {
+    transform: translateX(-101%);
+  }
+  2.132%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes board-lit-24 {
+  0%,
+  4.105%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  0.551%,
+  3.493% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes board-bar-24 {
+  0%,
+  0.551% {
+    transform: translateX(-101%);
+  }
+  1.777%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes board-lit-28 {
+  0%,
+  3.519%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  0.473%,
+  2.994% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes board-bar-28 {
+  0%,
+  0.473% {
+    transform: translateX(-101%);
+  }
+  1.523%,
   100% {
     transform: translateX(0);
   }
