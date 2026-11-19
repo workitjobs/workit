@@ -17,17 +17,18 @@ export function ClosableRail({ children }: { children: ReactNode }) {
 
   if (!open) {
     return (
-      <aside className="shrink-0 px-6 pb-8 lg:py-8 lg:pr-10 lg:pl-0">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-expanded={false}
-          className={BUTTON}
-        >
-          <ChartBarIcon size={18} aria-hidden />
-          Show Details
-        </button>
-      </aside>
+      // A small tab on the window's right edge, out of the layout: as a column of its own, the
+      // closed rail still took a strip of the page beside the tables.
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-expanded={false}
+        aria-label="Show Details"
+        title="Show Details"
+        className="border-border-surface bg-panel text-ink hover:border-ink-meta focus-visible:ring-brand-ring rounded-l-control fixed top-24 right-0 z-10 border border-r-0 p-2 shadow-sm focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <ChartBarIcon size={18} aria-hidden />
+      </button>
     );
   }
 
