@@ -85,3 +85,6 @@ export type ScrapeHealth = {
     last_error: string | null;
   }[];
 };
+
+/** The most days GET /admin/scrape-health answers: how far back Scrape Health reads and its chart moves. */
+export const HISTORY = 90;

@@ -8,15 +8,14 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { type ReactNode, useState } from "react";
 
-import type { ScrapeHealth } from "@/lib/fill-health";
+import { HISTORY, type ScrapeHealth } from "@/lib/fill-health";
 
 import { Panel } from "../panel";
 
 const DAY = 86_400_000;
 /** The days the chart can show at once, from most zoomed in to most zoomed out. */
 const SPANS = [7, 14, 30, 90] as const;
-/** How far back the chart can move: the most days the API answers. */
-export const HISTORY = 90;
+
 const STEPS = { week: 7, month: 30 } as const;
 type Step = keyof typeof STEPS;
 

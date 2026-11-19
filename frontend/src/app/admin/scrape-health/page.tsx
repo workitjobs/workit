@@ -3,13 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { cn } from "@/lib/cn";
-import { daysOf } from "@/lib/fill-health";
+import { daysOf, HISTORY } from "@/lib/fill-health";
 import { getScrapeHealth } from "@/lib/fill-report-queries";
 
-import { Panel } from "../panel";
-import { DailyReads, SystemBars } from "./charts";
+import { DailyReads } from "./daily-reads";
 import { ScrapeRail } from "./rail";
 import { ReadsTable } from "./reads-table";
+import { SystemBars } from "./system-bars";
 import { ScrapeTiles } from "./tiles";
 
 export const metadata: Metadata = { title: "Scrape Health" };
@@ -19,8 +19,9 @@ const when = (iso: string | null) =>
 
 /**
  * The scraper's health (KAN-879), the admins' page, as a dashboard: four
- * headline tiles, the period's board reads per day as a chart beside the
- * boards per hiring system, the Board Reads table with its filters, and a
+ * headline tiles, board reads per day as a chart (./daily-reads.tsx, which
+ * moves through the last 90 days on its own) beside the boards per hiring
+ * system, the Board Reads table with its filters, and a
  * rail (./rail.tsx) with the counts now and the failing boards. The day
  * pills pick the period for all of it. The API keeps its answer for 10
  * minutes, so the page says when it was read and has no Refresh. Only
@@ -32,9 +33,17 @@ export default async function ScrapeHealthPage({
 }: PageProps<"/admin/scrape-health">) {
   const params = await searchParams;
   const days = daysOf(params.days);
-  const { data, status } = await getScrapeHealth(days);
+  // One read of the most days the API answers, whatever the period: the chart moves through
+  // all of it, and the API keeps one answer, not one per period.
+  const { data: all, status } = await getScrapeHealth(HISTORY);
   if (status === 401) redirect("/login");
-  if (!data) notFound();
+  if (!all) notFound();
+  const today = all.read_at.slice(0, 10);
+  const first = new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  /** The answer cut to the page's period, for the tiles and the table. */
+  const data = { ...all, days: all.days.filter((r) => r.day >= first) };
 
   return (
     <div className="flex min-h-full flex-col lg:h-full lg:flex-row">
@@ -75,12 +84,8 @@ export default async function ScrapeHealthPage({
         <div className="mt-5 space-y-5">
           <ScrapeTiles data={data} days={days} />
           <div className="grid grid-cols-1 gap-5 @4xl:grid-cols-5">
-            <Panel title="Board Reads per Day" className="@4xl:col-span-3">
-              <DailyReads rows={data.days} days={days} />
-            </Panel>
-            <Panel title="Boards by Hiring System" className="@4xl:col-span-2">
-              <SystemBars systems={data.systems} />
-            </Panel>
+            <DailyReads key={days} rows={all.days} today={today} days={days} />
+            <SystemBars systems={data.systems} />
           </div>
           <ReadsTable rows={data.days} />
         </div>
