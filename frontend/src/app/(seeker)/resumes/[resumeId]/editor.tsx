@@ -1952,36 +1952,52 @@ export function Editor({
   // spacing, font, dot or dash) with no number of its own
   const insertsOn = (boxes: RenderBox[]): Insert[] => {
     const printed = new Set(boxes.map((b) => b.item_id));
-    return placeNew(newBullets, (key) => {
+    const printedAs = (key: string) => {
       const id = newIds.current.get(key);
       return id && printed.has(id) ? id : undefined;
-    }).flatMap((n) => {
-      const at = newPlace(n, boxes);
-      if (!at) return [];
-      const top = at.last.y1 + at.space;
-      const y = at.last.y1 + at.space / 2;
-      return [
-        {
-          ...at.last,
-          item_id: n.key,
-          text: "",
-          y0: y,
-          y1: y,
-          by: at.space + at.one + (at.lines - 1) * at.step,
-          base: at.space / 2 + boxAscent("bullet"),
-          marker:
-            at.first.page === at.last.page
-              ? {
-                  x0: at.first.x0 - 14,
-                  x1: at.first.x0 - 0.6,
-                  top: at.first.y0,
-                  bottom: at.first.y0 + at.one,
-                  to: top,
-                }
-              : undefined,
-        },
-      ];
+    };
+    // A bullet the PDF in hand prints keeps its text over its printed line,
+    // opening nothing, until that PDF has painted (`drawn`), as a typed
+    // line's draft does: dropped as the PDF arrived, its text was gone for
+    // the moment the page took to paint it
+    const printing = newBullets.flatMap((n): Insert[] => {
+      const id = printedAs(n.key);
+      const own = id ? boxes.filter((b) => b.kind === "bullet" && b.item_id === id) : [];
+      if (!own.length) return [];
+      const first = own.reduce((a, b) =>
+        b.page < a.page || (b.page === a.page && b.y0 < a.y0) ? b : a,
+      );
+      return [{ ...first, item_id: n.key, by: 0, base: boxAscent("bullet") }];
     });
+    return printing.concat(
+      placeNew(newBullets, printedAs).flatMap((n) => {
+        const at = newPlace(n, boxes);
+        if (!at) return [];
+        const top = at.last.y1 + at.space;
+        const y = at.last.y1 + at.space / 2;
+        return [
+          {
+            ...at.last,
+            item_id: n.key,
+            text: "",
+            y0: y,
+            y1: y,
+            by: at.space + at.one + (at.lines - 1) * at.step,
+            base: at.space / 2 + boxAscent("bullet"),
+            marker:
+              at.first.page === at.last.page
+                ? {
+                    x0: at.first.x0 - 14,
+                    x1: at.first.x0 - 0.6,
+                    top: at.first.y0,
+                    bottom: at.first.y0 + at.one,
+                    to: top,
+                  }
+                : undefined,
+          },
+        ];
+      }),
+    );
   };
 
   /** Opens a new bullet's line under `after` (KAN-920): a printed bullet,
@@ -2060,7 +2076,8 @@ export function Editor({
     // anchor over a page break leaves it to this dot, an SVG circle since a
     // `rounded-full` box about 3.4px across was snapped to 3 by 4 pixels and
     // drew an oval
-    const dot = !target.marker && (
+    // (A line its PDF prints, `by` 0, has the printed dot under it)
+    const dot = !target.marker && target.by > 0 && (
       <svg
         aria-hidden
         viewBox="0 0 30 30"

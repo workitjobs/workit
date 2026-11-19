@@ -3895,7 +3895,14 @@ student who opened a resume from Experiences landed on another view.
     next line under it; Enter or Esc on an empty line, or a click away from
     one, takes it away with nothing saved; Esc or a click away from one with
     text adds it. Added, its text stays drawn until the PDF that prints it
-    paints: the bank gets the bullet (`addBullet`), then this resume shows
+    paints, over its printed line once that PDF is in hand (`by` 0, no
+    marker) and gone only as the page paints it (`drawn`); dropped as the
+    PDF arrived, the text was gone for the moment the page took to paint.
+    **An overlaid line moves only by the lines before it** (`livesShown`
+    in `PdfPages`, the order `compose` opens them): the added bullet and
+    the empty line Enter opens under it sit at one place, each counted the
+    other as over it, and the empty field covered the added text for the
+    seconds its save took (2026-11-19). On the save: the bank gets the bullet (`addBullet`), then this resume shows
     it after the bullet it follows (`bulletsWithNew`, tested), as one change
     with Undo, which hides it. The bank keeps it, as every form does. It
     opened the entry's form on an empty row until then, which broke the

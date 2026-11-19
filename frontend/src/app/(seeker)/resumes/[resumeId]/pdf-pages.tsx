@@ -266,6 +266,17 @@ export function PdfPages({
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
     );
+  // An overlaid line moves by the lines before it, in the order the page
+  // opens them (`compose`), never by those after: two new lines at one
+  // place (a bullet added with Enter, and the next line opened under it)
+  // each counted the other as over it, both sat a line low, and the empty
+  // field covered the added bullet's text until its PDF painted
+  const livesShown = lives.map((l, i) => ({
+    l,
+    top:
+      l.y0 +
+      lives.slice(0, i).reduce((by, o) => (o.page === l.page && o.y1 <= l.y0 ? by + o.by : by), 0),
+  }));
   // The page as sections, entries and bullets, where they show now: under a
   // typed line or a new bullet too, or a handle sat a line off its block
   const blocks =
@@ -428,15 +439,15 @@ export function PdfPages({
               {popup?.node}
             </LinePopup>
           )}
-          {lives
-            .filter((l) => l.page === i + 1)
-            .map((l) => (
+          {livesShown
+            .filter(({ l }) => l.page === i + 1)
+            .map(({ l, top }) => (
               <div
                 key={boxKey(l)}
                 className="absolute z-10"
                 style={{
                   left: `${(l.x0 / size.width) * 100}%`,
-                  top: `${((l.y0 + moved(l)) / size.height) * 100}%`,
+                  top: `${(top / size.height) * 100}%`,
                   minWidth: `${((l.x1 - l.x0) / size.width) * 100}%`,
                 }}
               >
