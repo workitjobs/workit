@@ -3576,8 +3576,10 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 
 **The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
 dark sidebar (`bg-inverse`) that links every admin page, beside the page;
-below lg it is a bar above the page. A new admin page joins `PAGES` in
-`admin/admin-nav.tsx`, or nothing links to it. The shell reads no session:
+below lg it is a bar above the page. From lg up its button collapses it to
+a rail of icons, each row keeping its name for screen readers and as a
+tooltip. A new admin page joins `PAGES` in `admin/admin-nav.tsx`, or
+nothing links to it. The shell reads no session:
 a page's `notFound()` draws the root 404 in place of the shell (checked
 with a bad report id), so a student still never sees it. Never add a
 `not-found.tsx` under `app/admin/`: it would draw the 404 inside the
@@ -3597,7 +3599,9 @@ reads done and failed, their mean seconds and the new jobs, picked by
 day pills that are links) and a stats rail (`scrape-health/rail.tsx`: the
 share of boards ever read as a gauge, the period's reads done against
 failed as one bar, the counts now, and the failing boards with their last
-error), from `GET /admin/scrape-health`
+error; its frame, `closable-rail.tsx`, has a Close button, and Show Stats
+in the rail's place brings it back), from `GET /admin/scrape-health`. The
+collapse and the close are plain state: a reload opens both again
 under the same `WORKIT_ADMINS` gate (403 → the 404). Its shape
 (`ScrapeHealth`) and `daysOf` are in `lib/fill-health.ts`; its read is
 `getScrapeHealth` in `fill-report-queries.ts`. The API keeps its answer
