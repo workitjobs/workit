@@ -159,6 +159,14 @@ scroll performance). In short: stories loop only on screen and pause;
 drifting rows (`.drift-row`) pause; reveals play once (`Arrive`); nothing
 pins; no shine sweeps or glows.
 
+Motion shows what the product does, in the order it happens: the hero's
+tiles light up for a fit and their match bars fill as they do, the
+journey's pictures play their step once. Every loop runs on opacity and
+transform only (off the main thread), shares its element's cycle, and
+joins the Pause Animations list; a number that counts up or a stroke that
+draws would run on the main thread for the whole loop, so a fill is a
+translate inside a clipped track.
+
 ## What was removed, and why
 
 | Was | Now | Why |

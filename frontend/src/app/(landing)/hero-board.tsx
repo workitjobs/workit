@@ -92,7 +92,8 @@ export function HeroGrid({ children }: { children: ReactNode }) {
  * A match as a percentage over a slim bar filled to it: the number to read,
  * the bar to see at a glance, in about 20px of the tile's height. A ring
  * was tried first and took too much of a small tile (the user's call).
- * Still: the tile's light is the motion.
+ * The bar fills from empty each time its tile lights (`.board-bar` in
+ * landing.css, on the tile's own cycle).
  */
 function MatchBar({ score }: { score: number }) {
   return (
@@ -102,7 +103,10 @@ function MatchBar({ score }: { score: number }) {
         <span className="hidden text-[11px] font-normal text-white/85 lg:inline">match</span>
       </span>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/25">
-        <span className="block h-full rounded-full bg-white" style={{ width: `${score}%` }} />
+        <span
+          className="board-bar block h-full rounded-full bg-white"
+          style={{ width: `${score}%` }}
+        />
       </span>
     </span>
   );

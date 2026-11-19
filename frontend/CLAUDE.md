@@ -313,7 +313,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the tiles it has cells for (`nth-child` rules in landing.css; a spare
     tile opens a new row). From lg up the headline is
     `clamp(2.75rem,6.4svh,4.5rem)`, so it fits three rows at 1024 × 768.
-    After any change to the hero, check 1024 × 768, 1366 × 768, 1440 ×
+    Each lit tile's match bar fills from empty as the tile comes up
+    (`.board-bar`: a translate inside the clipped track, from 4% to 15% of
+    the tile's cycle, inheriting its `--cycle` and `--d`, on the Pause
+    Animations list, full with reduced motion), the user's first ask for
+    more motion. After any change to the hero, check 1024 × 768, 1366 × 768, 1440 ×
     900, 1920 × 1080, 768 × 1024 and 375 × 812: no bare ground beside the
     grid, the headline inside its tile, and the next section starting
     below the screen. The lights are `.board-lit` (opacity and transform,

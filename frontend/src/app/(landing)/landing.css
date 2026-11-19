@@ -90,7 +90,8 @@
     .gate-bot *,
     .workit-hop circle,
     .drift-row,
-    .board-lit
+    .board-lit,
+    .board-bar
   ) {
   animation-play-state: paused !important;
 }
@@ -1293,11 +1294,36 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: scale(0.98);
   }
 }
+/*
+ * A lit tile's match bar fills from empty as the tile comes up (KAN-923, the
+ * user's "progress bars loading"): the fill slides in from the left of its
+ * track (the track clips it, so its rounded end keeps its shape), from 4%
+ * of the cycle, once the tile is mostly lit, to 15%, about a second and a
+ * half on the 14s cycle, then holds; it snaps back to empty at the cycle's
+ * end, while the tile is out. Same `--cycle` and `--d` as the tile's
+ * light, which it inherits from it. Transform only, off the main thread.
+ */
+.board-bar {
+  animation: board-bar var(--cycle, 18s) cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) infinite;
+}
+@keyframes board-bar {
+  0%,
+  4% {
+    transform: translateX(-101%);
+  }
+  15%,
+  100% {
+    transform: translateX(0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .board-lit {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  .board-bar {
+    animation: none;
   }
 }
 
