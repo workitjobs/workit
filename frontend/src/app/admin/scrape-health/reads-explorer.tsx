@@ -112,7 +112,7 @@ export function ReadsExplorer({
         <p className="text-note text-ink-meta mb-3">
           Select a hiring system to filter Board Reads below.
         </p>
-        <ul className="grid gap-2 @3xl/main:grid-cols-2">
+        <ul className="grid gap-3 @3xl/main:grid-cols-2">
           {listed.map((s) => {
             const picked = s.ats === system;
             return (
@@ -123,7 +123,9 @@ export function ReadsExplorer({
                   onClick={() => setSystem(picked ? ALL : s.ats)}
                   className={cn(
                     "rounded-control focus-visible:ring-brand-ring w-full border px-3.5 py-3 text-left transition duration-150 focus-visible:ring-2 focus-visible:outline-none",
-                    "hover:shadow-card motion-safe:hover:-translate-y-0.5",
+                    // A shadow at rest, as every box on the page has, and WorkIt's lift
+                    // (--shadow-lift, for a card that is one target) under the pointer.
+                    "shadow-card hover:shadow-lift motion-safe:hover:-translate-y-0.5",
                     picked
                       ? "border-brand bg-brand-tint"
                       : "border-border-surface bg-panel hover:border-ink-meta",
