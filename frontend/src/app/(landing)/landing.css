@@ -1142,6 +1142,15 @@ html[data-tab-flight="flying"] .tour-tabs {
 .panel-ground {
   background: var(--color-landing-brand-100);
 }
+/* The home hero's stage light (KAN-923): one pool of lighter violet
+ * (brand-50) behind the headline's tile, fading to the ground's brand-100,
+ * so the gaps round the headline glow faintly as if lit from there. A light
+ * with a source, in place of the old mesh's glows that had none. Static. */
+.hero-stage {
+  background:
+    radial-gradient(ellipse 46% 48% at 50% 50%, var(--color-landing-brand-50), transparent 100%),
+    var(--color-landing-brand-100);
+}
 
 /*
  * The hero's grid (hero-board.tsx): tiles in equal columns filling the
@@ -1304,9 +1313,42 @@ html[data-tab-flight="flying"] .tour-tabs {
  * Pause Animations (the list at the top of this file); with reduced motion
  * every lit tile is lit and still.
  */
+/*
+ * A lit tile is a card you could pick up (KAN-923, in place of glass,
+ * which had nothing behind it to blur and would redraw its blur on every
+ * frame of the loop): `--mk-lit` at the top deepening by about 12% brand-950
+ * at the foot (the sheen runs downward, so the white text at the top keeps
+ * its 4.7:1; a lighter top cost it), a 1px light along the top edge, a soft
+ * violet drop shadow, and a faint violet glow that spills 4px into the gaps
+ * round it. All of it lives on this layer, so it fades in and out with the
+ * light: no extra animation. The grain (::after, about 10%, soft-light) is
+ * a still image inside the layer, under the text: on a solid colour it
+ * reads as a printed surface, not as noise.
+ */
 .board-lit {
   opacity: 0;
   animation: board-lit var(--cycle, 18s) ease-in-out var(--d, 0s) infinite;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--mk-lit) 15%,
+    color-mix(in oklab, var(--mk-lit) 88%, var(--color-landing-brand-950))
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 0 0 4px color-mix(in oklab, var(--mk-lit) 16%, transparent),
+    0 14px 26px -14px rgb(58 30 124 / 0.55);
+}
+.board-lit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.1;
+  mix-blend-mode: soft-light;
 }
 @keyframes board-lit {
   0%,

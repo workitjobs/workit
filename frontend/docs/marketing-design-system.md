@@ -48,7 +48,7 @@ screens follow `design.md`, not this file.
 | Panel ground | `.panel-ground` (brand-100) | The home hero's and the features section's panels |
 | Empty tile | white at 55%, no edge | The hero's tiles that are not lit; they recede |
 | Headline tile | `.hero-copy`: white, a soft violet shadow | The hero's brightest surface; ink text, the Google pair on it |
-| Lit tile | `--mk-lit` (#6c56b2, the brand's hue at less chroma), white text (85% white for second lines) | The hero's fits; the only saturated colour in it. The brand itself was too strong and shifted the rings' green toward cyan |
+| Lit tile | `--mk-lit` (#6c56b2, the brand's hue at less chroma) deepening downward, a light top edge, a drop shadow, a 4px glow into the gaps and a faint grain; white text (85% white for second lines) | The hero's fits; the only saturated colour in it. The brand itself was too strong and shifted the rings' green toward cyan |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -185,6 +185,7 @@ translate inside a clipped track.
 | Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |
 | A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
+| Glass job tiles and a grainy mesh ground (asked for) | Tactile lit tiles with grain on the solid colour, and one stage light behind the headline | Glass had nothing behind it to blur and would redraw every frame; grain in thin gaps reads as dirt |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
 | Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |

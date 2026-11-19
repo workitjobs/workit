@@ -290,7 +290,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     flow round it at 55% white with no edge, so they recede; seven light up
     in turn in a soft solid violet (`--mk-lit`, #6c56b2: the brand's hue
     at about 35% less chroma; the brand itself was too strong and pushed
-    the green rings toward cyan) with a real employer, the role (from lg up, on a
+    the green rings toward cyan), each a real employer. A lit
+    tile reads as a card, not glass (`.board-lit`: a sheen that deepens
+    downward so the white text at the top keeps 4.7:1, a 1px light top
+    edge, a soft drop shadow, a 4px violet glow into the gaps, and a faint
+    soft-light grain, all on the fading layer, so nothing else animates).
+    Glass was turned down: nothing behind the tiles to blur, and a
+    backdrop blur would redraw on every frame of the endless loop. The
+    panel has one stage light (`.hero-stage`: brand-50 behind the headline
+    tile, fading to brand-100), in place of glows with no source.
+    Measured: about 8ms frames, none over 20ms, at 1728 wide.
+    Each lit tile shows the role (from lg up, on a
     tile at least 116px tall: `.tile-role` hides by a container query on
     the tile, since on a short wide screen its second line ran into the
     bar) and the match's strength in the app's own bands (`matchTier` from

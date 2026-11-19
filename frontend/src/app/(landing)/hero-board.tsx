@@ -61,7 +61,6 @@ export function HeroGrid({ children }: { children: ReactNode }) {
                 className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
                 style={
                   {
-                    background: "var(--mk-lit)",
                     "--d": `${-(turn * CYCLE) / heroFits.length}s`,
                     "--cycle": `${CYCLE}s`,
                   } as CSSProperties
