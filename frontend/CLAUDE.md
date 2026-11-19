@@ -3574,6 +3574,20 @@ No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
 query, the percent; `node --test`); its read is `getFillHealth` in
 `fill-report-queries.ts`.
 
+`/admin/scrape-health` (the scraper's health, KAN-879) is the same kind
+of page: tiles for the enabled boards (all, failing, resting, stale) and
+the open scraped jobs, the task backlog (pending, claimed), the boards
+per hiring system with how many were ever read, then per day (UTC) per hiring system the board
+reads done and failed, their mean seconds and the new jobs, then the
+failing boards with their last error, from `GET /admin/scrape-health`
+under the same `WORKIT_ADMINS` gate (403 → the 404). Its shape
+(`ScrapeHealth`) and `daysOf` are in `lib/fill-health.ts`; its read is
+`getScrapeHealth` in `fill-report-queries.ts`. The API keeps its answer
+for 10 minutes, so the page shows when it was read and has no Refresh; its
+line for the scheduled scrape's last import goes when the worker takes
+over (`backend/CLAUDE.md`). No page links to an admin
+page: open it by its address.
+
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job

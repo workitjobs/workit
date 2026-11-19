@@ -625,6 +625,32 @@ Find files with a directory listing; these are the rules for where code goes.
   choice) and the top 3 error names, plus the
   period's engine versions for the filter. A job system that breaks shows
   as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
+- **The scraper's health for admins** (KAN-879, `routers/scrape_health.py`
+  over `queries/scrape_health.py`): `GET /admin/scrape-health?days=`
+  behind `get_admin`, as `/admin/fill-health`. It answers the enabled
+  boards now (all, failing, resting, stale, and the open scraped jobs),
+  the backlog (tasks pending and claimed, and the oldest pending one's
+  time: a worker that stopped leaves its tasks pending, which no finished
+  read shows), the enabled boards per hiring system with how many were
+  ever read,
+  per day (UTC) per hiring system the board reads done and failed with
+  their mean seconds and the jobs first seen, and up to 25 failing boards
+  with their last error. **It reads only the worker's own tables**
+  (`scraper_schedules`, `scraper_tasks`, `job_sources`) and
+  `job_postings`: no new table, no migration, and the worker writes
+  nothing for it. A board is failing when `consecutive_failures` is above
+  0, and stale when unread for `STALE_AFTER` (2 days) or never read.
+  **The answer is kept in memory for 10 minutes per `days`**
+  (`KEEP_SECONDS`, per process; `forget()` for tests), with `read_at`, so
+  many opens cost one read: `job_postings` is costly to read whole. Every
+  admin read added later is kept the same way, and gets no Refresh.
+  `last_import_at` is the newest `job_postings.updated_at`, the trace of
+  the scheduled feed import (`scrape.yml`), which the worker has not
+  replaced yet: **delete it and the page's line when the worker takes
+  over.**
+  **Still open:** `scraper_tasks` has no retention rule, so the days it
+  can show are as many as the table holds. Tests:
+  `tests/test_scrape_health.py`.
 - **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
