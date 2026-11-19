@@ -47,3 +47,41 @@ export function healthQuery(params: { days?: Param; engine_version?: Param }): s
 export function percent(share: number): string {
   return `${Math.round(share * 100)}%`;
 }
+
+/** GET /admin/scrape-health's answer (KAN-879, backend app/routers/scrape_health.py). */
+export type ScrapeHealth = {
+  /** When the API read these numbers; it keeps them for 10 minutes. */
+  read_at: string;
+  /** The newest job posting write: the scheduled feed import's trace. */
+  last_import_at: string | null;
+  boards: {
+    boards: number;
+    failing: number;
+    resting: number;
+    stale: number;
+    open_jobs: number;
+    /** The backlog: tasks no worker has taken, and tasks a worker took and has not finished. */
+    pending: number;
+    claimed: number;
+    oldest_pending_at: string | null;
+  };
+  /** Enabled boards per hiring system, and how many were ever read. */
+  systems: { ats: string; boards: number; read: number; last_read_at: string | null }[];
+  days: {
+    day: string;
+    ats: string;
+    done: number;
+    failed: number;
+    mean_seconds: number | null;
+    new_jobs: number;
+  }[];
+  failing: {
+    ats: string;
+    token: string;
+    company: string;
+    consecutive_failures: number;
+    last_read_at: string | null;
+    rest_until: string | null;
+    last_error: string | null;
+  }[];
+};

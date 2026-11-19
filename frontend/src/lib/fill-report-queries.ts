@@ -1,7 +1,7 @@
 import "server-only";
 
 import { apiGet } from "@/lib/api";
-import type { FillHealth } from "@/lib/fill-health";
+import type { FillHealth, ScrapeHealth } from "@/lib/fill-health";
 import {
   isReportId,
   type FillReport,
@@ -64,4 +64,9 @@ export function getFillFixture(id: string): Promise<Read<string>> {
 /** Fill numbers per job system per day (KAN-476): GET /admin/fill-health with the query `healthQuery` built. */
 export function getFillHealth(query: string): Promise<Read<FillHealth>> {
   return read(`/admin/fill-health${query}`);
+}
+
+/** The scraper's health (KAN-879): GET /admin/scrape-health with `?days=` from `daysOf`. */
+export function getScrapeHealth(days: number): Promise<Read<ScrapeHealth>> {
+  return read(`/admin/scrape-health?days=${days}`);
 }
