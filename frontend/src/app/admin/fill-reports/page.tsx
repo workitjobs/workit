@@ -12,6 +12,8 @@ import {
   statusOf,
 } from "@/lib/fill-reports";
 
+import { REPORT_SECTIONS, SECTION_TARGET } from "../pages";
+
 export const metadata: Metadata = { title: "Fill Reports" };
 
 /**
@@ -97,9 +99,18 @@ export default async function FillReportsPage({ searchParams }: PageProps<"/admi
           Filter
         </button>
       </form>
-      {grouped.data && grouped.data.groups.length > 0 && (
+      {/* Each section has its id from ../pages.ts, the sidebar's link to it. Groups always
+          draws its heading, so that link has a target when no group matches. */}
+      <h2
+        id={REPORT_SECTIONS.groups.id}
+        className={`text-body text-ink mt-6 font-semibold ${SECTION_TARGET}`}
+      >
+        {REPORT_SECTIONS.groups.label}
+      </h2>
+      {!grouped.data || grouped.data.groups.length === 0 ? (
+        <p className="text-body text-ink-muted mt-2">No groups for these filters.</p>
+      ) : (
         <>
-          <h2 className="text-body text-ink mt-6 font-semibold">Groups</h2>
           <table className="text-body mt-2 w-full border-collapse text-left">
             <thead>
               <tr className="text-ink-muted border-border-subtle border-b">
@@ -135,7 +146,13 @@ export default async function FillReportsPage({ searchParams }: PageProps<"/admi
           </table>
         </>
       )}
-      <p className="text-body text-ink-muted mt-6">
+      <h2
+        id={REPORT_SECTIONS.reports.id}
+        className={`text-body text-ink mt-6 font-semibold ${SECTION_TARGET}`}
+      >
+        {REPORT_SECTIONS.reports.label}
+      </h2>
+      <p className="text-body text-ink-muted mt-1">
         {data.total} reports
         {signature && (
           <>
