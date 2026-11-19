@@ -25,7 +25,8 @@ function Key({ swatch, children }: { swatch: string; children: string }) {
  * The catalog's boards per hiring system, most first (KAN-879): each bar's
  * length is the system's boards against the largest system's, and its dark
  * part the boards ever read. A row's figure says both, so no part is read
- * by colour alone. The card shows the five largest; its arrow opens the
+ * by colour alone. Each system is its own bubble, which lifts and takes the brand edge under
+ * the pointer. The card shows the five largest; its arrow opens the
  * rest, so the card is no taller than the chart beside it until asked.
  * Bars, not a donut: the systems are compared, and a donut's slices cannot
  * be.
@@ -58,9 +59,12 @@ export function SystemBars({ systems }: { systems: ScrapeHealth["systems"] }) {
         )
       }
     >
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {shown.map((s) => (
-          <li key={s.ats}>
+          <li
+            key={s.ats}
+            className="border-border-subtle bg-panel hover:border-brand hover:bg-brand-tint hover:shadow-card rounded-control border px-3.5 py-3 transition duration-150 motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.015]"
+          >
             <div className="text-body flex items-baseline justify-between gap-3">
               <span className="text-ink font-medium capitalize">{s.ats}</span>
               <span className="text-ink-meta tabular-nums">
