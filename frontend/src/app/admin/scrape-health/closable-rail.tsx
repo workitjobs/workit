@@ -33,7 +33,7 @@ export function ClosableRail({ children }: { children: ReactNode }) {
   }
 
   return (
-    <aside className="flex shrink-0 flex-col gap-4 px-6 pb-8 lg:w-88 lg:overflow-y-auto lg:py-8 lg:pr-10 lg:pl-0">
+    <aside className="flex shrink-0 flex-col gap-4 px-6 pb-8 lg:w-96 lg:overflow-y-auto lg:px-6 lg:py-8">
       <div className="flex items-center justify-between">
         <h2 className="text-ink text-base font-semibold">Details</h2>
         <button
