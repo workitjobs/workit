@@ -22,12 +22,12 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <Card as="section" padding="none" className={className}>
+    <Card as="section" padding="none" className={cn("flex flex-col", className)}>
       <header className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
         <h2 className="text-ink text-base font-semibold">{title}</h2>
         {action}
       </header>
-      <div className={cn("p-5", bodyClassName)}>{children}</div>
+      <div className={cn("flex-1 p-5", bodyClassName)}>{children}</div>
     </Card>
   );
 }

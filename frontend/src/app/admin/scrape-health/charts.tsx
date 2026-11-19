@@ -47,14 +47,14 @@ export function DailyReads({ rows, days }: { rows: ScrapeHealth["days"]; days: n
   const share = (n: number) => `${(n / top) * 100}%`;
 
   return (
-    <figure>
-      <div className="flex gap-3">
-        <div className="text-label text-ink-meta flex h-52 flex-col justify-between text-right font-normal tabular-nums">
+    <figure className="flex h-full flex-col">
+      <div className="flex min-h-52 flex-1 gap-3">
+        <div className="text-label text-ink-meta flex flex-col justify-between text-right font-normal tabular-nums">
           <span className="-translate-y-1/2">{count(top)}</span>
           <span>{count(top / 2)}</span>
           <span className="translate-y-1/2">0</span>
         </div>
-        <div className="relative h-52 min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <div className="border-border-subtle absolute inset-x-0 top-0 border-t" />
           <div className="border-border-subtle absolute inset-x-0 top-1/2 border-t" />
           <div className="border-border-surface absolute inset-x-0 bottom-0 border-t" />
