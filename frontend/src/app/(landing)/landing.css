@@ -1123,54 +1123,122 @@ html[data-tab-flight="flying"] .tour-tabs {
   mix-blend-mode: soft-light;
 }
 
-/* The home hero's panel (KAN-923): a flat, very pale ink-grey, so its
- * white tiles read as tiles (hero-board.tsx). It replaced a violet, blue
- * and pink mesh gradient, which the user found too close to Calendly's and
- * without feel. Neutral on purpose: the colour comes from the tiles that
- * light up. */
-.hero-ground {
+/* The home hero's panel and the features section's (KAN-923): a flat,
+ * very pale ink-grey, so white tiles and cards read on it. It replaced a
+ * violet, blue and pink mesh gradient, which the user found too close to
+ * Calendly's and without feel. Neutral on purpose: in the hero the colour
+ * comes from the tiles that light up. */
+.panel-ground {
   background: color-mix(in oklab, var(--color-ink) 4%, white);
 }
 
 /*
- * The hero's grid (hero-board.tsx): square tiles in equal columns, with the
- * headline's tile placed in the middle and the small tiles flowing round it.
- * Below lg the headline's tile is a full-width row between a row of tiles
- * above and one below; from lg up it spans the middle columns and 4 rows
- * (3 from 90rem, where the cells are tall enough), with a column of tiles
- * on each side. A tile is square by its aspect ratio, so a row is as tall
- * as its tiles. The headline's tile is white too, so the Google pair's
- * #F2F2F2 reads on it; its text must fit its rows (it is centred, and a row
- * grows if it does not, leaving gaps under the side tiles): check at 1024
- * and 1280 wide after a change to the hero's type.
+ * The hero's grid (hero-board.tsx): tiles in equal columns filling the
+ * hero panel edge to edge, the headline's tile in the middle and the
+ * small tiles flowing round it, so no stretch of bare ground shows at any
+ * size (the user saw bare margins when the grid had a fixed width).
+ *
+ * Below lg the tiles are square and the headline's tile is a full-width
+ * row between a row of tiles above and one below; that row takes the
+ * height left in the panel, which is at least the screen's (page.tsx).
+ *
+ * From lg up the panel is the screen's height under the header (the hero
+ * is the first screen and nothing else; a minimum, so a screen too short
+ * for the headline grows the panel instead of clipping the grid's last
+ * row, which happened at 1024 × 768 before the headline took the screen's
+ * height into account), the grid is 5 rows that share it, and the headline's tile spans the middle 3 rows and all but the
+ * outer columns. To keep the tiles near square, the column count follows
+ * the screen's shape: 7 columns below 8:5 (a 4:3 or 3:2 screen), 9 from
+ * 8:5 (16:10 and 16:9 laptops and monitors), 11 from 21:10 (ultrawide).
+ *
+ * Each width shows only the tiles it has cells for (the `nth-child` rules;
+ * child 1 is the headline's tile): phone 8, sm 12, 7 columns 20, 9 columns
+ * 24, 11 columns 28, as hero-board.tsx renders. A spare tile would open a
+ * new row. Check at 1024 × 768, 1280 × 800, 1440 × 900, 1920 × 1080 and a
+ * phone after any change to the hero's type or these numbers.
  */
 .hero-grid {
   --cols: 4;
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: auto 1fr auto;
   gap: 0.5rem;
 }
 .hero-tile {
   aspect-ratio: 1;
   box-shadow: 0 0 0 1px rgb(15 23 42 / 0.04);
+  container-type: size;
 }
+/* A lit tile's role needs about 116px of tile height beside its logo and
+ * match bar: on a short, wide screen (1600 × 681) the rows are about 100px
+ * and its second line ran into the bar, so a short tile drops it. */
+@container (max-height: 7.25rem) {
+  .tile-role {
+    display: none;
+  }
+}
+.hero-tile:nth-child(n + 10) {
+  display: none;
+}
+/*
+ * The headline's tile: pastel WorkIt violet, so it stands out of the white
+ * tiles (the user's ask), in one hue only: brand-100 at the top to brand-50
+ * at the foot, a soft brand-300 glow from the top centre and a little in
+ * one corner, under the boxes' grain. The user turned down a deep violet
+ * (brand-700 to brand-950, white text) as too dark and strong. No second
+ * hue: a violet-to-pink-to-blue sweep is the AI-made look the site moved
+ * away from. Its text is ink, as on white.
+ */
 .hero-copy {
   grid-column: 1 / -1;
   grid-row: 2;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2.5rem 1rem;
-  border-radius: 1.5rem;
-  background: white;
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.04);
+  border-radius: 1rem;
+  background:
+    radial-gradient(
+      70% 60% at 50% -10%,
+      color-mix(in oklab, var(--color-landing-brand-300) 70%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 45% at 100% 100%,
+      color-mix(in oklab, var(--color-landing-brand-300) 40%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(180deg, var(--color-landing-brand-100), var(--color-landing-brand-50));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 0 0 1px rgb(15 23 42 / 0.04);
   text-align: center;
+}
+.hero-copy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.18;
+  mix-blend-mode: soft-light;
 }
 @media (min-width: 40rem) {
   .hero-grid {
     --cols: 6;
     gap: 0.75rem;
+  }
+  .hero-tile:nth-child(n + 10) {
+    display: block;
+  }
+  .hero-tile:nth-child(n + 14) {
+    display: none;
   }
   .hero-copy {
     padding: 3rem 2rem;
@@ -1179,27 +1247,48 @@ html[data-tab-flight="flying"] .tour-tabs {
 @media (min-width: 64rem) {
   .hero-grid {
     --cols: 7;
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+  }
+  .hero-tile {
+    aspect-ratio: auto;
+  }
+  .hero-tile:nth-child(n + 14) {
+    display: block;
+  }
+  .hero-tile:nth-child(n + 22) {
+    display: none;
   }
   .hero-copy {
     grid-column: 2 / -2;
-    grid-row: 2 / span 4;
-    padding: 1.5rem;
+    grid-row: 2 / span 3;
+    padding: 1rem 1.5rem;
   }
 }
-@media (min-width: 80rem) {
+@media (min-width: 64rem) and (min-aspect-ratio: 8/5) {
   .hero-grid {
     --cols: 9;
   }
+  .hero-tile:nth-child(n + 22) {
+    display: block;
+  }
+  .hero-tile:nth-child(n + 26) {
+    display: none;
+  }
 }
-@media (min-width: 90rem) {
-  .hero-copy {
-    grid-row: 2 / span 3;
+@media (min-width: 64rem) and (min-aspect-ratio: 21/10) {
+  .hero-grid {
+    --cols: 11;
+  }
+  .hero-tile:nth-child(n + 26) {
+    display: block;
   }
 }
 
 /*
  * A tile lights up (hero-board.tsx): its soft violet face fades in over the
- * white tile, lifting a little, holds for about a third of the cycle,
+ * white tile, settling from just under its size to its place, holds for
+ * about a third of the cycle (never bigger than its cell: lifted 4% it
+ * stood out of line with its neighbours, which the user flagged),
  * and fades out, once per `--cycle`, each posting after its own `--d`
  * (negative, so the grid starts mid-cycle with some already lit), so two
  * or three show at once on a laptop. Opacity and transform only, so it runs off
@@ -1215,16 +1304,16 @@ html[data-tab-flight="flying"] .tour-tabs {
   0%,
   100% {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
   5%,
   30% {
     opacity: 1;
-    transform: scale(1.04);
+    transform: scale(1);
   }
   36% {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
 }
 @media (prefers-reduced-motion: reduce) {

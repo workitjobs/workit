@@ -1,11 +1,13 @@
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
+import { cn } from "@/lib/cn";
 
 import { stages } from "./board-data";
 import { site, streams } from "./data";
 import { followedJob, matchingFeature } from "./feature-data";
 import { featurePages } from "./features/catalog";
+import { PANEL } from "./layout-parts";
 import { FooterWordmark } from "./footer-wordmark";
 import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
@@ -50,7 +52,7 @@ export function Footer() {
 
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
-      <div className="bg-ink overflow-hidden rounded-[2rem] text-white lg:rounded-[3rem]">
+      <div className={cn(PANEL, "bg-ink overflow-hidden text-white")}>
         {/* Five link columns: two a row on a phone, three at md, one row of
             five under the tagline at lg, beside it from xl, where a column
             is still wide enough for "Application Tracker" on one line. */}

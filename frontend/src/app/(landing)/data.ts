@@ -55,9 +55,6 @@ export const hero = {
   // unmounted) read as a template trope, and the user found the page
   // AI-made. The headline is `site.tagline`, so the footer repeats it.
   title: site.tagline,
-  // The pill above the headline: who it is for. The scraper keeps only
-  // internship and new-grad roles (docs/job-pipeline.md).
-  audience: "For internships and new-grad roles",
   // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank loops
   // through the pipeline in the tour's order, one chore a student knows per
   // step, starting on `rest`, auto apply, which with matching matters most;

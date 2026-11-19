@@ -261,9 +261,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   heading size, and scenes that pinned whole screens. The order, each
   section leading into the next, is `page.tsx`: the hero (a fixed headline,
   `hero.title`, which is `site.tagline`; the sign-up pair, which a Download
-  for Mac button from KAN-922 joins in the same wrapping row; then
-  `HeroFeatures`), the logo strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), the statement in a box, the journey ("One
+  for Mac button from KAN-922 joins in the same wrapping row), the logo
+  strip (`logo-strip.tsx`, real employers from
+  `logoStrip` in data.ts), the four features (`HeroFeatures`), the
+  statement in a box, the journey ("One
   application, start to finish", `journey.tsx`), one product section each
   for Resume Builder, Job Matching and Auto Apply (`product-sections.tsx`),
   the hiring systems grid (`hiring-grid.tsx`, `#hiring-systems`), the FAQ
@@ -277,30 +278,44 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     pins to the screen and no section is a screen tall**, as on Calendly,
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
-  - **The hero is a grid of square tiles** (`HeroGrid` in
-    `hero-board.tsx`, `.hero-grid` in landing.css; the user picked it on
-    2026-11-19 from a sketch, over a board of wide grey posting cards and,
-    before that, `.hero-mesh`, a violet mesh gradient too close to
-    Calendly's): white squares on a flat pale ink-grey ground
-    (`.hero-ground`), the headline, line and sign-up pair in one large
-    white tile in the middle (`.hero-copy`, white so the Google pair's
-    #F2F2F2 reads), and the small tiles flowing round it. Seven tiles light
-    up in turn in soft violet (the user's pick over green) with a real
-    employer's logo and name, the role (from lg up) and the match as a
-    percentage over a slim bar (`MatchBar`; a ring took too much height).
-    The lights are `.board-lit`, an opacity and transform loop on the Pause
-    Animations list, lit and still with reduced motion; the component is a
-    server component with no script. Columns: 4 on a phone, 6 from sm, 7
-    from lg, 9 from xl; the headline tile is a full-width row below lg,
-    and from lg up spans the middle columns and 4 rows (3 from 90rem, where
-    cells are taller). Each tile hides below the width that has a cell for
-    it (`shownFrom`), or a spare tile opens a new row; which tiles light,
-    and when, is `LIT`, picked so the lit tiles spread at every width. The
-    text must fit its rows: after a change to the hero's type, check at
-    1024 and 1280 wide that every row is still square
-    (`getComputedStyle(grid).gridTemplateRows`). Data: `heroFits` in
-    data.ts.
-  - **The hero's top features** (`hero-features.tsx`): the four
+  - **The hero is the first screen and nothing else** (the user's call,
+    2026-11-19): a grey panel (`.panel-ground`) the screen's height under
+    the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
+    header and the 8/24px inset; a minimum, so a screen too short for the
+    headline grows the hero rather than clipping it), filled edge to edge
+    by a grid of tiles (`HeroGrid` in `hero-board.tsx`, `.hero-grid` in
+    landing.css). The headline, line and sign-up pair sit in one large
+    tile in the middle (`.hero-copy`): pastel WorkIt violet in one hue
+    (brand-100 to brand-50, a soft brand-300 glow from the top, grain),
+    ink text; the user turned down a deep violet with white text as too
+    dark and strong, and a second hue would be the AI-made sweep the site
+    moved away from. White tiles flow round it; seven light up in
+    turn in soft violet with a real employer, the role (from lg up, on a
+    tile at least 116px tall: `.tile-role` hides by a container query on
+    the tile, since on a short wide screen its second line ran into the
+    bar) and the match as a percentage over a slim bar (`MatchBar`; a ring took too much
+    height), at their cell's size (lifted 4% they stood out of line).
+    Below lg the tiles are square, one row above the headline's tile and
+    one below; from lg up the grid is 5 rows sharing the panel's height,
+    the headline's tile spans the middle 3 and all but the outer columns,
+    and the column count follows the screen's shape so tiles stay near
+    square: 7 below 8:5, 9 from 8:5, 11 from 21:10. Each layout shows only
+    the tiles it has cells for (`nth-child` rules in landing.css; a spare
+    tile opens a new row). From lg up the headline is
+    `clamp(2.75rem,6.4svh,4.5rem)`, so it fits three rows at 1024 × 768.
+    After any change to the hero, check 1024 × 768, 1366 × 768, 1440 ×
+    900, 1920 × 1080, 768 × 1024 and 375 × 812: no bare ground beside the
+    grid, the headline inside its tile, and the next section starting
+    below the screen. The lights are `.board-lit` (opacity and transform,
+    on the Pause Animations list, lit and still with reduced motion); the
+    grid is a server component with no script. It replaced a violet mesh
+    gradient (too close to Calendly's), then a board of wide grey posting
+    cards, then a grid capped at 84rem, which left bare grey margins on a
+    wide screen; the "For internships and new-grad roles" pill was taken
+    out. Data: `heroFits` in data.ts.
+  - **The four features, below the hero and the logo strip**
+    (`hero-features.tsx`, their own section on the hero's grey since the
+    hero became one screen, "Every step of the search, in one place"): the four
     `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
     `.surface-card` with the open feature's copy (`StopCopy`,
     `stop-copy.tsx`, shared with the unmounted tour) beside its story in a

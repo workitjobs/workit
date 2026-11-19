@@ -23,11 +23,17 @@ export const CONTAINER = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 /**
  * A full-width band drawn as a rounded panel inset from the window's edges,
  * after Calendly: the inset on the outer element, the fill and corners on
- * the panel inside it. The footer and the product tour use the same inset
- * and radii.
+ * the panel inside it. The footer uses the same inset and radii.
+ *
+ * Corners nest (KAN-923, the user's call): an outer corner is the inner
+ * corner plus the padding between them, so the two curves run parallel. A
+ * tile or a framed box is 16px (`rounded-2xl`); a card holding one 12px in
+ * is 28px; the hero panel holds its 16px tiles 8px in on a phone and 12px
+ * from sm, so a panel is 24px, then 28px. It was 32px, then 48px from lg,
+ * which the user found too round beside the hero's tiles.
  */
 export const PANEL_INSET = "px-2 sm:px-6";
-export const PANEL = "rounded-[2rem] lg:rounded-[3rem]";
+export const PANEL = "rounded-[1.5rem] sm:rounded-[1.75rem]";
 
 /**
  * How long the pinned tour's panel takes to turn into the hiring-systems
@@ -70,19 +76,23 @@ export const TYPE = {
   eyebrow: "text-xs font-semibold tracking-[0.08em] uppercase",
 } as const;
 
-/** The pill above a hero's headline (the home page's audience, a feature
- *  page's name, Pricing): frosted white, no border, one look on every
+/** The pill above a hero's headline (a feature page's name, Pricing,
+ *  a Resources page; the home hero has none since the user had its
+ *  "For internships and new-grad roles" removed): frosted white, no border, one look on every
  *  page. Pricing's was violet glass in capitals. */
 export const HERO_PILL =
   "text-ink inline-flex items-center gap-2 rounded-full bg-white/70 px-3.5 py-1.5 text-sm font-medium shadow-[var(--mk-shadow-float)] backdrop-blur-sm";
 
 export function SectionHeading({
+  id,
   eyebrow,
   title,
   subtitle,
   align = "center",
   className,
 }: {
+  /** The h2's id, for a section's aria-labelledby. */
+  id?: string;
   eyebrow?: string;
   title: string;
   subtitle?: string;
@@ -92,7 +102,9 @@ export function SectionHeading({
   return (
     <div className={cn("max-w-3xl", align === "center" && "mx-auto text-center", className)}>
       {eyebrow && <p className={cn(TYPE.eyebrow, "text-landing-brand-700")}>{eyebrow}</p>}
-      <h2 className={cn(TYPE.chapter, "text-ink mt-3")}>{title}</h2>
+      <h2 id={id} className={cn(TYPE.chapter, "text-ink mt-3")}>
+        {title}
+      </h2>
       {subtitle && (
         <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
       )}
@@ -128,7 +140,7 @@ export function studioGround({
 
 /**
  * The frame every moving or still picture on the home page sits in
- * (KAN-923): a rounded box on a feature's ground (`studioGround`), with a
+ * (KAN-923): a box with the tiles' 16px corners on a feature's ground (`studioGround`), with a
  * fine grain and faint ruled lines like resume paper (`.studio-box` in
  * landing.css), so a picture is a small object on the page and never the
  * page itself. After Calendly, whose animations all sit in boxes of 290 to
@@ -151,7 +163,7 @@ export function StudioBox({
   return (
     <div
       ref={ref}
-      className={cn("studio-box relative isolate overflow-hidden rounded-[2rem]", className)}
+      className={cn("studio-box relative isolate overflow-hidden rounded-2xl", className)}
       style={{ background: ground, ...style }}
     >
       {children}

@@ -141,11 +141,11 @@ function PlanBoard() {
       {/* The panels settle in, each on itself: the glass may fade, but
           nothing above it may. Plus's strip grows down from the top. */}
       <div
-        className="price-panel glass-card absolute inset-0 -z-10 hidden rounded-[2rem] xl:col-[1/6] xl:block"
+        className="price-panel glass-card absolute inset-0 -z-10 hidden rounded-[1.75rem] xl:col-[1/6] xl:block"
         style={{ "--d": "0.22s" } as CSSProperties}
       />
       <div
-        className="price-panel bg-well ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
+        className="price-panel bg-well ring-border absolute inset-0 -z-10 hidden rounded-[1.75rem] ring-1 ring-inset xl:col-[7/8] xl:block"
         style={{ "--d": "0.3s" } as CSSProperties}
       />
       <div className="price-strip absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] bg-slate-900/[0.035] xl:col-[3/4] xl:block" />

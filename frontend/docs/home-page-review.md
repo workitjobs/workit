@@ -134,7 +134,7 @@ The user turned down a first, smaller plan as still too plain and approved
 this one. Built on branch `KAN-923-home-page-redesign`.
 
 1. **Hero**: a fixed headline ("Your job search, without the busywork.",
-   72px), a pill for who it is for, the sign-up pair with room for
+   72px), the sign-up pair with room for
    Download for Mac (KAN-922), then the four feature tabs and one card
    that plays the open feature's story in a framed box. Each story plays
    once, then the next tab opens. A richer gradient with grain.

@@ -15,7 +15,7 @@ import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { Journey } from "./journey";
-import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
@@ -52,60 +52,74 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
-      {/* Hero, in a rounded panel inset from the window, like every
-          full-width band on these pages: the headline in a large tile of a
-          grid whose tiles light up green for the jobs that fit
-          (hero-board.tsx, .hero-grid), then the four features. */}
+      {/* Hero: the first screen and nothing else. A rounded panel inset
+          from the window, as every full-width band on these pages, the
+          screen's height under the header (a minimum, so a screen too short
+          for the headline grows the hero rather than clipping it), filled
+          edge to edge by the tile grid (hero-board.tsx,
+          .hero-grid): the headline in its large tile, the tiles of the jobs
+          that fit lighting up round it. 5rem and 6.25rem are the header
+          (72px, 76px from sm) and the panel's inset below it. */}
       <section className={PANEL_INSET}>
         <div
           className={cn(
             PANEL,
-            "hero-ground relative isolate overflow-hidden p-2 pb-3 sm:p-3 sm:pb-6",
+            "panel-ground relative isolate flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden p-2 sm:min-h-[calc(100svh-6.25rem)] sm:p-3",
           )}
         >
-          <div className="mx-auto max-w-[84rem]">
-            <HeroGrid>
-              <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": ".05s" } as CSSProperties}>
-                {hero.audience}
-              </p>
-              <h1
-                className={cn(TYPE.display, "hero-rise text-ink mx-auto mt-5 max-w-4xl")}
-                style={{ "--rd": ".15s" } as CSSProperties}
-              >
-                {hero.title}
-              </h1>
-              <p
-                className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
-                style={{ "--rd": ".3s" } as CSSProperties}
-              >
-                {hero.subtitle}
-              </p>
-              {/* The sign-up pair. A Download for Mac button (KAN-922) joins
-                  this row: it wraps, so a third button needs no other change. */}
-              <div
-                className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
-                style={{ "--rd": ".4s" } as CSSProperties}
-              >
-                <SocialSignUpButton provider="google" />
-                <SocialSignUpButton provider="linkedin_oidc" />
-                <div className="w-full text-center sm:basis-full">
-                  <EmailSignUpLink />
-                </div>
+          <HeroGrid>
+            {/* From lg up the headline takes the screen's height into
+                account (6.4svh, 44 to 72px), so it fits its tile's three
+                rows on a short laptop screen (1024 × 768). */}
+            <h1
+              className={cn(
+                TYPE.display,
+                "hero-rise text-ink mx-auto max-w-4xl lg:text-[clamp(2.75rem,6.4svh,4.5rem)]",
+              )}
+              style={{ "--rd": ".15s" } as CSSProperties}
+            >
+              {hero.title}
+            </h1>
+            <p
+              className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
+              style={{ "--rd": ".3s" } as CSSProperties}
+            >
+              {hero.subtitle}
+            </p>
+            {/* The sign-up pair. A Download for Mac button (KAN-922) joins
+                this row: it wraps, so a third button needs no other change. */}
+            <div
+              className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
+              style={{ "--rd": ".4s" } as CSSProperties}
+            >
+              <SocialSignUpButton provider="google" />
+              <SocialSignUpButton provider="linkedin_oidc" />
+              <div className="w-full text-center sm:basis-full">
+                <EmailSignUpLink />
               </div>
-            </HeroGrid>
-          </div>
-          {/* The four features, one at a time: hero-features.tsx. */}
-          <div
-            className="hero-rise relative mx-auto mt-12 max-w-6xl px-3 sm:mt-16 sm:px-6 lg:px-8"
-            style={{ "--rd": ".55s" } as CSSProperties}
-          >
-            <HeroFeatures />
-          </div>
+            </div>
+          </HeroGrid>
         </div>
       </section>
 
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
+
+      {/* The four features, one at a time, on the hero's pale ground: a
+          section of their own since the hero became one screen
+          (hero-features.tsx). */}
+      <section aria-labelledby="features-title" className={PANEL_INSET}>
+        <div className={cn(PANEL, "panel-ground px-3 py-16 sm:px-6 sm:py-24")}>
+          <SectionHeading
+            id="features-title"
+            eyebrow="What WorkIt does"
+            title="Every step of the search, in one place"
+          />
+          <div className="mx-auto mt-10 max-w-6xl sm:mt-14 lg:px-2">
+            <HeroFeatures />
+          </div>
+        </div>
+      </section>
 
       {/* Why it matters, played in a framed box: statement.tsx. */}
       <Statement />

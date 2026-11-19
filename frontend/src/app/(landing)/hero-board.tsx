@@ -1,7 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import { cn } from "@/lib/cn";
-
 import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 
@@ -11,20 +9,12 @@ const CYCLE = 14;
 
 /**
  * The tiles, in the order the grid places them round the headline (row by
- * row, left and right of it in the middle rows). The most any width shows
- * is 26 (`.hero-grid` in landing.css: 4 columns on a phone, 6 from sm, 7
- * from lg, 9 from xl, with the headline 4 rows tall below 90rem and 3 from
- * it); each tile hides below the width that has a cell for it, or a spare
- * tile would open a new row.
+ * row, left and right of it in the middle rows). The most any screen shows
+ * is 28 (11 columns on an ultrawide screen); `.hero-grid` in landing.css
+ * shows only as many as the screen's grid has cells for, or a spare tile
+ * would open a new row.
  */
-const TILES = 26;
-function shownFrom(i: number) {
-  if (i < 8) return undefined;
-  if (i < 12) return "max-sm:hidden";
-  if (i < 22) return "max-lg:hidden";
-  if (i < 24) return "max-xl:hidden";
-  return "max-xl:hidden min-[90rem]:hidden";
-}
+const TILES = 28;
 
 /**
  * The tiles that light up, each with its turn: tile index to its place in
@@ -45,9 +35,10 @@ const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23
  * unsatisfying beside the sketch of this grid, and before it a violet mesh
  * gradient, too close to Calendly's. A server component with no script: the
  * lights are a CSS loop on opacity and transform (`.board-lit`), held by
- * Pause Animations, lit and still with reduced motion. The grid places the
- * headline tile in its middle and the small tiles flow round it
- * (`.hero-grid`); the tiles are decorative.
+ * Pause Animations, lit and still with reduced motion. The grid fills the
+ * hero panel edge to edge, the headline's tile in its middle and the small
+ * tiles flowing round it, with as many columns as keep the tiles near
+ * square (`.hero-grid`); the tiles are decorative.
  */
 export function HeroGrid({ children }: { children: ReactNode }) {
   return (
@@ -57,11 +48,7 @@ export function HeroGrid({ children }: { children: ReactNode }) {
         const turn = LIT[i];
         const posting = turn === undefined ? null : heroFits[turn];
         return (
-          <div
-            key={i}
-            aria-hidden="true"
-            className={cn("hero-tile relative rounded-2xl bg-white", shownFrom(i))}
-          >
+          <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl bg-white">
             {posting && (
               <div
                 className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
@@ -83,9 +70,10 @@ export function HeroGrid({ children }: { children: ReactNode }) {
                     {posting.company}
                   </span>
                 </span>
-                {/* The role, from lg up, where a tile has room for two lines
-                    of it; below lg the tile shows the logo and the match. */}
-                <span className="text-ink mt-1.5 line-clamp-2 hidden text-xs leading-tight font-semibold lg:block">
+                {/* The role, from lg up and on a tile at least 116px tall
+                    (`.tile-role` in landing.css), where it has room for two
+                    lines; otherwise the tile shows the company and match. */}
+                <span className="tile-role text-ink mt-1.5 line-clamp-2 hidden text-xs leading-tight font-semibold lg:block">
                   {posting.title}
                 </span>
                 <MatchBar score={posting.score} />

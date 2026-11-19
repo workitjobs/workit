@@ -9,13 +9,14 @@ screens follow `design.md`, not this file.
 
 ## Principles
 
-1. **Colour lives in two places only**: the home hero's lit tiles and the
-   framed boxes (`StudioBox`). The page, its cards and its buttons are white,
+1. **Colour lives in two places only**: the home hero (its violet headline
+   tile and the tiles that light up) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
    check, a feature's icon tile, Plus's limit pills, the slop word. It
-   never fills a button, a card or a headline.
+   never fills a button or a card. The one exception is the home hero's
+   headline tile, pastel violet in one hue, at the user's ask.
 3. **Size carries hierarchy, not weight.** Every heading is weight 500;
    the steps of `TYPE` do the work.
 4. **Motion stays in its box.** Nothing pins to the screen; a loop has a
@@ -34,7 +35,8 @@ screens follow `design.md`, not this file.
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
 | Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
-| Hero ground | `.hero-ground` | The home hero: flat pale ink-grey under white tiles |
+| Panel ground | `.panel-ground` | The home hero's and the features section's panels: flat pale ink-grey under white tiles and cards |
+| Headline tile | `.hero-copy`: brand-100 to brand-50, a soft brand-300 glow from the top | The home hero's headline; ink text on it |
 | Lit tile | brand at 13% over white, brand-800 text, a `bg-brand` bar | The home hero's postings that fit |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
@@ -61,10 +63,15 @@ section heading; a hero line may keep one.
 
 ## Shape and space
 
-- Radius: buttons `rounded-control` (the app's); cards 2rem; boxes 2rem;
-  the hero card 2.5rem; panels `PANEL` (2rem, 3rem from lg); pills full.
+- **Corners nest**: an outer corner is the inner corner plus the padding
+  between them, so the curves run parallel. Tiles and framed boxes are
+  16px (`rounded-2xl`); a card holding one 12px in is 28px; panels
+  (`PANEL`, the footer included) are 24px on a phone and 28px from sm,
+  where they hold the hero's tiles 8px and 12px in. Buttons keep
+  `rounded-control`; pills are full. Panels were 48px from lg, which the
+  user found too round beside the tiles.
 - Width: `CONTAINER` (max-w-6xl); a reading column max-w-2xl; a chapter
-  heading max-w-3xl.
+  heading max-w-3xl. The home hero alone fills the panel edge to edge.
 - Section rhythm: `py-16 sm:py-24` for a product section, `py-20 sm:py-28`
   for a chapter.
 
@@ -94,12 +101,14 @@ heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 
 ### The home hero's grid (`hero-board.tsx`)
 
-Square white tiles on a flat pale ink-grey ground, with the headline in
-one large white tile in the middle. Seven tiles light up in turn in soft
-violet: a real employer's logo and name, the role (from lg up), and the
-match as a percentage over a slim bar. Two or three are lit at once on a
-laptop. It is the hero's only colour. A ring for the match was tried and
-took too much of a small tile.
+The first screen and nothing else: a grey panel the screen's height,
+filled edge to edge by tiles. The headline sits in one large pastel
+violet tile in the middle, ink text on it (a deep violet was too dark and
+strong). White tiles flow round it; seven
+light up in turn in soft violet with a real employer, the role and the
+match as a percentage over a slim bar. Columns follow the screen's shape
+so the tiles stay near square. The four features follow below, in their
+own section.
 
 ### Cards
 
@@ -121,8 +130,9 @@ per box; the UI inside floats on it.
 
 ### Pills and chips
 
-- `HERO_PILL`: frosted white, `--mk-shadow-float`, the pill above every
-  page's h1.
+- `HERO_PILL`: frosted white, `--mk-shadow-float`, the pill above a
+  feature page's, Pricing's and a Resources page's h1. The home hero has
+  none (the user had it removed).
 - A feature chip: `FeatureIcon` plus the feature's name, ink text.
 - Status chips (the closing row): white, a logo, a label, the company in
   meta grey.
@@ -150,6 +160,8 @@ pins; no shine sweeps or glows.
 | Google light theme, grey border | Google neutral theme, no border | Bordered buttons looked AI-made; the dark theme was too heavy |
 | Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |
 | A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
+| A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
+| 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
 | `.glass-card` tinted violet with a violet ring | Neutral frosted white | Same |
 | Pricing's violet gradient Plus card and its shine | Solid ink card | Same; the shine was decoration |

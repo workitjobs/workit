@@ -50,7 +50,7 @@ export function Journey() {
                     }}
                   />
                 )}
-                <div className="surface-card grid gap-3 rounded-[2rem] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-6">
+                <div className="surface-card grid gap-3 rounded-[1.75rem] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-6">
                   <div className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 md:pb-6">
                     <p className={cn(TYPE.eyebrow, "text-ink-meta flex items-center gap-2")}>
                       <FeatureIcon
