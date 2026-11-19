@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { matchColor, matchTier } from "@/lib/match";
+
 import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 
@@ -27,11 +29,12 @@ const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23
 /**
  * The home hero's grid (KAN-923, the user's pick): square white tiles round
  * the headline, which sits in one large white tile of its own, and the
- * tiles of the postings that fit you light up in solid brand violet, in
- * turn, with the company, the role and the match as a percentage over a
- * bar (`MatchBar`), as the Jobs page puts the best fits first. Their text
+ * tiles of postings worth applying to light up in solid brand violet, in
+ * turn, with the company, the role and the match's strength in the app's
+ * bands over a filling bar (`MatchBar`), as the Jobs page puts the best
+ * fits first. Their text
  * is white in the Jobs page job card's weights (compact-job-card.tsx: the
- * role medium, the company regular, the match semibold), never violet on
+ * role medium, the company regular, the band semibold), never violet on
  * violet, which the user found off; 85% white keeps 5:1 on the brand. It
  * replaced a board of wide grey posting cards, which the user found
  * unsatisfying beside the sketch of this grid, and before it a violet mesh
@@ -89,24 +92,41 @@ export function HeroGrid({ children }: { children: ReactNode }) {
 }
 
 /**
- * A match as a percentage over a slim bar filled to it: the number to read,
- * the bar to see at a glance, in about 20px of the tile's height. A ring
- * was tried first and took too much of a small tile (the user's call).
- * The bar fills from empty each time its tile lights (`.board-bar` in
- * landing.css, on the tile's own cycle).
+ * A match's strength, as the Jobs page names it: the app's band
+ * (`matchTier`: Excellent, Good, Fair or Weak Match) behind a dot in the
+ * band's colour, which only ever paints a mark (lib/match.ts), then a slim
+ * bar filled to the score with the percentage at its end. The band leads
+ * because a number alone does not tell a student whether to apply (the
+ * user's call); the bar and the number back it up. On a narrow tile the
+ * band drops its "Match" and the number goes (`.tile-*` container rules in
+ * landing.css). The bar fills each time the tile lights (`.board-bar`).
+ * A ring was tried first and took too much of a small tile.
  */
 function MatchBar({ score }: { score: number }) {
+  const tier = matchTier(score);
   return (
     <span className="mt-auto block">
-      <span className="flex items-baseline gap-1">
-        <span className="text-xs font-semibold text-white tabular-nums lg:text-sm">{score}%</span>
-        <span className="hidden text-[11px] font-normal text-white/85 lg:inline">match</span>
-      </span>
-      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/25">
+      <span className="flex items-center gap-1.5">
         <span
-          className="board-bar block h-full rounded-full bg-white"
-          style={{ width: `${score}%` }}
+          aria-hidden="true"
+          className="tile-dot size-2 shrink-0 rounded-full ring-2 ring-white/90"
+          style={{ background: matchColor(score) }}
         />
+        <span className="truncate text-[11px] font-semibold text-white lg:text-xs">
+          <span className="tile-tier-full">{tier}</span>
+          <span className="tile-tier-short">{tier.replace(/ Match$/, "")}</span>
+        </span>
+      </span>
+      <span className="mt-1.5 flex items-center gap-1.5">
+        <span className="block h-1.5 flex-1 overflow-hidden rounded-full bg-white/25">
+          <span
+            className="board-bar block h-full rounded-full bg-white"
+            style={{ width: `${score}%` }}
+          />
+        </span>
+        <span className="tile-pct text-[11px] font-normal text-white/85 tabular-nums">
+          {score}%
+        </span>
       </span>
     </span>
   );

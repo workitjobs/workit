@@ -291,7 +291,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     in turn in solid brand violet with a real employer, the role (from lg up, on a
     tile at least 116px tall: `.tile-role` hides by a container query on
     the tile, since on a short wide screen its second line ran into the
-    bar) and the match as a percentage over a slim bar (`MatchBar`; a ring took too much
+    bar) and the match's strength in the app's own bands (`matchTier` and
+    `matchColor` from `lib/match.ts`: a dot in the band's colour, then
+    "Excellent Match" or "Good Match", the short name on a tile under
+    8.5rem wide, no dot under 6rem) over a slim bar with the percentage at
+    its end (`MatchBar`; the band leads because a bare number does not tell
+    a student whether to apply, the user's call; a ring took too much
     height), at their cell's size (lifted 4% they stood out of line). A lit
     tile's text is white in the Jobs page job card's weights
     (`compact-job-card.tsx`: role medium, company regular, match semibold;
@@ -304,7 +309,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     grey read as a loading skeleton. A pastel and a deep violet headline
     tile were tried before the white one. Keep the steps: ground mid
     (brand-100), empty tiles a little lighter, headline tile the lightest,
-    lit tiles the only saturated colour.
+    lit tiles the only saturated colour. Every match on the page says its
+    band, never a bare number: the closing chips and the journey's Match
+    step too.
     Below lg the tiles are square, one row above the headline's tile and
     one below; from lg up the grid is 5 rows sharing the panel's height,
     the headline's tile spans the middle 3 and all but the outer columns,

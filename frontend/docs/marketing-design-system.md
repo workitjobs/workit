@@ -113,9 +113,12 @@ The first screen and nothing else: a pale violet panel the screen's
 height, filled edge to edge by tiles. The headline sits in one large white
 tile in the middle, the brightest surface. Empty tiles recede at 55% white;
 seven tiles light up in turn in solid brand violet, with a real employer,
-the role and the match as a percentage over a slim white bar, set in the
-Jobs page job card's weights (role medium, company regular, match
-semibold) in white. Columns follow the screen's shape so the tiles stay
+the role and the match's strength in the app's bands ("Excellent Match"
+behind a green dot, "Good Match" behind a yellow one, from `lib/match.ts`)
+over a slim white bar that fills, the percentage at its end, set in the
+Jobs page job card's weights (role medium, company regular, band
+semibold) in white. A match anywhere on the marketing pages says its band
+first: a bare number does not tell a student whether to apply. Columns follow the screen's shape so the tiles stay
 near square. The four features follow below, in their own section.
 
 ### Cards

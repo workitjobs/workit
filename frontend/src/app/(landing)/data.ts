@@ -6,6 +6,8 @@
  * the application board's in board-data.ts.
  */
 
+import { matchTier } from "@/lib/match";
+
 import { followedJob } from "./feature-data";
 
 export const site = {
@@ -311,18 +313,21 @@ export const applicationsSection = {
 };
 
 /**
- * The home hero's lit tiles (hero-board.tsx, KAN-923): the postings that fit,
- * each lighting up in soft violet with its company, its role and its match
- * as a bar, in this order. Intern, new-grad and co-op titles only, the
- * roles WorkIt keeps.
- * Real employers whose company job boards the scraper reads
- * (scraper/boards.csv; the same names the stories and the hiring-systems
- * stream use). Only fits light (85 and up); the other tiles stay blank. The scores are made up, as the stories' are; Stripe's
- * is the followed job's.
+ * The home hero's lit tiles (hero-board.tsx, KAN-923): postings worth
+ * applying to, each lighting up in turn with its company, its role and its
+ * match strength in the app's own bands (`matchTier` in lib/match.ts, as
+ * the Jobs page names them), in this order. Mostly Excellent Matches, with
+ * two Good Matches, so the hero shows the range rather than one label
+ * seven times; a percentage alone does not tell a student whether to apply
+ * (the user's call). Intern, new-grad and co-op titles only, the roles
+ * WorkIt keeps, at real employers whose company job boards the scraper
+ * reads (scraper/boards.csv; the names the stories and the hiring-systems
+ * stream use). The scores are made up, as the stories' are; Stripe's is
+ * the followed job's. A phone shows turns 0 and 4, so keep those Excellent.
  */
 export const heroFits: { title: string; company: string; domain: string; score: number }[] = [
   { title: "Software Engineer Intern", company: "Datadog", domain: "datadoghq.com", score: 94 },
-  { title: "Full-Stack Engineer Intern", company: "Notion", domain: "notion.so", score: 88 },
+  { title: "Frontend Engineer Intern", company: "Figma", domain: "figma.com", score: 78 },
   {
     title: followedJob.title,
     company: followedJob.company,
@@ -331,7 +336,7 @@ export const heroFits: { title: string; company: string; domain: string; score: 
   },
   { title: "Software Engineer, New Grad", company: "Ramp", domain: "ramp.com", score: 86 },
   { title: "Data Science Intern", company: "Databricks", domain: "databricks.com", score: 89 },
-  { title: "Frontend Engineer Intern", company: "Vercel", domain: "vercel.com", score: 87 },
+  { title: "Data Analyst Intern", company: "Duolingo", domain: "duolingo.com", score: 72 },
   { title: "Platform Engineer Intern", company: "DoorDash", domain: "doordash.com", score: 90 },
 ];
 
@@ -393,7 +398,7 @@ export const journey = {
       body: "Every job posting is scored against your bank, and the best fits come first.",
       points: [
         "Scored on your skills and past titles",
-        `${followedJob.company} scores ${followedJob.score}`,
+        `${followedJob.company}: ${matchTier(followedJob.score)}, ${followedJob.score}%`,
         "Open the best fits first",
       ],
     },
@@ -427,16 +432,17 @@ export const closing = {
   subtitle:
     "Sign up free and upload a resume. WorkIt reads it and starts ranking jobs by how well you fit.",
   // The row of status chips drifting behind the call to action (KAN-923):
-  // the four steps as they land, on real employers. "Ready to Submit", never
+  // the four steps as they land, on real employers. A match says its band
+  // (lib/match.ts), never a bare number, as the hero's tiles do. "Ready to Submit", never
   // "Submitted": the student clicks Submit.
   chips: [
     { label: "Resume Tailored", company: "Stripe", domain: "stripe.com" },
-    { label: "91 Match", company: "Figma", domain: "figma.com" },
+    { label: "Excellent Match", company: "Figma", domain: "figma.com" },
     { label: "Application Filled", company: "Datadog", domain: "datadoghq.com" },
     { label: "Ready to Submit", company: "Notion", domain: "notion.so" },
     { label: "Marked Applied", company: "Ramp", domain: "ramp.com" },
     { label: "Resume Tailored", company: "Cloudflare", domain: "cloudflare.com" },
-    { label: "88 Match", company: "Duolingo", domain: "duolingo.com" },
+    { label: "Good Match", company: "Duolingo", domain: "duolingo.com" },
     { label: "Application Filled", company: "Spotify", domain: "spotify.com" },
   ],
 };
