@@ -22,6 +22,10 @@ import { CONTAINER, StudioBox, studioGround, TYPE } from "./layout-parts";
 import { FollowedCard } from "./thread";
 
 /**
+ * Archived (KAN-923, 2026-11-19, the user's call): unmounted, kept. To bring
+ * it back, mount it in page.tsx through a `hydrateNear` line in a client
+ * module (git history has deferred-sections.tsx). Until then:
+ *
  * The statement under the home hero's logo strip (KAN-923; before it, between
  * the hiring-systems section and the applications section): "Slop
  * applications get skipped", centred, over a framed box (`StudioBox`) that

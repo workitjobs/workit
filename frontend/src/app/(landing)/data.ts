@@ -423,25 +423,3 @@ export const journey = {
     },
   ],
 } as const;
-
-/** The home page's closing call to action (closing-cta.tsx). Its claims
- * are the FAQ's "How do I get started?" answer. */
-export const closing = {
-  title: "Find the jobs that fit you",
-  subtitle:
-    "Sign up free and upload a resume. WorkIt reads it and starts ranking jobs by how well you fit.",
-  // The row of status chips drifting behind the call to action (KAN-923):
-  // the four steps as they land, on real employers. A match says its band
-  // (lib/match.ts), never a bare number, as the hero's tiles do. "Ready to Submit", never
-  // "Submitted": the student clicks Submit.
-  chips: [
-    { label: "Resume Tailored", company: "Stripe", domain: "stripe.com" },
-    { label: "Excellent Match", company: "Figma", domain: "figma.com" },
-    { label: "Application Filled", company: "Datadog", domain: "datadoghq.com" },
-    { label: "Ready to Submit", company: "Notion", domain: "notion.so" },
-    { label: "Marked Applied", company: "Ramp", domain: "ramp.com" },
-    { label: "Resume Tailored", company: "Cloudflare", domain: "cloudflare.com" },
-    { label: "Good Match", company: "Duolingo", domain: "duolingo.com" },
-    { label: "Application Filled", company: "Spotify", domain: "spotify.com" },
-  ],
-};

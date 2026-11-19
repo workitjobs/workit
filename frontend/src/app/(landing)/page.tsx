@@ -4,11 +4,8 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { ClosingCta } from "./closing-cta";
-import { closing, faqs, hero, site, testimonial } from "./data";
-import { Statement } from "./deferred-sections";
+import { faqs, hero, site, testimonial } from "./data";
 import { FaqList } from "./faq-list";
-import { backdrop } from "./features/catalog";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
@@ -41,13 +38,15 @@ export const metadata: Metadata = {
  * The page at /, redesigned in KAN-923 after Calendly's home page
  * (frontend/docs/home-page-review.md): the hero names the four features and
  * plays each one in a framed box, then each section leads into the next:
- * proof the jobs are real (the logo strip), why it matters (the statement),
- * one application through the four steps (the journey), each product in
- * depth, where the jobs come from (hiring systems), the FAQ and the close.
- * Every animation sits in a `StudioBox`; nothing pins to the screen. The
+ * proof the jobs are real (the logo strip), one application through the
+ * four steps (the journey), each product in depth, where the jobs come
+ * from (hiring systems) and the FAQ, which runs into the footer. Every
+ * animation sits in a `StudioBox`; only the product sections pin. The
  * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
- * pipeline, the applications route) stay in the folder, unmounted. Every
- * call to action leads into the app's own sign-up, log-in or OAuth flow.
+ * pipeline, the applications route) and two the user took out on
+ * 2026-11-19 (the statement, archived; the closing call to action,
+ * deleted) are off the page; the statement's files stay. Every call to
+ * action leads into the app's own sign-up, log-in or OAuth flow.
  */
 export default function LandingPage() {
   return (
@@ -118,9 +117,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Why it matters, played in a framed box: statement.tsx. */}
-      <Statement />
-
       {/* One application through the four steps: journey.tsx. */}
       <Journey />
 
@@ -166,18 +162,6 @@ export default function LandingPage() {
           </FocusIn>
         </div>
       </section>
-
-      {/* The closing call to action, as every feature page has, on the
-          brand's colour, over the row of status chips. */}
-      <ClosingCta
-        title={closing.title}
-        subtitle={closing.subtitle}
-        chips={closing.chips}
-        background={backdrop({
-          tint: "var(--color-brand-tint)",
-          glow: "var(--color-brand)",
-        })}
-      />
     </main>
   );
 }

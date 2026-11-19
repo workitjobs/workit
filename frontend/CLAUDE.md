@@ -264,13 +264,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
   `logoStrip` in data.ts), the four features (`HeroFeatures`), the
-  statement in a box, the journey ("One
+  journey ("One
   application, start to finish", `journey.tsx`), one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), the hiring systems as a centred chapter
-  (`hiring-grid.tsx`, `#hiring-systems`), the FAQ
-  and the closing call to action over a drifting row of status chips
-  (`closing.chips`). About 9,200px at 1280 wide, from about 17,000.
+  (`hiring-grid.tsx`, `#hiring-systems`) and the FAQ, which runs into the
+  footer. **The user took two sections out on 2026-11-19**: the statement
+  ("Slop applications get skipped", archived: `statement.tsx` stays,
+  unmounted) and the home page's closing call to action with its drifting
+  status chips (deleted, with its `closing` copy; `ClosingCta` stays for
+  the feature pages).
   **The rules it set:**
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground with a fine grain (`.studio-box` in
@@ -354,7 +357,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     as a loading skeleton. Keep them: the ground mid violet, the empty
     glass a little lighter, the lit cards and the headline tile the
     lightest. Every match on the page says its band, never a bare number:
-    the closing chips and the journey's Match step too.
+    the journey's Match step too.
     Below lg the tiles are square, one row above the headline's tile and
     one below; from lg up the grid is 5 rows sharing the panel's height,
     the headline's tile spans the middle 3 and all but the outer columns,
@@ -441,15 +444,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     box, rows (one tree, `display: contents`). Checked at 1024 × 768 to
     1920 × 1080 (the block fits the screen) and at 1366 × 620, 768 ×
     1024 and 375 × 812 (in the flow). `product-accordion.tsx`.
-  - **Drifting rows** (`.drift-row`: the logo strip, the closing chips)
+  - **Drifting rows** (`.drift-row`: the logo strip)
     draw their items twice and move by half their width; the class is in
     landing.css's Pause Animations list and still with reduced motion.
   - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
     (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
-    (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`)
-    and the applications route (`applications.tsx`). Their notes below
-    stay for when one returns; to bring one back, add its `hydrateNear`
-    line to `deferred-sections.tsx` again and give it a box, not a screen.
+    (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),
+    the applications route (`applications.tsx`) and the statement
+    (`statement.tsx`, archived the same day). Their notes below stay for
+    when one returns; to bring one back, mount it through a `hydrateNear`
+    line in a client module (`deferred-sections.tsx`, deleted once it held
+    none; git history has it) and give it a box, not a screen.
   - **Checking it in the Browser pane**: a hidden pane freezes CSS
     transitions at their start, so the journey's pictures read as empty
     there; check them in a visible browser (Chrome showed them end to end).
@@ -1621,8 +1626,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   130 KB more, which is expected. A jump means a client import leaked in.
   Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
-  `near.tsx`, used by `deferred-sections.tsx`). Since KAN-923 only the
-  statement is deferred: the hero's tabs hydrate with the page, and the
+  `near.tsx`, used by `deferred-sections.tsx` until it held none). Since
+  the statement was archived (2026-11-19) nothing is deferred: the hero's
+  tabs hydrate with the page, and the
   journey, product sections and hiring grid are server components with
   small client parts. A deferred section (then the bridge, the tour,
   hiring systems, the statement, the applications section) is in the
