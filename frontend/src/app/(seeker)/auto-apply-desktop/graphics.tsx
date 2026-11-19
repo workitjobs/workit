@@ -29,7 +29,7 @@ import { cn } from "@/lib/cn";
 /** macOS's own close, minimise and zoom colours, on every window drawn here. */
 const TRAFFIC_LIGHTS = ["#ff5f57", "#febc2e", "#28c840"];
 
-function TrafficLights() {
+export function TrafficLights() {
   return (
     <span className="flex shrink-0 gap-1.5">
       {TRAFFIC_LIGHTS.map((colour) => (
@@ -47,7 +47,7 @@ const MONOGRAM_TONES = {
 } as const;
 
 /** A company's tile: its first letter on a tint, for a drawing that loads no logo. */
-function Monogram({
+export function Monogram({
   name,
   tone,
   className,
@@ -94,7 +94,7 @@ function Check({ children }: { children: ReactNode }) {
 }
 
 /** A Chrome window: its tab strip and address bar, then the page. */
-function ChromeWindow({
+export function ChromeWindow({
   site,
   tab,
   children,

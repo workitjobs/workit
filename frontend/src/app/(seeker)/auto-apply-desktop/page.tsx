@@ -2,13 +2,17 @@ import {
   CheckCircleIcon,
   DownloadSimpleIcon,
   GoogleChromeLogoIcon,
+  IdentificationCardIcon,
   LaptopIcon,
+  ListChecksIcon,
 } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import type { ComponentType, ReactNode } from "react";
 
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import { Logo } from "@/components/logo";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TextLink } from "@/components/ui/text-link";
 import { EXTENSION_INSTALL_URL } from "@/lib/autofill-extension";
@@ -16,6 +20,14 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { AppWindowScene, EssayScene, FillingScene, QuestionScene, SubmitScene } from "./graphics";
+import {
+  DisclosureScene,
+  DownloadScene,
+  ScreenScene,
+  SignInScene,
+  StartScene,
+  StoreScene,
+} from "./setup-graphics";
 
 export const metadata: Metadata = {
   title: "Auto Apply Desktop",
@@ -66,6 +78,51 @@ const MOMENTS: { title: string; body: string; scene: ReactNode }[] = [
 ];
 
 /**
+ * The app's first run, as the Student build shows it (apply-agent's
+ * first_run.py and app_window.py, section 3.1 of the design doc), in its
+ * own words: its buttons are named as the app names them. Only what a
+ * student does: no terminal, no developer checkout, and no code to paste
+ * at sign-in, which WorkIt shows its admins only. The Worker extension
+ * comes from the Chrome Web Store (W6, a v1 requirement), so step 5 is
+ * Add to Chrome; the current build still asks for Developer mode and a
+ * folder until the store copy is live. The Chrome check is the line under
+ * the steps, since only a Mac without Chrome sees it.
+ */
+const SETUP: { title: string; body: string; optional?: boolean; scene: ReactNode }[] = [
+  {
+    title: "Download and Open the App",
+    body: "Open WorkIt Auto Apply.dmg and drag the app to your Applications folder. The first time you open it, macOS asks if you want to open an app from the internet. Press Open.",
+    scene: <DownloadScene />,
+  },
+  {
+    title: "Sign In with WorkIt",
+    body: "Press Sign In with WorkIt. Your browser opens WorkIt's sign-in page. Sign in the way you do on the website, then press Open WorkIt Auto Apply.",
+    scene: <SignInScene />,
+  },
+  {
+    title: "Read What Leaves Your Mac",
+    body: "The app shows what it sends to WorkIt, to AI providers and to job sites, and what stays on your Mac. Press OK to accept its license.",
+    scene: <DisclosureScene />,
+  },
+  {
+    title: "Allow Screen Recording",
+    body: "With it on, the app shows each form live and smoothly, so you can fix a form in the app's window. Press Allow, and macOS asks you one time. You can press Not Now instead.",
+    optional: true,
+    scene: <ScreenScene />,
+  },
+  {
+    title: "Add the Worker Extension",
+    body: "Press Set Up. Chrome opens on a profile that belongs to the app, separate from your own Chrome profiles. Click Add to Chrome, then confirm in Chrome's dialog. You do this one time, and it takes about a minute.",
+    scene: <StoreScene />,
+  },
+  {
+    title: "Start Applying",
+    body: "The app shows your Auto Apply queue from WorkIt. Select the jobs you want, or paste a job link. Then press Start applying.",
+    scene: <StartScene />,
+  },
+];
+
+/**
  * /auto-apply-desktop — the page that promotes WorkIt Auto Apply, the
  * desktop app (KAN-723), and where a student downloads it (W8's download
  * page, KAN-835). It is the rail's row under Auto Apply
@@ -82,8 +139,14 @@ const MOMENTS: { title: string; body: string; scene: ReactNode }[] = [
  * answer, and stops on each form's last page, where the student presses
  * Submit. So the page never says WorkIt applies or submits.
  *
+ * Under the drawings, the setup (SETUP): what to have on WorkIt first, on
+ * a violet band, then the app's first run, one numbered card per step,
+ * each with that step's screen drawn on a violet stage
+ * (./setup-graphics.tsx).
+ *
  * The title is the bar's ("Auto Apply Desktop", ../bar-title.tsx), the
- * page's h1; the hero's headline is an h2 and each tile's title an h3.
+ * page's h1; the hero's headline and the setup's are h2s, and each tile's
+ * and step's title an h3.
  */
 export default function AutoApplyDesktopPage() {
   return (
@@ -108,9 +171,9 @@ export default function AutoApplyDesktopPage() {
             Let Your Mac Fill Out Your Applications
           </h2>
           <p className="text-subtitle text-ink-muted mt-4 max-w-lg font-normal">
-            Our desktop app opens each job in its own Chrome
-            window and fills out the application. Apply across multiple jobs, fill out all the personal questions. 
-            You check each one and press Submit. 
+            Our desktop app opens each job in its own Chrome window and fills out the application.
+            Apply across multiple jobs, fill out all the personal questions. You check each one and
+            press Submit.
           </p>
 
           <div className="mt-8">
@@ -143,7 +206,7 @@ export default function AutoApplyDesktopPage() {
           <p className="text-body text-ink-meta mt-6">
             On Windows or an Intel Mac?{" "}
             <TextLink href={EXTENSION_INSTALL_URL} target="_blank" rel="noreferrer">
-              Use the WorkIt extension for Chrome. 
+              Use the WorkIt extension for Chrome.
             </TextLink>
             .
           </p>
@@ -172,6 +235,74 @@ export default function AutoApplyDesktopPage() {
           </Card>
         ))}
       </ol>
+
+      <section aria-labelledby="desktop-setup" className="mt-6">
+        <h2 id="desktop-setup" className="text-heading text-ink">
+          Set Up WorkIt Auto Apply
+        </h2>
+
+        {/* What the app reads from WorkIt, before the first run's steps: a
+            violet band, the hero's colour, so it reads as the way in. */}
+        <div className="bg-brand text-on-brand mt-4 flex flex-col gap-5 rounded-[1.25rem] p-6 sm:flex-row sm:items-center sm:p-8">
+          <span className="bg-panel/15 grid size-12 shrink-0 place-items-center rounded-2xl">
+            <ListChecksIcon aria-hidden className="size-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-subtitle">Before You Start</h3>
+            <p className="text-body text-on-brand/85 mt-1 max-w-2xl">
+              The app fills each form from your WorkIt profile, and it works through the jobs in
+              your Auto Apply queue. Fill in Application Info and add jobs to your queue on WorkIt
+              first.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <ButtonLink href="/auto-apply/info" variant="secondary" size="sm">
+              <IdentificationCardIcon aria-hidden />
+              Open Application Info
+            </ButtonLink>
+            <ButtonLink href="/auto-apply" variant="secondary" size="sm">
+              <LightningRoundedIcon aria-hidden />
+              Open Auto Apply
+            </ButtonLink>
+          </div>
+        </div>
+
+        <ol className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {SETUP.map(({ title, body, optional, scene }, i) => (
+            <Card as="li" key={title} padding="none" className="flex flex-col">
+              {/* The step's screen on a violet stage, its number on the
+                  corner. Fixed from xl, where three share a row, so the
+                  titles under them line up; below, it grows with its
+                  drawing. */}
+              <div className="bg-brand-tint relative m-2 flex min-h-52 items-center justify-center rounded-[0.5rem] px-6 py-7 xl:h-60 xl:py-0">
+                <span
+                  aria-hidden
+                  className="bg-brand text-on-brand text-body absolute top-3 left-3 grid size-7 place-items-center rounded-full font-semibold"
+                >
+                  {i + 1}
+                </span>
+                {scene}
+              </div>
+              <div className="px-5 pt-3 pb-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-subtitle text-ink">{title}</h3>
+                  {optional && (
+                    <Badge variant="tag" tone="inert">
+                      Optional
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-body text-ink-meta mt-1">{body}</p>
+              </div>
+            </Card>
+          ))}
+        </ol>
+        <p className="text-body text-ink-meta mt-4 flex items-center gap-2">
+          <GoogleChromeLogoIcon aria-hidden className="size-4.5 shrink-0" />
+          No Google Chrome? The app gives you a download link and continues when Chrome is
+          installed.
+        </p>
+      </section>
     </div>
   );
 }

@@ -2047,6 +2047,29 @@ submits, and the essay names nothing about the company beyond its posting,
 since company facts wait on W9. The drawings are `aria-hidden` with no headings. Their one motion
 is each progress bar drawing out once on load.
 
+**Set Up WorkIt Auto Apply** closes the page: a violet Before You Start
+band (fill in Application Info and add jobs to the Auto Apply queue on
+WorkIt, with a link to each), then six numbered cards, each with a drawing
+of that step's screen on a violet stage (`setup-graphics.tsx`: the disk
+image's window, the app's sign-in, What Leaves Your Mac, Allow Screen
+Recording, the Worker extension's store page, the Start screen). Plain
+text cards were drawn first, and the user asked for drawings and more of
+the violet theme. The cards are the Student build's first run in the app's
+own button names (`SETUP` in `page.tsx`, from
+`apply-agent/src/apply/first_run.py` and `app_window.py`): download and
+open the app, sign in with WorkIt, read what leaves the Mac, Screen
+Recording (marked Optional), add the Worker extension, start applying.
+Only what a student does: no terminal, developer checkout or admin's
+pasted code. The Worker extension step is the Chrome Web Store's Add to
+Chrome, since the store copy (W6) is a v1 requirement; the current build
+still asks for Developer mode and a folder, so the page's step is ahead of
+the app until the store copy is live. The Chrome check is a line under the
+steps, since only a Mac without Chrome sees it. Each stage is 240px from
+xl, where three share a row, so the titles line up, and grows with its
+drawing below that; the drawings are 256px wide at most, which keeps them
+clear of the step's number on the stage's corner. A change to the app's
+first run changes these cards too.
+
 **Download for Mac is off until there is a build.** `DOWNLOAD_URL` in
 `page.tsx` is null until W8 puts the signed DMG on Cloudflare R2; until
 then the button cannot be pressed and the line under it says the download
