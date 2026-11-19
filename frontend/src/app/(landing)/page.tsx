@@ -5,21 +5,18 @@ import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { ClosingCta } from "./closing-cta";
-import {
-  Applications,
-  Bridge,
-  HiringSystemsSection,
-  ProductTour,
-  Statement,
-} from "./deferred-sections";
 import { closing, faqs, hero, site, testimonial } from "./data";
+import { Statement } from "./deferred-sections";
 import { FaqList } from "./faq-list";
+import { backdrop } from "./features/catalog";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
-import { HeroCity } from "./hero-city";
-import { HeroTitle } from "./hero-title";
-import { backdrop } from "./features/catalog";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
+import { HeroFeatures } from "./hero-features";
+import { HiringGrid } from "./hiring-grid";
+import { Journey } from "./journey";
+import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
+import { LogoStrip } from "./logo-strip";
+import { ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
 
@@ -40,48 +37,53 @@ export const metadata: Metadata = {
 };
 
 /**
- * The page at /: the team's marketing site's home page, its components
- * unchanged except for colour (the violet landing-brand-* scale) and the
- * WorkIt logo. Every call to action leads into the app's own sign-up,
- * log-in or OAuth flow.
+ * The page at /, redesigned in KAN-923 after Calendly's home page
+ * (frontend/docs/home-page-review.md): the hero names the four features and
+ * plays each one in a framed box, then each section leads into the next:
+ * proof the jobs are real (the logo strip), why it matters (the statement),
+ * one application through the four steps (the journey), each product in
+ * depth, where the jobs come from (hiring systems), the FAQ and the close.
+ * Every animation sits in a `StudioBox`; nothing pins to the screen. The
+ * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
+ * pipeline, the applications route) stay in the folder, unmounted. Every
+ * call to action leads into the app's own sign-up, log-in or OAuth flow.
  */
 export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
       {/* Hero, in a rounded panel inset from the window, like every
-            full-width band on this page. The city is pinned to the panel's
-            bottom; the spacer under the text leaves it room (hero-city.tsx). */}
+          full-width band on these pages, on the brand's mesh (.hero-mesh). */}
       <section className={PANEL_INSET}>
         <div
           className={cn(
             PANEL,
-            "hero-panel @container relative isolate flex flex-col overflow-hidden lg:min-h-[max(700px,48.6vw)]",
+            "hero-mesh relative isolate overflow-hidden pb-3 sm:pb-6",
           )}
         >
-          <HeroCity />
-          <div className={cn(CONTAINER, "relative pt-20 text-center sm:pt-24 lg:pt-[128px]")}>
-            {/* Sized so "Stop filling out applications" fits one line from
-                lg up; the hero's text-measuring mark is inside, on the
-                moving copy (hero-title.tsx). */}
-            {/* Below lg the headline keeps the room of the most lines any
-                phrase takes at that width, and centres in it, so the subtitle
-                does not jump on each swap: four, three or two lines, set by
-                measuring every phrase. Four at every width left 129px of
-                blank space round a two-line headline on a tablet. */}
-            <h1 className="text-ink mx-auto min-h-[4.32em] max-w-6xl text-[2.4rem] leading-[1.08] font-semibold tracking-[-0.035em] max-lg:flex max-lg:flex-col max-lg:justify-center min-[27.5rem]:min-h-[3.24em] min-[33.125rem]:min-h-[2.16em] sm:min-h-[4.32em] sm:text-6xl min-[45rem]:min-h-[3.24em] min-[52.5rem]:min-h-[2.16em] lg:min-h-0 lg:text-[clamp(3.25rem,5.1vw,4.25rem)]">
-              <HeroTitle />
+          <div className={cn(CONTAINER, "pt-14 text-center sm:pt-20 lg:pt-24")}>
+            <p
+              className="hero-rise text-ink inline-flex items-center rounded-full bg-white/60 px-3.5 py-1.5 text-sm font-medium ring-1 ring-white/80"
+              style={{ "--rd": ".05s" } as CSSProperties}
+            >
+              {hero.audience}
+            </p>
+            <h1
+              className={cn(TYPE.display, "hero-rise text-ink mx-auto mt-6 max-w-4xl")}
+              style={{ "--rd": ".15s" } as CSSProperties}
+            >
+              {hero.title}
             </h1>
             <p
-              data-hero-text
-              className="hero-rise text-ink-muted mx-auto mt-[22px] max-w-[640px] text-lg leading-[1.55] text-pretty sm:text-[19px]"
-              style={{ "--rd": ".55s" } as CSSProperties}
+              className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-6 max-w-2xl")}
+              style={{ "--rd": ".3s" } as CSSProperties}
             >
               {hero.subtitle}
             </p>
+            {/* The sign-up pair. A Download for Mac button (KAN-922) joins
+                this row: it wraps, so a third button needs no other change. */}
             <div
-              data-hero-box
-              className="hero-rise mt-[34px] flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
-              style={{ "--rd": ".65s" } as CSSProperties}
+              className="hero-rise mt-8 flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
+              style={{ "--rd": ".4s" } as CSSProperties}
             >
               <SocialSignUpButton provider="google" />
               <SocialSignUpButton provider="linkedin_oidc" />
@@ -90,37 +92,30 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          {/* Below lg the city is scaled to the panel and sits under the
-                text; from lg up it is full size and its edge towers rise
-                beside the text. */}
+          {/* The four features, one at a time: hero-features.tsx. */}
           <div
-            aria-hidden="true"
-            className="h-[70cqw] shrink-0 sm:h-[40cqw] lg:h-[max(245px,17.6cqw)]"
-          />
+            className="hero-rise mx-auto mt-12 max-w-6xl px-3 sm:mt-16 sm:px-6 lg:px-8"
+            style={{ "--rd": ".55s" } as CSSProperties}
+          >
+            <HeroFeatures />
+          </div>
         </div>
       </section>
 
-      {/* From the hero's postings to the tour's four steps: bridge.tsx. */}
-      <Bridge />
+      {/* Real employers, drifting: logo-strip.tsx. */}
+      <LogoStrip />
 
-      {/* Pinned product tour: the four features, one stop each. */}
-      <div className="mt-2 sm:mt-4">
-        <ProductTour />
-      </div>
-
-      {/* Hiring systems: a ring of logo coins that becomes a 3D pipeline
-            (hiring-pipeline.tsx). Right after the tour: it is where the
-            postings come from, and it names the systems whose filter the
-            statement's first beat is. The Features menu's foot row links
-            here. */}
-      <HiringSystemsSection />
-
-      {/* Why it matters, played on its own: statement.tsx. */}
+      {/* Why it matters, played in a framed box: statement.tsx. */}
       <Statement />
 
-      {/* The followed application rides the route to the offer:
-          applications.tsx. */}
-      <Applications />
+      {/* One application through the four steps: journey.tsx. */}
+      <Journey />
+
+      {/* Each product in depth, from its feature page: product-sections.tsx. */}
+      <ProductSections />
+
+      {/* Where the jobs come from. The Features menu's foot row links here. */}
+      <HiringGrid />
 
       {/* Testimonial, read word by word: testimonial.tsx. Hidden until a
           real quote replaces the placeholder (`testimonial.show`). */}
@@ -136,9 +131,7 @@ export default function LandingPage() {
 
       {/* FAQ: the questions rise in one after another once the list is on
           screen, in time (FocusIn, landing.css). From lg up the heading
-          holds on the left while the questions pass on the right, so the
-          section after the centred applications heading opens its own way
-          (KAN-368). */}
+          holds on the left while the questions pass on the right. */}
       <section id="faq" className="py-20 sm:py-28">
         <div
           className={cn(
@@ -162,12 +155,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* The closing call to action, as every feature page has: without it
-          the FAQ ran into the footer and the only sign-up buttons were in
-          the hero and the header. On the brand's colour. */}
+      {/* The closing call to action, as every feature page has, on the
+          brand's colour, over the row of status chips. */}
       <ClosingCta
         title={closing.title}
         subtitle={closing.subtitle}
+        chips={closing.chips}
         background={backdrop({
           tint: "var(--color-brand-tint)",
           glow: "var(--color-brand)",

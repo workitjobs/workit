@@ -9,7 +9,6 @@ import {
   useScroll,
   useTransform,
 } from "motion/react";
-import Link from "next/link";
 import { useRef, useState, type ComponentType } from "react";
 
 import { cn } from "@/lib/cn";
@@ -17,15 +16,15 @@ import { cn } from "@/lib/cn";
 import AutoApplyVisual from "./auto-apply-visual";
 import { features, type FeatureId } from "./feature-data";
 import { backdrop as featureBackdrop, FEATURES } from "./features/catalog";
-import { FeatureIcon } from "./features/feature-icon";
 import { Fit } from "./fit";
 import { useMediaQuery } from "./hooks";
 import { useTabFlight } from "./bridge";
 import { TOUR_TABS, type TourTab } from "./tour-tabs";
 import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
-import { SoonChip, TOUR_COVER_VH } from "./layout-parts";
+import { TOUR_COVER_VH } from "./layout-parts";
 import { scrollPageTo } from "./smooth-scroll";
+import { StopCopy } from "./stop-copy";
 import UpdatesVisual from "./updates-visual";
 
 /**
@@ -406,44 +405,5 @@ function StackedTour() {
         ))}
       </div>
     </div>
-  );
-}
-
-/** A stop's label chip, title, description and links. */
-function StopCopy({ id }: { id: FeatureId }) {
-  const feature = features.find((item) => item.id === id) ?? features[0];
-  const { icon: Icon, label, page } = STOPS[id];
-  const { glow, onGlow, href, name } = FEATURES[page];
-  return (
-    <>
-      <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-        <FeatureIcon feature={{ icon: Icon, glow, onGlow }} />
-        {label}
-        {feature.soon && <SoonChip />}
-      </p>
-      <h2 className="text-ink mt-4 text-3xl leading-tight font-semibold tracking-tight text-balance">
-        {feature.title}
-      </h2>
-      <p className="text-ink-meta mt-3 text-pretty">{feature.description}</p>
-      {/* One link per stop, to its feature page. A "Try it free" beside it
-          made two calls to action for one paragraph; the header and the
-          hero already ask for the sign-up. */}
-      <div className="mt-6 text-sm font-medium">
-        {/* The ::after widens what a tap reaches to about 48px, with the
-            underlined link drawn as before: alone it was 23px tall. */}
-        <Link
-          href={href}
-          className="group text-ink relative inline-flex items-center gap-1.5 border-b border-current pb-0.5 after:absolute after:-inset-3 after:content-['']"
-        >
-          Learn more<span className="sr-only"> about {name}</span>
-          <span
-            aria-hidden="true"
-            className="transition-transform duration-200 group-hover:translate-x-0.5"
-          >
-            →
-          </span>
-        </Link>
-      </div>
-    </>
   );
 }

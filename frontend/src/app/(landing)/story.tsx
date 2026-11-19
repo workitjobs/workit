@@ -27,6 +27,14 @@ export type StoryScene<Id extends string> = {
   hold: number;
 };
 
+/**
+ * Called when a story has played its last scene, in place of looping back
+ * to the first (KAN-923): the home hero's feature tabs provide it, so each
+ * story plays once, whole, before the next tab's. Without a provider a
+ * story loops, as on the feature pages.
+ */
+export const StoryEnd = React.createContext<(() => void) | null>(null);
+
 /** The tour's travel curve (docs/motion.md, --ease-glide). */
 export const GLIDE = [0.16, 1, 0.3, 1] as const;
 
@@ -76,11 +84,16 @@ export function Story<Id extends string>({
     }
   }
 
+  const onEnd = React.useContext(StoryEnd);
   React.useEffect(() => {
     if (!inView || reduceMotion || held) return;
-    const timer = window.setTimeout(() => go((step + 1) % scenes.length), scenes[step].hold);
+    const last = step === scenes.length - 1;
+    const timer = window.setTimeout(
+      () => (last && onEnd ? onEnd() : go((step + 1) % scenes.length)),
+      scenes[step].hold,
+    );
     return () => window.clearTimeout(timer);
-  }, [inView, reduceMotion, held, step, tick, go, scenes]);
+  }, [inView, reduceMotion, held, step, tick, go, scenes, onEnd]);
 
   const shown = reduceMotion
     ? Math.max(

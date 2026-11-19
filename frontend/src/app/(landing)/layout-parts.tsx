@@ -1,3 +1,5 @@
+import type { CSSProperties, ReactNode, Ref } from "react";
+
 import { cn } from "@/lib/cn";
 
 /**
@@ -36,6 +38,38 @@ export const PANEL = "rounded-[2rem] lg:rounded-[3rem]";
  */
 export const TOUR_COVER_VH = 100;
 
+/**
+ * The marketing pages' type scale (KAN-923, after Calendly's): each step
+ * has one job, and the steps carry the hierarchy, not the weight, so every
+ * heading is weight 500. Plus Jakarta Sans for the hero and each chapter
+ * (h1 to h3 take it by landing.css's rule), Newsreader for a product's own
+ * section (`product`, the home page's product sections and hiring systems),
+ * Inter for the rest. Before it every h2 was Jakarta 600 at 30 to 36px, so
+ * nothing read as a chapter and nothing as a detail, which the user named
+ * as part of the site looking AI-made. Use these, not a size of your own.
+ */
+export const TYPE = {
+  /** The hero's h1: 72px from lg, 40px on a phone. */
+  display:
+    "text-[2.5rem] leading-[1.05] font-medium tracking-[-0.035em] text-balance sm:text-6xl lg:text-[4.5rem]",
+  /** A chapter's centred h2 (SectionHeading, the closing call to action):
+   *  56px from lg, 34px on a phone. */
+  chapter:
+    "text-[2.125rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl lg:text-[3.5rem]",
+  /** A product's left-aligned h2, in the serif: 48px from lg, 30px on a
+   *  phone. Newsreader runs smaller than Jakarta, so it takes a size up. */
+  product:
+    "font-editorial text-[1.875rem] leading-[1.1] font-medium tracking-[-0.015em] text-balance sm:text-[2.5rem] lg:text-5xl",
+  /** A card's heading: 28px, 24px on a phone. */
+  card: "text-2xl leading-tight font-medium tracking-[-0.015em] text-balance sm:text-[1.75rem]",
+  /** A list item's title inside a section (an accordion row). */
+  item: "text-lg leading-snug font-medium",
+  /** The line under a display or chapter heading. */
+  lead: "text-lg leading-[1.55] text-pretty sm:text-[19px]",
+  /** The small label above a heading: capitals, set wide. */
+  eyebrow: "text-xs font-semibold tracking-[0.08em] uppercase",
+} as const;
+
 export function SectionHeading({
   eyebrow,
   title,
@@ -50,12 +84,71 @@ export function SectionHeading({
   className?: string;
 }) {
   return (
-    <div className={cn("max-w-2xl", align === "center" && "mx-auto text-center", className)}>
-      {eyebrow && <p className="text-landing-brand-700 text-sm font-semibold">{eyebrow}</p>}
-      <h2 className="text-ink mt-2 text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-      {subtitle && <p className="text-ink-meta mt-4 text-lg text-pretty">{subtitle}</p>}
+    <div className={cn("max-w-3xl", align === "center" && "mx-auto text-center", className)}>
+      {eyebrow && <p className={cn(TYPE.eyebrow, "text-landing-brand-700")}>{eyebrow}</p>}
+      <h2 className={cn(TYPE.chapter, "text-ink mt-3")}>{title}</h2>
+      {subtitle && (
+        <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A feature's ground for a `StudioBox`: three soft blobs of its colour, one
+ * of a second colour, over its tint. Richer than `backdrop` (catalog.ts),
+ * which stays the feature pages' ground.
+ */
+export function studioGround({
+  tint,
+  glow,
+  accent = "white",
+}: {
+  tint: string;
+  glow: string;
+  /** A second colour for one blob, so a box is not one flat hue. */
+  accent?: string;
+}) {
+  const mix = (color: string, amount: number) =>
+    `color-mix(in oklab, ${color} ${amount}%, transparent)`;
+  return [
+    `radial-gradient(60% 55% at 15% 10%, ${mix(glow, 45)}, transparent 70%)`,
+    `radial-gradient(55% 60% at 90% 25%, ${mix(accent, 40)}, transparent 70%)`,
+    `radial-gradient(70% 60% at 70% 100%, ${mix(glow, 35)}, transparent 70%)`,
+    `radial-gradient(45% 45% at 40% 60%, rgb(255 255 255 / 0.6), transparent 70%)`,
+    tint,
+  ].join(", ");
+}
+
+/**
+ * The frame every moving or still picture on the home page sits in
+ * (KAN-923): a rounded box on a feature's ground (`studioGround`), with a
+ * fine grain and faint ruled lines like resume paper (`.studio-box` in
+ * landing.css), so a picture is a small object on the page and never the
+ * page itself. After Calendly, whose animations all sit in boxes of 290 to
+ * 424px; the old home page pinned whole screens to its scenes, which the
+ * user found AI-made. Content sits above the texture.
+ */
+export function StudioBox({
+  ground,
+  className,
+  style,
+  ref,
+  children,
+}: {
+  ground: string;
+  className?: string;
+  style?: CSSProperties;
+  ref?: Ref<HTMLDivElement>;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      ref={ref}
+      className={cn("studio-box relative isolate overflow-hidden rounded-[2rem]", className)}
+      style={{ background: ground, ...style }}
+    >
+      {children}
     </div>
   );
 }

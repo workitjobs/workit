@@ -50,6 +50,14 @@ export const site = {
 };
 
 export const hero = {
+  // The home hero's headline since KAN-923: the site's tagline, standing
+  // still. The rolling "Stop ___ by hand." below (hero-title.tsx, now
+  // unmounted) read as a template trope, and the user found the page
+  // AI-made. The headline is `site.tagline`, so the footer repeats it.
+  title: site.tagline,
+  // The pill above the headline: who it is for. The scraper keeps only
+  // internship and new-grad roles (docs/job-pipeline.md).
+  audience: "For internships and new-grad roles",
   // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank loops
   // through the pipeline in the tour's order, one chore a student knows per
   // step, starting on `rest`, auto apply, which with matching matters most;
@@ -117,6 +125,12 @@ export const hiringSystems = [
   { name: "BambooHR", logo: "/hiring-systems/bamboohr.png" },
   { name: "Recruitee", logo: "/hiring-systems/recruitee.png" },
 ] as const;
+
+/** The hiring systems the scraper reads but the list above leaves out
+ * until each has its logo file (Rippling, iCIMS, Oracle, SmartRecruiters,
+ * Eightfold, Pinpoint, JazzHR, Jobvite): the home page's grid ends on
+ * "+8 more" (hiring-grid.tsx). Change it with that list. */
+export const moreHiringSystems = 8;
 
 export type HiringSystemName = (typeof hiringSystems)[number]["name"];
 
@@ -299,10 +313,108 @@ export const applicationsSection = {
     "Every role you save or apply to sits in one list, with its match score and, once you apply, the resume you sent.",
 };
 
+/**
+ * The home page's logo strip under the hero (logo-strip.tsx, KAN-923): real
+ * employers whose company job boards the scraper reads (scraper/boards.csv),
+ * the same ones the tour's stories and the old hero's cards name. Each is
+ * drawn as its favicon and its name. "Thousands" is the number of boards
+ * in boards.csv (about 5,000), as the hiring-systems copy says it.
+ */
+export const logoStrip = {
+  line: "Internships and new-grad roles from thousands of company job boards",
+  employers: [
+    { name: "Stripe", domain: "stripe.com" },
+    { name: "Figma", domain: "figma.com" },
+    { name: "Datadog", domain: "datadoghq.com" },
+    { name: "Notion", domain: "notion.so" },
+    { name: "Spotify", domain: "spotify.com" },
+    { name: "Databricks", domain: "databricks.com" },
+    { name: "Cloudflare", domain: "cloudflare.com" },
+    { name: "Duolingo", domain: "duolingo.com" },
+    { name: "Ramp", domain: "ramp.com" },
+    { name: "Roblox", domain: "roblox.com" },
+    { name: "Plaid", domain: "plaid.com" },
+    { name: "Snowflake", domain: "snowflake.com" },
+    { name: "Robinhood", domain: "robinhood.com" },
+    { name: "Waymo", domain: "waymo.com" },
+  ],
+};
+
+/**
+ * "One application, start to finish" (journey.tsx, KAN-923): the followed
+ * application, Stripe's Software Engineer Intern posting, through the four
+ * steps, after Calendly's Book, Prep, Capture, Follow up. Each step's lines
+ * are claims from its feature page's content file (features/content/): the
+ * student picks the keywords Tailor adds, matching scores skills, titles and
+ * experience, auto apply fills from the profile and attaches the default
+ * resume while the student clicks Submit, and the tracker's stages are
+ * moved by the student (reading email is archived, KAN-428).
+ */
+export const journey = {
+  eyebrow: "How it works",
+  title: "One application, start to finish",
+  subtitle: `Follow one job, ${followedJob.company}'s ${followedJob.title} posting, from your first resume to the offer.`,
+  steps: [
+    {
+      id: "resumes",
+      title: "Build your resume",
+      body: "Start from the resume you have. WorkIt reads it into your experience bank.",
+      points: [
+        "Upload your resume",
+        "Generate a clean resume in one click",
+        `Tailor a copy to ${followedJob.company}'s posting`,
+      ],
+    },
+    {
+      id: "matching",
+      title: "Find the jobs that fit",
+      body: "Every job posting is scored against your bank, and the best fits come first.",
+      points: [
+        "Scored on your skills and past titles",
+        `${followedJob.company} scores ${followedJob.score}`,
+        "Open the best fits first",
+      ],
+    },
+    {
+      id: "auto-apply",
+      title: "Fill the application",
+      body: "The extension fills each application in its own tab, from your profile.",
+      points: [
+        `Queue ${followedJob.company} in Up Next`,
+        "Every field filled, your resume attached",
+        "You check it and click Submit",
+      ],
+    },
+    {
+      id: "updates",
+      title: "Track it to the offer",
+      body: "Every application on one tracker, with the resume you sent.",
+      points: [
+        "Mark it applied",
+        "WorkIt keeps the resume you sent",
+        "Move it along as you hear back",
+      ],
+    },
+  ],
+} as const;
+
 /** The home page's closing call to action (closing-cta.tsx). Its claims
  * are the FAQ's "How do I get started?" answer. */
 export const closing = {
   title: "Find the jobs that fit you",
   subtitle:
     "Sign up free and upload a resume. WorkIt reads it and starts ranking jobs by how well you fit.",
+  // The row of status chips drifting behind the call to action (KAN-923):
+  // the four steps as they land, on real employers. "Ready to Submit", never
+  // "Submitted": the student clicks Submit.
+  chips: [
+    { label: "Resume Tailored", company: "Stripe", domain: "stripe.com" },
+    { label: "91 Match", company: "Figma", domain: "figma.com" },
+    { label: "Application Filled", company: "Datadog", domain: "datadoghq.com" },
+    { label: "Ready to Submit", company: "Notion", domain: "notion.so" },
+    { label: "Marked Applied", company: "Ramp", domain: "ramp.com" },
+    { label: "Resume Tailored", company: "Cloudflare", domain: "cloudflare.com" },
+    { label: "88 Match", company: "Duolingo", domain: "duolingo.com" },
+    { label: "Application Filled", company: "Spotify", domain: "spotify.com" },
+  ],
 };

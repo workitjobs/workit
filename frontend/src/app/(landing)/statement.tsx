@@ -18,12 +18,14 @@ import { cn } from "@/lib/cn";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
 import { useLoopsHeld, useMediaQuery } from "./hooks";
-import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
+import { CONTAINER, StudioBox, studioGround, TYPE } from "./layout-parts";
 import { FollowedCard } from "./thread";
 
 /**
- * The statement between the hiring-systems section and the applications
- * section: "Slop applications get skipped." The real words are the art: one
+ * The statement under the home hero's logo strip (KAN-923; before it, between
+ * the hiring-systems section and the applications section): "Slop
+ * applications get skipped", centred, over a framed box (`StudioBox`) that
+ * holds the story; it was a screen-high panel until KAN-923. The real words are the art: one
  * application for one posting (`followedJob`, Stripe) shows three things a
  * student sends blind, one at a time, in large type. A generic line writes
  * itself, the phrases that sink it are marked and say why, and it rewrites
@@ -214,21 +216,19 @@ function PlayingStatement() {
       aria-labelledby="statement-title"
       // The chips' marks move only while the story plays (landing.css).
       data-paused={playing ? undefined : ""}
-      className={cn(PANEL_INSET, "mt-16 sm:mt-24")}
+      className="py-16 sm:py-24"
     >
-      <div ref={stageRef} className="flex flex-col lg:h-[clamp(38rem,calc(100dvh-7.5rem),52rem)]">
-        <Panel>
-          <div className={cn(CONTAINER, "flex h-full flex-col py-14 lg:py-10 xl:py-12")}>
-            <Headline />
-            <motion.div
-              className="mt-8 grid min-h-0 flex-1 items-center gap-8 lg:mt-0 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)] lg:gap-12 lg:pt-8"
-              style={{ opacity: fade }}
-            >
-              <Application p={p} />
-              <Story p={p} />
-            </motion.div>
-          </div>
-        </Panel>
+      <div className={CONTAINER}>
+        <Headline />
+        <StudioBox ref={stageRef} ground={GROUND} className="mt-10 sm:mt-14">
+          <motion.div
+            className="grid items-center gap-8 p-5 sm:p-8 lg:min-h-[32rem] lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)] lg:gap-12 lg:p-12"
+            style={{ opacity: fade }}
+          >
+            <Application p={p} />
+            <Story p={p} />
+          </motion.div>
+        </StudioBox>
       </div>
     </section>
   );
@@ -289,11 +289,11 @@ function useStoryLoop(playing: boolean) {
 function StillStatement() {
   const done = useMotionValue(1);
   return (
-    <section aria-labelledby="statement-title" className={cn(PANEL_INSET, "mt-16 sm:mt-24")}>
-      <Panel>
-        <div className={cn(CONTAINER, "py-16")}>
-          <Headline />
-          <ol className="mt-8 space-y-8">
+    <section aria-labelledby="statement-title" className="py-16 sm:py-24">
+      <div className={CONTAINER}>
+        <Headline />
+        <StudioBox ground={GROUND} className="mt-10 p-6 sm:mt-14 sm:p-10">
+          <ol className="space-y-8">
             {BEATS.map((beat) => (
               <li key={beat.gate}>
                 <GateChip beat={beat} />
@@ -320,36 +320,27 @@ function StillStatement() {
               ))}
             </div>
           </div>
-        </div>
-      </Panel>
+        </StudioBox>
+      </div>
     </section>
   );
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className={cn(PANEL, "relative flex-1 overflow-hidden")}
-      style={{
-        background:
-          "radial-gradient(60% 70% at 8% 0%, color-mix(in oklab, var(--color-brand) 9%, transparent), transparent), linear-gradient(180deg, #f7f6fc, #efeff6)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+/** The box's ground: the brand's violet with the resume blue, the colours
+ * of the two steps the story is about (KAN-923). */
+const GROUND = studioGround({
+  tint: "var(--color-brand-tint)",
+  glow: "var(--color-brand)",
+  accent: "var(--color-advanced)",
+});
 
 /** "Slop" is the headline's own text in a gradient (`.slop-word`, KAN-540).
  * It was "Stop sending slop applications.", a second "Stop" after the
  * hero's; it now says what the three beats show. */
 function Headline() {
   return (
-    <h2
-      id="statement-title"
-      className="text-ink text-[2.5rem] leading-[1.08] font-semibold tracking-[-0.035em] text-balance sm:text-6xl lg:text-[clamp(2.75rem,4.2vw,4rem)]"
-    >
-      <span className="slop-word">Slop</span> applications get skipped.
+    <h2 id="statement-title" className={cn(TYPE.chapter, "text-ink mx-auto max-w-3xl text-center")}>
+      <span className="slop-word">Slop</span> applications get skipped
     </h2>
   );
 }

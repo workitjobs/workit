@@ -255,7 +255,71 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a tab shows about 30 characters); its preview carries the whole tagline.
   After a deploy, check a link in a preview debugger: a platform caches the
   old card for days.
-- **The page at `/` is the landing page, `app/(landing)/`**, ported from
+- **The home page since KAN-923** (2026-11-19, after Calendly's home page;
+  the review and the agreed direction are in `docs/home-page-review.md`).
+  The user found the old page AI-made: a rolling gradient headline, one
+  heading size, and scenes that pinned whole screens. The order, each
+  section leading into the next, is `page.tsx`: the hero (a fixed headline,
+  `hero.title`, which is `site.tagline`; the sign-up pair, which a Download
+  for Mac button from KAN-922 joins in the same wrapping row; then
+  `HeroFeatures`), the logo strip (`logo-strip.tsx`, real employers from
+  `logoStrip` in data.ts), the statement in a box, the journey ("One
+  application, start to finish", `journey.tsx`), one product section each
+  for Resume Builder, Job Matching and Auto Apply (`product-sections.tsx`),
+  the hiring systems grid (`hiring-grid.tsx`, `#hiring-systems`), the FAQ
+  and the closing call to action over a drifting row of status chips
+  (`closing.chips`). About 9,200px at 1280 wide, from about 17,000.
+  **The rules it set:**
+  - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
+    rounded box on a feature's ground (`studioGround`: three blobs of its
+    colour and one of a second over its tint) with faint ruled lines like
+    resume paper and a fine grain (`.studio-box` in landing.css). **Nothing
+    pins to the screen and no section is a screen tall**, as on Calendly,
+    whose animations sit in boxes of 290 to 424px. A new picture goes in a
+    `StudioBox`, never a full-width panel of its own. The hero panel is
+    `.hero-mesh`: the same grain, no ruled lines (across the whole hero
+    they read as scan lines).
+  - **The hero's top features** (`hero-features.tsx`): the four
+    `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
+    `.gloss-card` with the open feature's copy (`StopCopy`,
+    `stop-copy.tsx`, shared with the unmounted tour) beside its story in a
+    `StudioBox`, scaled by `Fit` with `max={1}`. Each story plays once and
+    the next tab opens: `Story` calls the `StoryEnd` context (story.tsx)
+    in place of looping, and only the hero provides it; once the visitor
+    picks a tab, the card stays and its story loops. Stories hold off
+    screen, in a hidden tab and on Pause Animations, so the tabs move only
+    while someone watches. The stories load through `features/animations.tsx`,
+    so only the open one's chunk loads. Below sm only the open tab shows
+    its label: four labels ran past a 390px screen.
+  - **The journey** follows the one application (`followedJob`) through
+    four `.gloss-card`s joined by a rail; each picture plays once as its
+    box arrives (`Arrive` in `arrive.tsx` sets `data-arrived`;
+    `.journey-in`, `.journey-ring`, `.journey-grow` in landing.css), never
+    loops, so needs no pause. The trigger is on the box, not the card: on
+    a phone the card is a screen tall and the picture played before it
+    showed. Its server HTML has no `data-arrived`, so it shows finished
+    without script and with reduced motion. Its lines are claims, tied to
+    the feature pages' content files in the comment on `journey`.
+  - **The product sections read the feature pages' own content**
+    (`features/content/`): the page's hero title in the serif, its deep
+    dives as rows that open one at a time (`product-accordion.tsx`), its
+    still scenes stacked in a square `StudioBox`, only the open one shown.
+    So the home page and a feature page never disagree; change the copy in
+    the content file. Nothing there moves on its own.
+  - **Drifting rows** (`.drift-row`: the logo strip, the closing chips)
+    draw their items twice and move by half their width; the class is in
+    landing.css's Pause Animations list and still with reduced motion.
+  - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
+    (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
+    (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`)
+    and the applications route (`applications.tsx`). Their notes below
+    stay for when one returns; to bring one back, add its `hydrateNear`
+    line to `deferred-sections.tsx` again and give it a box, not a screen.
+  - **Checking it in the Browser pane**: a hidden pane freezes CSS
+    transitions at their start, so the journey's pictures read as empty
+    there; check them in a visible browser (Chrome showed them end to end).
+- **The page at `/` is the landing page, `app/(landing)/`**, ported from (its layout notes, to the Pricing bullet, describe the home page before
+  KAN-923; the scenes they name are unmounted, above)
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
   site's markup, classes and copy, with two deliberate changes, and read in
@@ -941,7 +1005,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `FaqList` in a `FocusIn`, as on the home page, and the closing band's
   headline, line and button rise in a `FocusIn`. Still with reduced
   motion.
-- **The home page's lower half** (after the tour: hiring systems, the
+- **The home page's lower half before KAN-923** (after the tour: hiring systems, the
   statement, the applications section, the FAQ, the closing call to
   action and the footer; the testimonial is hidden) reads as one story, like the hero, bridge and tour
   above it. **One object is carried down the page**: the application the
@@ -1114,7 +1178,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   so a scene on a clock (the sorting line's flow, the statement's loop, a held
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
-- **Scroll cues, time plays.** The home page's scenes move on their own;
+- **Scroll cues, time plays.** The home page's scenes move on their own
+  (since KAN-923 none of them pins; the rule holds for any that returns);
   the scroll only takes the reader to the next phase. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two
@@ -1159,8 +1224,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   page and the next visit. It is not reduced motion: that swaps a scene
   for its still frame, while a pause keeps the frame on screen and Play
   goes on from it. Two halves, and a new loop joins one of them:
-  - CSS loops hold on their frame through one rule at the top of
-    landing.css that names each loop (`animation-play-state: paused
+  - CSS loops (since KAN-923 also `.drift-row`) hold on their frame
+    through one rule at the top of landing.css that names each loop (`animation-play-state: paused
     !important`). Never pause every animation there: an entrance (the
     city's fade in, the hero's rise, Pricing's rows) paused before it ran
     hides what it brings in.
@@ -1279,7 +1344,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   decides access by it.
 - **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
   everything else is Inter** (2026-11-10, Jobright's split: a display face
-  on marketing headlines, Inter in the product). One rule in landing.css
+  on marketing headlines, Inter in the product), **with Newsreader for a
+  product's own heading** (KAN-923, Calendly's split: a sans heads each
+  chapter, a serif each product). **Sizes come from `TYPE` in
+  `layout-parts.tsx`**, one step per job: `display` (the hero, 72px from
+  lg, 40px on a phone), `chapter` (`SectionHeading` and the closing call
+  to action, 56px and 34px), `product` (the serif, `font-editorial`, 48px
+  and 30px), `card` (28px), `item`, `lead` and `eyebrow` (capitals set
+  wide). Every heading is weight 500: the size steps carry the hierarchy,
+  as on Calendly, where before every h2 was 600 at 30 to 36px and nothing
+  read as a chapter or a detail. `SectionHeading` changed with it, so the
+  feature pages and Pricing take the new chapter size too. Newsreader
+  loads in `app/fonts.ts` beside Jakarta, at weight 500 with its optical
+  size, read by the `font-editorial` utility (globals.css). One rule in landing.css
   gives every `h1` to `h3` under `.landing` the face, so a new section's
   heading cannot miss it; a display line that is no heading (the bridge's
   lines, the footer's tagline, the quote, a plan's price) takes the
@@ -1293,11 +1370,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
   line's highlight tints the letters of the line above where they reach
   into it: the opaque brand-100 cut off their descenders (g, p, y).
-  Headings that wrap at 30 to 36px (`SectionHeading`, the footer tagline,
-  the tour's stop headings, the closing call to action on a phone) take
-  `leading-tight`, which clears the overlap; display lines (the hero,
-  the statement, the bridge) keep 1.08 and rely on the see-through
-  selection. A decoration that hangs below the line is drawn as a layer
+  Headings take the leading of their `TYPE` step (1.05 to 1.1 for the
+  big ones, `leading-tight` for a card), and rely on the see-through
+  selection where lines overlap. A decoration that hangs below the line is drawn as a layer
   of its own (`.slop-wave`), since a selection repaints decorations only
   inside its highlight. Labels at 12px and under on a tinted panel or on
   glass use `ink-muted`: there the meta grey fell under 4.5:1 (the
@@ -1377,9 +1452,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   130 KB more, which is expected. A jump means a client import leaked in.
   Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
-  `near.tsx`, used by `deferred-sections.tsx`). Each section below the
-  hero (the bridge, the tour, hiring systems, the statement, the
-  applications section) is in the server's HTML from the start, with its
+  `near.tsx`, used by `deferred-sections.tsx`). Since KAN-923 only the
+  statement is deferred: the hero's tabs hydrate with the page, and the
+  journey, product sections and hiring grid are server components with
+  small client parts. A deferred section (then the bridge, the tour,
+  hiring systems, the statement, the applications section) is in the
+  server's HTML from the start, with its
   text, links, anchors and height, but its script loads and React
   hydrates it only once it comes within a screen of view. Hydrated at
   once, the page was one long task: at a 4x CPU slowdown it froze for
@@ -1394,7 +1472,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     came with the page.
   - On the server the gate opens at once: waiting there for a scroll
     that never comes hung `next build` ("took more than 60 seconds").
-  - After a change, load `/#hiring-systems`, `/#applications` and
+  - After a change, load `/#hiring-systems`, `/#how-it-works` and
     `/#faq` fresh: each must land on its section.
   - Measure on a production build (`npm run build`, then `npm run
     start`) with the CPU slowed 4x: `next dev` ships unminified code and
