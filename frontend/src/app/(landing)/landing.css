@@ -1419,6 +1419,30 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
+ * A product section pins at the screen's middle (product-accordion.tsx,
+ * KAN-923, after Calendly's): from lg up on a screen at least 40rem tall,
+ * the track is the stage's height plus 45svh of scroll per row (`--rows`),
+ * and the stage sticks under the header for that stretch, its heading,
+ * rows and box centred in the space below the header. A shorter screen, or
+ * a phone, gets the stage in the flow, with nothing pinned. In
+ * `@layer components`, so a utility on the same element still wins.
+ */
+@layer components {
+  @media (min-width: 64rem) and (min-height: 40rem) {
+    .product-track {
+      height: calc(100svh - 5.5rem + var(--rows, 1) * 45svh);
+    }
+    .product-stage {
+      position: sticky;
+      top: 5.5rem;
+      display: flex;
+      align-items: center;
+      height: calc(100svh - 5.5rem);
+    }
+  }
+}
+
+/*
  * A row that drifts sideways for ever (the logo strip, the closing call to
  * action's chips): the row holds its items twice and moves by half its
  * width, so the loop has no seam. Slow on purpose, a backdrop, not a

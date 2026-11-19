@@ -15,7 +15,7 @@ const PRODUCTS: FeatureSlug[] = ["resumes", "matching", "auto-apply"];
  * and its page's headline in the serif (`TYPE.product`) over its page's
  * deep dives as rows, each with its icon and its own arrow link to that
  * deep dive, beside a square framed box (`ProductAccordion`: from lg up
- * the heading and the box stick and the scroll picks the row). The copy and the still scenes are the feature
+ * the section pins at the screen's middle and the scroll opens each row). The copy and the still scenes are the feature
  * page's own (`features/content/`), already checked as product claims, so
  * the two pages never disagree. The box alternates sides.
  */

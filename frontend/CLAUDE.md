@@ -284,10 +284,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     fifth of a box**: no one colour holds 4.5:1 on every foot (ink fails
     on the blue, violet and pink, white on the green), so text there goes
     on a card or a pill; after a change to a scene, check what sits on the
-    bare ground. **Nothing
-    pins to the screen and no section is a screen tall**, as on Calendly,
-    whose animations sit in boxes of 290 to 424px. A new picture goes in a
-    `StudioBox`, never a full-width panel of its own.
+    bare ground. **No scene fills the screen**, as on Calendly, whose
+    animations sit in boxes of 290 to 424px. A new picture goes in a
+    `StudioBox`, never a full-width panel of its own. The one thing that
+    pins is a product section, as one block at the screen's middle (below).
   - **The hero is the first screen and nothing else** (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
@@ -393,23 +393,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the feature pages' content files in the comment on `journey`.
   - **The product sections read the feature pages' own content**
     (`features/content/`) and scroll like Calendly's (the user pointed
-    back to it): from lg up the feature's chip and serif headline stick
-    under the header on the white page, its deep dives scroll up beneath
-    as rows, and the row just under the heading is active (full strength,
-    the others at 25%); the square `StudioBox` beside them sticks and
-    shows the active row's still scene, swapping with a fade. The scroll
-    picks the row and the swap plays in time; nothing is scrubbed. Each
-    row has the deep dive's icon (`icon` in `features/types.ts`, required)
-    and its own arrow link to that deep dive on the feature page
-    (`deepDiveAnchor` in `features/catalog.ts`, which the feature page
-    sets as the deep dive's id), in place of one "Explore" link by the
-    heading. The heading's sticky area ends where the last row begins, and
-    the last row is as tall as the box less the heading (measured), so the
-    heading, the last row and the box leave together: before, the box left
-    300px early and the heading floated over blank page. The active row is
-    measured on scroll only while the section is near. Below lg nothing
-    sticks: heading, box, then rows (one tree, `display: contents`), all
-    at full strength, a tap picks the scene. `product-accordion.tsx`.
+    back to it, twice). **The section pins as one block at the screen's
+    middle** (`.product-track` and `.product-stage` in landing.css, from lg
+    up on a screen at least 40rem tall): the feature's chip and serif
+    headline at the top of the column, its deep dives as rows at the foot,
+    level with the square `StudioBox`, all held still under the header
+    while the scroll opens one row at a time, 45svh of scroll a row. The
+    open row shows its body and its own arrow link to that deep dive on the
+    feature page (`deepDiveAnchor` in `features/catalog.ts`, which the
+    feature page sets as the deep dive's id); a line in the feature's
+    colour fills along its foot with the scroll through its stretch
+    (`--row-progress`), and the box shows its still scene, swapping with a
+    fade. A click on a row's title scrolls to that row's stretch. Once the
+    last row's stretch ends, the section scrolls away. **Why**: the first
+    build stuck the heading under the header while the rows scrolled up
+    beneath it, so the section went to the screen's top and then the list
+    moved inside it, and a row's title was cut by the heading's foot; the
+    user found it broken. **The rows keep room for the longest open body**
+    (measured), bottom-aligned, so the block keeps one height whichever row
+    is open: grown with each row, it shifted by up to 10px. Each row has
+    the deep dive's icon (`icon` in `features/types.ts`, required). The
+    open row is measured on scroll only while the section is near. Below
+    lg, and on a screen under 40rem tall (a pinned block would not fit),
+    nothing sticks and a tap opens a row; below lg the order is heading,
+    box, rows (one tree, `display: contents`). Checked at 1024 × 768 to
+    1920 × 1080 (the block fits the screen) and at 1366 × 620, 768 ×
+    1024 and 375 × 812 (in the flow). `product-accordion.tsx`.
   - **Drifting rows** (`.drift-row`: the logo strip, the closing chips)
     draw their items twice and move by half their width; the class is in
     landing.css's Pause Animations list and still with reduced motion.
@@ -1294,7 +1303,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own
-  (since KAN-923 none of them pins; the rule holds for any that returns);
+  (since KAN-923 only the product sections pin, and their scroll only
+  picks the open row; the rule holds for any scene that returns);
   the scroll only takes the reader to the next phase. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two

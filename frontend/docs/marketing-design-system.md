@@ -29,8 +29,10 @@ screens follow `design.md`, not this file.
    violet, never a cool grey beside a violet tint.
 5. **Size carries hierarchy, not weight.** Every heading is weight 500;
    the steps of `TYPE` do the work.
-6. **Motion stays in its box.** Nothing pins to the screen; a loop has a
-   pause; a reveal plays once.
+6. **Motion stays in its box.** No scene fills the screen; a loop has a
+   pause; a reveal plays once. The one thing that pins is a product
+   section, as one block at the screen's middle, while the scroll opens
+   its rows.
 7. **Reuse before drawing.** Every role below is one class or one
    component. A page may not invent a sixth button or a second card.
 
@@ -239,7 +241,8 @@ translate inside a clipped track.
 | A board of wide grey posting cards | Square tiles that light up | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
 | Glass tiles and a grainy ground, first turned down for solid violet lit tiles with white text on a flat brand-100 panel | Frosted glass tiles over a grainy violet ground (`.hero-ground`), lit tiles as bright glass cards in ink | The user did not like the solid cards and asked again; the cost worry did not hold (the blur reads a still ground: 8.4ms frames, none over 20ms) |
-| Product rows that opened on a click, one "Explore" link by the heading | Calendly's scrolling rows: sticky heading and box, the row under the heading active, an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
+| Product rows that opened on a click, one "Explore" link by the heading | Calendly's rows: an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
+| A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
