@@ -10,7 +10,7 @@ import { featurePages, type Feature } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
 import { FloatingHeader } from "./floating-header";
-import { GlassButton, OutlineButton } from "./buttons";
+import { PrimaryButton, SecondaryButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
 import { MotionToggle } from "./motion-toggle";
@@ -83,19 +83,21 @@ export function Header() {
               signedOut={
                 <>
                   <div className="hidden md:block">
-                    <OutlineButton href={site.login.href}>{site.login.label}</OutlineButton>
+                    <SecondaryButton href={site.login.href}>{site.login.label}</SecondaryButton>
                   </div>
                   <div className="hidden sm:block">
-                    <GlassButton href={site.primaryCta.href}>{site.primaryCta.label}</GlassButton>
+                    <PrimaryButton href={site.primaryCta.href}>
+                      {site.primaryCta.label}
+                    </PrimaryButton>
                   </div>
                   {/* On a phone too, shortened to fit beside the logo and the menu:
                       with only the menu there, the sign-up was two taps away
                       (KAN-368). 44px tall, like the menu button, for a thumb
                       (KAN-580). */}
                   <div className="sm:hidden">
-                    <GlassButton href={site.primaryCta.href} className="h-11 px-3">
+                    <PrimaryButton href={site.primaryCta.href} className="h-11 px-3">
                       Get started
-                    </GlassButton>
+                    </PrimaryButton>
                   </div>
                 </>
               }
@@ -145,12 +147,12 @@ export function Header() {
         <SessionSwap
           signedOut={
             <>
-              <GlassButton href={site.primaryCta.href} size="lg" className="mt-4 w-full">
+              <PrimaryButton href={site.primaryCta.href} size="lg" className="mt-4 w-full">
                 {site.primaryCta.label}
-              </GlassButton>
-              <OutlineButton href={site.login.href} size="lg" className="mt-2 w-full">
+              </PrimaryButton>
+              <SecondaryButton href={site.login.href} size="lg" className="mt-2 w-full">
                 {site.login.label}
-              </OutlineButton>
+              </SecondaryButton>
             </>
           }
           signedIn={<OpenWorkIt size="lg" className="mt-4 w-full" />}
@@ -174,9 +176,9 @@ type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> &
  */
 function OpenWorkIt({ size, className }: { size?: "lg"; className: string }) {
   return (
-    <GlassButton href="/go-home" prefetch={false} size={size} className={className}>
+    <PrimaryButton href="/go-home" prefetch={false} size={size} className={className}>
       Open WorkIt
-    </GlassButton>
+    </PrimaryButton>
   );
 }
 

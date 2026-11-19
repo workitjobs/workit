@@ -14,7 +14,7 @@ import { GrowIn } from "./grow-in";
 import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { Journey } from "./journey";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
+import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
@@ -54,17 +54,9 @@ export default function LandingPage() {
       {/* Hero, in a rounded panel inset from the window, like every
           full-width band on these pages, on the brand's mesh (.hero-mesh). */}
       <section className={PANEL_INSET}>
-        <div
-          className={cn(
-            PANEL,
-            "hero-mesh relative isolate overflow-hidden pb-3 sm:pb-6",
-          )}
-        >
+        <div className={cn(PANEL, "hero-mesh relative isolate overflow-hidden pb-3 sm:pb-6")}>
           <div className={cn(CONTAINER, "pt-14 text-center sm:pt-20 lg:pt-24")}>
-            <p
-              className="hero-rise text-ink inline-flex items-center rounded-full bg-white/60 px-3.5 py-1.5 text-sm font-medium ring-1 ring-white/80"
-              style={{ "--rd": ".05s" } as CSSProperties}
-            >
+            <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": ".05s" } as CSSProperties}>
               {hero.audience}
             </p>
             <h1
@@ -145,7 +137,7 @@ export default function LandingPage() {
                 align="left"
                 className="max-lg:mx-auto max-lg:text-center"
                 eyebrow="FAQ"
-                title="Questions, answered."
+                title="Questions, answered"
               />
             </FocusIn>
           </div>

@@ -281,7 +281,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     they read as scan lines).
   - **The hero's top features** (`hero-features.tsx`): the four
     `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
-    `.gloss-card` with the open feature's copy (`StopCopy`,
+    `.surface-card` with the open feature's copy (`StopCopy`,
     `stop-copy.tsx`, shared with the unmounted tour) beside its story in a
     `StudioBox`, scaled by `Fit` with `max={1}`. Each story plays once and
     the next tab opens: `Story` calls the `StoryEnd` context (story.tsx)
@@ -292,7 +292,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     so only the open one's chunk loads. Below sm only the open tab shows
     its label: four labels ran past a 390px screen.
   - **The journey** follows the one application (`followedJob`) through
-    four `.gloss-card`s joined by a rail; each picture plays once as its
+    four `.surface-card`s joined by a rail; each picture plays once as its
     box arrives (`Arrive` in `arrive.tsx` sets `data-arrived`;
     `.journey-in`, `.journey-ring`, `.journey-grow` in landing.css), never
     loops, so needs no pause. The trigger is on the box, not the card: on
@@ -1295,27 +1295,44 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
-- **A solid card on the marketing pages is `.gloss-card`** (landing.css,
-  KAN-368): a white body shading to a pale violet at its foot under a top
-  sheen, a hairline lit from above and a stack of soft shadows. It
-  replaced `bg-white` with a 5% ring and one shadow, which the team found
-  flat ("basic white cards with borders"). Glass (`.glass-card`) is for a
-  card over colour, where its blur has something to show; over a grey or
-  white panel it read as that same flat card. An element with it carries
-  no `ring-*` or `shadow-*` utility, which would replace its shadows, and
-  paper (a resume page, the statement's pages) stays flat paper. The
-  feature pages' steps and "More from WorkIt" cards are `.gloss-card` too
-  (KAN-581); a related card's hover lifts it by translate alone.
-- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581):
-  `GlassButton` (primary), `OutlineButton` (secondary) and `OnFillButton`
-  (white on a coloured or grey panel, the plan cards), all in one shape
-  (`rounded-control`, the app's) and two heights, `md` 44px and `lg`
-  48px. A page may change a role's colours for a tier (Pricing's Free ring
-  and Plus violet), never its shape or height. The site had five recipes,
-  three corner shapes and four heights, three of them in Pricing's one
-  row. The social sign-up pair keeps Google's branded colours but takes
-  the same shape and `md` height (`BUTTON_SHAPE`, `BUTTON_SIZES`).
-  `.glass-btn` in landing.css is only the glass fill and edge.
+- **The marketing design system is `docs/marketing-design-system.md`**
+  (KAN-923, 2026-11-19): read it before styling anything in
+  `app/(landing)/`. The user found the site still AI-made after the home
+  page's redesign and named the violet glass buttons, the bordered sign-up
+  buttons and the lavender gradient on cards, so: **colour lives only in
+  the hero panel and inside a `StudioBox`; cards, buttons and the page are
+  white, ink and grey; violet marks small things only** (eyebrows, checks,
+  feature tiles, Plus's limit pills); **shadows are slate, never violet**
+  (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
+  A new style that breaks one of these goes in the doc first, with the
+  user's yes.
+- **A solid card on the marketing pages is `.surface-card`** (landing.css,
+  KAN-923): white and `--mk-shadow-card`, a hairline drawn as a shadow. It
+  replaced `.gloss-card` (KAN-368), a white that shaded to lavender under a
+  sheen with violet shadows, which the user named as AI-made; that had
+  itself replaced `bg-white` with a 5% ring, which the team found flat, so
+  keep the soft shadow. Glass (`.glass-card`, neutral frosted white since
+  KAN-923, no violet tint or ring) is for a card over colour, where its
+  blur has something to show. An element with either carries no `ring-*`
+  or `shadow-*` utility, which would replace its shadows, and paper (a
+  resume page, the statement's pages) stays flat paper. The feature pages'
+  steps and "More from WorkIt" cards are `.surface-card` too; a related
+  card's hover lifts it by translate alone.
+- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581;
+  colours KAN-923): `PrimaryButton` (solid ink, `.primary-btn`),
+  `SecondaryButton` (slate at 6%, no border) and `OnFillButton` (white with
+  `--mk-shadow-float`, on a coloured or grey panel, the plan cards), all
+  in one shape (`rounded-control`, the app's) and two heights, `md` 44px
+  and `lg` 48px. The header's Get started and Open WorkIt are primary,
+  Log in secondary. A page may change a role's colours for a tier, never
+  its shape or height. The site had five recipes, three corner shapes and
+  four heights, three of them in Pricing's one row; then a violet glass
+  primary and a violet outline, which the user found AI-made. **The social
+  sign-up pair is Google's dark theme** (#131314, a 1px #8E918F inside
+  stroke, #E3E3E3 text; LinkedIn matched, its tile with a white "in"): the
+  light theme's grey border read as a bordered AI-made button beside the
+  ink primary. It takes the same shape and `md` height (`BUTTON_SHAPE`,
+  `BUTTON_SIZES`).
 - **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
   `/go-home`, in place of Log in and Get started, in the bar and the phone
   menu. The pages stay prerendered, so the header draws both pairs and

@@ -20,7 +20,7 @@ export function ScoreVisual() {
   const factors = Object.keys(factorLabels) as MatchFactor[];
   return (
     <Vignette className="gap-3 px-4">
-      <div className="gloss-card flex items-center gap-3 rounded-2xl p-3">
+      <div className="surface-card flex items-center gap-3 rounded-2xl p-3">
         <span className="bg-brand-tint text-brand-ink grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-bold">
           AM
         </span>
@@ -39,7 +39,7 @@ export function ScoreVisual() {
         </div>
       </div>
 
-      <div className="gloss-card rounded-2xl p-4">
+      <div className="surface-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <FaviconLogo domain={best.domain} className="size-9" />
           <div className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ export function BestMatchVisual() {
           <SortDescendingIcon className="size-3.5" />
           {jobs.length} job postings
         </Label>
-        <span className="text-ink inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold shadow-[inset_0_0_0_1px_rgba(76,39,163,0.18)]">
+        <span className="text-ink inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold shadow-[inset_0_0_0_1px_rgb(15_23_42/0.12)]">
           Best Match
           <CaretDownIcon className="size-3" />
         </span>
@@ -129,7 +129,7 @@ export function SourcesVisual() {
       {SOURCES.map((job) => {
         const src = logo(job.system);
         return (
-          <div key={job.company} className="gloss-card flex items-center gap-3 rounded-2xl p-3">
+          <div key={job.company} className="surface-card flex items-center gap-3 rounded-2xl p-3">
             <FaviconLogo domain={job.domain} className="size-9" />
             <div className="min-w-0 flex-1">
               <p className="text-ink truncate text-[12px] font-semibold">{job.title}</p>

@@ -4,10 +4,10 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { GlassButton, OnFillButton } from "../buttons";
+import { PrimaryButton, OnFillButton } from "../buttons";
 import { FaqList } from "../faq-list";
 import { FocusIn } from "../focus-in";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
+import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "../layout-parts";
 import {
   billing,
   billingFaqs,
@@ -56,14 +56,11 @@ export default function PricingPage() {
           style={{ background: HERO_BACKDROP }}
         >
           <div className={cn(CONTAINER, "text-center")}>
-            <p
-              className="hero-rise text-landing-brand-800 mx-auto w-fit rounded-full px-4 py-1.5 text-xs font-semibold tracking-[0.18em] uppercase [box-shadow:var(--brand-glass-edge)] [background:var(--brand-glass-fill)]"
-              style={{ "--rd": "0s" } as CSSProperties}
-            >
+            <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": "0s" } as CSSProperties}>
               Pricing
             </p>
             <h1
-              className="hero-rise from-ink to-landing-brand-800 mx-auto mt-6 max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.08] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl"
+              className={cn(TYPE.display, "hero-rise text-ink mx-auto mt-6 max-w-4xl")}
               style={{ "--rd": "0.08s" } as CSSProperties}
             >
               Plans built for students.
@@ -91,7 +88,7 @@ export default function PricingPage() {
       <section className="py-20 sm:py-28">
         <div className={CONTAINER}>
           <FocusIn>
-            <SectionHeading eyebrow="FAQ" title="Billing, answered." />
+            <SectionHeading eyebrow="FAQ" title="Billing, answered" />
           </FocusIn>
           <FocusIn>
             <FaqList items={billingFaqs} className="faq-rise mt-12" />
@@ -115,9 +112,9 @@ export default function PricingPage() {
                 Sign up and upload a resume, and WorkIt starts ranking jobs by how well you fit. No
                 card needed.
               </p>
-              <GlassButton href="/signup" size="lg" className="mt-8">
+              <PrimaryButton href="/signup" size="lg" className="mt-8">
                 Get started for free
-              </GlassButton>
+              </PrimaryButton>
             </div>
           </FocusIn>
         </div>
@@ -151,7 +148,7 @@ function PlanBoard() {
         className="price-panel bg-well ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
         style={{ "--d": "0.3s" } as CSSProperties}
       />
-      <div className="price-strip bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
+      <div className="price-strip absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] bg-slate-900/[0.035] xl:col-[3/4] xl:block" />
       <RowArrival />
 
       <div
@@ -256,7 +253,7 @@ function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
       className={cn(
         "text-sm font-semibold whitespace-nowrap",
         plan === "plus" && "bg-landing-brand-600 rounded-full px-3 py-1 text-white shadow-sm",
-        plan === "pro" && "bg-landing-brand-100 text-landing-brand-800 rounded-full px-3 py-1",
+        plan === "pro" && "text-ink rounded-full bg-slate-100 px-3 py-1",
         plan === "free" && "text-ink",
       )}
     >
@@ -265,14 +262,15 @@ function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
   );
 }
 
-/** Soft violet blobs under the board, over white fading to the brand tint.
- *  Violet only and the same on both sides, so the glass reads alike: a
- *  magenta blob once turned the Pro card pink. */
+/** Two soft blobs under the board, the brand's violet and the resume blue,
+ *  over white fading to the pale brand ground: the home hero's colours,
+ *  quieter, since a table sits on it (KAN-923; it was three strong violet
+ *  blobs). The same on both sides, so the glass reads alike: a magenta
+ *  blob once turned the Pro card pink. */
 const HERO_BACKDROP = [
-  "radial-gradient(42% 32% at 12% 72%, color-mix(in oklab, var(--color-landing-brand-400) 38%, transparent), transparent)",
-  "radial-gradient(42% 32% at 88% 72%, color-mix(in oklab, var(--color-landing-brand-400) 38%, transparent), transparent)",
-  "radial-gradient(45% 28% at 52% 96%, color-mix(in oklab, var(--color-landing-brand-300) 50%, transparent), transparent)",
-  "linear-gradient(180deg, #ffffff 0%, #ffffff 28%, var(--color-brand-tint) 100%)",
+  "radial-gradient(42% 32% at 10% 70%, color-mix(in oklab, var(--color-brand) 18%, transparent), transparent)",
+  "radial-gradient(42% 32% at 90% 70%, color-mix(in oklab, var(--color-advanced) 16%, transparent), transparent)",
+  "linear-gradient(180deg, #ffffff 0%, #ffffff 30%, var(--color-landing-brand-50) 100%)",
 ].join(", ");
 
 const CLOSING_BACKDROP = [
@@ -281,12 +279,10 @@ const CLOSING_BACKDROP = [
   "var(--color-brand-tint)",
 ].join(", ");
 
-/** The highlighted plan's fill: a soft violet glow at the bottom, over a deep violet gradient that starts at landing-brand-600
- *  where the small type sits (white on it is 6.26:1). */
-const FEATURED_FILL = [
-  "radial-gradient(80% 45% at 0% 100%, color-mix(in oklab, var(--color-landing-brand-400) 30%, transparent), transparent)",
-  "linear-gradient(165deg, var(--color-landing-brand-600), var(--color-landing-brand-800) 60%, var(--color-landing-brand-900))",
-].join(", ");
+/** The highlighted plan's fill: solid ink, the primary button's colour
+ *  (KAN-923; it was a deep violet gradient with a glow, which the user
+ *  named as AI-made). White on it is 17:1. */
+const FEATURED_FILL = "var(--color-ink)";
 
 /** One term's price shows, the other's hides: the board is `group/pricing`,
  *  and it holds the switch's radios. Each rolls in as it shows
@@ -332,7 +328,7 @@ function BillingSwitch() {
 
 /**
  * A plan at the head of its column: the price and the button. Plus is filled
- * violet with a tilted badge over its top edge, so nothing here may take
+ * ink with a badge over its top edge, so nothing here may take
  * `overflow-hidden`. Free is grey, the basic tier; from xl up it sits in its
  * own grey panel, so there it drops its card and reaches the panel's top.
  */
@@ -361,9 +357,8 @@ function PlanHeader({
     <div
       className={cn(
         "price-card relative isolate flex flex-col rounded-[1.75rem] p-6 text-left md:p-5",
-        featured &&
-          "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
-        plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
+        featured && "text-white shadow-[0_24px_48px_-20px_rgb(15_23_42/0.55)]",
+        plan.id === "pro" && "surface-card text-ink",
         free &&
           "text-ink bg-well ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
         className,
@@ -377,18 +372,9 @@ function PlanHeader({
     >
       {featured && (
         <>
-          {/* A light sweeps once across the card after it lands, clipped to
-              the card by this layer, never by the card: the pill hangs over
-              its edge. Behind the text. */}
-          <span
-            aria-hidden="true"
-            className="price-sheen pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[1.75rem]"
-          >
-            <span className="absolute inset-y-0 left-0 w-1/2 bg-linear-to-r from-transparent via-white/25 to-transparent" />
-          </span>
           {/* Straight, centred on the top edge, popping on once the card has
               landed: the team found a tilted "Recommended" out of place. */}
-          <span className="price-badge text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
+          <span className="price-badge text-landing-brand-800 absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[var(--mk-shadow-float)]">
             Popular
           </span>
         </>
@@ -424,20 +410,17 @@ function PlanHeader({
 
       <div className="mt-auto pt-5">
         {free ? (
-          <OnFillButton href="/signup" className="ring-ink/15 w-full ring-1 ring-inset">
+          <OnFillButton href="/signup" className="w-full">
             {label}
           </OnFillButton>
         ) : featured ? (
-          <OnFillButton
-            href="/signup"
-            className="text-landing-brand-900 hover:bg-landing-brand-50 w-full shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] focus-visible:outline-white!"
-          >
+          <OnFillButton href="/signup" className="w-full focus-visible:outline-white!">
             {label}
           </OnFillButton>
         ) : (
-          <GlassButton href="/signup" className="w-full">
+          <PrimaryButton href="/signup" className="w-full">
             {label}
-          </GlassButton>
+          </PrimaryButton>
         )}
       </div>
     </div>

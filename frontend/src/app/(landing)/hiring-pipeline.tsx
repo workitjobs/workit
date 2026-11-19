@@ -704,7 +704,7 @@ function Posting({
             style={{ x, y, scale }}
           >
             <motion.div
-              className="gloss-card text-ink absolute -top-[72px] flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
+              className="surface-card text-ink absolute -top-[72px] flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
               style={{ width: PILL_W, left: -PILL_W / 2, opacity: pill }}
             >
               <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />

@@ -57,7 +57,7 @@ export function HiringGrid() {
                 // Every other column sits a little lower, so the grid reads
                 // as tiles laid on the box, not a table.
                 className={cn(
-                  "flex aspect-square flex-col items-center justify-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[0_1px_2px_rgb(30_20_70/0.06),0_10px_24px_-12px_rgb(40_20_90/0.3)] sm:gap-2.5 sm:rounded-2xl sm:p-3",
+                  "flex aspect-square flex-col items-center justify-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[var(--mk-shadow-float)] sm:gap-2.5 sm:rounded-2xl sm:p-3",
                   i % 2 === 1 && "translate-y-2 sm:translate-y-4",
                 )}
               >

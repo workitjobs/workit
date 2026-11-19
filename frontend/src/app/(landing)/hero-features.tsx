@@ -120,7 +120,7 @@ export function HeroFeatures() {
         role="tabpanel"
         id="hero-feature"
         aria-labelledby={`hero-tab-${tab.id}`}
-        className="gloss-card mt-5 grid gap-3 rounded-[2.5rem] p-3 text-left lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-6"
+        className="surface-card mt-5 grid gap-3 rounded-[2.5rem] p-3 text-left lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-6"
       >
         <StopCopy
           id={tab.id}

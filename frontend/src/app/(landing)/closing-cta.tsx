@@ -51,7 +51,7 @@ export function ClosingCta({
               {[...chips, ...chips].map((chip, i) => (
                 <li
                   key={i}
-                  className="text-ink flex shrink-0 items-center gap-2 rounded-full bg-white/80 py-1.5 pr-4 pl-1.5 text-sm font-medium shadow-[0_8px_20px_-10px_rgb(40_20_90/0.35)] ring-1 ring-white"
+                  className="text-ink flex shrink-0 items-center gap-2 rounded-full bg-white py-1.5 pr-4 pl-1.5 text-sm font-medium shadow-[var(--mk-shadow-float)]"
                 >
                   <FaviconLogo domain={chip.domain} className="size-7 rounded-full" />
                   {chip.label}

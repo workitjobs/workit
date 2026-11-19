@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 
-import { GlassButton, OutlineButton } from "../buttons";
+import { PrimaryButton, SecondaryButton } from "../buttons";
 import { site } from "../data";
 import { backdrop } from "../features/catalog";
 import { FeatureIcon } from "../features/feature-icon";
-import { CONTAINER, PANEL, PANEL_INSET } from "../layout-parts";
+import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, TYPE } from "../layout-parts";
 import type { Resource } from "./catalog";
 
 /** The brand violet over its tint, like the Pricing page's panels. */
@@ -41,23 +41,21 @@ export function ComingSoonPage({ resource }: { resource: Resource }) {
       <section className={cn(PANEL_INSET, "mb-2 sm:mb-6")}>
         <div className={cn(PANEL, "py-20 sm:py-28 lg:py-32")} style={{ background: GROUND }}>
           <div className={cn(CONTAINER, "text-center")}>
-            <p className="glass-card text-ink inline-flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm font-medium">
+            <p className={cn(HERO_PILL, "py-1 pl-1")}>
               <FeatureIcon feature={resource} className="rounded-full" />
               {resource.name}
             </p>
-            <h1 className="text-ink mx-auto mt-6 max-w-3xl text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance sm:text-6xl">
-              Coming soon.
-            </h1>
+            <h1 className={cn(TYPE.display, "text-ink mx-auto mt-6 max-w-4xl")}>Coming soon.</h1>
             <p className="text-ink-muted mx-auto mt-5 max-w-2xl text-lg leading-[1.55] text-pretty">
               {soon.summary}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <GlassButton href={site.primaryCta.href} size="lg">
+              <PrimaryButton href={site.primaryCta.href} size="lg">
                 {site.primaryCta.label}
-              </GlassButton>
-              <OutlineButton href={soon.meanwhile.href} size="lg">
+              </PrimaryButton>
+              <SecondaryButton href={soon.meanwhile.href} size="lg">
                 {soon.meanwhile.label}
-              </OutlineButton>
+              </SecondaryButton>
             </div>
           </div>
         </div>

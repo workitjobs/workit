@@ -29,9 +29,13 @@ export function EmailSignUpLink() {
 
 /**
  * "Sign up with Google / LinkedIn", following Google's sign-in branding
- * guidelines (light theme): white fill, 1px #747775 inside stroke, #1F1F1F
- * Google Sans Medium 14/20 text, standard full-colour logos (never
- * recoloured). LinkedIn uses the same treatment so the pair matches, and
+ * guidelines, dark theme (KAN-923): #131314 fill, 1px #8E918F inside
+ * stroke, #E3E3E3 Google Sans Medium 14/20 text, standard full-colour
+ * logos (never recoloured). It was the light theme, white with a #747775
+ * stroke, which the user found looked like bordered AI-made buttons beside
+ * the solid ink primary; the dark theme is the guidelines' own and reads
+ * as a solid button. LinkedIn uses the same treatment so the pair matches
+ * (its blue tile keeps a white "in"), and
  * both take the marketing buttons' shape and height (buttons.tsx). Each
  * posts to the same OAuth action as the buttons on /signup, and says
  * "Opening Google…" while it runs (oauth-form.tsx). The home hero and every
@@ -54,7 +58,7 @@ export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
         className={cn(
           BUTTON_SHAPE,
           BUTTON_SIZES.md,
-          "font-google w-full gap-2.5 bg-white px-3 text-sm/5 font-medium text-[#1F1F1F] ring-1 ring-[#747775] transition-shadow ring-inset hover:shadow-md disabled:cursor-progress disabled:hover:shadow-none",
+          "font-google w-full gap-2.5 bg-[#131314] px-3 text-sm/5 font-medium text-[#E3E3E3] ring-1 ring-[#8E918F] transition-colors ring-inset hover:bg-[#2b2b2e] disabled:cursor-progress disabled:hover:bg-[#131314]",
         )}
         icon={
           google ? (
@@ -78,6 +82,9 @@ export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
             </svg>
           ) : (
             <svg viewBox="0 0 24 24" className="size-5 shrink-0" aria-hidden="true">
+              {/* White under the mark, so its "in" reads white on the dark
+                  fill, as LinkedIn's own logo does. */}
+              <rect x="2" y="2" width="20" height="20" rx="2" fill="white" />
               <path
                 fill="#0A66C2"
                 d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zM7.119 20.452H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"

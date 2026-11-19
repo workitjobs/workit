@@ -70,6 +70,12 @@ export const TYPE = {
   eyebrow: "text-xs font-semibold tracking-[0.08em] uppercase",
 } as const;
 
+/** The pill above a hero's headline (the home page's audience, a feature
+ *  page's name, Pricing): frosted white, no border, one look on every
+ *  page. Pricing's was violet glass in capitals. */
+export const HERO_PILL =
+  "text-ink inline-flex items-center gap-2 rounded-full bg-white/70 px-3.5 py-1.5 text-sm font-medium shadow-[var(--mk-shadow-float)] backdrop-blur-sm";
+
 export function SectionHeading({
   eyebrow,
   title,

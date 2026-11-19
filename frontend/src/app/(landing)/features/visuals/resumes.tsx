@@ -46,7 +46,7 @@ const BANK: { section: string; icon: PhosphorIcon; title: string; detail: string
 export function BankVisual() {
   return (
     <Vignette className="px-6">
-      <div className="gloss-card rounded-2xl p-4">
+      <div className="surface-card rounded-2xl p-4">
         <div className="flex items-center justify-between">
           <p className="text-ink text-[13px] font-semibold">Experience Bank</p>
           <span className="bg-positive-tint text-positive-ink inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold">
@@ -124,7 +124,7 @@ export function BuildVisual() {
   return (
     <Vignette className="items-center">
       <div
-        className="w-[230px] bg-white px-5 py-4 shadow-[0_24px_48px_-24px_rgb(40_20_90/0.45)] ring-1 ring-slate-900/8"
+        className="w-[230px] bg-white px-5 py-4 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.3)] ring-1 ring-slate-900/8"
         style={{ fontFamily: JAKES_FACE }}
       >
         <p className="text-ink text-center text-[15px] font-bold">{candidate.name}</p>
@@ -140,7 +140,7 @@ export function BuildVisual() {
           ]}
         />
       </div>
-      <div className="gloss-card absolute right-6 bottom-8 w-28 rounded-xl p-1.5">
+      <div className="surface-card absolute right-6 bottom-8 w-28 rounded-xl p-1.5">
         <p className="text-ink flex items-center gap-1 px-1.5 pt-0.5 pb-1 text-[11px] font-semibold">
           <FileArrowDownIcon className="size-3.5" />
           Download
@@ -177,7 +177,7 @@ export function TailorVisual() {
   ] as const;
   return (
     <Vignette className="gap-3 px-4">
-      <div className="gloss-card flex gap-4 rounded-2xl p-4">
+      <div className="surface-card flex gap-4 rounded-2xl p-4">
         <div className="flex w-[84px] shrink-0 flex-col items-center gap-1">
           <svg viewBox="0 0 64 64" className="size-16 -rotate-90">
             <circle
@@ -266,7 +266,7 @@ export function SentResumeVisual() {
   ];
   return (
     <Vignette className="px-3">
-      <div className="gloss-card rounded-2xl p-3">
+      <div className="surface-card rounded-2xl p-3">
         <div className="text-ink-muted flex px-2 pb-1.5 text-[10px] font-semibold">
           <span className="flex-1">Role</span>
           <span className="w-[132px]">Resume</span>

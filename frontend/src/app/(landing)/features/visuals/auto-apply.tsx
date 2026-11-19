@@ -42,7 +42,7 @@ const TONE = {
 export function QueueVisual() {
   return (
     <Vignette className="px-4">
-      <div className="gloss-card rounded-2xl p-3">
+      <div className="surface-card rounded-2xl p-3">
         <div className="flex items-center justify-between px-1">
           <p className="text-ink text-[13px] font-semibold">Up Next</p>
           <span className="bg-positive-ink inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white">
@@ -107,7 +107,7 @@ function Field({ id, className }: { id: string; className?: string }) {
 /** A company's own application window: its address bar and its form. */
 function Window({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_48px_-24px_rgb(40_20_90/0.45)] ring-1 ring-slate-900/8">
+    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_48px_-24px_rgb(15_23_42/0.3)] ring-1 ring-slate-900/8">
       <div className="flex items-center gap-2 bg-slate-50 px-3 py-2">
         <span className="flex gap-1">
           {[0, 1, 2].map((dot) => (
@@ -156,7 +156,7 @@ export function FillVisual() {
 export function AttachVisual() {
   return (
     <Vignette className="px-8">
-      <div className="gloss-card rounded-2xl p-4">
+      <div className="surface-card rounded-2xl p-4">
         <div className="flex items-center gap-2">
           <Logo size="mark" decorative className="h-5" />
           <p className="text-ink text-[13px] font-semibold">Resume</p>

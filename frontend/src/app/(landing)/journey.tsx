@@ -50,7 +50,7 @@ export function Journey() {
                     }}
                   />
                 )}
-                <div className="gloss-card grid gap-3 rounded-[2rem] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-6">
+                <div className="surface-card grid gap-3 rounded-[2rem] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-6">
                   <div className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 md:pb-6">
                     <p className={cn(TYPE.eyebrow, "text-ink-meta flex items-center gap-2")}>
                       <FeatureIcon
@@ -142,8 +142,7 @@ function JobRow({ className }: { className?: string }) {
   );
 }
 
-const CARD =
-  "rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgb(30_20_70/0.06),0_12px_28px_-12px_rgb(40_20_90/0.3)]";
+const CARD = "rounded-2xl bg-white p-4 shadow-[var(--mk-shadow-float)]";
 
 /**
  * Each step's picture: a piece of the app, drawn small, the way the step
