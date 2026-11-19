@@ -108,8 +108,9 @@ export default function AutoApplyDesktopPage() {
             Let Your Mac Fill Out Your Applications
           </h2>
           <p className="text-subtitle text-ink-muted mt-4 max-w-lg font-normal">
-            WorkIt Auto Apply is our desktop app. It opens each job in your queue in its own Chrome
-            window and fills out the application. You check each one and press Submit.
+            Our desktop app opens each job in its own Chrome
+            window and fills out the application. Apply across multiple jobs, fill out all the personal questions. 
+            You check each one and press Submit. 
           </p>
 
           <div className="mt-8">
@@ -142,7 +143,7 @@ export default function AutoApplyDesktopPage() {
           <p className="text-body text-ink-meta mt-6">
             On Windows or an Intel Mac?{" "}
             <TextLink href={EXTENSION_INSTALL_URL} target="_blank" rel="noreferrer">
-              Use the WorkIt extension for Chrome
+              Use the WorkIt extension for Chrome. 
             </TextLink>
             .
           </p>
