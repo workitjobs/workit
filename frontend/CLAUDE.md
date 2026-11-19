@@ -1455,7 +1455,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   rows with the same names. **Each section has one name in the panel**
   (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
-  two sets of names for one app (2026-11-05). **The same names are used
+  two sets of names for one app (2026-11-05). A name may take two lines on
+  its tile, no more: "Auto Apply Desktop" (KAN-835, `docs/screens.md`) does,
+  and `RAIL_BUTTON` wraps it where shadcn cut it to "o Apply Desk". **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
   "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or

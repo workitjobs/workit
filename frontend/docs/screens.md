@@ -2022,6 +2022,31 @@ are the runner's live states, kept for when the extension reports them;
 the statuses and the routes are in `auto-apply/architecture.md`, "The run"
 and "API routes".
 
+## Auto Apply Desktop (`/auto-apply-desktop`, KAN-835)
+
+The page that promotes WorkIt Auto Apply, the desktop app (KAN-723), and
+where a student downloads it: W8's download page in
+`docs/desktop_application_auto_apply.md`. Its rail row sits right under
+Auto Apply, at its own address: the Auto Apply row owns every path under
+`/auto-apply`, so `/auto-apply/desktop` would light that row instead. Its
+name, "Auto Apply Desktop", is the one rail name on two lines, so a rail
+tile lets its name wrap (`RAIL_BUTTON` in `components/app-sidebar.tsx`).
+
+It is mostly drawings (`auto-apply-desktop/graphics.tsx`), each copied from
+the app's own window (`apply-agent/window/src`) with its words: a hero with
+the app's window in front of a Chrome window it fills, Download for Mac and
+what the app needs (an Apple Silicon Mac on macOS 13 or later, Google
+Chrome, free in the beta with a daily limit), then one tile for each moment
+of a run (it fills each form, it asks when it needs you, you press Submit).
+The copy follows what the app does: it never says WorkIt applies or
+submits. The drawings are `aria-hidden` with no headings. Their one motion
+is each progress bar drawing out once on load.
+
+**Download for Mac is off until there is a build.** `DOWNLOAD_URL` in
+`page.tsx` is null until W8 puts the signed DMG on Cloudflare R2; until
+then the button cannot be pressed and the line under it says the download
+is coming. Set it there when the DMG is published.
+
 ## Calendar
 
 **The Calendar is back** (KAN-413): it was hidden from KAN-261 (the proxy
