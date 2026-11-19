@@ -13,22 +13,25 @@ screens follow `design.md`, not this file.
    tile and the tiles that light up) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
-2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
+2. **One accent, used small.** WorkIt violet marks things: a
    check, a feature's icon tile, Plus's limit pills, the slop word. It
    never fills a button or a card. The one exception is the home hero's
    lit tiles, a soft solid violet (`--mk-lit`) with white text.
-3. **Value before hue.** Check a screen in greyscale: the surfaces that
+3. **A heading stands alone.** No small label above a section heading
+   (an "eyebrow"): the violet ones over every heading read as a template,
+   and the user had them all removed. `SectionHeading` takes no eyebrow.
+4. **Value before hue.** Check a screen in greyscale: the surfaces that
    must separate need distinct lightness, and the main action must be the
    strongest contrast in its area. The home hero once had every surface
    between 94% and 100% lightness (pairs at 1.01 to 1.11 contrast) and read
    as a loading skeleton; a different hue did not fix it, a lightness step
    did. Keep one colour temperature per area: violet-tinted greys with
    violet, never a cool grey beside a violet tint.
-4. **Size carries hierarchy, not weight.** Every heading is weight 500;
+5. **Size carries hierarchy, not weight.** Every heading is weight 500;
    the steps of `TYPE` do the work.
-5. **Motion stays in its box.** Nothing pins to the screen; a loop has a
+6. **Motion stays in its box.** Nothing pins to the screen; a loop has a
    pause; a reveal plays once.
-6. **Reuse before drawing.** Every role below is one class or one
+7. **Reuse before drawing.** Every role below is one class or one
    component. A page may not invent a sixth button or a second card.
 
 ## Colour roles
@@ -64,7 +67,7 @@ for a product's heading, Inter for everything else.
 | `card` | Jakarta 500 | 28 / 24 | A card's heading |
 | `item` | Jakarta 500 | 18 | A row's title (the product accordion) |
 | `lead` | Inter 400 | 19 / 18 | The line under a display or chapter heading |
-| `eyebrow` | Inter 600, capitals, 0.08em | 12 | The label above a heading |
+| `eyebrow` | Inter 600, capitals, 0.08em | 12 | A small grey line (the logo strip's, a journey step's); never a label above a heading |
 
 No gradient text (Pricing's ink-to-violet headline went). No full stop on a
 section heading; a hero line may keep one.
@@ -182,6 +185,7 @@ translate inside a clipped track.
 | Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |
 | A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
+| A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
 | Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
@@ -190,7 +194,6 @@ translate inside a clipped track.
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: the panel ground, the hero's lit tiles, eyebrows,
-checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the panel ground, the hero's lit tiles, checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.

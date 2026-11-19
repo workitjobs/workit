@@ -26,7 +26,6 @@ const content: FeatureContent = {
   animation: ResumeAnimation,
   sections: [
     {
-      eyebrow: "Experience bank",
       title: "Everything you have done, in one place",
       body: "Upload your resume and WorkIt reads it into your bank: education, experience, projects, leadership, awards, certifications and skills. Or add each entry yourself.",
       points: [
@@ -37,14 +36,12 @@ const content: FeatureContent = {
       visual: BankVisual,
     },
     {
-      eyebrow: "Build",
       title: "A clean resume in one click",
       body: "Press Generate Resume and WorkIt lays out your bank in the Jake’s Resume template. Edit any line, then download it.",
       points: ["Fit to One Page trims it until it fits", "Download as PDF, Word or LaTeX"],
       visual: BuildVisual,
     },
     {
-      eyebrow: "Tailor",
       title: "Tailored to each job posting",
       body: "Open a job posting and press Tailor My Resume. WorkIt shows which of the posting’s keywords your resume already has. Pick the missing ones you have really used, and one click rewords your bullets for the job.",
       points: [
@@ -55,7 +52,6 @@ const content: FeatureContent = {
       visual: TailorVisual,
     },
     {
-      eyebrow: "Sent resumes",
       title: "Know which resume went where",
       body: "When you mark a job applied, WorkIt keeps the resume you sent with the application. Open it from your tracker before the interview.",
       visual: SentResumeVisual,

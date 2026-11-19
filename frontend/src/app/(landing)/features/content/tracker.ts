@@ -28,25 +28,21 @@ const content: FeatureContent = {
   animation: UpdatesAnimation,
   sections: [
     {
-      eyebrow: "One list",
       title: "Saved and applied, side by side",
       body: "Every job you save or apply to sits in one list, with its stage and your match score. Search it, filter it by status, and sort it by date, match or pay.",
       visual: ListVisual,
     },
     {
-      eyebrow: "Did you apply?",
       title: "It asks when you come back",
       body: "Press Apply Now and the company’s application opens in a new tab. When you come back, WorkIt asks if you applied and which resume you sent. Say yes and the job moves to Applied.",
       visual: AskedVisual,
     },
     {
-      eyebrow: "Stages",
       title: "Move it along as you hear back",
       body: "Set each application’s stage yourself: Applied, Interviewing, Offer or Rejected. Add an interview or an assessment to its page, so the date stays with the job.",
       visual: StageVisual,
     },
     {
-      eyebrow: "Sent resume",
       title: "The resume you sent, one click away",
       body: "Each application keeps the resume it went out with, so you can read what the recruiter saw before your interview.",
       visual: SentResumeVisual,

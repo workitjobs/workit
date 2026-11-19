@@ -4,7 +4,7 @@ import * as React from "react";
 
 /**
  * A section heading that comes into focus as it arrives: wrapped around
- * `SectionHeading`, its eyebrow, title and subtitle each rise out of a blur,
+ * `SectionHeading`, its title and subtitle each rise out of a blur,
  * a little apart (`.focus-in` in landing.css). An observer marks it
  * `data-focus="wait"` while it is below the screen and `"in"` once it is
  * well inside, so it plays again after the visitor scrolls back above it.

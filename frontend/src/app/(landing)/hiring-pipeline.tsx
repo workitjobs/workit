@@ -126,7 +126,7 @@ export function HiringSystemsSection() {
       <GrowIn className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
         <div className={CONTAINER}>
           <FocusIn>
-            <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
+            <SectionHeading title={copy.title} subtitle={copy.subtitle} />
           </FocusIn>
           <HiringSystems />
         </div>
@@ -232,12 +232,7 @@ function PinnedPipeline() {
                 } as React.ComponentProps<typeof motion.div>["style"]
               }
             >
-              <SectionHeading
-                align="left"
-                eyebrow={copy.eyebrow}
-                title={copy.title}
-                subtitle={copy.subtitle}
-              />
+              <SectionHeading align="left" title={copy.title} subtitle={copy.subtitle} />
             </motion.div>
           </div>
           <div

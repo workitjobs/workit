@@ -34,8 +34,6 @@ export type FeatureContent = {
 };
 
 export type FeatureSection = {
-  /** A short label above the title. */
-  eyebrow?: string;
   title: string;
   body: string;
   /** Up to four short points, each with a tick. */

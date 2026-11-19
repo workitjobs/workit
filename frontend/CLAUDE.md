@@ -1369,7 +1369,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   page's redesign and named the violet glass buttons, the bordered sign-up
   buttons and the lavender gradient on cards, so: **colour lives only in
   the home hero's lit postings and inside a `StudioBox`; cards, buttons and the page are
-  white, ink and grey; violet marks small things only** (eyebrows, checks,
+  white, ink and grey; violet marks small things only** (checks,
   feature tiles, Plus's limit pills); **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
   A new style that breaks one of these goes in the doc first, with the
@@ -1438,7 +1438,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `layout-parts.tsx`**, one step per job: `display` (the hero, 72px from
   lg, 40px on a phone), `chapter` (`SectionHeading` and the closing call
   to action, 56px and 34px), `product` (the serif, `font-editorial`, 48px
-  and 30px), `card` (28px), `item`, `lead` and `eyebrow` (capitals set
+  and 30px), `card` (28px), `item`, `lead` and `eyebrow` (a small grey
+  line in capitals, never a label above a heading: `SectionHeading` takes
+  none since the user had every violet eyebrow removed, KAN-923; capitals set
   wide). Every heading is weight 500: the size steps carry the hierarchy,
   as on Calendly, where before every h2 was 600 at 30 to 36px and nothing
   read as a chapter or a detail. `SectionHeading` changed with it, so the

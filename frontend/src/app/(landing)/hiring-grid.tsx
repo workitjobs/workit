@@ -16,14 +16,13 @@ import { CONTAINER, StudioBox, studioGround, TYPE } from "./layout-parts";
  * foot row links here (`#hiring-systems`). Copy: `hiringSystemsSection`.
  */
 export function HiringGrid() {
-  const { eyebrow, title, subtitle, steps } = hiringSystemsSection;
+  const { title, subtitle, steps } = hiringSystemsSection;
   const matching = FEATURES.matching;
   return (
     <section id="hiring-systems" aria-labelledby="hiring-systems-title" className="py-16 sm:py-24">
       <div className={cn(CONTAINER, "grid items-center gap-10 lg:grid-cols-2 lg:gap-16")}>
         <div>
-          <p className={cn(TYPE.eyebrow, "text-landing-brand-700")}>{eyebrow}</p>
-          <h2 id="hiring-systems-title" className={cn(TYPE.product, "text-ink mt-4")}>
+          <h2 id="hiring-systems-title" className={cn(TYPE.product, "text-ink")}>
             {title}
           </h2>
           <p className="text-ink-meta mt-5 text-lg text-pretty">{subtitle}</p>

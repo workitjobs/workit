@@ -157,7 +157,6 @@ export default function LandingPage() {
               <SectionHeading
                 align="left"
                 className="max-lg:mx-auto max-lg:text-center"
-                eyebrow="FAQ"
                 title="Questions, answered"
               />
             </FocusIn>

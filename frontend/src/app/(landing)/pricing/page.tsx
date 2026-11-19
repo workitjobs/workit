@@ -88,7 +88,7 @@ export default function PricingPage() {
       <section className="py-20 sm:py-28">
         <div className={CONTAINER}>
           <FocusIn>
-            <SectionHeading eyebrow="FAQ" title="Billing, answered" />
+            <SectionHeading title="Billing, answered" />
           </FocusIn>
           <FocusIn>
             <FaqList items={billingFaqs} className="faq-rise mt-12" />

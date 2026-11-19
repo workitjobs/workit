@@ -25,7 +25,6 @@ const content: FeatureContent = {
   animation: MatchingAnimation,
   sections: [
     {
-      eyebrow: "Your score",
       title: "Scored on what you have done",
       body: "Your match score weighs four things from your experience bank: how closely your background reads like the job’s description, your skills, the titles you have held, and the years of experience the posting asks for.",
       points: [
@@ -36,13 +35,11 @@ const content: FeatureContent = {
       visual: ScoreVisual,
     },
     {
-      eyebrow: "Best Match",
       title: "The best fits at the top",
       body: "Your Jobs page opens on Best Match, so the postings that fit you most come first, each with its score. Switch to Newest any time.",
       visual: BestMatchVisual,
     },
     {
-      eyebrow: "Hiring systems",
       title: "Straight from company job boards",
       body: "WorkIt reads job postings from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Apply Now opens the company’s own application.",
       visual: SourcesVisual,

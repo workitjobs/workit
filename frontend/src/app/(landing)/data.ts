@@ -88,7 +88,6 @@ export const hero = {
  * and labels only the two ends of the pipeline (no cadence or sort note).
  */
 export const hiringSystemsSection = {
-  eyebrow: "Hiring systems",
   // "hiring systems" kept on one line: the page's own term, split across
   // two it read as two words.
   title: "Straight from the hiring\u00a0systems companies use",
@@ -303,7 +302,6 @@ export const faqs = [
 export const applicationsSection = {
   // The feature's name, as in the Features menu: "For applicants" said
   // nothing once the whole site was for applicants.
-  eyebrow: "Application tracker",
   title: "Every application, from saved to signed.",
   // What the tracker keeps today (frontend/CLAUDE.md, the application
   // tracker): one list, each job's match score and the resume it went out
@@ -378,7 +376,6 @@ export const logoStrip = {
  * moved by the student (reading email is archived, KAN-428).
  */
 export const journey = {
-  eyebrow: "How it works",
   title: "One application, start to finish",
   subtitle: `Follow one job, ${followedJob.company}'s ${followedJob.title} posting, from your first resume to the offer.`,
   steps: [

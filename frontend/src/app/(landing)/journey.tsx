@@ -27,11 +27,7 @@ export function Journey() {
   return (
     <section id="how-it-works" className="py-20 sm:py-28">
       <div className={CONTAINER}>
-        <SectionHeading
-          eyebrow={journey.eyebrow}
-          title={journey.title}
-          subtitle={journey.subtitle}
-        />
+        <SectionHeading title={journey.title} subtitle={journey.subtitle} />
         <ol className="mx-auto mt-14 max-w-5xl sm:mt-16">
           {journey.steps.map((step, i) => {
             const tab = tourTab(step.id);

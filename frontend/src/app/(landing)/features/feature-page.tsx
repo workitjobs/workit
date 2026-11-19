@@ -73,7 +73,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
         <section className={PANEL_INSET}>
           <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
             <div className={CONTAINER}>
-              <SectionHeading eyebrow="How it works" title={content.howItWorks.title} />
+              <SectionHeading title={content.howItWorks.title} />
               <ol
                 className={cn(
                   "mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2",
@@ -100,7 +100,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
         <section className="py-20 sm:py-28">
           <div className={CONTAINER}>
-            <SectionHeading eyebrow="More from WorkIt" title="One app for the whole search" />
+            <SectionHeading title="One app for the whole search" />
             <ul className="mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
               {featurePages
                 .filter((page) => page.slug !== feature.slug)
@@ -133,7 +133,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
         <section className="pb-20 sm:pb-28">
           <div className={CONTAINER}>
-            <SectionHeading eyebrow="FAQ" title="Questions, answered" />
+            <SectionHeading title="Questions, answered" />
             <FaqList items={content.faqs} className="mt-12" />
           </div>
         </section>
@@ -160,12 +160,7 @@ function DeepDive({
   return (
     <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
       <div className={cn(flip && "lg:order-last")}>
-        <SectionHeading
-          align="left"
-          eyebrow={section.eyebrow}
-          title={section.title}
-          subtitle={section.body}
-        />
+        <SectionHeading align="left" title={section.title} subtitle={section.body} />
         {section.points && (
           <ul className="mt-6 grid gap-3">
             {section.points.map((point) => (

@@ -26,13 +26,11 @@ const content: FeatureContent = {
   animation: AutoApplyAnimation,
   sections: [
     {
-      eyebrow: "Queue",
       title: "Pick the jobs to fill",
       body: "Press Auto Apply on a job, or add your saved jobs from the Auto Apply page. Up Next lists them all: pick the ones to fill and press Auto Apply.",
       visual: QueueVisual,
     },
     {
-      eyebrow: "Fill",
       title: "Every field, from your profile",
       body: "The extension fills each form from your profile, your experience bank and the answers you saved in Application Info, on hiring systems such as Greenhouse, Lever, Ashby and Workday.",
       points: [
@@ -43,13 +41,11 @@ const content: FeatureContent = {
       visual: FillVisual,
     },
     {
-      eyebrow: "Resume",
       title: "Your resume, attached",
       body: "Each form gets your default resume. To send the one you tailored for the job, press Change in the WorkIt panel before you submit.",
       visual: AttachVisual,
     },
     {
-      eyebrow: "Submit",
       title: "You click Submit, every time",
       body: "WorkIt never submits for you. It fills up to five applications at a time, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button.",
       visual: SubmitVisual,

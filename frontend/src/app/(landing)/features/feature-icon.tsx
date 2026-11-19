@@ -10,7 +10,7 @@ const SIZES = {
 /**
  * A feature's mark: its icon on a tile in its own colour, the feature's
  * `onGlow` pair (white on most, ink on Scout's amber). The home
- * tour's stop chips, the Features menu, each feature page's eyebrow and the
+ * tour's stop chips, the Features menu, each feature page's hero pill and the
  * related-feature cards all draw it, so a feature wears one mark site-wide.
  * The Resources menu draws its items with it too, on one neutral tile
  * (resources/catalog.ts), so the two menus' rows match. An item with no

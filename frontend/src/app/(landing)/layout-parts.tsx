@@ -72,7 +72,10 @@ export const TYPE = {
   item: "text-lg leading-snug font-medium",
   /** The line under a display or chapter heading. */
   lead: "text-lg leading-[1.55] text-pretty sm:text-[19px]",
-  /** The small label above a heading: capitals, set wide. */
+  /** A small line in capitals, set wide, in meta grey: the logo strip's
+   *  line, a journey card's step. Never violet and never a label above a
+   *  heading: the violet eyebrows over every section heading read as a
+   *  template, and the user had them all removed (KAN-923). */
   eyebrow: "text-xs font-semibold tracking-[0.08em] uppercase",
 } as const;
 
@@ -85,7 +88,6 @@ export const HERO_PILL =
 
 export function SectionHeading({
   id,
-  eyebrow,
   title,
   subtitle,
   align = "center",
@@ -93,7 +95,6 @@ export function SectionHeading({
 }: {
   /** The h2's id, for a section's aria-labelledby. */
   id?: string;
-  eyebrow?: string;
   title: string;
   subtitle?: string;
   align?: "center" | "left";
@@ -101,8 +102,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn("max-w-3xl", align === "center" && "mx-auto text-center", className)}>
-      {eyebrow && <p className={cn(TYPE.eyebrow, "text-landing-brand-700")}>{eyebrow}</p>}
-      <h2 id={id} className={cn(TYPE.chapter, "text-ink mt-3")}>
+      <h2 id={id} className={cn(TYPE.chapter, "text-ink")}>
         {title}
       </h2>
       {subtitle && (
