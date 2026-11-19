@@ -5,13 +5,14 @@ import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { faqs, hero, site, testimonial } from "./data";
+import { Audience } from "./audience";
+import { Control } from "./control";
 import { FaqList } from "./faq-list";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
-import { Journey } from "./journey";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { ProductSections } from "./product-sections";
@@ -38,14 +39,15 @@ export const metadata: Metadata = {
  * The page at /, redesigned in KAN-923 after Calendly's home page
  * (frontend/docs/home-page-review.md): the hero names the four features and
  * plays each one in a framed box, then each section leads into the next:
- * proof the jobs are real (the logo strip), one application through the
- * four steps (the journey), each product in depth, where the jobs come
- * from (hiring systems) and the FAQ, which runs into the footer. Every
+ * proof the jobs are real (the logo strip), who it is for and the problem
+ * (the audience), the four features, each product in depth, what stays
+ * the student's call (control), where the jobs come from (hiring systems)
+ * and the FAQ, which runs into the footer. Every
  * animation sits in a `StudioBox`; only the product sections pin. The
  * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
- * pipeline, the applications route) and two the user took out on
- * 2026-11-19 (the statement, archived; the closing call to action,
- * deleted) are off the page; the statement's files stay. Every call to
+ * pipeline, the applications route) and three the user took out on
+ * 2026-11-19 (the statement and the journey, archived; the closing call
+ * to action, deleted) are off the page; the archived ones' files stay. Every call to
  * action leads into the app's own sign-up, log-in or OAuth flow.
  */
 export default function LandingPage() {
@@ -104,6 +106,9 @@ export default function LandingPage() {
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
 
+      {/* Who it is for and the problem, before how it works: audience.tsx. */}
+      <Audience />
+
       {/* The four features, one at a time: a section of their own since the
           hero became one screen (hero-features.tsx). On the plain white
           page with no label above the heading: on the hero's violet panel,
@@ -117,11 +122,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* One application through the four steps: journey.tsx. */}
-      <Journey />
-
       {/* Each product in depth, from its feature page: product-sections.tsx. */}
       <ProductSections />
+
+      {/* What WorkIt will never do without you: control.tsx. */}
+      <Control />
 
       {/* Where the jobs come from. The Features menu's foot row links here. */}
       <HiringGrid />

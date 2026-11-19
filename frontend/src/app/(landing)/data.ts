@@ -339,6 +339,76 @@ export const heroFits: { title: string; company: string; domain: string; score: 
 ];
 
 /**
+ * Who WorkIt is for and the problem it fixes (audience.tsx, KAN-923), in
+ * the student's own words, before the page says how WorkIt works: the
+ * user's plan, once the journey repeated the four features a third time
+ * and the statement that framed the problem was archived. The audience is
+ * the scraper's: internships and new-grad roles in every field (Job
+ * Matching's FAQ). The pains describe the search, hedged where they speak
+ * for recruiters ("often"), and never with a number WorkIt cannot back.
+ */
+export const audience = {
+  title: "Built for the internship and new-grad search",
+  subtitle: "For students and new grads in every field, not just tech.",
+  pains: [
+    {
+      line: "The same form, typed again for every job.",
+      detail:
+        "Your name, school, work history and the same questions, one application after another.",
+    },
+    {
+      line: "One resume, sent to every posting.",
+      detail:
+        "A resume not written for the job often reads like one, to a recruiter and to the hiring system.",
+    },
+    {
+      line: "Postings scattered across thousands of company job boards.",
+      detail:
+        "Each company lists its jobs on its own board, so finding the ones that fit you is a job of its own.",
+    },
+  ],
+} as const;
+
+/**
+ * The promises behind the product (control.tsx, KAN-923), the worry any
+ * auto apply tool raises, answered as what WorkIt does rather than as a
+ * warning. Each is a claim, tied to its source: WorkIt never submits and
+ * fills up to five forms at once, each in its own tab, from jobs the
+ * student picked (Auto Apply's content file; auto-apply/architecture.md);
+ * Tailor drops any wording with a number or tool the student has not given
+ * it and marks every change for Undo (backend services/truth_rule.py,
+ * docs/tailor_resume.md); a student's own answer in a form is never
+ * written over and is offered first next time (backend auto_apply/
+ * written.py, `own`). `icon` names the mark control.tsx draws.
+ */
+export const control = {
+  title: "You stay in control",
+  subtitle: "WorkIt does the busywork. Every decision stays yours.",
+  promises: [
+    {
+      icon: "submit",
+      title: "You click Submit, every time",
+      body: "WorkIt fills each application and never sends one. You look it over and click the company’s own Submit button.",
+    },
+    {
+      icon: "truth",
+      title: "Nothing invented",
+      body: "Tailor rewords your own lines. It never adds a number or a tool you haven’t given it, and you can undo any change.",
+    },
+    {
+      icon: "words",
+      title: "Your words win",
+      body: "Rewrite an answer in a form and WorkIt keeps your version for next time. It never writes over it.",
+    },
+    {
+      icon: "five",
+      title: "Five at a time, never a flood",
+      body: "Auto Apply fills up to five applications at once, each in its own tab, from jobs you picked yourself.",
+    },
+  ],
+} as const;
+
+/**
  * The home page's logo strip under the hero (logo-strip.tsx, KAN-923): real
  * employers whose company job boards the scraper reads (scraper/boards.csv),
  * the same ones the tour's stories and the old hero's cards name. Each is

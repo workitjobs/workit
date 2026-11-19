@@ -13,6 +13,12 @@ import { FeatureIcon } from "./features/feature-icon";
 import { CONTAINER, SectionHeading, StudioBox, studioGround, TYPE } from "./layout-parts";
 import { tourTab } from "./tour-tabs";
 
+/*
+ * Archived (KAN-923, 2026-11-19): unmounted, kept. It walked the four
+ * features a third time, after the features card and before the product
+ * sections; the user had it replaced by who WorkIt is for and the problem
+ * (audience.tsx). To bring it back, render `<Journey />` in page.tsx.
+ */
 /**
  * "One application, start to finish" (KAN-923), after Calendly's Book,
  * Prep, Capture, Follow up: four cards, one per step, joined by a rail, that

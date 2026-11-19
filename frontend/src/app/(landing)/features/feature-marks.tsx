@@ -7,8 +7,8 @@
  * - Resume Builder: a resume page, its last line the tailored one.
  * - Job Matching: a card with the match's score over two ticked skills,
  *   the score and the checklist the user asked it to show. The score is
- *   91%, the followed Stripe application's match on the home page's journey
- *   (`journey` in data.ts), so the mark repeats a number the page shows.
+ *   91%, the followed Stripe application's match (`followedJob`), the
+ *   number the hero's Stripe tile shows.
  *   A job card with a ring badge came before; the user found it off.
  * - Auto Apply: a stack of filled applications with a check, many filled
  *   at once.

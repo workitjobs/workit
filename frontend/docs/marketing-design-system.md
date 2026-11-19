@@ -247,6 +247,7 @@ translate inside a clipped track.
 | A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
+| The journey ("One application, start to finish"), the statement, the home page's closing section | Who it is for and the problem (`audience.tsx`), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |

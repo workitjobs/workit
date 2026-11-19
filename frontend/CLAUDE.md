@@ -263,11 +263,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `hero.title`, which is `site.tagline`; the sign-up pair, which a Download
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), the four features (`HeroFeatures`), the
-  journey ("One
-  application, start to finish", `journey.tsx`), one product section each
+  `logoStrip` in data.ts), who it is for and the problem (`audience.tsx`),
+  the four features (`HeroFeatures`), one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
-  (`product-sections.tsx`), the hiring systems as a centred chapter
+  (`product-sections.tsx`), what stays the student's call (`control.tsx`),
+  the hiring systems as a centred chapter
   (`hiring-grid.tsx`, `#hiring-systems`) and the FAQ, which runs into the
   footer. **The user took two sections out on 2026-11-19**: the statement
   ("Slop applications get skipped", archived: `statement.tsx` stays,
@@ -398,7 +398,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     while someone watches. The stories load through `features/animations.tsx`,
     so only the open one's chunk loads. Below sm only the open tab shows
     its label: four labels ran past a 390px screen.
-  - **The journey** follows the one application (`followedJob`) through
+  - **Why before how** (the user's plan, 2026-11-19, after Calendly's
+    "Built for people whose work runs on meetings"): the page named the
+    four features three times (the features card, the journey, the product
+    sections) and never who WorkIt is for or what problem it fixes. So the
+    journey is archived and two sections replace it. **The audience**
+    (`audience.tsx`, after the logo strip): "Built for the internship and
+    new-grad search", for students and new grads in every field, then
+    three pains in the student's own words under hairlines, with no
+    feature names and no cards. **Control** (`control.tsx`, after the
+    product sections): "You stay in control", four promises as
+    `.surface-card`s with ink marks (You click Submit, every time; Nothing
+    invented; Your words win; Five at a time, never a flood): the worry
+    any auto apply tool raises, answered as what WorkIt does, where the
+    archived statement said it as a warning. Both are claims, each tied to
+    its source in `audience` and `control` in data.ts: never a number
+    WorkIt cannot back, and no customer results until real ones exist.
+  - **The journey (archived 2026-11-19)** follows the one application (`followedJob`) through
     four `.surface-card`s joined by a rail; each picture plays once as its
     box arrives (`Arrive` in `arrive.tsx` sets `data-arrived`;
     `.journey-in`, `.journey-ring`, `.journey-grow` in landing.css), never
