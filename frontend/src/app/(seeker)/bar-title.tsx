@@ -13,6 +13,7 @@ const TITLES = [
   ["/auto-apply/answers", "Written Answers"],
   ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
+  ["/auto-apply-desktop", "Auto Apply Desktop"],
   ["/applications", "Tracker"],
   ["/resumes", "Documents"],
   ["/cover-letters", "Documents"],
