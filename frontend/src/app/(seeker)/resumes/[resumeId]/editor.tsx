@@ -287,10 +287,14 @@ type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
  *  soft second edge under the line. 1.5px: at 2px the user found it too thick
  *  over the page's fine type. */
 /** Where Jake's page draws a bullet's dot against its text, in points:
- *  its centre left of the text and under the line's top, and its width. */
-const DOT_LEFT = 8.26;
-const DOT_DOWN = 5.4;
-const DOT_SIZE = 1.9;
+ *  its centre left of the text and under the line's top, and its width,
+ *  read from the dot's own pixels on the PDF (2026-11-19). A scan that
+ *  counted only the dark middle of each pixel row gave 8.26, 5.4 and 1.9:
+ *  a dot a third too small, 0.55pt high. Measure a dot that is not an
+ *  entry's first bullet: the line over that one reaches into its rows. */
+const DOT_LEFT = 8.06;
+const DOT_DOWN = 5.95;
+const DOT_SIZE = 2.7;
 
 const FIELD_RING =
   "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
@@ -1868,18 +1872,23 @@ export function Editor({
     for (const e of bank.entries) for (const b of e.bullets) of.set(b.id, e.id);
     return of;
   }, [bank]);
-  const bulletSpace = (boxes: RenderBox[]) => {
+  // On `page`: LaTeX stretches the space per page to fill it (2.94pt on
+  // one page of the test resume, 2.65pt on another), so the least on any
+  // page opened a line short, and its dot sat high
+  const bulletSpace = (boxes: RenderBox[], page: number) => {
     const bullets = boxes
-      .filter((b) => b.kind === "bullet")
-      .sort((a, b) => a.page - b.page || a.y0 - b.y0);
-    let space = Infinity;
+      .filter((b) => b.kind === "bullet" && b.page === page)
+      .sort((a, b) => a.y0 - b.y0);
+    const gaps: number[] = [];
     for (let i = 1; i < bullets.length; i++) {
       const [a, b] = [bullets[i - 1], bullets[i]];
       const gap = b.y0 - a.y1;
-      if (a.page === b.page && entryOfBullet.get(a.item_id) === entryOfBullet.get(b.item_id))
-        if (gap > 0 && gap < space) space = gap;
+      if (entryOfBullet.get(a.item_id) === entryOfBullet.get(b.item_id))
+        if (gap > 0 && gap < GAP_SPACE) gaps.push(gap);
     }
-    return Number.isFinite(space) && space < GAP_SPACE ? space : 2;
+    // The middle one: every gap on a page is the same but for rounding
+    gaps.sort((a, b) => a - b);
+    return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 2.9;
   };
   /** A new bullet's place against these boxes: under its anchor's last
    *  line, `space` below it, one line tall (`one`) and as many more as its
@@ -1892,7 +1901,7 @@ export function Editor({
     );
     const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
     const one = last.y1 - last.y0 - (boxLines(last, step) - 1) * step;
-    const space = bulletSpace(boxes);
+    const space = bulletSpace(boxes, last.page);
     return { last, one, space, lines: draftLines[`${n.key}.bullet`] ?? 1, step };
   };
   const insertsOn = (boxes: RenderBox[]) => {
@@ -1991,10 +2000,8 @@ export function Editor({
     const at = newPlace(n, rendered?.boxes ?? []);
     const look = lineLook({ ...target, item_id: n.anchor });
     const half = (at?.space ?? 2) / 2;
-    // The PDF's own dot, where Jake's puts it, measured on its page
-    // (2026-11-19): centred 8.26pt left of the text and 5.4pt under its
-    // line's top, 1.9pt across. A guess of 2.4pt, centred 6.4pt left, sat
-    // off the dots above it
+    // The PDF's own dot, where Jake's puts it (`DOT_LEFT`, `DOT_DOWN`,
+    // `DOT_SIZE`): a guess, then a coarse measure, sat off the dots above
     const dot = (
       <span
         aria-hidden
@@ -2048,12 +2055,10 @@ export function Editor({
               e.stopPropagation();
               leaveNew(n.key, e.key === "Enter");
             },
-            // Drawn as the PDF will print it, as a new line in a Google Doc
-            // is: the dot, the text in the page's own type and ink, and the
-            // caret, with no field's ring and no grey hint. The ring and a
-            // "New bullet" hint made it look like no line on the page until
-            // its PDF landed (2026-11-19)
-            className: cn(look.className, "overflow-hidden outline-none"),
+            // The field any line is typed in (its ring), on the dot and in
+            // the type and ink the PDF will print, with no grey hint: a "New
+            // bullet" hint looked like no line on the page (2026-11-19)
+            className: cn(look.className, FIELD_RING),
             style: look.style,
           },
         )}

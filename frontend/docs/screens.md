@@ -3867,14 +3867,19 @@ student who opened a resume from Experiences landed on another view.
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the
     entry's last one on this resume), with the PDF's dot beside it, placed
-    where Jake's page puts one (measured: centred 8.26pt left of the text,
-    5.4pt under the line's top, 1.9pt across; a guessed dot sat off the
-    ones above), and the caret in it. It is drawn as the PDF will print
-    it, as a new line in a Google Doc is: the page's type in pure black,
-    with no field's ring and no grey "New bullet" hint, which made it look
-    like no line on the page until its PDF landed (2026-11-19). Every typed
-    line's text is pure black on white too (`lineLook`): the app's
-    near-black `text-ink` set it a shade off the printed lines; the page under it opens by a line and by each line it wraps
+    where Jake's page puts one (`DOT_LEFT`, `DOT_DOWN`, `DOT_SIZE`, read
+    from a dot's own pixels: centred 8.06pt left of the text and 5.95pt
+    under the line's top, 2.7pt across, within 0.05pt of the dot it
+    replaces), and the caret in it. A first guess, then a scan that
+    counted only each pixel row's dark middle (1.9pt across, 0.55pt high),
+    both sat off the dots above. The line opens by the space between bullets
+    on its own page (`bulletSpace`), since LaTeX stretches it per page
+    (2.94pt on one page of the test resume, 2.65pt on another). It is the
+    field any line is typed in, its ring included, in the page's type and
+    pure black ink, with no grey "New bullet" hint, which looked like no
+    line on the page. Every typed line's text is pure black on white
+    (`lineLook`): the app's near-black `text-ink` set it a shade off the
+    printed lines; the page under it opens by a line and by each line it wraps
     to (`inserts` on `PdfPages`, a line of no height whose `by` moves what
     is under it, as a typed line's wrap does). Enter adds it and opens the
     next line under it; Enter or Esc on an empty line, or a click away from
