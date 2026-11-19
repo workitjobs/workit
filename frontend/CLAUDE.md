@@ -404,8 +404,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     sections) and never who WorkIt is for or what problem it fixes. So the
     journey is archived and two sections replace it. **The problems**
     (`problems.tsx`, after the logo strip): "Many applications stop before
-    a person reads them", for students and new grads in every field, as a
-    bento of three `.surface-card`s with a scene each in a `StudioBox` on a
+    a person reads them", the job application process as a whole (never
+    internships and new-grad roles alone: the user's call), as a bento of
+    three `.surface-card`s with a scene each in a `StudioBox` on a
     slate sky (the search as it is, before WorkIt; violet is WorkIt's own
     mark): the lead, a hiring system's applicant screen marking the
     posting's keywords a generic resume lacks ("Not moved forward") with
@@ -420,11 +421,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     ("many", "often"), as the statement's were: never a statistic WorkIt
     cannot back, and never a promise to get past a hiring system (the
     scene shows the fix, not a pass). **Control** (`control.tsx`, after the
-    product sections): "You stay in control", four promises as
-    `.surface-card`s with ink marks (You click Submit, every time; Nothing
-    invented; Your words win; Five at a time, never a flood): the worry
-    any auto apply tool raises, answered as what WorkIt does, where the
-    archived statement said it as a warning. Both are claims, each tied to
+    product sections): "You stay in control", designed the same way, its
+    scenes on WorkIt's violet sky where the problems' are slate (the
+    search as it is, then WorkIt's answer). The lead, wide: the followed
+    application's form filled, Ready to Submit, the student's cursor named
+    "You" on the company's Submit; then Nothing invented (Tailor's marked
+    rewording of the student's own line, with Undo), Your words win (the
+    student's answer typed over the draft, kept for next time) and Five at
+    a time, never a flood (Up Next's five tabs in the queue's own states).
+    It replaced four cards of an icon and two lines, which the user found
+    undesigned. Both sections draw with `scene-parts.tsx` (`Panel`,
+    `delay`). The worry any auto apply tool raises, answered as what
+    WorkIt does, where the archived statement said it as a warning. Both are claims, each tied to
     its source in `problems` and `control` in data.ts: never a number
     WorkIt cannot back, and no customer results until real ones exist.
   - **The journey (archived 2026-11-19)** follows the one application (`followedJob`) through

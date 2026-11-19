@@ -350,12 +350,13 @@ export const heroFits: { title: string; company: string; domain: string; score: 
  * only the ones the student picks (docs/tailor_resume.md, the truth rule);
  * Auto Apply fills each form and the student clicks Submit; the Jobs page
  * reads thousands of company job boards (about 5,000 in
- * scraper/boards.csv) and opens on Best Match. The audience is the
- * scraper's: internships and new-grad roles in every field.
+ * scraper/boards.csv) and opens on Best Match. It speaks of the job
+ * application process as a whole, never of internships and new-grad
+ * roles (the user's call: the problems are everyone's).
  */
 export const problems = {
   title: "Many applications stop before a person reads them",
-  subtitle: "Applying to internships and new-grad roles breaks in the same places, in every field.",
+  subtitle: "The job application process breaks in the same three places.",
   screen: {
     title: "Screened out before anyone reads it",
     body: "Many companies’ hiring systems sort applications against the posting’s keywords and screening questions before a recruiter looks. One resume sent to every posting often gets filtered out there.",
@@ -401,29 +402,30 @@ export const problems = {
  * it and marks every change for Undo (backend services/truth_rule.py,
  * docs/tailor_resume.md); a student's own answer in a form is never
  * written over and is offered first next time (backend auto_apply/
- * written.py, `own`). `icon` names the mark control.tsx draws.
+ * written.py, `own`). `scene` names the scene control.tsx draws for each;
+ * the first promise leads, full width.
  */
 export const control = {
   title: "You stay in control",
   subtitle: "WorkIt does the busywork. Every decision stays yours.",
   promises: [
     {
-      icon: "submit",
+      scene: "submit",
       title: "You click Submit, every time",
       body: "WorkIt fills each application and never sends one. You look it over and click the company’s own Submit button.",
     },
     {
-      icon: "truth",
+      scene: "truth",
       title: "Nothing invented",
       body: "Tailor rewords your own lines. It never adds a number or a tool you haven’t given it, and you can undo any change.",
     },
     {
-      icon: "words",
+      scene: "words",
       title: "Your words win",
       body: "Rewrite an answer in a form and WorkIt keeps your version for next time. It never writes over it.",
     },
     {
-      icon: "five",
+      scene: "five",
       title: "Five at a time, never a flood",
       body: "Auto Apply fills up to five applications at once, each in its own tab, from jobs you picked yourself.",
     },

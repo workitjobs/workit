@@ -1,5 +1,4 @@
 import { CheckIcon, FileTextIcon, XIcon } from "@phosphor-icons/react/ssr";
-import type { CSSProperties, ReactNode } from "react";
 
 import { Logo } from "@/components/logo";
 import { MatchGlyph } from "@/components/match-badge";
@@ -11,6 +10,7 @@ import { logoStrip, problems } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
 import { CONTAINER, SectionHeading, StudioBox, studioGround, TYPE } from "./layout-parts";
+import { delay, Panel } from "./scene-parts";
 
 /**
  * Where applications get lost (KAN-923), right after the logo strip, so the
@@ -32,9 +32,6 @@ import { CONTAINER, SectionHeading, StudioBox, studioGround, TYPE } from "./layo
  * found boring. Copy, hedging and sources: `problems` in data.ts.
  */
 const GROUND = studioGround({ glow: "var(--color-ink-meta)" });
-
-/** A delay for the arrival classes, as a style. */
-const delay = (seconds: number) => ({ "--d": `${seconds}s` }) as CSSProperties;
 
 export function Problems() {
   const { title, subtitle, screen, cards } = problems;
@@ -98,26 +95,6 @@ function Copy({
         <Logo size="mark" decorative className="mt-1 h-3.5" />
         <span>{fix}</span>
       </p>
-    </div>
-  );
-}
-
-/** A white piece of mock UI floating on the scene's sky. */
-function Panel({
-  className,
-  style,
-  children,
-}: {
-  className?: string;
-  style?: CSSProperties;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={cn("rounded-xl bg-white shadow-[var(--mk-shadow-float)]", className)}
-      style={style}
-    >
-      {children}
     </div>
   );
 }
