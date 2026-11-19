@@ -343,10 +343,12 @@ export const heroFits: { title: string; company: string; domain: string; score: 
  * employers whose company job boards the scraper reads (scraper/boards.csv),
  * the same ones the tour's stories and the old hero's cards name. Each is
  * drawn as its favicon and its name. "Thousands" is the number of boards
- * in boards.csv (about 5,000), as the hiring-systems copy says it.
+ * in boards.csv (about 5,000), as the hiring-systems copy says it. The line
+ * says where the postings come from, not which roles (the user's call):
+ * "fresh", never the scrape's schedule, as the hiring-systems copy says it.
  */
 export const logoStrip = {
-  line: "Internships and new-grad roles from thousands of company job boards",
+  line: "Job postings pulled fresh from thousands of company job boards",
   employers: [
     { name: "Stripe", domain: "stripe.com" },
     { name: "Figma", domain: "figma.com" },
