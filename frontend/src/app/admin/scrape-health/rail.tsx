@@ -1,169 +1,81 @@
-import { Card } from "@/components/ui/card";
+import type { ScrapeHealth } from "@/lib/fill-health";
 
+import { Panel } from "../panel";
 import { ClosableRail } from "./closable-rail";
-import { percent, type ScrapeHealth } from "@/lib/fill-health";
 
-/** A rail section's small capital heading. */
-function RailHeading({ children, note }: { children: string; note?: string }) {
+const count = (n: number) => n.toLocaleString("en-US");
+
+/** One count beside its name. */
+function Row({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <h3 className="text-caption text-ink uppercase">{children}</h3>
-      {note && <span className="text-label text-ink-meta font-normal">{note}</span>}
-    </div>
-  );
-}
-
-const R = 52;
-const AROUND = 2 * Math.PI * R;
-/** The gauge is three quarters of a circle, open at the foot. */
-const SWEEP = 0.75 * AROUND;
-
-/** A three-quarter ring filled to `share`, with its number in the middle. */
-function Gauge({ share, value, label }: { share: number; value: string; label: string }) {
-  // A share above zero still shows: at least 1.5% of the ring.
-  const filled = share > 0 ? Math.max(share, 0.015) * SWEEP : 0;
-  return (
-    <div className="relative mx-auto mt-4 w-44">
-      <svg viewBox="0 0 120 120" aria-hidden className="block w-full rotate-[135deg]">
-        <circle
-          cx={60}
-          cy={60}
-          r={R}
-          fill="none"
-          strokeWidth={7}
-          strokeLinecap="round"
-          strokeDasharray={`${SWEEP} ${AROUND}`}
-          className="stroke-brand-tint"
-        />
-        <circle
-          cx={60}
-          cy={60}
-          r={R}
-          fill="none"
-          strokeWidth={7}
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${AROUND}`}
-          className="stroke-brand"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-ink text-2xl font-semibold tabular-nums">{value}</span>
-        <span className="text-label text-ink-meta font-normal">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-/** One number over its label. */
-function Stat({ value, label }: { value: string | number; label: string }) {
-  return (
-    <div>
-      <dd className="text-ink text-lg font-semibold tabular-nums">{value}</dd>
-      <dt className="text-label text-ink-meta font-normal">{label}</dt>
-    </div>
+    <li className="border-border-subtle text-body flex items-center justify-between gap-3 border-b px-5 py-3 last:border-b-0">
+      <span className="text-ink-muted">{label}</span>
+      <span
+        className={
+          alert
+            ? "bg-danger-tint text-danger rounded-full px-2 py-0.5 font-medium tabular-nums"
+            : "text-ink font-semibold tabular-nums"
+        }
+      >
+        {value}
+      </span>
+    </li>
   );
 }
 
 /**
- * Scrape Health's right rail (KAN-879): the share of boards ever read as a
- * gauge, the period's reads done against failed as one bar, the counts of
- * boards and tasks now, and the failing boards with their last error.
+ * Scrape Health's right rail (KAN-879): the counts of boards and tasks now,
+ * and the failing boards with their last error. The page's tiles and charts
+ * hold the headline numbers; the rail is the detail an admin can close.
  */
-export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number }) {
+export function ScrapeRail({ data }: { data: ScrapeHealth }) {
   const { boards } = data;
-  const read = data.systems.reduce((sum, s) => sum + s.read, 0);
-  const done = data.days.reduce((sum, d) => sum + d.done, 0);
-  const failed = data.days.reduce((sum, d) => sum + d.failed, 0);
-  const newJobs = data.days.reduce((sum, d) => sum + d.new_jobs, 0);
-  const reads = done + failed;
-  const period = `Last ${days} ${days === 1 ? "day" : "days"}`;
-
   return (
     <ClosableRail>
-      <Card as="section" padding="lg">
-        <RailHeading>Boards Read</RailHeading>
-        <Gauge
-          share={boards.boards ? read / boards.boards : 0}
-          value={read.toLocaleString("en-US")}
-          label={`of ${boards.boards.toLocaleString("en-US")} boards`}
-        />
-        <dl className="mt-2 grid grid-cols-2 gap-4">
-          <Stat value={newJobs.toLocaleString("en-US")} label="New jobs seen" />
-          <Stat value={boards.open_jobs.toLocaleString("en-US")} label="Open jobs" />
-        </dl>
-      </Card>
+      <Panel title="Now" bodyClassName="p-0">
+        <ul>
+          <Row label="Boards" value={count(boards.boards)} />
+          <Row label="Stale Boards" value={count(boards.stale)} alert={boards.stale > 0} />
+          <Row label="Failing Boards" value={count(boards.failing)} alert={boards.failing > 0} />
+          <Row label="Resting Boards" value={count(boards.resting)} />
+          <Row label="Tasks Pending" value={count(boards.pending)} />
+          <Row label="Tasks Claimed" value={count(boards.claimed)} />
+          <Row label="Open Jobs" value={count(boards.open_jobs)} />
+        </ul>
+      </Panel>
 
-      <Card as="section" padding="lg">
-        <RailHeading note={period}>Board Reads</RailHeading>
-        {reads === 0 ? (
-          <p className="text-body text-ink-muted mt-3">No board reads in this period.</p>
-        ) : (
-          <>
-            <div className="mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full">
-              <span className="bg-brand" style={{ flexGrow: done }} />
-              <span className="bg-danger" style={{ flexGrow: failed }} />
-            </div>
-            <ul className="text-body mt-3 space-y-2">
-              <li className="flex items-center gap-2">
-                <span className="bg-brand size-1.5" aria-hidden />
-                <span className="text-ink flex-1">Done</span>
-                <span className="text-ink-meta tabular-nums">{done}</span>
-                <span className="text-ink w-10 text-right font-medium tabular-nums">
-                  {percent(done / reads)}
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="bg-danger size-1.5" aria-hidden />
-                <span className="text-ink flex-1">Failed</span>
-                <span className="text-ink-meta tabular-nums">{failed}</span>
-                <span className="text-ink w-10 text-right font-medium tabular-nums">
-                  {percent(failed / reads)}
-                </span>
-              </li>
-            </ul>
-          </>
-        )}
-      </Card>
-
-      <Card as="section" padding="lg">
-        <RailHeading note="Now">Overview</RailHeading>
-        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
-          <Stat value={boards.stale.toLocaleString("en-US")} label="Stale boards" />
-          <Stat value={boards.failing} label="Failing boards" />
-          <Stat value={boards.resting} label="Resting boards" />
-          <Stat value={boards.pending.toLocaleString("en-US")} label="Tasks pending" />
-          <Stat value={boards.claimed} label="Tasks claimed" />
-        </dl>
-      </Card>
-
-      <Card as="section" padding="lg">
-        <RailHeading>Failing Boards</RailHeading>
+      <Panel title="Failing Boards" bodyClassName="p-0">
         {data.failing.length === 0 ? (
-          <p className="text-body text-ink-muted mt-3">No board is failing.</p>
+          <p className="text-body text-ink-muted p-5">No board is failing.</p>
         ) : (
-          <ul className="mt-3 space-y-3">
+          <ul>
             {data.failing.map((b) => (
-              <li key={`${b.ats}:${b.token}`} className="flex items-start gap-3">
+              <li
+                key={`${b.ats}:${b.token}`}
+                className="border-border-subtle flex items-start gap-3 border-b px-5 py-3.5 last:border-b-0"
+              >
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-ink font-medium">{b.company}</p>
                   <p className="text-label text-ink-meta font-normal break-all">
                     {b.ats}:{b.token}
                   </p>
                   {b.last_error && (
-                    <p className="text-label text-danger font-normal break-words">{b.last_error}</p>
+                    <p className="text-label text-danger mt-1 font-normal break-words">
+                      {b.last_error}
+                    </p>
                   )}
                 </div>
                 <span
-                  className="text-body text-ink font-medium tabular-nums"
+                  className="bg-danger-tint text-danger text-label rounded-full px-2 py-0.5 whitespace-nowrap"
                   title="Failed reads in a row"
                 >
-                  {b.consecutive_failures}
+                  {b.consecutive_failures} failed
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </Card>
+      </Panel>
     </ClosableRail>
   );
 }

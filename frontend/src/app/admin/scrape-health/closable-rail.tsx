@@ -8,7 +8,7 @@ const BUTTON =
 
 /**
  * The stats rail's frame (KAN-879): its cards under a Close button, or,
- * once closed, one Show Stats button in the rail's place, so the tables
+ * once closed, one Show Details button in the rail's place, so the tables
  * take the room. The cards are drawn on the server and passed in.
  */
 // ponytail: closed is not kept across a reload; localStorage if the team asks.
@@ -25,7 +25,7 @@ export function ClosableRail({ children }: { children: ReactNode }) {
           className={BUTTON}
         >
           <ChartBarIcon size={18} aria-hidden />
-          Show Stats
+          Show Details
         </button>
       </aside>
     );
@@ -34,13 +34,13 @@ export function ClosableRail({ children }: { children: ReactNode }) {
   return (
     <aside className="flex shrink-0 flex-col gap-4 px-6 pb-8 lg:w-88 lg:overflow-y-auto lg:py-8 lg:pr-10 lg:pl-0">
       <div className="flex items-center justify-between">
-        <h2 className="text-title text-ink">Stats</h2>
+        <h2 className="text-ink text-base font-semibold">Details</h2>
         <button
           type="button"
           onClick={() => setOpen(false)}
           aria-expanded
-          aria-label="Close Stats"
-          title="Close Stats"
+          aria-label="Close Details"
+          title="Close Details"
           className={BUTTON}
         >
           <XIcon size={18} aria-hidden />
