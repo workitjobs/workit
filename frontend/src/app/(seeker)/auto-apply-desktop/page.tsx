@@ -175,9 +175,8 @@ export default function AutoApplyDesktopPage() {
             Let Your Mac Fill Out Your Applications
           </h2>
           <p className="text-subtitle text-ink-muted mt-4 max-w-lg font-normal">
-            Our desktop app opens each job in its own Chrome window and fills out the application.
-            Apply across multiple jobs, fill out all the personal questions. You check each one and
-            press Submit.
+            Our desktop app opens each job in its own Chrome window and fills out the application,
+            personal questions too. You check each one and press Submit.
           </p>
 
           <div className="mt-8">
