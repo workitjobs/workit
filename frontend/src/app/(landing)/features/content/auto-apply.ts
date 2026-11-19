@@ -7,6 +7,13 @@
  * its panel; WorkIt writes no answer to a new written question; and it never
  * submits. Never say WorkIt submits, sends or applies.
  */
+import {
+  CursorClickIcon,
+  ListChecksIcon,
+  PaperclipIcon,
+  TextboxIcon,
+} from "@phosphor-icons/react/ssr";
+
 import { AutoApplyAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { AttachVisual, FillVisual, QueueVisual, SubmitVisual } from "../visuals/auto-apply";
@@ -27,11 +34,13 @@ const content: FeatureContent = {
   sections: [
     {
       title: "Pick the jobs to fill",
+      icon: ListChecksIcon,
       body: "Press Auto Apply on a job, or add your saved jobs from the Auto Apply page. Up Next lists them all: pick the ones to fill and press Auto Apply.",
       visual: QueueVisual,
     },
     {
       title: "Every field, from your profile",
+      icon: TextboxIcon,
       body: "The extension fills each form from your profile, your experience bank and the answers you saved in Application Info, on hiring systems such as Greenhouse, Lever, Ashby and Workday.",
       points: [
         "Contact details, education and work history",
@@ -42,11 +51,13 @@ const content: FeatureContent = {
     },
     {
       title: "Your resume, attached",
+      icon: PaperclipIcon,
       body: "Each form gets your default resume. To send the one you tailored for the job, press Change in the WorkIt panel before you submit.",
       visual: AttachVisual,
     },
     {
       title: "You click Submit, every time",
+      icon: CursorClickIcon,
       body: "WorkIt never submits for you. It fills up to five applications at a time, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button.",
       visual: SubmitVisual,
     },

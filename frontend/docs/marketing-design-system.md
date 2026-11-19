@@ -141,7 +141,8 @@ near square. The four features follow below, in their own section.
 ### `StudioBox` (`layout-parts.tsx`)
 
 The frame for every picture and animation: radius 2rem, a feature's
-`studioGround`, faint ruled lines and grain (`.studio-box`). One picture
+`studioGround` and a fine grain (`.studio-box`; ruled lines across it were
+taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.
 
 ### Pills and chips
@@ -186,6 +187,8 @@ translate inside a clipped track.
 | A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
 | Glass job tiles and a grainy mesh ground (asked for) | Tactile lit tiles with grain on the solid colour, and one stage light behind the headline | Glass had nothing behind it to blur and would redraw every frame; grain in thin gaps reads as dirt |
+| Product rows that opened on a click, one "Explore" link by the heading | Calendly's scrolling rows: sticky heading and box, the row under the heading active, an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
+| Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
 | Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |

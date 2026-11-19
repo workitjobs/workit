@@ -7,6 +7,9 @@
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
  */
+import { DatabaseIcon, FileTextIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react/ssr";
+import { SparkleIcon } from "@/components/sparkle-icon";
+
 import { ResumeAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { BankVisual, BuildVisual, SentResumeVisual, TailorVisual } from "../visuals/resumes";
@@ -27,6 +30,7 @@ const content: FeatureContent = {
   sections: [
     {
       title: "Everything you have done, in one place",
+      icon: DatabaseIcon,
       body: "Upload your resume and WorkIt reads it into your bank: education, experience, projects, leadership, awards, certifications and skills. Or add each entry yourself.",
       points: [
         "Start from the resume you already have",
@@ -37,12 +41,14 @@ const content: FeatureContent = {
     },
     {
       title: "A clean resume in one click",
+      icon: FileTextIcon,
       body: "Press Generate Resume and WorkIt lays out your bank in the Jake’s Resume template. Edit any line, then download it.",
       points: ["Fit to One Page trims it until it fits", "Download as PDF, Word or LaTeX"],
       visual: BuildVisual,
     },
     {
       title: "Tailored to each job posting",
+      icon: SparkleIcon,
       body: "Open a job posting and press Tailor My Resume. WorkIt shows which of the posting’s keywords your resume already has. Pick the missing ones you have really used, and one click rewords your bullets for the job.",
       points: [
         "A keyword you do not pick is never added",
@@ -53,6 +59,7 @@ const content: FeatureContent = {
     },
     {
       title: "Know which resume went where",
+      icon: PaperPlaneTiltIcon,
       body: "When you mark a job applied, WorkIt keeps the resume you sent with the application. Open it from your tracker before the interview.",
       visual: SentResumeVisual,
     },

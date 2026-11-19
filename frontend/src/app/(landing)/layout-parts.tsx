@@ -140,12 +140,12 @@ export function studioGround({
 
 /**
  * The frame every moving or still picture on the home page sits in
- * (KAN-923): a box with the tiles' 16px corners on a feature's ground (`studioGround`), with a
- * fine grain and faint ruled lines like resume paper (`.studio-box` in
- * landing.css), so a picture is a small object on the page and never the
- * page itself. After Calendly, whose animations all sit in boxes of 290 to
- * 424px; the old home page pinned whole screens to its scenes, which the
- * user found AI-made. Content sits above the texture.
+ * (KAN-923): a box with the tiles' 16px corners on a feature's ground
+ * (`studioGround`), with a fine grain (`.studio-box` in landing.css), so a
+ * picture is a small object on the page and never the page itself. After
+ * Calendly, whose animations all sit in boxes of 290 to 424px; the old
+ * home page pinned whole screens to its scenes, which the user found
+ * AI-made. Content sits above the texture.
  */
 export function StudioBox({
   ground,

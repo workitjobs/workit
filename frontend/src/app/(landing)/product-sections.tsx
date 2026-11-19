@@ -1,8 +1,6 @@
-import Link from "next/link";
-
 import { cn } from "@/lib/cn";
 
-import { FEATURES, type FeatureSlug } from "./features/catalog";
+import { deepDiveAnchor, FEATURES, type FeatureSlug } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
 import { CONTAINER, studioGround, TYPE } from "./layout-parts";
@@ -20,10 +18,11 @@ const ACCENTS: Partial<Record<FeatureSlug, string>> = {
 };
 
 /**
- * One section per product (KAN-923), after Calendly's: the feature's chip,
- * its page's headline in the serif (`TYPE.product`), a link to its page,
- * then its page's deep dives as rows beside a square framed box
- * (`ProductAccordion`). The copy and the still scenes are the feature
+ * One section per product (KAN-923), after Calendly's: the feature's chip
+ * and its page's headline in the serif (`TYPE.product`) over its page's
+ * deep dives as rows, each with its icon and its own arrow link to that
+ * deep dive, beside a square framed box (`ProductAccordion`: from lg up
+ * the heading and the box stick and the scroll picks the row). The copy and the still scenes are the feature
  * page's own (`features/content/`), already checked as product claims, so
  * the two pages never disagree. The box alternates sides.
  */
@@ -35,33 +34,23 @@ export function ProductSections() {
     return (
       <section key={slug} aria-labelledby={titleId} className="py-16 sm:py-24">
         <div className={CONTAINER}>
-          <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
-            <div className="max-w-2xl">
-              <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-                <FeatureIcon feature={page} />
-                {page.name}
-              </p>
-              <h2 id={titleId} className={cn(TYPE.product, "text-ink mt-4")}>
-                {content.hero.title}
-              </h2>
-            </div>
-            <Link
-              href={page.href}
-              className="group text-ink relative mb-1 inline-flex items-center gap-1.5 border-b border-current pb-0.5 text-sm font-medium after:absolute after:-inset-3 after:content-['']"
-            >
-              Explore {page.name}
-              <span
-                aria-hidden="true"
-                className="transition-transform duration-200 group-hover:translate-x-0.5"
-              >
-                →
-              </span>
-            </Link>
-          </div>
           <ProductAccordion
+            heading={
+              <>
+                <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
+                  <FeatureIcon feature={page} />
+                  {page.name}
+                </p>
+                <h2 id={titleId} className={cn(TYPE.product, "text-ink mt-4")}>
+                  {content.hero.title}
+                </h2>
+              </>
+            }
             items={content.sections.map((section) => ({
               title: section.title,
               body: section.body,
+              icon: <section.icon />,
+              href: `${page.href}#${deepDiveAnchor(section.title)}`,
               visual: <section.visual />,
             }))}
             ground={studioGround({ tint: page.tint, glow: page.glow, accent: ACCENTS[slug] })}

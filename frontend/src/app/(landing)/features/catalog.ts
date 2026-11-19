@@ -93,3 +93,16 @@ export function backdrop({ tint, glow }: Pick<Feature, "tint" | "glow">) {
   const blob = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, transparent)`;
   return `radial-gradient(55% 65% at 12% 18%, ${blob(38)}, transparent), radial-gradient(50% 60% at 88% 85%, ${blob(30)}, transparent), radial-gradient(40% 50% at 70% 10%, white, transparent), ${tint}`;
 }
+
+/**
+ * A feature page deep dive's anchor, from its title: "Tailored to each job
+ * posting" is `#tailored-to-each-job-posting`. The feature page sets it on
+ * the deep dive (feature-page.tsx) and the home page's product rows link to
+ * it (product-accordion.tsx), so both read this one function.
+ */
+export function deepDiveAnchor(title: string) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}

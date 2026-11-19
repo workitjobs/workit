@@ -273,8 +273,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   **The rules it set:**
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground (`studioGround`: three blobs of its
-    colour and one of a second over its tint) with faint ruled lines like
-    resume paper and a fine grain (`.studio-box` in landing.css). **Nothing
+    colour and one of a second over its tint) with a fine grain
+    (`.studio-box` in landing.css; faint ruled lines across it went, the
+    user found them odd over the gradients). **Nothing
     pins to the screen and no section is a screen tall**, as on Calendly,
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
@@ -379,11 +380,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     without script and with reduced motion. Its lines are claims, tied to
     the feature pages' content files in the comment on `journey`.
   - **The product sections read the feature pages' own content**
-    (`features/content/`): the page's hero title in the serif, its deep
-    dives as rows that open one at a time (`product-accordion.tsx`), its
-    still scenes stacked in a square `StudioBox`, only the open one shown.
-    So the home page and a feature page never disagree; change the copy in
-    the content file. Nothing there moves on its own.
+    (`features/content/`) and scroll like Calendly's (the user pointed
+    back to it): from lg up the feature's chip and serif headline stick
+    under the header on the white page, its deep dives scroll up beneath
+    as rows, and the row just under the heading is active (full strength,
+    the others at 25%); the square `StudioBox` beside them sticks and
+    shows the active row's still scene, swapping with a fade. The scroll
+    picks the row and the swap plays in time; nothing is scrubbed. Each
+    row has the deep dive's icon (`icon` in `features/types.ts`, required)
+    and its own arrow link to that deep dive on the feature page
+    (`deepDiveAnchor` in `features/catalog.ts`, which the feature page
+    sets as the deep dive's id), in place of one "Explore" link by the
+    heading. The heading's sticky area ends where the last row begins, and
+    the last row is as tall as the box less the heading (measured), so the
+    heading, the last row and the box leave together: before, the box left
+    300px early and the heading floated over blank page. The active row is
+    measured on scroll only while the section is near. Below lg nothing
+    sticks: heading, box, then rows (one tree, `display: contents`), all
+    at full strength, a tap picks the scene. `product-accordion.tsx`.
   - **Drifting rows** (`.drift-row`: the logo strip, the closing chips)
     draw their items twice and move by half their width; the class is in
     landing.css's Pause Animations list and still with reduced motion.

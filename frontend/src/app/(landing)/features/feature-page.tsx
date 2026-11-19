@@ -7,7 +7,7 @@ import { ClosingCta } from "../closing-cta";
 import { FaqList } from "../faq-list";
 import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "../layout-parts";
 import { EmailSignUpLink, SocialSignUpButton } from "../social-sign-up";
-import { backdrop, featurePages, type Feature } from "./catalog";
+import { backdrop, deepDiveAnchor, featurePages, type Feature } from "./catalog";
 import { featureContent } from "./content";
 import { FeatureIcon } from "./feature-icon";
 import { DeepDiveStage, FeatureMotion, FeatureStage } from "./feature-stage";
@@ -158,7 +158,11 @@ function DeepDive({
 }) {
   const Visual = section.visual;
   return (
-    <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+    // Its anchor, which the home page's product rows link to.
+    <div
+      id={deepDiveAnchor(section.title)}
+      className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
+    >
       <div className={cn(flip && "lg:order-last")}>
         <SectionHeading align="left" title={section.title} subtitle={section.body} />
         {section.points && (

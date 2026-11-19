@@ -6,6 +6,8 @@
  * scraper reads (scraper/, data.ts) and the roles it keeps (Intern and New
  * Grad, in every field).
  */
+import { BuildingsIcon, GaugeIcon, SortDescendingIcon } from "@phosphor-icons/react/ssr";
+
 import { MatchingAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { BestMatchVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
@@ -26,6 +28,7 @@ const content: FeatureContent = {
   sections: [
     {
       title: "Scored on what you have done",
+      icon: GaugeIcon,
       body: "Your match score weighs four things from your experience bank: how closely your background reads like the job’s description, your skills, the titles you have held, and the years of experience the posting asks for.",
       points: [
         "A match score on every job posting",
@@ -36,11 +39,13 @@ const content: FeatureContent = {
     },
     {
       title: "The best fits at the top",
+      icon: SortDescendingIcon,
       body: "Your Jobs page opens on Best Match, so the postings that fit you most come first, each with its score. Switch to Newest any time.",
       visual: BestMatchVisual,
     },
     {
       title: "Straight from company job boards",
+      icon: BuildingsIcon,
       body: "WorkIt reads job postings from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Apply Now opens the company’s own application.",
       visual: SourcesVisual,
     },
