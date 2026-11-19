@@ -5,7 +5,6 @@ import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { faqs, hero, site, testimonial } from "./data";
-import { Audience } from "./audience";
 import { Control } from "./control";
 import { FaqList } from "./faq-list";
 import { FocusIn } from "./focus-in";
@@ -15,6 +14,7 @@ import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
+import { Problems } from "./problems";
 import { ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
@@ -39,8 +39,8 @@ export const metadata: Metadata = {
  * The page at /, redesigned in KAN-923 after Calendly's home page
  * (frontend/docs/home-page-review.md): the hero names the four features and
  * plays each one in a framed box, then each section leads into the next:
- * proof the jobs are real (the logo strip), who it is for and the problem
- * (the audience), the four features, each product in depth, what stays
+ * proof the jobs are real (the logo strip), where applications get lost
+ * (the problems), the four features, each product in depth, what stays
  * the student's call (control), where the jobs come from (hiring systems)
  * and the FAQ, which runs into the footer. Every
  * animation sits in a `StudioBox`; only the product sections pin. The
@@ -106,8 +106,8 @@ export default function LandingPage() {
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
 
-      {/* Who it is for and the problem, before how it works: audience.tsx. */}
-      <Audience />
+      {/* Where applications get lost, before how WorkIt works: problems.tsx. */}
+      <Problems />
 
       {/* The four features, one at a time: a section of their own since the
           hero became one screen (hero-features.tsx). On the plain white

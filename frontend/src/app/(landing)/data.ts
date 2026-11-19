@@ -339,32 +339,54 @@ export const heroFits: { title: string; company: string; domain: string; score: 
 ];
 
 /**
- * Who WorkIt is for and the problem it fixes (audience.tsx, KAN-923), in
- * the student's own words, before the page says how WorkIt works: the
- * user's plan, once the journey repeated the four features a third time
- * and the statement that framed the problem was archived. The audience is
- * the scraper's: internships and new-grad roles in every field (Job
- * Matching's FAQ). The pains describe the search, hedged where they speak
- * for recruiters ("often"), and never with a number WorkIt cannot back.
+ * Where applications get lost (problems.tsx, KAN-923), the page's why
+ * before its how, in the market's terms: the user asked for the common
+ * problems with applying, the hiring system's screen first. Each problem
+ * says what goes wrong, then one line on what WorkIt does about it. The
+ * market claims are hedged ("many", "often"), as the archived statement's
+ * were, and never a statistic WorkIt cannot back; no line promises to get a
+ * resume past a hiring system. WorkIt's lines are product claims: Tailor's
+ * keyword step lists the posting's keywords a resume is missing and adds
+ * only the ones the student picks (docs/tailor_resume.md, the truth rule);
+ * Auto Apply fills each form and the student clicks Submit; the Jobs page
+ * reads thousands of company job boards (about 5,000 in
+ * scraper/boards.csv) and opens on Best Match. The audience is the
+ * scraper's: internships and new-grad roles in every field.
  */
-export const audience = {
-  title: "Built for the internship and new-grad search",
-  subtitle: "For students and new grads in every field, not just tech.",
-  pains: [
+export const problems = {
+  title: "Many applications stop before a person reads them",
+  subtitle: "Applying to internships and new-grad roles breaks in the same places, in every field.",
+  screen: {
+    title: "Screened out before anyone reads it",
+    body: "Many companies’ hiring systems sort applications against the posting’s keywords and screening questions before a recruiter looks. One resume sent to every posting often gets filtered out there.",
+    fix: "WorkIt shows the posting’s keywords your resume is missing, and Tailor adds only the ones you’ve really used.",
+    role: "Software Engineer Intern",
+    /** The posting's keywords, and whether the one resume sent everywhere
+     *  has each. */
+    keywords: [
+      { word: "Python", found: true },
+      { word: "SQL", found: true },
+      { word: "React", found: true },
+      { word: "REST APIs", found: false },
+      { word: "TypeScript", found: false },
+      { word: "Kubernetes", found: false },
+    ],
+    /** Tailor's keyword step for the missing ones: the student ticks only
+     *  what they have used, so Kubernetes stays out. */
+    used: ["REST APIs", "TypeScript"],
+  },
+  cards: [
     {
-      line: "The same form, typed again for every job.",
-      detail:
-        "Your name, school, work history and the same questions, one application after another.",
+      scene: "forms",
+      title: "The same form, again and again",
+      body: "Your name, school, work history and the same questions, typed into one company’s form after another.",
+      fix: "WorkIt fills each form from your profile. You check it and click Submit.",
     },
     {
-      line: "One resume, sent to every posting.",
-      detail:
-        "A resume not written for the job often reads like one, to a recruiter and to the hiring system.",
-    },
-    {
-      line: "Postings scattered across thousands of company job boards.",
-      detail:
-        "Each company lists its jobs on its own board, so finding the ones that fit you is a job of its own.",
+      scene: "scattered",
+      title: "Good jobs, scattered everywhere",
+      body: "Each company posts on its own job board, so the roles that fit you hide among thousands.",
+      fix: "One Jobs page from thousands of company job boards, best fits first.",
     },
   ],
 } as const;

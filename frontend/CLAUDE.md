@@ -263,7 +263,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `hero.title`, which is `site.tagline`; the sign-up pair, which a Download
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), who it is for and the problem (`audience.tsx`),
+  `logoStrip` in data.ts), where applications get lost (`problems.tsx`),
   the four features (`HeroFeatures`), one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), what stays the student's call (`control.tsx`),
@@ -402,17 +402,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     "Built for people whose work runs on meetings"): the page named the
     four features three times (the features card, the journey, the product
     sections) and never who WorkIt is for or what problem it fixes. So the
-    journey is archived and two sections replace it. **The audience**
-    (`audience.tsx`, after the logo strip): "Built for the internship and
-    new-grad search", for students and new grads in every field, then
-    three pains in the student's own words under hairlines, with no
-    feature names and no cards. **Control** (`control.tsx`, after the
+    journey is archived and two sections replace it. **The problems**
+    (`problems.tsx`, after the logo strip): "Many applications stop before
+    a person reads them", for students and new grads in every field, as a
+    bento of three `.surface-card`s with a scene each in a `StudioBox` on a
+    slate sky (the search as it is, before WorkIt; violet is WorkIt's own
+    mark): the lead, a hiring system's applicant screen marking the
+    posting's keywords a generic resume lacks ("Not moved forward") with
+    Tailor's "Add the Keywords You Have Used" laid over it, Kubernetes left
+    unticked; the same form cascaded across three companies, the front one
+    filled; and employers' logos scattered round the one posting that fits.
+    Each card says what goes wrong, then, after the WorkIt mark, what
+    WorkIt does; the scenes play once as their card arrives (`Arrive`, the
+    `.journey-*` classes). It replaced three pains as plain text under
+    hairlines, which the user found boring, and leads with the hiring
+    system's screen at the user's ask. **Its market claims are hedged**
+    ("many", "often"), as the statement's were: never a statistic WorkIt
+    cannot back, and never a promise to get past a hiring system (the
+    scene shows the fix, not a pass). **Control** (`control.tsx`, after the
     product sections): "You stay in control", four promises as
     `.surface-card`s with ink marks (You click Submit, every time; Nothing
     invented; Your words win; Five at a time, never a flood): the worry
     any auto apply tool raises, answered as what WorkIt does, where the
     archived statement said it as a warning. Both are claims, each tied to
-    its source in `audience` and `control` in data.ts: never a number
+    its source in `problems` and `control` in data.ts: never a number
     WorkIt cannot back, and no customer results until real ones exist.
   - **The journey (archived 2026-11-19)** follows the one application (`followedJob`) through
     four `.surface-card`s joined by a rail; each picture plays once as its
