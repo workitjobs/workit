@@ -3574,12 +3574,23 @@ No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
 query, the percent; `node --test`); its read is `getFillHealth` in
 `fill-report-queries.ts`.
 
-`/admin/scrape-health` (the scraper's health, KAN-879) is the same kind
-of page: tiles for the enabled boards (all, failing, resting, stale) and
-the open scraped jobs, the task backlog (pending, claimed), the boards
-per hiring system with how many were ever read, then per day (UTC) per hiring system the board
-reads done and failed, their mean seconds and the new jobs, then the
-failing boards with their last error, from `GET /admin/scrape-health`
+**The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
+dark sidebar (`bg-inverse`) that links every admin page, beside the page;
+below lg it is a bar above the page. A new admin page joins `PAGES` in
+`admin/admin-nav.tsx`, or nothing links to it. The shell reads no session:
+a page's `notFound()` draws the root 404 in place of the shell (checked
+with a bad report id), so a student still never sees it. Never add a
+`not-found.tsx` under `app/admin/`: it would draw the 404 inside the
+sidebar and show a student that the admin pages exist.
+
+`/admin/scrape-health` (the scraper's health, KAN-879) is two columns from
+lg up, each with its own scroll: the tables (the boards per hiring system
+with how many were ever read, and per day (UTC) per hiring system the board
+reads done and failed, their mean seconds and the new jobs, picked by
+day pills that are links) and a stats rail (`scrape-health/rail.tsx`: the
+share of boards ever read as a gauge, the period's reads done against
+failed as one bar, the counts now, and the failing boards with their last
+error), from `GET /admin/scrape-health`
 under the same `WORKIT_ADMINS` gate (403 → the 404). Its shape
 (`ScrapeHealth`) and `daysOf` are in `lib/fill-health.ts`; its read is
 `getScrapeHealth` in `fill-report-queries.ts`. The API keeps its answer
