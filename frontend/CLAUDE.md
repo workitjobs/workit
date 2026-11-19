@@ -276,9 +276,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     resume paper and a fine grain (`.studio-box` in landing.css). **Nothing
     pins to the screen and no section is a screen tall**, as on Calendly,
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
-    `StudioBox`, never a full-width panel of its own. The hero panel is
-    `.hero-mesh`: the same grain, no ruled lines (across the whole hero
-    they read as scan lines).
+    `StudioBox`, never a full-width panel of its own.
+  - **The hero's ground is a board of real postings** (`hero-board.tsx`,
+    `heroBoard` in data.ts, the user's pick of four directions on
+    2026-11-19): grey internship and new-grad postings from real
+    employers around the headline, and the ones that fit (`HERO_FIT`, 85
+    and up) light up in turn with their match (`.board-lit`, an opacity
+    and transform loop in landing.css, on the Pause Animations list, lit
+    and still with reduced motion). A server component with no script; 42
+    tiles, about 340 elements. From lg up the headline sits in a hole in
+    the board's mask (`.hero-board`, sized in rem to the text block, so a
+    change to the headline's size or the hero's top padding means checking
+    the hole), and the board fades out before the tabs; below lg it is a
+    band of two rows above the headline, and the text starts below it
+    (`pt-[12rem]`). The panel is `.hero-ground`, white behind the text and
+    pale ink-grey at the edges. It replaced `.hero-mesh`, a violet, blue
+    and pink mesh gradient with grain, which the user found too close to
+    Calendly's and without feel.
   - **The hero's top features** (`hero-features.tsx`): the four
     `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
     `.surface-card` with the open feature's copy (`StopCopy`,
@@ -1300,7 +1314,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `app/(landing)/`. The user found the site still AI-made after the home
   page's redesign and named the violet glass buttons, the bordered sign-up
   buttons and the lavender gradient on cards, so: **colour lives only in
-  the hero panel and inside a `StudioBox`; cards, buttons and the page are
+  the home hero's lit postings and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (eyebrows, checks,
   feature tiles, Plus's limit pills); **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
@@ -1328,11 +1342,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   its shape or height. The site had five recipes, three corner shapes and
   four heights, three of them in Pricing's one row; then a violet glass
   primary and a violet outline, which the user found AI-made. **The social
-  sign-up pair is Google's dark theme** (#131314, a 1px #8E918F inside
-  stroke, #E3E3E3 text; LinkedIn matched, its tile with a white "in"): the
-  light theme's grey border read as a bordered AI-made button beside the
-  ink primary. It takes the same shape and `md` height (`BUTTON_SHAPE`,
-  `BUTTON_SIZES`).
+  sign-up pair is Google's neutral theme** (#F2F2F2, no stroke, #1F1F1F
+  text; LinkedIn matched, its tile with a white "in"), the guidelines'
+  only theme with no border: the light theme's grey border read as a
+  bordered AI-made button, and the dark theme, tried first, was too heavy
+  for the user. It matches `SecondaryButton`'s soft grey, so KAN-922's
+  Download for Mac joins the row as a `SecondaryButton` (that branch still
+  calls it `OutlineButton`). It takes the same shape and `md` height
+  (`BUTTON_SHAPE`, `BUTTON_SIZES`).
 - **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
   `/go-home`, in place of Log in and Get started, in the bar and the phone
   menu. The pages stay prerendered, so the header draws both pairs and

@@ -11,6 +11,7 @@ import { FaqList } from "./faq-list";
 import { backdrop } from "./features/catalog";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
+import { HeroBoard } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { Journey } from "./journey";
@@ -52,10 +53,14 @@ export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
       {/* Hero, in a rounded panel inset from the window, like every
-          full-width band on these pages, on the brand's mesh (.hero-mesh). */}
+          full-width band on these pages, over a board of real postings
+          whose best fits light up (hero-board.tsx, .hero-ground). */}
       <section className={PANEL_INSET}>
-        <div className={cn(PANEL, "hero-mesh relative isolate overflow-hidden pb-3 sm:pb-6")}>
-          <div className={cn(CONTAINER, "pt-14 text-center sm:pt-20 lg:pt-24")}>
+        <div className={cn(PANEL, "hero-ground relative isolate overflow-hidden pb-3 sm:pb-6")}>
+          <HeroBoard />
+          <div
+            className={cn(CONTAINER, "relative pt-[12rem] text-center sm:pt-[12.5rem] lg:pt-28")}
+          >
             <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": ".05s" } as CSSProperties}>
               {hero.audience}
             </p>
@@ -86,7 +91,7 @@ export default function LandingPage() {
           </div>
           {/* The four features, one at a time: hero-features.tsx. */}
           <div
-            className="hero-rise mx-auto mt-12 max-w-6xl px-3 sm:mt-16 sm:px-6 lg:px-8"
+            className="hero-rise relative mx-auto mt-12 max-w-6xl px-3 sm:mt-16 sm:px-6 lg:px-8"
             style={{ "--rd": ".55s" } as CSSProperties}
           >
             <HeroFeatures />

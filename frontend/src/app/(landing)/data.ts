@@ -314,6 +314,58 @@ export const applicationsSection = {
 };
 
 /**
+ * The home hero's board (hero-board.tsx, KAN-923): job postings around the
+ * headline, grey, while the ones that fit (85 and up, `HERO_FIT`) light up
+ * in turn with their match. Real employers whose company job boards the
+ * scraper reads (scraper/boards.csv; the same names the stories and the
+ * hiring-systems stream use), intern, new-grad and co-op titles only, the
+ * roles WorkIt keeps. The scores are made up, as the stories' are. Stripe's
+ * is the followed job's.
+ */
+export const HERO_FIT = 85;
+export const heroBoard: { title: string; company: string; domain: string; score: number }[] = [
+  { title: "Product Design Intern", company: "Figma", domain: "figma.com", score: 72 },
+  { title: "Backend Engineer Intern", company: "Spotify", domain: "spotify.com", score: 63 },
+  { title: "Data Science Intern", company: "Databricks", domain: "databricks.com", score: 89 },
+  { title: "Software Engineer, New Grad", company: "Palantir", domain: "palantir.com", score: 81 },
+  { title: "Game Engineer Intern", company: "Roblox", domain: "roblox.com", score: 48 },
+  { title: "Product Manager Intern", company: "Plaid", domain: "plaid.com", score: 77 },
+  { title: "Hardware Engineering Intern", company: "NVIDIA", domain: "nvidia.com", score: 66 },
+  {
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
+    score: followedJob.score,
+  },
+  { title: "Firmware Engineer Intern", company: "Zoox", domain: "zoox.com", score: 58 },
+  {
+    title: "Financial Analyst Intern",
+    company: "Capital One",
+    domain: "capitalone.com",
+    score: 54,
+  },
+  { title: "Frontend Engineer Intern", company: "Vercel", domain: "vercel.com", score: 87 },
+  { title: "Data Analyst Intern", company: "Duolingo", domain: "duolingo.com", score: 74 },
+  { title: "Software Engineer Intern", company: "Datadog", domain: "datadoghq.com", score: 92 },
+  { title: "Machine Learning Intern", company: "Waymo", domain: "waymo.com", score: 69 },
+  { title: "Security Engineer Intern", company: "Cloudflare", domain: "cloudflare.com", score: 71 },
+  { title: "Quantum Software Intern", company: "Infleqtion", domain: "infleqtion.com", score: 62 },
+  { title: "Full-Stack Engineer Intern", company: "Notion", domain: "notion.so", score: 88 },
+  {
+    title: "Mechanical Engineering Co-op",
+    company: "Berkshire Grey",
+    domain: "berkshiregrey.com",
+    score: 51,
+  },
+  { title: "iOS Engineer Intern", company: "Lyft", domain: "lyft.com", score: 79 },
+  { title: "Software Engineer, New Grad", company: "Ramp", domain: "ramp.com", score: 86 },
+  { title: "Robotics Engineering Intern", company: "1X", domain: "1x.tech", score: 57 },
+  { title: "Data Engineer Intern", company: "Snowflake", domain: "snowflake.com", score: 76 },
+  { title: "Software Engineer Intern", company: "Coinbase", domain: "coinbase.com", score: 73 },
+  { title: "Platform Engineer Intern", company: "DoorDash", domain: "doordash.com", score: 90 },
+];
+
+/**
  * The home page's logo strip under the hero (logo-strip.tsx, KAN-923): real
  * employers whose company job boards the scraper reads (scraper/boards.csv),
  * the same ones the tour's stories and the old hero's cards name. Each is

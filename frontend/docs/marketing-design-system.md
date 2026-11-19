@@ -9,8 +9,8 @@ screens follow `design.md`, not this file.
 
 ## Principles
 
-1. **Colour lives in two places only**: the hero panel and the framed
-   boxes (`StudioBox`). The page, its cards and its buttons are white,
+1. **Colour lives in two places only**: the home hero's lit postings and
+   the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
@@ -34,7 +34,7 @@ screens follow `design.md`, not this file.
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
 | Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
-| Hero ground | `.hero-mesh` | The home hero: violet, blue, pink and a warm glow over brand-50, with grain |
+| Hero ground | `.hero-ground` | The home hero: white behind the text, pale ink-grey at the edges, under the board of postings |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -83,11 +83,21 @@ outline.
 
 ### The sign-up pair (`social-sign-up.tsx`)
 
-Google's own dark theme: #131314 fill, 1px #8E918F inside stroke, #E3E3E3
-Google Sans Medium, the full-colour G. LinkedIn takes the same treatment,
-its tile with a white "in". Always followed by "Or sign up with email".
-The light theme (white with a #747775 stroke) read as a bordered button
-beside the ink primary, so it is not used here.
+Google's own neutral theme: #F2F2F2 fill, no stroke, #1F1F1F Google Sans
+Medium, the full-colour G. LinkedIn takes the same treatment, its tile
+with a white "in". Always followed by "Or sign up with email". It is the
+guidelines' only theme with no border: the light theme (white with a
+#747775 stroke) read as a bordered button, and the dark theme was too
+heavy. The soft grey matches `SecondaryButton`, so Download for Mac
+(KAN-922) sits in the same row as a `SecondaryButton`.
+
+### The home hero's board (`hero-board.tsx`)
+
+Real internship and new-grad postings in grey tiles around the headline;
+the ones that fit (85 and up) light up in turn, white with their match
+chip, three or four at a time. From lg up the headline sits in a clear
+hole in the board; below lg the board is a band of two rows above it. It
+is the hero's only colour.
 
 ### Cards
 
@@ -105,8 +115,7 @@ beside the ink primary, so it is not used here.
 
 The frame for every picture and animation: radius 2rem, a feature's
 `studioGround`, faint ruled lines and grain (`.studio-box`). One picture
-per box; the UI inside floats on it. The hero panel has the grain without
-the lines.
+per box; the UI inside floats on it.
 
 ### Pills and chips
 
@@ -136,7 +145,8 @@ pins; no shine sweeps or glows.
 | --- | --- | --- |
 | `.glass-btn` violet gradient glass | `.primary-btn` solid ink | Read as AI-made; low contrast |
 | Outline button with a violet edge | `SecondaryButton`, soft grey fill | Borders everywhere read as a template |
-| Google light theme, grey border | Google dark theme | Bordered buttons beside an ink primary |
+| Google light theme, grey border | Google neutral theme, no border | Bordered buttons looked AI-made; the dark theme was too heavy |
+| Violet, blue and pink mesh gradient hero | A board of real postings that light up | Too close to Calendly's, no feel |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
 | `.glass-card` tinted violet with a violet ring | Neutral frosted white | Same |
 | Pricing's violet gradient Plus card and its shine | Solid ink card | Same; the shine was decoration |

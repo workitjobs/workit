@@ -29,12 +29,14 @@ export function EmailSignUpLink() {
 
 /**
  * "Sign up with Google / LinkedIn", following Google's sign-in branding
- * guidelines, dark theme (KAN-923): #131314 fill, 1px #8E918F inside
- * stroke, #E3E3E3 Google Sans Medium 14/20 text, standard full-colour
- * logos (never recoloured). It was the light theme, white with a #747775
- * stroke, which the user found looked like bordered AI-made buttons beside
- * the solid ink primary; the dark theme is the guidelines' own and reads
- * as a solid button. LinkedIn uses the same treatment so the pair matches
+ * guidelines, neutral theme (KAN-923): #F2F2F2 fill, no stroke, #1F1F1F
+ * Google Sans Medium 14/20 text, standard full-colour logos (never
+ * recoloured). The light theme's #747775 border read as a bordered,
+ * AI-made button, and the dark theme was too heavy for the user, so the
+ * pair is the neutral theme, the guidelines' only one with no stroke; it
+ * matches `SecondaryButton`'s soft grey, so a Download for Mac button
+ * (KAN-922) sits beside it as a secondary. LinkedIn uses the same treatment
+ * so the pair matches
  * (its blue tile keeps a white "in"), and
  * both take the marketing buttons' shape and height (buttons.tsx). Each
  * posts to the same OAuth action as the buttons on /signup, and says
@@ -58,7 +60,7 @@ export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
         className={cn(
           BUTTON_SHAPE,
           BUTTON_SIZES.md,
-          "font-google w-full gap-2.5 bg-[#131314] px-3 text-sm/5 font-medium text-[#E3E3E3] ring-1 ring-[#8E918F] transition-colors ring-inset hover:bg-[#2b2b2e] disabled:cursor-progress disabled:hover:bg-[#131314]",
+          "font-google w-full gap-2.5 bg-[#F2F2F2] px-3 text-sm/5 font-medium text-[#1F1F1F] transition-colors hover:bg-[#E8E8E8] disabled:cursor-progress disabled:hover:bg-[#F2F2F2]",
         )}
         icon={
           google ? (

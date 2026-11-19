@@ -158,6 +158,12 @@ for product headings, Inter for text; the scale is `TYPE` in
 (`StudioBox`). Nothing pins. The city hero, the bridge, the pinned tour,
 the 3D pipeline and the applications route stay in the folder, unmounted.
 
+**Revised the same day:** the user found the mesh gradient hero too close
+to Calendly's, and picked, from four directions, a board of real postings
+around the headline whose best fits light up (`hero-board.tsx`). The
+sign-up pair went to Google's neutral theme. See
+`marketing-design-system.md`.
+
 Checked at 1280 × 800 and 1440 wide (Chrome) and at 375 × 812: no
 horizontal scroll, no console errors, the hero's tabs advance and take a
 click, and the journey's pictures play to their end. The page is about
