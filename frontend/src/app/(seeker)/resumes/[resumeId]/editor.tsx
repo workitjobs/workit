@@ -2039,7 +2039,6 @@ export function Editor({
               return measure(key, "bullet", element);
             },
             "aria-label": "New bullet",
-            "aria-placeholder": "New bullet",
             onBlur: () => leaveNew(n.key),
             // Enter adds it and opens the next line; Escape leaves it (an
             // empty line goes), never climbing out of a block as it does
@@ -2049,11 +2048,12 @@ export function Editor({
               e.stopPropagation();
               leaveNew(n.key, e.key === "Enter");
             },
-            className: cn(
-              look.className,
-              FIELD_RING,
-              "empty:before:text-ink-meta empty:before:content-[attr(aria-placeholder)]",
-            ),
+            // Drawn as the PDF will print it, as a new line in a Google Doc
+            // is: the dot, the text in the page's own type and ink, and the
+            // caret, with no field's ring and no grey hint. The ring and a
+            // "New bullet" hint made it look like no line on the page until
+            // its PDF landed (2026-11-19)
+            className: cn(look.className, "overflow-hidden outline-none"),
             style: look.style,
           },
         )}
@@ -2101,7 +2101,10 @@ export function Editor({
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
         // text lands on the PDF's own glyphs
-        "bg-panel text-ink -mx-[0.4cqw] block px-[0.4cqw]",
+        // The page's own ink, pure black on white paper in either theme:
+        // the app's near-black `text-ink` set typed text a shade off the
+        // printed lines around it
+        "-mx-[0.4cqw] block bg-white px-[0.4cqw] text-black",
         look.bold && "font-bold",
         look.italic && "italic",
       ),
