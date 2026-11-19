@@ -206,7 +206,7 @@ export default function AutoApplyDesktopPage() {
           <p className="text-body text-ink-meta mt-6">
             On Windows or an Intel Mac?{" "}
             <TextLink href={EXTENSION_INSTALL_URL} target="_blank" rel="noreferrer">
-              Use the WorkIt extension for Chrome.
+              Use the WorkIt extension for Chrome
             </TextLink>
             .
           </p>
