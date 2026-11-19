@@ -378,8 +378,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     900, 1920 × 1080, 768 × 1024 and 375 × 812: no bare ground beside the
     grid, the headline inside its tile, and the next section starting
     below the screen. The lights are `.board-lit` (opacity and transform,
-    on the Pause Animations list, one per posting lit and still with
-    reduced motion); the
+    one per posting lit and still with reduced motion); the
     grid is a server component with no script. It replaced a violet mesh
     gradient (too close to Calendly's), then a board of wide grey posting
     cards, then a grid capped at 84rem, which left bare grey margins on a
@@ -398,7 +397,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the next tab opens: `Story` calls the `StoryEnd` context (story.tsx)
     in place of looping, and only the hero provides it; once the visitor
     picks a tab, the card stays and its story loops. Stories hold off
-    screen, in a hidden tab and on Pause Animations, so the tabs move only
+    screen and in a hidden tab, so the tabs move only
     while someone watches. The stories load through `features/animations.tsx`,
     so only the open one's chunk loads. Below sm only the open tab shows
     its label: four labels ran past a 390px screen.
@@ -486,8 +485,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     1920 × 1080 (the block fits the screen) and at 1366 × 620, 768 ×
     1024 and 375 × 812 (in the flow). `product-accordion.tsx`.
   - **Drifting rows** (`.drift-row`: the logo strip)
-    draw their items twice and move by half their width; the class is in
-    landing.css's Pause Animations list and still with reduced motion.
+    draw their items twice and move by half their width, still with
+    reduced motion.
   - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
     (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
     (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),
@@ -1388,8 +1387,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     beats rest on their boundary, and with the swap before it a resting
     beat showed no caption, title or verdict (`fadeWindow`).
   - A phase that should keep moving while it rests runs its own loop on
-    `useLoopClock`, stopped off screen, in a hidden tab and on Pause
-    Animations (`useLoopsHeld`): the coin ring, the sorting line's flow,
+    `useLoopClock`, stopped off screen and in a hidden tab
+    (`useLoopsHeld`): the coin ring, the sorting line's flow,
     the bridge's floating postings (CSS).
   - A reveal on arrival (the testimonial's words, the headings' and
     Pricing's FAQ's `FocusIn`, the home page's scenes' `Arrive`) plays in time once the
@@ -1405,29 +1404,27 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
-- **Every loop has a pause: Pause Animations** (KAN-580, WCAG 2.2.2), in
-  the footer's bottom row and at the foot of the phone menu
-  (`motion-toggle.tsx`; it reads Play Animations once pressed, and is
-  hidden with reduced motion, where nothing loops). It writes
-  `data-motion="paused"` on `<html>` and keeps it in localStorage
-  (`workit:motion`, `motion-pause.ts`), so it holds on every marketing
-  page and the next visit. It is not reduced motion: that swaps a scene
-  for its still frame, while a pause keeps the frame on screen and Play
-  goes on from it. Two halves, and a new loop joins one of them:
-  - CSS loops (since KAN-923 also `.drift-row`) hold on their frame
-    through one rule at the top of landing.css that names each loop (`animation-play-state: paused
-    !important`). Never pause every animation there: an entrance (the
-    city's fade in, the hero's rise, Pricing's rows) paused before it ran
-    hides what it brings in.
-  - Timed loops read `useLoopsHeld` (hooks.ts: a hidden tab or the pause),
-    as they read a hidden tab before: the tagline, each `Story`, the
-    statement, the coin ring, the sorting line's flow, the applications
-    section's loop below lg, and the two long scene
-    steps (Resumes' tailoring beats, Auto Apply's form, one field at a
-    time). A story holds on its scene and its hold starts again on Play.
-    A short move already under way, under about 2.5 s (a motion
-    transition, a one-off timer in a scene), still ends: motion has no
-    clock to stop.
+- **There is no Pause Animations button** (removed at the user's ask,
+  KAN-923, 2026-11-19). KAN-580 had put one in the footer and the phone
+  menu for WCAG 2.2.2 (a way to pause anything that moves on its own for
+  more than five seconds), with its choice kept in localStorage
+  (`workit:motion`) as `data-motion="paused"` on `<html>`. The button,
+  its state (`motion-toggle.tsx`, `motion-pause.ts`) and landing.css's
+  rule that held each CSS loop are deleted, and nothing reads the key, so
+  a visitor who had paused is not left paused with no way back. **This
+  leaves WCAG 2.2.2 open on the home page**: the hero's lights and the
+  logo strip's drift loop with no pause on the page; only the operating
+  system's reduced motion stills them. Bringing a pause back means
+  restoring those two files and the CSS rule from git history.
+  - Timed loops still read `useLoopsHeld` (hooks.ts), now a hidden tab
+    alone: the tagline, each `Story`, the statement, the coin ring, the
+    sorting line's flow, the applications section's loop below lg, and
+    the two long scene steps (Resumes' tailoring beats, Auto Apply's
+    form, one field at a time). A story holds on its scene while the tab
+    is hidden and its hold starts again when it shows. A short move
+    already under way, under about 2.5 s, still ends.
+  - CSS loops run on, opacity and transform only, and stop with reduced
+    motion.
 - **The marketing pages run Lenis with the wheel left native**
   (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
   `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides

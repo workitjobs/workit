@@ -219,16 +219,17 @@ the pill painted under the grey and the open tab did not show.
 
 ## Motion
 
-`frontend/CLAUDE.md` holds the rules (Pause Animations, reduced motion,
-scroll performance). In short: stories loop only on screen and pause;
-drifting rows (`.drift-row`) pause; reveals play once (`Arrive`); nothing
-pins; no shine sweeps or glows.
+`frontend/CLAUDE.md` holds the rules (reduced motion, scroll
+performance). In short: stories loop only on screen; reveals play once
+(`Arrive`); only the product sections pin; no shine sweeps or glows.
+There is no Pause Animations button since the user had it removed, which
+leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 
 Motion shows what the product does, in the order it happens: the hero's
 tiles light up for a fit and their match bars fill as they do, the
 journey's pictures play their step once. Every loop runs on opacity and
-transform only (off the main thread), shares its element's cycle, and
-joins the Pause Animations list; a number that counts up or a stroke that
+transform only (off the main thread) and shares its element's cycle; a
+number that counts up or a stroke that
 draws would run on the main thread for the whole loop, so a fill is a
 translate inside a clipped track.
 

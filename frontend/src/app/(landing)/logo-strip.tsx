@@ -12,7 +12,7 @@ import { CONTAINER, TYPE } from "./layout-parts";
  * ends. Proof that the jobs are real before the page explains anything.
  * The row is drawn twice for a seamless loop; the copy is hidden from
  * assistive technology, which reads the list once. A server component: the
- * drift is CSS, held by Pause Animations and still with reduced motion.
+ * drift is CSS, still with reduced motion.
  */
 export function LogoStrip() {
   const { line, employers } = logoStrip;

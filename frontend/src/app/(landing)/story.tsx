@@ -9,8 +9,8 @@ import { useLoopsHeld } from "./hooks";
 /**
  * A product tour stop told as a short story that loops a scene at a time,
  * never every step at once (all four tour stops). It plays only while in
- * view and starts over each time it comes back; Pause Animations and a hidden
- * tab hold it on its scene, and the scene's hold starts again on Play. A
+ * view and starts over each time it comes back; a hidden tab holds it on
+ * its scene, and the scene's hold starts again when the tab shows. A
  * glass pill over the stage
  * titles the current scene and numbers it; it is not a switcher (the team
  * removed the step bar's buttons) and has no progress line (removed too).

@@ -45,7 +45,7 @@ export function HeroTitle() {
   const at = reduceMotion ? hero.rest : (hero.rest + step) % hero.phrases.length;
   const phrase = hero.phrases[at];
 
-  // Paused off screen, in a hidden tab and by Pause Animations: a page
+  // Paused off screen and in a hidden tab: a page
   // opened behind another does not loop the phrases unseen and then play
   // the stalled swaps all at once, and a reader further down costs nothing.
   const held = useLoopsHeld();

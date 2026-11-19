@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { site } from "./data";
 import { featurePages } from "./features/catalog";
 import { PANEL } from "./layout-parts";
-import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
 
 /**
@@ -89,13 +88,10 @@ export function Footer() {
         </div>
 
         <div className="mx-auto w-full max-w-6xl px-6 sm:px-10 lg:px-8">
-          <div className="flex flex-col gap-4 border-t border-white/10 py-6 text-sm text-white/80 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-t border-white/10 py-6 text-sm text-white/80">
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>
-            {/* The page's loops stop here (WCAG 2.2.2, KAN-580). Its ::after
-                takes the tap to 44px without changing the row. */}
-            <MotionToggle className="relative self-start text-white/80 transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-white sm:self-auto" />
           </div>
         </div>
 

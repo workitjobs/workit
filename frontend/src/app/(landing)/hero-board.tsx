@@ -77,7 +77,7 @@ function lightOf(tile: number) {
  * unsatisfying beside the sketch of this grid, and a violet mesh gradient,
  * too close to Calendly's. A server component with no script: the
  * lights are CSS loops on opacity and transform (`.board-lit`), one length
- * per posting (`LOOPS`), held by Pause Animations; with reduced motion one
+ * per posting (`LOOPS`); with reduced motion one
  * tile per posting is lit and still (`STILL`). The grid fills the
  * hero panel edge to edge, the headline's tile in its middle and the small
  * tiles flowing round it, with as many columns as keep the tiles near

@@ -59,41 +59,6 @@
   outline-offset: 2px;
 }
 
-/*
- * Pause Animations (motion-pause.ts, KAN-580): every endless CSS loop holds
- * on the frame it is at, and Play goes on from there. The loops only, by
- * name: an entrance (the city's fade in, the hero's rise, Pricing's rows)
- * paused before it ran would hide what it brings in. A new loop joins this
- * list. !important beats each piece's `animation` shorthand, as the city's
- * off-screen pause does.
- */
-:root[data-motion="paused"]
-  :is(
-    .slop-word,
-    .line-scan,
-    .bridge-float,
-    .hero-city .streak,
-    .hero-city .msolid,
-    .hero-city .mwire .wire,
-    .hero-city .mwire .we,
-    .hero-city .swire,
-    .hero-city .pool,
-    .hero-city .tag,
-    .hero-city .tag > * > *,
-    .tour-spin,
-    .tour-scan,
-    .tour-typing,
-    .gate-scan *,
-    .gate-shield *,
-    .gate-bot *,
-    .workit-hop circle,
-    .drift-row,
-    .board-lit,
-    .board-bar
-  ) {
-  animation-play-state: paused !important;
-}
-
 /* The scan's sheet of light in the sorting line's gate (sorting-line.tsx). */
 .line-scan {
   opacity: 0.1;
@@ -1325,9 +1290,8 @@ html[data-tab-flight="flying"] .tour-tabs {
  * keep the grid from falling into an order the eye learns (the user found
  * one 14s loop over seven fixed tiles too orderly). About two to four
  * tiles are lit at once on a laptop or a monitor, one on a phone.
- * Opacity and transform only, so it runs off the main thread. Held by
- * Pause Animations (the list at the top of this file); with reduced motion
- * one tile per posting (`data-still`) is lit and still.
+ * Opacity and transform only, so it runs off the main thread. With
+ * reduced motion one tile per posting (`data-still`) is lit and still.
  */
 /*
  * A lit tile is the bright glass card of a posting (KAN-923, the user's ask
@@ -1451,8 +1415,7 @@ html[data-tab-flight="flying"] .tour-tabs {
  * A row that drifts sideways for ever (the logo strip, the closing call to
  * action's chips): the row holds its items twice and moves by half its
  * width, so the loop has no seam. Slow on purpose, a backdrop, not a
- * ticker. Held by Pause Animations (the list at the top of this file) and
- * still with reduced motion.
+ * ticker. Still with reduced motion.
  */
 .drift-row {
   animation: drift-row var(--drift, 60s) linear infinite;

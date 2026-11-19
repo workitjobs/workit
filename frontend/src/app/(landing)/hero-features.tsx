@@ -36,8 +36,8 @@ const VISUALS: Record<FeatureId, ComponentType> = {
  * the four feature tabs and one card for the open one, its copy beside its
  * story in a framed box. Each story plays once, whole, and the next tab
  * opens (`StoryEnd`); once the visitor picks a tab the card stays on it and
- * its story loops. The story holds while off screen, in a hidden tab and on
- * Pause Animations (story.tsx), so the tabs only move while someone watches.
+ * its story loops. The story holds while off screen and in a hidden tab
+ * (story.tsx), so the tabs only move while someone watches.
  * It replaced the city hero, the bridge and the pinned tour, which took the
  * whole screen. A WAI tabs pattern: arrow keys move between tabs.
  */

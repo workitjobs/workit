@@ -97,8 +97,7 @@ function timeOf(cue: number, cues: readonly Cue[]) {
 }
 
 /** Seconds that pass only while `running`: a resting phase's loop, which
- * its caller stops off screen, in a hidden tab and on Pause Animations
- * (`useLoopsHeld`). */
+ * its caller stops off screen and in a hidden tab (`useLoopsHeld`). */
 export function useLoopClock(running: boolean): MotionValue<number> {
   const clock = useMotionValue(0);
   React.useEffect(() => {

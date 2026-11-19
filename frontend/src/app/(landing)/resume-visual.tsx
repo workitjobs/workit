@@ -378,7 +378,7 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
     setWasTailored(tailored);
     setBeat(0);
   }
-  // Held on its beat by Pause Animations, like the story around it.
+  // Held on its beat in a hidden tab, like the story around it.
   const held = useLoopsHeld();
   React.useEffect(() => {
     if (!tailored || held || beat >= suggestions.length * 2) return;

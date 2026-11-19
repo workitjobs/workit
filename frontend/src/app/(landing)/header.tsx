@@ -13,7 +13,6 @@ import { FloatingHeader } from "./floating-header";
 import { PrimaryButton, SecondaryButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
-import { MotionToggle } from "./motion-toggle";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
 import { resourcePages, type Resource } from "./resources/catalog";
 import { SessionSwap } from "./session-swap";
@@ -157,7 +156,6 @@ export function Header() {
           }
           signedIn={<OpenWorkIt size="lg" className="mt-4 w-full" />}
         />
-        <MotionToggle className="text-ink-meta hover:bg-surface hover:text-ink mt-2 h-11 w-full justify-center rounded-lg text-sm font-medium transition-colors" />
       </MobileMenu>
     </FloatingHeader>
   );
