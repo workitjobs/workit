@@ -3592,23 +3592,44 @@ violet, and red marks only a failure. The first build drew the rail as one
 white panel with rules and its bars in green, which the user found was not
 WorkIt's look.
 
-`/admin/scrape-health` (the scraper's health, KAN-879) is two columns from
-lg up, each with its own scroll: the tables (the boards per hiring system
-with how many were ever read, and per day (UTC) per hiring system the board
-reads done and failed, their mean seconds and the new jobs, picked by
-day pills that are links) and a stats rail (`scrape-health/rail.tsx`: the
-share of boards ever read as a gauge, the period's reads done against
-failed as one bar, the counts now, and the failing boards with their last
-error; its frame, `closable-rail.tsx`, has a Close button, and Show Stats
-in the rail's place brings it back), from `GET /admin/scrape-health`. The
-collapse and the close are plain state: a reload opens both again
-under the same `WORKIT_ADMINS` gate (403 → the 404). Its shape
-(`ScrapeHealth`) and `daysOf` are in `lib/fill-health.ts`; its read is
-`getScrapeHealth` in `fill-report-queries.ts`. The API keeps its answer
-for 10 minutes, so the page shows when it was read and has no Refresh; its
-line for the scheduled scrape's last import goes when the worker takes
-over (`backend/CLAUDE.md`). No page links to an admin
-page: open it by its address.
+`/admin/scrape-health` (the scraper's health, KAN-879) is a dashboard
+beside a details rail, each with its own scroll from lg up, read from `GET
+/admin/scrape-health` under the same `WORKIT_ADMINS` gate (403 → the 404).
+The day pills at the top are links and pick the period for all of it. Top
+to bottom, each part its own file in `admin/scrape-health/`:
+
+- **Four filled tiles** (`tiles.tsx`): boards ever read, new jobs seen,
+  tasks pending and failed reads. White text sits only on a fill that
+  holds 4.5:1 (`bg-brand`, `bg-positive-ink`, `bg-advanced`, `bg-danger`),
+  and the red tile is the failure number only.
+- **Board Reads per Day** (`charts.tsx`, `DailyReads`): stacked columns,
+  done in brand under failed in red, on one axis. Every day of the period
+  has a column's place, so a day with no reads is a gap.
+- **Boards by Hiring System** (`SystemBars`): one bar per system, its
+  length the system's boards and its dark part the boards ever read, with
+  both numbers on the row. **Bars, never a donut**: 13 systems are
+  compared with each other, which a donut's slices cannot show, and 13
+  slice colours cannot be told apart.
+- **Board Reads** (`reads-table.tsx`, a client component): the table,
+  filtered in the browser by hiring system and by whether a row has
+  failed reads. The rows are the page's own, so a filter asks the API
+  nothing.
+- **The rail** (`rail.tsx` in `closable-rail.tsx`): the counts now and the
+  failing boards with their last error. Close Details hides it and Show
+  Details in its place brings it back.
+
+The charts are plain HTML and CSS with no chart library, and a mark's
+tooltip is its `title`. A section's card is `Panel` (`admin/panel.tsx`:
+the title and any control over a rule), with `TH` and `TD` for a table in
+one; a new admin section uses them. The main column is a `@container`, so
+its grids follow its own width, which changes when the rail or the sidebar
+closes. The sidebar's collapse and the rail's close are plain state: a
+reload opens both again. The API keeps its answer for 10 minutes, so the
+page shows when it was read and has no Refresh; its line for the scheduled
+scrape's last import goes when the worker takes over
+(`backend/CLAUDE.md`). `ScrapeHealth` and `daysOf` are in
+`lib/fill-health.ts`; the read is `getScrapeHealth` in
+`fill-report-queries.ts`.
 
 ## Screens, design and motion
 
