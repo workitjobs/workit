@@ -15,7 +15,7 @@ import { EXTENSION_INSTALL_URL } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { AppWindowScene, FillingScene, QuestionScene, SubmitScene } from "./graphics";
+import { AppWindowScene, EssayScene, FillingScene, QuestionScene, SubmitScene } from "./graphics";
 
 export const metadata: Metadata = {
   title: "Auto Apply Desktop",
@@ -39,12 +39,19 @@ const NEEDS: { Icon: ComponentType<{ className?: string }>; text: string }[] = [
   { Icon: CheckCircleIcon, text: "Free during the beta, with a daily usage limit" },
 ];
 
-/** The three moments of a run, in the order a run goes. */
+/** The four moments of a run, in the order a run goes. The essays are
+ *  written by the models behind WorkIt's Model route (D5 of the design doc),
+ *  from the student's own experiences, in their voice. */
 const MOMENTS: { title: string; body: string; scene: ReactNode }[] = [
   {
     title: "It Fills Out Each Form",
     body: "Each job opens in its own Chrome window, and the app fills out the form from your WorkIt profile and resume.",
     scene: <FillingScene />,
+  },
+  {
+    title: "It Writes Your Essay Answers",
+    body: "Questions like “Why do you want to work here?” get a personal answer, written from your own experiences and in your voice.",
+    scene: <EssayScene />,
   },
   {
     title: "It Asks When It Needs You",
@@ -70,9 +77,10 @@ const MOMENTS: { title: string; body: string; scene: ReactNode }[] = [
  * Mac, then one tile per moment of a run (./graphics.tsx). It reads
  * nothing, so it renders with no API call. Its copy follows what the app
  * does (docs/desktop_application_auto_apply.md, section 3): it fills each
- * form in its own Chrome window, asks the student what their profile
- * doesn't answer, and stops on each form's last page, where the student
- * presses Submit. So the page never says WorkIt applies or submits.
+ * form in its own Chrome window, writes its essay answers from the
+ * student's experiences, asks the student what their profile doesn't
+ * answer, and stops on each form's last page, where the student presses
+ * Submit. So the page never says WorkIt applies or submits.
  *
  * The title is the bar's ("Auto Apply Desktop", ../bar-title.tsx), the
  * page's h1; the hero's headline is an h2 and each tile's title an h3.
@@ -148,10 +156,14 @@ export default function AutoApplyDesktopPage() {
         </div>
       </Card>
 
-      <ol className="grid gap-4 lg:grid-cols-3">
+      {/* Two by two from lg, so each drawing stays big; four across left
+          the two Chrome windows of the first tile about 120px wide. */}
+      <ol className="grid gap-4 lg:grid-cols-2">
         {MOMENTS.map(({ title, body, scene }) => (
           <Card as="li" key={title} padding="none" className="flex flex-col">
-            <div className="bg-well m-2 flex h-80 items-center rounded-[0.5rem] px-6">{scene}</div>
+            <div className="bg-well m-2 flex min-h-80 items-center rounded-[0.5rem] px-6 py-6 lg:h-80 lg:py-0">
+              <div className="mx-auto w-full max-w-lg">{scene}</div>
+            </div>
             <div className="px-5 pt-3 pb-5">
               <h3 className="text-subtitle text-ink">{title}</h3>
               <p className="text-body text-ink-meta mt-1">{body}</p>

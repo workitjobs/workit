@@ -2037,9 +2037,14 @@ the app's own window (`apply-agent/window/src`) with its words: a hero with
 the app's window in front of a Chrome window it fills, Download for Mac and
 what the app needs (an Apple Silicon Mac on macOS 13 or later, Google
 Chrome, free in the beta with a daily limit), then one tile for each moment
-of a run (it fills each form, it asks when it needs you, you press Submit).
+of a run, two by two from lg so each drawing stays big: it fills each
+form, it writes the essay answers ("Why do you want to work here?") from
+the student's own experiences and in their voice, it asks when it needs
+you, and you press Submit. Below lg a tile's grey stage grows with its
+drawing; from lg it is 320px, so the titles under the drawings line up.
 The copy follows what the app does: it never says WorkIt applies or
-submits. The drawings are `aria-hidden` with no headings. Their one motion
+submits, and the essay names nothing about the company beyond its posting,
+since company facts wait on W9. The drawings are `aria-hidden` with no headings. Their one motion
 is each progress bar drawing out once on load.
 
 **Download for Mac is off until there is a build.** `DOWNLOAD_URL` in

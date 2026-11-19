@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import type { CSSProperties, ReactNode } from "react";
 
+import { SparkleIcon } from "@/components/sparkle-icon";
 import { cn } from "@/lib/cn";
 
 /**
@@ -339,7 +340,37 @@ function MiniForm({
   );
 }
 
-/** The second tile: a question the student's profile doesn't answer, as
+/**
+ * The second tile: an essay question in a form's own box, the answer
+ * written into it from the student's experiences (the Figma club project
+ * is one of Alex's, like UCLA in the first tile), stopped mid-sentence with
+ * a still caret. The line under the box carries the AI mark, `SparkleIcon`.
+ * The answer names nothing about the company beyond what its posting
+ * says: company facts wait on W9 of the design doc.
+ */
+export function EssayScene() {
+  return (
+    <div aria-hidden className="w-full select-none">
+      <ChromeWindow site="jobs.ashbyhq.com/figma" tab="Figma: Software Engineer Intern">
+        <div className="p-4">
+          <p className="text-body text-ink font-semibold">Why do you want to work at Figma?</p>
+          <p className="border-border-control text-body text-ink-muted mt-2 rounded-md border px-3 py-2.5 leading-relaxed">
+            Last spring I led four friends in rebuilding our club&apos;s event app, and we planned
+            every screen together in one Figma file. Watching four people shape one design at once,
+            with no one waiting on anyone, made me want to build
+            <span className="bg-brand ml-0.5 inline-block h-4 w-0.5 translate-y-0.5" />
+          </p>
+          <p className="text-note text-brand-ink mt-2.5 flex items-center gap-1.5 font-medium">
+            <SparkleIcon className="size-3.5 shrink-0" />
+            Written from your experiences, in your voice
+          </p>
+        </div>
+      </ChromeWindow>
+    </div>
+  );
+}
+
+/** The third tile: a question the student's profile doesn't answer, as
  *  the app's question card asks it, with one option picked. */
 export function QuestionScene() {
   return (
@@ -369,7 +400,7 @@ export function QuestionScene() {
   );
 }
 
-/** The third tile: the form's last page, the student's pointer on its Submit. */
+/** The fourth tile: the form's last page, the student's pointer on its Submit. */
 export function SubmitScene() {
   return (
     <div aria-hidden className="relative w-full select-none">
