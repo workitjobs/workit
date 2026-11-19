@@ -16,12 +16,19 @@ screens follow `design.md`, not this file.
 2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
    check, a feature's icon tile, Plus's limit pills, the slop word. It
    never fills a button or a card. The one exception is the home hero's
-   headline tile, pastel violet in one hue, at the user's ask.
-3. **Size carries hierarchy, not weight.** Every heading is weight 500;
+   lit tiles, solid brand violet with white text.
+3. **Value before hue.** Check a screen in greyscale: the surfaces that
+   must separate need distinct lightness, and the main action must be the
+   strongest contrast in its area. The home hero once had every surface
+   between 94% and 100% lightness (pairs at 1.01 to 1.11 contrast) and read
+   as a loading skeleton; a different hue did not fix it, a lightness step
+   did. Keep one colour temperature per area: violet-tinted greys with
+   violet, never a cool grey beside a violet tint.
+4. **Size carries hierarchy, not weight.** Every heading is weight 500;
    the steps of `TYPE` do the work.
-4. **Motion stays in its box.** Nothing pins to the screen; a loop has a
+5. **Motion stays in its box.** Nothing pins to the screen; a loop has a
    pause; a reveal plays once.
-5. **Reuse before drawing.** Every role below is one class or one
+6. **Reuse before drawing.** Every role below is one class or one
    component. A page may not invent a sixth button or a second card.
 
 ## Colour roles
@@ -35,9 +42,10 @@ screens follow `design.md`, not this file.
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
 | Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
-| Panel ground | `.panel-ground` | The home hero's and the features section's panels: flat pale ink-grey under white tiles and cards |
-| Headline tile | `.hero-copy`: brand-100 to brand-50, a soft brand-300 glow from the top | The home hero's headline; ink text on it |
-| Lit tile | brand at 13% over white, brand-800 text, a `bg-brand` bar | The home hero's postings that fit |
+| Panel ground | `.panel-ground` (brand-100) | The home hero's and the features section's panels |
+| Empty tile | white at 55%, no edge | The hero's tiles that are not lit; they recede |
+| Headline tile | `.hero-copy`: white, a soft violet shadow | The hero's brightest surface; ink text, the Google pair on it |
+| Lit tile | `--color-brand` fill, white text (85% white for second lines) | The hero's fits; the only saturated colour in it |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -101,14 +109,14 @@ heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 
 ### The home hero's grid (`hero-board.tsx`)
 
-The first screen and nothing else: a grey panel the screen's height,
-filled edge to edge by tiles. The headline sits in one large pastel
-violet tile in the middle, ink text on it (a deep violet was too dark and
-strong). White tiles flow round it; seven
-light up in turn in soft violet with a real employer, the role and the
-match as a percentage over a slim bar. Columns follow the screen's shape
-so the tiles stay near square. The four features follow below, in their
-own section.
+The first screen and nothing else: a pale violet panel the screen's
+height, filled edge to edge by tiles. The headline sits in one large white
+tile in the middle, the brightest surface. Empty tiles recede at 55% white;
+seven tiles light up in turn in solid brand violet, with a real employer,
+the role and the match as a percentage over a slim white bar, set in the
+Jobs page job card's weights (role medium, company regular, match
+semibold) in white. Columns follow the screen's shape so the tiles stay
+near square. The four features follow below, in their own section.
 
 ### Cards
 
@@ -162,13 +170,14 @@ pins; no shine sweeps or glows.
 | A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
+| Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
 | `.glass-card` tinted violet with a violet ring | Neutral frosted white | Same |
 | Pricing's violet gradient Plus card and its shine | Solid ink card | Same; the shine was decoration |
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: the hero's lit tiles, eyebrows, checks, feature
-icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the panel ground, the hero's lit tiles, eyebrows,
+checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.

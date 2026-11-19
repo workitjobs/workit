@@ -1123,13 +1123,15 @@ html[data-tab-flight="flying"] .tour-tabs {
   mix-blend-mode: soft-light;
 }
 
-/* The home hero's panel and the features section's (KAN-923): a flat,
- * very pale ink-grey, so white tiles and cards read on it. It replaced a
- * violet, blue and pink mesh gradient, which the user found too close to
- * Calendly's and without feel. Neutral on purpose: in the hero the colour
- * comes from the tiles that light up. */
+/* The home hero's panel and the features section's (KAN-923): the pale
+ * brand violet (brand-100), so every surface in the hero shares one colour
+ * temperature. It was a cool ink-grey, beside white tiles, a lavender
+ * headline tile and Google's neutral-grey buttons: four near-whites in
+ * three temperatures, all between 94% and 100% lightness, which read as a
+ * loading skeleton (the user's "something feels off"; the diagnosis is in
+ * docs/marketing-design-system.md). */
 .panel-ground {
-  background: color-mix(in oklab, var(--color-ink) 4%, white);
+  background: var(--color-landing-brand-100);
 }
 
 /*
@@ -1165,9 +1167,10 @@ html[data-tab-flight="flying"] .tour-tabs {
   grid-template-rows: auto 1fr auto;
   gap: 0.5rem;
 }
+/* An empty tile recedes: white at 55% over the violet ground, no edge. */
 .hero-tile {
   aspect-ratio: 1;
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.04);
+  background: rgb(255 255 255 / 0.55);
   container-type: size;
 }
 /* A lit tile's role needs about 116px of tile height beside its logo and
@@ -1182,52 +1185,26 @@ html[data-tab-flight="flying"] .tour-tabs {
   display: none;
 }
 /*
- * The headline's tile: pastel WorkIt violet, so it stands out of the white
- * tiles (the user's ask), in one hue only: brand-100 at the top to brand-50
- * at the foot, a soft brand-300 glow from the top centre and a little in
- * one corner, under the boxes' grain. The user turned down a deep violet
- * (brand-700 to brand-950, white text) as too dark and strong. No second
- * hue: a violet-to-pink-to-blue sweep is the AI-made look the site moved
- * away from. Its text is ink, as on white.
+ * The headline's tile: plain white with a soft violet shadow, the brightest
+ * surface in the hero, so it stands out by lightness over the violet ground
+ * and the receding tiles, and Google's #F2F2F2 pair reads on it. It was a
+ * pastel violet gradient (and before that a deep one), which sat at the
+ * same lightness as the ground and the lit tiles (1.01 to 1.05 contrast).
  */
 .hero-copy {
   grid-column: 1 / -1;
   grid-row: 2;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2.5rem 1rem;
   border-radius: 1rem;
-  background:
-    radial-gradient(
-      70% 60% at 50% -10%,
-      color-mix(in oklab, var(--color-landing-brand-300) 70%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      50% 45% at 100% 100%,
-      color-mix(in oklab, var(--color-landing-brand-300) 40%, transparent),
-      transparent 70%
-    ),
-    linear-gradient(180deg, var(--color-landing-brand-100), var(--color-landing-brand-50));
+  background: white;
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    0 0 0 1px rgb(15 23 42 / 0.04);
+    0 0 0 1px rgb(58 30 124 / 0.06),
+    0 18px 40px -24px rgb(58 30 124 / 0.35);
   text-align: center;
-}
-.hero-copy::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.18;
-  mix-blend-mode: soft-light;
 }
 @media (min-width: 40rem) {
   .hero-grid {
@@ -1285,7 +1262,7 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * A tile lights up (hero-board.tsx): its soft violet face fades in over the
+ * A tile lights up (hero-board.tsx): its solid violet face fades in over the
  * white tile, settling from just under its size to its place, holds for
  * about a third of the cycle (never bigger than its cell: lifted 4% it
  * stood out of line with its neighbours, which the user flagged),

@@ -27,10 +27,12 @@ const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23
 /**
  * The home hero's grid (KAN-923, the user's pick): square white tiles round
  * the headline, which sits in one large white tile of its own, and the
- * tiles of the postings that fit you light up in soft violet, in turn,
- * with the company, the role and the match as a percentage over a bar
- * (`MatchBar`), as the Jobs page puts the best fits first. Soft violet is
- * the user's pick over the green of the first sketch. It
+ * tiles of the postings that fit you light up in solid brand violet, in
+ * turn, with the company, the role and the match as a percentage over a
+ * bar (`MatchBar`), as the Jobs page puts the best fits first. Their text
+ * is white in the Jobs page job card's weights (compact-job-card.tsx: the
+ * role medium, the company regular, the match semibold), never violet on
+ * violet, which the user found off; 85% white keeps 5:1 on the brand. It
  * replaced a board of wide grey posting cards, which the user found
  * unsatisfying beside the sketch of this grid, and before it a violet mesh
  * gradient, too close to Calendly's. A server component with no script: the
@@ -48,13 +50,13 @@ export function HeroGrid({ children }: { children: ReactNode }) {
         const turn = LIT[i];
         const posting = turn === undefined ? null : heroFits[turn];
         return (
-          <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl bg-white">
+          <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl">
             {posting && (
               <div
                 className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
                 style={
                   {
-                    background: "color-mix(in oklab, var(--color-brand) 13%, white)",
+                    background: "var(--color-brand)",
                     "--d": `${-(turn * CYCLE) / heroFits.length}s`,
                     "--cycle": `${CYCLE}s`,
                   } as CSSProperties
@@ -66,14 +68,14 @@ export function HeroGrid({ children }: { children: ReactNode }) {
                     eager
                     className="size-5 rounded-md shadow-none lg:size-6"
                   />
-                  <span className="text-landing-brand-800 hidden truncate text-[11px] font-semibold lg:block">
+                  <span className="hidden truncate text-xs font-normal text-white/85 lg:block">
                     {posting.company}
                   </span>
                 </span>
                 {/* The role, from lg up and on a tile at least 116px tall
                     (`.tile-role` in landing.css), where it has room for two
                     lines; otherwise the tile shows the company and match. */}
-                <span className="tile-role text-ink mt-1.5 line-clamp-2 hidden text-xs leading-tight font-semibold lg:block">
+                <span className="tile-role mt-1.5 line-clamp-2 hidden text-[13px] leading-tight font-medium text-white lg:block">
                   {posting.title}
                 </span>
                 <MatchBar score={posting.score} />
@@ -96,15 +98,11 @@ function MatchBar({ score }: { score: number }) {
   return (
     <span className="mt-auto block">
       <span className="flex items-baseline gap-1">
-        <span className="text-landing-brand-800 text-xs font-bold tabular-nums lg:text-sm">
-          {score}%
-        </span>
-        <span className="text-landing-brand-800/80 hidden text-[11px] font-medium lg:inline">
-          match
-        </span>
+        <span className="text-xs font-semibold text-white tabular-nums lg:text-sm">{score}%</span>
+        <span className="hidden text-[11px] font-normal text-white/85 lg:inline">match</span>
       </span>
-      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/80">
-        <span className="bg-brand block h-full rounded-full" style={{ width: `${score}%` }} />
+      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/25">
+        <span className="block h-full rounded-full bg-white" style={{ width: `${score}%` }} />
       </span>
     </span>
   );

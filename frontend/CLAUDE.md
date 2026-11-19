@@ -279,22 +279,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
   - **The hero is the first screen and nothing else** (the user's call,
-    2026-11-19): a grey panel (`.panel-ground`) the screen's height under
+    2026-11-19): a pale violet panel (`.panel-ground`, brand-100) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
     header and the 8/24px inset; a minimum, so a screen too short for the
     headline grows the hero rather than clipping it), filled edge to edge
     by a grid of tiles (`HeroGrid` in `hero-board.tsx`, `.hero-grid` in
     landing.css). The headline, line and sign-up pair sit in one large
-    tile in the middle (`.hero-copy`): pastel WorkIt violet in one hue
-    (brand-100 to brand-50, a soft brand-300 glow from the top, grain),
-    ink text; the user turned down a deep violet with white text as too
-    dark and strong, and a second hue would be the AI-made sweep the site
-    moved away from. White tiles flow round it; seven light up in
-    turn in soft violet with a real employer, the role (from lg up, on a
+    tile in the middle (`.hero-copy`): plain white with a soft violet
+    shadow, the brightest surface, so it leads by lightness. Empty tiles
+    flow round it at 55% white with no edge, so they recede; seven light up
+    in turn in solid brand violet with a real employer, the role (from lg up, on a
     tile at least 116px tall: `.tile-role` hides by a container query on
     the tile, since on a short wide screen its second line ran into the
     bar) and the match as a percentage over a slim bar (`MatchBar`; a ring took too much
-    height), at their cell's size (lifted 4% they stood out of line).
+    height), at their cell's size (lifted 4% they stood out of line). A lit
+    tile's text is white in the Jobs page job card's weights
+    (`compact-job-card.tsx`: role medium, company regular, match semibold;
+    85% white for the second line, 5:1 on the brand), never violet on
+    violet. **Why this palette** (the user's "something feels off",
+    measured): before it every surface sat between 94% and 100% lightness
+    in three temperatures (a cool grey ground, white tiles, a lavender
+    headline tile, Google's neutral buttons), the pairs that had to
+    separate measured 1.01 to 1.11 contrast, and the blank white boxes on
+    grey read as a loading skeleton. A pastel and a deep violet headline
+    tile were tried before the white one. Keep the steps: ground mid
+    (brand-100), empty tiles a little lighter, headline tile the lightest,
+    lit tiles the only saturated colour.
     Below lg the tiles are square, one row above the headline's tile and
     one below; from lg up the grid is 5 rows sharing the panel's height,
     the headline's tile spans the middle 3 and all but the outer columns,
