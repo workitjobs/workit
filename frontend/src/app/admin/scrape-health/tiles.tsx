@@ -26,7 +26,7 @@ function Tile({
   fill: string;
 }) {
   return (
-    <div className={cn("rounded-card text-on-brand relative overflow-hidden p-5", fill)}>
+    <div className={cn("rounded-card text-on-brand @container relative overflow-hidden p-5", fill)}>
       <p className="text-3xl font-bold tracking-tight tabular-nums">{value}</p>
       <p className="text-caption mt-1 uppercase">{label}</p>
       <p className="text-label mt-3 font-normal opacity-90">{note}</p>
@@ -34,7 +34,7 @@ function Tile({
         size={64}
         weight="fill"
         aria-hidden
-        className="absolute top-1/2 right-4 -translate-y-1/2 opacity-20"
+        className="absolute top-1/2 right-4 hidden -translate-y-1/2 opacity-20 @[13.5rem]:block"
       />
     </div>
   );
