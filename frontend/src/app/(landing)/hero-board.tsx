@@ -46,6 +46,18 @@ const ORDERS: Record<number, number[]> = {
   ],
 };
 
+/**
+ * Turns the loop to a random start and direction for this visit, before
+ * the first paint, so no two visits open on the same cards (landing.css,
+ * the `@supports` rule after `.board-lit`). The page is prerendered, so
+ * the server cannot choose: an inline script runs as the HTML is read.
+ * It writes to <html>, whose attributes React does not check when it
+ * hydrates (`suppressHydrationWarning` in the root layout), so the grid's
+ * own markup stays as the server drew it. With no script the fixed order
+ * plays.
+ */
+const SHUFFLE = `(function(){var s=document.documentElement.style;s.setProperty("--hero-start",String(Math.floor(Math.random()*${TILES})));s.setProperty("--hero-dir",Math.random()<0.5?"1":"-1")})()`;
+
 /** A tile's turn in each layout that shows it, as `--s<n>` for landing.css
  *  (`.board-lit`), which picks the one for the screen. */
 function turnsOf(tile: number) {
@@ -84,39 +96,44 @@ const STILL = new Set([1, 6, 10, 13, 16, 19, 23]);
  */
 export function HeroGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="hero-grid">
-      <div className="hero-copy">{children}</div>
-      {Array.from({ length: TILES }, (_, i) => {
-        const posting = heroFits[POSTING_OF[i]];
-        return (
-          <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl">
-            <div
-              data-still={STILL.has(i) || undefined}
-              className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
-              style={turnsOf(i)}
-            >
-              <span className="flex min-w-0 items-center gap-1.5">
-                <FaviconLogo
-                  domain={posting.domain}
-                  eager
-                  className="size-5 rounded-md lg:size-6"
-                />
-                <span className="text-ink-muted hidden truncate text-xs font-normal lg:block">
-                  {posting.company}
+    <>
+      {/* Before the grid, never in it: `.hero-grid`'s nth-child rules
+          count its children. */}
+      <script dangerouslySetInnerHTML={{ __html: SHUFFLE }} />
+      <div className="hero-grid">
+        <div className="hero-copy">{children}</div>
+        {Array.from({ length: TILES }, (_, i) => {
+          const posting = heroFits[POSTING_OF[i]];
+          return (
+            <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl">
+              <div
+                data-still={STILL.has(i) || undefined}
+                className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
+                style={turnsOf(i)}
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <FaviconLogo
+                    domain={posting.domain}
+                    eager
+                    className="size-5 rounded-md lg:size-6"
+                  />
+                  <span className="text-ink-muted hidden truncate text-xs font-normal lg:block">
+                    {posting.company}
+                  </span>
                 </span>
-              </span>
-              {/* The role, from lg up, in two lines, one or none by the
+                {/* The role, from lg up, in two lines, one or none by the
                     tile's height (`.tile-role` in landing.css), so it never
                     runs into the match. */}
-              <span className="tile-role text-ink mt-1.5 text-[13px] leading-tight font-medium">
-                {posting.title}
-              </span>
-              <MatchBar score={posting.score} />
+                <span className="tile-role text-ink mt-1.5 text-[13px] leading-tight font-medium">
+                  {posting.title}
+                </span>
+                <MatchBar score={posting.score} />
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

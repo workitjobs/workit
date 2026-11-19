@@ -1290,7 +1290,9 @@ html[data-tab-flight="flying"] .tour-tabs {
  * has gone. Each layout has its own order and keyframes, since each shows
  * a different number of tiles (8, 12, 20, 24 or 28, the `.hero-grid`
  * rules above): a tile's turn is `--s<n>`, set on it, and the layout picks
- * its `--slot`. The order starts 0.6 s in, so a card shows on load.
+ * its `--slot`. The first card fades in 1.5 s after the page loads
+ * (`--lead`), and each visit starts the order at a random tile in a
+ * random direction (below).
  * Opacity and transform only, so it runs off the main thread. With
  * reduced motion one tile per posting (`data-still`) is lit and still.
  */
@@ -1306,11 +1308,17 @@ html[data-tab-flight="flying"] .tour-tabs {
  */
 .board-lit {
   --turn: 3.4s;
+  /* No card until the page has settled (the user's call: one lit at the
+   * first paint looked pre-loaded); the first fades in at 1.5 s. */
+  --lead: 1.5s;
   --n: 8;
   --slot: var(--s8);
+  /* The tile's place in this visit's sequence: its turn, unless the
+   * shuffle below turns the loop to a random start and direction. */
+  --pos: var(--slot);
   opacity: 0;
   animation: board-lit-8 calc(var(--n) * var(--turn)) ease-in-out
-    calc((var(--slot) - var(--n)) * var(--turn) - 0.6s) infinite;
+    calc(var(--pos) * var(--turn) + var(--lead)) infinite;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.74));
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.8),
@@ -1327,7 +1335,7 @@ html[data-tab-flight="flying"] .tour-tabs {
  */
 .board-bar {
   animation: board-bar-8 calc(var(--n) * var(--turn)) cubic-bezier(0.16, 1, 0.3, 1)
-    calc((var(--slot) - var(--n)) * var(--turn) - 0.6s) infinite;
+    calc(var(--pos) * var(--turn) + var(--lead)) infinite;
 }
 @media (min-width: 40rem) {
   .board-lit {
@@ -1367,6 +1375,22 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
   .board-bar {
     animation-name: board-bar-28;
+  }
+}
+/*
+ * A different sequence each visit (the user's call: every load showed the
+ * same cards in the same places). An inline script in hero-board.tsx sets
+ * `--hero-start` (0 to 27) and `--hero-dir` (1 or -1) on <html> before the
+ * first paint, and each tile's place becomes its turn read from that start
+ * in that direction, wrapped round the layout's loop with `mod()`. Each
+ * order is a loop whose rules (no neighbours, no posting twice in a row)
+ * hold either way round and from any start, so one card at a time still
+ * holds. Where `mod()` is missing, or with no script, the fixed order
+ * plays.
+ */
+@supports (width: mod(3px, 2px)) {
+  .board-lit {
+    --pos: mod(calc(var(--slot) * var(--hero-dir, 1) - var(--hero-start, 0)), var(--n));
   }
 }
 /* One turn as a share of each layout's loop (made by a script: 0.45, 2.85

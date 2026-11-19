@@ -119,7 +119,8 @@ height, filled edge to edge by frosted glass tiles. The headline sits in
 one large solid white tile in the middle, the brightest surface.
 Postings light up as bright glass cards one at a time, each on a
 different tile in a shuffled order (never two neighbours, never the same
-posting twice in a row), each a real employer, the
+posting twice in a row) that starts at a random tile each visit, the
+first 1.5 s after load, each a real employer, the
 role and the match's strength in the app's bands ("Excellent Match" or
 "Good Match", from `lib/match.ts`) behind the app's own 14px match ring
 (`MatchGlyph`), over a slim bar in the band's colour that fills, the

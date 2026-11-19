@@ -324,9 +324,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     card appears somewhere else as the last one goes. A tile's turn in
     each order is `--s<n>` on it, and landing.css picks the layout's
     `--slot`, `--n` and keyframes (`board-lit-<n>`, `board-bar-<n>`, made
-    by a script from the turn's times). Measured at five layouts, 375 ×
-    812 to 2560 × 1080: never more than one card shown, the grid empty
-    about 5% of the time (the crossfade's edge). Before, every posting
+    by a script from the turn's times). **No card shows until the page has
+    settled**: the first fades in 1.5 s after load (`--lead`; one lit at
+    the first paint looked pre-loaded, the user's catch). **Each visit
+    starts somewhere else**: the page is prerendered, so an inline script
+    in `HeroGrid` (`SHUFFLE`, before the grid, never inside it, since the
+    grid's nth-child rules count its children) sets `--hero-start` and
+    `--hero-dir` on `<html>` before the first paint, and landing.css turns
+    each tile's turn round that start and direction with `mod()` (in an
+    `@supports` rule; without it, or without script, the fixed order
+    plays). It writes only to `<html>`, whose attributes hydration does
+    not check (`suppressHydrationWarning`, the root layout rule), so no
+    mismatch. Each order's rules hold from any start and either way.
+    Measured at five layouts, 375 × 812 to 2560 × 1080: never more than
+    one card shown, the grid empty about 5% of the time (the crossfade's
+    edge); over four loads, no card before 1.45 s and four different first
+    tiles. Before, every posting
     looped on its own (two to six lit at once, which the user found
     overlapping), and before that seven fixed tiles on one 14 s loop (too
     orderly). With reduced motion one tile per
