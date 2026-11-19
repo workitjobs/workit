@@ -3583,6 +3583,13 @@ with a bad report id), so a student still never sees it. Never add a
 `not-found.tsx` under `app/admin/`: it would draw the 404 inside the
 sidebar and show a student that the admin pages exist.
 
+**An admin page is cards on the grey ground in WorkIt's colours**: each
+section (a table, a rail block) is its own `Card` (`ui/card.tsx`), a
+chosen pill, a bar, a gauge and the sidebar's current link are brand
+violet, and red marks only a failure. The first build drew the rail as one
+white panel with rules and its bars in green, which the user found was not
+WorkIt's look.
+
 `/admin/scrape-health` (the scraper's health, KAN-879) is two columns from
 lg up, each with its own scroll: the tables (the boards per hiring system
 with how many were ever read, and per day (UTC) per hiring system the board
