@@ -17,9 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
 } from "@/components/shadcn/dropdown-menu";
 import { Tip } from "@/components/ui/tip";
 import type { RenderBox } from "@/lib/built-resume-actions";
@@ -75,21 +73,19 @@ export type PageOutline = {
   /** Adds a sibling after the block, and what it adds ("School",
    *  "Bullet"); null where nothing can be added. */
   addOf: (block: OutlineBlock) => { noun: string; add: (opener: HTMLElement) => void } | null;
-  /** The picked block's actions, for the bar over it. */
+  /** A block's actions, for its menu at the handle. */
   actionsOf: (block: OutlineBlock) => BlockAction[];
 };
 
 /** One item of a block's menu (KAN-920), in its group: what changes the
  *  block, where it sits, and taking it off the resume, which comes last
- *  and red. `shortcut` is a key the editor answers already, never one it
- *  does not. The item runs once the menu has closed, with the handle as
+ *  and red. The item runs once the menu has closed, with the handle as
  *  the element a dialog it opens gives the focus back to. */
 export type BlockAction = {
   key: string;
   text: string;
   group: "change" | "move" | "remove";
   icon: ReactNode;
-  shortcut?: string;
   disabled?: boolean;
   onClick: (opener: HTMLElement) => void;
 };
@@ -354,12 +350,11 @@ export function OutlineLayer({
   );
 }
 
-/** Alt on Windows and Linux is Option on a Mac, and a menu names it as the
- *  keyboard does. */
-const ALT =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌥" : "Alt+";
-
-/** A block's menu, hung from its handle (KAN-920). The item picked runs
+/** A block's menu, hung from its handle (KAN-920): its buttons and the
+ *  rules between their groups, nothing else. A heading with the block's
+ *  name and the moves' ⌥↑ and ⌥↓ were drawn in it first, and the user
+ *  found the menu off with more in it than its buttons (2026-11-19). The
+ *  item picked runs
  *  once the menu has closed, so the focus the menu hands back to the
  *  handle lands before a dialog the item opens takes it. */
 function BlockMenu({
@@ -408,7 +403,6 @@ function BlockMenu({
         {groups.map((items, i) => (
           <DropdownMenuGroup key={items[0].group}>
             {i > 0 && <DropdownMenuSeparator />}
-            {i === 0 && <DropdownMenuLabel className="truncate">{block.label}</DropdownMenuLabel>}
             {items.map((action) => (
               <DropdownMenuItem
                 key={action.key}
@@ -420,9 +414,6 @@ function BlockMenu({
               >
                 {action.icon}
                 {action.text}
-                {action.shortcut && (
-                  <DropdownMenuShortcut>{`${ALT}${action.shortcut}`}</DropdownMenuShortcut>
-                )}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>

@@ -3858,13 +3858,15 @@ student who opened a resume from Experiences landed on another view.
     brand, and the toolbar's middle shows where it sits, as a breadcrumb
     ("Experience › Acme › Bullet 2", `Crumbs`); an open line shows its
     breadcrumb too, and a step of it picks that block. The menu is the
-    app's ⋯ menu (`DropdownMenu`, anchored to the handle), headed by the
-    block's name, in three groups: what changes it (Edit, Add), where it
-    sits (Move Up, Move Down, with their ⌥↑ and ⌥↓, Alt+ off a Mac), and
-    Remove From Resume, last and red. A bullet's are Edit Bullet (opens it
-    for typing), Add Bullet Below, the moves and Remove; an entry's Edit
-    School… ("…": its form, for the dates and place the page does not
-    type), Add Bullet (an empty row last in its form), the moves and
+    app's ⋯ menu (`DropdownMenu`, anchored to the handle), its buttons
+    alone in three groups: what changes it (Edit, Add), where it sits (Move
+    Up, Move Down), and Remove From Resume, last and red. A heading with
+    the block's name, the moves' ⌥↑ and ⌥↓, and a "…" after an Edit that
+    opens a form were drawn first; the user found the menu off with more
+    in it than its buttons (2026-11-19). A bullet's are Edit Bullet (opens
+    it for typing), Add Bullet Below, the moves and Remove; an entry's Edit
+    School (its form, for the dates and place the page does not type), Add
+    Bullet (an empty row last in its form), the moves and
     Remove; a section's Add <noun>, the moves and Remove (every entry, or
     every skill), with no Edit, since its heading has nothing to type.
     Remove is the panel's hide, with Undo, the bank keeping the item; a

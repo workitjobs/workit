@@ -2577,8 +2577,8 @@ export function Editor({
   };
   /** A block's menu, at its handle (KAN-920): what the Sections panel's
    *  row does for it, in its words, plus its moves, in three groups. Edit
-   *  opens a bullet for typing on the page, and an entry's form ("…") for
-   *  its details (dates, location), which the page does not type; Add
+   *  opens a bullet for typing on the page, and an entry's form for its
+   *  details (dates, location), which the page does not type; Add
    *  Bullet puts an empty row in the entry's form, after the bullet or
    *  last; Remove From Resume is the panel's hide, with Undo, the bank
    *  keeping it. A section has no Edit: its heading has nothing to type. */
@@ -2591,7 +2591,6 @@ export function Editor({
         text: "Move Up",
         group: "move",
         icon: <ArrowUpIcon aria-hidden />,
-        shortcut: "↑",
         disabled: index <= 0,
         onClick: () => moveBlock(at, index - 1),
       },
@@ -2600,7 +2599,6 @@ export function Editor({
         text: "Move Down",
         group: "move",
         icon: <ArrowDownIcon aria-hidden />,
-        shortcut: "↓",
         disabled: index < 0 || index >= siblingCount(at) - 1,
         onClick: () => moveBlock(at, index + 1),
       },
@@ -2657,7 +2655,7 @@ export function Editor({
       return [
         {
           key: "edit",
-          text: `Edit ${noun}…`,
+          text: `Edit ${noun}`,
           group: "change",
           icon: <PencilIcon />,
           onClick: (opener) => form(opener),
