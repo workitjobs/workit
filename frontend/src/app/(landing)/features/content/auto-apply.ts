@@ -14,6 +14,8 @@ import {
   TextboxIcon,
 } from "@phosphor-icons/react/ssr";
 
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
+
 import { AutoApplyAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { AttachVisual, FillVisual, QueueVisual, SubmitVisual } from "../visuals/auto-apply";
@@ -88,8 +90,11 @@ const content: FeatureContent = {
     },
     {
       question: "Do I need the Chrome extension?",
-      answer:
-        "Yes. Auto Apply fills applications in your own Chrome, through the WorkIt extension.",
+      // The Mac app's answer only once there is a build to download
+      // (lib/auto-apply-desktop.ts, KAN-922).
+      answer: DESKTOP_DOWNLOAD_URL
+        ? "Not on a Mac. The WorkIt extension fills applications in your own Chrome. WorkIt Auto Apply for Mac, on the Download page, fills several at once in its own Chrome windows."
+        : "Yes. Auto Apply fills applications in your own Chrome, through the WorkIt extension.",
     },
   ],
   cta: {

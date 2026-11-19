@@ -13,6 +13,7 @@ import { getApplications, getRunApplications } from "../applications";
 import { getWrittenQuestions } from "../answers/questions";
 import { AutoApplyPanel } from "../auto-apply-panel";
 import type { SavedJob } from "../add-jobs-dialog";
+import { DesktopOffer } from "../desktop-offer";
 import { SetupRow } from "../setup-strip";
 import { UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
@@ -52,6 +53,9 @@ export const metadata: Metadata = {
  * Written Answers (../answers/page.tsx), which offers Connect Claude. A
  * failed read of the questions leaves the counts out: Up Next says when
  * the API is down.
+ *
+ * THE MAC APP'S OFFER (../desktop-offer.tsx, KAN-922), between the two:
+ * on a Mac, with a few jobs queued, once there is a build to download.
  *
  * UP NEXT'S TOOLBAR (../queue-filters.tsx): the search, the filters and
  * Table Settings, as every page table has; it filters and groups the rows
@@ -153,6 +157,7 @@ export default async function AutoApplyPage() {
         ) : (
           <>
             <SetupRow />
+            <DesktopOffer queued={queue.filter((item) => item.status === "queued").length} />
             <UpNext items={queue} saved={savedJobs} />
           </>
         )}

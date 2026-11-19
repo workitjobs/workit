@@ -1,11 +1,14 @@
+import { DownloadSimpleIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { hero, site, testimonial } from "./data";
+import { SecondaryButton } from "./buttons";
 import { Control } from "./control";
+import { hero, site, testimonial } from "./data";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
@@ -86,14 +89,22 @@ export default function LandingPage() {
             >
               {hero.subtitle}
             </p>
-            {/* The sign-up pair. A Download for Mac button (KAN-922) joins
-                this row: it wraps, so a third button needs no other change. */}
+            {/* The sign-up pair, then Download for Mac (KAN-922) as a
+                `SecondaryButton`, the same soft grey as the pair, only while
+                there is a build. The row wraps, so the third button needs no
+                other change. */}
             <div
               className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
               style={{ "--rd": ".4s" } as CSSProperties}
             >
               <SocialSignUpButton provider="google" />
               <SocialSignUpButton provider="linkedin_oidc" />
+              {DESKTOP_DOWNLOAD_URL && (
+                <SecondaryButton href={site.download.href}>
+                  <DownloadSimpleIcon aria-hidden className="size-5" />
+                  Download for Mac
+                </SecondaryButton>
+              )}
               <div className="w-full text-center sm:basis-full">
                 <EmailSignUpLink />
               </div>
