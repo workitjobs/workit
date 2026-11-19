@@ -1340,16 +1340,21 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * A tile lights up (hero-board.tsx): its solid violet face fades in over the
- * white tile, settling from just under its size to its place, holds for
- * about a third of the cycle (never bigger than its cell: lifted 4% it
- * stood out of line with its neighbours, which the user flagged),
- * and fades out, once per `--cycle`, each posting after its own `--d`
- * (negative, so the grid starts mid-cycle with some already lit), so two
- * or three show at once on a laptop. Opacity and transform only, so it runs off
- * the main thread. Held by
+ * A tile lights up (hero-board.tsx): its bright glass card fades in over
+ * the tile, settling from just under its size to its place (never bigger
+ * than its cell: lifted 4% it stood out of line with its neighbours, which
+ * the user flagged), holds and fades out, once per `--cycle`, after its own
+ * `--d` (negative, so the grid opens mid-flow with a few already lit).
+ * Every tile has one, and each posting's four tiles share a loop of their
+ * own length, a quarter loop apart (`LOOPS`, `TURN_ORDER` in
+ * hero-board.tsx). The light takes 15% of the loop, under a quarter, so a
+ * posting never shows on two tiles at once, and the different lengths
+ * keep the grid from falling into an order the eye learns (the user found
+ * one 14s loop over seven fixed tiles too orderly). About two to four
+ * tiles are lit at once on a laptop or a monitor, one on a phone.
+ * Opacity and transform only, so it runs off the main thread. Held by
  * Pause Animations (the list at the top of this file); with reduced motion
- * every lit tile is lit and still.
+ * one tile per posting (`data-still`) is lit and still.
  */
 /*
  * A lit tile is the bright glass card of a posting (KAN-923, the user's ask
@@ -1375,12 +1380,37 @@ html[data-tab-flight="flying"] .tour-tabs {
     opacity: 0;
     transform: scale(0.98);
   }
-  5%,
-  30% {
+  2%,
+  12% {
     opacity: 1;
     transform: scale(1);
   }
-  36% {
+  15% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+/* Below lg a screen shows 8 or 12 tiles, so each light holds longer
+ * (21.5% of the loop, still under a quarter, so a posting never shows
+ * twice): with the 15% light a phone's tiles were all dark a third of the
+ * time, and for up to 12s at once; with this one, about a seventh. */
+@media (max-width: 63.99rem) {
+  .board-lit {
+    animation-name: board-lit-long;
+  }
+}
+@keyframes board-lit-long {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  2%,
+  18.5% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  21.5% {
     opacity: 0;
     transform: scale(0.98);
   }
@@ -1388,10 +1418,10 @@ html[data-tab-flight="flying"] .tour-tabs {
 /*
  * A lit tile's match bar fills from empty as the tile comes up (KAN-923, the
  * user's "progress bars loading"): the fill slides in from the left of its
- * track (the track clips it, so its rounded end keeps its shape), from 4%
- * of the cycle, once the tile is mostly lit, to 15%, about a second and a
- * half on the 14s cycle, then holds; it snaps back to empty at the cycle's
- * end, while the tile is out. Same `--cycle` and `--d` as the tile's
+ * track (the track clips it, so its rounded end keeps its shape), from
+ * 1.5% of the loop, once the tile is mostly lit, to 6%, about a second on
+ * a 22 to 34s loop, then holds; it snaps back to empty at the loop's end,
+ * while the tile is out. Same `--cycle` and `--d` as the tile's
  * light, which it inherits from it. Transform only, off the main thread.
  */
 .board-bar {
@@ -1399,10 +1429,10 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 @keyframes board-bar {
   0%,
-  4% {
+  1.5% {
     transform: translateX(-101%);
   }
-  15%,
+  6%,
   100% {
     transform: translateX(0);
   }
@@ -1410,8 +1440,10 @@ html[data-tab-flight="flying"] .tour-tabs {
 @media (prefers-reduced-motion: reduce) {
   .board-lit {
     animation: none;
-    opacity: 1;
     transform: none;
+  }
+  .board-lit[data-still] {
+    opacity: 1;
   }
   .board-bar {
     animation: none;

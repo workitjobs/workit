@@ -6,10 +6,6 @@ import { matchColor, matchTier } from "@/lib/match";
 import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 
-/** One turn of the lights, in s: each lit tile shows for about a third of
- *  it (`board-lit` in landing.css). */
-const CYCLE = 14;
-
 /**
  * The tiles, in the order the grid places them round the headline (row by
  * row, left and right of it in the middle rows). The most any screen shows
@@ -20,12 +16,51 @@ const CYCLE = 14;
 const TILES = 28;
 
 /**
- * The tiles that light up, each with its turn: tile index to its place in
- * the cycle, out of `heroFits.length`. Picked so the lit tiles spread over
- * the top, the sides and the bottom at every width, and so the few a phone
- * shows (tiles 1 and 6) light half a turn apart.
+ * Where each posting can light (KAN-923): every tile is a place, and each
+ * posting (an index into `heroFits`) has four, spread over the top, the
+ * sides and the bottom, so a fit turns up anywhere, not on the same seven
+ * tiles in the same order, which the user found too orderly. The eight a
+ * phone shows (tiles 0 to 7) hold all seven postings.
  */
-const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23: 3 };
+const POSTING_OF = [
+  3, 0, 5, 1, 6, 2, 4, 3, 6, 0, 2, 4, 1, 5, 0, 3, 1, 2, 4, 6, 5, 6, 2, 3, 0, 4, 1, 5,
+];
+
+/**
+ * Each posting's own loop, in s. The lengths share no rhythm, so the lights
+ * across the grid never settle into a pattern a visitor could learn: the
+ * whole grid only repeats after hours. Each tile lights for about an eighth
+ * of its posting's loop (`board-lit` in landing.css), 2.6 to 4 s.
+ */
+const LOOPS = [23, 29, 26, 31, 22, 34, 27];
+
+/** Where each posting's loop starts, as a share of it, so the grid opens
+ *  mid-flow with a few tiles already lit. */
+const PHASES = [0.13, 0.71, 0.42, 0.88, 0.27, 0.56, 0.95];
+
+/**
+ * The order a posting's four tiles take their turns, a quarter loop apart:
+ * one at a time, since a tile is lit for less than a quarter of the loop,
+ * so the same posting never shows twice at once. Not in tile order, which
+ * would walk it along the grid.
+ */
+const TURN_ORDER = [0, 2, 1, 3];
+
+/** The tiles lit, and still, with reduced motion: one per posting, spread
+ *  over the grid at every width. */
+const STILL = new Set([1, 6, 10, 13, 16, 19, 23]);
+
+/** A tile's posting and its place in that posting's loop, as CSS's delay. */
+function lightOf(tile: number) {
+  const posting = POSTING_OF[tile];
+  const turn = POSTING_OF.slice(0, tile).filter((p) => p === posting).length;
+  const loop = LOOPS[posting];
+  return {
+    posting: heroFits[posting],
+    loop,
+    delay: -(PHASES[posting] + TURN_ORDER[turn] / 4) * loop,
+  };
+}
 
 /**
  * The home hero's grid (KAN-923, the user's pick): square glass tiles over a
@@ -41,8 +76,9 @@ const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23
  * for; before them a board of wide grey posting cards, which the user found
  * unsatisfying beside the sketch of this grid, and a violet mesh gradient,
  * too close to Calendly's. A server component with no script: the
- * lights are a CSS loop on opacity and transform (`.board-lit`), held by
- * Pause Animations, lit and still with reduced motion. The grid fills the
+ * lights are CSS loops on opacity and transform (`.board-lit`), one length
+ * per posting (`LOOPS`), held by Pause Animations; with reduced motion one
+ * tile per posting is lit and still (`STILL`). The grid fills the
  * hero panel edge to edge, the headline's tile in its middle and the small
  * tiles flowing round it, with as many columns as keep the tiles near
  * square (`.hero-grid`); the tiles are decorative.
@@ -52,39 +88,32 @@ export function HeroGrid({ children }: { children: ReactNode }) {
     <div className="hero-grid">
       <div className="hero-copy">{children}</div>
       {Array.from({ length: TILES }, (_, i) => {
-        const turn = LIT[i];
-        const posting = turn === undefined ? null : heroFits[turn];
+        const { posting, loop, delay } = lightOf(i);
         return (
           <div key={i} aria-hidden="true" className="hero-tile relative rounded-2xl">
-            {posting && (
-              <div
-                className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
-                style={
-                  {
-                    "--d": `${-(turn * CYCLE) / heroFits.length}s`,
-                    "--cycle": `${CYCLE}s`,
-                  } as CSSProperties
-                }
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <FaviconLogo
-                    domain={posting.domain}
-                    eager
-                    className="size-5 rounded-md lg:size-6"
-                  />
-                  <span className="text-ink-muted hidden truncate text-xs font-normal lg:block">
-                    {posting.company}
-                  </span>
+            <div
+              data-still={STILL.has(i) || undefined}
+              className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
+              style={{ "--d": `${delay.toFixed(2)}s`, "--cycle": `${loop}s` } as CSSProperties}
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <FaviconLogo
+                  domain={posting.domain}
+                  eager
+                  className="size-5 rounded-md lg:size-6"
+                />
+                <span className="text-ink-muted hidden truncate text-xs font-normal lg:block">
+                  {posting.company}
                 </span>
-                {/* The role, from lg up, in two lines, one or none by the
+              </span>
+              {/* The role, from lg up, in two lines, one or none by the
                     tile's height (`.tile-role` in landing.css), so it never
                     runs into the match. */}
-                <span className="tile-role text-ink mt-1.5 text-[13px] leading-tight font-medium">
-                  {posting.title}
-                </span>
-                <MatchBar score={posting.score} />
-              </div>
-            )}
+              <span className="tile-role text-ink mt-1.5 text-[13px] leading-tight font-medium">
+                {posting.title}
+              </span>
+              <MatchBar score={posting.score} />
+            </div>
           </div>
         );
       })}
