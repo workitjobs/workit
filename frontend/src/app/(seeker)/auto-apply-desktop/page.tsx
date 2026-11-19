@@ -43,6 +43,10 @@ export const metadata: Metadata = {
  */
 const DOWNLOAD_URL: string | null = null;
 
+/** Focus on a button that sits on a `bg-brand` surface. */
+const BAND_FOCUS =
+  "focus-visible:ring-on-brand focus-visible:ring-offset-2 focus-visible:ring-offset-brand";
+
 /** What the app needs (D17, D21 and W8 of the design doc), and its price
  *  (D6: a free beta with a daily Usage cap). */
 const NEEDS: { Icon: ComponentType<{ className?: string }>; text: string }[] = [
@@ -255,12 +259,19 @@ export default function AutoApplyDesktopPage() {
               first.
             </p>
           </div>
+          {/* A white focus ring with a violet gap: the buttons' own ring is
+              brand, the band's colour, and showed nothing on Tab. */}
           <div className="flex shrink-0 flex-wrap gap-2">
-            <ButtonLink href="/auto-apply/info" variant="secondary" size="sm">
+            <ButtonLink
+              href="/auto-apply/info"
+              variant="secondary"
+              size="sm"
+              className={BAND_FOCUS}
+            >
               <IdentificationCardIcon aria-hidden />
               Open Application Info
             </ButtonLink>
-            <ButtonLink href="/auto-apply" variant="secondary" size="sm">
+            <ButtonLink href="/auto-apply" variant="secondary" size="sm" className={BAND_FOCUS}>
               <LightningRoundedIcon aria-hidden />
               Open Auto Apply
             </ButtonLink>
