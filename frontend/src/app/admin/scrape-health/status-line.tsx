@@ -9,15 +9,20 @@ const count = (n: number) => n.toLocaleString("en-US");
 const when = (iso: string | null) =>
   iso ? `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC` : "Never";
 
-/** Each level's glyph and colours. The glyph and the title say the level, so it is never colour alone. */
+/**
+ * Each level's glyph and colours. The glyph and the title say the level, so
+ * it is never colour alone. The card is a tile, which has no outline, so a
+ * level that needs a look draws its own edge in its colour; green draws
+ * none.
+ */
 const LEVELS = {
-  red: { Icon: WarningIcon, chip: "bg-danger-tint text-danger", edge: "border-danger" },
-  amber: { Icon: WarningCircleIcon, chip: "bg-warning-tint text-warning", edge: "border-warning" },
-  green: {
-    Icon: CheckCircleIcon,
-    chip: "bg-positive-tint text-positive-ink",
-    edge: "border-border-surface",
+  red: { Icon: WarningIcon, chip: "bg-danger-tint text-danger", edge: "border border-danger" },
+  amber: {
+    Icon: WarningCircleIcon,
+    chip: "bg-warning-tint text-warning",
+    edge: "border border-warning",
   },
+  green: { Icon: CheckCircleIcon, chip: "bg-positive-tint text-positive-ink", edge: undefined },
 } as const;
 
 /** One fact under the status: its name over its value. */
@@ -39,7 +44,7 @@ export function StatusLine({ status, data }: { status: Status; data: ScrapeHealt
   const { Icon, chip, edge } = LEVELS[status.level];
   const { boards } = data;
   return (
-    <Card as="section" padding="lg" className={edge} aria-labelledby="scrape-status">
+    <Card as="section" tone="tile" padding="lg" className={edge} aria-labelledby="scrape-status">
       <div className="flex items-start gap-4">
         <span
           className={cn("rounded-control flex size-10 shrink-0 items-center justify-center", chip)}

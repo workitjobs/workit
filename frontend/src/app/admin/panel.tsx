@@ -8,6 +8,12 @@ import { cn } from "@/lib/cn";
  * An admin page's titled card (KAN-879): WorkIt's `Card` with its title, a
  * `SectionHeading`, over a rule, then the body. Every section of an admin
  * page is one, 16px from the next.
+ *
+ * It is the `tile` tone, as Home's sections and the stat tiles beside it
+ * are: no outline, set apart by `--shadow-tile`, the 20px corner. It was the
+ * default card (an outline over `--shadow-panel`, a 1px halo), so on one
+ * page the tiles stood up from the ground and the cards under them lay
+ * flat, and the user asked for a shadow on every box.
  */
 export function Panel({
   title,
@@ -24,7 +30,7 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <Card as="section" padding="none" className={cn("flex flex-col", className)}>
+    <Card as="section" tone="tile" padding="none" className={cn("flex flex-col", className)}>
       <div className="border-border-subtle border-b px-5 py-4">
         <SectionHeading action={action}>{title}</SectionHeading>
       </div>
