@@ -175,6 +175,7 @@ export function PdfPages({
   overlay,
   overlaid = [],
   shiftOf,
+  inserts,
   swaps,
   gaps,
   placeholder,
@@ -205,6 +206,11 @@ export function PdfPages({
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
+  /** Lines the page does not print yet, typed in where they will go (a new
+   *  bullet, KAN-920): each a box of no height, read against the boxes
+   *  shown, where the page under it opens by `by` points. `overlay` draws
+   *  each one as it draws an overlaid line. */
+  inserts?: (shown: RenderBox[]) => (RenderBox & { by: number })[];
   /** The moves on their way, as strips of the page on screen that trade
    *  places, in order, each against the page after the ones before. */
   swaps?: (boxes: RenderBox[]) => Strip[];
@@ -249,6 +255,7 @@ export function PdfPages({
     .map((key) => shown.find((b) => boxKey(b) === key))
     .filter((box): box is RenderBox => box !== undefined)
     .map((box) => ({ ...box, by: shiftOf?.(box) ?? 0 }))
+    .concat(readOnly ? [] : (inserts?.(shown) ?? []))
     .sort((a, b) => a.page - b.page || a.y0 - b.y0);
   const typing = selected !== null && lives.some((l) => boxKey(l) === selected);
   const popupBox = popup && shown.find((box) => boxKey(box) === popup.line);

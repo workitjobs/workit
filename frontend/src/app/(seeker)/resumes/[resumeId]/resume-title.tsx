@@ -3,7 +3,7 @@
 import { createContext, use, useEffect, useRef, useState } from "react";
 
 import { PencilIcon } from "@/components/icons";
-import { PrimaryBadge, RenameField } from "@/components/resume-row";
+import { PrimaryBadge } from "@/components/resume-row";
 import { renameBuiltResume } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { renameResume } from "@/lib/resume-actions";
@@ -46,11 +46,14 @@ export const TitleHistoryContext = createContext<TitleHistory | null>(null);
  * a bordered button into a labeled form.
  *
  * It reads as plain text with its pencil, shows a faint outline when
- * pointed at, and a click opens the one rename every resume has
- * (`RenameField`): the name's field, with Cancel and Save after it; Enter
- * saves, Esc cancels. The page's ⋯ menu (`ResumeMenu`) opens the same
- * field through `TitleRowContext`. Until KAN-825 the field saved on a
- * click away and had no buttons.
+ * pointed at, and a click makes the name itself the field, as a Google
+ * Doc's title is (2026-11-19, `TitleField`): the same words, size and
+ * place, selected, with only a ring to say it is open, and no buttons.
+ * Enter or a click away saves, Esc puts the name back. The page's ⋯ menu
+ * (`ResumeMenu`) opens it through `TitleRowContext`. KAN-825 gave it the
+ * lists' rename (`RenameField`), a field of its own look with Cancel and
+ * Save, which the user found a different editor opening in the title's
+ * place; the lists keep it.
  *
  * **A rename shows at once and saves behind it**, as every other edit in
  * the editor does: the field closes on the new name, the save goes, and a
@@ -145,21 +148,17 @@ export function ResumeTitle({
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {renaming ? (
-        <RenameField
-          name={shown}
-          size={Heading === "h1" ? "lg" : "default"}
-          rename={{
-            saving: false,
-            onCancel: () => {
-              setError(null);
+        <Heading className="flex min-w-0">
+          <TitleField
+            name={shown}
+            className={BOX[Heading]}
+            onLeave={(next) => {
               close();
-            },
-            onSave: (next) => {
-              close();
+              if (next === null || next === shown) return setError(null);
               rename(next, shown, history?.record(shown, next));
-            },
-          }}
-        />
+            }}
+          />
+        </Heading>
       ) : (
         <div className="flex min-w-0 items-center gap-2">
           <Heading className="flex min-w-0">
@@ -195,5 +194,49 @@ export function ResumeTitle({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The title as its own field (`ResumeTitle`): an input in the title's
+ * words, size, weight and padding, as wide as the name, so opening it moves
+ * nothing. Enter or a click away hands back the new name (null for an empty
+ * one, which keeps the old), Esc hands back null.
+ */
+function TitleField({
+  name,
+  className,
+  onLeave,
+}: {
+  name: string;
+  className: string;
+  onLeave: (next: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(name);
+  // Enter or Esc leave once; the blur as the field goes must not again
+  const left = useRef(false);
+  const leave = (next: string | null) => {
+    if (left.current) return;
+    left.current = true;
+    onLeave(next);
+  };
+  return (
+    <input
+      aria-label="Resume name"
+      autoFocus
+      maxLength={80}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={() => leave(draft.trim() || null)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") leave(draft.trim() || null);
+        if (event.key === "Escape") leave(null);
+      }}
+      className={cn(
+        className,
+        "text-ink rounded-control ring-brand-ring -mx-2 field-sizing-content max-w-full min-w-24 bg-transparent px-2 py-1 ring-2 outline-none",
+      )}
+    />
   );
 }

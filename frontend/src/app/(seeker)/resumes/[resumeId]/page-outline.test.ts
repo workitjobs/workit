@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, RenderBox } from "@/lib/built-resume-actions";
 
-import { moveTo, sectionOrderAfter } from "./model.ts";
+import { bulletsWithNew, moveTo, sectionOrderAfter } from "./model.ts";
 import { blockAt, dropAt, HEADING, outlineOf } from "./page-outline.ts";
 
 // Two jobs of two bullets each under Experience, then one school
@@ -151,5 +151,24 @@ test("a section move keeps the sections that do not print after the ones that do
       0,
     ),
     ["experience", "education", "projects"],
+  );
+});
+
+test("a bullet typed in on the page lands after its bullet, shown, its entry renumbered", () => {
+  const withNew = {
+    ...bank,
+    entries: bank.entries.map((e) =>
+      e.id === "e1" ? { ...e, bullets: [...e.bullets, { id: "b9", text: "New", position: 2 }] } : e,
+    ),
+  } as Bank;
+  assert.deepEqual(bulletsWithNew(withNew, choices, "e1", "b9", "b1"), [
+    { bullet_id: "b1", position: 0, shown: true },
+    { bullet_id: "b9", position: 1, shown: true },
+    { bullet_id: "b2", position: 2, shown: true },
+  ]);
+  // After a bullet this resume does not show, it lands last
+  assert.deepEqual(
+    bulletsWithNew(withNew, choices, "e1", "b9", "gone").map((r) => r.bullet_id),
+    ["b1", "b2", "b9"],
   );
 });

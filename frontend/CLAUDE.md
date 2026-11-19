@@ -2001,13 +2001,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     upload's page, the resume pickers and Experiences' Showing card.
     `wordClassName` says where the word folds. There were five: the badge,
     a black disc, a star with the word, a bare purple star and nothing.
-  - **One rename, `RenameField`**: the name's field in its own place with
-    Cancel and Save (a card edited in place), Enter and Escape, in the
-    table row, the grid card and `ResumeTitle`. There were four, the
-    editor's saving on a click away with no buttons.
+  - **One rename in the lists, `RenameField`**: the name's field in its
+    own place with Cancel and Save (a card edited in place), Enter and
+    Escape, in the table row and the grid card. There were four. **A
+    resume's own page renames in its title** (`ResumeTitle`'s
+    `TitleField`, 2026-11-19): the name itself becomes the field, in its
+    own words and size, as a Google Doc's title does, with no buttons;
+    Enter or a click away saves, Esc puts the name back. KAN-825 gave the
+    title `RenameField` too, and the user found it a different editor
+    opening in the title's place.
   - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
-    at `text-heading`, and the badge), then the page's status ("Saved", or
-    an upload's date), the filled Download, and `ResumeMenu`
+    at `text-heading`, and the badge), then an upload's date, the filled
+    Download, and `ResumeMenu`
     (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
     with Rename, Make Primary, Take the Tour and Delete. `TitleRowProvider`
     joins the two ends: the menu's Rename opens the title's field, Take the
@@ -2566,7 +2571,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the margin, a drag moves a section, entry or bullet among its siblings,
   a click on the handle opens the block's menu there (Edit and Add, the
   moves, Remove From Resume), and a breadcrumb in the toolbar with Esc
-  climbs from a line to its entry and section. A form a page's + opens
+  climbs from a line to its entry and section. A new bullet is typed in on
+  the page, under the bullet it follows, never in a form (`newBullets`,
+  `inserts` on `PdfPages`). A form a page's + opens
   puts the cursor in the row it added (`focusBullet`, read by the entry
   dialog as `data-initial-focus`), not the form's first field. Where each block sits is read from the boxes
   (`page-outline.ts`): a new kind of box, or a template that indents
@@ -2717,8 +2724,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing. The time away is measured from timestamps, never timers, which
   Chrome throttles in a hidden tab. **Still open:** the Experiences page
   and Tailor do not announce their writes, so an editor tab learns of
-  them only after 5 minutes away; the bar says "Saving…" while a quiet
-  reload runs; and two tabs editing within the same few seconds still
+  them only after 5 minutes away; and two tabs editing within the same few seconds still
   need a version check on each save.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
@@ -2845,8 +2851,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   review's icons in the title row were 40px.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
-  Primary badge, the save status ("Saving…", "Saved"; `SaveStatus`) and
-  Download, the page's one filled button (secondary on Tailor's review,
+  Primary badge and Download (a "Saving…" and "Saved" status stood
+  before it until 2026-11-19, which the user found a developer's watch on
+  how long a save took; a failed save says so under the bar), the page's one filled button (secondary on Tailor's review,
   whose fill is Finish), with the review's Original and Suggestions before
   it, then on the editor's own page the resume's ⋯ (`more`, KAN-825). The bar is three groups
   that keep their places: Undo and Redo; the middle; the zoom and **the side

@@ -24,7 +24,7 @@ import {
   type RefObject,
 } from "react";
 
-import { CheckIcon, ChevronRightIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
+import { ChevronRightIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -99,47 +99,6 @@ export type ReviewTools = {
   /** False when the run's record names no source resume. */
   hasOriginal: boolean;
 };
-
-/**
- * Whether the edits are saved, in the title row beside Download on the
- * desktop and at the end of the phone's top row (KAN-799): "Saving…" while
- * anything is on its way, "Saved" once the first render has landed and
- * nothing is. It read "Saved, N ms", the render's time, which was for us,
- * not for a student, and it sat in the bar and left it below 58rem. An
- * error is not said here: the line under the bar says what went wrong.
- */
-export function SaveStatus({
-  saving,
-  fitting,
-  ready,
-  short = false,
-}: {
-  saving: boolean;
-  fitting: boolean;
-  /** The first render has landed. */
-  ready: boolean;
-  /** The phone's "Fitting…", for its narrow row. */
-  short?: boolean;
-}) {
-  const saved = ready && !saving && !fitting;
-  return (
-    <span
-      aria-live="polite"
-      className="text-note text-ink-meta flex shrink-0 items-center gap-1 whitespace-nowrap"
-    >
-      {saved && <CheckIcon className="size-3.5" />}
-      {fitting
-        ? short
-          ? "Fitting…"
-          : "Fitting to One Page…"
-        : saving
-          ? "Saving…"
-          : saved
-            ? "Saved"
-            : ""}
-    </span>
-  );
-}
 
 /**
  * One of an open line's tools after its size and its bold and italic: what

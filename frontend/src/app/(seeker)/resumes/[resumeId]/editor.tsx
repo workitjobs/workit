@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import {
+  addBullet,
   addSkill,
   getBank,
   type Bank,
@@ -76,7 +77,9 @@ import {
 import { Notice } from "@/components/ui/notice";
 import {
   addCuts,
+  bulletsWithNew,
   customKey,
+  shownBullets,
   cutLeft,
   HEADER,
   LINK_FIELDS,
@@ -127,7 +130,6 @@ import { SLIM_BAR } from "./slim-bar";
 import {
   Bar,
   ReviewButtons,
-  SaveStatus,
   type HistoryTools,
   type LineHandlers,
   type MoveTools,
@@ -482,6 +484,31 @@ function splitKey(key: string) {
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
 }
 
+/** A bullet typed in on the page (KAN-920, `newBullets`): `key` names it
+ *  until the bank gives it an id; `saving` once it has been left. */
+type NewBullet = {
+  key: string;
+  entryId: string;
+  anchor: string;
+  after: string;
+  text: string;
+  saving: boolean;
+};
+
+/** The new bullets still to draw against a PDF: those it prints are gone,
+ *  and one typed after a printed one is drawn under that one. */
+function placeNew(list: NewBullet[], printed: (key: string) => string | undefined): NewBullet[] {
+  const out: NewBullet[] = [];
+  const moved = new Map<string, string>();
+  for (const n of list) {
+    const id = printed(n.key);
+    const anchor = moved.get(n.anchor) ?? n.anchor;
+    if (id) moved.set(n.anchor, id);
+    else out.push(anchor === n.anchor ? n : { ...n, anchor });
+  }
+  return out;
+}
+
 export function Editor({
   resumeId,
   initial,
@@ -640,6 +667,22 @@ export function Editor({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // How many lines each wrapping draft shows, for the live page's shift
   const [draftLines, setDraftLines] = useState<Record<string, number>>({});
+  // Bullets typed in on the page (KAN-920), each drawn under `anchor`, the
+  // printed bullet it follows (`after` is that bullet, or the new one typed
+  // before it), until the PDF that prints it paints. Kept in a ref too: an
+  // Enter and the blur after it read the list before React renders again.
+  const [newBullets, setNewBullets] = useState<NewBullet[]>([]);
+  const newNow = useRef<NewBullet[]>([]);
+  const setNew = useCallback((change: (list: NewBullet[]) => NewBullet[]) => {
+    newNow.current = change(newNow.current);
+    setNewBullets(newNow.current);
+  }, []);
+  // Each new bullet's id once the bank has it, by its key, and the adds in
+  // order: one waits for the one before, which it may follow
+  const newIds = useRef(new Map<string, string>());
+  const adding = useRef<Promise<unknown>>(Promise.resolve());
+  const newCount = useRef(0);
+  const focusedNew = useRef(new Set<string>());
   // What is on its way, by line key or change id, counted: a line's draft
   // and a move's swap stay until the PDF after it lands
   const onTheirWay = useRef(new Map<string, number>());
@@ -1819,6 +1862,199 @@ export function Editor({
     return [...bands, ...skills];
   };
 
+  // Bullets typed in on the page (KAN-920): each opens a line under the
+  // bullet it follows, where the PDF will print it. The space between two
+  // bullets of one entry, read from the page, sets where its text sits.
+  const entryOfBullet = useMemo(() => {
+    const of = new Map<string, string>();
+    for (const e of bank.entries) for (const b of e.bullets) of.set(b.id, e.id);
+    return of;
+  }, [bank]);
+  const bulletSpace = (boxes: RenderBox[]) => {
+    const bullets = boxes
+      .filter((b) => b.kind === "bullet")
+      .sort((a, b) => a.page - b.page || a.y0 - b.y0);
+    let space = Infinity;
+    for (let i = 1; i < bullets.length; i++) {
+      const [a, b] = [bullets[i - 1], bullets[i]];
+      const gap = b.y0 - a.y1;
+      if (a.page === b.page && entryOfBullet.get(a.item_id) === entryOfBullet.get(b.item_id))
+        if (gap > 0 && gap < space) space = gap;
+    }
+    return Number.isFinite(space) && space < GAP_SPACE ? space : 2;
+  };
+  /** A new bullet's place against these boxes: under its anchor's last
+   *  line, `space` below it, one line tall (`one`) and as many more as its
+   *  text wraps to. */
+  const newPlace = (n: NewBullet, boxes: RenderBox[]) => {
+    const own = boxes.filter((b) => b.kind === "bullet" && b.item_id === n.anchor);
+    if (!own.length) return null;
+    const last = own.reduce((a, b) =>
+      b.page > a.page || (b.page === a.page && b.y1 > a.y1) ? b : a,
+    );
+    const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
+    const one = last.y1 - last.y0 - (boxLines(last, step) - 1) * step;
+    const space = bulletSpace(boxes);
+    return { last, one, space, lines: draftLines[`${n.key}.bullet`] ?? 1, step };
+  };
+  const insertsOn = (boxes: RenderBox[]) => {
+    const printed = new Set(boxes.map((b) => b.item_id));
+    return placeNew(newBullets, (key) => {
+      const id = newIds.current.get(key);
+      return id && printed.has(id) ? id : undefined;
+    }).flatMap((n) => {
+      const at = newPlace(n, boxes);
+      if (!at) return [];
+      const y = at.last.y1 + at.space / 2;
+      return [
+        {
+          ...at.last,
+          item_id: n.key,
+          text: "",
+          y0: y,
+          y1: y,
+          by: at.space + at.one + (at.lines - 1) * at.step,
+        },
+      ];
+    });
+  };
+
+  /** Opens a new bullet's line under `after` (KAN-920): a printed bullet,
+   *  or a new one still on its way, whose line it is drawn under. */
+  const openNew = (entryId: string, after: string) => {
+    select(null);
+    setPicked(null);
+    const key = `new-bullet-${++newCount.current}`;
+    setNew((list) => {
+      const before = list.findIndex((n) => n.key === after);
+      const item: NewBullet = {
+        key,
+        entryId,
+        anchor: before >= 0 ? list[before].anchor : after,
+        after,
+        text: "",
+        saving: false,
+      };
+      return before < 0
+        ? [...list, item]
+        : [...list.slice(0, before + 1), item, ...list.slice(before + 1)];
+    });
+  };
+  const dropNew = (key: string) => setNew((list) => list.filter((n) => n.key !== key));
+
+  /** Leaves a new bullet's line: an empty one goes; one with text is added
+   *  to its entry, then shown on this resume after the bullet it follows, as
+   *  one change with Undo. `next` opens another line under it (Enter). */
+  const leaveNew = (key: string, next = false) => {
+    const n = newNow.current.find((x) => x.key === key);
+    if (!n || n.saving) return;
+    const text = n.text.trim();
+    if (!text) return dropNew(key);
+    setNew((list) => list.map((x) => (x.key === key ? { ...x, text, saving: true } : x)));
+    if (next) openNew(n.entryId, key);
+    adding.current = adding.current.then(async () => {
+      const { data, error } = await addBullet(n.entryId, text);
+      if (!data) {
+        dropNew(key);
+        setError(error ?? "Your bullet didn't save. Try again.");
+        return;
+      }
+      newIds.current.set(key, data.id);
+      const bank = held.current.bank;
+      held.current.bank = {
+        ...bank,
+        entries: bank.entries.map((e) =>
+          e.id === n.entryId ? { ...e, bullets: [...e.bullets, data] } : e,
+        ),
+      };
+      setBank(held.current.bank);
+      // It follows a printed bullet, or a new one: that one's id, or, if it
+      // did not save, the bullet that one followed
+      let after = n.after;
+      while (after.startsWith("new-bullet-")) {
+        const id = newIds.current.get(after);
+        if (id) {
+          after = id;
+          break;
+        }
+        after = newNow.current.find((x) => x.key === after)?.after ?? n.anchor;
+      }
+      announce(true);
+      await apply({
+        bullets: bulletsWithNew(held.current.bank, held.current.choices, n.entryId, data.id, after),
+      });
+    });
+  };
+
+  /** A new bullet's line: its field while typed in, its text once left,
+   *  with the dot the PDF will print beside it. */
+  function newField(n: NewBullet, target: RenderBox) {
+    const key = `${n.key}.bullet`;
+    const at = newPlace(n, rendered?.boxes ?? []);
+    const look = lineLook({ ...target, item_id: n.anchor });
+    const half = (at?.space ?? 2) / 2;
+    const one = at?.one ?? 9;
+    const dot = (
+      <span
+        aria-hidden
+        className="absolute rounded-full bg-black"
+        style={{
+          width: pt(2.4),
+          height: pt(2.4),
+          left: `-${pt(7.6)}`,
+          top: pt(half + one / 2 - 1.2),
+        }}
+      />
+    );
+    if (n.saving)
+      return (
+        <div
+          ref={(element) => measure(key, "bullet", element)}
+          className="relative"
+          style={{ paddingTop: pt(half) }}
+        >
+          {dot}
+          <div
+            aria-hidden
+            className={cn(look.className, "break-words whitespace-pre-wrap")}
+            style={look.style}
+          >
+            {wordsOf(n.text)}
+          </div>
+        </div>
+      );
+    return (
+      <div className="relative" style={{ paddingTop: pt(half) }}>
+        {dot}
+        {richLine(
+          n.text,
+          (text) => setNew((list) => list.map((x) => (x.key === n.key ? { ...x, text } : x))),
+          {
+            attach: (element) => {
+              if (element && !focusedNew.current.has(n.key)) {
+                focusedNew.current.add(n.key);
+                element.focus({ preventScroll: true });
+              }
+              return measure(key, "bullet", element);
+            },
+            "aria-label": "New bullet",
+            onBlur: () => leaveNew(n.key),
+            // Enter adds it and opens the next line; Escape leaves it (an
+            // empty line goes), never climbing out of a block as it does
+            onKeyDown: (e) => {
+              if (e.key !== "Enter" && e.key !== "Escape") return;
+              e.preventDefault();
+              e.stopPropagation();
+              leaveNew(n.key, e.key === "Enter");
+            },
+            className: cn(look.className, FIELD_RING),
+            style: look.style,
+          },
+        )}
+      </div>
+    );
+  }
+
   /** The text a typed line's field opens on: what the line prints. */
   function startText(line: Line, target: RenderBox) {
     return typed(line) ? target.text : null;
@@ -1882,6 +2118,8 @@ export function Editor({
   /** What the page draws over an overlaid line: the selected line's field,
    *  or a line's typed text while the PDF that prints it is on its way. */
   function overlay(target: RenderBox) {
+    const fresh = newBullets.find((n) => n.key === target.item_id);
+    if (fresh) return newField(fresh, target);
     const key = boxKey(target);
     if (key === selected) return field(target);
     const text = drafts[key];
@@ -2035,6 +2273,14 @@ export function Editor({
   /** Called when every page of a new PDF has painted: a line whose save
    *  has landed is now printed by the page itself, so its typed text goes. */
   const drawn = () => {
+    // A new bullet the PDF now prints goes, and the next typed after it is
+    // drawn under it
+    const printed = new Set(rendered?.boxes.map((b) => b.item_id));
+    const placed = placeNew(newNow.current, (key) => {
+      const id = newIds.current.get(key);
+      return id && printed.has(id) ? id : undefined;
+    });
+    if (placed.length !== newNow.current.length) setNew(() => placed);
     setDrafts((d) => {
       const kept = Object.entries(d).filter(
         ([k]) => k === selectedNow.current || onTheirWay.current.has(k),
@@ -2539,22 +2785,12 @@ export function Editor({
   const addAfter = (
     block: OutlineBlock,
   ): { noun: string; add: (opener: HTMLElement) => void } | null => {
+    // A bullet's opens a new line under it, typed in on the page: the
+    // entry's form for one bullet broke the editing in place (2026-11-19)
     if (block.kind === "bullet") {
       const entry = bank.entries.find((e) => e.id === block.parent);
       if (!entry) return null;
-      return {
-        noun: "Bullet",
-        add: (opener) =>
-          openEntryForm(
-            {
-              target: entry,
-              section: entry.section,
-              customSectionId: entry.custom_section_id ?? null,
-              newBulletAfter: block.id,
-            },
-            opener,
-          ),
-      };
+      return { noun: "Bullet", add: () => openNew(entry.id, block.id) };
     }
     // An entry's own rows (its title, organization, dates) take no +: one
     // there read as either another entry or another bullet. A section's
@@ -2665,7 +2901,14 @@ export function Editor({
           text: "Add Bullet",
           group: "change",
           icon: <PlusIcon />,
-          onClick: (opener) => form(opener, ""),
+          // A new line under its last bullet on this resume, typed in on the
+          // page; an entry that shows none has no line to open it under, so
+          // its form opens on an empty row
+          onClick: (opener) => {
+            const last = shownBullets(entry, choices).at(-1);
+            if (last) openNew(entry.id, last.id);
+            else form(opener, "");
+          },
         },
         ...moves,
         remove({ entries: [{ entry_id: block.id, shown: false }] }),
@@ -2916,6 +3159,7 @@ export function Editor({
               overlay={overlay}
               overlaid={overlaid}
               shiftOf={shiftOf}
+              inserts={insertsOn}
               swaps={swapsOn}
               gaps={gapsOn}
               onDrawn={drawn}
@@ -3113,16 +3357,18 @@ export function Editor({
   return (
     <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
       {/* The title row (KAN-799): the resume and its file, the name at the
-          left, then whether it is saved, the review's columns and Download,
+          left, then the review's columns and Download,
           the page's one filled button (secondary on Tailor's review, whose
           fill is Finish), at the right, then on the editor's own page the
-          resume's ⋯ (KAN-825), as an upload's page has. Download and the
-          status sat in the bar until then, among the tools */}
+          resume's ⋯ (KAN-825), as an upload's page has. Download sat in
+          the bar until then, among the tools. A "Saving…" and "Saved" status
+          stood before Download until 2026-11-19: the user found it a
+          developer's tool, a watch on how long a save took; a save that
+          fails says so under the bar, and Fit says "Fitting…" itself */}
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
-        <SaveStatus saving={saving} fitting={fittingNow} ready={Boolean(rendered)} />
         {reviewing && (
           <div className="flex shrink-0 items-center gap-1">
             <ReviewButtons

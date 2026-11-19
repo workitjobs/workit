@@ -383,9 +383,13 @@ function BlockMenu({
       onOpenChangeComplete={(next) => {
         if (next) return;
         const action = then.current;
+        const opener = anchor.current;
         then.current = null;
-        if (action && anchor.current) action.onClick(anchor.current);
         onClosed();
+        // A tick later: the menu hands the focus back to the handle once it
+        // has closed, and a new bullet's line that took it first lost it
+        // there and went, as an empty line does on a blur
+        if (action && opener) setTimeout(() => action.onClick(opener));
       }}
     >
       <DropdownMenuContent

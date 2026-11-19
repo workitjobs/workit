@@ -237,6 +237,35 @@ export function moveTo(
     : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
 }
 
+/** An entry's bullets this resume shows, in its order. */
+export function shownBullets(entry: BankEntry, choices: Choices): BankEntry["bullets"] {
+  return ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b));
+}
+
+/** A bullet typed in on the page (KAN-920), placed on this resume: its
+ *  entry's shown bullets in this resume's order, renumbered, with `added`
+ *  shown after `after`, or last when `after` is not among them. Each row
+ *  says `shown`, so it is one change with Undo (which hides `added` again,
+ *  `reverseChoices`), and `swapsOf` draws no swaps for it: the bullets
+ *  below make room on the page as it is typed. */
+export function bulletsWithNew(
+  bank: Bank,
+  choices: Choices,
+  entryId: string,
+  added: string,
+  after: string,
+): NonNullable<ChoicesUpdate["bullets"]> {
+  const entry = bank.entries.find((e) => e.id === entryId);
+  const ids = entry
+    ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+        .map((b) => b.id)
+        .filter((id) => id !== added)
+    : [];
+  const at = ids.indexOf(after);
+  ids.splice(at < 0 ? ids.length : at + 1, 0, added);
+  return ids.map((bullet_id, position) => ({ bullet_id, position, shown: true }));
+}
+
 /** The page's section order once the printed section at `from` moves to
  *  `to` (the Sections panel's drag, and the page's, KAN-920). Only the
  *  sections that print move; the rest keep their places after them, so a

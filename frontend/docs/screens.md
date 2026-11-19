@@ -3740,8 +3740,9 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename is one form on every resume** (KAN-825, `RenameField` in
-  `components/resume-row.tsx`): the name becomes its field in its own
+- **Rename is one form in every list** (KAN-825, `RenameField` in
+  `components/resume-row.tsx`; a resume's own page renames in its title,
+  below under Resume editor, `TitleField`): the name becomes its field in its own
   place, selected, with Cancel and Save after it (a card edited in place,
   `docs/design.md`); Enter saves, Escape cancels, and an unchanged name
   saves nothing. A table row keeps its height; a grid card puts it under
@@ -3781,8 +3782,8 @@ Back (to the page that opened it, such as Experiences, else `/resumes`;
 `(seeker)/back-link.tsx`), then **the editor's own title row** (KAN-825;
 the editor's layout since KAN-799): the file's name (`ResumeTitle`, the
 editor's h1 at the same size, renamed in place) with the Primary badge
-after it on the primary, then at the right "Uploaded Oct 21" (where the
-editor says "Saved"), **Download**, the page's one filled button, and ⋯
+after it on the primary, then at the right "Uploaded Oct 21",
+**Download**, the page's one filled button, and ⋯
 (`ResumeMenu`: Rename, Make Primary while it is not, Delete). Until
 KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
@@ -3845,13 +3846,30 @@ student who opened a resume from Experiences landed on another view.
     sit on one page (`sectionStrip`, `orderSwaps`; a section is a page
     setting, so across a page break it waits for its PDF). Near the
     window's top or foot the page scrolls under the drag.
-  - **The + means one thing where it shows**: on a bullet, a bullet row in
-    its entry's form, after that bullet (`newBulletAfter`); on a section
-    heading, a new entry in that section's form, put first in it (`place`).
+  - **The + means one thing where it shows**: on a bullet, a new bullet
+    typed in on the page under it (below); on a section heading, a new
+    entry in that section's form, put first in it (`place`).
     An entry's own rows (title, organization, dates) take only the handle:
     a + there read as either another entry or another bullet, which the
     user found made no sense (2026-11-18). Skills and a Lines section have
     no + yet. Each button is 24px, WCAG 2.2's smallest target.
+  - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
+    `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
+    Add Bullet, opens an empty line at once under that bullet (or the
+    entry's last one on this resume), with the PDF's dot beside it and the
+    caret in it; the page under it opens by a line and by each line it wraps
+    to (`inserts` on `PdfPages`, a line of no height whose `by` moves what
+    is under it, as a typed line's wrap does). Enter adds it and opens the
+    next line under it; Enter or Esc on an empty line, or a click away from
+    one, takes it away with nothing saved; Esc or a click away from one with
+    text adds it. Added, its text stays drawn until the PDF that prints it
+    paints: the bank gets the bullet (`addBullet`), then this resume shows
+    it after the bullet it follows (`bulletsWithNew`, tested), as one change
+    with Undo, which hides it. The bank keeps it, as every form does. It
+    opened the entry's form on an empty row until then, which broke the
+    editing in place. A menu's item runs a tick after the menu closes: the
+    menu hands the focus back to the handle once closed, and the new line,
+    focused first, lost it there and went as an empty line does.
   - **A click on the handle with no drag picks the block and opens its
     menu** at the handle, as Notion's block handle does (2026-11-19,
     `actionsOf`, `BlockAction`, `BlockMenu`). The block is outlined in
@@ -3866,7 +3884,8 @@ student who opened a resume from Experiences landed on another view.
     in it than its buttons (2026-11-19). A bullet's are Edit Bullet (opens
     it for typing), Add Bullet Below, the moves and Remove; an entry's Edit
     School (its form, for the dates and place the page does not type), Add
-    Bullet (an empty row last in its form), the moves and
+    Bullet (a new bullet typed in under its last one on this resume; its
+    form on an empty row when it shows none), the moves and
     Remove; a section's Add <noun>, the moves and Remove (every entry, or
     every skill), with no Edit, since its heading has nothing to type.
     Remove is the panel's hide, with Undo, the bank keeping the item; a
@@ -3930,9 +3949,13 @@ student who opened a resume from Experiences landed on another view.
   the resume's name, renamed in place as on Tailor's review: plain text
   with its pencil in `ink-meta` at rest (KAN-574: shown on hover alone, touch
   never saw it, and the name read as a plain heading), a faint outline when
-  pointed at, and a click opens the one Rename form (`RenameField`, above
-  under Resumes: the field with Cancel and Save; Enter saves, Esc
-  cancels; it saved on a click away with no buttons until KAN-825). It is
+  pointed at, and a click makes the name itself the field (`TitleField`,
+  2026-11-19), as a Google Doc's title is: the same words, size and
+  place, selected, a ring its one sign, and no buttons; Enter or a click
+  away saves, Esc puts the name back, and an empty name keeps the old one.
+  KAN-825 opened the lists' Rename form there (`RenameField`, above under
+  Resumes, with Cancel and Save), which the user found a different editor
+  opening in the title's place. It is
   the page's h1 here, at a sub-page's size (`text-heading`, `text-title` on
   a phone's column), and an h2 on the review (`text-subtitle`), under its
   step's sr-only h1. **The Primary badge** follows the name on the primary
@@ -3940,9 +3963,7 @@ student who opened a resume from Experiences landed on another view.
   column beside it, so the review's panel starts level with the bar.
   It was a plain h1 at heading size until KAN-411, and `text-subtitle`
   from then until KAN-825; a failed load still
-  shows it over the error. At its right (KAN-799) the save status,
-  "Saving…" or "✓ Saved" (`SaveStatus`; "Fitting to One Page…" during a
-  fit), **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
+  shows it over the error. At its right (KAN-799) **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
   page's one filled button, and on this page (not the review) **⋯**
   (`ResumeMenu`, `[resumeId]/resume-menu.tsx`, KAN-825): the Resumes
   list's own menu with Rename, Make Primary while it is not, Take the Tour
