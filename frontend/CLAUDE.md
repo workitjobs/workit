@@ -3593,13 +3593,67 @@ inside the sidebar and show a student that the admin pages exist.
 
 **An admin page follows `docs/design.md` as a seeker page does**: the
 page's frame (`ADMIN_FRAME` in `admin/panel.tsx`: `max-w-dashboard`, the
-gutters, 24px under the top), white `Card`s 16px apart on the near-white
+gutters, 24px under the top), white cards 16px apart on the near-white
 ground, type tokens only, and WorkIt's own parts (`SectionHeading` through
 `Panel`, `StatTile`, `SegmentedLinks`, `SelectField`, `Tip`). Colour marks
 a state or what acts, never rank: red is a failure only, and violet is a
 pick, a link or a chart's one series. The first builds (2026-11-19) drew
 four filled tiles, hand-made headings and buttons, raw sizes and a
 gradient sidebar; the review above replaced them.
+
+**Every box on an admin page has a shadow**, the user's rule
+(2026-11-19). A card is `Card tone="tile"`, as Home's sections and the
+stat tiles are: no outline, set apart by `--shadow-tile`, the 20px corner.
+`Panel` sets it. The default card's `--shadow-panel` is a 1px halo, which
+read as no shadow at all beside the tiles. A tile has no outline, so a
+card that marks a state (the status card, red or amber) draws its own
+full edge in that colour. A box inside a card that is a button (a hiring
+system's row) rests on `--shadow-card` and lifts onto `--shadow-lift`.
+
+**The sidebar links each page's sections under the page**, and a section
+link goes to its section (the user's request, 2026-11-19):
+
+- **`admin/pages.ts` is the one list** of the pages and each page's
+  sections (`ADMIN_PAGES`, `SCRAPE_SECTIONS`, `REPORT_SECTIONS`). A
+  section is an id and a label. `Panel` takes its `section` from there,
+  never a title of its own, so a card's title and its sidebar link say the
+  same words and the link always has a target. A new card on an admin
+  page joins its page's sections first. The file is not a client file: the
+  pages and the sidebar both read it (the rule on `HISTORY`, below).
+- **On the page itself the link is the fragment alone** (`#board-reads`),
+  so the address keeps its period and position; from another page it is
+  that page's address with the fragment. A page with one part (Fill
+  Health) has no section links.
+- **`goTo` in `admin-nav.tsx` scrolls on every press.** Next scrolls to a
+  fragment only when the fragment changes (`url.hash !== oldUrl.hash` in
+  its navigation), so a second press on the same section, after the admin
+  scrolled away, did nothing: the address already said `#status`. `goTo`
+  calls `scrollIntoView()` itself, and stops the press when the address
+  already has the fragment, since a link to the address the page is at
+  would only read the page again.
+- **Never a plain `<a href="#id">` for these.** The browser then makes a
+  history entry Next does not know (`history.state` is null), and Next's
+  `popstate` handler leaves such an entry alone, so Back to it after a
+  period change would show the old address over the new page.
+- **A section stops 24px under the top** (`SECTION_TARGET`,
+  `scroll-mt-6`). A page's first section takes `FIRST_SECTION_TARGET`
+  (192px), more than the title row's height, so its link shows the page
+  from the top with the title and the time controls; at 24px the link
+  scrolled the title row out of view.
+- **The page glides to the section** (`motion-safe:lg:scroll-smooth` on
+  the shell's page box), so the admin sees where the page went. With
+  reduced motion it jumps. A section at the page's foot stops where the
+  page ends, lower than 24px.
+- **The links show from lg up on the open sidebar only.** The collapsed
+  rail has icons alone, and the bar below lg is one row. From lg up the
+  links' own box scrolls when the window is short (4px of padding inside
+  it keeps a focus ring whole), so Back to WorkIt stays in reach.
+- **Still open:** no link is marked as the section in view, and a phone
+  has no section links.
+
+`/admin/fill-reports` gives its two sections ids (Groups, Reports) and
+now always draws the Groups heading, with "No groups for these filters."
+when none match, so its link has a target.
 
 `/admin/scrape-health` (the scraper's health, KAN-879) answers one
 question first, whether the scrape is running, then gives the detail in
