@@ -1139,11 +1139,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `DESKTOP_DOWNLOAD_URL` in `lib/auto-apply-desktop.ts` is the DMG's
   address, null until W8 of `../docs/desktop_application_auto_apply.md`
   publishes one; setting it is the launch, and the only change it needs.
-  While it is null, nothing names a download that does not exist: the
-  public header's Download link, the home hero's Download for Mac, the
-  Auto Apply feature page's Mac answer, `/download` (a 404) and the app's
-  top bar button and Up Next offer (`docs/screens.md`, "The Mac app's
-  offers") are all hidden. Once set, they show, so the app is hard to miss,
+  While it is null, nothing offers a file that does not exist: the home
+  hero's Download for Mac, the Auto Apply feature page's Mac answer and
+  the app's top bar button and Up Next offer (`docs/screens.md`, "The Mac
+  app's offers") are hidden. **`/download` and the header's Download link
+  are public before the build** (the user's call, 2026-11-19; the page
+  was a 404): with no build the page's pill says Coming soon, its hero
+  offers the sign-up and Add to Chrome, which work today, the Mac card
+  says Coming soon, and its FAQ opens on "When can I download it?". Once
+  set, every one of them becomes Download for Mac, so the app is hard to miss,
   after claude.com and chatgpt.com: a header link, a hero button beside
   the sign-up and a public `/download` page that offers both ways to auto
   apply, the Mac app and the Chrome extension. The signed-in offers show

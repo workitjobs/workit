@@ -2076,9 +2076,10 @@ all shown only once `DESKTOP_DOWNLOAD_URL` is set:
   forgets it. WorkIt does not yet know whether a student has the app (its
   sign-in record lasts an hour), so a student who has it closes the offer
   once.
-- On the public site: **Download** in the header, **Download for Mac** in
-  the home hero beside the sign-up, and `/download` itself
-  (frontend/CLAUDE.md, the marketing site).
+- On the public site: **Download** in the header and `/download` itself,
+  public before the build and saying Coming soon until then, and
+  **Download for Mac** in the home hero beside the sign-up once there is a
+  build (frontend/CLAUDE.md, the marketing site).
 
 ## Calendar
 

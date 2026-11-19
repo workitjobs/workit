@@ -7,10 +7,11 @@
  * signed, notarized DMG and puts it on Cloudflare R2; set its address here
  * then, and nothing else.
  *
- * While it is null, every way to the app stays hidden: the public site's
- * Download link and page and the hero's Download for Mac, the Auto Apply
- * page's Mac answer, the app's top bar button and the Auto Apply queue's
- * offer. No page promises a download that does not exist. The beta's
+ * While it is null, nothing offers a file that does not exist: the home
+ * hero's Download for Mac, the Auto Apply page's Mac answer, the app's top
+ * bar button and the Auto Apply queue's offer stay hidden, and the public
+ * `/download` page and the header's Download link, which stay public (the
+ * user's call, 2026-11-19), say Coming soon in place of the download. The beta's
  * daily model limit is not guarded here: a public link lets anyone
  * download, so a limit on who may use the app belongs at its sign-in.
  */

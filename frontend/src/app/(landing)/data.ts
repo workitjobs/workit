@@ -23,8 +23,9 @@ export const site = {
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },
-  // The header's last link, shown only while there is a Mac build to
-  // download (lib/auto-apply-desktop.ts, KAN-922).
+  // The header's last link, to the Mac app's page (KAN-922), public before
+  // the build too: the page says Coming soon until there is a file
+  // (lib/auto-apply-desktop.ts).
   download: { label: "Download", href: DESKTOP_PAGE },
   // The header's menus and the footer's Features and Resources columns list
   // features/catalog.ts and resources/catalog.ts; these are the footer's
