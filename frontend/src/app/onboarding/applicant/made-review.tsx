@@ -1,11 +1,10 @@
 "use client";
 
-import { use, useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 
 import { ResumePreviewPane } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { Editor, EditorSkeleton } from "@/app/(seeker)/resumes/[resumeId]/editor";
-import { TitleRowContext, TitleRowProvider } from "@/app/(seeker)/resumes/[resumeId]/resume-menu";
-import { RowMoreMenu } from "@/components/resume-row";
+import { TitleRowProvider } from "@/app/(seeker)/resumes/[resumeId]/resume-menu";
 import { ResumeTitle } from "@/app/(seeker)/resumes/[resumeId]/resume-title";
 import { LoadFailed } from "@/components/ui/load-failed";
 import { getBank, type Bank } from "@/lib/bank-actions";
@@ -132,7 +131,6 @@ function BuiltReview({
           initialChoices={loaded.choices}
           initialHeader={loaded.header}
           heading={<ResumeTitle as="h2" resumeId={resumeId} name={loaded.name} />}
-          more={<OnboardingMenu name={loaded.name} />}
           // The phone's tip in the tour's place: the phone editor is
           // another layout, and the tour is drawn from 64rem only
           phoneBar={
@@ -154,12 +152,4 @@ function BuiltReview({
       </TitleRowProvider>
     </div>
   );
-}
-
-/** The title row's ⋯ in onboarding: Rename and Take the Tour, the resume
- *  page's menu without Make Primary and Delete (a first resume is the
- *  primary, and deleting it would leave the step showing nothing). */
-function OnboardingMenu({ name }: { name: string }) {
-  const row = use(TitleRowContext);
-  return <RowMoreMenu always name={name} onRename={row?.rename} onTour={row?.tour ?? undefined} />;
 }

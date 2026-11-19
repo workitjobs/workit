@@ -1997,8 +1997,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-825), through three shared pieces; a new place that shows a resume
   uses them, never its own:
   - **One Primary mark, `PrimaryBadge`** (`components/resume-row.tsx`): the
-    table row, a grid card's page corner, the title of the editor and of an
-    upload's page, the resume pickers and Experiences' Showing card.
+    table row, a grid card's page corner, the resume pickers and
+    Experiences' Showing card. A resume's own page has the star instead
+    (`PrimaryStar` in its title, 2026-11-19), filled on the primary and a
+    Make Primary button on any other, as a Google Doc's star.
     `wordClassName` says where the word folds. There were five: the badge,
     a black disc, a star with the word, a bare purple star and nothing.
   - **One rename in the lists, `RenameField`**: the name's field in its
@@ -2010,18 +2012,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     Enter or a click away saves, Esc puts the name back. KAN-825 gave the
     title `RenameField` too, and the user found it a different editor
     opening in the title's place.
-  - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
-    at `text-heading`, and the badge), then an upload's date, the filled
-    Download, and `ResumeMenu`
-    (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
-    with Rename, Make Primary, Take the Tour and Delete. `TitleRowProvider`
-    joins the two ends: the menu's Rename opens the title's field, Take the
-    Tour opens the editor's Getting Started walkthrough (the editor hands it
-    over, `attachTour`; `docs/editor-walkthrough.md`),
-    and a failed Make Primary or Delete shows under the title. Tailor's review keeps its h2
-    title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
-    focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
-    button stays, and its focus return took the focus from the new field.
+  - **One title row on both resume pages, with no ⋯** (2026-11-19, after
+    Google Docs and Drive: the editor is the document, Resumes the drive):
+    `ResumeTitle` (the name, an h1 at `text-heading`, renamed in place, and
+    the star), then an upload's date, the filled Download, and on an
+    upload's page alone its trash (`ResumeDelete` in
+    `resumes/[resumeId]/resume-menu.tsx`, which asks first): an upload's
+    page is a file's preview, and a built resume is deleted from Resumes,
+    never mid edit. The editor's toolbar has a ? for Take the Tour (the Getting
+    Started walkthrough, `docs/editor-walkthrough.md`), before the panel's
+    button. KAN-825 put Rename, Make Primary, Take the Tour and Delete in a
+    ⋯ after Download (the list's `RowMoreMenu`); the title and the star do
+    the first two, and onboarding's review lost its ⋯ the same way.
+    `TitleRowProvider` keeps the line under the title, where a failed
+    rename, Make Primary or Delete shows. **`RowMoreMenu` hands no focus
+    back to ⋯ after Rename** (`finalFocus`): a list's row keeps the
+    button, and its focus return took the focus from the new field.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's

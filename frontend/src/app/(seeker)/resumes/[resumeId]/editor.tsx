@@ -65,7 +65,6 @@ import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
-import { TitleRowContext } from "./resume-menu";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
   SAMPLE_BANK,
@@ -824,13 +823,6 @@ export function Editor({
   // Add Experiences' practice examples while the walkthrough shows it to a
   // student with nothing saved: ticked on screen, never sent to the API
   const [sample, setSample] = useState<Choices | null>(null);
-  const titleRow = use(TitleRowContext);
-  const attachTour = titleRow?.attachTour;
-  useEffect(() => {
-    if (suggestions || !attachTour) return;
-    attachTour(() => setWalking(true));
-    return () => attachTour(null);
-  }, [attachTour, suggestions]);
   // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
   // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
   const [cuts, setCuts] = useState(NO_CUTS);
@@ -3054,6 +3046,8 @@ export function Editor({
       saving={saving || fittingNow}
       fitting={fittingNow}
       onFit={fit}
+      // The toolbar's ?, on the editor's own page (not Tailor's review)
+      onTour={suggestions ? undefined : () => setWalking(true)}
       experiences={
         // They wait for the first render, since a pick renders again
         rendered

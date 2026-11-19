@@ -28,8 +28,9 @@ and `src/components/tour.tsx` (`CoachMark`).
   "No, build one for me" and for an upload, which opens as an editable copy
   (`startFromResume`; the file alone is the fallback when no copy can be
   made).
-- **The title row's ⋯, Take the Tour**, runs it on any built resume's page
-  (`TitleRowProvider`'s `attachTour`). Never on Tailor's review.
+- **The toolbar's ?, Take the Tour**, runs it on any built resume's page and
+  onboarding's review (`Bar`'s `onTour`, before the panel's button; Take the
+  Tour in the title row's ⋯ until 2026-11-19). Never on Tailor's review.
 - **From 64rem only** (`useTourFits`). The phone editor's header row says to
   open the panel instead.
 

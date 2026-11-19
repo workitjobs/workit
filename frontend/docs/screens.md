@@ -3781,11 +3781,11 @@ so every resume opens inside WorkIt (a built one opens the editor, next).
 Back (to the page that opened it, such as Experiences, else `/resumes`;
 `(seeker)/back-link.tsx`), then **the editor's own title row** (KAN-825;
 the editor's layout since KAN-799): the file's name (`ResumeTitle`, the
-editor's h1 at the same size, renamed in place) with the Primary badge
-after it on the primary, then at the right "Uploaded Oct 21",
-**Download**, the page's one filled button, and ⋯
-(`ResumeMenu`: Rename, Make Primary while it is not, Delete). Until
-KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
+editor's h1 at the same size, renamed in place) with the star after it
+(filled on the primary, Make Primary on any other), then at the right
+"Uploaded Oct 21", **Download**, the page's one filled button, and the
+trash (`ResumeDelete`, which asks first; a ⋯ with Rename, Make Primary and
+Delete until 2026-11-19). Until KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
 it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
 a lavender bar with a ring and a shadow until KAN-576) holds the page's one
@@ -3958,20 +3958,24 @@ student who opened a resume from Experiences landed on another view.
   opening in the title's place. It is
   the page's h1 here, at a sub-page's size (`text-heading`, `text-title` on
   a phone's column), and an h2 on the review (`text-subtitle`), under its
-  step's sr-only h1. **The Primary badge** follows the name on the primary
-  (KAN-825: the editor showed no sign of it). It spans the page and the
+  step's sr-only h1. **The star** follows the name (2026-11-19; the
+  Primary badge from KAN-825, when the editor showed no sign of it): filled
+  on the primary, and on any other a button that makes it the primary at
+  once, a failure putting it back with the reason under the title. The
+  review has none. It spans the page and the
   column beside it, so the review's panel starts level with the bar.
   It was a plain h1 at heading size until KAN-411, and `text-subtitle`
   from then until KAN-825; a failed load still
   shows it over the error. At its right (KAN-799) **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
-  page's one filled button, and on this page (not the review) **⋯**
-  (`ResumeMenu`, `[resumeId]/resume-menu.tsx`, KAN-825): the Resumes
-  list's own menu with Rename, Make Primary while it is not, Take the Tour
-  (from 64rem, the Getting Started walkthrough, `docs/editor-walkthrough.md`)
-  and Delete,
-  which asks first and returns to Resumes. An upload's page draws the same
-  row. Until KAN-825 a student could not make a resume primary, or delete
-  it, from the editor. Download and the status sat in the bar until KAN-799: Download as a
+  page's one filled button, and nothing after it (2026-11-19). The editor
+  is the document and Resumes the drive, as Google Docs and Drive are: the
+  title renames in place, **the star** after the name makes the resume the
+  primary (`PrimaryStar`, filled on the primary; the Primary badge until
+  then), the toolbar's **?** before the panel's button takes the tour
+  (from 64rem, `docs/editor-walkthrough.md`), and a resume is deleted from
+  Resumes. A ⋯ after Download (`ResumeMenu`, KAN-825) held Rename, Make
+  Primary, Take the Tour and Delete until then. An upload's page draws the
+  same row, with its trash after Download. Download and the status sat in the bar until KAN-799: Download as a
   secondary button among the tools, which left the bar while a line was
   open, and the status as "Saved, 412 ms", hidden below 58rem. Download
   keeps nothing (KAN-267) and holds a PDF with characters the font lacks
@@ -4843,7 +4847,7 @@ editor had neither. **On a built resume the editor's Getting Started walkthrough
 first ("Check your details", Looks Right), cards of a line or two, a
 pulsing ring on the control to press, each section's step open while the
 student adds as many as they have, and practice examples where a new student
-has nothing. Its ⋯ (Rename, Take the Tour) runs it again. **An upload opens
+has nothing. The toolbar's ? runs it again, and the title renames. **An upload opens
 as an editable copy** (`startFromResume`), so an uploader meets the editor
 and the walkthrough too; the file alone is the fallback. **The header's
 contact details** are its first step, since the header is the one part of the

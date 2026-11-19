@@ -8,6 +8,7 @@ import {
   ArrowUpIcon,
   CircleNotchIcon,
   LightbulbIcon,
+  QuestionIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
@@ -274,6 +275,7 @@ export function Bar({
   history,
   crumbs = null,
   onCrumb,
+  onTour,
   blockMoves = null,
 }: {
   /** The open line and its box, or null while none is. */
@@ -294,6 +296,11 @@ export function Bar({
   /** Where the open line or the picked block sits (KAN-920). */
   crumbs?: Crumb[] | null;
   onCrumb?: (target: string) => void;
+  /** Takes the Getting Started tour again: the ? before the panel's button,
+   *  from 64rem, where the tour is drawn (./walkthrough.tsx). It was Take
+   *  the Tour in the page's ⋯ until the ⋯ went (2026-11-19); Google Docs
+   *  keeps its help under the toolbar the same way. */
+  onTour?: () => void;
   /** A picked block's moves, in place of an open line's. */
   blockMoves?: MoveTools | null;
 }) {
@@ -447,6 +454,24 @@ export function Bar({
             above where the panel opens: never folded away, since it is the
             only way back to a closed panel */}
         <Divider />
+        {onTour && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  aria-label="Take the Tour"
+                  className="shrink-0 max-lg:hidden"
+                  onClick={onTour}
+                />
+              }
+            >
+              <QuestionIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>Take the Tour</TooltipContent>
+          </Tooltip>
+        )}
         <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
       </div>
     </div>
