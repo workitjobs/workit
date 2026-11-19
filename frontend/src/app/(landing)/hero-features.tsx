@@ -72,7 +72,7 @@ export function HeroFeatures() {
         role="tablist"
         aria-label="Features"
         onKeyDown={onKeyDown}
-        className="mx-auto flex w-fit gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70 backdrop-blur-sm"
+        className="mx-auto flex w-fit gap-1 rounded-full bg-slate-900/[0.05] p-1"
       >
         {TOUR_TABS.map((item, i) => {
           const selected = i === at;

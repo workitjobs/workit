@@ -105,17 +105,14 @@ export default function LandingPage() {
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
 
-      {/* The four features, one at a time, on the hero's pale ground: a
-          section of their own since the hero became one screen
-          (hero-features.tsx). */}
-      <section aria-labelledby="features-title" className={PANEL_INSET}>
-        <div className={cn(PANEL, "panel-ground px-3 py-16 sm:px-6 sm:py-24")}>
-          <SectionHeading
-            id="features-title"
-            eyebrow="What WorkIt does"
-            title="Every step of the search, in one place"
-          />
-          <div className="mx-auto mt-10 max-w-6xl sm:mt-14 lg:px-2">
+      {/* The four features, one at a time: a section of their own since the
+          hero became one screen (hero-features.tsx). On the plain white
+          page with no label above the heading: on the hero's violet panel,
+          with a violet eyebrow, it read as off (the user's call). */}
+      <section aria-labelledby="features-title" className="py-16 sm:py-24">
+        <div className={CONTAINER}>
+          <SectionHeading id="features-title" title="Every step of the search, in one place" />
+          <div className="mt-10 sm:mt-14">
             <HeroFeatures />
           </div>
         </div>

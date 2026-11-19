@@ -1131,13 +1131,14 @@ html[data-tab-flight="flying"] .tour-tabs {
   mix-blend-mode: soft-light;
 }
 
-/* The home hero's panel and the features section's (KAN-923): the pale
- * brand violet (brand-100), so every surface in the hero shares one colour
- * temperature. It was a cool ink-grey, beside white tiles, a lavender
- * headline tile and Google's neutral-grey buttons: four near-whites in
- * three temperatures, all between 94% and 100% lightness, which read as a
- * loading skeleton (the user's "something feels off"; the diagnosis is in
- * docs/marketing-design-system.md). */
+/* The home hero's panel (KAN-923): the pale brand violet (brand-100), so
+ * every surface in the hero shares one colour temperature. It was a cool
+ * ink-grey, beside white tiles, a lavender headline tile and Google's
+ * neutral-grey buttons: four near-whites in three temperatures, all
+ * between 94% and 100% lightness, which read as a loading skeleton (the
+ * user's "something feels off"; the diagnosis is in
+ * docs/marketing-design-system.md). The features section below sat on it
+ * too until the user found the second violet panel off; it is on white. */
 .panel-ground {
   background: var(--color-landing-brand-100);
 }

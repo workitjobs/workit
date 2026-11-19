@@ -343,8 +343,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
   - **The four features, below the hero and the logo strip**
-    (`hero-features.tsx`, their own section on the hero's grey since the
-    hero became one screen, "Every step of the search, in one place"): the four
+    (`hero-features.tsx`, their own section since the hero became one
+    screen, "Every step of the search, in one place", on the plain white
+    page with no eyebrow: on a second violet panel with a violet eyebrow
+    the user found it off; the tab track is slate at 5% so it reads on
+    white): the four
     `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
     `.surface-card` with the open feature's copy (`StopCopy`,
     `stop-copy.tsx`, shared with the unmounted tour) beside its story in a
