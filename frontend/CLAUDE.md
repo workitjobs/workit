@@ -268,8 +268,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), what stays the student's call (`control.tsx`),
   the hiring systems as a centred chapter
-  (`hiring-grid.tsx`, `#hiring-systems`) and the FAQ, which runs into the
-  footer. **The user took two sections out on 2026-11-19**: the statement
+  (`hiring-grid.tsx`, `#hiring-systems`), which runs into the footer.
+  **The FAQ is off the home page** (the user's call, 2026-11-19): its
+  questions (`faqs` in data.ts) are on the Help Center's coming-soon page
+  (`soon.questions` in `resources/catalog.ts`, under the panel, its button
+  `#questions`), and the footer's FAQ link went. **The user took two
+  sections out on 2026-11-19**: the statement
   ("Slop applications get skipped", archived: `statement.tsx` stays,
   unmounted) and the home page's closing call to action with its drifting
   status chips (deleted, with its `closing` copy; `ClosingCta` stays for
@@ -992,8 +996,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy, so it is hidden (`testimonial.show` in `data.ts`) until a real,
   approved quote exists: shown, it read as an unfinished site on
-  production. Never fill it with an invented quote. The FAQ answers are product
-  claims, each tied to its source in a comment in `data.ts`.
+  production. Never fill it with an invented quote. The FAQ answers (now on
+  the Help Center's page) are product claims, each tied to its source in a
+  comment in `data.ts`.
 - **The marketing site is the home page, a page per feature, Pricing and
   the Resources pages**, all in `app/(landing)/`, after Linear, Notion and
   Calendly. The home page is the overview. The header reads Features ▾,
@@ -1684,8 +1689,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     came with the page.
   - On the server the gate opens at once: waiting there for a scroll
     that never comes hung `next build` ("took more than 60 seconds").
-  - After a change, load `/#hiring-systems`, `/#how-it-works` and
-    `/#faq` fresh: each must land on its section.
+  - After a change, load `/#hiring-systems` and `/help-center#questions`
+    fresh: each must land on its section.
   - Measure on a production build (`npm run build`, then `npm run
     start`) with the CPU slowed 4x: `next dev` ships unminified code and
     hides or invents the cost.

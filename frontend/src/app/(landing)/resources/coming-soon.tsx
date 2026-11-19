@@ -5,9 +5,10 @@ import { cn } from "@/lib/cn";
 
 import { PrimaryButton, SecondaryButton } from "../buttons";
 import { site } from "../data";
+import { FaqList } from "../faq-list";
 import { backdrop } from "../features/catalog";
 import { FeatureIcon } from "../features/feature-icon";
-import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, TYPE } from "../layout-parts";
+import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "../layout-parts";
 import type { Resource } from "./catalog";
 
 /** The brand violet over its tint, like the Pricing page's panels. */
@@ -29,8 +30,10 @@ export function comingSoonMetadata(resource: Resource): Metadata {
 /**
  * The page a Resources item shows while it has none of its own: its name,
  * a plain "Coming soon", what the page will hold (the item's `soon` copy in
- * catalog.ts), a page that exists now, and the sign-up. It promises nothing
- * that is not built.
+ * catalog.ts), a page that exists now, and the sign-up, then any questions
+ * it answers meanwhile (`soon.questions`: the Help Center holds the
+ * questions the home page's FAQ did). It promises nothing that is not
+ * built.
  */
 export function ComingSoonPage({ resource }: { resource: Resource }) {
   const { soon } = resource;
@@ -60,6 +63,14 @@ export function ComingSoonPage({ resource }: { resource: Resource }) {
           </div>
         </div>
       </section>
+      {soon.questions && (
+        <section id="questions" aria-labelledby="questions-title" className="py-20 sm:py-28">
+          <div className={cn(CONTAINER, "max-w-3xl")}>
+            <SectionHeading id="questions-title" title="Questions, answered" />
+            <FaqList items={soon.questions} className="mt-12" />
+          </div>
+        </section>
+      )}
     </main>
   );
 }

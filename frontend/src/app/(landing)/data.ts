@@ -31,7 +31,6 @@ export const site = {
       links: [
         { label: "Overview", href: "/" },
         { label: "Pricing", href: "/pricing" },
-        { label: "FAQ", href: "/#faq" },
       ],
     },
     {
@@ -259,6 +258,9 @@ export const testimonial = {
 };
 
 /**
+ * The common questions, shown on the Help Center's page until its guides
+ * exist (resources/catalog.ts); the home page's FAQ held them until the user
+ * took it off (KAN-923, 2026-11-19).
  * Each answer is a claim about the product: the jobs' source must match the
  * hiring-system list above, and "you press Submit" is auto-apply's rule
  * (auto-apply/architecture.md). Pricing is not set, so the cost answer says

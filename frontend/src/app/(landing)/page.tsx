@@ -4,10 +4,8 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { faqs, hero, site, testimonial } from "./data";
+import { hero, site, testimonial } from "./data";
 import { Control } from "./control";
-import { FaqList } from "./faq-list";
-import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
@@ -41,8 +39,9 @@ export const metadata: Metadata = {
  * plays each one in a framed box, then each section leads into the next:
  * proof the jobs are real (the logo strip), where applications get lost
  * (the problems), the four features, each product in depth, what stays
- * the student's call (control), where the jobs come from (hiring systems)
- * and the FAQ, which runs into the footer. Every
+ * the student's call (control) and where the jobs come from (hiring
+ * systems), which runs into the footer. The FAQ went on 2026-11-19 (the
+ * user's call); its questions are on the Help Center's page. Every
  * animation sits in a `StudioBox`; only the product sections pin. The
  * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
  * pipeline, the applications route) and three the user took out on
@@ -142,31 +141,6 @@ export default function LandingPage() {
           </GrowIn>
         </section>
       )}
-
-      {/* FAQ: the questions rise in one after another once the list is on
-          screen, in time (FocusIn, landing.css). From lg up the heading
-          holds on the left while the questions pass on the right. */}
-      <section id="faq" className="py-20 sm:py-28">
-        <div
-          className={cn(
-            CONTAINER,
-            "lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-16",
-          )}
-        >
-          <div className="lg:sticky lg:top-32">
-            <FocusIn>
-              <SectionHeading
-                align="left"
-                className="max-lg:mx-auto max-lg:text-center"
-                title="Questions, answered"
-              />
-            </FocusIn>
-          </div>
-          <FocusIn>
-            <FaqList items={faqs} className="faq-rise mt-12 lg:mt-0 lg:max-w-none" />
-          </FocusIn>
-        </div>
-      </section>
     </main>
   );
 }
