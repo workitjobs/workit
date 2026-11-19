@@ -288,7 +288,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     tile in the middle (`.hero-copy`): plain white with a soft violet
     shadow, the brightest surface, so it leads by lightness. Empty tiles
     flow round it at 55% white with no edge, so they recede; seven light up
-    in turn in solid brand violet with a real employer, the role (from lg up, on a
+    in turn in a soft solid violet (`--mk-lit`, #6c56b2: the brand's hue
+    at about 35% less chroma; the brand itself was too strong and pushed
+    the green rings toward cyan) with a real employer, the role (from lg up, on a
     tile at least 116px tall: `.tile-role` hides by a container query on
     the tile, since on a short wide screen its second line ran into the
     bar) and the match's strength in the app's own bands (`matchTier` from
@@ -306,7 +308,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     height), at their cell's size (lifted 4% they stood out of line). A lit
     tile's text is white in the Jobs page job card's weights
     (`compact-job-card.tsx`: role medium, company regular, match semibold;
-    85% white for the second line, 5:1 on the brand), never violet on
+    85% white for the second line, 4.7:1 on `--mk-lit`), never violet on
     violet. **Why this palette** (the user's "something feels off",
     measured): before it every surface sat between 94% and 100% lightness
     in three temperatures (a cool grey ground, white tiles, a lavender

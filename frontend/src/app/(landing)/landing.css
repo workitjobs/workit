@@ -23,6 +23,13 @@
   --mk-shadow-float:
     0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 2px rgb(15 23 42 / 0.06),
     0 14px 30px -14px rgb(15 23 42 / 0.28);
+  /* The home hero's lit tiles (hero-board.tsx): the brand violet's hue and
+   * lightness at about 35% less chroma (OKLCH 0.52 0.14 292). The brand
+   * itself (chroma 0.22) was too strong for the user, and its saturation
+   * pushed the green rings beside it toward cyan. White on it is 5.8:1,
+   * 85% white 4.7:1, the light band steps 3.1 to 4.0:1, and it stands 5:1
+   * off the brand-100 ground. */
+  --mk-lit: #6c56b2;
 
   /* The app's own face, Inter (globals.css), as the marketing site had it;
    * the headlines take Plus Jakarta Sans (below). */

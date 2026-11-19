@@ -16,7 +16,7 @@ screens follow `design.md`, not this file.
 2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
    check, a feature's icon tile, Plus's limit pills, the slop word. It
    never fills a button or a card. The one exception is the home hero's
-   lit tiles, solid brand violet with white text.
+   lit tiles, a soft solid violet (`--mk-lit`) with white text.
 3. **Value before hue.** Check a screen in greyscale: the surfaces that
    must separate need distinct lightness, and the main action must be the
    strongest contrast in its area. The home hero once had every surface
@@ -45,7 +45,7 @@ screens follow `design.md`, not this file.
 | Panel ground | `.panel-ground` (brand-100) | The home hero's and the features section's panels |
 | Empty tile | white at 55%, no edge | The hero's tiles that are not lit; they recede |
 | Headline tile | `.hero-copy`: white, a soft violet shadow | The hero's brightest surface; ink text, the Google pair on it |
-| Lit tile | `--color-brand` fill, white text (85% white for second lines) | The hero's fits; the only saturated colour in it |
+| Lit tile | `--mk-lit` (#6c56b2, the brand's hue at less chroma), white text (85% white for second lines) | The hero's fits; the only saturated colour in it. The brand itself was too strong and shifted the rings' green toward cyan |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -112,7 +112,7 @@ heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 The first screen and nothing else: a pale violet panel the screen's
 height, filled edge to edge by tiles. The headline sits in one large white
 tile in the middle, the brightest surface. Empty tiles recede at 55% white;
-seven tiles light up in turn in solid brand violet, with a real employer,
+seven tiles light up in turn in a soft solid violet (`--mk-lit`), with a real employer,
 the role and the match's strength in the app's bands ("Excellent Match"
 or "Good Match", from `lib/match.ts`) behind the app's own 14px match ring
 (`MatchGlyph`), drawn on the violet with the bands' light steps

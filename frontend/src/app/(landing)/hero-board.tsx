@@ -30,13 +30,14 @@ const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23
 /**
  * The home hero's grid (KAN-923, the user's pick): square white tiles round
  * the headline, which sits in one large white tile of its own, and the
- * tiles of postings worth applying to light up in solid brand violet, in
+ * tiles of postings worth applying to light up in a soft solid violet
+ * (`--mk-lit` in landing.css, the brand's hue with less chroma), in
  * turn, with the company, the role and the match's strength in the app's
  * bands over a filling bar (`MatchBar`), as the Jobs page puts the best
  * fits first. Their text
  * is white in the Jobs page job card's weights (compact-job-card.tsx: the
  * role medium, the company regular, the band semibold), never violet on
- * violet, which the user found off; 85% white keeps 5:1 on the brand. It
+ * violet, which the user found off; 85% white keeps 4.7:1 on `--mk-lit`. It
  * replaced a board of wide grey posting cards, which the user found
  * unsatisfying beside the sketch of this grid, and before it a violet mesh
  * gradient, too close to Calendly's. A server component with no script: the
@@ -60,7 +61,7 @@ export function HeroGrid({ children }: { children: ReactNode }) {
                 className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
                 style={
                   {
-                    background: "var(--color-brand)",
+                    background: "var(--mk-lit)",
                     "--d": `${-(turn * CYCLE) / heroFits.length}s`,
                     "--cycle": `${CYCLE}s`,
                   } as CSSProperties

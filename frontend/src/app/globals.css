@@ -474,19 +474,19 @@
   --color-match-fair: #d9620d;
   --color-match-weak: var(--color-danger);
   /* The same bands, lighter, for a mark on a coloured fill (KAN-923: the
-   * home hero's violet tiles, `matchColorOnFill` in @/lib/match). On the
-   * brand violet the steps above fall to 1.3 to 1.9:1; these hold the 3:1
-   * a graphic needs (WCAG 1.4.11). Never on white, where they are too
+   * home hero's violet tiles, `--mk-lit` in (landing)/landing.css,
+   * `matchColorOnFill` in @/lib/match). On violet the steps above fall to
+   * 1.3 to 1.9:1; these hold the 3:1 a graphic needs (WCAG 1.4.11). Never on white, where they are too
    * pale; never for text.
    *
    * Excellent is a plain green (OKLCH hue 144): a minty #6ee7b7 (hue 165)
    * read as cyan beside the violet, which the user caught.
    *
-   *                on --color-brand
-   *   excellent    4.14
-   *   good         4.34
-   *   fair         3.71
-   *   weak         3.30 */
+   *                on --mk-lit   on --color-brand
+   *   excellent    3.84          4.14
+   *   good         4.03          4.34
+   *   fair         3.45          3.71
+   *   weak         3.06          3.30 */
   --color-match-excellent-on-fill: #8ee68f;
   --color-match-good-on-fill: #fcd34d;
   --color-match-fair-on-fill: #fdba74;
