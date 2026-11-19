@@ -1,11 +1,13 @@
 import { Card } from "@/components/ui/card";
+
+import { ClosableRail } from "./closable-rail";
 import { percent, type ScrapeHealth } from "@/lib/fill-health";
 
 /** A rail section's small capital heading. */
 function RailHeading({ children, note }: { children: string; note?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 className="text-caption text-ink uppercase">{children}</h2>
+      <h3 className="text-caption text-ink uppercase">{children}</h3>
       {note && <span className="text-label text-ink-meta font-normal">{note}</span>}
     </div>
   );
@@ -77,7 +79,7 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
   const period = `Last ${days} ${days === 1 ? "day" : "days"}`;
 
   return (
-    <aside className="flex shrink-0 flex-col gap-4 px-6 pb-8 lg:w-88 lg:overflow-y-auto lg:py-8 lg:pr-10 lg:pl-0">
+    <ClosableRail>
       <Card as="section" padding="lg">
         <RailHeading>Boards Read</RailHeading>
         <Gauge
@@ -162,6 +164,6 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
           </ul>
         )}
       </Card>
-    </aside>
+    </ClosableRail>
   );
 }
