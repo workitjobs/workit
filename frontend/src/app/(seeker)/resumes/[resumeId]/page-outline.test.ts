@@ -87,6 +87,8 @@ test("a section starts where the block above it ends, its heading included", () 
   // The header ends at 41; Education's heading sits between it and the school
   assert.deepEqual(find("education").start, { page: 1, y: 41 });
   assert.deepEqual(find("experience").start, { page: 1, y: 111 });
+  // Its selection starts at its heading's capitals, not the header's foot
+  assert.equal(find("experience").top, 150 - 19.5);
   // An entry spans its fields and its bullets
   assert.deepEqual(find("e1").start, { page: 1, y: 150 });
   assert.deepEqual(find("e1").end, { page: 1, y: 189 });

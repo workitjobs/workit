@@ -3845,7 +3845,17 @@ student who opened a resume from Experiences landed on another view.
     at once (`swapsOf`), and so does a section when it and its neighbour
     sit on one page (`sectionStrip`, `orderSwaps`; a section is a page
     setting, so across a page break it waits for its PDF). Near the
-    window's top or foot the page scrolls under the drag.
+    window's top or foot the page scrolls under the drag. **It moves as
+    Notion's blocks do** (2026-11-19, the user found it unclean beside
+    Notion's): the block's picture, cut from its page's canvas, rides the
+    pointer with a lift shadow while its source fades in place
+    (`snapshot`, `Ghost`); the drop line is 3px; and a move or a hide on
+    its way slides or closes on the page over 200ms, ease out
+    (`MOTION_MS`, a strip's or a band's `t` in `PageCanvas`), where it had
+    jumped there in one frame. With reduced motion it jumps. The click
+    targets land at once. A typed line's or a new bullet's shift moves the
+    handles too: the blocks are read from the boxes where the page shows
+    them, and a handle sat a line off its block.
   - **The + means one thing where it shows**: on a bullet, a new bullet
     typed in on the page under it (below); on a section heading, a new
     entry in that section's form, put first in it (`place`).
@@ -3856,8 +3866,10 @@ student who opened a resume from Experiences landed on another view.
   - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the
-    entry's last one on this resume), with the PDF's dot beside it and the
-    caret in it; the page under it opens by a line and by each line it wraps
+    entry's last one on this resume), with the PDF's dot beside it, placed
+    where Jake's page puts one (measured: centred 8.26pt left of the text,
+    5.4pt under the line's top, 1.9pt across; a guessed dot sat off the
+    ones above), "New bullet" faint in it and the caret in it; the page under it opens by a line and by each line it wraps
     to (`inserts` on `PdfPages`, a line of no height whose `by` moves what
     is under it, as a typed line's wrap does). Enter adds it and opens the
     next line under it; Enter or Esc on an empty line, or a click away from
@@ -3872,8 +3884,12 @@ student who opened a resume from Experiences landed on another view.
     focused first, lost it there and went as an empty line does.
   - **A click on the handle with no drag picks the block and opens its
     menu** at the handle, as Notion's block handle does (2026-11-19,
-    `actionsOf`, `BlockAction`, `BlockMenu`). The block is outlined in
-    brand, and the toolbar's middle shows where it sits, as a breadcrumb
+    `actionsOf`, `BlockAction`, `BlockMenu`). The block takes a soft brand
+    tint that multiplies into its ink, fading in, from its first line to
+    its last (a section's from its heading's capitals, `HEADING_INK`, its
+    `top`), as Notion's selection: a 2px brand ring came first, drawn from
+    where the block above ended, and over Education it crossed the
+    contact line. The toolbar's middle shows where it sits, as a breadcrumb
     ("Experience › Acme › Bullet 2", `Crumbs`); an open line shows its
     breadcrumb too, and a step of it picks that block. The menu is the
     app's ⋯ menu (`DropdownMenu`, anchored to the handle), its buttons

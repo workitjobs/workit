@@ -266,8 +266,17 @@ export function PdfPages({
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
     );
-  // The page as sections, entries and bullets, where they show now
-  const blocks = outline && !readOnly ? outline.blocksOf(shown) : [];
+  // The page as sections, entries and bullets, where they show now: under a
+  // typed line or a new bullet too, or a handle sat a line off its block
+  const blocks =
+    outline && !readOnly
+      ? outline.blocksOf(
+          shown.map((box) => {
+            const by = moved(box);
+            return by ? { ...box, y0: box.y0 + by, y1: box.y1 + by } : box;
+          }),
+        )
+      : [];
   const pageFrames = useRef<(HTMLDivElement | null)[]>([]);
   const handles = usePageOutline({
     outline: readOnly ? undefined : outline,
@@ -578,7 +587,13 @@ type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number };
 
 /** Two neighbours on one page, `a` above `b`, as their tops and bottoms in
  *  PDF points: a move on its way trades their strips of the page. */
-export type Strip = { page: number; a: [number, number]; b: [number, number] };
+export type Strip = {
+  page: number;
+  a: [number, number];
+  b: [number, number];
+  /** How far through its move the page draws it, 0 to 1 (`PageCanvas`). */
+  t?: number;
+};
 
 /** Where a box sits once these strips have traded places, in order. */
 export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
@@ -601,7 +616,15 @@ export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
  *  A band (no `x0`): everything under it on its page moves up by its height.
  *  A cut (`x0` to `x1`, one line's `top` to `bottom`): what follows it on
  *  that line moves left by its width, as a skill leaves its line. */
-export type Gap = { page: number; top: number; bottom: number; x0?: number; x1?: number };
+export type Gap = {
+  page: number;
+  top: number;
+  bottom: number;
+  x0?: number;
+  x1?: number;
+  /** How far through closing the page draws a band, 0 to 1 (`PageCanvas`). */
+  t?: number;
+};
 
 const isCut = (gap: Gap) => gap.x0 !== undefined && gap.x1 !== undefined;
 
@@ -701,6 +724,17 @@ function closed(drawn: HTMLCanvasElement, gaps: Gap[], scale: number) {
   };
   for (const gap of gaps) {
     copy(Math.round(gap.top * scale));
+    // Part way closed, the band fades where it is while what is under it
+    // rises over it
+    const t = gap.t ?? 1;
+    const top = Math.round(gap.top * scale);
+    const height = Math.round(gap.bottom * scale) - top;
+    if (t < 1 && height > 0) {
+      context.globalAlpha = 1 - t;
+      context.drawImage(drawn, 0, top, next.width, height, 0, to, next.width, height);
+      context.globalAlpha = 1;
+      to += Math.round(height * (1 - t));
+    }
     from = Math.round(gap.bottom * scale);
   }
   copy(drawn.height);
@@ -713,6 +747,7 @@ function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
   let current = drawn;
   for (const strip of strips) {
     const [a0, a1, b0, b1] = [...strip.a, ...strip.b].map((v) => Math.round(v * scale));
+    const t = strip.t ?? 1;
     const next = document.createElement("canvas");
     next.width = current.width;
     next.height = current.height;
@@ -720,8 +755,12 @@ function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
     context.drawImage(current, 0, 0);
     context.fillStyle = "#fff";
     context.fillRect(0, a0, next.width, b1 - a0);
-    context.drawImage(current, 0, b0, next.width, b1 - b0, 0, a0, next.width, b1 - b0);
-    context.drawImage(current, 0, a0, next.width, a1 - a0, 0, a0 + b1 - a1, next.width, a1 - a0);
+    // Each slides toward the other's place: `a` down by `b`'s height, `b`
+    // up by `a`'s and the space between, so they cross at once
+    const aTop = Math.round(a0 + (b1 - a1) * t);
+    const bTop = Math.round(b0 + (a0 - b0) * t);
+    context.drawImage(current, 0, a0, next.width, a1 - a0, 0, aTop, next.width, a1 - a0);
+    context.drawImage(current, 0, b0, next.width, b1 - b0, 0, bTop, next.width, b1 - b0);
     current = next;
   }
   return current;
@@ -772,6 +811,12 @@ function compose(
  *  hidden canvas is kept, so a change to `lives` composes again with no
  *  draw, but only onto this `pdf`'s drawing: a new PDF's lines composed
  *  onto the old drawing would clear and move the wrong lines. */
+/** How long a move or a hide takes to show on the page, and its ease: fast
+ *  out, slow in, so it reads as settling (Notion's blocks take about as
+ *  long). */
+const MOTION_MS = 200;
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+
 function PageCanvas({
   pdf,
   page,
@@ -797,13 +842,36 @@ function PageCanvas({
     strips,
     gaps,
   ]);
+  // When each move and hide on this page began to show, by its place: a new
+  // one slides (a move) or closes (a hide) over `MOTION_MS`, as Notion's
+  // blocks do, where it had jumped to its end in one frame. The page paints
+  // its end the moment the PDF lands, which prints the same
+  const began = useRef(new Map<string, number>());
   useEffect(() => {
     latest.current = { lives, strips, gaps };
-    const shown = canvas.current;
-    const drawn = drawnCanvas.current;
-    if (shown && drawn?.pdf === pdf) {
-      compose(shown, drawn.canvas, strips, gaps, lives, drawn.canvas.width / size.width);
-    }
+    const now = performance.now();
+    const still =
+      !drawnCanvas.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const keyOf = (x: Strip | Gap) => JSON.stringify({ ...x, t: undefined });
+    const keys = new Set([...strips, ...gaps].map(keyOf));
+    for (const key of keys)
+      if (!began.current.has(key)) began.current.set(key, still ? -Infinity : now);
+    for (const key of began.current.keys()) if (!keys.has(key)) began.current.delete(key);
+    let frame = 0;
+    const paint = () => {
+      const shown = canvas.current;
+      const drawn = drawnCanvas.current;
+      if (!shown || drawn?.pdf !== pdf) return;
+      const at = performance.now();
+      const t = (x: Strip | Gap) =>
+        easeOut(Math.min(1, (at - (began.current.get(keyOf(x)) ?? -Infinity)) / MOTION_MS));
+      const moving = strips.map((x) => ({ ...x, t: t(x) }));
+      const closing = gaps.map((x) => ({ ...x, t: t(x) }));
+      compose(shown, drawn.canvas, moving, closing, lives, drawn.canvas.width / size.width);
+      if ([...moving, ...closing].some((x) => x.t < 1)) frame = requestAnimationFrame(paint);
+    };
+    paint();
+    return () => cancelAnimationFrame(frame);
   }, [layoutKey, pdf, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
   const painted = useRef(onPainted);
   useEffect(() => {

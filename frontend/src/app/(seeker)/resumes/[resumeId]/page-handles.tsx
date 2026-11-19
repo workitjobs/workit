@@ -96,9 +96,18 @@ type Drag = {
   block: OutlineBlock;
   /** The pointer's start, to tell a press from a drag. */
   from: number;
+  /** Where on the pages the press landed, and where the pointer is now. */
+  pressed: Spot | null;
+  spot: Spot | null;
   moved: boolean;
   drop: ReturnType<typeof dropAt> | null;
+  /** The block as the page draws it, lifted under the pointer (`snapshot`). */
+  ghost: Ghost | null;
 };
+
+/** A dragged block's picture, cut from its page's canvas, in PDF points:
+ *  its edges and its height, and its top on the page when it was taken. */
+type Ghost = { src: string; x0: number; x1: number; top: number; height: number };
 
 /** Pixels a press may wander before it is a drag. */
 const DRAG_AFTER = 4;
@@ -167,6 +176,36 @@ export function usePageOutline({
     setHover(block ? `${block.kind}:${block.id}` : null);
   };
 
+  /** The block as its page draws it, for the picture a drag carries (as
+   *  Notion's does): the source then fades in its place. None for a block
+   *  over a page break. */
+  const snapshot = (block: OutlineBlock): Ghost | null => {
+    const i = block.start.page - 1;
+    const size = sizes[i];
+    const canvas = pages.current?.[i]?.querySelector("canvas");
+    if (block.start.page !== block.end.page || !size || !canvas) return null;
+    const scale = canvas.width / size.width;
+    const [x0, x1, top] = [block.x0 - 6, block.x1 + 6, block.top - 3];
+    const height = block.end.y + 3 - top;
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round((x1 - x0) * scale));
+    out.height = Math.max(1, Math.round(height * scale));
+    out
+      .getContext("2d")
+      ?.drawImage(
+        canvas,
+        x0 * scale,
+        top * scale,
+        out.width,
+        out.height,
+        0,
+        0,
+        out.width,
+        out.height,
+      );
+    return { src: out.toDataURL(), x0, x1, top, height };
+  };
+
   const indexOf = (block: OutlineBlock) =>
     siblingsOf(blocks, block).findIndex((b) => b.id === block.id);
 
@@ -191,7 +230,16 @@ export function usePageOutline({
       if (event.button !== 0) return;
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      const next = { block, from: event.clientY, moved: false, drop: null };
+      const pressed = spotOf(event.clientY);
+      const next: Drag = {
+        block,
+        from: event.clientY,
+        pressed,
+        spot: pressed,
+        moved: false,
+        drop: null,
+        ghost: null,
+      };
       dragging.current = next;
       setDrag(next);
     },
@@ -204,7 +252,13 @@ export function usePageOutline({
       const edge = event.clientY < EDGE ? -12 : event.clientY > window.innerHeight - EDGE ? 12 : 0;
       if (edge) scrollerOf(event.currentTarget)?.scrollBy({ top: edge });
       const spot = spotOf(event.clientY);
-      const next = { ...now, moved, drop: spot ? dropAt(blocks, now.block, spot) : now.drop };
+      const next = {
+        ...now,
+        moved,
+        spot: spot ?? now.spot,
+        ghost: now.ghost ?? snapshot(now.block),
+        drop: spot ? dropAt(blocks, now.block, spot) : now.drop,
+      };
       dragging.current = next;
       setDrag(next);
     },
@@ -275,9 +329,13 @@ export function OutlineLayer({
     : undefined;
   const dragged = state.drag?.moved ? state.drag.block : undefined;
   const line = state.drag?.moved ? state.drag.drop?.line : undefined;
+  // A block's mark, drawn over its ink: from its first line (a section's
+  // capitals, `top`) to its last, 4 points out at the sides and 2 over and
+  // under, rounded as Notion's selection is
   const ring = (block: OutlineBlock, className: string) => {
     const band = bandOn(block, page, size.height);
     if (!band) return null;
+    if (page === block.start.page) band.top = block.top;
     return (
       <div
         aria-hidden
@@ -295,7 +353,15 @@ export function OutlineLayer({
   const menuBlock = blocks.find((b) => `${b.kind}:${b.id}` === state.menu);
   return (
     <>
-      {picked && ring(picked, "ring-brand ring-2")}
+      {/* Picked: a soft tint that multiplies into the ink, so the text stays
+          black under it, fading in, as Notion's selection; a 2px brand ring
+          came first, and over Education it crossed the contact line */}
+      {picked &&
+        !dragged &&
+        ring(
+          picked,
+          "bg-brand/12 mix-blend-multiply animate-in fade-in-0 duration-150 rounded-[3px]",
+        )}
       {menuBlock && menuBlock.start.page === page && (
         <BlockMenu
           block={menuBlock}
@@ -306,11 +372,32 @@ export function OutlineLayer({
           onClosed={state.menuClosed}
         />
       )}
-      {dragged && ring(dragged, "bg-brand/5 ring-brand/40 ring-1")}
+      {/* Dragged: the source fades in its place while its picture rides
+          the pointer */}
+      {dragged && ring(dragged, "bg-panel/70")}
+      {state.drag?.moved &&
+        state.drag.ghost &&
+        state.drag.spot?.page === page &&
+        state.drag.pressed && (
+          <div
+            aria-hidden
+            className="shadow-lift pointer-events-none absolute z-30 rounded-[3px] bg-white bg-size-[100%_100%] opacity-95 ring-1 ring-black/5"
+            style={{
+              backgroundImage: `url(${state.drag.ghost.src})`,
+              left: pct(state.drag.ghost.x0, size.width),
+              width: pct(state.drag.ghost.x1 - state.drag.ghost.x0, size.width),
+              top: pct(
+                state.drag.spot.y - (state.drag.pressed.y - state.drag.ghost.top),
+                size.height,
+              ),
+              height: pct(state.drag.ghost.height, size.height),
+            }}
+          />
+        )}
       {line && line.page === page && (
         <div
           aria-hidden
-          className="bg-brand pointer-events-none absolute z-20 h-0.5 -translate-y-1/2 rounded-full"
+          className="bg-brand pointer-events-none absolute z-20 h-[3px] -translate-y-1/2 rounded-full"
           style={{
             left: pct(line.x0 - 4, size.width),
             width: pct(line.x1 - line.x0 + 8, size.width),

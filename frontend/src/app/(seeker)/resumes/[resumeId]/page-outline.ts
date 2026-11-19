@@ -35,6 +35,12 @@ export type OutlineBlock = {
    *  sits: its first box's, or a section heading's, about `TITLE` over its
    *  first line. */
   anchor: number;
+  /** Where its ink starts on `start.page`, for its selection: its first
+   *  line's top, or a section heading's cap height over its first line
+   *  (`HEADING_INK`). A section's `start` reaches up to the block above it,
+   *  so a press in the space over its heading still finds it, and a
+   *  selection drawn from there covered the contact line over Education. */
+  top: number;
   /** Its left and right edges, in PDF points (the handle sits left of x0). */
   x0: number;
   x1: number;
@@ -48,6 +54,11 @@ export const HEADING = 20;
  *  points: where a section's handle sits. */
 export const TITLE = 17;
 
+/** How far a section heading's capitals reach over its first line, in
+ *  points, measured on Jake's page (2026-11-19: the caps from 19.1 over the
+ *  first entry's top, the rule at 6.5). */
+export const HEADING_INK = 19.5;
+
 /** How far left of its text a bullet's dot sits, and a section heading of
  *  its entries (Jake's lists are indented 0.15in), in points: so a handle
  *  and an outline clear the dot and the heading's first letter. */
@@ -58,7 +69,7 @@ const before = (a: Spot, b: Spot) => a.page < b.page || (a.page === b.page && a.
 
 function extent(
   boxes: RenderBox[],
-): Pick<OutlineBlock, "start" | "end" | "anchor" | "x0" | "x1"> | null {
+): Pick<OutlineBlock, "start" | "end" | "anchor" | "top" | "x0" | "x1"> | null {
   if (!boxes.length) return null;
   let start: Spot = { page: boxes[0].page, y: boxes[0].y0 };
   let end: Spot = { page: boxes[0].page, y: boxes[0].y1 };
@@ -70,6 +81,7 @@ function extent(
     start,
     end,
     anchor: start.y,
+    top: start.y,
     x0: Math.min(...boxes.map((b) => b.x0)),
     x1: Math.max(...boxes.map((b) => b.x1)),
   };
@@ -149,6 +161,7 @@ export function outlineOf(
       ...at,
       start,
       anchor,
+      top: Math.max(start.y, at.start.y - HEADING_INK),
       x0: at.x0 - INDENT,
     });
     blocks.push(...inner);

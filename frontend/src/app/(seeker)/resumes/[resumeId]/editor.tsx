@@ -286,6 +286,12 @@ type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
 /** How the open line's field is outlined. The ring alone: a shadow read as a
  *  soft second edge under the line. 1.5px: at 2px the user found it too thick
  *  over the page's fine type. */
+/** Where Jake's page draws a bullet's dot against its text, in points:
+ *  its centre left of the text and under the line's top, and its width. */
+const DOT_LEFT = 8.26;
+const DOT_DOWN = 5.4;
+const DOT_SIZE = 1.9;
+
 const FIELD_RING =
   "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
 
@@ -1985,16 +1991,19 @@ export function Editor({
     const at = newPlace(n, rendered?.boxes ?? []);
     const look = lineLook({ ...target, item_id: n.anchor });
     const half = (at?.space ?? 2) / 2;
-    const one = at?.one ?? 9;
+    // The PDF's own dot, where Jake's puts it, measured on its page
+    // (2026-11-19): centred 8.26pt left of the text and 5.4pt under its
+    // line's top, 1.9pt across. A guess of 2.4pt, centred 6.4pt left, sat
+    // off the dots above it
     const dot = (
       <span
         aria-hidden
         className="absolute rounded-full bg-black"
         style={{
-          width: pt(2.4),
-          height: pt(2.4),
-          left: `-${pt(7.6)}`,
-          top: pt(half + one / 2 - 1.2),
+          width: pt(DOT_SIZE),
+          height: pt(DOT_SIZE),
+          left: `-${pt(DOT_LEFT + DOT_SIZE / 2)}`,
+          top: pt(half + DOT_DOWN - DOT_SIZE / 2),
         }}
       />
     );
@@ -2030,6 +2039,7 @@ export function Editor({
               return measure(key, "bullet", element);
             },
             "aria-label": "New bullet",
+            "aria-placeholder": "New bullet",
             onBlur: () => leaveNew(n.key),
             // Enter adds it and opens the next line; Escape leaves it (an
             // empty line goes), never climbing out of a block as it does
@@ -2039,7 +2049,11 @@ export function Editor({
               e.stopPropagation();
               leaveNew(n.key, e.key === "Enter");
             },
-            className: cn(look.className, FIELD_RING),
+            className: cn(
+              look.className,
+              FIELD_RING,
+              "empty:before:text-ink-meta empty:before:content-[attr(aria-placeholder)]",
+            ),
             style: look.style,
           },
         )}
