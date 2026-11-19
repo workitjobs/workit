@@ -4,13 +4,20 @@
  * (backend/app/services/matching/scoring.py), Best Match as the Jobs
  * page's first sort (frontend/docs/screens.md), the hiring systems the
  * scraper reads (scraper/, data.ts) and the roles it keeps (Intern and New
- * Grad, in every field).
+ * Grad, in every field), the match's bands (lib/match.ts) and the reasons
+ * a job card's match rail shows (backend services/matching/highlights.py:
+ * up to three, what fits before what to weigh).
  */
-import { BuildingsIcon, GaugeIcon, SortDescendingIcon } from "@phosphor-icons/react/ssr";
+import {
+  BuildingsIcon,
+  ChecksIcon,
+  GaugeIcon,
+  SortDescendingIcon,
+} from "@phosphor-icons/react/ssr";
 
 import { MatchingAnimation } from "../animations";
 import type { FeatureContent } from "../types";
-import { BestMatchVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
+import { BestMatchVisual, ReasonsVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
 
 const content: FeatureContent = {
   line: "Every job posting scored on how well you fit.",
@@ -20,7 +27,7 @@ const content: FeatureContent = {
       "WorkIt scores internship and new-grad job postings against your experience bank and puts the best fits first.",
   },
   hero: {
-    title: "The jobs you fit, first",
+    title: "The jobs you fit best, at the top",
     subtitle:
       "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top of your Jobs page.",
   },
@@ -36,6 +43,12 @@ const content: FeatureContent = {
         "Older postings rank a little lower",
       ],
       visual: ScoreVisual,
+    },
+    {
+      title: "Why each job fits",
+      icon: ChecksIcon,
+      body: "Each job’s match names its band, Excellent, Good, Fair or Weak Match, with up to three reasons: what fits you, such as the skills of yours it uses, and what to weigh, such as the years it asks for.",
+      visual: ReasonsVisual,
     },
     {
       title: "The best fits at the top",

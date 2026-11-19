@@ -64,8 +64,8 @@ for a product's heading, Inter for everything else.
 | Step | Face | Desktop / phone | Use |
 | --- | --- | --- | --- |
 | `display` | Jakarta 500 | 72 / 40 | A page's h1 (home, feature, Pricing, Resources) |
-| `chapter` | Jakarta 500 | 56 / 34 | `SectionHeading`, the closing call to action, the statement |
-| `product` | Newsreader 500 | 48 / 30 | A product section's h2, hiring systems |
+| `chapter` | Jakarta 500 | 56 / 34 | `SectionHeading` (hiring systems' too), the closing call to action, the statement |
+| `product` | Newsreader 500 | 48 / 30 | A product section's h2 only, two lines at every width (30 to 40 characters, 12em) |
 | `card` | Jakarta 500 | 28 / 24 | A card's heading |
 | `item` | Jakarta 500 | 18 | A row's title (the product accordion) |
 | `lead` | Inter 400 | 19 / 18 | The line under a display or chapter heading |

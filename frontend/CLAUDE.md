@@ -266,8 +266,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `logoStrip` in data.ts), the four features (`HeroFeatures`), the
   statement in a box, the journey ("One
   application, start to finish", `journey.tsx`), one product section each
-  for Resume Builder, Job Matching and Auto Apply (`product-sections.tsx`),
-  the hiring systems grid (`hiring-grid.tsx`, `#hiring-systems`), the FAQ
+  for Resume Builder, Job Matching, Auto Apply and the Application Tracker
+  (`product-sections.tsx`), the hiring systems as a centred chapter
+  (`hiring-grid.tsx`, `#hiring-systems`), the FAQ
   and the closing call to action over a drifting row of status chips
   (`closing.chips`). About 9,200px at 1280 wide, from about 17,000.
   **The rules it set:**
@@ -404,7 +405,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     without script and with reduced motion. Its lines are claims, tied to
     the feature pages' content files in the comment on `journey`.
   - **The product sections read the feature pages' own content**
-    (`features/content/`) and scroll like Calendly's (the user pointed
+    (`features/content/`), **four products with four rows each** (the
+    user's call: Job Matching had three, so it gained "Why each job fits",
+    the reasons a job card's match rail shows; the Application Tracker took
+    the place hiring systems had, which in a product section's serif and
+    halves read as a fifth product and is now a centred chapter). **Each
+    headline wraps to two lines at every width**: written at about 30 to
+    40 characters, held to 12em and balanced (a tablet's full-width line
+    ran on one), so a new product's headline is written to that length.
+    The feature's label above it is the 36px mark and its name at 18px
+    (at 24px and 14px it read as a caption). They scroll like Calendly's (the user pointed
     back to it, twice). **The section pins as one block at the screen's
     middle** (`.product-track` and `.product-stage` in landing.css, from lg
     up on a screen at least 40rem tall): the feature's chip and serif

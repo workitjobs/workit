@@ -1,6 +1,8 @@
-import { CaretDownIcon, SortDescendingIcon } from "@phosphor-icons/react/ssr";
+import { CaretDownIcon, CheckIcon, SortDescendingIcon } from "@phosphor-icons/react/ssr";
 
+import { MatchGlyph } from "@/components/match-badge";
 import { cn } from "@/lib/cn";
+import { matchTier } from "@/lib/match";
 
 import { hiringSystems } from "../../data";
 import { FaviconLogo } from "../../favicon-logo";
@@ -62,6 +64,55 @@ export function ScoreVisual() {
               </span>
             </div>
           ))}
+        </div>
+      </div>
+    </Vignette>
+  );
+}
+
+/**
+ * Why a job fits, as a Jobs page card's match rail shows it
+ * (`(seeker)/jobs/match-rail.tsx`): the ring, the band and up to three
+ * reasons, a tick for what fits and a dot for what to weigh. The reasons
+ * are labels the API writes (backend services/matching/highlights.py).
+ */
+const REASONS = [
+  { text: "Uses 3 of your skills", met: true },
+  { text: "Fits your major", met: true },
+  { text: "Asks for 1+ years", met: false },
+];
+
+export function ReasonsVisual() {
+  return (
+    <Vignette className="px-6">
+      <div className="surface-card rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <FaviconLogo domain={best.domain} className="size-9" />
+          <div className="min-w-0 flex-1">
+            <p className="text-ink truncate text-[13px] font-semibold">{best.title}</p>
+            <p className="text-ink-meta text-[11px]">{best.company}</p>
+          </div>
+        </div>
+        <div className="bg-well mt-4 flex items-center gap-4 rounded-xl p-3">
+          <div className="relative grid size-20 shrink-0 place-items-center">
+            <MatchGlyph score={best.score} className="absolute inset-0 size-20" />
+            <span className="text-ink text-[17px] font-semibold tabular-nums">{best.score}%</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-ink text-[14px] font-semibold">{matchTier(best.score)}</p>
+            <ul className="mt-2 grid gap-1.5">
+              {REASONS.map((reason) => (
+                <li key={reason.text} className="text-ink flex items-center gap-2 text-[12px]">
+                  {reason.met ? (
+                    <CheckIcon weight="bold" className="text-positive-ink size-3.5 shrink-0" />
+                  ) : (
+                    <span className="bg-ink-meta mx-1 size-1.5 shrink-0 rounded-full" />
+                  )}
+                  {reason.text}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </Vignette>

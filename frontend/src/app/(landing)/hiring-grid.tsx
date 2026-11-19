@@ -5,48 +5,37 @@ import { cn } from "@/lib/cn";
 
 import { hiringSystems, hiringSystemsSection, moreHiringSystems } from "./data";
 import { FEATURES } from "./features/catalog";
-import { CONTAINER, StudioBox, studioGround, TYPE } from "./layout-parts";
+import { CONTAINER, SectionHeading, StudioBox, studioGround } from "./layout-parts";
 
 /**
- * Where the jobs come from (KAN-923), after Calendly's integrations grid:
- * the copy on one side, and on the other the hiring systems WorkIt reads,
- * each logo on a white tile in a framed box, ending on how many more it
- * reads. It replaced the pinned 3D pipeline (hiring-pipeline.tsx, kept
- * unmounted). Still: the page has motion enough above. The Features menu's
- * foot row links here (`#hiring-systems`). Copy: `hiringSystemsSection`.
+ * Where the jobs come from (KAN-923), after Calendly's integrations
+ * section: a centred chapter, not a product. The heading and its line in
+ * the chapter's sans (`SectionHeading`), the hiring systems WorkIt reads as
+ * one row of logo tiles across a wide framed box, ending on how many more it
+ * reads, then what WorkIt does to the postings as four ticks. It sat beside
+ * its box in a product section's serif and halves, after the product
+ * sections, and read as a fifth product; the user had the Application
+ * Tracker take that place. It replaced the pinned 3D pipeline
+ * (hiring-pipeline.tsx, kept unmounted). Still: the page has motion enough
+ * above. The Features menu's foot row links here (`#hiring-systems`). Copy:
+ * `hiringSystemsSection`.
  */
 export function HiringGrid() {
   const { title, subtitle, steps } = hiringSystemsSection;
   const matching = FEATURES.matching;
   return (
-    <section id="hiring-systems" aria-labelledby="hiring-systems-title" className="py-16 sm:py-24">
-      <div className={cn(CONTAINER, "grid items-center gap-10 lg:grid-cols-2 lg:gap-16")}>
-        <div>
-          <h2 id="hiring-systems-title" className={cn(TYPE.product, "text-ink")}>
-            {title}
-          </h2>
-          <p className="text-ink-meta mt-5 text-lg text-pretty">{subtitle}</p>
-          <ul className="mt-7 grid gap-3 sm:grid-cols-2">
-            {steps.map((step) => (
-              <li key={step} className="text-ink-muted flex items-start gap-2.5 text-[15px]">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full"
-                  style={{ background: matching.tint, color: matching.onGlow.fill }}
-                >
-                  <CheckIcon weight="bold" className="size-3" />
-                </span>
-                {step}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <StudioBox ground={studioGround({ glow: matching.glow })} className="p-4 sm:p-8">
-          <ul className="grid grid-cols-4 gap-2 pb-2 sm:gap-4 sm:pb-4">
+    <section id="hiring-systems" aria-labelledby="hiring-systems-title" className="py-20 sm:py-28">
+      <div className={CONTAINER}>
+        <SectionHeading id="hiring-systems-title" title={title} subtitle={subtitle} />
+        <StudioBox
+          ground={studioGround({ glow: matching.glow })}
+          className="mx-auto mt-12 max-w-5xl p-4 sm:mt-16 sm:p-8"
+        >
+          <ul className="grid grid-cols-4 gap-2 pb-2 sm:gap-4 sm:pb-4 lg:grid-cols-8">
             {hiringSystems.map((system, i) => (
               <li
                 key={system.name}
-                // Every other column sits a little lower, so the grid reads
+                // Every other column sits a little lower, so the row reads
                 // as tiles laid on the box, not a table.
                 className={cn(
                   "flex aspect-square flex-col items-center justify-center gap-1.5 rounded-xl bg-white p-1.5 shadow-[var(--mk-shadow-float)] sm:gap-2.5 sm:rounded-2xl sm:p-3",
@@ -71,6 +60,20 @@ export function HiringGrid() {
             </li>
           </ul>
         </StudioBox>
+        <ul className="mx-auto mt-10 grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((step) => (
+            <li key={step} className="text-ink-muted flex items-start gap-2.5 text-[15px]">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full"
+                style={{ background: matching.tint, color: matching.onGlow.fill }}
+              >
+                <CheckIcon weight="bold" className="size-3" />
+              </span>
+              {step}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

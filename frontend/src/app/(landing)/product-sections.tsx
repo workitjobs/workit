@@ -6,9 +6,11 @@ import { FeatureIcon } from "./features/feature-icon";
 import { CONTAINER, studioGround, TYPE } from "./layout-parts";
 import { ProductAccordion } from "./product-accordion";
 
-/** The products the home page goes deep on, in the pipeline's order. The
- *  tracker has its page; the journey above covers tracking. */
-const PRODUCTS: FeatureSlug[] = ["resumes", "matching", "auto-apply"];
+/** The products the home page goes deep on, in the pipeline's order, each
+ *  with four rows (its feature page's four deep dives). The tracker joined
+ *  them at the user's ask, in place of the hiring systems, which looked like
+ *  a fifth product here and became a chapter of their own (hiring-grid.tsx). */
+const PRODUCTS: FeatureSlug[] = ["resumes", "matching", "auto-apply", "tracker"];
 
 /**
  * One section per product (KAN-923), after Calendly's: the feature's chip
@@ -30,11 +32,22 @@ export function ProductSections() {
           <ProductAccordion
             heading={
               <>
-                <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-                  <FeatureIcon feature={page} />
+                {/* The feature's label, its 36px mark and its name at 18px:
+                    at 24px and 14px it read as a caption over the 48px
+                    serif (the user's catch). */}
+                <p className="text-ink inline-flex items-center gap-3 text-lg font-medium">
+                  <FeatureIcon feature={page} size="md" />
                   {page.name}
                 </p>
-                <h2 id={titleId} className={cn(TYPE.product, "text-ink mt-4")}>
+                {/* Two lines at every width, as every product's headline
+                    is written (about 30 to 40 characters): the column holds
+                    it to two on a desktop, and 12em does on a tablet, where
+                    it spans the page and ran on one. Balanced, so the lines
+                    are even. */}
+                <h2
+                  id={titleId}
+                  className={cn(TYPE.product, "text-ink mt-4 max-w-[12em] text-balance")}
+                >
                   {content.hero.title}
                 </h2>
               </>
