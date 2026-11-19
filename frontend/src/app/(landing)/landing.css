@@ -1185,7 +1185,7 @@ html[data-tab-flight="flying"] .tour-tabs {
 /* A lit tile's match line (hero-board.tsx, `MatchBar`) by the tile's width:
  * the band's full name ("Excellent Match") and the percentage from 8.5rem,
  * which a 1024-wide screen's 125px tiles miss by a few pixels; the short
- * name ("Excellent") below it; and no dot under 6rem, a phone's 80px tile,
+ * name ("Excellent") below it; and no ring under 6rem, a phone's 80px tile,
  * where "Excellent" alone fills the line. */
 .tile-tier-short {
   display: none;
@@ -1200,7 +1200,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 @container (max-width: 6rem) {
-  .tile-dot {
+  .tile-mark {
     display: none;
   }
 }

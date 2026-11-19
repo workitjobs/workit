@@ -291,10 +291,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     in turn in solid brand violet with a real employer, the role (from lg up, on a
     tile at least 116px tall: `.tile-role` hides by a container query on
     the tile, since on a short wide screen its second line ran into the
-    bar) and the match's strength in the app's own bands (`matchTier` and
-    `matchColor` from `lib/match.ts`: a dot in the band's colour, then
-    "Excellent Match" or "Good Match", the short name on a tile under
-    8.5rem wide, no dot under 6rem) over a slim bar with the percentage at
+    bar) and the match's strength in the app's own bands (`matchTier` from
+    `lib/match.ts`): the app's match ring (`MatchGlyph` from
+    `components/match-badge.tsx`, the match badge's 14px ring, with
+    `onFill` for the violet: a white track and the band's light step,
+    `--color-match-*-on-fill` via `matchColorOnFill`), then "Excellent
+    Match" or "Good Match", the short name on a tile under 8.5rem wide, no
+    ring under 6rem. The user picked the ring over signal bars, a badge
+    icon per band and the Matching target, and over a plain dot; the
+    first light green, a mint, read as cyan on the violet, so Excellent's
+    step is a plain green (hue 144) over a slim bar with the percentage at
     its end (`MatchBar`; the band leads because a bare number does not tell
     a student whether to apply, the user's call; a ring took too much
     height), at their cell's size (lifted 4% they stood out of line). A lit

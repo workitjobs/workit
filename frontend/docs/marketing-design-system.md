@@ -114,7 +114,9 @@ height, filled edge to edge by tiles. The headline sits in one large white
 tile in the middle, the brightest surface. Empty tiles recede at 55% white;
 seven tiles light up in turn in solid brand violet, with a real employer,
 the role and the match's strength in the app's bands ("Excellent Match"
-behind a green dot, "Good Match" behind a yellow one, from `lib/match.ts`)
+or "Good Match", from `lib/match.ts`) behind the app's own 14px match ring
+(`MatchGlyph`), drawn on the violet with the bands' light steps
+(`--color-match-*-on-fill`, 3.3 to 4.3:1 there)
 over a slim white bar that fills, the percentage at its end, set in the
 Jobs page job card's weights (role medium, company regular, band
 semibold) in white. A match anywhere on the marketing pages says its band

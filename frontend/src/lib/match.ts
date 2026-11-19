@@ -38,10 +38,30 @@
  * clutter. Home's count of them is Excellent Matches.
  */
 const TIERS = [
-  { min: 80, label: "Excellent Match", color: "var(--color-match-excellent)" },
-  { min: 65, label: "Good Match", color: "var(--color-match-good)" },
-  { min: 40, label: "Fair Match", color: "var(--color-match-fair)" },
-  { min: 0, label: "Weak Match", color: "var(--color-match-weak)" },
+  {
+    min: 80,
+    label: "Excellent Match",
+    color: "var(--color-match-excellent)",
+    onFill: "var(--color-match-excellent-on-fill)",
+  },
+  {
+    min: 65,
+    label: "Good Match",
+    color: "var(--color-match-good)",
+    onFill: "var(--color-match-good-on-fill)",
+  },
+  {
+    min: 40,
+    label: "Fair Match",
+    color: "var(--color-match-fair)",
+    onFill: "var(--color-match-fair-on-fill)",
+  },
+  {
+    min: 0,
+    label: "Weak Match",
+    color: "var(--color-match-weak)",
+    onFill: "var(--color-match-weak-on-fill)",
+  },
 ] as const;
 
 /** The bands' names, best first: Up Next's Group By Match and its Match
@@ -61,4 +81,11 @@ export function matchTier(score: number) {
  *  stroke. See the note on `TIERS`. */
 export function matchColor(score: number) {
   return tierFor(score).color;
+}
+
+/** The band's colour for a mark on a coloured fill (the home hero's violet
+ *  tiles, KAN-923): a lighter step of the same hue that holds 3:1 there,
+ *  where `matchColor`'s steps fall under 2:1. Never on white. */
+export function matchColorOnFill(score: number) {
+  return tierFor(score).onFill;
 }

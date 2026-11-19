@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import { matchColor, matchTier } from "@/lib/match";
+import { MatchGlyph } from "@/components/match-badge";
+import { matchTier } from "@/lib/match";
 
 import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
@@ -93,8 +94,10 @@ export function HeroGrid({ children }: { children: ReactNode }) {
 
 /**
  * A match's strength, as the Jobs page names it: the app's band
- * (`matchTier`: Excellent, Good, Fair or Weak Match) behind a dot in the
- * band's colour, which only ever paints a mark (lib/match.ts), then a slim
+ * (`matchTier`: Excellent, Good, Fair or Weak Match) behind the app's own
+ * match ring (`MatchGlyph`, the match badge's 14px ring, in the band's
+ * light step for the violet fill; the user picked it over signal bars,
+ * band icons and a target, and over the dot it replaced), then a slim
  * bar filled to the score with the percentage at its end. The band leads
  * because a number alone does not tell a student whether to apply (the
  * user's call); the bar and the number back it up. On a narrow tile the
@@ -107,11 +110,7 @@ function MatchBar({ score }: { score: number }) {
   return (
     <span className="mt-auto block">
       <span className="flex items-center gap-1.5">
-        <span
-          aria-hidden="true"
-          className="tile-dot size-2 shrink-0 rounded-full ring-2 ring-white/90"
-          style={{ background: matchColor(score) }}
-        />
+        <MatchGlyph score={score} onFill className="tile-mark lg:size-4" />
         <span className="truncate text-[11px] font-semibold text-white lg:text-xs">
           <span className="tile-tier-full">{tier}</span>
           <span className="tile-tier-short">{tier.replace(/ Match$/, "")}</span>
