@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui/card";
 import { percent, type ScrapeHealth } from "@/lib/fill-health";
 
 /** A rail section's small capital heading. */
@@ -30,7 +31,7 @@ function Gauge({ share, value, label }: { share: number; value: string; label: s
           strokeWidth={7}
           strokeLinecap="round"
           strokeDasharray={`${SWEEP} ${AROUND}`}
-          className="stroke-border-surface"
+          className="stroke-brand-tint"
         />
         <circle
           cx={60}
@@ -40,7 +41,7 @@ function Gauge({ share, value, label }: { share: number; value: string; label: s
           strokeWidth={7}
           strokeLinecap="round"
           strokeDasharray={`${filled} ${AROUND}`}
-          className="stroke-positive-ink"
+          className="stroke-brand"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -76,8 +77,8 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
   const period = `Last ${days} ${days === 1 ? "day" : "days"}`;
 
   return (
-    <aside className="border-border-surface bg-panel divide-border-subtle shrink-0 divide-y border-t lg:w-80 lg:overflow-y-auto lg:border-t-0 lg:border-l">
-      <section className="p-6">
+    <aside className="flex shrink-0 flex-col gap-4 px-6 pb-8 lg:w-88 lg:overflow-y-auto lg:py-8 lg:pr-10 lg:pl-0">
+      <Card as="section" padding="lg">
         <RailHeading>Boards Read</RailHeading>
         <Gauge
           share={boards.boards ? read / boards.boards : 0}
@@ -88,21 +89,21 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
           <Stat value={newJobs.toLocaleString("en-US")} label="New jobs seen" />
           <Stat value={boards.open_jobs.toLocaleString("en-US")} label="Open jobs" />
         </dl>
-      </section>
+      </Card>
 
-      <section className="p-6">
+      <Card as="section" padding="lg">
         <RailHeading note={period}>Board Reads</RailHeading>
         {reads === 0 ? (
           <p className="text-body text-ink-muted mt-3">No board reads in this period.</p>
         ) : (
           <>
             <div className="mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full">
-              <span className="bg-positive-ink" style={{ flexGrow: done }} />
+              <span className="bg-brand" style={{ flexGrow: done }} />
               <span className="bg-danger" style={{ flexGrow: failed }} />
             </div>
             <ul className="text-body mt-3 space-y-2">
               <li className="flex items-center gap-2">
-                <span className="bg-positive-ink size-1.5" aria-hidden />
+                <span className="bg-brand size-1.5" aria-hidden />
                 <span className="text-ink flex-1">Done</span>
                 <span className="text-ink-meta tabular-nums">{done}</span>
                 <span className="text-ink w-10 text-right font-medium tabular-nums">
@@ -120,9 +121,9 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
             </ul>
           </>
         )}
-      </section>
+      </Card>
 
-      <section className="p-6">
+      <Card as="section" padding="lg">
         <RailHeading note="Now">Overview</RailHeading>
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
           <Stat value={boards.stale.toLocaleString("en-US")} label="Stale boards" />
@@ -131,9 +132,9 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
           <Stat value={boards.pending.toLocaleString("en-US")} label="Tasks pending" />
           <Stat value={boards.claimed} label="Tasks claimed" />
         </dl>
-      </section>
+      </Card>
 
-      <section className="p-6">
+      <Card as="section" padding="lg">
         <RailHeading>Failing Boards</RailHeading>
         {data.failing.length === 0 ? (
           <p className="text-body text-ink-muted mt-3">No board is failing.</p>
@@ -160,7 +161,7 @@ export function ScrapeRail({ data, days }: { data: ScrapeHealth; days: number })
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </aside>
   );
 }
