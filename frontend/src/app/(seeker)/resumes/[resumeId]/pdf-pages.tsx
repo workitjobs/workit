@@ -201,7 +201,7 @@ export function PdfPages({
   onDrawn?: () => void;
   /** What to draw over the first box of each line in `overlaid`, by box
    *  key: the text field for the selected line, typed text for others. */
-  overlay?: (box: RenderBox) => ReactNode;
+  overlay?: (box: Insert) => ReactNode;
   overlaid?: string[];
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
@@ -210,7 +210,7 @@ export function PdfPages({
    *  bullet, KAN-920): each a box of no height, read against the boxes
    *  shown, where the page under it opens by `by` points. `overlay` draws
    *  each one as it draws an overlaid line. */
-  inserts?: (shown: RenderBox[]) => (RenderBox & { by: number })[];
+  inserts?: (shown: RenderBox[]) => Insert[];
   /** The moves on their way, as strips of the page on screen that trade
    *  places, in order, each against the page after the ones before. */
   swaps?: (boxes: RenderBox[]) => Strip[];
@@ -251,10 +251,10 @@ export function PdfPages({
         return kept ? [kept] : [];
       });
   // Each overlaid line's first box, top to bottom, with what it moves by
-  const lives = overlaid
+  const lives: Insert[] = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
     .filter((box): box is RenderBox => box !== undefined)
-    .map((box) => ({ ...box, by: shiftOf?.(box) ?? 0 }))
+    .map((box): Insert => ({ ...box, by: shiftOf?.(box) ?? 0 }))
     .concat(readOnly ? [] : (inserts?.(shown) ?? []))
     .sort((a, b) => a.page - b.page || a.y0 - b.y0);
   const typing = selected !== null && lives.some((l) => boxKey(l) === selected);
@@ -583,7 +583,21 @@ function MarginDots({
 
 /** An overlaid line's box, in PDF points, and how far the page under it
  *  moves. */
-type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number };
+type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number; marker?: Marker };
+
+/** A list's marker (a bullet's dot or dash) to copy into a new line
+ *  (KAN-920): the anchor's own pixels, from `x0` to `x1` and `top` to
+ *  `bottom` on the page as drawn, set again with their top at `to`, all in
+ *  PDF points. The copy is the PDF's own ink, so it matches the bullets
+ *  around it in every font, size and bullet style, where a dot drawn by the
+ *  page sat off them. */
+export type Marker = { x0: number; x1: number; top: number; bottom: number; to: number };
+
+/** A line the page does not print yet, typed in where it will go (KAN-920):
+ *  a box of no height whose `by` opens the page under it, the marker it
+ *  copies, and its `base`, its text's baseline below its `y0` (a printed
+ *  line's is its box's fixed ascent, the API's resume_render). */
+export type Insert = RenderBox & { by: number; marker?: Marker; base?: number };
 
 /** Two neighbours on one page, `a` above `b`, as their tops and bottoms in
  *  PDF points: a move on its way trades their strips of the page. */
@@ -794,13 +808,35 @@ function compose(
   let moved = 0;
   for (const live of lives) {
     const [x0, y0, x1, y1, by] = [live.x0, live.y0, live.x1, live.y1, live.by].map(px);
+    const was = moved;
     context.fillRect(x0, y0 + moved, x1 - x0, y1 - y0);
-    if (by === 0) continue;
-    // Everything under this line, drawn again where it now sits
-    moved += by;
-    const below = drawn.height - y1;
-    context.fillRect(0, y1 + moved - by, drawn.width, drawn.height);
-    context.drawImage(drawn, 0, y1, drawn.width, below, 0, y1 + moved, drawn.width, below);
+    if (by !== 0) {
+      // Everything under this line, drawn again where it now sits
+      moved += by;
+      const below = drawn.height - y1;
+      context.fillRect(0, y1 + moved - by, drawn.width, drawn.height);
+      context.drawImage(drawn, 0, y1, drawn.width, below, 0, y1 + moved, drawn.width, below);
+    }
+    // A new line's marker: its anchor's own, from the page as drawn, set in
+    // the space the line opened
+    const mark = live.marker;
+    if (mark) {
+      const [mx0, mx1, top, bottom, to] = [mark.x0, mark.x1, mark.top, mark.bottom, mark.to].map(
+        px,
+      );
+      if (mx1 > mx0 && bottom > top)
+        context.drawImage(
+          drawn,
+          mx0,
+          top,
+          mx1 - mx0,
+          bottom - top,
+          mx0,
+          to + was,
+          mx1 - mx0,
+          bottom - top,
+        );
+    }
   }
 }
 
@@ -838,7 +874,7 @@ function PageCanvas({
   const drawnCanvas = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement } | null>(null);
   const latest = useRef({ lives, strips, gaps });
   const layoutKey = JSON.stringify([
-    lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]),
+    lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by, l.marker?.to ?? null]),
     strips,
     gaps,
   ]);

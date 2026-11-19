@@ -106,6 +106,7 @@ import {
   afterStrips,
   boxKey,
   type Gap,
+  type Insert,
   kindLabel,
   loadPdfjs,
   PageSkeleton,
@@ -277,8 +278,43 @@ function typeOf(
 // em content area. A box's top is its first baseline less ASCENT (the API's
 // resume_render), more for the name.
 const LINE_HEIGHT = 1.2;
-const fieldBaseline = (lineHeight: number) => 1.127 - (1.417 - lineHeight) / 2;
 const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
+
+/** A font's ascent and descent, in ems, as the browser lays its lines out:
+ *  measured, since the families the page can print in differ (Latin
+ *  Modern's 1.127 and 0.29 set every family's text until 2026-11-19, and a
+ *  family with a shorter ascent sat high). Kept once the font has loaded. */
+const LATIN_MODERN_METRICS = { ascent: 1.127, descent: 0.29 };
+const metricsCache = new Map<string, typeof LATIN_MODERN_METRICS>();
+function metricsOf(family: string): typeof LATIN_MODERN_METRICS {
+  if (typeof document === "undefined") return LATIN_MODERN_METRICS;
+  const kept = metricsCache.get(family);
+  if (kept) return kept;
+  const font = `100px ${family}`;
+  if (!document.fonts.check(font)) return LATIN_MODERN_METRICS;
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return LATIN_MODERN_METRICS;
+  context.font = font;
+  const { fontBoundingBoxAscent: ascent, fontBoundingBoxDescent: descent } =
+    context.measureText("Hxgp");
+  if (!(ascent > 0) || !(descent >= 0)) return LATIN_MODERN_METRICS;
+  const metrics = { ascent: ascent / 100, descent: descent / 100 };
+  metricsCache.set(family, metrics);
+  return metrics;
+}
+
+/** Where a field's first baseline sits below its top, in ems: the half of
+ *  its line height its font's ascent and descent leave, then the ascent. */
+const fieldBaseline = (lineHeight: number, metrics: typeof LATIN_MODERN_METRICS) =>
+  (lineHeight - metrics.ascent - metrics.descent) / 2 + metrics.ascent;
+
+/** A typed line's ring, in ems from its baseline: over its tallest letters
+ *  and under its descenders, centred where a list's dot sits as printed
+ *  (0.266em over the baseline, `DOT_OVER`). It was the field's line box,
+ *  which reaches over the font's whole ascent: a box that stood 1.8pt over
+ *  the dot beside it. */
+const RING_OVER = 0.82;
+const RING_UNDER = 0.28;
 
 /** The open line's field: a bullet's is a rich one, the others plain. */
 type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
@@ -286,18 +322,19 @@ type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
 /** How the open line's field is outlined. The ring alone: a shadow read as a
  *  soft second edge under the line. 1.5px: at 2px the user found it too thick
  *  over the page's fine type. */
-/** Where Jake's page draws a bullet's dot against its text, in points:
- *  its centre left of the text and under the line's top, and its width,
- *  read from the dot's own pixels on the PDF (2026-11-19). A scan that
- *  counted only the dark middle of each pixel row gave 8.26, 5.4 and 1.9:
- *  a dot a third too small, 0.55pt high. Measure a dot that is not an
- *  entry's first bullet: the line over that one reaches into its rows. */
-const DOT_LEFT = 8.06;
-const DOT_DOWN = 5.95;
-const DOT_SIZE = 2.7;
+/** A new line's dot when its anchor's own cannot be copied (an anchor over a
+ *  page break): where Jake's page draws one, read from 30 dots' pixels at
+ *  their boxes' exact places (2026-11-19): centred 7.35pt left of the text
+ *  and 0.266em over the baseline, 0.273em across, on every one. Read
+ *  against the page frame's outer edge, which a 1px border puts off the
+ *  canvas, the measure gave 8.06pt and 0.6pt lower, which is the dot the
+ *  user saw sit low. A new line copies its anchor's marker otherwise
+ *  (`Marker`), which matches every font, size and bullet style. */
+const DOT_LEFT = 7.35;
+const DOT_OVER = 0.266;
+const DOT_SIZE = 0.273;
 
-const FIELD_RING =
-  "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
+const FIELD = "resize-none overflow-hidden outline-none field-sizing-content";
 
 /** Lines that wrap: typed in a field as wide as the text column. A
  *  project's tools line does not: it is a heading's row, a tabular's `l`
@@ -1899,12 +1936,21 @@ export function Editor({
     const last = own.reduce((a, b) =>
       b.page > a.page || (b.page === a.page && b.y1 > a.y1) ? b : a,
     );
+    // Its first line, where its marker prints
+    const first = own.reduce((a, b) =>
+      b.page < a.page || (b.page === a.page && b.y0 < a.y0) ? b : a,
+    );
     const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
     const one = last.y1 - last.y0 - (boxLines(last, step) - 1) * step;
     const space = bulletSpace(boxes, last.page);
-    return { last, one, space, lines: draftLines[`${n.key}.bullet`] ?? 1, step };
+    return { first, last, one, space, lines: draftLines[`${n.key}.bullet`] ?? 1, step };
   };
-  const insertsOn = (boxes: RenderBox[]) => {
+  // Each new line is set from its anchor as the page prints it: its top the
+  // anchor's foot and the page's space between bullets, its baseline as far
+  // under that top as a printed line's, and its marker the anchor's,
+  // copied. So the line keeps every format setting the page has (size,
+  // spacing, font, dot or dash) with no number of its own
+  const insertsOn = (boxes: RenderBox[]): Insert[] => {
     const printed = new Set(boxes.map((b) => b.item_id));
     return placeNew(newBullets, (key) => {
       const id = newIds.current.get(key);
@@ -1912,6 +1958,7 @@ export function Editor({
     }).flatMap((n) => {
       const at = newPlace(n, boxes);
       if (!at) return [];
+      const top = at.last.y1 + at.space;
       const y = at.last.y1 + at.space / 2;
       return [
         {
@@ -1921,6 +1968,17 @@ export function Editor({
           y0: y,
           y1: y,
           by: at.space + at.one + (at.lines - 1) * at.step,
+          base: at.space / 2 + boxAscent("bullet"),
+          marker:
+            at.first.page === at.last.page
+              ? {
+                  x0: at.first.x0 - 14,
+                  x1: at.first.x0 - 0.6,
+                  top: at.first.y0,
+                  bottom: at.first.y0 + at.one,
+                  to: top,
+                }
+              : undefined,
         },
       ];
     });
@@ -1995,27 +2053,23 @@ export function Editor({
 
   /** A new bullet's line: its field while typed in, its text once left,
    *  with the dot the PDF will print beside it. */
-  function newField(n: NewBullet, target: RenderBox) {
+  function newField(n: NewBullet, target: Insert) {
     const key = `${n.key}.bullet`;
-    const at = newPlace(n, rendered?.boxes ?? []);
     const look = lineLook({ ...target, item_id: n.anchor });
-    const half = (at?.space ?? 2) / 2;
-    // The PDF's own dot, where Jake's puts it (`DOT_LEFT`, `DOT_DOWN`,
-    // `DOT_SIZE`): a guess, then a coarse measure, sat off the dots above
-    // An SVG circle in a box three times its width, never a rounded box:
-    // Chrome snaps a box's painted edges to whole pixels, and at about 3.4px
-    // across a `rounded-full` box rounded to 3 by 4 and drew an oval (the
-    // user saw it stretched). The circle keeps its shape in any box
-    const dot = (
+    // The page copies the anchor's marker into the line (`Marker`); only an
+    // anchor over a page break leaves it to this dot, an SVG circle since a
+    // `rounded-full` box about 3.4px across was snapped to 3 by 4 pixels and
+    // drew an oval
+    const dot = !target.marker && (
       <svg
         aria-hidden
         viewBox="0 0 30 30"
         className="absolute"
         style={{
-          width: pt(DOT_SIZE * 3),
-          height: pt(DOT_SIZE * 3),
-          left: `-${pt(DOT_LEFT + (DOT_SIZE * 3) / 2)}`,
-          top: pt(half + DOT_DOWN - (DOT_SIZE * 3) / 2),
+          width: pt(DOT_SIZE * look.size * 3),
+          height: pt(DOT_SIZE * look.size * 3),
+          left: `-${pt(DOT_LEFT + (DOT_SIZE * look.size * 3) / 2)}`,
+          top: pt(look.baseline - DOT_OVER * look.size - (DOT_SIZE * look.size * 3) / 2),
         }}
       >
         <circle cx="15" cy="15" r="5" fill="#000" />
@@ -2023,13 +2077,10 @@ export function Editor({
     );
     if (n.saving)
       return (
-        <div
-          ref={(element) => measure(key, "bullet", element)}
-          className="relative"
-          style={{ paddingTop: pt(half) }}
-        >
+        <div key="saving" className="relative">
           {dot}
           <div
+            ref={(element) => measure(key, "bullet", element)}
             aria-hidden
             className={cn(look.className, "break-words whitespace-pre-wrap")}
             style={look.style}
@@ -2038,37 +2089,55 @@ export function Editor({
           </div>
         </div>
       );
-    return (
-      <div className="relative" style={{ paddingTop: pt(half) }}>
-        {dot}
-        {richLine(
-          n.text,
-          (text) => setNew((list) => list.map((x) => (x.key === n.key ? { ...x, text } : x))),
-          {
-            attach: (element) => {
-              if (element && !focusedNew.current.has(n.key)) {
-                focusedNew.current.add(n.key);
-                element.focus({ preventScroll: true });
-              }
-              return measure(key, "bullet", element);
-            },
-            "aria-label": "New bullet",
-            onBlur: () => leaveNew(n.key),
-            // Enter adds it and opens the next line; Escape leaves it (an
-            // empty line goes), never climbing out of a block as it does
-            onKeyDown: (e) => {
-              if (e.key !== "Enter" && e.key !== "Escape") return;
-              e.preventDefault();
-              e.stopPropagation();
-              leaveNew(n.key, e.key === "Enter");
-            },
-            // The field any line is typed in (its ring), on the dot and in
-            // the type and ink the PDF will print, with no grey hint: a "New
-            // bullet" hint looked like no line on the page (2026-11-19)
-            className: cn(look.className, FIELD_RING),
-            style: look.style,
+    return ringed(
+      look,
+      richLine(
+        n.text,
+        (text) => setNew((list) => list.map((x) => (x.key === n.key ? { ...x, text } : x))),
+        {
+          attach: (element) => {
+            if (element && !focusedNew.current.has(n.key)) {
+              focusedNew.current.add(n.key);
+              element.focus({ preventScroll: true });
+            }
+            return measure(key, "bullet", element);
           },
-        )}
+          "aria-label": "New bullet",
+          onBlur: () => leaveNew(n.key),
+          // Enter adds it and opens the next line; Escape leaves it (an
+          // empty line goes), never climbing out of a block as it does
+          onKeyDown: (e) => {
+            if (e.key !== "Enter" && e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            leaveNew(n.key, e.key === "Enter");
+          },
+          // The field any line is typed in, ring and all (`ringed`), in the
+          // type and ink the PDF will print, with no grey hint: a "New
+          // bullet" hint looked like no line on the page (2026-11-19)
+          className: cn(look.className, FIELD),
+          style: look.style,
+        },
+      ),
+      dot,
+    );
+  }
+
+  /** A typed line's field in its ring: the ring a box of its own over the
+   *  field, from its tallest letters to its descenders (`RING_OVER`,
+   *  `RING_UNDER`), so it sits even about the line as printed and about a
+   *  bullet's dot beside it. Keyed, so the field never stands in for a
+   *  line's plain text, or the text for it. */
+  function ringed(look: ReturnType<typeof lineLook>, field: ReactNode, beside?: ReactNode) {
+    return (
+      <div key="ringed" className="relative w-fit">
+        {beside}
+        {field}
+        <span
+          aria-hidden
+          className="ring-brand pointer-events-none absolute -inset-x-[0.4cqw] rounded-[2px] ring-[1.5px]"
+          style={look.ring}
+        />
       </div>
     );
   }
@@ -2091,8 +2160,10 @@ export function Editor({
     return () => observer.disconnect();
   }
 
-  /** Jake's type for a box's line, as the field and the read-only text set it. */
-  function lineLook(target: RenderBox) {
+  /** Jake's type for a box's line, as the field and the read-only text set it,
+   *  on the line's baseline: its box's fixed ascent under its top, or a new
+   *  line's own `base`. */
+  function lineLook(target: RenderBox & { base?: number }) {
     const of = lineOf(bank, target);
     const settings = rendered?.page_settings ?? DEFAULT_PAGE;
     const entry = of?.kind === "entry" || of?.kind === "bullet" ? of.entry : null;
@@ -2108,7 +2179,19 @@ export function Editor({
     const lineHeight = wraps
       ? (rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE) / look.size
       : LINE_HEIGHT;
+    const family = FONTS.find((font) => font.value === settings.font_family)?.css;
+    const metrics = metricsOf(family ?? latinModern.style.fontFamily);
+    // The first baseline below the field's top, in points
+    const baseline = fieldBaseline(lineHeight, metrics) * look.size;
     return {
+      // The ring's edges against the field's: from its first line's top and
+      // its last line's foot
+      ring: {
+        top: pt(baseline - RING_OVER * look.size),
+        bottom: pt(lineHeight * look.size - baseline - RING_UNDER * look.size),
+      },
+      size: look.size,
+      baseline,
       className: cn(
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
@@ -2121,11 +2204,11 @@ export function Editor({
         look.italic && "italic",
       ),
       style: {
-        fontFamily: FONTS.find((font) => font.value === settings.font_family)?.css,
+        fontFamily: family,
         fontSize: pt(look.size),
         lineHeight: pt(look.size * lineHeight),
         // Puts the text's baseline on the PDF's
-        marginTop: pt(boxAscent(target.kind) - fieldBaseline(lineHeight) * look.size),
+        marginTop: pt((target.base ?? boxAscent(target.kind)) - baseline),
         ...(wraps
           ? {
               width: `calc(${pt(PAGE_WIDTH - settings.side_margin * 72 - target.x0)} + 0.8cqw)`,
@@ -2138,7 +2221,7 @@ export function Editor({
 
   /** What the page draws over an overlaid line: the selected line's field,
    *  or a line's typed text while the PDF that prints it is on its way. */
-  function overlay(target: RenderBox) {
+  function overlay(target: Insert) {
     const fresh = newBullets.find((n) => n.key === target.item_id);
     if (fresh) return newField(fresh, target);
     const key = boxKey(target);
@@ -2256,7 +2339,7 @@ export function Editor({
     element.setSelectionRange(offset, offset);
   }
 
-  function field(target: RenderBox) {
+  function field(target: Insert) {
     const start = line && startText(line, target);
     if (start == null || !line) return null;
     const key = boxKey(target);
@@ -2275,11 +2358,14 @@ export function Editor({
         e.preventDefault();
         select(null);
       },
-      className: cn(look.className, FIELD_RING),
+      className: cn(look.className, FIELD),
       style: look.style,
     };
     if (target.kind === "bullet") {
-      return richLine(value, (text) => type(key, text), { ...common, attach });
+      return ringed(
+        look,
+        richLine(value, (text) => type(key, text), { ...common, attach }),
+      );
     }
     const text = {
       ...common,
@@ -2288,7 +2374,10 @@ export function Editor({
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         type(key, e.target.value),
     };
-    return WRAPS.has(target.kind) ? <textarea {...text} rows={1} /> : <input {...text} />;
+    return ringed(
+      look,
+      WRAPS.has(target.kind) ? <textarea {...text} rows={1} /> : <input {...text} />,
+    );
   }
 
   /** Called when every page of a new PDF has painted: a line whose save

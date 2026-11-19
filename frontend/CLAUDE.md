@@ -2579,7 +2579,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   moves, Remove From Resume), and a breadcrumb in the toolbar with Esc
   climbs from a line to its entry and section. A new bullet is typed in on
   the page, under the bullet it follows, never in a form (`newBullets`,
-  `inserts` on `PdfPages`). A form a page's + opens
+  `inserts` on `PdfPages`), set from the page alone: its anchor's marker
+  copied from the canvas, the page's own spacing and its font's measured
+  metrics, so every Format setting holds. **To check where something sits
+  on the page, measure against the page canvas's own rect (or a box's
+  `style` percentages), never the page frame's**: the frame's 1px border
+  put every reading off by up to 0.9pt, which once set the new line's dot
+  0.6pt low and passed a check that compared it in the same wrong frame. A form a page's + opens
   puts the cursor in the row it added (`focusBullet`, read by the entry
   dialog as `data-initial-focus`), not the form's first field. Where each block sits is read from the boxes
   (`page-outline.ts`): a new kind of box, or a template that indents

@@ -3866,20 +3866,28 @@ student who opened a resume from Experiences landed on another view.
   - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the
-    entry's last one on this resume), with the PDF's dot beside it, placed
-    where Jake's page puts one (`DOT_LEFT`, `DOT_DOWN`, `DOT_SIZE`, read
-    from a dot's own pixels: centred 8.06pt left of the text and 5.95pt
-    under the line's top, 2.7pt across, within 0.05pt of the dot it
-    replaces), drawn as an SVG circle (a 3.4px `rounded-full` box was
-    snapped to whole pixels and drew an oval), and the caret in it. A
-    first guess, then a scan that
-    counted only each pixel row's dark middle (1.9pt across, 0.55pt high),
-    both sat off the dots above. The line opens by the space between bullets
-    on its own page (`bulletSpace`), since LaTeX stretches it per page
-    (2.94pt on one page of the test resume, 2.65pt on another). It is the
-    field any line is typed in, its ring included, in the page's type and
-    pure black ink, with no grey "New bullet" hint, which looked like no
-    line on the page. Every typed line's text is pure black on white
+    entry's last one on this resume), and the caret in it. **Every number
+    of the line comes from the page**, so it keeps whatever the Format
+    panel sets (2026-11-19): it opens by the space between bullets on its
+    own page (`bulletSpace`; LaTeX stretches it per page and with the font
+    size, 2.92pt at 10pt and 4.74pt at 12pt on the test resume), its
+    baseline sits as far under its top as a printed line's (the box's fixed
+    ascent), and **its marker is its anchor's own, copied pixel for pixel**
+    from the page as drawn into the space it opens (`Marker`, in
+    `compose`), so a dot, a dash, a size or a font needs no number here.
+    Measured at Latin Modern 10pt and at Lato 12pt with dashes: the marker
+    within 0.2pt of its place, the text's baseline within 0.03 to 0.14pt of
+    the PDF's. A dot drawn by the page came first: a guess, then
+    measures taken against the page frame's outer edge, which a 1px border
+    puts off the canvas, so the dot sat 0.6pt low and 0.7pt left, which the
+    user saw. **Measure the page against its canvas's own rect, or a box's
+    `style` percentages, never the frame's.** The dot is drawn only for an
+    anchor over a page break (`DOT_LEFT`, `DOT_OVER`, `DOT_SIZE`: 7.35pt
+    left of the text, 0.266em over the baseline, 0.273em across), as an SVG
+    circle (a 3.4px `rounded-full` box was snapped to whole pixels and drew
+    an oval). It is the field any line is typed in, its ring included, in
+    the page's type and pure black ink, with no grey "New bullet" hint,
+    which looked like no line on the page. Every typed line's text is pure black on white
     (`lineLook`): the app's near-black `text-ink` set it a shade off the
     printed lines; the page under it opens by a line and by each line it wraps
     to (`inserts` on `PdfPages`, a line of no height whose `by` moves what
@@ -3941,8 +3949,16 @@ student who opened a resume from Experiences landed on another view.
   this page only), at the line's size, weight and slant, with its baseline
   on the PDF's, so its text covers the printed glyphs and wraps where the
   PDF does; before this, a wider fallback serif wrapped early and the field
-  covered the lines below. Its 1.5px ring (2px read too thick over the
-  page's fine type) is the line's only outline while it is open: the
+  covered the lines below. The field's baseline comes from its font's
+  own ascent and descent, measured in the browser (`metricsOf`), since
+  each family the page prints differs: Latin Modern's numbers set every
+  family until 2026-11-19. Its 1.5px ring (2px read too thick over the
+  page's fine type) is a box of its own over the field (`ringed`), from
+  0.82em over the baseline to 0.28em under it, so it centres on where a
+  list's dot sits (0.266em up) and wraps the letters evenly: as the
+  field's own line box it reached over the font's whole ascent and stood
+  1.8pt above the dot beside it. It is the line's only outline while it
+  is open: the
   line's own selected outline sat a few pixels off the field, and with the
   field's drop shadow it showed as extra lines under the ring, so both go
   while the field shows, as does a Tailor highlight's border. It opens with the caret where the press landed
