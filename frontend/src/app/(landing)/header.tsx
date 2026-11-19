@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
 import { cn } from "@/lib/cn";
 
 import { hiringSystems, site } from "./data";
@@ -26,7 +27,8 @@ const WORKS_WITH = hiringSystems.slice(0, 3);
  * floats: the bar becomes a white rounded panel with a shadow, inset from
  * the window's edges like the panels below it (FloatingHeader sets the
  * state). The links: Features ▾ (the feature pages, features/catalog.ts),
- * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started,
+ * Resources ▾ (resources/catalog.ts), Pricing, Download (the Mac app's
+ * page, only while there is a build, KAN-922), then Log in and Get started,
  * or one "Open WorkIt" for a signed-in visitor (KAN-581), from the first
  * paint (session-swap.tsx, KAN-743).
  *
@@ -74,6 +76,13 @@ export function Header() {
                   {site.pricing.label}
                 </Link>
               </li>
+              {DESKTOP_DOWNLOAD_URL && (
+                <li>
+                  <Link href={site.download.href} className={NAV_ITEM}>
+                    {site.download.label}
+                  </Link>
+                </li>
+              )}
             </ul>
           </NavMenuGroup>
 
@@ -141,6 +150,16 @@ export function Header() {
               {site.pricing.label}
             </Link>
           </li>
+          {DESKTOP_DOWNLOAD_URL && (
+            <li>
+              <Link
+                href={site.download.href}
+                className="text-ink hover:bg-surface block rounded-lg px-3 py-2.5 font-medium"
+              >
+                {site.download.label}
+              </Link>
+            </li>
+          )}
         </ul>
         <SessionSwap
           signedOut={

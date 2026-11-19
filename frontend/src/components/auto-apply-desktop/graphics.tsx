@@ -13,9 +13,11 @@ import { SparkleIcon } from "@/components/sparkle-icon";
 import { cn } from "@/lib/cn";
 
 /**
- * The page's drawings of WorkIt Auto Apply (./page.tsx): its window, the
- * Chrome windows it fills forms in, a question it asks and a form's last
- * page. Each is drawn from the app's own window (apply-agent/window/src:
+ * The drawings of WorkIt Auto Apply, the Mac app: its window, the Chrome
+ * windows it fills forms in, a question it asks and a form's last page.
+ * Two pages draw them (KAN-922): the public download page
+ * (app/(landing)/download/) and the signed-in setup page
+ * (app/(seeker)/auto-apply-desktop/). Each is drawn from the app's own window (apply-agent/window/src:
  * app.tsx and cards.tsx) with the same words, so a change there that
  * changes what the student sees changes these too.
  *

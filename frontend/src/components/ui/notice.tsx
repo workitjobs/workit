@@ -17,27 +17,41 @@ import { cn } from "@/lib/cn";
  * on what is shown (Show Them, Remove All). The sentence takes at least
  * 15rem; narrower, the actions take a line of their own rather than
  * squeezing it into a column. role="status": news, not an interruption.
+ *
+ * TWO TONES, by role: `attention` (the default, amber) for something that
+ * waits on the student, and `offer` (the brand's violet) for something
+ * WorkIt suggests that nothing waits on: Up Next's offer of the Mac app
+ * (auto-apply/desktop-offer.tsx, KAN-922). An offer closes on its own
+ * Dismiss, passed in `actions`.
  */
+const TONES = {
+  attention: { band: "bg-warning-tint/60 border-warning/25", icon: "text-warning" },
+  offer: { band: "bg-brand-tint/60 border-brand/20", icon: "text-brand" },
+};
+
 export function Notice({
   Icon,
   children,
   actions,
+  tone = "attention",
   className,
 }: {
   Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   children: ReactNode;
   actions?: ReactNode;
+  tone?: keyof typeof TONES;
   className?: string;
 }) {
   return (
     <div
       role="status"
       className={cn(
-        "bg-warning-tint/60 border-warning/25 rounded-card flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-2.5",
+        "rounded-card flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-2.5",
+        TONES[tone].band,
         className,
       )}
     >
-      <Icon aria-hidden className="text-warning size-4 shrink-0" />
+      <Icon aria-hidden className={cn("size-4 shrink-0", TONES[tone].icon)} />
       <p className="text-body text-ink min-w-0 flex-1 basis-60">{children}</p>
       {actions && <div className="flex shrink-0 items-center gap-4">{actions}</div>}
     </div>

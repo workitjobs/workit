@@ -6,6 +6,8 @@
  * the application board's in board-data.ts.
  */
 
+import { DESKTOP_PAGE } from "@/lib/auto-apply-desktop";
+
 import { followedJob } from "./feature-data";
 
 export const site = {
@@ -20,6 +22,9 @@ export const site = {
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },
+  // The header's last link, shown only while there is a Mac build to
+  // download (lib/auto-apply-desktop.ts, KAN-922).
+  download: { label: "Download", href: DESKTOP_PAGE },
   // The header's menus and the footer's Features and Resources columns list
   // features/catalog.ts and resources/catalog.ts; these are the footer's
   // other columns.

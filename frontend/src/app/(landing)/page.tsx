@@ -1,9 +1,12 @@
+import { DownloadSimpleIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
+import { OutlineButton } from "./buttons";
 import { ClosingCta } from "./closing-cta";
 import {
   Applications,
@@ -85,6 +88,14 @@ export default function LandingPage() {
             >
               <SocialSignUpButton provider="google" />
               <SocialSignUpButton provider="linkedin_oidc" />
+              {/* The Mac app beside the sign-up, as claude.com's hero offers
+                  its desktop app, only while there is a build (KAN-922). */}
+              {DESKTOP_DOWNLOAD_URL && (
+                <OutlineButton href={site.download.href}>
+                  <DownloadSimpleIcon aria-hidden className="size-5" />
+                  Download for Mac
+                </OutlineButton>
+              )}
               <div className="w-full text-center sm:basis-full">
                 <EmailSignUpLink />
               </div>

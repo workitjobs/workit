@@ -756,8 +756,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The marketing site is the home page, a page per feature, Pricing and
   the Resources pages**, all in `app/(landing)/`, after Linear, Notion and
   Calendly. The home page is the overview. The header reads Features ▾,
-  Resources ▾, Pricing, Log in and Get started (the team renamed Product to
-  Features); its old anchor links (Features, Applications, FAQ) are gone.
+  Resources ▾, Pricing, Download (once the Mac app has a build, below), Log
+  in and Get started (the team renamed Product to Features); its old anchor links (Features, Applications, FAQ) are gone.
   The team first kept two links and turned down a third, Help Center among
   them; on 2026-10-21 it reversed that and added Resources ▾ (MCP docs,
   Help Center, Blog). Still turned down: Integrations (too small for a
@@ -879,6 +879,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   expandable group in it (`MobileGroup`, a native `<details>`). The
   footer's link columns are Features and Resources, from the two
   catalogs, then `site.footer`'s.
+- **The Mac app's offers wait for its build** (KAN-922).
+  `DESKTOP_DOWNLOAD_URL` in `lib/auto-apply-desktop.ts` is the DMG's
+  address, null until W8 of `../docs/desktop_application_auto_apply.md`
+  publishes one; setting it is the launch, and the only change it needs.
+  While it is null, nothing names a download that does not exist: the
+  public header's Download link, the home hero's Download for Mac, the
+  Auto Apply feature page's Mac answer, `/download` (a 404) and the app's
+  top bar button and Up Next offer (`docs/screens.md`, "The Mac app's
+  offers") are all hidden. Once set, they show, so the app is hard to miss,
+  after claude.com and chatgpt.com: a header link, a hero button beside
+  the sign-up and a public `/download` page that offers both ways to auto
+  apply, the Mac app and the Chrome extension. The signed-in offers show
+  only on a Mac (`lib/use-mac.ts`). A page gives no limit on who may
+  download: a public link reaches anyone, so a tester list for the beta,
+  if one is needed, belongs at the app's sign-in. `/download` draws with
+  this site's frame and buttons and the signed-in page's drawings
+  (`components/auto-apply-desktop/`), on Auto Apply's green ground; it is
+  a page of its own, not a sixth feature page, since it sells a download,
+  not a feature. To see it before launch, set the constant to any address
+  locally and put it back.
 - **The Pricing page, `app/(landing)/pricing/`, shows the team's plans.**
   Every plan, price, daily limit, feature row and billing answer lives in
   its `data.ts`; the page holds layout only. The team picked Free, Plus
@@ -1455,9 +1475,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   rows with the same names. **Each section has one name in the panel**
   (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
-  two sets of names for one app (2026-11-05). A name may take two lines on
-  its tile, no more: "Auto Apply Desktop" (KAN-835, `docs/screens.md`) does,
-  and `RAIL_BUTTON` wraps it where shadcn cut it to "o Apply Desk". **The same names are used
+  two sets of names for one app (2026-11-05). **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
   "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
