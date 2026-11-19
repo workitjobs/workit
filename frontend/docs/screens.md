@@ -3870,7 +3870,9 @@ student who opened a resume from Experiences landed on another view.
     where Jake's page puts one (`DOT_LEFT`, `DOT_DOWN`, `DOT_SIZE`, read
     from a dot's own pixels: centred 8.06pt left of the text and 5.95pt
     under the line's top, 2.7pt across, within 0.05pt of the dot it
-    replaces), and the caret in it. A first guess, then a scan that
+    replaces), drawn as an SVG circle (a 3.4px `rounded-full` box was
+    snapped to whole pixels and drew an oval), and the caret in it. A
+    first guess, then a scan that
     counted only each pixel row's dark middle (1.9pt across, 0.55pt high),
     both sat off the dots above. The line opens by the space between bullets
     on its own page (`bulletSpace`), since LaTeX stretches it per page

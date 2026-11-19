@@ -2002,17 +2002,24 @@ export function Editor({
     const half = (at?.space ?? 2) / 2;
     // The PDF's own dot, where Jake's puts it (`DOT_LEFT`, `DOT_DOWN`,
     // `DOT_SIZE`): a guess, then a coarse measure, sat off the dots above
+    // An SVG circle in a box three times its width, never a rounded box:
+    // Chrome snaps a box's painted edges to whole pixels, and at about 3.4px
+    // across a `rounded-full` box rounded to 3 by 4 and drew an oval (the
+    // user saw it stretched). The circle keeps its shape in any box
     const dot = (
-      <span
+      <svg
         aria-hidden
-        className="absolute rounded-full bg-black"
+        viewBox="0 0 30 30"
+        className="absolute"
         style={{
-          width: pt(DOT_SIZE),
-          height: pt(DOT_SIZE),
-          left: `-${pt(DOT_LEFT + DOT_SIZE / 2)}`,
-          top: pt(half + DOT_DOWN - DOT_SIZE / 2),
+          width: pt(DOT_SIZE * 3),
+          height: pt(DOT_SIZE * 3),
+          left: `-${pt(DOT_LEFT + (DOT_SIZE * 3) / 2)}`,
+          top: pt(half + DOT_DOWN - (DOT_SIZE * 3) / 2),
         }}
-      />
+      >
+        <circle cx="15" cy="15" r="5" fill="#000" />
+      </svg>
     );
     if (n.saving)
       return (
