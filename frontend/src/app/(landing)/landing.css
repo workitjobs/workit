@@ -1123,48 +1123,89 @@ html[data-tab-flight="flying"] .tour-tabs {
   mix-blend-mode: soft-light;
 }
 
-/* The home hero's panel (KAN-923): white where the headline sits, cooling
- * to a pale ink-grey at the edges, where the board of postings lies
- * (hero-board.tsx). It replaced a violet, blue and pink mesh gradient,
- * which the user found too close to Calendly's and without feel. Neutral
- * on purpose: the colour comes from the postings that light up. */
+/* The home hero's panel (KAN-923): a flat, very pale ink-grey, so its
+ * white tiles read as tiles (hero-board.tsx). It replaced a violet, blue
+ * and pink mesh gradient, which the user found too close to Calendly's and
+ * without feel. Neutral on purpose: the colour comes from the tiles that
+ * light up. */
 .hero-ground {
-  background: radial-gradient(
-    ellipse 70% 60% at 50% 32%,
-    white 35%,
-    color-mix(in oklab, var(--color-ink) 5%, white)
-  );
+  background: color-mix(in oklab, var(--color-ink) 4%, white);
 }
 
 /*
- * The board's mask (hero-board.tsx): below lg a band above the headline
- * that fades out downwards; from lg up the whole board with a soft hole
- * where the headline, the line and the sign-up sit, fading out before the
- * feature tabs. The hole is sized in rem to the text block it clears.
+ * The hero's grid (hero-board.tsx): square tiles in equal columns, with the
+ * headline's tile placed in the middle and the small tiles flowing round it.
+ * Below lg the headline's tile is a full-width row between a row of tiles
+ * above and one below; from lg up it spans the middle columns and 4 rows
+ * (3 from 90rem, where the cells are tall enough), with a column of tiles
+ * on each side. A tile is square by its aspect ratio, so a row is as tall
+ * as its tiles. The headline's tile is white too, so the Google pair's
+ * #F2F2F2 reads on it; its text must fit its rows (it is centred, and a row
+ * grows if it does not, leaving gaps under the side tiles): check at 1024
+ * and 1280 wide after a change to the hero's type.
  */
-.hero-board {
-  height: 11.5rem;
-  mask-image: linear-gradient(black 45%, transparent);
+.hero-grid {
+  --cols: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.hero-tile {
+  aspect-ratio: 1;
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.04);
+}
+.hero-copy {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  border-radius: 1.5rem;
+  background: white;
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.04);
+  text-align: center;
+}
+@media (min-width: 40rem) {
+  .hero-grid {
+    --cols: 6;
+    gap: 0.75rem;
+  }
+  .hero-copy {
+    padding: 3rem 2rem;
+  }
 }
 @media (min-width: 64rem) {
-  .hero-board {
-    height: 40rem;
-    mask-image:
-      radial-gradient(ellipse 38rem 19rem at 50% 19rem, transparent 60%, black 100%),
-      linear-gradient(black 72%, transparent);
-    mask-composite: intersect;
+  .hero-grid {
+    --cols: 7;
+  }
+  .hero-copy {
+    grid-column: 2 / -2;
+    grid-row: 2 / span 4;
+    padding: 1.5rem;
+  }
+}
+@media (min-width: 80rem) {
+  .hero-grid {
+    --cols: 9;
+  }
+}
+@media (min-width: 90rem) {
+  .hero-copy {
+    grid-row: 2 / span 3;
   }
 }
 
 /*
- * A fitting posting lights up (hero-board.tsx): its lit copy fades in over
- * the grey one, lifting a little, holds for about a third of the cycle,
+ * A tile lights up (hero-board.tsx): its soft violet face fades in over the
+ * white tile, lifting a little, holds for about a third of the cycle,
  * and fades out, once per `--cycle`, each posting after its own `--d`
- * (negative, so the board starts mid-cycle with some already lit), so
- * three or four show at once. Opacity and transform only, so it runs off
+ * (negative, so the grid starts mid-cycle with some already lit), so two
+ * or three show at once on a laptop. Opacity and transform only, so it runs off
  * the main thread. Held by
  * Pause Animations (the list at the top of this file); with reduced motion
- * every fitting posting is lit and still.
+ * every lit tile is lit and still.
  */
 .board-lit {
   opacity: 0;

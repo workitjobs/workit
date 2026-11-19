@@ -277,22 +277,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     pins to the screen and no section is a screen tall**, as on Calendly,
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
-  - **The hero's ground is a board of real postings** (`hero-board.tsx`,
-    `heroBoard` in data.ts, the user's pick of four directions on
-    2026-11-19): grey internship and new-grad postings from real
-    employers around the headline, and the ones that fit (`HERO_FIT`, 85
-    and up) light up in turn with their match (`.board-lit`, an opacity
-    and transform loop in landing.css, on the Pause Animations list, lit
-    and still with reduced motion). A server component with no script; 42
-    tiles, about 340 elements. From lg up the headline sits in a hole in
-    the board's mask (`.hero-board`, sized in rem to the text block, so a
-    change to the headline's size or the hero's top padding means checking
-    the hole), and the board fades out before the tabs; below lg it is a
-    band of two rows above the headline, and the text starts below it
-    (`pt-[12rem]`). The panel is `.hero-ground`, white behind the text and
-    pale ink-grey at the edges. It replaced `.hero-mesh`, a violet, blue
-    and pink mesh gradient with grain, which the user found too close to
-    Calendly's and without feel.
+  - **The hero is a grid of square tiles** (`HeroGrid` in
+    `hero-board.tsx`, `.hero-grid` in landing.css; the user picked it on
+    2026-11-19 from a sketch, over a board of wide grey posting cards and,
+    before that, `.hero-mesh`, a violet mesh gradient too close to
+    Calendly's): white squares on a flat pale ink-grey ground
+    (`.hero-ground`), the headline, line and sign-up pair in one large
+    white tile in the middle (`.hero-copy`, white so the Google pair's
+    #F2F2F2 reads), and the small tiles flowing round it. Seven tiles light
+    up in turn in soft violet (the user's pick over green) with a real
+    employer's logo and name, the role (from lg up) and the match as a
+    percentage over a slim bar (`MatchBar`; a ring took too much height).
+    The lights are `.board-lit`, an opacity and transform loop on the Pause
+    Animations list, lit and still with reduced motion; the component is a
+    server component with no script. Columns: 4 on a phone, 6 from sm, 7
+    from lg, 9 from xl; the headline tile is a full-width row below lg,
+    and from lg up spans the middle columns and 4 rows (3 from 90rem, where
+    cells are taller). Each tile hides below the width that has a cell for
+    it (`shownFrom`), or a spare tile opens a new row; which tiles light,
+    and when, is `LIT`, picked so the lit tiles spread at every width. The
+    text must fit its rows: after a change to the hero's type, check at
+    1024 and 1280 wide that every row is still square
+    (`getComputedStyle(grid).gridTemplateRows`). Data: `heroFits` in
+    data.ts.
   - **The hero's top features** (`hero-features.tsx`): the four
     `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
     `.surface-card` with the open feature's copy (`StopCopy`,

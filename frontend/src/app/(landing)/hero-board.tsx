@@ -1,111 +1,122 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { HERO_FIT, heroBoard } from "./data";
+import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { scoreTone } from "./score-tone";
 
-/** The board's rows and the postings per row (wider than any screen, so a
- *  row's ends are always cut by the panel). */
-const ROWS = 6;
-const PER_ROW = 7;
-/** One turn of the lights, in s: each fitting posting is lit for about a
- *  third of it (`board-lit` in landing.css). */
-const CYCLE = 18;
+/** One turn of the lights, in s: each lit tile shows for about a third of
+ *  it (`board-lit` in landing.css). */
+const CYCLE = 14;
 
 /**
- * The home hero's ground (KAN-923, the user's pick from four directions):
- * a board of real job postings around the headline, grey, and the ones that
- * fit you (`HERO_FIT` and up) light up in turn with their match, as the
- * Jobs page puts the best fits first. It replaced a violet-to-blue mesh
- * gradient, which the user found too close to Calendly's and without
- * feel. A server component: the lights are a CSS loop on opacity
- * (`.board-lit`), held by Pause Animations and lit still with reduced
- * motion. From lg up the headline sits in a clear hole in the board
- * (`.hero-board`'s mask); below lg the board is a band above it. Each
- * posting is drawn once grey, and a fitting one again, lit, over it, so the
- * light is one opacity change. Decorative: the headline says the same.
+ * The tiles, in the order the grid places them round the headline (row by
+ * row, left and right of it in the middle rows). The most any width shows
+ * is 26 (`.hero-grid` in landing.css: 4 columns on a phone, 6 from sm, 7
+ * from lg, 9 from xl, with the headline 4 rows tall below 90rem and 3 from
+ * it); each tile hides below the width that has a cell for it, or a spare
+ * tile would open a new row.
  */
-export function HeroBoard() {
-  const rows = Array.from({ length: ROWS }, (_, row) =>
-    Array.from({ length: PER_ROW }, (_, col) => heroBoard[(row * 5 + col * 3) % heroBoard.length]),
-  );
-  // The fitting postings take turns across the whole board, evenly spaced
-  // round the cycle, counted in reading order.
-  const fitCount = rows.flat().filter((posting) => posting.score >= HERO_FIT).length;
-  let lit = 0;
+const TILES = 26;
+function shownFrom(i: number) {
+  if (i < 8) return undefined;
+  if (i < 12) return "max-sm:hidden";
+  if (i < 22) return "max-lg:hidden";
+  if (i < 24) return "max-xl:hidden";
+  return "max-xl:hidden min-[90rem]:hidden";
+}
+
+/**
+ * The tiles that light up, each with its turn: tile index to its place in
+ * the cycle, out of `heroFits.length`. Picked so the lit tiles spread over
+ * the top, the sides and the bottom at every width, and so the few a phone
+ * shows (tiles 1 and 6) light half a turn apart.
+ */
+const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23: 3 };
+
+/**
+ * The home hero's grid (KAN-923, the user's pick): square white tiles round
+ * the headline, which sits in one large white tile of its own, and the
+ * tiles of the postings that fit you light up in soft violet, in turn,
+ * with the company, the role and the match as a percentage over a bar
+ * (`MatchBar`), as the Jobs page puts the best fits first. Soft violet is
+ * the user's pick over the green of the first sketch. It
+ * replaced a board of wide grey posting cards, which the user found
+ * unsatisfying beside the sketch of this grid, and before it a violet mesh
+ * gradient, too close to Calendly's. A server component with no script: the
+ * lights are a CSS loop on opacity and transform (`.board-lit`), held by
+ * Pause Animations, lit and still with reduced motion. The grid places the
+ * headline tile in its middle and the small tiles flow round it
+ * (`.hero-grid`); the tiles are decorative.
+ */
+export function HeroGrid({ children }: { children: ReactNode }) {
   return (
-    <div
-      aria-hidden="true"
-      className="hero-board pointer-events-none absolute inset-x-0 top-0 select-none"
-    >
-      <div className="flex flex-col gap-3 pt-4 sm:pt-6">
-        {rows.map((postings, row) => (
+    <div className="hero-grid">
+      <div className="hero-copy">{children}</div>
+      {Array.from({ length: TILES }, (_, i) => {
+        const turn = LIT[i];
+        const posting = turn === undefined ? null : heroFits[turn];
+        return (
           <div
-            key={row}
-            // Every other row sits half a posting over, like laid bricks.
-            className={cn(
-              "flex justify-center gap-3",
-              row % 2 === 1 && "translate-x-[5.9rem] sm:translate-x-[7.1rem]",
-            )}
+            key={i}
+            aria-hidden="true"
+            className={cn("hero-tile relative rounded-2xl bg-white", shownFrom(i))}
           >
-            {postings.map((posting, col) => {
-              const fits = posting.score >= HERO_FIT;
-              const delay = fits ? -((lit++ * CYCLE) / fitCount) : 0;
-              return (
-                <div
-                  key={col}
-                  className="relative flex h-14 w-[11rem] shrink-0 items-center gap-2.5 rounded-2xl bg-white/70 px-3 shadow-[0_0_0_1px_rgb(15_23_42/0.04)] sm:h-16 sm:w-[13.5rem]"
-                >
+            {posting && (
+              <div
+                className="board-lit absolute inset-0 flex flex-col rounded-2xl p-2 sm:p-2.5 lg:p-3"
+                style={
+                  {
+                    background: "color-mix(in oklab, var(--color-brand) 13%, white)",
+                    "--d": `${-(turn * CYCLE) / heroFits.length}s`,
+                    "--cycle": `${CYCLE}s`,
+                  } as CSSProperties
+                }
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
                   <FaviconLogo
                     domain={posting.domain}
                     eager
-                    className="size-7 rounded-lg opacity-50 grayscale"
+                    className="size-5 rounded-md shadow-none lg:size-6"
                   />
-                  <Lines posting={posting} muted />
-                  {fits && (
-                    <div
-                      className="board-lit absolute inset-0 flex items-center gap-2.5 rounded-2xl bg-white px-3 shadow-[var(--mk-shadow-float)]"
-                      style={{ "--d": `${delay}s`, "--cycle": `${CYCLE}s` } as CSSProperties}
-                    >
-                      <FaviconLogo domain={posting.domain} eager className="size-7 rounded-lg" />
-                      <Lines posting={posting} />
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums ring-1 ring-inset",
-                          scoreTone(posting.score),
-                        )}
-                      >
-                        {posting.score}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  <span className="text-landing-brand-800 hidden truncate text-[11px] font-semibold lg:block">
+                    {posting.company}
+                  </span>
+                </span>
+                {/* The role, from lg up, where a tile has room for two lines
+                    of it; below lg the tile shows the logo and the match. */}
+                <span className="text-ink mt-1.5 line-clamp-2 hidden text-xs leading-tight font-semibold lg:block">
+                  {posting.title}
+                </span>
+                <MatchBar score={posting.score} />
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-function Lines({ posting, muted }: { posting: (typeof heroBoard)[number]; muted?: boolean }) {
+/**
+ * A match as a percentage over a slim bar filled to it: the number to read,
+ * the bar to see at a glance, in about 20px of the tile's height. A ring
+ * was tried first and took too much of a small tile (the user's call).
+ * Still: the tile's light is the motion.
+ */
+function MatchBar({ score }: { score: number }) {
   return (
-    <span className="min-w-0 flex-1 text-left">
-      <span
-        className={cn(
-          "block truncate text-xs font-semibold sm:text-[13px]",
-          muted ? "text-slate-400" : "text-ink",
-        )}
-      >
-        {posting.title}
+    <span className="mt-auto block">
+      <span className="flex items-baseline gap-1">
+        <span className="text-landing-brand-800 text-xs font-bold tabular-nums lg:text-sm">
+          {score}%
+        </span>
+        <span className="text-landing-brand-800/80 hidden text-[11px] font-medium lg:inline">
+          match
+        </span>
       </span>
-      <span
-        className={cn("block truncate text-[11px]", muted ? "text-slate-400/80" : "text-ink-meta")}
-      >
-        {posting.company}
+      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/80">
+        <span className="bg-brand block h-full rounded-full" style={{ width: `${score}%` }} />
       </span>
     </span>
   );

@@ -160,7 +160,9 @@ the 3D pipeline and the applications route stay in the folder, unmounted.
 
 **Revised the same day:** the user found the mesh gradient hero too close
 to Calendly's, and picked, from four directions, a board of real postings
-around the headline whose best fits light up (`hero-board.tsx`). The
+around the headline whose best fits light up; it became a grid of square
+tiles round a large headline tile, the fits lit in soft violet with their
+role and match (`hero-board.tsx`). The
 sign-up pair went to Google's neutral theme. See
 `marketing-design-system.md`.
 

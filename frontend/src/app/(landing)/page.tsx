@@ -11,7 +11,7 @@ import { FaqList } from "./faq-list";
 import { backdrop } from "./features/catalog";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
-import { HeroBoard } from "./hero-board";
+import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { Journey } from "./journey";
@@ -53,41 +53,46 @@ export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
       {/* Hero, in a rounded panel inset from the window, like every
-          full-width band on these pages, over a board of real postings
-          whose best fits light up (hero-board.tsx, .hero-ground). */}
+          full-width band on these pages: the headline in a large tile of a
+          grid whose tiles light up green for the jobs that fit
+          (hero-board.tsx, .hero-grid), then the four features. */}
       <section className={PANEL_INSET}>
-        <div className={cn(PANEL, "hero-ground relative isolate overflow-hidden pb-3 sm:pb-6")}>
-          <HeroBoard />
-          <div
-            className={cn(CONTAINER, "relative pt-[12rem] text-center sm:pt-[12.5rem] lg:pt-28")}
-          >
-            <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": ".05s" } as CSSProperties}>
-              {hero.audience}
-            </p>
-            <h1
-              className={cn(TYPE.display, "hero-rise text-ink mx-auto mt-6 max-w-4xl")}
-              style={{ "--rd": ".15s" } as CSSProperties}
-            >
-              {hero.title}
-            </h1>
-            <p
-              className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-6 max-w-2xl")}
-              style={{ "--rd": ".3s" } as CSSProperties}
-            >
-              {hero.subtitle}
-            </p>
-            {/* The sign-up pair. A Download for Mac button (KAN-922) joins
-                this row: it wraps, so a third button needs no other change. */}
-            <div
-              className="hero-rise mt-8 flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
-              style={{ "--rd": ".4s" } as CSSProperties}
-            >
-              <SocialSignUpButton provider="google" />
-              <SocialSignUpButton provider="linkedin_oidc" />
-              <div className="w-full text-center sm:basis-full">
-                <EmailSignUpLink />
+        <div
+          className={cn(
+            PANEL,
+            "hero-ground relative isolate overflow-hidden p-2 pb-3 sm:p-3 sm:pb-6",
+          )}
+        >
+          <div className="mx-auto max-w-[84rem]">
+            <HeroGrid>
+              <p className={cn(HERO_PILL, "hero-rise")} style={{ "--rd": ".05s" } as CSSProperties}>
+                {hero.audience}
+              </p>
+              <h1
+                className={cn(TYPE.display, "hero-rise text-ink mx-auto mt-5 max-w-4xl")}
+                style={{ "--rd": ".15s" } as CSSProperties}
+              >
+                {hero.title}
+              </h1>
+              <p
+                className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
+                style={{ "--rd": ".3s" } as CSSProperties}
+              >
+                {hero.subtitle}
+              </p>
+              {/* The sign-up pair. A Download for Mac button (KAN-922) joins
+                  this row: it wraps, so a third button needs no other change. */}
+              <div
+                className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
+                style={{ "--rd": ".4s" } as CSSProperties}
+              >
+                <SocialSignUpButton provider="google" />
+                <SocialSignUpButton provider="linkedin_oidc" />
+                <div className="w-full text-center sm:basis-full">
+                  <EmailSignUpLink />
+                </div>
               </div>
-            </div>
+            </HeroGrid>
           </div>
           {/* The four features, one at a time: hero-features.tsx. */}
           <div

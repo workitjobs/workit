@@ -9,8 +9,8 @@ screens follow `design.md`, not this file.
 
 ## Principles
 
-1. **Colour lives in two places only**: the home hero's lit postings and
-   the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
+1. **Colour lives in two places only**: the home hero's lit tiles and the
+   framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: an eyebrow, a
@@ -34,7 +34,8 @@ screens follow `design.md`, not this file.
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
 | Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
-| Hero ground | `.hero-ground` | The home hero: white behind the text, pale ink-grey at the edges, under the board of postings |
+| Hero ground | `.hero-ground` | The home hero: flat pale ink-grey under white tiles |
+| Lit tile | brand at 13% over white, brand-800 text, a `bg-brand` bar | The home hero's postings that fit |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -91,13 +92,14 @@ guidelines' only theme with no border: the light theme (white with a
 heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 (KAN-922) sits in the same row as a `SecondaryButton`.
 
-### The home hero's board (`hero-board.tsx`)
+### The home hero's grid (`hero-board.tsx`)
 
-Real internship and new-grad postings in grey tiles around the headline;
-the ones that fit (85 and up) light up in turn, white with their match
-chip, three or four at a time. From lg up the headline sits in a clear
-hole in the board; below lg the board is a band of two rows above it. It
-is the hero's only colour.
+Square white tiles on a flat pale ink-grey ground, with the headline in
+one large white tile in the middle. Seven tiles light up in turn in soft
+violet: a real employer's logo and name, the role (from lg up), and the
+match as a percentage over a slim bar. Two or three are lit at once on a
+laptop. It is the hero's only colour. A ring for the match was tried and
+took too much of a small tile.
 
 ### Cards
 
@@ -146,14 +148,15 @@ pins; no shine sweeps or glows.
 | `.glass-btn` violet gradient glass | `.primary-btn` solid ink | Read as AI-made; low contrast |
 | Outline button with a violet edge | `SecondaryButton`, soft grey fill | Borders everywhere read as a template |
 | Google light theme, grey border | Google neutral theme, no border | Bordered buttons looked AI-made; the dark theme was too heavy |
-| Violet, blue and pink mesh gradient hero | A board of real postings that light up | Too close to Calendly's, no feel |
+| Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |
+| A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
 | `.glass-card` tinted violet with a violet ring | Neutral frosted white | Same |
 | Pricing's violet gradient Plus card and its shine | Solid ink card | Same; the shine was decoration |
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: eyebrows, checks, feature icon tiles, Plus's limit
-pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the hero's lit tiles, eyebrows, checks, feature
+icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.
