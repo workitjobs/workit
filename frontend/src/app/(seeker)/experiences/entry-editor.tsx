@@ -95,6 +95,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   foot,
   resumeMode = false,
   resumeSwitches,
+  focusBullet,
 }: {
   initial: EntryDraft<S>;
   onSave: (draft: EntryDraft<S>) => void;
@@ -147,6 +148,11 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     coursework: boolean;
     onChange: (next: { gpa: boolean; coursework: boolean }) => void;
   };
+  /** The bullet box that takes the cursor as the form opens: the empty row
+   *  a page's + opened (KAN-920). The form's dialog reads it
+   *  (`data-initial-focus`); without it the School field took the cursor,
+   *  and the student had to find the new row to type. */
+  focusBullet?: number;
 }) {
   // AN ENTRY WITH NO BULLETS OPENS ON ONE EMPTY BOX (2026-11-17), ready to
   // type into as every other field is. A dashed Add Bullet Point alone sat
@@ -585,6 +591,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                   maxLength={500}
                   placeholder={lines ? "One line" : "One thing you did"}
                   autoFocus={i === added}
+                  data-initial-focus={i === focusBullet ? "" : undefined}
                   className={cn(
                     FIELD_CONTROL,
                     "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5",

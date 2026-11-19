@@ -143,6 +143,7 @@ export function OutlineEntryDialog({
       title={`${target ? "Edit" : "Add"} ${noun}`}
       initial={initial}
       resumeMode={target !== null}
+      focusBullet={after !== null ? after + 1 : undefined}
       resumeSwitches={
         target?.section === "education" && row
           ? { gpa: shows.gpa, coursework: shows.coursework, onChange: setShows }

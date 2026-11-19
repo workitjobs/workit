@@ -2581,37 +2581,40 @@ export function Editor({
         ),
     };
   };
-  /** The bar over a picked block (KAN-920): what the Sections panel's row
-   *  does for it, in its words and glyphs, plus its moves. Edit opens a
-   *  bullet for typing on the page, an entry's form for its details (dates,
-   *  location), which the page does not type; Add Bullet puts an empty row
-   *  last in the entry's form; Remove From Resume is the panel's hide, with
-   *  Undo, the bank keeping it. */
+  /** A block's menu, at its handle (KAN-920): what the Sections panel's
+   *  row does for it, in its words, plus its moves, in three groups. Edit
+   *  opens a bullet for typing on the page, and an entry's form ("…") for
+   *  its details (dates, location), which the page does not type; Add
+   *  Bullet puts an empty row in the entry's form, after the bullet or
+   *  last; Remove From Resume is the panel's hide, with Undo, the bank
+   *  keeping it. A section has no Edit: its heading has nothing to type. */
   const actionsOf = (block: OutlineBlock): BlockAction[] => {
     const at = { kind: block.kind, id: block.id };
     const index = indexOf(at);
     const moves: BlockAction[] = [
       {
         key: "up",
-        label: `Move ${block.label} up`,
-        tooltip: "Move Up",
+        text: "Move Up",
+        group: "move",
         icon: <ArrowUpIcon aria-hidden />,
+        shortcut: "↑",
         disabled: index <= 0,
         onClick: () => moveBlock(at, index - 1),
       },
       {
         key: "down",
-        label: `Move ${block.label} down`,
-        tooltip: "Move Down",
+        text: "Move Down",
+        group: "move",
         icon: <ArrowDownIcon aria-hidden />,
+        shortcut: "↓",
         disabled: index < 0 || index >= siblingCount(at) - 1,
         onClick: () => moveBlock(at, index + 1),
       },
     ];
     const remove = (changes: ChoicesUpdate): BlockAction => ({
       key: "remove",
-      label: `Remove ${block.label} from this resume`,
-      tooltip: "Remove From Resume",
+      text: "Remove From Resume",
+      group: "remove",
       icon: <TrashIcon />,
       onClick: () => {
         setPicked(null);
@@ -2623,8 +2626,8 @@ export function Editor({
       return [
         {
           key: "edit",
-          label: `Edit ${block.label}`,
-          tooltip: "Edit",
+          text: "Edit Bullet",
+          group: "change",
           icon: <PencilIcon />,
           onClick: () => select(`${block.id}.bullet`),
         },
@@ -2632,8 +2635,8 @@ export function Editor({
           ? [
               {
                 key: "add",
-                label: `Add Bullet after ${block.label}`,
-                tooltip: "Add Bullet",
+                text: "Add Bullet Below",
+                group: "change" as const,
                 icon: <PlusIcon />,
                 onClick: add.add,
               },
@@ -2646,6 +2649,7 @@ export function Editor({
     if (block.kind === "entry") {
       const entry = bank.entries.find((e) => e.id === block.id);
       if (!entry) return moves;
+      const noun = printed.find((s) => s.id === block.parent)?.noun ?? "Entry";
       const form = (opener: HTMLElement, newBulletAfter?: string) =>
         openEntryForm(
           {
@@ -2659,15 +2663,15 @@ export function Editor({
       return [
         {
           key: "edit",
-          label: `Edit ${block.label}`,
-          tooltip: "Edit",
+          text: `Edit ${noun}…`,
+          group: "change",
           icon: <PencilIcon />,
           onClick: (opener) => form(opener),
         },
         {
           key: "add",
-          label: `Add Bullet to ${block.label}`,
-          tooltip: "Add Bullet",
+          text: "Add Bullet",
+          group: "change",
           icon: <PlusIcon />,
           onClick: (opener) => form(opener, ""),
         },
@@ -2682,8 +2686,8 @@ export function Editor({
         ? [
             {
               key: "add",
-              label: `Add ${add.noun} to ${block.label}`,
-              tooltip: `Add ${add.noun}`,
+              text: `Add ${add.noun}`,
+              group: "change" as const,
               icon: <PlusIcon />,
               onClick: add.add,
             },
@@ -2896,11 +2900,13 @@ export function Editor({
           // closes it, as a press off the page does: the page keeps the
           // selection for its lines, so until then only Enter or Escape
           // left a line once it was open. A line's own target opens that
-          // line, and the field and the margin dots keep it
+          // line, and the field and the margin dots keep it. So does a
+          // block's menu (KAN-920): React passes a press in its portal up
+          // through the page, and it let go of the block it acts on
           onPointerDown={(e) => {
             if (
               !(e.target as Element).closest(
-                "[data-box], [data-popup], input, textarea, button, [contenteditable]",
+                "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
               )
             ) {
               select(null);

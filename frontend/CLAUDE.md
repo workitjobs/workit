@@ -2564,8 +2564,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The editor's page moves and adds itself** (KAN-920,
   `docs/screens.md`, Resume editor): a hover shows a + and a drag handle in
   the margin, a drag moves a section, entry or bullet among its siblings,
-  and a breadcrumb in the toolbar with Esc climbs from a line to its entry
-  and section. Where each block sits is read from the boxes
+  a click on the handle opens the block's menu there (Edit and Add, the
+  moves, Remove From Resume), and a breadcrumb in the toolbar with Esc
+  climbs from a line to its entry and section. A form a page's + opens
+  puts the cursor in the row it added (`focusBullet`, read by the entry
+  dialog as `data-initial-focus`), not the form's first field. Where each block sits is read from the boxes
   (`page-outline.ts`): a new kind of box, or a template that indents
   differently, changes it there, never in the handles.
 - **Each edit is a render and a save, side by side, and neither waits for

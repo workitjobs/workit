@@ -12,7 +12,15 @@ import {
 } from "react";
 
 import { PlusIcon } from "@/components/icons";
-import { IconButton } from "@/components/ui/icon-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from "@/components/shadcn/dropdown-menu";
 import { Tip } from "@/components/ui/tip";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -44,13 +52,16 @@ import {
  * drawn on the page, snapped to the dragged block's siblings only (a bullet
  * within its entry, an entry within its section, a section between
  * sections), and the drop goes to the editor, which shows the move at once.
- * A press on the handle with no drag picks the block (the breadcrumb's
- * level), and its arrow keys move it, as the panel's handles do.
+ * Its arrow keys move it, as the panel's handles do.
  *
- * A picked block gets a bar of its own just over its first line
- * (`actionsOf`): Edit, Add Bullet, Move Up, Move Down and Remove From
- * Resume, whichever fit it, in the Sections panel's words and glyphs. With
- * it, nothing the panel's rows do needs the panel.
+ * A click on the handle with no drag picks the block (the ring and the
+ * breadcrumb's level) and opens its menu at the handle, as Notion's block
+ * handle does (2026-11-19): Edit and Add, then Move Up and Move Down, then
+ * Remove From Resume, whichever fit it (`actionsOf`), drawn as the app's
+ * other ⋯ menus. A bar of icons at the block's right end came first: a
+ * click there was a click far from the pointer, nothing on the handle said
+ * a click did anything, and its icons needed tooltips to read. The handle
+ * of the block whose menu is open, or the picked one, stays shown.
  */
 
 export type PageOutline = {
@@ -68,16 +79,22 @@ export type PageOutline = {
   actionsOf: (block: OutlineBlock) => BlockAction[];
 };
 
-/** One button of the bar over a picked block (KAN-920): `label` names it in
- *  full for a screen reader, `tooltip` in short. */
+/** One item of a block's menu (KAN-920), in its group: what changes the
+ *  block, where it sits, and taking it off the resume, which comes last
+ *  and red. `shortcut` is a key the editor answers already, never one it
+ *  does not. The item runs once the menu has closed, with the handle as
+ *  the element a dialog it opens gives the focus back to. */
 export type BlockAction = {
   key: string;
-  label: string;
-  tooltip: string;
+  text: string;
+  group: "change" | "move" | "remove";
   icon: ReactNode;
+  shortcut?: string;
   disabled?: boolean;
   onClick: (opener: HTMLElement) => void;
 };
+
+const GROUPS: BlockAction["group"][] = ["change", "move", "remove"];
 
 type Drag = {
   block: OutlineBlock;
@@ -118,6 +135,13 @@ export function usePageOutline({
   const [hover, setHover] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragging = useRef<Drag | null>(null);
+  /** The block whose menu is open, by its key, and its handle, where the
+   *  menu hangs. One handle shows at a time, on whichever page. */
+  const [menu, setMenu] = useState<string | null>(null);
+  /** Whether it is open: false while it plays its close, still mounted, so
+   *  the item picked can run once it has closed. */
+  const [menuOpen, setMenuOpen] = useState(false);
+  const handle = useRef<HTMLButtonElement>(null);
 
   /** The pointer as a spot on the pages: the page under it, else the
    *  nearest one. */
@@ -150,7 +174,23 @@ export function usePageOutline({
   const indexOf = (block: OutlineBlock) =>
     siblingsOf(blocks, block).findIndex((b) => b.id === block.id);
 
+  const keyOf = (block: OutlineBlock) => `${block.kind}:${block.id}`;
+  const openMenu = (block: OutlineBlock) => {
+    if (!outline) return;
+    outline.onPick(block);
+    setMenu(keyOf(block));
+    setMenuOpen(true);
+  };
+
   const grip = (block: OutlineBlock) => ({
+    ref: handle,
+    "aria-haspopup": "menu" as const,
+    "aria-expanded": menu === keyOf(block),
+    // A keyboard's Enter or Space (a click with no pointer): the pointer's
+    // own press opens it in onPointerUp
+    onClick: (event: { detail: number }) => {
+      if (event.detail === 0) openMenu(block);
+    },
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -177,7 +217,7 @@ export function usePageOutline({
       dragging.current = null;
       setDrag(null);
       if (!now || !outline) return;
-      if (!now.moved) return outline.onPick(block);
+      if (!now.moved) return openMenu(block);
       if (now.drop && now.drop.to !== indexOf(block)) outline.onMove(block, now.drop.to);
     },
     onPointerCancel: () => {
@@ -199,10 +239,18 @@ export function usePageOutline({
     },
   });
 
+  const picked = outline?.picked ? `${outline.picked.kind}:${outline.picked.id}` : null;
   return {
-    /** The block whose handle shows: the dragged one while a drag runs. */
-    shown: drag ? `${drag.block.kind}:${drag.block.id}` : hover,
+    /** The block whose handle shows: the dragged one while a drag runs, the
+     *  one whose menu is open, the hovered one, else the picked one. */
+    shown: drag ? keyOf(drag.block) : (menu ?? hover ?? picked),
     drag,
+    menu,
+    menuOpen,
+    closeMenu: () => setMenuOpen(false),
+    /** Once its close has played: the handle may hide again. */
+    menuClosed: () => setMenu(null),
+    handle,
     onPointerMove: (event: PointerEvent) => hoverAt(event.clientY),
     onPointerLeave: () => !dragging.current && setHover(null),
     grip,
@@ -248,39 +296,19 @@ export function OutlineLayer({
     );
   };
   const add = shown && !state.drag ? outline.addOf(shown) : null;
-  const actions = picked && !state.drag ? outline.actionsOf(picked) : [];
-  const pickedBand = picked && bandOn(picked, page, size.height);
+  const menuBlock = blocks.find((b) => `${b.kind}:${b.id}` === state.menu);
   return (
     <>
       {picked && ring(picked, "ring-brand ring-2")}
-      {picked && pickedBand && picked.start.page === page && actions.length > 0 && (
-        // The picked block's own bar, just over its first line (Canva's and
-        // Notion's, made for a resume): what can be done to it, where it is
-        <div
-          data-keeps-selection
-          role="toolbar"
-          aria-label={`${picked.label}: actions`}
-          className="bg-panel border-border-surface rounded-control absolute z-30 flex -translate-y-full items-center gap-0.5 border p-0.5 shadow-md"
-          // At its right end: a heading or a title starts at the left, and
-          // the bar there covered the section heading over a picked entry
-          style={{
-            right: pct(size.width - picked.x1 - 4, size.width),
-            top: pct(pickedBand.top - 4, size.height),
-          }}
-        >
-          {actions.map((action) => (
-            <IconButton
-              key={action.key}
-              place="row"
-              label={action.label}
-              tooltip={action.tooltip}
-              disabled={action.disabled}
-              onClick={(event) => action.onClick(event.currentTarget)}
-            >
-              {action.icon}
-            </IconButton>
-          ))}
-        </div>
+      {menuBlock && menuBlock.start.page === page && (
+        <BlockMenu
+          block={menuBlock}
+          actions={outline.actionsOf(menuBlock)}
+          anchor={state.handle}
+          open={state.menuOpen}
+          onClose={state.closeMenu}
+          onClosed={state.menuClosed}
+        />
       )}
       {dragged && ring(dragged, "bg-brand/5 ring-brand/40 ring-1")}
       {line && line.page === page && (
@@ -314,7 +342,7 @@ export function OutlineLayer({
           )}
           <button
             type="button"
-            aria-label={`Move ${shown.label}`}
+            aria-label={`${shown.label}: move, or open its menu`}
             {...state.grip(shown)}
             className="text-ink-meta hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring flex size-6 cursor-grab touch-none items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
           >
@@ -323,5 +351,83 @@ export function OutlineLayer({
         </div>
       )}
     </>
+  );
+}
+
+/** Alt on Windows and Linux is Option on a Mac, and a menu names it as the
+ *  keyboard does. */
+const ALT =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌥" : "Alt+";
+
+/** A block's menu, hung from its handle (KAN-920). The item picked runs
+ *  once the menu has closed, so the focus the menu hands back to the
+ *  handle lands before a dialog the item opens takes it. */
+function BlockMenu({
+  block,
+  actions,
+  anchor,
+  open,
+  onClose,
+  onClosed,
+}: {
+  block: OutlineBlock;
+  actions: BlockAction[];
+  anchor: RefObject<HTMLButtonElement | null>;
+  open: boolean;
+  onClose: () => void;
+  onClosed: () => void;
+}) {
+  const then = useRef<BlockAction | null>(null);
+  const groups = GROUPS.map((group) => actions.filter((a) => a.group === group)).filter(
+    (items) => items.length > 0,
+  );
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      onOpenChangeComplete={(next) => {
+        if (next) return;
+        const action = then.current;
+        then.current = null;
+        if (action && anchor.current) action.onClick(anchor.current);
+        onClosed();
+      }}
+    >
+      <DropdownMenuContent
+        // A press in it is not a press away from the picked block: the
+        // document's (KEEPS_SELECTION) or the page's, which React's press
+        // reaches through the portal (`data-block-menu`)
+        data-keeps-selection
+        data-block-menu
+        anchor={anchor}
+        align="start"
+        className="w-56"
+        aria-label={`${block.label}: actions`}
+        finalFocus={anchor}
+      >
+        {groups.map((items, i) => (
+          <DropdownMenuGroup key={items[0].group}>
+            {i > 0 && <DropdownMenuSeparator />}
+            {i === 0 && <DropdownMenuLabel className="truncate">{block.label}</DropdownMenuLabel>}
+            {items.map((action) => (
+              <DropdownMenuItem
+                key={action.key}
+                variant={action.group === "remove" ? "destructive" : "default"}
+                disabled={action.disabled}
+                onClick={() => {
+                  then.current = action;
+                }}
+              >
+                {action.icon}
+                {action.text}
+                {action.shortcut && (
+                  <DropdownMenuShortcut>{`${ALT}${action.shortcut}`}</DropdownMenuShortcut>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

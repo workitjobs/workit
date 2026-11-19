@@ -3852,26 +3852,38 @@ student who opened a resume from Experiences landed on another view.
     a + there read as either another entry or another bullet, which the
     user found made no sense (2026-11-18). Skills and a Lines section have
     no + yet. Each button is 24px, WCAG 2.2's smallest target.
-  - **A press on the handle with no drag picks the block**, outlined in
-    brand. The toolbar's middle then shows where it sits, as a breadcrumb
+  - **A click on the handle with no drag picks the block and opens its
+    menu** at the handle, as Notion's block handle does (2026-11-19,
+    `actionsOf`, `BlockAction`, `BlockMenu`). The block is outlined in
+    brand, and the toolbar's middle shows where it sits, as a breadcrumb
     ("Experience › Acme › Bullet 2", `Crumbs`); an open line shows its
-    breadcrumb too. A step of it picks that block.
-  - **A picked block gets its own bar**, at its right end just over its
-    first line (`actionsOf`, `BlockAction`; at its left it covered the
-    section heading over a picked entry), in the Sections panel's words and
-    glyphs: a bullet's Edit (opens it for typing), Add Bullet, Move Up, Move
-    Down and Remove From Resume; an entry's Edit (its form, for the dates
-    and place the page does not type), Add Bullet (an empty row last in its
-    form), the moves and Remove From Resume; a section's Add <noun>, the
-    moves and Remove From Resume (every entry, or every skill). Remove is
-    the panel's hide, with Undo, the bank keeping the item. With the bar,
-    nothing a panel row does needs the panel.
+    breadcrumb too, and a step of it picks that block. The menu is the
+    app's ⋯ menu (`DropdownMenu`, anchored to the handle), headed by the
+    block's name, in three groups: what changes it (Edit, Add), where it
+    sits (Move Up, Move Down, with their ⌥↑ and ⌥↓, Alt+ off a Mac), and
+    Remove From Resume, last and red. A bullet's are Edit Bullet (opens it
+    for typing), Add Bullet Below, the moves and Remove; an entry's Edit
+    School… ("…": its form, for the dates and place the page does not
+    type), Add Bullet (an empty row last in its form), the moves and
+    Remove; a section's Add <noun>, the moves and Remove (every entry, or
+    every skill), with no Edit, since its heading has nothing to type.
+    Remove is the panel's hide, with Undo, the bank keeping the item; a
+    move keeps the block picked. Enter or Space on a focused handle opens
+    it too. The item runs once the menu has closed, so the focus it hands
+    back to the handle lands before a form the item opens takes it. With
+    the menu, nothing a panel row does needs the panel. **A bar of icons
+    at the block's right end came first**: a click there was far from the
+    pointer, nothing on the handle said a click did anything, and its
+    icons needed tooltips to read. **The menu is marked `data-block-menu`**,
+    which the page's own press-away leaves alone: React passes a press in
+    the menu's portal up through the page, and the page let go of the
+    block the menu acts on.
     **Esc climbs**: an open line to its entry, an entry to its section, a
     section to nothing; it only closed the line before. **Option with an
     arrow moves** the picked block, or the open line while its field has no
     focus, and the handle's own arrow keys move its block.
-  - Not on Tailor's review or a phone. Still open: a toolbar beside the
-    selection, empty sections drawn on the page, and the panel as an
+  - Not on Tailor's review or a phone. Still open: empty sections drawn
+    on the page, and the panel as an
     optional Outline (KAN-920's later slices).
 - **Click a line and type** (`editor.tsx`). A text field opens over the
   line's first box, in type sized in `cqw` of the page (each page is a size
