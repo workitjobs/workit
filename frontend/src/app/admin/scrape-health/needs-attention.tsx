@@ -1,6 +1,7 @@
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { systemName } from "@/lib/scrape-status";
 
+import { SCRAPE_SECTIONS } from "../pages";
 import { Panel } from "../panel";
 
 /**
@@ -13,7 +14,7 @@ import { Panel } from "../panel";
 export function NeedsAttention({ failing }: { failing: ScrapeHealth["failing"] }) {
   return (
     <Panel
-      title="Needs Attention"
+      section={SCRAPE_SECTIONS.attention}
       bodyClassName="p-0"
       action={
         failing.length > 0 && (

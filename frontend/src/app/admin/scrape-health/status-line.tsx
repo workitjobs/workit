@@ -5,6 +5,8 @@ import { cn } from "@/lib/cn";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import type { Status } from "@/lib/scrape-status";
 
+import { FIRST_SECTION_TARGET, SCRAPE_SECTIONS } from "../pages";
+
 const count = (n: number) => n.toLocaleString("en-US");
 const when = (iso: string | null) =>
   iso ? `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC` : "Never";
@@ -44,7 +46,14 @@ export function StatusLine({ status, data }: { status: Status; data: ScrapeHealt
   const { Icon, chip, edge } = LEVELS[status.level];
   const { boards } = data;
   return (
-    <Card as="section" tone="tile" padding="lg" className={edge} aria-labelledby="scrape-status">
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      id={SCRAPE_SECTIONS.status.id}
+      className={cn(FIRST_SECTION_TARGET, edge)}
+      aria-labelledby="scrape-status"
+    >
       <div className="flex items-start gap-4">
         <span
           className={cn("rounded-control flex size-10 shrink-0 items-center justify-center", chip)}

@@ -1,6 +1,7 @@
 import { Tip } from "@/components/ui/tip";
 import type { ScrapeHealth } from "@/lib/fill-health";
 
+import { SCRAPE_SECTIONS } from "../pages";
 import { Panel } from "../panel";
 
 const count = (n: number) => n.toLocaleString("en-US");
@@ -65,7 +66,7 @@ export function ReadsChart({
 
   return (
     <Panel
-      title="Board Reads per Day"
+      section={SCRAPE_SECTIONS.perDay}
       className={className}
       action={<span className="text-note text-ink-meta">{range} (UTC)</span>}
     >

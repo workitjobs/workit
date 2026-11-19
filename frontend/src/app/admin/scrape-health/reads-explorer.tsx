@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { systemName } from "@/lib/scrape-status";
 
+import { SCRAPE_SECTIONS } from "../pages";
 import { Panel, TD, TH } from "../panel";
 
 const count = (n: number) => n.toLocaleString("en-US");
@@ -90,7 +91,7 @@ export function ReadsExplorer({
   return (
     <>
       <Panel
-        title="Boards by Hiring System"
+        section={SCRAPE_SECTIONS.systems}
         action={
           more > 0 && (
             <button
@@ -158,7 +159,7 @@ export function ReadsExplorer({
         </p>
       </Panel>
 
-      <Panel title="Board Reads" bodyClassName="p-0">
+      <Panel section={SCRAPE_SECTIONS.reads} bodyClassName="p-0">
         <div className="border-border-subtle flex flex-wrap items-end gap-4 border-b px-5 py-4">
           <SelectField
             id="reads-system"
