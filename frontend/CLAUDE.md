@@ -3575,11 +3575,16 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 `fill-report-queries.ts`.
 
 **The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
-dark sidebar (`bg-inverse`) that links every admin page, beside the page;
+violet sidebar (a gradient from `brand` down to `brand-active`, its
+current page a white pill with the brand's ink, the violet logo mark on a
+white tile) that links every admin page, beside the page;
 below lg it is a bar above the page. From lg up its button collapses it to
 a rail of icons, each row keeping its name for screen readers and as a
 tooltip. A new admin page joins `PAGES` in `admin/admin-nav.tsx`, or
-nothing links to it. The shell reads no session:
+nothing links to it. **The sidebar clips with `overflow-clip`, never
+`overflow-hidden`**: a hidden box still scrolls, and on the collapsed rail
+the rows' screen-reader-only words scrolled every icon out of view (the
+rail showed empty). The shell reads no session:
 a page's `notFound()` draws the root 404 in place of the shell (checked
 with a bad report id), so a student still never sees it. Never add a
 `not-found.tsx` under `app/admin/`: it would draw the 404 inside the
@@ -3587,8 +3592,7 @@ sidebar and show a student that the admin pages exist.
 
 **An admin page is cards on the grey ground in WorkIt's colours**: each
 section (a table, a rail block) is its own `Card` (`ui/card.tsx`), a
-chosen pill, a bar, a gauge and the sidebar's current link are brand
-violet, and red marks only a failure. The first build drew the rail as one
+chosen pill, a bar and a gauge are brand violet, as the sidebar is, and red marks only a failure. The first build drew the rail as one
 white panel with rules and its bars in green, which the user found was not
 WorkIt's look.
 
