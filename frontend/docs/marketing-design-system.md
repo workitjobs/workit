@@ -193,14 +193,14 @@ white fails on the green). Text there sits on a card or a pill.
 Each feature has its own mark, after Calendly's product icons: a small
 piece of the feature's real screen on a squircle (a square with
 continuous curves) in the feature's colour. The user picked each from
-two rounds of sketches:
+three rounds of sketches:
 
 | Feature | Mark | Why it reads |
 | --- | --- | --- |
 | Resume Builder | A resume page, its last line in the full blue (the tailored one) | The thing the feature makes |
-| Job Matching | A job card with the app's match ring as a badge on its corner | The ring is the match everywhere on the site; it is large enough to read at 24px, where a pill inside the card was not |
+| Job Matching | A card with the match's score (91%) over two ticked skills | A score and a checklist, what matching gives a student; 91% is the followed Stripe application's match on the page's journey. A job card with a ring badge read as off |
 | Auto Apply | A stack of filled forms with a check | Many applications filled at once |
-| Application Tracker | The tracker's list, a stage pill on each row (applied, interview, offer) | The tracker is a list; its board view is archived, so a board would show a screen students cannot find |
+| Application Tracker | A table: a header row, column lines and a status column of stage pills (applied, interview, offer) | The tracker is a spreadsheet of applications; a list of rows with pills read as off, and a board would show the archived board view |
 
 Rules: one colour family per mark, from the feature's token (the ground
 at 24% over white, text-like bars mixed toward ink, white pieces on top);
