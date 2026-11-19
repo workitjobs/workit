@@ -100,7 +100,11 @@ export function statusOf(data: Pick<ScrapeHealth, "boards" | "systems">, now: nu
       reason: `${failing} of ${boards} boards are failing, more than ${AMBER_FAILING_SHARE * 100}%.`,
     };
   }
-  return { level: "green", title: "Healthy", reason: "Boards are being read, and few are failing." };
+  return {
+    level: "green",
+    title: "Healthy",
+    reason: "Boards are being read, and few are failing.",
+  };
 }
 
 /** The names the scraper's ids cannot be capitalised into. */

@@ -4,7 +4,12 @@ import { test } from "node:test";
 import { datesOf, moved, statusOf, systemName, windowHref, windowOf } from "./scrape-status.ts";
 
 const NOW = Date.parse("2026-11-19T12:00:00Z");
-const system = (last_read_at: string | null) => ({ ats: "ashby", boards: 100, read: 1, last_read_at });
+const system = (last_read_at: string | null) => ({
+  ats: "ashby",
+  boards: 100,
+  read: 1,
+  last_read_at,
+});
 const boards = (failing: number) => ({
   boards: 100,
   failing,
@@ -45,7 +50,10 @@ test("a window moves by its step and stops at both ends", () => {
   assert.equal(moved(start, 1), null);
   assert.deepEqual(moved(start, -1), { days: 14, back: 7, step: "week" });
   assert.equal(moved(windowOf({ days: "90" }), -1), null);
-  assert.equal(windowHref({ days: 14, back: 7, step: "week" }), "/admin/scrape-health?days=14&back=7");
+  assert.equal(
+    windowHref({ days: 14, back: 7, step: "week" }),
+    "/admin/scrape-health?days=14&back=7",
+  );
   assert.equal(
     windowHref({ days: 14, back: 0, step: "month" }),
     "/admin/scrape-health?days=14&step=month",
