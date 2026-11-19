@@ -17,12 +17,12 @@ import { tourTab } from "./tour-tabs";
  */
 export function StopCopy({ id, className }: { id: FeatureId; className?: string }) {
   const feature = features.find((item) => item.id === id) ?? features[0];
-  const { icon: Icon, label, page } = tourTab(id);
-  const { glow, onGlow, href, name } = FEATURES[page];
+  const { label, page } = tourTab(id);
+  const { href, name } = FEATURES[page];
   return (
     <div className={className}>
       <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-        <FeatureIcon feature={{ icon: Icon, glow, onGlow }} />
+        <FeatureIcon feature={FEATURES[page]} />
         {label}
         {feature.soon && <SoonChip />}
       </p>

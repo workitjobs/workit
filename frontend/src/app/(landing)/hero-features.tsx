@@ -13,6 +13,7 @@ import {
   UpdatesAnimation,
 } from "./features/animations";
 import { FEATURES } from "./features/catalog";
+import { FeatureIcon } from "./features/feature-icon";
 import { Fit } from "./fit";
 import { StudioBox, studioGround } from "./layout-parts";
 import { StopCopy } from "./stop-copy";
@@ -72,11 +73,10 @@ export function HeroFeatures() {
         role="tablist"
         aria-label="Features"
         onKeyDown={onKeyDown}
-        className="mx-auto flex w-fit gap-1 rounded-full bg-slate-900/[0.05] p-1"
+        className="isolate mx-auto flex w-fit gap-1 rounded-full bg-slate-900/[0.05] p-1"
       >
         {TOUR_TABS.map((item, i) => {
           const selected = i === at;
-          const Icon = item.icon;
           return (
             <button
               key={item.id}
@@ -95,7 +95,9 @@ export function HeroFeatures() {
                 selected ? "text-ink" : "text-ink-meta hover:text-ink",
               )}
             >
-              {/* The white fill slides between tabs, as the old tour's did. */}
+              {/* The white fill slides between tabs, as the old tour's did. It
+                  sits at -z-10 in the track's own layer (`isolate`): without
+                  it the fill painted under the track's grey and vanished. */}
               {selected && (
                 <motion.span
                   layoutId="hero-tab-fill"
@@ -103,10 +105,10 @@ export function HeroFeatures() {
                   className="absolute inset-0 -z-10 rounded-full bg-white shadow-md"
                 />
               )}
-              <Icon
-                className="size-4"
-                aria-hidden="true"
-                style={selected ? { color: item.glow } : undefined}
+              {/* The feature's own mark, softer while its tab is closed. */}
+              <FeatureIcon
+                feature={FEATURES[item.page]}
+                className={cn("transition-opacity", !selected && "opacity-70")}
               />
               {/* Below sm only the open tab says its name: four names in a
                   row ran past a 390px screen. */}

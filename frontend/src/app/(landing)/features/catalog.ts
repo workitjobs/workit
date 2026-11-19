@@ -4,6 +4,8 @@ import type { ComponentType } from "react";
 
 import { SparkleIcon } from "@/components/sparkle-icon";
 
+import { FEATURE_MARKS } from "./feature-marks";
+
 /**
  * The five feature pages, in the Features menu's order: each page's slug,
  * name, icon and colour. The header's Features menu, the footer, each page's
@@ -24,6 +26,10 @@ export type Feature = {
   name: string;
   href: string;
   icon: ComponentType<{ className?: string }>;
+  /** Its own mark, a piece of its screen on a squircle (feature-marks.tsx),
+   *  which `FeatureIcon` draws in place of the icon on a tile. Scout, off
+   *  the site, has none. */
+  mark?: ComponentType<{ className?: string }>;
   /** The soft ground behind the feature's visuals. */
   tint: string;
   /** The feature's own colour: the ground's blobs only. */
@@ -43,6 +49,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
   resumes: feature("resumes", {
     name: "Resume Builder",
     icon: FileTextIcon,
+    mark: FEATURE_MARKS.resumes,
     tint: "var(--color-advanced-tint)",
     glow: "var(--color-advanced)",
     onGlow: { fill: "var(--color-advanced)", ink: "white" },
@@ -50,6 +57,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
   matching: feature("matching", {
     name: "Job Matching",
     icon: TargetIcon,
+    mark: FEATURE_MARKS.matching,
     tint: "var(--color-brand-tint)",
     glow: "var(--color-brand)",
     onGlow: { fill: "var(--color-brand)", ink: "white" },
@@ -58,6 +66,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     name: "Auto Apply",
     // The app's own Auto Apply glyph (the sidebar, the Jobs page's filters).
     icon: LightningRoundedIcon,
+    mark: FEATURE_MARKS["auto-apply"],
     tint: "var(--color-positive-tint)",
     glow: "var(--color-positive)",
     onGlow: { fill: "var(--color-positive-ink)", ink: "white" },
@@ -66,6 +75,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     name: "Application Tracker",
     // The sidebar's Applications glyph.
     icon: KanbanIcon,
+    mark: FEATURE_MARKS.tracker,
     tint: "var(--color-danger-tint)",
     glow: "var(--color-updates)",
     onGlow: { fill: "var(--color-updates)", ink: "white" },

@@ -944,7 +944,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Help page (`app/(seeker)/help/`): a second `/help` in this group stops
   every page with "two parallel pages that resolve to the same path".
   **The feature list is `features/catalog.ts`**: each feature page's slug,
-  name, icon and colour, in menu order. The Features menu, the phone menu,
+  name, icon, mark and colour, in menu order. **A feature's mark is its
+  own** (`features/feature-marks.tsx`, KAN-923): a small piece of its real
+  screen on a squircle in its colour, after Calendly's product icons, in
+  place of a generic glyph on a solid tile, which the user found generic.
+  `FeatureIcon` draws the mark where a feature has one (24px or 36px) and
+  the glyph tile otherwise (the Resources menu; Scout). A new mark stays
+  one colour family from the feature's token and legible at 24px; the
+  marks and why each reads are in `docs/marketing-design-system.md`. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
   tour's "Learn more" links (each stop's only link: the team dropped the
   "Try it free" beside it, since the header and hero already ask for the
@@ -1511,7 +1518,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   holds 5.6:1. White text
   sits only on a fill that holds 4.5:1: `positive-ink`, not `positive`
   (2.8:1), and ink, not white, on the amber fill. So a feature's marks
-  (`FeatureIcon`, a How it works step's number, a deep dive's check) take
+  (a glyph tile from `FeatureIcon`, a How it works step's number, a deep dive's check) take
   its `onGlow` pair in `features/catalog.ts`, never its `glow`, which is
   for the blobs only (KAN-580): on `glow` white read 2.8:1 on Auto Apply's
   green and 3.19:1 on Scout's amber. The header's links tint

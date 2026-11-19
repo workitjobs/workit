@@ -49,9 +49,7 @@ export function Journey() {
                 <div className="surface-card grid gap-3 rounded-[1.75rem] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-6">
                   <div className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 md:pb-6">
                     <p className={cn(TYPE.eyebrow, "text-ink-meta flex items-center gap-2")}>
-                      <FeatureIcon
-                        feature={{ icon: tab.icon, glow: page.glow, onGlow: page.onGlow }}
-                      />
+                      <FeatureIcon feature={page} />
                       Step {i + 1}
                     </p>
                     <h3 className={cn(TYPE.card, "text-ink mt-4")}>{step.title}</h3>

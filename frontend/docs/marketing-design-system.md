@@ -14,7 +14,7 @@ screens follow `design.md`, not this file.
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: a
-   check, a feature's icon tile, Plus's limit pills, the slop word. It
+   check, Plus's limit pills, the slop word. It
    never fills a button or a card. The one exception is the home hero's
    ground, the page's one large field of violet.
 3. **A heading stands alone.** No small label above a section heading
@@ -178,16 +178,40 @@ white fails on the green). Text there sits on a card or a pill.
 - `HERO_PILL`: frosted white, `--mk-shadow-float`, the pill above a
   feature page's, Pricing's and a Resources page's h1. The home hero has
   none (the user had it removed).
-- A feature chip: `FeatureIcon` plus the feature's name, ink text.
+- A feature chip: `FeatureIcon` (the feature's mark, below) plus the
+  feature's name, ink text.
 - Status chips (the closing row): white, a logo, a label, the company in
   meta grey.
 - `SoonChip` for anything not built yet.
 
+### Feature marks (`features/feature-marks.tsx`)
+
+Each feature has its own mark, after Calendly's product icons: a small
+piece of the feature's real screen on a squircle (a square with
+continuous curves) in the feature's colour. The user picked each from
+two rounds of sketches:
+
+| Feature | Mark | Why it reads |
+| --- | --- | --- |
+| Resume Builder | A resume page, its last line in the full blue (the tailored one) | The thing the feature makes |
+| Job Matching | A job card with the app's match ring as a badge on its corner | The ring is the match everywhere on the site; it is large enough to read at 24px, where a pill inside the card was not |
+| Auto Apply | A stack of filled forms with a check | Many applications filled at once |
+| Application Tracker | The tracker's list, a stage pill on each row (applied, interview, offer) | The tracker is a list; its board view is archived, so a board would show a screen students cannot find |
+
+Rules: one colour family per mark, from the feature's token (the ground
+at 24% over white, text-like bars mixed toward ink, white pieces on top);
+drawn on a 48 grid; legible at 24px, the smallest size (`FeatureIcon`
+`sm`; `md` is 36px). Generic glyphs on solid colour tiles (a file, a
+target, a bolt, a kanban) came before, and the user found them generic.
+The Resources menu still draws glyph tiles on one neutral colour.
+
 ### Tabs
 
-The hero's feature tabs: a white-at-50% track, the open tab a white pill
-that slides (`layoutId`), its icon in the feature's colour. Below sm only
-the open tab shows its label.
+The hero's feature tabs: a slate-at-5% track, the open tab a white pill
+that slides (`layoutId`), each tab with its feature's mark (softer while
+closed). Below sm only the open tab shows its label. The track is
+`isolate`, so the pill's `-z-10` stays above the track's grey; without it
+the pill painted under the grey and the open tab did not show.
 
 ## Motion
 
@@ -217,6 +241,7 @@ translate inside a clipped track.
 | Glass tiles and a grainy ground, first turned down for solid violet lit tiles with white text on a flat brand-100 panel | Frosted glass tiles over a grainy violet ground (`.hero-ground`), lit tiles as bright glass cards in ink | The user did not like the solid cards and asked again; the cost worry did not hold (the blur reads a still ground: 8.4ms frames, none over 20ms) |
 | Product rows that opened on a click, one "Explore" link by the heading | Calendly's scrolling rows: sticky heading and box, the row under the heading active, an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
+| Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
@@ -227,6 +252,6 @@ translate inside a clipped track.
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: the hero's ground, checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the hero's ground, checks, Job Matching's mark, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.
