@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { daysOf } from "@/lib/fill-health";
 import { getScrapeHealth } from "@/lib/fill-report-queries";
@@ -43,14 +44,14 @@ export default async function ScrapeHealthPage({
             Read at {when(data.read_at)} UTC · kept for 10 minutes
           </p>
         </div>
-        <p className="text-body text-ink-muted mt-3 max-w-[68ch]">
+        <p className="rounded-card border-brand-pale bg-brand-tint text-body text-ink mt-5 border px-4 py-3">
           The scheduled scrape last imported jobs at {when(data.last_import_at)} UTC. The worker
           these numbers describe is not scheduled yet.
           {data.boards.oldest_pending_at &&
             ` Its oldest pending task was made ${when(data.boards.oldest_pending_at)} UTC.`}
         </p>
 
-        <section className="mt-8" aria-labelledby="reads">
+        <Card as="section" padding="lg" className="mt-4" aria-labelledby="reads">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="reads" className="text-title text-ink">
               Board Reads
@@ -64,7 +65,7 @@ export default async function ScrapeHealthPage({
                   className={cn(
                     "text-label rounded-full border px-3 py-1.5",
                     d === days
-                      ? "border-inverse bg-inverse text-on-inverse"
+                      ? "border-brand bg-brand text-on-brand"
                       : "border-border-surface bg-panel text-ink hover:border-ink-meta",
                   )}
                 >
@@ -92,7 +93,7 @@ export default async function ScrapeHealthPage({
                   {data.days.map((r) => (
                     <tr
                       key={`${r.day}:${r.ats}`}
-                      className="border-border-subtle text-ink hover:bg-hover border-b"
+                      className="border-border-subtle text-ink hover:bg-hover border-b last:border-b-0"
                     >
                       <td className={cn(TD, "whitespace-nowrap")}>{r.day}</td>
                       <td className={cn(TD, "font-medium capitalize")}>{r.ats}</td>
@@ -116,9 +117,9 @@ export default async function ScrapeHealthPage({
               </table>
             </div>
           )}
-        </section>
+        </Card>
 
-        <section className="mt-10" aria-labelledby="systems">
+        <Card as="section" padding="lg" className="mt-4" aria-labelledby="systems">
           <h2 id="systems" className="text-title text-ink">
             Boards by Hiring System
           </h2>
@@ -135,18 +136,21 @@ export default async function ScrapeHealthPage({
               </thead>
               <tbody>
                 {data.systems.map((s) => (
-                  <tr key={s.ats} className="border-border-subtle text-ink hover:bg-hover border-b">
+                  <tr
+                    key={s.ats}
+                    className="border-border-subtle text-ink hover:bg-hover border-b last:border-b-0"
+                  >
                     <td className={cn(TD, "font-medium capitalize")}>{s.ats}</td>
                     <td className={cn(TD, "text-right tabular-nums")}>{s.boards}</td>
                     <td className={cn(TD, "text-right tabular-nums")}>{s.read}</td>
                     <td className={TD}>
                       <div
-                        className="bg-well h-1.5 overflow-hidden rounded-full"
+                        className="bg-brand-tint h-1.5 overflow-hidden rounded-full"
                         role="img"
                         aria-label={`${s.read} of ${s.boards} boards read`}
                       >
                         <div
-                          className="bg-positive-ink h-full rounded-full"
+                          className="bg-brand h-full rounded-full"
                           style={{ width: `${(s.read / s.boards) * 100}%` }}
                         />
                       </div>
@@ -159,7 +163,7 @@ export default async function ScrapeHealthPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       </main>
       <ScrapeRail data={data} days={days} />
     </div>
