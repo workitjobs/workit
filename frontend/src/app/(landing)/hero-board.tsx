@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import { MatchGlyph } from "@/components/match-badge";
-import { matchTier } from "@/lib/match";
+import { matchColor, matchTier } from "@/lib/match";
 
 import { heroFits } from "./data";
 import { FaviconLogo } from "./favicon-logo";
@@ -28,19 +28,19 @@ const TILES = 28;
 const LIT: Record<number, number> = { 1: 0, 6: 4, 10: 2, 13: 5, 16: 1, 19: 6, 23: 3 };
 
 /**
- * The home hero's grid (KAN-923, the user's pick): square white tiles round
- * the headline, which sits in one large white tile of its own, and the
- * tiles of postings worth applying to light up in a soft solid violet
- * (`--mk-lit` in landing.css, the brand's hue with less chroma), in
- * turn, with the company, the role and the match's strength in the app's
- * bands over a filling bar (`MatchBar`), as the Jobs page puts the best
- * fits first. Their text
- * is white in the Jobs page job card's weights (compact-job-card.tsx: the
- * role medium, the company regular, the band semibold), never violet on
- * violet, which the user found off; 85% white keeps 4.7:1 on `--mk-lit`. It
- * replaced a board of wide grey posting cards, which the user found
- * unsatisfying beside the sketch of this grid, and before it a violet mesh
- * gradient, too close to Calendly's. A server component with no script: the
+ * The home hero's grid (KAN-923, the user's pick): square glass tiles over a
+ * grainy violet ground (`.hero-ground`, `.hero-tile` in landing.css) round
+ * the headline, which sits in one large solid white tile of its own, and
+ * the tiles of postings worth applying to light up in turn as bright glass
+ * cards (`.board-lit`), with the company, the role and the match's strength
+ * in the app's bands over a filling bar (`MatchBar`), as the Jobs page puts
+ * the best fits first. Their text is ink in the Jobs page job card's
+ * weights (compact-job-card.tsx: the role medium, the company regular, the
+ * band semibold), and the match is in the app's own colours. Solid violet
+ * lit tiles with white text came before the glass, which the user asked
+ * for; before them a board of wide grey posting cards, which the user found
+ * unsatisfying beside the sketch of this grid, and a violet mesh gradient,
+ * too close to Calendly's. A server component with no script: the
  * lights are a CSS loop on opacity and transform (`.board-lit`), held by
  * Pause Animations, lit and still with reduced motion. The grid fills the
  * hero panel edge to edge, the headline's tile in its middle and the small
@@ -70,16 +70,16 @@ export function HeroGrid({ children }: { children: ReactNode }) {
                   <FaviconLogo
                     domain={posting.domain}
                     eager
-                    className="size-5 rounded-md shadow-none lg:size-6"
+                    className="size-5 rounded-md lg:size-6"
                   />
-                  <span className="hidden truncate text-xs font-normal text-white/85 lg:block">
+                  <span className="text-ink-muted hidden truncate text-xs font-normal lg:block">
                     {posting.company}
                   </span>
                 </span>
-                {/* The role, from lg up and on a tile at least 116px tall
-                    (`.tile-role` in landing.css), where it has room for two
-                    lines; otherwise the tile shows the company and match. */}
-                <span className="tile-role mt-1.5 line-clamp-2 hidden text-[13px] leading-tight font-medium text-white lg:block">
+                {/* The role, from lg up, in two lines, one or none by the
+                    tile's height (`.tile-role` in landing.css), so it never
+                    runs into the match. */}
+                <span className="tile-role text-ink mt-1.5 text-[13px] leading-tight font-medium">
                   {posting.title}
                 </span>
                 <MatchBar score={posting.score} />
@@ -95,8 +95,7 @@ export function HeroGrid({ children }: { children: ReactNode }) {
 /**
  * A match's strength, as the Jobs page names it: the app's band
  * (`matchTier`: Excellent, Good, Fair or Weak Match) behind the app's own
- * match ring (`MatchGlyph`, the match badge's 14px ring, in the band's
- * light step for the violet fill; the user picked it over signal bars,
+ * match ring (`MatchGlyph`, the match badge's 14px ring; the user picked it over signal bars,
  * band icons and a target, and over the dot it replaced), then a slim
  * bar filled to the score with the percentage at its end. The band leads
  * because a number alone does not tell a student whether to apply (the
@@ -108,22 +107,27 @@ export function HeroGrid({ children }: { children: ReactNode }) {
 function MatchBar({ score }: { score: number }) {
   const tier = matchTier(score);
   return (
-    <span className="mt-auto block">
+    // Two groups, by proximity: the job (company, role) and the verdict
+    // (band, bar, percentage). The verdict sits at the tile's foot at least
+    // 10px under the role (`pt-2.5`), with only 4px from the band to its bar
+    // (`mt-1`), so it reads with its bar; at 6px each way it read as part
+    // of the role (the user's catch).
+    <span className="mt-auto block pt-2.5">
       <span className="flex items-center gap-1.5">
-        <MatchGlyph score={score} onFill className="tile-mark lg:size-4" />
-        <span className="truncate text-[11px] font-semibold text-white lg:text-xs">
+        <MatchGlyph score={score} className="tile-mark lg:size-4" />
+        <span className="text-ink truncate text-[11px] font-semibold lg:text-xs">
           <span className="tile-tier-full">{tier}</span>
           <span className="tile-tier-short">{tier.replace(/ Match$/, "")}</span>
         </span>
       </span>
-      <span className="mt-1.5 flex items-center gap-1.5">
-        <span className="block h-1.5 flex-1 overflow-hidden rounded-full bg-white/25">
+      <span className="mt-1 flex items-center gap-1.5">
+        <span className="bg-ink/10 block h-1.5 flex-1 overflow-hidden rounded-full">
           <span
-            className="board-bar block h-full rounded-full bg-white"
-            style={{ width: `${score}%` }}
+            className="board-bar block h-full rounded-full"
+            style={{ width: `${score}%`, background: matchColor(score) }}
           />
         </span>
-        <span className="tile-pct text-[11px] font-normal text-white/85 tabular-nums">
+        <span className="tile-pct text-ink-muted text-[11px] font-normal tabular-nums">
           {score}%
         </span>
       </span>

@@ -289,57 +289,60 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
   - **The hero is the first screen and nothing else** (the user's call,
-    2026-11-19): a pale violet panel (`.panel-ground`, brand-100) the screen's height under
+    2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
     header and the 8/24px inset; a minimum, so a screen too short for the
     headline grows the hero rather than clipping it), filled edge to edge
-    by a grid of tiles (`HeroGrid` in `hero-board.tsx`, `.hero-grid` in
-    landing.css). The headline, line and sign-up pair sit in one large
-    tile in the middle (`.hero-copy`): plain white with a soft violet
-    shadow, the brightest surface, so it leads by lightness. Empty tiles
-    flow round it at 55% white with no edge, so they recede; seven light up
-    in turn in a soft solid violet (`--mk-lit`, #6c56b2: the brand's hue
-    at about 35% less chroma; the brand itself was too strong and pushed
-    the green rings toward cyan), each a real employer. A lit
-    tile reads as a card, not glass (`.board-lit`: a sheen that deepens
-    downward so the white text at the top keeps 4.7:1, a 1px light top
-    edge, a soft drop shadow, a 4px violet glow into the gaps, and a faint
-    soft-light grain, all on the fading layer, so nothing else animates).
-    Glass was turned down: nothing behind the tiles to blur, and a
-    backdrop blur would redraw on every frame of the endless loop. The
-    panel has one stage light (`.hero-stage`: brand-50 behind the headline
-    tile, fading to brand-100), in place of glows with no source.
-    Measured: about 8ms frames, none over 20ms, at 1728 wide.
-    Each lit tile shows the role (from lg up, on a
-    tile at least 116px tall: `.tile-role` hides by a container query on
-    the tile, since on a short wide screen its second line ran into the
-    bar) and the match's strength in the app's own bands (`matchTier` from
+    by a grid of glass tiles (`HeroGrid` in `hero-board.tsx`, `.hero-grid`
+    in landing.css). The headline, line and sign-up pair sit in one large
+    tile in the middle (`.hero-copy`): solid white, the one tile that is not
+    glass and the brightest surface, so it leads by lightness. **The ground
+    and the glass are the user's ask** (2026-11-19, after a flat brand-100
+    panel with solid violet lit tiles, which the user did not like): the
+    ground is deeper violets in the corners, lighter ones along the edges
+    and a pale pool behind the headline, all one hue family (never
+    Calendly's blue to pink), under grey noise in overlay (`::after`), so
+    the grain lightens and darkens without greying the violet. Every small
+    tile is frosted glass (`.hero-tile`: a faint white, `backdrop-filter:
+    blur(14px) saturate(1.2)` that smooths the grain, a white hairline and
+    a brighter top edge). Seven light up in turn as bright glass cards
+    (`.board-lit`: near-white over the tile's frost, a white edge and a
+    slate shadow), each a real employer, with ink text in the Jobs page
+    job card's weights (`compact-job-card.tsx`: role medium, company
+    regular, match semibold) and the match in the app's own colours, as on
+    the Jobs page. **The lit layer carries no blur of its own**: a tile
+    with a backdrop filter is the backdrop root of what is inside it, so a
+    second blur there sees nothing; the tile's blur reads a still ground
+    and the light costs only its opacity and transform. Glass was turned
+    down once on cost; measured with it: about 8.4ms frames, none over
+    20ms, at 1728 wide. **A lit tile's role never runs into the match**
+    (`.tile-role`, the user's catch: "Software Engineer Intern" was cut
+    through its second line): two lines on a tile from 122px tall, one with
+    an ellipsis from 108px, none below, by container queries on the tile,
+    and it never shrinks (a flex child with its overflow hidden could
+    shrink below its lines). **A lit tile is two groups, by proximity**:
+    the job (company, role) and the verdict (band, bar, percentage) at the
+    foot, at least 10px apart, with 4px from the band to its bar; at 6px
+    each way the band read as part of the role (the user's catch). Checked
+    at nine sizes, 375 × 812 to 2560 × 1080. The match's strength is in the app's own bands (`matchTier` from
     `lib/match.ts`): the app's match ring (`MatchGlyph` from
-    `components/match-badge.tsx`, the match badge's 14px ring, with
-    `onFill` for the violet: a white track and the band's light step,
-    `--color-match-*-on-fill` via `matchColorOnFill`), then "Excellent
-    Match" or "Good Match", the short name on a tile under 8.5rem wide, no
-    ring under 6rem. The user picked the ring over signal bars, a badge
-    icon per band and the Matching target, and over a plain dot; the
-    first light green, a mint, read as cyan on the violet, so Excellent's
-    step is a plain green (hue 144) over a slim bar with the percentage at
-    its end (`MatchBar`; the band leads because a bare number does not tell
-    a student whether to apply, the user's call; a ring took too much
-    height), at their cell's size (lifted 4% they stood out of line). A lit
-    tile's text is white in the Jobs page job card's weights
-    (`compact-job-card.tsx`: role medium, company regular, match semibold;
-    85% white for the second line, 4.7:1 on `--mk-lit`), never violet on
-    violet. **Why this palette** (the user's "something feels off",
-    measured): before it every surface sat between 94% and 100% lightness
-    in three temperatures (a cool grey ground, white tiles, a lavender
-    headline tile, Google's neutral buttons), the pairs that had to
-    separate measured 1.01 to 1.11 contrast, and the blank white boxes on
-    grey read as a loading skeleton. A pastel and a deep violet headline
-    tile were tried before the white one. Keep the steps: ground mid
-    (brand-100), empty tiles a little lighter, headline tile the lightest,
-    lit tiles the only saturated colour. Every match on the page says its
-    band, never a bare number: the closing chips and the journey's Match
-    step too.
+    `components/match-badge.tsx`, the match badge's 14px ring), then
+    "Excellent Match" or "Good Match", the short name on a tile under
+    8.5rem wide, no ring under 6rem. The user picked the ring over signal
+    bars, a badge icon per band and the Matching target, and over a plain
+    dot. Under it a slim bar in the band's colour with the percentage at its
+    end (`MatchBar`; the band leads because a bare number does not tell a
+    student whether to apply, the user's call; a ring took too much
+    height), at their cell's size (lifted 4% they stood out of line).
+    **Why the steps** (the user's "something feels off", measured): before
+    them every surface sat between 94% and 100% lightness in three
+    temperatures (a cool grey ground, white tiles, a lavender headline
+    tile, Google's neutral buttons), the pairs that had to separate
+    measured 1.01 to 1.11 contrast, and the blank white boxes on grey read
+    as a loading skeleton. Keep them: the ground mid violet, the empty
+    glass a little lighter, the lit cards and the headline tile the
+    lightest. Every match on the page says its band, never a bare number:
+    the closing chips and the journey's Match step too.
     Below lg the tiles are square, one row above the headline's tile and
     one below; from lg up the grid is 5 rows sharing the panel's height,
     the headline's tile spans the middle 3 and all but the outer columns,
@@ -1405,7 +1408,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `app/(landing)/`. The user found the site still AI-made after the home
   page's redesign and named the violet glass buttons, the bordered sign-up
   buttons and the lavender gradient on cards, so: **colour lives only in
-  the home hero's lit postings and inside a `StudioBox`; cards, buttons and the page are
+  the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (checks,
   feature tiles, Plus's limit pills); **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).

@@ -9,14 +9,14 @@ screens follow `design.md`, not this file.
 
 ## Principles
 
-1. **Colour lives in two places only**: the home hero (its violet headline
-   tile and the tiles that light up) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
+1. **Colour lives in two places only**: the home hero (its grainy violet
+   ground under glass tiles) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, a feature's icon tile, Plus's limit pills, the slop word. It
    never fills a button or a card. The one exception is the home hero's
-   lit tiles, a soft solid violet (`--mk-lit`) with white text.
+   ground, the page's one large field of violet.
 3. **A heading stands alone.** No small label above a section heading
    (an "eyebrow"): the violet ones over every heading read as a template,
    and the user had them all removed. `SectionHeading` takes no eyebrow.
@@ -45,10 +45,10 @@ screens follow `design.md`, not this file.
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
 | Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
-| Panel ground | `.panel-ground` (brand-100) | The home hero's and the features section's panels |
-| Empty tile | white at 55%, no edge | The hero's tiles that are not lit; they recede |
-| Headline tile | `.hero-copy`: white, a soft violet shadow | The hero's brightest surface; ink text, the Google pair on it |
-| Lit tile | `--mk-lit` (#6c56b2, the brand's hue at less chroma) deepening downward, a light top edge, a drop shadow, a 4px glow into the gaps and a faint grain; white text (85% white for second lines) | The hero's fits; the only saturated colour in it. The brand itself was too strong and shifted the rings' green toward cyan |
+| Hero ground | `.hero-ground`: deeper violets in the corners, lighter along the edges, a pale pool behind the headline, grey noise in overlay | The home hero's panel; one hue family |
+| Empty tile | `.hero-tile`: frosted glass (a faint white, a 14px blur, a white hairline, a brighter top edge) | The hero's tiles that are not lit |
+| Headline tile | `.hero-copy`: solid white, a slate shadow | The hero's brightest surface and its one tile that is not glass; ink text, the Google pair on it |
+| Lit tile | `.board-lit`: near-white glass over the tile's frost, a white edge, a slate shadow; ink text, the match in the app's own colours | The hero's fits |
 
 Shadows are slate, never violet: `--mk-shadow-card` for a card resting on
 the page, `--mk-shadow-float` for UI floating over colour (a mock card in a
@@ -112,19 +112,30 @@ heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 
 ### The home hero's grid (`hero-board.tsx`)
 
-The first screen and nothing else: a pale violet panel the screen's
-height, filled edge to edge by tiles. The headline sits in one large white
-tile in the middle, the brightest surface. Empty tiles recede at 55% white;
-seven tiles light up in turn in a soft solid violet (`--mk-lit`), with a real employer,
-the role and the match's strength in the app's bands ("Excellent Match"
-or "Good Match", from `lib/match.ts`) behind the app's own 14px match ring
-(`MatchGlyph`), drawn on the violet with the bands' light steps
-(`--color-match-*-on-fill`, 3.3 to 4.3:1 there)
-over a slim white bar that fills, the percentage at its end, set in the
-Jobs page job card's weights (role medium, company regular, band
-semibold) in white. A match anywhere on the marketing pages says its band
-first: a bare number does not tell a student whether to apply. Columns follow the screen's shape so the tiles stay
-near square. The four features follow below, in their own section.
+The first screen and nothing else: a grainy violet panel the screen's
+height, filled edge to edge by frosted glass tiles. The headline sits in
+one large solid white tile in the middle, the brightest surface. Seven
+tiles light up in turn as bright glass cards, each a real employer, the
+role and the match's strength in the app's bands ("Excellent Match" or
+"Good Match", from `lib/match.ts`) behind the app's own 14px match ring
+(`MatchGlyph`), over a slim bar in the band's colour that fills, the
+percentage at its end, set in the Jobs page job card's weights (role
+medium, company regular, band semibold) in ink. A match anywhere on the
+marketing pages says its band first: a bare number does not tell a
+student whether to apply. Columns follow the screen's shape so the tiles
+stay near square. The four features follow below, in their own section.
+
+A lit tile holds **two groups, by proximity**: the job (company, role)
+at the top and the verdict (band, bar, percentage) at the foot. The gap
+between them is at least 10px and the gap inside the verdict 4px, so the
+band reads with its bar. At 6px each way the band read as part of the
+role. The role takes two lines, one or none by the tile's height, and
+never shrinks into the verdict.
+
+The glass costs little because its blur reads a still ground: only the
+lit layer inside each tile changes, and it has no blur of its own (a
+tile with a backdrop filter is the backdrop root of its content, so a
+second blur would see nothing).
 
 ### Cards
 
@@ -201,21 +212,21 @@ translate inside a clipped track.
 | Outline button with a violet edge | `SecondaryButton`, soft grey fill | Borders everywhere read as a template |
 | Google light theme, grey border | Google neutral theme, no border | Bordered buttons looked AI-made; the dark theme was too heavy |
 | Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |
-| A board of wide grey posting cards | Square tiles, soft violet when lit | Less satisfying than the sketch of a grid |
+| A board of wide grey posting cards | Square tiles that light up | Less satisfying than the sketch of a grid |
 | A grid capped at 84rem, features inside the hero | A one-screen hero filled edge to edge; features below | Bare grey margins on a wide screen; the next section showed |
-| Glass job tiles and a grainy mesh ground (asked for) | Tactile lit tiles with grain on the solid colour, and one stage light behind the headline | Glass had nothing behind it to blur and would redraw every frame; grain in thin gaps reads as dirt |
+| Glass tiles and a grainy ground, first turned down for solid violet lit tiles with white text on a flat brand-100 panel | Frosted glass tiles over a grainy violet ground (`.hero-ground`), lit tiles as bright glass cards in ink | The user did not like the solid cards and asked again; the cost worry did not hold (the blur reads a still ground: 8.4ms frames, none over 20ms) |
 | Product rows that opened on a click, one "Explore" link by the heading | Calendly's scrolling rows: sticky heading and box, the row under the heading active, an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
-| Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |
+| Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, lit tiles that stand out | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |
 | `.gloss-card`, white shading to lavender, violet shadows | `.surface-card`, white and slate | "The purple gradient on cards" |
 | `.glass-card` tinted violet with a violet ring | Neutral frosted white | Same |
 | Pricing's violet gradient Plus card and its shine | Solid ink card | Same; the shine was decoration |
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: the panel ground, the hero's lit tiles, checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the hero's ground, checks, feature icon tiles, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.

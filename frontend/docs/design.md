@@ -1129,11 +1129,9 @@ which is about three times the size.
 
 **The match score pill takes the button edge** (`border-surface`,
 2026-11-09): it opens a modal that explains the score, so `MatchBadge` is
-edged as a button is. Its ring is `MatchGlyph` (same file), which the marketing home page
-also draws on its violet tiles with `onFill`: a white track and the
-bands' light steps (`--color-match-*-on-fill`, `matchColorOnFill` in
-`lib/match.ts`), since the usual steps fall under 2:1 on violet. The
-light steps are for a coloured fill only, never white, never text.
+edged as a button is. Its ring is `MatchGlyph` (same file), which the
+marketing home page also draws on its lit glass tiles, in the same
+colours.
 
 **Rules meet in a T, never a "+"** (2026-11-03). Where a column's edge meets a
 row's rule, one of them stops at the other. The rail's logo header has no

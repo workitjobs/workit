@@ -64,7 +64,7 @@ export default function LandingPage() {
         <div
           className={cn(
             PANEL,
-            "panel-ground hero-stage relative isolate flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden p-2 sm:min-h-[calc(100svh-6.25rem)] sm:p-3",
+            "hero-ground relative isolate flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden p-2 sm:min-h-[calc(100svh-6.25rem)] sm:p-3",
           )}
         >
           <HeroGrid>
