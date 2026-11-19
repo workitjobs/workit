@@ -42,7 +42,6 @@ export function TrafficLights() {
 const MONOGRAM_TONES = {
   brand: "bg-brand-tint text-brand-ink",
   positive: "bg-positive-tint text-positive-ink",
-  advanced: "bg-advanced-tint text-advanced",
   warning: "bg-warning-tint text-warning",
 } as const;
 
