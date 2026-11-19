@@ -4043,13 +4043,16 @@ student who opened a resume from Experiences landed on another view.
   Header sheets; the user found it all over the place beside the new
   desktop design.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
-  opens on a resume over one page, or an edit pushes one over, a toast at
-  the bottom right (across the foot on a phone) says by how much, with
-  Fit to One Page and a cross. It closes on Fit, on the cross, once the
-  resume fits, or after 10 seconds, since the bar's chip keeps the same
-  fix. On a phone it does not show while a line's sheet is open, which it
-  would cover. The editor notices the change while rendering (the last
-  count is kept in state), not in an effect.
+  opens on a resume over one page, or an edit pushes one over, the app's
+  own toast (`useToast`) says by how much in one line ("Your resume runs 3
+  lines onto page 2.", or "Your resume runs to 3 pages." past two pages,
+  `overText`), with Fit to One Page as its action. It goes on Fit, on its
+  cross, after the toasts' 8 seconds, once the resume fits, or when the
+  editor closes, since the bar's Fit to One Page keeps the same fix. It was
+  a white card of its own until 2026-11-19: an amber warning disc, a
+  title, two sentences, a scissors button and a cross, which the user
+  found outdated and too dense; scissors are Cut From Resume's glyph, and
+  Fit's has been lines pressed together since KAN-799.
 - **Fit to One Page is the API's** (`POST .../fit`,
   `docs/cut_to_one_page.md`): bullets down to two per entry, then one,
   then whole entries, least needed section first, with skills, awards,

@@ -42,6 +42,7 @@ import type { Choices, PageSettings, RenderBox, RenderedPdf } from "@/lib/built-
 import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
+import { overText } from "./fit-notice";
 import type { Line } from "./model";
 import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
@@ -901,14 +902,10 @@ export function FitButton({
   fitting: boolean;
   onFit: () => void;
 }) {
-  const over =
-    linesOver > 0
-      ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-      : `It runs to ${pages} pages.`;
   return (
     <FoldButton
       label={fitting ? "Fitting…" : "Fit to One Page"}
-      hint={`${over} This hides the least useful lines until it fits.`}
+      hint={`${overText(pages, linesOver)} This hides the least useful lines until it fits.`}
       icon={
         fitting ? (
           <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />

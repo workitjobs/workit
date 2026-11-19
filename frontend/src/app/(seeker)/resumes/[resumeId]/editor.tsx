@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { useToast } from "@/components/ui/toast";
 import {
   addSkill,
   getBank,
@@ -60,7 +61,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
-import { FitToast } from "./fit-notice";
+import { overText } from "./fit-notice";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { TitleRowContext } from "./resume-menu";
@@ -670,21 +671,29 @@ export function Editor({
   useEffect(() => {
     latestReview.current = review;
   });
-  // Over one page, a toast says so when the editor opens and again when an
-  // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
-  // is kept in state, so the change is caught while rendering, not after.
+  // Over one page, the app's toast says so when the editor opens and again
+  // when an edit pushes the resume over, with Fit to One Page as its action
+  // (./fit-notice.tsx, KAN-258). It goes once the resume fits, or the editor
+  // closes. Its words and Fit are read through a ref: the toast is shown
+  // only as `over` turns true, never again on each render.
   const over = (rendered?.page_count ?? 1) > 1;
-  const [toast, setToast] = useState(over);
-  const [wasOver, setWasOver] = useState(over);
-  if (over !== wasOver) {
-    setWasOver(over);
-    setToast(over);
-  }
+  const toasts = useToast();
+  const fitToast = useRef({ message: "", fit: () => {} });
+  // Before the effect that shows it, which runs in the same commit
   useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(false), 10_000);
-    return () => clearTimeout(timer);
-  }, [toast]);
+    fitToast.current = {
+      message: rendered ? overText(rendered.page_count, rendered.lines_over) : "",
+      fit,
+    };
+  });
+  useEffect(() => {
+    if (!over) return;
+    const id = toasts.show({
+      message: fitToast.current.message,
+      action: { label: "Fit to One Page", onClick: () => fitToast.current.fit() },
+    });
+    return () => toasts.dismiss(id);
+  }, [over, toasts]);
   const latest = useRef(0);
   // When the newest edit was sent, for the round trip's measure (`drawn`)
   const started = useRef<number | null>(null);
@@ -2068,21 +2077,6 @@ export function Editor({
     />
   );
 
-  // A phone shows it only with no line's sheet open, which it would cover.
-  const fitToast = toast && rendered && !(phone && selected) && (
-    <FitToast
-      pages={rendered.page_count}
-      linesOver={rendered.lines_over}
-      disabled={saving || fittingNow}
-      onFit={() => {
-        setToast(false);
-        fit();
-      }}
-      onClose={() => setToast(false)}
-      className={phone ? "inset-x-4 bottom-4" : "right-6 bottom-6 w-[22rem]"}
-    />
-  );
-
   /** The page area: `draw`n from the PDF in hand, or, until the first
    *  render lands, its skeleton and then FirstRenderPane's error if it
    *  failed. Both layouts draw their pages through it. */
@@ -2799,7 +2793,6 @@ export function Editor({
           history={history}
           cuts={cuts}
         />
-        {fitToast}
       </>
     );
   }
@@ -3112,7 +3105,6 @@ export function Editor({
           {shownOriginal}
         </section>
       )}
-      {fitToast}
     </div>
   );
   // The title spans the page and the column beside it, so the column starts
