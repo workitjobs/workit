@@ -23,7 +23,7 @@ import { RowArrival } from "./row-arrival";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "WorkIt's plans for students: start free with every feature, or raise your daily Auto Apply, Tailor and Scout limits with Plus or Pro.",
+    "WorkIt's plans for students: start free with every feature, or raise your daily Auto Apply and Tailor limits with Plus or Pro.",
 };
 
 /**

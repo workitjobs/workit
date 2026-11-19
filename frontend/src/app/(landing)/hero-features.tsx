@@ -128,7 +128,7 @@ export function HeroFeatures() {
         />
         <StudioBox
           ref={boxRef}
-          ground={studioGround({ tint: page.tint, glow: page.glow })}
+          ground={studioGround({ glow: page.glow })}
           className="flex h-[22rem] items-center justify-center px-3 py-5 sm:h-[27rem] sm:px-6 lg:h-[28rem]"
         >
           <StoryEnd value={picked ? null : next}>

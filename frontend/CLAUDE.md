@@ -272,10 +272,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`closing.chips`). About 9,200px at 1280 wide, from about 17,000.
   **The rules it set:**
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
-    rounded box on a feature's ground (`studioGround`: three blobs of its
-    colour and one of a second over its tint) with a fine grain
-    (`.studio-box` in landing.css; faint ruled lines across it went, the
-    user found them odd over the gradients). **Nothing
+    rounded box on a feature's ground with a fine grain (`.studio-box` in
+    landing.css; faint ruled lines across it went, the user found them odd
+    over the gradients). **The ground is a sky in one colour**
+    (`studioGround`, after Calendly's boxes): a pale wash of the feature's
+    colour at the top, near white through the middle with a bright band
+    behind the scene's card, then deepening to the feature's full colour at
+    the foot. It replaced blobs of the colour and of a second colour over
+    the tint, all at one lightness with no light source, which the user
+    found flat beside Calendly's. **No text sits straight on the lower
+    fifth of a box**: no one colour holds 4.5:1 on every foot (ink fails
+    on the blue, violet and pink, white on the green), so text there goes
+    on a card or a pill; after a change to a scene, check what sits on the
+    bare ground. **Nothing
     pins to the screen and no section is a screen tall**, as on Calendly,
     whose animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own.
@@ -942,7 +951,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   in its pink; Scout had no stop, so it took amber, the one app colour
   left free. **One template, one content file per feature**:
   `features/[slug]/page.tsx` is the route (`generateStaticParams` lists
-  the five slugs and the page's `notFound()` makes any other a 404; the
+  the slugs the site shows, `featurePages`, and the page's `notFound()` makes any other a 404; the
   metadata comes from each content file). **Never set `dynamicParams = false`
   on a prerendered dynamic segment here** (KAN-368): an unlisted value then
   matches no route, Next falls through to the seeker `@modal/[...catchAll]`,
@@ -960,14 +969,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   five applications at once, each in its own tab, attaches the default
   resume and writes no answer to a new written question, and the student
   clicks Submit on each, so no page says WorkIt submits, sends or
-  applies. Scout's page is about Fill With Scout, the one way into Scout
-  while Ask Scout is hidden; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
-  (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
-  still open; **the site keeps Scout on purpose meanwhile** (settled
-  2026-11-07): its page, the pricing table's Scout row and the Resumes
-  page's FAQ stay. Revisit them when Fill With Scout's new place is
-  settled. **A content file imports its animation from
+  applies. **Scout is off the site** (the user's call, 2026-11-19,
+  KAN-923, reversing the 2026-11-07 choice to keep it): Ask Scout is
+  hidden and Fill With Scout is off in the app (`FILL_WITH_SCOUT_LIVE`,
+  KAN-732), so the site showed a feature that does not work. `HIDDEN` in
+  `features/catalog.ts` drops it from `featurePages`: no menu item, footer
+  link or related card, `/features/scout` is a 404, and the pricing table
+  and the Resumes page's FAQ no longer name it. Its content file and
+  animations stay, unmounted; to bring it back, take its slug out of
+  `HIDDEN` and restore the pricing row (its limits were 3, 50 and 150 a
+  day, Free's being `ai_scout_cap`). Its page is about Fill With Scout;
+  bring the job questions back to it when `ASK_SCOUT_LIVE` turns on.
+  **A content file imports its animation from
   `features/animations.tsx`, never the animation itself**: each there is
   a `next/dynamic` wrapper, server-rendered as before, whose chunk only
   the page that shows it loads. A client component a server file imports
@@ -1048,9 +1061,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   would sell a plan nobody can buy, and one "Get started for free" on every
   plan read as the same plan three times). Set it to true only once billing
   ships and the API enforces the paid limits. Every limit is a claim: Free's
-  Tailor and Scout limits are the API's caps today (`ai_tailor_cap`,
-  `ai_scout_cap` in `backend/app/config.py`), so change both together; a
-  Scout use is one message, a Tailor use one Tailor run or the first keyword
+  Tailor limit is the API's cap today (`ai_tailor_cap` in
+  `backend/app/config.py`), so change both together (Scout has no row while
+  it is off the site); a Tailor use is one Tailor run or the first keyword
   check against a job posting WorkIt has not read; no answer says Auto Apply
   attaches a resume, since the extension's upload is unverified live;
   employer replies stay "Coming soon" until they are built, whatever the

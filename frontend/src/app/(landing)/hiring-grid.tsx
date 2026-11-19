@@ -41,14 +41,7 @@ export function HiringGrid() {
             ))}
           </ul>
         </div>
-        <StudioBox
-          ground={studioGround({
-            tint: matching.tint,
-            glow: matching.glow,
-            accent: "var(--color-advanced)",
-          })}
-          className="p-4 sm:p-8"
-        >
+        <StudioBox ground={studioGround({ glow: matching.glow })} className="p-4 sm:p-8">
           <ul className="grid grid-cols-4 gap-2 pb-2 sm:gap-4 sm:pb-4">
             {hiringSystems.map((system, i) => (
               <li

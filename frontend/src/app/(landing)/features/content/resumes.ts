@@ -77,7 +77,7 @@ const content: FeatureContent = {
     {
       question: "Do I need a resume to start?",
       answer:
-        "No. Add your entries yourself, or let Scout ask you about them. If you upload a resume, WorkIt reads it into your bank.",
+        "No. Add your entries yourself. If you upload a resume, WorkIt reads it into your bank.",
     },
     {
       question: "Does tailoring make things up?",

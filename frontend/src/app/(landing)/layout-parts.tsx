@@ -113,28 +113,26 @@ export function SectionHeading({
 }
 
 /**
- * A feature's ground for a `StudioBox`: three soft blobs of its colour, one
- * of a second colour, over its tint. Richer than `backdrop` (catalog.ts),
- * which stays the feature pages' ground.
+ * A feature's ground for a `StudioBox` (KAN-923): a sky in the feature's own
+ * colour, after Calendly's boxes. A pale wash at the top, near white
+ * through the middle, where a bright band sits behind the scene's card like
+ * a horizon, then the colour deepening to the foot, where it is the
+ * feature's full colour, a step darker. One hue and one light, so the box
+ * reads as a place the card sits in. It replaced blobs of the colour (and
+ * of a second colour) over the tint: every blob sat at the same lightness,
+ * with no light source and no direction, so the boxes read as flat and
+ * muddy beside Calendly's (the user's comparison, 2026-11-19).
+ *
+ * No one text colour holds 4.5:1 on every foot (ink fails on the blue,
+ * violet and pink; white on the green), so nothing writes straight on the
+ * lower fifth of a box: text there sits on a card or a pill.
  */
-export function studioGround({
-  tint,
-  glow,
-  accent = "white",
-}: {
-  tint: string;
-  glow: string;
-  /** A second colour for one blob, so a box is not one flat hue. */
-  accent?: string;
-}) {
-  const mix = (color: string, amount: number) =>
-    `color-mix(in oklab, ${color} ${amount}%, transparent)`;
+export function studioGround({ glow }: { glow: string }) {
+  const wash = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, white)`;
+  const foot = `color-mix(in oklab, ${glow} 90%, var(--color-ink))`;
   return [
-    `radial-gradient(60% 55% at 15% 10%, ${mix(glow, 45)}, transparent 70%)`,
-    `radial-gradient(55% 60% at 90% 25%, ${mix(accent, 40)}, transparent 70%)`,
-    `radial-gradient(70% 60% at 70% 100%, ${mix(glow, 35)}, transparent 70%)`,
-    `radial-gradient(45% 45% at 40% 60%, rgb(255 255 255 / 0.6), transparent 70%)`,
-    tint,
+    `radial-gradient(70% 22% at 50% 46%, rgb(255 255 255 / 0.85), transparent 75%)`,
+    `linear-gradient(180deg, ${wash(24)} 0%, ${wash(7)} 42%, ${wash(38)} 72%, ${foot} 100%)`,
   ].join(", ");
 }
 

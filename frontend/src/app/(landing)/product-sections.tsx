@@ -7,15 +7,8 @@ import { CONTAINER, studioGround, TYPE } from "./layout-parts";
 import { ProductAccordion } from "./product-accordion";
 
 /** The products the home page goes deep on, in the pipeline's order. The
- *  tracker and Scout have their pages; the journey above covers tracking. */
+ *  tracker has its page; the journey above covers tracking. */
 const PRODUCTS: FeatureSlug[] = ["resumes", "matching", "auto-apply"];
-
-/** A second colour for each box's ground, so no box is one flat hue. */
-const ACCENTS: Partial<Record<FeatureSlug, string>> = {
-  resumes: "var(--color-brand)",
-  matching: "var(--color-advanced)",
-  "auto-apply": "var(--color-advanced)",
-};
 
 /**
  * One section per product (KAN-923), after Calendly's: the feature's chip
@@ -53,7 +46,7 @@ export function ProductSections() {
               href: `${page.href}#${deepDiveAnchor(section.title)}`,
               visual: <section.visual />,
             }))}
-            ground={studioGround({ tint: page.tint, glow: page.glow, accent: ACCENTS[slug] })}
+            ground={studioGround({ glow: page.glow })}
             accent={page.glow}
             flip={i % 2 === 1}
           />

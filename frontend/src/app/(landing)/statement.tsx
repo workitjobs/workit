@@ -326,13 +326,8 @@ function StillStatement() {
   );
 }
 
-/** The box's ground: the brand's violet with the resume blue, the colours
- * of the two steps the story is about (KAN-923). */
-const GROUND = studioGround({
-  tint: "var(--color-brand-tint)",
-  glow: "var(--color-brand)",
-  accent: "var(--color-advanced)",
-});
+/** The box's ground: the brand's violet sky (KAN-923). */
+const GROUND = studioGround({ glow: "var(--color-brand)" });
 
 /** "Slop" is the headline's own text in a gradient (`.slop-word`, KAN-540).
  * It was "Stop sending slop applications.", a second "Stop" after the

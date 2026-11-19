@@ -6,7 +6,7 @@ import { featureContent } from "../content";
 import { FeaturePage } from "../feature-page";
 
 /**
- * The five pages are built at build time; any other slug is a 404, from the
+ * The pages the site shows (`featurePages`) are built at build time; any other slug is a 404, from the
  * notFound() in the page below. Not `dynamicParams = false`: once these
  * pages are prerendered, that makes an unlisted slug match no route here,
  * and Next falls through to the seeker @modal slot's [...catchAll], which

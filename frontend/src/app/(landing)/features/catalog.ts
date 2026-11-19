@@ -80,8 +80,17 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
   }),
 };
 
-/** The five pages in menu order. */
-export const featurePages = Object.values(FEATURES);
+/**
+ * Features the site does not show while they do not work in the app. Scout
+ * is off there (Ask Scout and Fill With Scout are hidden), so the user had it
+ * taken off the site on 2026-11-19 (KAN-923): no menu item, footer link,
+ * related card or pricing row, and `/features/scout` is a 404. Its content
+ * file and animations stay, unmounted; delete its slug here to bring it back.
+ */
+const HIDDEN: FeatureSlug[] = ["scout"];
+
+/** The pages the site shows, in menu order. */
+export const featurePages = Object.values(FEATURES).filter((page) => !HIDDEN.includes(page.slug));
 
 export function isFeatureSlug(slug: string): slug is FeatureSlug {
   return featurePages.some((page) => page.slug === slug);

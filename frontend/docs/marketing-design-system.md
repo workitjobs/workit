@@ -140,10 +140,27 @@ near square. The four features follow below, in their own section.
 
 ### `StudioBox` (`layout-parts.tsx`)
 
-The frame for every picture and animation: radius 2rem, a feature's
+The frame for every picture and animation: 16px corners, a feature's
 `studioGround` and a fine grain (`.studio-box`; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.
+
+The ground is a sky in the feature's one colour, after Calendly's boxes:
+
+| Where | Ground |
+| --- | --- |
+| Top | The colour at 24% over white |
+| Middle (about 42%) | The colour at 7%, near white, with a bright white band behind the card, like a horizon |
+| Lower (72%) | The colour at 38% |
+| Foot | The colour at full strength, 10% toward ink |
+
+Why it works where the blobs did not: one hue and one light. Value runs
+from light to deep in one direction, so the box has depth and the white
+card reads as lit from above; the old ground was four blobs (one in a
+second colour) at one lightness, with no source and no direction, which
+read as muddy. Nothing writes straight on the lower fifth: no one text
+colour holds 4.5:1 on every foot (ink fails on the blue, violet and pink;
+white fails on the green). Text there sits on a card or a pill.
 
 ### Pills and chips
 
@@ -189,6 +206,7 @@ translate inside a clipped track.
 | Glass job tiles and a grainy mesh ground (asked for) | Tactile lit tiles with grain on the solid colour, and one stage light behind the headline | Glass had nothing behind it to blur and would redraw every frame; grain in thin gaps reads as dirt |
 | Product rows that opened on a click, one "Explore" link by the heading | Calendly's scrolling rows: sticky heading and box, the row under the heading active, an icon and an arrow link per row to its deep dive | The user pointed back to Calendly |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
+| Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
 | Grey ground, white tiles, a lavender headline tile, pastel lit tiles with violet text | Violet ground, receding tiles, a white headline tile, solid violet lit tiles with white text | Every surface at 94 to 100% lightness: no hierarchy, a loading-skeleton look |

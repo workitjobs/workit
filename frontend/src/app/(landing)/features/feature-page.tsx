@@ -101,7 +101,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
         <section className="py-20 sm:py-28">
           <div className={CONTAINER}>
             <SectionHeading title="One app for the whole search" />
-            <ul className="mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="mt-12 grid gap-3 sm:mt-16 md:grid-cols-3">
               {featurePages
                 .filter((page) => page.slug !== feature.slug)
                 .map((page) => (

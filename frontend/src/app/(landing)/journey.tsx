@@ -79,7 +79,7 @@ export function Journey() {
                       foot. */}
                   <Arrive className="flex">
                     <StudioBox
-                      ground={studioGround({ tint: page.tint, glow: page.glow })}
+                      ground={studioGround({ glow: page.glow })}
                       className="flex min-h-[15rem] w-full items-center justify-center p-5"
                     >
                       <div aria-hidden="true" className="w-full max-w-[18.5rem]">
