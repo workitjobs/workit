@@ -3575,80 +3575,81 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 `fill-report-queries.ts`.
 
 **The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
-violet sidebar (a gradient from `brand` down to `brand-active`, its
-current page a white pill with the brand's ink, the violet logo mark on a
-white tile) that links every admin page, beside the page;
-below lg it is a bar above the page. From lg up its button collapses it to
-a rail of icons, each row keeping its name for screen readers and as a
-tooltip. A new admin page joins `PAGES` in `admin/admin-nav.tsx`, or
-nothing links to it. **The sidebar clips with `overflow-clip`, never
+sidebar that links every admin page, beside the page; below lg it is a bar
+above the page. From lg up its button collapses it to a rail of icons,
+each row keeping its name for screen readers and as a tooltip. A new admin
+page joins `PAGES` in `admin/admin-nav.tsx`, or nothing links to it. **The
+sidebar wears WorkIt's rail tokens** (`rail`, `rail-hover`,
+`rail-border`: the company shell's pale violet), its current page a white
+pill in `brand-ink`. It was dark ink, then a violet gradient under two
+lights: a design review (2026-11-19) found the gradient was decoration,
+and a label on it fell to 3.9:1. **It clips with `overflow-clip`, never
 `overflow-hidden`**: a hidden box still scrolls, and on the collapsed rail
-the rows' screen-reader-only words scrolled every icon out of view (the
-rail showed empty). The shell reads no session:
-a page's `notFound()` draws the root 404 in place of the shell (checked
-with a bad report id), so a student still never sees it. Never add a
-`not-found.tsx` under `app/admin/`: it would draw the 404 inside the
-sidebar and show a student that the admin pages exist.
+the rows' screen-reader-only words scrolled every icon out of view. The
+shell reads no session: a page's `notFound()` draws the root 404 in place
+of the shell (checked with a bad report id), so a student still never sees
+it. Never add a `not-found.tsx` under `app/admin/`: it would draw the 404
+inside the sidebar and show a student that the admin pages exist.
 
-**An admin page is cards on the grey ground in WorkIt's colours**: each
-section (a table, a rail block) is its own `Card` (`ui/card.tsx`), a
-chosen pill, a bar and a gauge are brand violet, as the sidebar is, and red marks only a failure. The first build drew the rail as one
-white panel with rules and its bars in green, which the user found was not
-WorkIt's look.
+**An admin page follows `docs/design.md` as a seeker page does**: the
+page's frame (`ADMIN_FRAME` in `admin/panel.tsx`: `max-w-dashboard`, the
+gutters, 24px under the top), white `Card`s 16px apart on the near-white
+ground, type tokens only, and WorkIt's own parts (`SectionHeading` through
+`Panel`, `StatTile`, `SegmentedLinks`, `SelectField`, `Tip`). Colour marks
+a state or what acts, never rank: red is a failure only, and violet is a
+pick, a link or a chart's one series. The first builds (2026-11-19) drew
+four filled tiles, hand-made headings and buttons, raw sizes and a
+gradient sidebar; the review above replaced them.
 
-`/admin/scrape-health` (the scraper's health, KAN-879) is a dashboard
-beside a details rail, each with its own scroll from lg up, read from `GET
-/admin/scrape-health` under the same `WORKIT_ADMINS` gate (403 → the 404).
-The day pills at the top are links and pick the period for the tiles and
-the table. **The page always asks the API for `HISTORY` (90) days**
-(`lib/fill-health.ts`) and cuts the period itself, so the chart can move
-through all 90 and the API keeps one answer, not one per period. Top
-to bottom, each part its own file in `admin/scrape-health/`:
+`/admin/scrape-health` (the scraper's health, KAN-879) answers one
+question first, whether the scrape is running, then gives the detail in
+one scroll, read from `GET /admin/scrape-health` under the same
+`WORKIT_ADMINS` gate (403 → the 404). Top to bottom, each part its own
+file in `admin/scrape-health/`:
 
-- **Four filled tiles** (`tiles.tsx`): boards ever read, new jobs seen,
-  tasks pending and failed reads. White text sits only on a fill that
-  holds 4.5:1 (`bg-brand`, `bg-positive-ink`, `bg-advanced`, `bg-danger`),
-  and the red tile is the failure number only.
-- **Board Reads per Day** (`daily-reads.tsx`, a client component):
-  stacked columns, done in brand under failed in red, on one axis whose
-  top follows the tallest day in view (2 reads or 20,000, with short
-  labels such as 1.5K). Zoom Out and Zoom In pick how many days show (7,
-  14, 30 or 90), and the arrows move the window back or forward a week or
-  a month, as its Move By menu says. All of it is in the browser. Every
-  day in view has a column's place, so a day with no reads is a gap. It
-  opens on the page's period (`key={days}` starts it again on a new pill).
-- **Boards by Hiring System** (`system-bars.tsx`, a client component): one
-  bar per system, its length the system's boards and its dark part the
-  boards ever read, with both numbers on the row. It shows the five
-  largest until its arrow (Show All 13) opens the rest, so the card is no
-  taller than the chart beside it. **Bars, never a donut**: 13 systems are
-  compared with each other, which a donut's slices cannot show, and 13
-  slice colours cannot be told apart.
-- **Board Reads** (`reads-table.tsx`, a client component): the table,
-  filtered in the browser by hiring system and by whether a row has
-  failed reads. The rows are the page's own, so a filter asks the API
-  nothing.
-- **The rail** (`rail.tsx` in `closable-rail.tsx`): the counts now and the
-  failing boards with their last error. Close Details hides it, and Show
-  Details is then a small icon tab fixed to the window's right edge. As a
-  column of its own, the closed rail still took a strip of the page, which
-  the user found wasted.
+- **The title row and the window controls** (`window-controls.tsx`): the
+  period (7, 14, 30 or 90 days) and two arrows that move that window older
+  or newer by a week or a month, as Move By says. All are links, so **the
+  address holds the window** (`?days=&back=&step=`, read by
+  `lib/scrape-status.ts`'s `windowOf`): a reload, Back and a shared link
+  keep it, and the tiles, the chart and the table all show the same days.
+  The chart had its own zoom and arrows beside the page's day pills; the
+  review found two time controls on one page.
+- **The status card** (`status-line.tsx`): Not Running, Needs Attention or
+  Healthy, with a glyph, the reason in a sentence, and the counts now
+  (stale, failing and resting boards, tasks pending and claimed). The rule
+  is `statusOf` in `lib/scrape-status.ts` (tested): red when no board was
+  read in 24 hours, amber when more than 5% of boards are failing.
+- **Four `StatTile`s** (`tiles.tsx`): boards ever read, and the window's
+  new jobs, reads done and reads failed. The failed tile's chip is red
+  only while the number is above zero.
+- **Board Reads per Day** (`reads-chart.tsx`): stacked columns, done in
+  brand under failed in red, on one axis whose top follows the tallest day
+  in view. A day with no reads is a gap. A day with reads is a button, so
+  its numbers show in a `Tip` on hover and on keyboard focus; a `title`
+  never reaches a keyboard.
+- **Needs Attention** (`needs-attention.tsx`): the failing boards with
+  their last error. It was a card in a rail the admin could close, beside
+  counts the page already showed; the rail is gone.
+- **Boards by Hiring System and Board Reads** (`reads-explorer.tsx`, one
+  client component, since they share a pick): a bar per system, the five
+  largest until Show All, each row a button that filters the table to its
+  system. **A row lifts under the pointer only because it acts**: the rows
+  lifted before they did anything, which promised a click that did
+  nothing. Bars, never a donut: 13 systems are compared. The table also
+  filters by result and sorts by any column (`aria-sort`). Its rows are
+  the page's own, so nothing here asks the API.
 
-**A value a server file reads never lives in a `"use client"` file**:
-the page read `HISTORY` from `daily-reads.tsx`, got Next's client stub (a
-function) in its place, sent that as `?days=`, and the API's 422 drew the
-404. Typecheck and lint both passed. Shared constants go in `lib/`.
-
-The charts are plain HTML and CSS with no chart library, and a mark's
-tooltip is its `title`. A section's card is `Panel` (`admin/panel.tsx`:
-the title and any control over a rule), with `TH` and `TD` for a table in
-one; a new admin section uses them. The main column is a `@container`, so
-its grids follow its own width, which changes when the rail or the sidebar
-closes. The sidebar's collapse and the rail's close are plain state: a
-reload opens both again. The API keeps its answer for 10 minutes, so the
-page shows when it was read and has no Refresh; its line for the scheduled
-scrape's last import goes when the worker takes over
-(`backend/CLAUDE.md`). `ScrapeHealth` and `daysOf` are in
+**The page always asks the API for `HISTORY` (90) days** and cuts the
+window itself, so the API keeps one answer for 10 minutes whatever the
+window; the page says when it was read and has no Refresh. Its sentence
+about the scheduled scrape's last import goes when the worker takes over
+(`backend/CLAUDE.md`). A hiring system's name comes from `systemName`
+(`iCIMS`, `TikTok`), never CSS `capitalize`. **A value a server file reads
+never lives in a `"use client"` file**: the page read `HISTORY` from a
+client file, got Next's client stub (a function) in its place, sent that
+as `?days=`, and the API's 422 drew the 404, with typecheck and lint both
+passing. Shared constants go in `lib/`. `ScrapeHealth` is in
 `lib/fill-health.ts`; the read is `getScrapeHealth` in
 `fill-report-queries.ts`.
 
