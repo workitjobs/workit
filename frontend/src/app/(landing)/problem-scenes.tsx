@@ -1,3 +1,4 @@
+import { WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
@@ -98,13 +99,19 @@ const DOCS = [
  * screen, a scan line reads it top to bottom, marking the keywords it
  * looks for and the lines that read as generic, and it is flagged Not
  * moved forward and swiped away; the next comes in. The last, the resume,
- * rests marked with its verdict. From lg up the applications waiting sit
+ * rests marked with its verdict. The verdict is a red disc with a white X
+ * set on the page, turned a little, and under the page a caution chip (the
+ * keyword count, or "Reads as generic") beside the red Not moved forward:
+ * as two white and pale pills the verdict blended into the Screening
+ * label above it and was hard to read as a no (the user's catch,
+ * 2026-11-20). From lg up the applications waiting sit
  * on its left and the ones it turned away pile up on its right, so it
  * reads as a machine that keeps going; each document comes off the one and
  * lands on the other (`.scan-*` in landing.css reads their spacing). Below
  * lg a document leaves off the frame's edge. Inspired by the archived statement's
- * marked phrases, without its art: no bin, stamp or crumpled page (the
- * team found those AI-made). It never shows a document passing: the site
+ * marked phrases, without its art: no bin, rubber stamp or crumpled page
+ * (the team found those AI-made); the X disc is a flat UI mark, the user's
+ * ask. It never shows a document passing: the site
  * never promises that. Timing: `.scan-*` in landing.css, one 3.6s turn per
  * document.
  */
@@ -134,11 +141,16 @@ export function ScreenScene() {
               <div className="h-full overflow-hidden rounded-md bg-white p-4 shadow-[var(--mk-shadow-float)]">
                 {doc.paper === "resume" ? <ResumePaper /> : <LetterPaper />}
               </div>
+              {/* The no, set on the page's corner as the verdict comes up: over the page, it hid the line under the name. */}
+              <span className="scan-anim scan-stamp bg-danger absolute -top-2 -right-2 grid size-11 place-items-center rounded-full text-white shadow-[var(--mk-shadow-float)] ring-4 ring-white">
+                <XIcon weight="bold" className="size-5" />
+              </span>
               <div className="scan-anim scan-verdict absolute inset-x-0 -bottom-3 flex justify-center gap-1.5">
-                <span className="text-ink-muted rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
+                <span className="bg-warning-tint text-warning inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
+                  <WarningIcon weight="fill" className="size-3.5" />
                   {doc.verdict}
                 </span>
-                <span className="bg-danger-tint text-danger rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
+                <span className="bg-danger inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white shadow-[var(--mk-shadow-float)]">
                   Not moved forward
                 </span>
               </div>

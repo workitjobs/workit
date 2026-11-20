@@ -438,7 +438,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     application at a time (the student's resume, its cover letter, the
     resume again) coming into a hiring system's screen, where a scan line
     reads it, tints the keywords it looks for green and the generic lines
-    red, and flags it "Not moved forward" before it is swiped onto the
+    red, and flags it: a red disc with a white X lands on the page's
+    corner, and under the page a yellow caution chip (the keyword count, or
+    "Reads as generic") sits beside a solid red "Not moved forward" (as two
+    pale pills the no blended into the Screening label above, the user's
+    catch), before it is swiped onto the
     pile of turned-away applications; from lg up a waiting pile stands on
     its left and that pile on its right, and the last resume rests marked
     (`.scan-*` in landing.css, one 3.6s turn a document). It replaced an

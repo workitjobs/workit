@@ -1636,6 +1636,9 @@ html[data-tab-flight="flying"] .tour-tabs {
 .scan-mark {
   background-color: var(--mark);
 }
+.scan-stamp {
+  rotate: -10deg;
+}
 @media (prefers-reduced-motion: no-preference) {
   .scan-doc {
     animation: scan-pass 3.6s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -1652,6 +1655,12 @@ html[data-tab-flight="flying"] .tour-tabs {
   .scan-verdict {
     animation: scan-verdict 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: calc(var(--i) * 3.6s + 2s);
+  }
+  /* The X disc lands on the page as the verdict comes up: in large and
+   * turned, a small give, then still. */
+  .scan-stamp {
+    animation: scan-stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    animation-delay: calc(var(--i) * 3.6s + 1.9s);
   }
   .scan-line {
     animation: scan-line 3.6s linear 3 both;
@@ -1696,6 +1705,17 @@ html[data-tab-flight="flying"] .tour-tabs {
 @keyframes scan-mark {
   from {
     background-color: transparent;
+  }
+}
+@keyframes scan-stamp {
+  from {
+    opacity: 0;
+    scale: 1.8;
+    rotate: -24deg;
+  }
+  60% {
+    opacity: 1;
+    scale: 0.92;
   }
 }
 @keyframes scan-verdict {
