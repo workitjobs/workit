@@ -252,7 +252,7 @@ export default function DownloadPage() {
   );
 }
 
-/** Download for Mac: the primary button's look (`.primary-btn`, solid ink)
+/** Download for Mac: the primary button's look (`.primary-btn`, solid violet)
  *  on a plain link, since the file is not a page next/link can route to. */
 function DownloadButton({ href, size = "lg" }: { href: string; size?: "md" | "lg" }) {
   return (

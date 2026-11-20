@@ -10,8 +10,9 @@ screens follow `design.md`, not this file.
 ## Principles
 
 1. **Colour lives in two places only**: the home hero (its grainy violet
-   ground under glass tiles) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
-   ink and grey. A violet card, a violet shadow or a violet-tinted white
+   ground under glass tiles) and the framed boxes (`StudioBox`). The page and its cards are white,
+   ink and grey, and so are its buttons but the main one, which is solid
+   WorkIt violet, flat (the user's pick, 2026-11-20). A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made. **One exception, the four product
    tiles** under "One app for every step of applying" (`FeatureJumps`,
    the user's call, 2026-11-20): each is flat in its feature's pale
@@ -113,7 +114,7 @@ section heading; a hero line may keep one.
 
 | Role | Component | Look |
 | --- | --- | --- |
-| Primary | `PrimaryButton` (`.primary-btn`) | Solid ink, white label, lighter on hover |
+| Primary | `PrimaryButton` (`.primary-btn`) | Solid WorkIt violet, flat, white label, a step deeper on hover; never a gradient, glass or glow |
 | Secondary | `SecondaryButton` | Slate at 6%, ink label, no border |
 | On a fill | `OnFillButton` | White, ink label, `--mk-shadow-float`, no border |
 
@@ -239,7 +240,8 @@ an outlined strip with no fill, its number in ink. **It was dark for a
 day** (2026-11-20): the ink with a slate pool and dots read as the stock
 dark section of an AI-made site, and a flat near-black then read as out
 of nowhere, the one dark block between two white sections (the user's
-catches); the footer is the page's one dark panel. It is the search
+catches). The footer went light grey with it, the same `--mk-mist`, so
+the page has no dark block. It is the search
 before WorkIt, the chapter the product sections answer. From lg up it
 zooms in as it rises (`GrowIn`, from 80%) while What is WorkIt above
 fades and shrinks a little, both scroll-linked opacity and transforms;
@@ -318,7 +320,7 @@ translate inside a clipped track.
 
 | Was | Now | Why |
 | --- | --- | --- |
-| `.glass-btn` violet gradient glass | `.primary-btn` solid ink | Read as AI-made; low contrast |
+| `.glass-btn` violet gradient glass | `.primary-btn` solid ink, then solid flat violet | Read as AI-made; low contrast. Ink went once it was the page's only dark mark |
 | Outline button with a violet edge | `SecondaryButton`, soft grey fill | Borders everywhere read as a template |
 | Google light theme, grey border | Google neutral theme, no border | Bordered buttons looked AI-made; the dark theme was too heavy |
 | Violet, blue and pink mesh gradient hero | A grid of square tiles that light up | Too close to Calendly's, no feel |

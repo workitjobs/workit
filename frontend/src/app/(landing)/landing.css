@@ -15,16 +15,12 @@
    * page, its cards and its buttons are white, ink and grey.
    */
   --mk-hairline: rgb(15 23 42 / 0.08);
-  /* The dark panels' ground (the problems band, the footer): a neutral
-     near-black. They were the ink, #121a28, a blue-black, which with a
-     slate glow in the middle and dots across the band read as the stock
-     dark section of an AI-made site (the user's catch, 2026-11-20). */
-  --mk-night: #121212;
-  /* The problems band's ground: a light neutral grey, a step below the
-     white page, so the band reads as its own chapter in the page's own
-     light family and white cards stand on it. It was the night colour,
-     the one dark block before the footer, which read as out of nowhere
-     (the user's catch, 2026-11-20). */
+  /* The light grey panels' ground (the problems band, the footer): a step
+     below the white page, so each reads as its own block in the page's
+     own light family and white cards stand on it. Both were dark: the
+     ink, a blue-black, then a neutral near-black, which read first as an
+     AI-made dark section and then as out of nowhere on the white page
+     (the user's catches, 2026-11-20). */
   --mk-mist: #f0f0f0;
   /* A card resting on the page. */
   --mk-shadow-card:
@@ -184,31 +180,35 @@ html:has(.landing) {
 }
 
 /*
- * The primary button (buttons.tsx, KAN-923): solid ink, white label, the
- * one way a marketing page asks for the main action, as Calendly's navy
- * button does. It replaced `.glass-btn`, a violet gradient glass with a
- * text shadow, which the user named as AI-made. Shape and size are
- * buttons.tsx's. In the components layer, so a utility on the element wins.
+ * The primary button (buttons.tsx, KAN-923): solid WorkIt violet, flat,
+ * white label (6.26:1), a step deeper on hover, the one way a marketing
+ * page asks for the main action. It was solid ink, as Calendly's navy
+ * button is, until the page's other dark blocks went and the ink buttons
+ * were the only dark marks left (the user's pick, 2026-11-20). Before
+ * that it was `.glass-btn`, a violet gradient glass with a text shadow,
+ * which the user named as AI-made: so flat, never a gradient, glass or
+ * glow. Shape and size are buttons.tsx's. In the components layer, so a
+ * utility on the element wins.
  */
 @layer components {
   .primary-btn {
-    background: var(--color-ink);
+    background: var(--color-brand);
     color: white;
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
       0 1px 2px rgb(15 23 42 / 0.2);
     transition:
       background-color 150ms ease,
       transform 150ms ease;
   }
   .primary-btn:hover {
-    background: color-mix(in oklab, var(--color-ink) 86%, white);
+    background: var(--color-landing-brand-700);
   }
   .primary-btn:active {
     transform: scale(0.98);
   }
   .primary-btn:focus-visible {
-    outline: 2px solid var(--color-landing-brand-500);
+    outline: 2px solid var(--color-brand);
     outline-offset: 3px;
   }
 }

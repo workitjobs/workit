@@ -1353,7 +1353,7 @@ selling line that says what the product does** and "See how", a
   follows the marketing design system since KAN-923 merged it in
   (`TYPE`, `HERO_PILL`, no label above a heading, `.surface-card`s, each
   scene in a `StudioBox` on Auto Apply's sky, Download for Mac in
-  `.primary-btn`'s solid ink, Add to Chrome a `SecondaryButton`); it is
+  `.primary-btn`'s solid violet, Add to Chrome a `SecondaryButton`); it is
   a page of its own, not a sixth feature page, since it sells a download,
   not a feature. To see it before launch, set the constant to any address
   locally and put it back.
@@ -1558,8 +1558,10 @@ selling line that says what the product does** and "See how", a
   its placeholder copy, hidden for now. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`) as a still signature: one SVG
-  path in white at 7% on the near-black panel (`--mk-night`, as the
-  problems band; it was the ink, a blue-black), its lower letters cut by the
+  path in slate at 6% on a light grey panel (`--mk-mist`, as the problems
+  band; it was the ink, a blue-black, then a near-black, and stood alone
+  as the page's one black block once the rest went light, the user's
+  pick, 2026-11-20), its lower letters cut by the
   panel's foot (`WORD_SHOWN` in `footer.tsx`), with nothing moving and no
   script (KAN-923, the user's pick of four directions). It was the word
   filled with rows of job titles that slid in and drifted, which the user
@@ -1712,8 +1714,9 @@ selling line that says what the product does** and "See how", a
   `app/(landing)/`. The user found the site still AI-made after the home
   page's redesign and named the violet glass buttons, the bordered sign-up
   buttons and the lavender gradient on cards, so: **colour lives only in
-  the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
-  white, ink and grey; violet marks small things only** (checks,
+  the home hero's grainy ground and inside a `StudioBox`; cards and the page are
+  white, ink and grey; violet marks small things only** (the main
+  button, solid and flat, `.primary-btn`, since 2026-11-20; checks,
   feature tiles, Plus's limit pills, and the pale tint of a selected item
   the visitor clicked on a light ground; on the problems' grey band the
   open card is solid ink instead; one exception to grey cards: the four
@@ -1735,7 +1738,10 @@ selling line that says what the product does** and "See how", a
   steps and "More from WorkIt" cards are `.surface-card` too; a related
   card's hover lifts it by translate alone.
 - **A marketing button is one of three roles in `buttons.tsx`** (KAN-581;
-  colours KAN-923): `PrimaryButton` (solid ink, `.primary-btn`),
+  colours KAN-923): `PrimaryButton` (solid WorkIt violet, flat, a step
+  deeper on hover, `.primary-btn`: it was solid ink until the page's dark
+  blocks went and ink buttons were its only dark marks, the user's pick,
+  2026-11-20),
   `SecondaryButton` (slate at 6%, no border) and `OnFillButton` (white with
   `--mk-shadow-float`, on a coloured or grey panel, the plan cards), all
   in one shape (`rounded-control`, the app's) and two heights, `md` 44px

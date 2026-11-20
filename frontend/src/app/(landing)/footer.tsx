@@ -35,21 +35,22 @@ const COLUMNS = [
 ];
 
 /**
- * A dark rounded panel inset from the window, like the bands above it, that
- * opens on the site's tagline set large and closes on "workit", the logo's
- * own outline (`LOGO_WORD`), still and in one flat tone (white at 7%),
- * cropped by the panel's foot (KAN-923, the user's pick). It replaced the
- * word filled with rows of job titles that slid in and drifted, which the
- * user found an eyesore: nothing here moves now. The logo turns white with
- * a filter: the shared Logo draws its word in ink, which would vanish on
- * ink.
+ * A light grey rounded panel inset from the window (`--mk-mist`, as the
+ * problems band), that opens on the site's tagline set large and closes on
+ * "workit", the logo's own outline (`LOGO_WORD`), still and in one flat
+ * tone (slate at 6%), cropped by the panel's foot (KAN-923, the user's
+ * pick). It was dark (ink, then a near-black) until the rest of the page
+ * went light and it stood alone as a black block (the user's pick,
+ * 2026-11-20). It replaced the word filled with rows of job titles that
+ * slid in and drifted, which the user found an eyesore: nothing here moves
+ * now.
  */
 export function Footer() {
   const year = new Date().getFullYear();
 
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
-      <div className={cn(PANEL, "overflow-hidden bg-(--mk-night) text-white")}>
+      <div className={cn(PANEL, "text-ink overflow-hidden bg-(--mk-mist)")}>
         {/* Five link columns: two a row on a phone, three at md, one row of
             five under the tagline at lg, beside it from xl, where a column
             is still wide enough for "Application Tracker" on one line. */}
@@ -58,7 +59,7 @@ export function Footer() {
             <p className="font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>
-            <Logo size="card" className="mt-10 brightness-0 invert" />
+            <Logo size="card" className="mt-10" />
           </div>
 
           {COLUMNS.map((column) => (
@@ -71,11 +72,11 @@ export function Footer() {
                       href={link.href}
                       // The ::after takes the tap to the middle of the gaps either
                       // side, 32px in all: the 20px line alone was hard to hit.
-                      className="relative inline-block text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
+                      className="text-ink-meta hover:text-ink relative inline-block text-sm transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']"
                     >
                       {link.label}
                       {"soon" in link && link.soon === true && (
-                        <span className="ml-2 rounded-full bg-white/10 px-1.5 py-px text-[11px] leading-4 font-medium text-white/70">
+                        <span className="text-ink-muted ml-2 rounded-full bg-slate-900/[0.06] px-1.5 py-px text-[11px] leading-4 font-medium">
                           Soon
                         </span>
                       )}
@@ -88,7 +89,7 @@ export function Footer() {
         </div>
 
         <div className="mx-auto w-full max-w-6xl px-6 sm:px-10 lg:px-8">
-          <div className="border-t border-white/10 py-6 text-sm text-white/80">
+          <div className="text-ink-meta border-t border-slate-900/10 py-6 text-sm">
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>
@@ -105,7 +106,7 @@ export function Footer() {
           <svg
             viewBox={`0 0 ${LOGO_WORD.width} ${WORD_SHOWN}`}
             preserveAspectRatio="xMidYMin slice"
-            className="block w-full fill-white/[0.07]"
+            className="block w-full fill-slate-900/[0.06]"
           >
             <path d={LOGO_WORD.d} />
           </svg>

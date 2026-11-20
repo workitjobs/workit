@@ -34,8 +34,10 @@ type ButtonProps = {
 };
 
 /**
- * The main action, solid ink (`.primary-btn` in landing.css). It replaced
- * the violet glass button, which the user found AI-made.
+ * The main action, solid WorkIt violet, flat (`.primary-btn` in
+ * landing.css). It was solid ink until the page's dark blocks went (the
+ * user's pick, 2026-11-20), and before that a violet glass button, which
+ * the user found AI-made.
  */
 export function PrimaryButton({ href, size = "md", prefetch, className, children }: ButtonProps) {
   return (
