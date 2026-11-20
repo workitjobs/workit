@@ -7,6 +7,10 @@ import { FaviconLogo } from "./favicon-logo";
 import { CONTAINER, TYPE } from "./layout-parts";
 
 /**
+ * Unmounted since 2026-11-20 (the user found a drifting strip generic): the
+ * hero now flows into the job feed (hero-feed.tsx), which carries its line
+ * and employers (`logoStrip` in data.ts). Kept for its notes.
+ *
  * The strip under the home hero (KAN-923): one line, then real employers'
  * logos and names drifting slowly sideways (`.drift-row`), faded at both
  * ends. Proof that the jobs are real before the page explains anything.

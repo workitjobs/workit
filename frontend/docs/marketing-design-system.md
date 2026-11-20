@@ -83,7 +83,7 @@ Jakarta too and the face is gone.
 | `card` | Jakarta 500 | 28 / 24 | A card's heading |
 | `item` | Jakarta 500 | 18 | A row's title (the product accordion) |
 | `lead` | Inter 400 | 19 / 18 | The line under a display or chapter heading |
-| `eyebrow` | Inter 600, capitals, 0.08em | 12 | A small grey line (the logo strip's, a journey step's); never a label above a heading |
+| `eyebrow` | Inter 600, capitals, 0.08em | 12 | A small grey line (the job feed's, a journey step's); never a label above a heading |
 
 No gradient text (Pricing's ink-to-violet headline went). No full stop on a
 section heading; a hero line may keep one.
@@ -221,6 +221,18 @@ across the window at the block's top and foot and two down its sides.
 - **From lg up.** Below it the side lines ran along the window's edge.
 - **Neutral**, never a feature's colour. The hero is not framed for
   now: its violet panel already fills the screen edge to edge.
+
+### The job feed (`hero-feed.tsx`)
+
+The hero's squares carried down the page: a drop cell and a row of track
+cells on the hero's own columns, each a faint violet print of the hero's
+tile (`.feed-cell`: the brand at 6% with a 14% hairline), ending in a
+white WorkIt cell like the headline's tile. The one place violet tints a
+cell outside the hero or a box: it is the hero's grid continuing, and
+the hero's ring of tiles flows into it as a snake (frontend/CLAUDE.md).
+Logo tiles are white with the company's favicon and, from lg up, its
+name. The tiles move cell to cell, on the grid, never along a curve:
+a rounded pipe was turned down for squares that match the hero's.
 
 ### The dark band (`problems.tsx`)
 

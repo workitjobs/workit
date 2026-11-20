@@ -8,12 +8,12 @@ import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { SecondaryButton } from "./buttons";
 import { Control } from "./control";
-import { featuresIntro, hero, homeDescription, site, testimonial } from "./data";
+import { featuresIntro, hero, homeDescription, logoStrip, site, testimonial } from "./data";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HiringGrid } from "./hiring-grid";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
-import { LogoStrip } from "./logo-strip";
+import { HeroFeed } from "./hero-feed";
 import { Problems } from "./problems";
 import { FeatureJumps, ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
@@ -64,58 +64,62 @@ export default function LandingPage() {
           .hero-grid): the headline in its large tile, the tiles of the jobs
           that fit lighting up round it. 5rem and 6.25rem are the header
           (72px, 76px from sm) and the panel's inset below it. */}
-      <section className={PANEL_INSET}>
-        <div
-          className={cn(
-            PANEL,
-            "hero-ground relative isolate flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden p-2 sm:min-h-[calc(100svh-6.25rem)] sm:p-3",
-          )}
-        >
-          <HeroGrid>
-            {/* From lg up the headline takes the screen's height into
+      {/* The hero flows into the job feed under it (hero-feed.tsx): on
+          the first scroll its ring of tiles leaves as one snake that steps
+          down the grid into the feed's row and WorkIt's cell. */}
+      <HeroFeed line={logoStrip.line} employers={logoStrip.employers}>
+        <section className={PANEL_INSET}>
+          <div
+            className={cn(
+              PANEL,
+              "hero-ground relative isolate flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden p-2 sm:min-h-[calc(100svh-6.25rem)] sm:p-3",
+            )}
+          >
+            {/* The ground fades to the page as the snake leaves. */}
+            <div aria-hidden="true" className="hero-fade" />
+            <HeroGrid>
+              {/* From lg up the headline takes the screen's height into
                 account (6.4svh, 44 to 72px), so it fits its tile's three
                 rows on a short laptop screen (1024 × 768). */}
-            <h1
-              className={cn(
-                TYPE.display,
-                "hero-rise text-ink mx-auto max-w-4xl lg:text-[clamp(2.75rem,6.4svh,4.5rem)]",
-              )}
-              style={{ "--rd": ".15s" } as CSSProperties}
-            >
-              {hero.title}
-            </h1>
-            <p
-              className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
-              style={{ "--rd": ".3s" } as CSSProperties}
-            >
-              {hero.subtitle}
-            </p>
-            {/* The sign-up pair, then Download for Mac (KAN-922) as a
+              <h1
+                className={cn(
+                  TYPE.display,
+                  "hero-rise text-ink mx-auto max-w-4xl lg:text-[clamp(2.75rem,6.4svh,4.5rem)]",
+                )}
+                style={{ "--rd": ".15s" } as CSSProperties}
+              >
+                {hero.title}
+              </h1>
+              <p
+                className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
+                style={{ "--rd": ".3s" } as CSSProperties}
+              >
+                {hero.subtitle}
+              </p>
+              {/* The sign-up pair, then Download for Mac (KAN-922) as a
                 `SecondaryButton`, the same soft grey as the pair, only while
                 there is a build. The row wraps, so the third button needs no
                 other change. */}
-            <div
-              className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
-              style={{ "--rd": ".4s" } as CSSProperties}
-            >
-              <SocialSignUpButton provider="google" />
-              <SocialSignUpButton provider="linkedin_oidc" />
-              {DESKTOP_DOWNLOAD_URL && (
-                <SecondaryButton href={site.download.href}>
-                  <DownloadSimpleIcon aria-hidden className="size-5" />
-                  Download for Mac
-                </SecondaryButton>
-              )}
-              <div className="w-full text-center sm:basis-full">
-                <EmailSignUpLink />
+              <div
+                className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
+                style={{ "--rd": ".4s" } as CSSProperties}
+              >
+                <SocialSignUpButton provider="google" />
+                <SocialSignUpButton provider="linkedin_oidc" />
+                {DESKTOP_DOWNLOAD_URL && (
+                  <SecondaryButton href={site.download.href}>
+                    <DownloadSimpleIcon aria-hidden className="size-5" />
+                    Download for Mac
+                  </SecondaryButton>
+                )}
+                <div className="w-full text-center sm:basis-full">
+                  <EmailSignUpLink />
+                </div>
               </div>
-            </div>
-          </HeroGrid>
-        </div>
-      </section>
-
-      {/* Real employers, drifting: logo-strip.tsx. */}
-      <LogoStrip />
+            </HeroGrid>
+          </div>
+        </section>
+      </HeroFeed>
 
       {/* The opening run after Loopsii's (the user's ask, 2026-11-20): what
           WorkIt is, then the problems on a dark band that zooms in as it
