@@ -246,9 +246,10 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <meta name="color-scheme" content="light"><style>{style}
   main.settings { max-width: 34rem; margin: 8vh auto; display: flex; flex-direction: column; gap: 0.8rem; }
   main.settings .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  main.settings .top { justify-content: space-between; align-items: center; }
 </style>
 <main class="settings">
-<h1>Settings</h1>
+<div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
 <label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
 <p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
