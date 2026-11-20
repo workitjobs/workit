@@ -23,6 +23,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { TEXT } from "@/components/ui/text-roles";
 
 import { ApplicationTile } from "../applications/application-tile";
 import { applicationHref } from "../applications/query";
@@ -39,8 +40,8 @@ const DAY_LONG = new Intl.DateTimeFormat("en-US", {
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 
 /** The Applications list's head and fact cells (../applications/list.tsx). */
-const TH = "px-4 text-note text-ink-meta font-medium";
-const TD = "px-4 text-note text-ink";
+const TH = `px-4 ${TEXT.columnHeader}`;
+const TD = `px-4 ${TEXT.tableCell}`;
 
 /**
  * One day of Activity, opened from a filled day (KAN-423): the applications

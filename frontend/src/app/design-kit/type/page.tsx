@@ -1,3 +1,4 @@
+import { BAR_TITLE } from "@/app/(seeker)/bar";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import {
   BellIcon,
@@ -8,11 +9,62 @@ import {
   SignOutIcon,
   SparkleIcon,
 } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { TextField } from "@/components/ui/text-field";
+import { TextLink } from "@/components/ui/text-link";
+import { TEXT } from "@/components/ui/text-roles";
 
-import { SECTIONS, SHADCN_SIZES, TYPE_SCALE, TYPEFACES, WEIGHTS } from "../data";
+import {
+  ROLE_GROUPS,
+  SECTIONS,
+  SHADCN_SIZES,
+  TYPE_SCALE,
+  TYPEFACES,
+  WEIGHTS,
+  type RoleRow,
+} from "../data";
+import { RoleSample } from "../role-sample";
 import { Group, KitPage, Row } from "../specimen";
 
 export const metadata = { title: SECTIONS.type.title };
+
+/** A role's sample, drawn by the code that draws it on a screen: its TEXT
+ *  classes, or the `ui/` part that owns it. */
+function RoleSpecimen({ row }: { row: RoleRow }) {
+  if ("text" in row) return <span className={TEXT[row.text]}>{row.sample}</span>;
+  switch (row.part) {
+    case "pageTitle":
+      return <span className={`${BAR_TITLE} block`}>{row.sample}</span>;
+    case "sectionHeading":
+      return <SectionHeading as="h3">{row.sample}</SectionHeading>;
+    case "fieldLabel":
+      return (
+        <div className="w-56">
+          <TextField id="dk-role-label" label={row.sample} placeholder="you@school.edu" />
+        </div>
+      );
+    case "button":
+      return (
+        <Button variant="secondary" size="sm">
+          {row.sample}
+        </Button>
+      );
+    case "ghostButton":
+      return <Button variant="ghost">{row.sample}</Button>;
+    case "sectionButton":
+      return <Button variant="section">{row.sample}</Button>;
+    case "chip":
+      return <Chip>{row.sample}</Chip>;
+    case "textLink":
+      return (
+        <span className={TEXT.body}>
+          Add it on your <TextLink href="/profile">{row.sample}</TextLink>.
+        </span>
+      );
+  }
+}
 
 export default function TypePage() {
   return (
@@ -32,6 +84,21 @@ export default function TypePage() {
           </Row>
         ))}
       </Group>
+
+      {ROLE_GROUPS.map(({ title, note, rows }) => (
+        <Group key={title} title={title} note={note}>
+          {rows.map((row) => (
+            <Row key={row.name} name={row.name} role={row.role}>
+              <RoleSample
+                differs={row.differs}
+                pick={"part" in row && row.part === "textLink" ? "a" : undefined}
+              >
+                <RoleSpecimen row={row} />
+              </RoleSample>
+            </Row>
+          ))}
+        </Group>
+      ))}
 
       <Group
         title="Weights"
