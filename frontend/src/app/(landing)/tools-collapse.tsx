@@ -53,8 +53,10 @@ const SCATTER = [
  * come up in their place, while the count turns from "8 tools" to "1 app".
  * The end state is the tiles as they are, links and all.
  *
- * The scroll only cues it: it plays in time, about 1.5 s, and rests
- * finished (`useArrived`, "Scroll cues, time plays" in frontend/CLAUDE.md);
+ * The scroll only cues it, once 80% of the frame is on screen: the cards
+ * hold still for 0.8 s so the reader takes in the scattered tools, then fly
+ * and the tiles come up, about 3 s in all, and it rests finished
+ * (`useArrived`, "Scroll cues, time plays" in frontend/CLAUDE.md);
  * it plays again only after the section has gone wholly below the screen.
  * Nothing pins. From lg up with motion allowed only (`.tools-collapse` in
  * landing.css): on a phone eight cards had no room, and with reduced
@@ -72,7 +74,11 @@ export function ToolsCollapse({ children }: { children: ReactNode }) {
     () => true,
     () => false,
   );
-  const arrived = useArrived(ref, mounted, { margin: "0px 0px -35% 0px" });
+  // Only once the frame is nearly all on screen, so the reader sees the
+  // eight tools scattered before they fly (the user's catch, 2026-11-20:
+  // cued with the frame's top two thirds up, it had played before the
+  // cards were in view).
+  const arrived = useArrived(ref, mounted, { margin: "0px 0px -8% 0px", threshold: 0.8 });
 
   useEffect(() => {
     const root = ref.current;

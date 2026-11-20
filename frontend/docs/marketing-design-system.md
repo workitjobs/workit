@@ -292,7 +292,8 @@ performance). In short: stories loop only on screen; reveals play once
 that a click stops; no shine sweeps or glows. The tools collapse
 (`tools-collapse.tsx`) is the one flight on the page: eight tool cards
 fly into the four product tiles once, cued by the scroll and played in
-time.
+time, only once the frame is nearly all on screen and after a short hold,
+so the reader sees the tools scattered first.
 There is no Pause Animations button since the user had it removed, which
 leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 

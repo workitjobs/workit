@@ -451,11 +451,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     pick, 2026-11-20): from lg up, eight tool cards a student juggles
     (Google Docs and Overleaf, careers pages and job sites, a notes app
     and copy and paste, Google Sheets and a calendar) lie scattered on a
-    drafting grid round the row, and once the section is well on screen
-    each pair flies into the product that replaces it, the tile comes up
-    as its last card lands, and a count turns from "8 tools" to "1 app".
-    It plays in about 1.5 s and rests finished (`useArrived`), again only
-    after the section has gone wholly below the screen; nothing pins. The
+    drafting grid round the row, and once 80% of the frame is on screen
+    the cards hold still for 0.8 s, then each pair flies into the product
+    that replaces it, the tile comes up as its last card lands, and a
+    count turns from "8 tools" to "1 app". **The reader sees the scattered
+    tools first** (the user's catch, 2026-11-20): cued with the frame's
+    top two thirds up and flying at once, it played before the cards were
+    in view. It plays in about 3 s and rests finished (`useArrived`,
+    threshold 0.8), again only after the section has gone wholly below
+    the screen; nothing pins. The
     frame's padding (6.5rem each way) is CSS, so the server's HTML has
     the room; below lg and with reduced motion the tiles show as they are,
     and without script the cards stay hidden. Each card flies to its
