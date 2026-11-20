@@ -1,12 +1,32 @@
 "use client";
 
+import {
+  ArrowUpRightIcon,
+  BrowsersIcon,
+  ChatTextIcon,
+  EnvelopeSimpleIcon,
+  FilesIcon,
+  KeyboardIcon,
+  TableIcon,
+} from "@phosphor-icons/react/ssr";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { useArrived } from "./hooks";
 
-type Problem = { title: string; body: string };
+type Scene = "boards" | "resumes" | "forms" | "question" | "tracker" | "replies";
+type Problem = { scene: Scene; title: string; body: string };
+
+/** Each problem's glyph: the thing it is about. */
+const ICONS = {
+  boards: BrowsersIcon,
+  resumes: FilesIcon,
+  forms: KeyboardIcon,
+  question: ChatTextIcon,
+  tracker: TableIcon,
+  replies: EnvelopeSimpleIcon,
+};
 type Stat = { figure: string; text: string; source: string; href: string };
 
 /**
@@ -26,10 +46,16 @@ type Stat = { figure: string; text: string; source: string; href: string };
  * the first visual shows finished without script.
  *
  * Below lg the stage leads, then the problems: in two columns from md, one
- * on a phone. From lg up the heading, the hub and the figure fit one
- * screen under the floating header: the stage is `clamp(17.5rem, 100svh -
- * 31.5rem, 26rem)` tall, what is left once the header, the heading, its
- * line and the figure are counted (measured at 1440 × 800 and 1280 × 720).
+ * on a phone. From lg up the hub is one block: each side's three cards
+ * share the stage's height (rows of one third each), so their edges meet
+ * the stage's; set loosely in the middle of each column, the cards were
+ * shorter than the stage and the section read as small and tall at once
+ * (the user's catch). The heading, the hub and the figure fit one screen
+ * under the floating header: the stage is at least `clamp(19rem, 100svh -
+ * 29.5rem, 30rem)` tall and grows to the cards' height, what is left once the header, the heading, its one-line
+ * subtitle and the figure are counted (measured at 1440 × 800).
+ *
+ * Each card has its glyph (`ICONS`) on a white tile, on ink when open.
  *
  * The problems are buttons with `aria-pressed`, not tabs: the visuals are
  * pictures (`aria-hidden`), and each button's words are its name.
@@ -63,10 +89,11 @@ export function ProblemHub({
 
   const half = Math.ceil(problems.length / 2);
   const column = (from: number, to: number, className: string) => (
-    <div className={cn("grid content-center gap-2.5", className)}>
+    <div className={cn("grid gap-2.5 lg:grid-rows-3", className)}>
       {problems.slice(from, to).map((problem, j) => {
         const i = from + j;
         const open = i === at;
+        const Icon = ICONS[problem.scene];
         return (
           <button
             key={problem.title}
@@ -76,21 +103,31 @@ export function ProblemHub({
             onFocus={() => pick(i)}
             onPointerEnter={(event) => event.pointerType === "mouse" && pick(i)}
             className={cn(
-              "rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200",
+              "flex items-start gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200 lg:items-center",
               "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
               open ? "surface-card" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
             )}
           >
             <span
               className={cn(
-                "block text-[15px] leading-snug font-medium transition-colors",
-                open ? "text-ink" : "text-ink-muted",
+                "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
+                open ? "bg-ink text-white" : "text-ink-meta bg-white",
               )}
             >
-              {problem.title}
+              <Icon aria-hidden="true" className="size-[18px]" />
             </span>
-            <span className="text-ink-meta mt-1 block text-[13.5px] leading-snug text-pretty">
-              {problem.body}
+            <span className="min-w-0">
+              <span
+                className={cn(
+                  "block text-[15px] leading-snug font-medium transition-colors",
+                  open ? "text-ink" : "text-ink-muted",
+                )}
+              >
+                {problem.title}
+              </span>
+              <span className="text-ink-meta mt-1 block text-[13.5px] leading-snug text-pretty">
+                {problem.body}
+              </span>
             </span>
           </button>
         );
@@ -99,13 +136,13 @@ export function ProblemHub({
   );
 
   return (
-    <div className="mt-8 sm:mt-10">
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[15.5rem_minmax(0,1fr)_15.5rem] lg:gap-4 xl:grid-cols-[17.5rem_minmax(0,1fr)_17.5rem]">
+    <div className="mt-8">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[17rem_minmax(0,1fr)_17rem] lg:gap-3 xl:grid-cols-[19rem_minmax(0,1fr)_19rem]">
         {column(0, half, "lg:order-1")}
         <div
           ref={stageRef}
           data-arrived={mounted ? String(arrived && !hold) : undefined}
-          className="bg-well relative order-first h-[22rem] overflow-hidden rounded-2xl md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-[clamp(17.5rem,calc(100svh-31.5rem),26rem)]"
+          className="bg-well relative order-first h-[22rem] overflow-hidden rounded-2xl md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-29.5rem),30rem)]"
         >
           {/* Keyed by `mounted` too: the visual mounts afresh once hydrated,
               so a transition the server's HTML would skip plays when seen. */}
@@ -115,23 +152,27 @@ export function ProblemHub({
         </div>
         {column(half, problems.length, "lg:order-3")}
       </div>
-      {/* The section's one figure, a dark box with the number in red so it
-          stands out as the fact behind the problems (the user's ask): its
-          sentence under it in white, the source below as a link. */}
-      <figure className="bg-ink mx-auto mt-6 grid max-w-3xl items-center gap-x-7 gap-y-2 rounded-2xl px-6 py-5 text-center sm:grid-cols-[auto_minmax(0,1fr)] sm:px-8 sm:text-left">
-        <p className="font-display text-[3.5rem] leading-none font-medium tracking-[-0.04em] text-[color-mix(in_oklab,var(--color-danger)_70%,white)] sm:row-span-2">
+      {/* The section's one figure: an outlined box with a legend on its top
+          edge, the number in red, its sentence and its source. A filled
+          dark box read as heavy and out of place (the user's catch); as
+          plain text under a hairline it did not read as a sourced fact. */}
+      <figure className="relative mx-auto mt-7 grid max-w-3xl items-center gap-x-6 gap-y-1.5 rounded-2xl border border-slate-900/15 px-6 pt-5 pb-4 text-center sm:grid-cols-[auto_minmax(0,1fr)] sm:px-7 sm:text-left">
+        <span className="text-danger absolute -top-2.5 left-1/2 -translate-x-1/2 bg-white px-2 text-[11px] font-semibold tracking-[0.08em] whitespace-nowrap uppercase sm:left-6 sm:translate-x-0">
+          By the numbers
+        </span>
+        <p className="font-display text-danger text-[3.25rem] leading-none font-medium tracking-[-0.04em] sm:row-span-2 sm:border-r sm:border-slate-900/10 sm:pr-6">
           {stat.figure}
         </p>
-        <p className="text-[16px] leading-snug text-pretty text-white">{stat.text}</p>
-        <figcaption className="text-[13px] text-white/60">
-          Source:{" "}
+        <p className="text-ink text-[16px] leading-snug text-pretty">{stat.text}</p>
+        <figcaption className="text-ink-meta text-[13px]">
           <a
             href={stat.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline decoration-white/30 underline-offset-2 hover:text-white"
+            className="hover:text-ink inline-flex items-center gap-1 underline decoration-slate-300 underline-offset-2"
           >
             {stat.source}
+            <ArrowUpRightIcon aria-hidden="true" className="size-3" />
           </a>
         </figcaption>
       </figure>

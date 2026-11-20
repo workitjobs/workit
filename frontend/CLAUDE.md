@@ -434,14 +434,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     current, turned down or no reply), one large visual in the middle for
     the open one, and under it the section's one figure, shown as a fact
     with its source (81%, Greenhouse's 2026 candidate report, linked), in
-    a dark ink box with the number in red, so it stands out as the fact
-    behind the problems (the user's ask: as plain text under a hairline it
-    did not read as a sourced fact). A
+    an outlined box with a "By the numbers" legend on its top edge and the
+    number in red behind a hairline (the user's asks: as plain text under
+    a hairline it did not read as a sourced fact, and a filled dark box
+    read as heavy and odd). A
     hover (mouse only), a click, a tap or keyboard focus opens a problem;
     nothing changes on a timer. The problems are buttons with
-    `aria-pressed`; the open one is a white `.surface-card`, the rest flat
-    grey, and every problem's words stay on screen, so only the picture
-    changes. **The visuals are moments everybody has**
+    `aria-pressed`, each with its glyph on a white tile (on ink when
+    open); the open one is a white `.surface-card`, the rest flat grey,
+    and every problem's words stay on screen, so only the picture changes.
+    **The hub is one block** from lg up: each side's three cards share the
+    stage's height and the stage grows to theirs, so their edges meet; set
+    loosely beside a taller stage, under a two-line heading and a two-line
+    line, the section read as small and tall at once (the user's catch),
+    so the line under the heading is one line. **The visuals are moments everybody has**
     (`problem-scenes.tsx`): a browser of company job board tabs with roles
     posted months ago, a folder of resume versions ending in
     "Resume_FINAL (1).pdf", a hiring system asking for the work history
@@ -454,8 +460,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     stage's `data-arrived`, "false" for two frames after a switch; a caret
     blinks four times, `.caret-blink`, then stays). **The heading, the hub
     and the figure fit one screen** under the floating header from lg up:
-    the stage is `clamp(17.5rem, 100svh - 30rem, 26rem)` tall (measured at
-    1440 × 800; at 1280 × 720 the figure falls about 40px below). **Why
+    the stage is at least `clamp(19rem, 100svh - 29.5rem, 30rem)` tall
+    (measured at 1440 × 800, the figure ending at 789px). **Why
     this shape, the user's calls**: the heading covers the whole search,
     not one problem ("Many applications stop before a person reads them"
     sold screening alone); no numbers in the heading ("Forty tabs, nine

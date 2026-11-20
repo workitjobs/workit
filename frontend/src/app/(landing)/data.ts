@@ -371,8 +371,10 @@ export const heroFits: { title: string; company: string; domain: string; score: 
  */
 export const problems = {
   title: "Applying for jobs has become a full-time job",
-  subtitle:
-    "Hours of searching, retyping and rewriting, for applications that often never hear back.",
+  /** One line under the heading from lg up: on two, with the two-line
+   *  heading, the section's top took a third of the screen and the hub
+   *  looked small under it (the user's catch). */
+  subtitle: "Hours of busywork, for applications that often never hear back.",
   /** In the order a search meets them; `scene` names the visual
    *  problem-scenes.tsx draws for each. The first three stand on the hub's
    *  left, the last three on its right. */
