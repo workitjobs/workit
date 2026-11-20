@@ -19,11 +19,7 @@ screens follow `design.md`, not this file.
    for all four so none stands out, and its mark ringed in white with a
    slate shadow so the mark's pastel squircle stands off the tint. Grey,
    the four read as alike. Never a fade to white: a colour washing to
-   white was the option the user turned down as AI-made. Before the
-   tools collapse fills them, each tile is an empty slot: a dashed
-   outline in its feature's colour at 55% over a 5% wash, with its mark
-   and name (the user's pick of three drawn options, 2026-11-20); the
-   tool screens leaning on the slots stay white and slate. The logo is
+   white was the option the user turned down as AI-made. The logo is
    violet wherever it shows, and What is WorkIt draws it as an app icon
    (`AppIcon`, the user's ask, 2026-11-20): a violet squircle lit from
    above with a frosted sheet and the white figure, its shadows slate.
@@ -209,9 +205,9 @@ white fails on the green). Text there sits on a card or a pill.
 Faint slate hairlines with a small ink square where they cross, as a
 drawing's registration marks, after Loopsii's frames (the user's picks,
 2026-11-20: first for the tools collapse, then "grid frame everywhere").
-Every section between the hero and the footer is framed: the problems
-hub, the tools collapse under "One app for every step of applying" (its
-frame also fills with a grid, `.tools-frame`), each product section,
+Every section between the hero and the footer is framed: What is
+WorkIt, That's why WorkIt exists, "One app for every step of applying"
+and its four tiles, each product section,
 You stay in control and the hiring systems' box. Each frame is two lines
 across the window at the block's top and foot and two down its sides.
 
@@ -300,11 +296,11 @@ the pill painted under the grey and the open tab did not show.
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once
 (`Arrive`); the product sections' rows turn on a timer that a click
-stops; no shine sweeps or glows. The tools collapse (`tools-collapse.tsx`)
-is the one flight on the page and the one pin: the section holds on the
-screen while the scroll flies eight tool cards into the four product
-tiles, then lets go (the user's call, 2026-11-20). Nothing else pins or
-follows the scroll frame by frame.
+stops; no shine sweeps or glows. Nothing pins or follows the scroll frame
+by frame but the entrances (`GrowIn`'s scale, What is WorkIt stepping
+back). A pinned tools collapse into the four product tiles was built and
+taken out the same day (2026-11-20): the user found its examples in the
+way.
 There is no Pause Animations button since the user had it removed, which
 leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 

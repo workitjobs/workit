@@ -484,8 +484,11 @@ export const problems = {
 
 /**
  * The turn from the problems to the product (page.tsx, KAN-923): a plain
- * answer to "Applying for a job shouldn't feel like a full-time job", then why one
- * app beats four (one profile feeds every tool), then each product sold in
+ * answer to "Applying for a job shouldn't feel like a full-time job", then
+ * that a student starts wherever they are, even with no resume (the
+ * Experiences page's intake asks about their experience one thing at a
+ * time, and Generate builds the first resume from it), then each product
+ * sold in
  * one or two short lines on the row of links (`FeatureJumps`). It was
  * "WorkIt is one place for your whole job search", which the user found
  * off, over cards that named each product and the problem it "fixes"
@@ -512,7 +515,11 @@ export const problems = {
 export const featuresIntro = {
   title: "One app for every step of applying",
   subtitle:
-    "Set up your profile once. Every tool below uses it, so you stop typing the same things over and over.",
+    // The user's point (2026-11-20): one platform for every step,
+    // wherever the student stands, even before a first resume. "Set up
+    // your profile once. Every tool below uses it…" was here, and said
+    // nothing a student cares about at this point.
+    "Start wherever you are, even if you don’t have a resume yet.",
   /** Each product's selling line on its link, in `PRODUCTS` order, the
    *  user's picks (2026-11-20): sell what each saves the student, with time
    *  going into quality, never volume. **Even**: the four are close in
@@ -532,35 +539,6 @@ export const featuresIntro = {
     tracker: "The spreadsheet that fills itself in, resumes and all.",
   },
 };
-
-/**
- * The tools a student juggles before WorkIt, which collapse into its four
- * products under "One app for every step of applying" (tools-collapse.tsx,
- * KAN-923). Two per product, `tile` being its index in the tiles' order
- * (Resume Builder, Job Matching, Auto Apply, Application Tracker). Each card
- * draws a piece of the tool's own screen at its worst moment (`SCREENS` in
- * tools-collapse.tsx: the sixth resume file, a LaTeX error, a tab per
- * company, a posting months old, the same answer again, the email pasted
- * again, a sheet with "??", an interview with no company): the student's
- * trouble, never a knock on the tool, and no price, since costs would be a
- * guess. They
- * replaced a line under each name ("Fighting the template"), which the user
- * found boring and which hinted at nothing (2026-11-20).
- */
-export const toolsCollapse = {
-  before: "8 tools",
-  after: "1 app",
-  tools: [
-    { icon: "docs", name: "Google Docs", tile: 0 },
-    { icon: "latex", name: "Overleaf", tile: 0 },
-    { icon: "careers", name: "Careers pages", tile: 1 },
-    { icon: "sites", name: "Job sites", tile: 1 },
-    { icon: "notes", name: "Notes app", tile: 2 },
-    { icon: "clipboard", name: "Copy and paste", tile: 2 },
-    { icon: "sheet", name: "Google Sheets", tile: 3 },
-    { icon: "calendar", name: "Calendar", tile: 3 },
-  ],
-} as const;
 
 /**
  * The promises behind the product (control.tsx, KAN-923), the worry any

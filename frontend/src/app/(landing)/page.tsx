@@ -9,6 +9,7 @@ import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 import { SecondaryButton } from "./buttons";
 import { Control } from "./control";
 import { featuresIntro, hero, homeDescription, site, testimonial } from "./data";
+import { DraftLines } from "./draft-lines";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HiringGrid } from "./hiring-grid";
@@ -127,28 +128,27 @@ export default function LandingPage() {
 
       <WhyExists />
 
-      {/* WorkIt's answer to the problems: one app, why one profile beats
-          four tools, and the four products, each with its selling line, as
-          links to their sections below (FeatureJumps, product-sections.tsx).
-          The turn from the problems to the product (the user's ask,
-          2026-11-20); it never promises replies or interviews. A tabs row over a large card was here, telling the
-          four products' stories that the product sections tell again below,
-          and the line under the heading repeated the hero's: both went with
-          the web review. hero-features.tsx stays, unmounted. */}
-      {/* From lg up with motion the section pins while the scroll plays
-          the tools collapse (tools-collapse.tsx); its stage centres the
-          heading and the frame on the screen, so it needs no padding. */}
-      <section aria-labelledby="features-title" className="py-16 sm:py-24 lg:motion-safe:py-0">
+      {/* WorkIt's answer to the problems: one app for every step, wherever
+          the student starts, and the four products, each with its selling
+          line, as links to their sections below (FeatureJumps,
+          product-sections.tsx), framed like every section. The turn from the
+          problems to the product (the user's ask, 2026-11-20); it never
+          promises replies or interviews. A tabs row over a large card was
+          here, telling the four products' stories that the product sections
+          tell again below, and the line under the heading repeated the
+          hero's: both went with the web review. hero-features.tsx stays,
+          unmounted. */}
+      <section aria-labelledby="features-title" className="py-16 sm:py-24">
         <div className={CONTAINER}>
-          <FeatureJumps
-            heading={
-              <SectionHeading
-                id="features-title"
-                title={featuresIntro.title}
-                subtitle={featuresIntro.subtitle}
-              />
-            }
-          />
+          <div className="relative">
+            <DraftLines gap="1.5rem" />
+            <SectionHeading
+              id="features-title"
+              title={featuresIntro.title}
+              subtitle={featuresIntro.subtitle}
+            />
+            <FeatureJumps />
+          </div>
         </div>
       </section>
 

@@ -337,8 +337,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     bare ground. **No scene fills the screen**, as on Calendly, whose
     animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own. Nothing on the home
-    page pins but the tools collapse (below, the user's call): the
-    product sections did, until 2026-11-20 (below).
+    page pins: the product sections did, until 2026-11-20 (below), and so
+    did the tools collapse for a day (below).
   - **The hero is the first screen and nothing else** (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
@@ -445,55 +445,27 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
   - **WorkIt's answer, after the problems**: a short section, "One app
-    for every step of applying", then one line on why one app beats four
-    ("Set up your profile once. Every tool below uses it, so you stop
-    typing the same things over and over."), then the four products as a
-    row of flat tiles, each in its feature's pale tint with its mark
-    ringed in white (`FeatureJumps`; grey, the four read as alike, the
-    user's call, 2026-11-20). **The tiles arrive as the tools they
-    replace collapse into them** (`tools-collapse.tsx`, `toolsCollapse` in
-    data.ts, after Loopsii's "your whole stack, in one app", the user's
-    pick, 2026-11-20): from lg up, the four products start as empty
-    slots on a drafting grid (each tile's `data-ghost`: a dashed outline
-    in its colour, its mark and name), and the eight tools a student
-    juggles (Google Docs and Overleaf, careers pages and job sites, a
-    notes app and copy and paste, Google Sheets and a calendar) lean on
-    them two by two, one over each slot's top edge and one over its foot,
-    leaving the mark and name in view. **Each card is a piece of the
-    tool's own screen at its worst moment** (`SCREENS`: the sixth resume
-    file, a LaTeX error, a tab per company, a posting months old, the
-    same question again, the email pasted again, a sheet with "??", an
-    interview with no company), the user's pick of three drawn options
-    (2026-11-20): plain cards with a line each were boring and hinted at
-    nothing of how they become the four products. **The section pins and the scroll
-    drives the collapse** (the user's call, 2026-11-20, the home page's
-    one pin and the one exception to "Scroll cues, time plays"): the
-    heading and the frame stay centred on the screen (`.tools-stage`,
-    sticky) while the page scrolls 120svh (`.tools-pin`), and over that
-    stretch the cards hold still, then each pair flies into the product
-    that replaces it, the tile comes up as its last card lands, the count
-    turns from "8 tools" to "1 app", and it rests finished before the page
-    moves on; scrolling back plays it backwards. Played in time on
-    arrival, it ran before the reader had looked at the scattered tools,
-    even with a hold. The poses are set by script from `useScroll`, one
-    per element per scroll frame (transforms and opacity, `HOLD`, `FLY`
-    and the rest in tools-collapse.tsx). The pin's height and the
-    frame's padding (6.5rem each way) are CSS, so the server's HTML has
-    the room and `/#resumes` and the other anchors below still land; the
-    stage centres its 656px of heading and frame, so the section has no
-    padding there. Below lg and with reduced motion there is no pin and
-    the tiles show as they are; without script the cards stay hidden and
-    the pinned stretch stands still. Each card flies to its
-    tile's centre, measured from the layout on every resize, with each
-    offset summed up to the frame (`offsetIn`): a tile's own offset is
-    from the list, which is `relative`, so the cards aimed 6.5rem above
-    their tiles until 2026-11-20. The ul is
-    `relative` so the tiles paint over the grid (as a static block they
-    sat under the absolutely placed frame, and its lines crossed their
-    text). The screens show the student's trouble, never a knock on the
-    tool, and name no price; at 1024 each line fits one row ("Pasted
-    again" and the question wrapped). Each tile has its mark, its name, **a
-    selling line that says what the product does** and "See how", a
+    for every step of applying", then one line on where to start ("Start
+    wherever you are, even if you don't have a resume yet."), then the four
+    products as a row of flat tiles, each in its feature's pale tint with
+    its mark ringed in white (`FeatureJumps`; grey, the four read as alike,
+    the user's call, 2026-11-20), in the drafting grid's frame. **The point
+    is one platform for every step, wherever the student stands** (the
+    user's words, 2026-11-20): a student with no resume starts on
+    Experiences, whose intake asks about their experience one thing at a
+    time, and Generate builds the first resume from it. The line was "Set
+    up your profile once. Every tool below uses it, so you stop typing the
+    same things over and over.", which the user found meant nothing to a
+    student here. **No examples before the tiles** (the user's call,
+    2026-11-20): for a day eight tool cards (Google Docs and Overleaf,
+    careers pages and job sites, a notes app and copy and paste, Google
+    Sheets and a calendar), each a piece of the tool's screen, leaned on
+    the four products' empty slots and flew into them while the section
+    pinned and the scroll drove the collapse, after Loopsii's "your whole
+    stack, in one app". The user found them in the way, serving no
+    purpose next to the four products; the code is in git history
+    (`tools-collapse.tsx`, up to f430254f). Each tile has its mark, its name, **a
+selling line that says what the product does** and "See how", a
     `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
     `/#tracker`, the product sections' ids). The heading, the line and the
     four selling lines are `featuresIntro` in data.ts, each claim tied to
@@ -1609,12 +1581,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own
-  (since 2026-11-20 nothing on the home page pins but the tools collapse,
-  and the product sections' rows turn on a timer; the rule holds for any
-  scene that returns). **The tools collapse is the one exception**: the
-  user asked for it pinned and scrubbed by the scroll (2026-11-20), so the
-  reader stays on it until the scroll finishes it;
-  the scroll only takes the reader to the next phase. The team disliked
+  (since 2026-11-20 nothing on the home page pins, and the product
+  sections' rows turn on a timer; the rule holds for any scene that
+  returns); the scroll only takes the reader to the next phase. A pinned,
+  scrubbed tools collapse, the user's ask, was the one exception for a day
+  (2026-11-20), and went with its section's examples. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two
   stops, the coin ring standing still). So:
