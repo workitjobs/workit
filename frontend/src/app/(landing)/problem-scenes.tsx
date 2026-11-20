@@ -1,21 +1,42 @@
-import { WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
-import type { CSSProperties } from "react";
+import { FileTextIcon, WarningIcon } from "@phosphor-icons/react/ssr";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { logoStrip, problems } from "./data";
+import { logoStrip } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
 import { delay, Panel } from "./scene-parts";
 
 /**
- * The three screens of the problems section (problems.tsx, problem-tabs.tsx,
- * KAN-923), each in the wide flat frame. Mock UI of the search as it is,
- * before WorkIt, so nothing here is violet. Each plays once as it shows
- * (the `.journey-*` and `.scan-*` classes), finished without script and
- * with reduced motion. All are `aria-hidden`: the problem cards beside them
- * say what they show.
+ * The six visuals at the centre of the problems hub (problems.tsx,
+ * problem-hub.tsx, KAN-923): one thing a job seeker really sees at each
+ * point of a search, drawn as plain UI at about true size, centred on the
+ * hub's flat grey stage. Mock UI of the search as it is, before WorkIt, so
+ * nothing here is violet. Each plays once as it shows, its parts coming in
+ * one after another (the `.journey-*` classes, held by the stage's
+ * `data-arrived`), and is drawn finished without script and with reduced
+ * motion. All are `aria-hidden`: the problem beside them says what they
+ * show. They replaced a clickable frame of three wide screens and, before
+ * that, a screening machine, which the user found AI-made: a scan line is a
+ * process nobody sees, and these are moments everybody has.
  */
+
+/** Every visual's window: centred on the stage, one width. */
+function Window({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      // Safe centring: a window taller than a short stage keeps its top in
+      // view and is cut at the stage's foot, not at both ends.
+      className="absolute inset-0 grid [place-items:safe_center] p-4 sm:p-6"
+    >
+      <Panel className={cn("journey-in w-full max-w-[22rem] overflow-hidden", className)}>
+        {children}
+      </Panel>
+    </div>
+  );
+}
 
 /** Three window dots, as a desktop window's title bar has. */
 function Dots() {
@@ -28,422 +49,328 @@ function Dots() {
   );
 }
 
-/** Where a window stands: centred, its top inset, its foot cut by the
- *  frame. Each window is at least 34rem tall, taller than the frame at
- *  every width, so its foot never shows. */
-const STAGE = "absolute inset-x-0 top-0 px-3 pt-6 sm:px-10 sm:pt-10";
-
-/** A phrase the screen marks as it reads: a keyword it looks for, or a
- *  line that reads as generic. `at` is seconds into the document's turn,
- *  just after the scan line passes it. */
-type Marked = { mark: string; tone: "match" | "generic"; at: number };
-type Line = readonly (string | Marked)[];
-
-/** The student's one resume, sent to every posting: three of the posting's
- *  six keywords, and a line any resume could hold. */
-const RESUME: { head: string; sub: string; sections: { title: string; lines: Line[] }[] } = {
-  head: "Alex Morgan",
-  sub: "Northview University · Computer Science",
-  sections: [
-    {
-      title: "Experience",
-      lines: [
-        ["Built a budget app with ", { mark: "React", tone: "match", at: 1.0 }],
-        [{ mark: "Hard-working team player", tone: "generic", at: 1.1 }],
-        [
-          "Analyzed survey data with ",
-          { mark: "Python", tone: "match", at: 1.18 },
-          " and ",
-          { mark: "SQL", tone: "match", at: 1.2 },
-        ],
-        ["Made a website for a student club"],
-      ],
-    },
-    {
-      title: "Skills",
-      lines: [
-        ["Excel, Microsoft Office, ", { mark: "detail-oriented", tone: "generic", at: 1.45 }],
-      ],
-    },
-  ],
-};
-
-/** The cover letter that goes out with it: the same words any letter has. */
-const LETTER: Line[] = [
-  ["Dear Hiring Manager,"],
-  [
-    { mark: "I am writing to express my interest", tone: "generic", at: 0.8 },
-    " in the position at your company.",
-  ],
-  [
-    "I am a ",
-    { mark: "passionate team player", tone: "generic", at: 1.0 },
-    " who loves technology.",
-  ],
-  [{ mark: "I would be a great fit", tone: "generic", at: 1.16 }, " for your team."],
-  [{ mark: "Thank you for your time and consideration.", tone: "generic", at: 1.28 }],
-  ["Sincerely,"],
-  ["Alex Morgan"],
+/** One company's open roles, as its own job board lists them: every team
+ *  and level, some open for months, and the one that fits in among them. */
+const ROLES = [
+  { title: "Staff Software Engineer, Payments", age: "4 months ago" },
+  { title: "Senior Data Scientist, Risk", age: "2 days ago" },
+  { title: "Engineering Manager, Billing", age: "6 months ago" },
+  { title: followedJob.title, age: "3 weeks ago" },
+  { title: "Account Executive, Enterprise", age: "5 months ago" },
+  { title: "Solutions Architect", age: "1 year ago" },
 ];
 
-/** What the screen reads, one at a time: the resume, its cover letter, the
- *  resume again for the next posting, where it rests. */
-const DOCS = [
-  { paper: "resume", verdict: "3 of 6 keywords" },
-  { paper: "letter", verdict: "Reads as generic" },
-  { paper: "resume", verdict: "3 of 6 keywords" },
-] as const;
-
-/**
- * Screened out: one application at a time comes into a hiring system's
- * screen, a scan line reads it top to bottom, marking the keywords it
- * looks for and the lines that read as generic, and it is flagged Not
- * moved forward and swiped away; the next comes in. The last, the resume,
- * rests marked with its verdict. The verdict is a red disc with a white X
- * set on the page, turned a little, and under the page a caution chip (the
- * keyword count, or "Reads as generic") beside the red Not moved forward:
- * as two white and pale pills the verdict blended into the Screening
- * label above it and was hard to read as a no (the user's catch,
- * 2026-11-20). From lg up the applications waiting sit
- * on its left and the ones it turned away pile up on its right, so it
- * reads as a machine that keeps going; each document comes off the one and
- * lands on the other (`.scan-*` in landing.css reads their spacing). Below
- * lg a document leaves off the frame's edge. Inspired by the archived statement's
- * marked phrases, without its art: no bin, rubber stamp or crumpled page
- * (the team found those AI-made); the X disc is a flat UI mark, the user's
- * ask. It never shows a document passing: the site
- * never promises that. Timing: `.scan-*` in landing.css, one 3.6s turn per
- * document.
- */
-export function ScreenScene() {
+/** Jobs scattered everywhere: a browser of company job board tabs opening
+ *  one after another, the open board listing every role at every level. */
+export function BoardsScene() {
+  const tabs = logoStrip.employers.slice(0, 4);
   return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 flex items-center justify-center gap-10 px-4 pt-4 pb-16"
-    >
-      <Pile label="Waiting" count={211} />
-      <div className="flex h-full max-h-[22rem] w-full max-w-[17rem] flex-col items-center">
-        <span className="text-ink-muted inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold shadow-[var(--mk-shadow-float)]">
-          <span className="size-1.5 rounded-full bg-slate-400" />
-          Screening · {problems.screen.role}
-        </span>
-        <div className="relative mt-3 w-full flex-1">
-          <Corners />
-          {DOCS.map((doc, i) => (
-            <div
-              key={i}
-              className={cn(
-                "scan-anim absolute inset-2.5",
-                i === DOCS.length - 1 ? "scan-doc-last" : "scan-doc",
-              )}
-              style={{ "--i": i } as CSSProperties}
-            >
-              <div className="h-full overflow-hidden rounded-md bg-white p-4 shadow-[var(--mk-shadow-float)]">
-                {doc.paper === "resume" ? <ResumePaper /> : <LetterPaper />}
-              </div>
-              {/* The no, set on the page's corner as the verdict comes up: over the page, it hid the line under the name. */}
-              <span className="scan-anim scan-stamp bg-danger absolute -top-2 -right-2 grid size-11 place-items-center rounded-full text-white shadow-[var(--mk-shadow-float)] ring-4 ring-white">
-                <XIcon weight="bold" className="size-5" />
-              </span>
-              <div className="scan-anim scan-verdict absolute inset-x-0 -bottom-3 flex justify-center gap-1.5">
-                <span className="bg-warning-tint text-warning inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
-                  <WarningIcon weight="fill" className="size-3.5" />
-                  {doc.verdict}
-                </span>
-                <span className="bg-danger inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white shadow-[var(--mk-shadow-float)]">
-                  Not moved forward
-                </span>
-              </div>
-            </div>
-          ))}
-          <div className="pointer-events-none absolute inset-2.5 overflow-hidden rounded-md">
-            <div className="scan-anim scan-line absolute inset-0">
-              <span className="absolute inset-x-0 top-0 h-8 -translate-y-full bg-linear-to-t from-slate-500/15 to-transparent" />
-              <span className="absolute inset-x-0 top-0 h-0.5 bg-slate-500/60" />
-            </div>
-          </div>
-        </div>
-      </div>
-      <Pile label="Not moved forward" count={186} out />
-    </div>
-  );
-}
-
-/** Each paper in a pile: turned a little, offset, so the pile reads as
- *  several. */
-const STACKED = [
-  { x: -6, y: 6, r: -4 },
-  { x: 5, y: 2, r: 3 },
-  { x: 0, y: 0, r: -1 },
-];
-
-/**
- * A pile of applications beside the screen, from lg up: the ones waiting on
- * its left, the ones it turned away on its right (`out`, greyed, its count
- * in the danger colour). Blank pages with lines for text: what matters is
- * how many.
- */
-function Pile({ label, count, out = false }: { label: string; count: number; out?: boolean }) {
-  return (
-    <div className="flex h-full max-h-[18rem] w-[11rem] shrink-0 flex-col items-center justify-center max-lg:hidden">
-      <div className="relative min-h-0 w-full flex-1">
-        {STACKED.map((paper) => (
+    <Window>
+      <div className="flex items-end gap-1 bg-slate-900/[0.04] px-2 pt-2">
+        {tabs.map((employer, i) => (
           <span
-            key={paper.r}
+            key={employer.domain}
             className={cn(
-              "absolute inset-0 grid content-start gap-1.5 rounded-md p-3.5 shadow-[var(--mk-shadow-float)]",
-              out ? "bg-slate-50" : "bg-white",
+              "journey-in flex min-w-0 flex-1 items-center gap-1.5 rounded-t-md px-2 py-1.5",
+              i === 0 && "bg-white",
             )}
-            style={{ translate: `${paper.x}px ${paper.y}px`, rotate: `${paper.r}deg` }}
+            style={delay(0.15 + i * 0.12)}
           >
-            <span className="mx-auto mb-1 block h-2 w-1/2 rounded-full bg-slate-900/15" />
-            {[100, 90, 95, 70, 85, 60].map((width, i) => (
-              <span
-                key={i}
-                className="block h-1.5 rounded-full bg-slate-900/[0.08]"
-                style={{ width: `${width}%` }}
-              />
-            ))}
+            <FaviconLogo domain={employer.domain} className="size-4 rounded-[4px] shadow-none" />
+            <span className="text-ink-muted truncate text-[11px]">{employer.name} Careers</span>
           </span>
         ))}
-      </div>
-      <p className="mt-4 shrink-0 text-center text-[11px] leading-tight">
         <span
-          className={cn(
-            "block text-[15px] font-semibold tabular-nums",
-            out ? "text-danger" : "text-ink",
-          )}
+          className="journey-in text-ink-meta shrink-0 px-2 pb-1.5 text-[11px]"
+          style={delay(0.7)}
         >
-          {count}
+          + more
         </span>
-        <span className="text-ink-meta">{label}</span>
-      </p>
-    </div>
+      </div>
+      <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-3 py-2">
+        <Dots />
+        <span className="bg-well text-ink-meta ml-1 flex-1 truncate rounded-full px-3 py-1 text-[11px]">
+          {followedJob.domain}/jobs
+        </span>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-ink text-[13px] font-semibold">Open roles</p>
+        <ul className="mt-2">
+          {ROLES.map((role, i) => (
+            <li
+              key={role.title}
+              className="journey-in flex items-baseline gap-3 border-t border-slate-900/[0.05] py-1.5"
+              style={delay(0.8 + i * 0.07)}
+            >
+              <span className="text-ink truncate text-[12px]">{role.title}</span>
+              <span className="text-ink-meta ml-auto shrink-0 text-[11px]">{role.age}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Window>
   );
 }
 
-/** The screen's frame: four corner marks round the document it reads. */
-function Corners() {
-  const corner = "absolute size-4 border-slate-900/30";
-  return (
-    <>
-      <span className={cn(corner, "top-0 left-0 rounded-tl-md border-t-2 border-l-2")} />
-      <span className={cn(corner, "top-0 right-0 rounded-tr-md border-t-2 border-r-2")} />
-      <span className={cn(corner, "bottom-0 left-0 rounded-bl-md border-b-2 border-l-2")} />
-      <span className={cn(corner, "right-0 bottom-0 rounded-br-md border-r-2 border-b-2")} />
-    </>
-  );
-}
-
-/** A line of a document, its marked phrases tinted as the scan passes. */
-function Words({ line }: { line: Line }) {
-  return line.map((part, i) =>
-    typeof part === "string" ? (
-      <span key={i}>{part}</span>
-    ) : (
-      <span
-        key={i}
-        className={cn(
-          "scan-anim scan-mark rounded-[3px] px-0.5",
-          part.tone === "match"
-            ? "[--mark:var(--color-positive-tint)]"
-            : "[--mark:var(--color-danger-tint)]",
-        )}
-        style={{ "--t": `${part.at}s` } as CSSProperties}
-      >
-        {part.mark}
-      </span>
-    ),
-  );
-}
-
-function ResumePaper() {
-  return (
-    <div className="text-ink text-[10.5px] leading-[1.55]">
-      <p className="text-center text-[13px] font-semibold">{RESUME.head}</p>
-      <p className="text-ink-meta text-center text-[10px]">{RESUME.sub}</p>
-      {RESUME.sections.map((section) => (
-        <div key={section.title} className="mt-3">
-          <p className="text-ink-meta border-b border-slate-900/10 pb-0.5 text-[9px] font-semibold tracking-[0.08em] uppercase">
-            {section.title}
-          </p>
-          <ul className="mt-1.5 grid gap-1">
-            {section.lines.map((line, i) => (
-              <li key={i} className="flex gap-1.5">
-                <span className="text-ink-meta">•</span>
-                <span>
-                  <Words line={line} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LetterPaper() {
-  return (
-    <div className="text-ink grid gap-2 text-[10.5px] leading-[1.55]">
-      {LETTER.map((line, i) => (
-        <p key={i}>
-          <Words line={line} />
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/** The companies whose forms the student fills, one after another. */
-const FORMS = [
-  { company: "Stripe", domain: "stripe.com" },
-  { company: "Notion", domain: "notion.so" },
-  { company: "Figma", domain: "figma.com" },
+/** The resume, saved again for each job. */
+const FILES = [
+  { name: "Resume.pdf", date: "Aug 2" },
+  { name: "Resume_final.pdf", date: "Sep 14" },
+  { name: "Resume_final_v2.pdf", date: "Sep 15" },
+  { name: "Resume_Stripe.pdf", date: "Oct 3" },
+  { name: "Resume_Figma_NEW.pdf", date: "Oct 9" },
+  { name: "Resume_FINAL (1).pdf", date: "Today" },
 ];
 
-/** The same questions on every company's form, answered the same way. */
-const FIELDS = [
-  { label: "First name", value: "Alex" },
-  { label: "Last name", value: "Morgan" },
-  { label: "School", value: "Northview University" },
-  { label: "Graduation date", value: "May 2027" },
-  { label: "Work experience", value: null },
-  { label: "Why this company?", value: null },
-];
+/** A new resume for every job: a folder of resume versions, one more
+ *  saved each time, the newest selected. */
+export function ResumesScene() {
+  return (
+    <Window>
+      <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-3 py-2.5">
+        <Dots />
+        <span className="text-ink ml-1 text-[12px] font-semibold">Applications</span>
+        <span className="text-ink-meta ml-auto text-[11px]">{FILES.length} items</span>
+      </div>
+      <div className="text-ink-meta grid grid-cols-[minmax(0,1fr)_4.5rem] px-3 pt-2 pb-1 text-[10px] font-semibold tracking-[0.06em] uppercase">
+        <span>Name</span>
+        <span>Modified</span>
+      </div>
+      <ul className="px-1.5 pb-2">
+        {FILES.map((file, i) => {
+          const last = i === FILES.length - 1;
+          return (
+            <li
+              key={file.name}
+              className={cn(
+                "journey-in grid grid-cols-[minmax(0,1fr)_4.5rem] items-center rounded-md px-1.5 py-1.5",
+                last && "bg-advanced-tint",
+              )}
+              style={delay(0.2 + i * 0.16)}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <FileTextIcon weight="fill" className="text-danger size-4 shrink-0" />
+                <span className="text-ink truncate text-[12px]">{file.name}</span>
+              </span>
+              <span className="text-ink-meta text-[11px]">{file.date}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </Window>
+  );
+}
 
-/**
- * The same form, again: three companies' application forms side by side,
- * the same six questions on each, typed in one form after another with the
- * same answers. Below lg they run off the frame's right edge: more forms
- * waiting.
- */
+/** A hiring system's steps to apply, the third open. */
+const STEPS = ["Account", "Resume", "My experience", "Questions"];
+
+/** The same form, every time: the resume uploaded, and the form asking for
+ *  the work history the resume already holds. */
 export function FormsScene() {
   return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-x-0 top-0 flex justify-start gap-4 px-5 pt-6 sm:px-10 sm:pt-10 lg:justify-center"
-    >
-      {FORMS.map((form, f) => (
-        <Panel
-          key={form.company}
-          // Taller than the frame, so the frame's foot cuts every form.
-          className="journey-in min-h-[34rem] w-[15.5rem] shrink-0 rounded-b-none p-4"
-          style={delay(0.1 + f * 0.1)}
-        >
-          <div className="flex items-center gap-2">
-            <FaviconLogo domain={form.domain} className="size-6 rounded-md" />
-            <span className="text-ink text-[12px] font-semibold">Apply to {form.company}</span>
+    <Window className="p-4">
+      <p className="text-ink truncate text-[13px] font-semibold">Apply for {followedJob.title}</p>
+      <ol className="mt-3 grid grid-cols-4 gap-1">
+        {STEPS.map((step, i) => (
+          <li key={step} className="grid gap-1">
+            <span
+              className={cn(
+                "block h-1 rounded-full",
+                i < 2 ? "bg-ink" : i === 2 ? "bg-ink/40" : "bg-slate-900/10",
+              )}
+            />
+            <span
+              className={cn(
+                "truncate text-[10px]",
+                i === 2 ? "text-ink font-semibold" : "text-ink-meta",
+              )}
+            >
+              {step}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div
+        className="journey-in bg-warning-tint text-warning mt-4 flex items-start gap-2 rounded-lg px-2.5 py-2 text-[11px] leading-snug font-medium"
+        style={delay(0.5)}
+      >
+        <WarningIcon weight="fill" className="mt-px size-3.5 shrink-0" />
+        Resume uploaded. Please enter your work experience below.
+      </div>
+      <div className="mt-3 grid gap-2.5">
+        {["Job title", "Company", "Role description"].map((label, i) => (
+          <div key={label} className="journey-in" style={delay(0.8 + i * 0.12)}>
+            <p className="text-ink-meta text-[10px] font-medium">{label}</p>
+            <span
+              className={cn(
+                "mt-1 block rounded-md ring-1 ring-slate-900/15",
+                label === "Role description" ? "h-10" : "h-6",
+              )}
+            />
           </div>
-          <div className="mt-3 grid gap-2.5">
-            {FIELDS.map((field, i) => (
-              <div key={field.label}>
-                <p className="text-ink-meta text-[10px] font-medium">{field.label}</p>
-                <div
-                  className={cn(
-                    "bg-well mt-1 flex items-center rounded-md px-2",
-                    field.value ? "h-6" : "h-10 items-start py-1.5",
-                  )}
-                >
-                  <span className="journey-in w-full" style={delay(0.5 + f * 0.9 + i * 0.12)}>
-                    {field.value ? (
-                      <span className="text-ink text-[11px]">{field.value}</span>
-                    ) : (
-                      <span className="grid gap-1">
-                        <span className="block h-1.5 w-full rounded-full bg-slate-900/15" />
-                        <span className="block h-1.5 w-3/4 rounded-full bg-slate-900/15" />
-                      </span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ))}
-    </div>
+        ))}
+      </div>
+    </Window>
   );
 }
 
-/** One company's open roles, as its own job board lists them: every team
- *  and level in one list, and the one that fits the student in among them. */
-const ROLES = [
-  { title: "Staff Software Engineer, Payments", place: "San Francisco, Seattle" },
-  { title: "Senior Data Scientist, Risk", place: "New York" },
-  { title: "Engineering Manager, Billing", place: "San Francisco" },
-  { title: "Senior Product Designer", place: "Remote in US" },
-  { title: followedJob.title, place: "San Francisco, New York" },
-  { title: "Account Executive, Enterprise", place: "Chicago" },
-  { title: "Solutions Architect", place: "Dublin" },
-  { title: "Senior Backend Engineer, Ledger", place: "Seattle" },
+/** “Why do you want to work here?”: one more written question on one more
+ *  form, its box empty, the cursor waiting. */
+export function QuestionScene() {
+  return (
+    <Window className="p-4">
+      <div className="flex items-center gap-2">
+        <FaviconLogo domain="notion.so" className="size-5 rounded-md" />
+        <span className="text-ink text-[12px] font-semibold">Apply to Notion</span>
+        <span className="text-ink-meta ml-auto text-[11px]">Question 3 of 5</span>
+      </div>
+      <p className="text-ink mt-4 text-[13px] font-medium">
+        Why do you want to work at Notion? <span className="text-danger">*</span>
+      </p>
+      <div
+        className="journey-in mt-2 h-28 rounded-lg p-2.5 ring-2 ring-slate-900/70"
+        style={delay(0.3)}
+      >
+        <span className="caret-blink bg-ink inline-block h-3.5 w-px" />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[11px]">
+        <span className="text-ink-meta">Required</span>
+        <span className="text-ink-meta tabular-nums">0 / 500</span>
+      </div>
+    </Window>
+  );
+}
+
+/** The applications spreadsheet, eighty rows in, the last ones unsure. */
+const ROWS = [
+  { n: 78, company: "Ramp", status: "Applied", resume: "v3", unsure: false },
+  { n: 79, company: "Duolingo", status: "Rejected", resume: "?", unsure: true },
+  { n: 80, company: "Plaid", status: "No reply", resume: "v5", unsure: false },
+  { n: 81, company: "Datadog", status: "Interview?", resume: "FINAL (1)", unsure: true },
+  { n: 82, company: "Figma", status: "??", resume: "which one", unsure: true },
+  { n: 83, company: "Notion", status: "", resume: "", unsure: false },
 ];
 
-/**
- * Good jobs, scattered: a browser crowded with company job board tabs, one
- * tab after another opening, and the open one, followed Stripe's, listing
- * every role at every level with the internship that fits somewhere in the
- * middle, marked by nothing.
- */
-export function BoardsScene() {
-  const tabs = logoStrip.employers.slice(0, 9);
+const SHEET = "grid grid-cols-[2rem_minmax(0,1fr)_5.5rem_5rem]";
+const CELL = "border-b border-r border-slate-900/[0.06] px-2 py-1.5";
+
+/** A tracker that’s never current: the student's own spreadsheet, statuses
+ *  guessed and the resume each went with unknown, the newest row empty. */
+export function TrackerScene() {
   return (
-    <div aria-hidden="true" className={STAGE}>
-      <Panel className="mx-auto min-h-[34rem] w-full max-w-[46rem] overflow-hidden rounded-b-none">
-        <div className="flex items-end gap-1 bg-slate-900/[0.04] px-2 pt-2">
-          {tabs.map((employer, i) => (
-            <span
-              key={employer.domain}
-              className={cn(
-                "journey-in flex min-w-0 flex-1 items-center gap-1.5 rounded-t-md px-2 py-1.5",
-                i === 0 && "bg-white",
-                i > 2 && "max-sm:hidden",
-                i > 4 && "max-lg:hidden",
-              )}
-              style={delay(0.1 + i * 0.12)}
-            >
-              <FaviconLogo domain={employer.domain} className="size-4 rounded-[4px] shadow-none" />
-              <span className="text-ink-muted truncate text-[11px]">{employer.name} Careers</span>
+    <Window>
+      <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-3 py-2.5">
+        <Dots />
+        <span className="text-ink ml-1 text-[12px] font-semibold">Job search 2026</span>
+        <span className="text-ink-meta ml-auto text-[11px]">Sheet1</span>
+      </div>
+      <div className="text-[11px]">
+        <div className={cn(SHEET, "text-ink-meta bg-slate-900/[0.03]")}>
+          {["", "Company", "Status", "Resume"].map((head) => (
+            <span key={head} className={CELL}>
+              {head}
             </span>
           ))}
-          <span
-            className="journey-in text-ink-meta shrink-0 px-2 pb-1.5 text-[11px] tabular-nums"
-            style={delay(1.2)}
-          >
-            +31
-          </span>
         </div>
-        <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-3 py-2">
-          <Dots />
-          <span className="bg-well text-ink-meta ml-1 flex-1 truncate rounded-full px-3 py-1 text-[11px]">
-            {followedJob.domain}/jobs/search
-          </span>
-        </div>
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-ink text-[15px] font-semibold">Open roles</span>
-            <span className="text-ink-meta ml-auto rounded-md px-2 py-0.5 text-[11px] ring-1 ring-slate-900/10">
-              All teams
+        {ROWS.map((row, i) => (
+          <div key={row.n} className={cn(SHEET, "journey-in")} style={delay(0.2 + i * 0.12)}>
+            <span className={cn(CELL, "text-ink-meta bg-slate-900/[0.03] tabular-nums")}>
+              {row.n}
             </span>
-            <span className="text-ink-meta rounded-md px-2 py-0.5 text-[11px] ring-1 ring-slate-900/10">
-              All locations
+            <span className={cn(CELL, "text-ink")}>{row.company}</span>
+            <span
+              className={cn(
+                CELL,
+                row.status === "Rejected" ? "text-danger" : "text-ink",
+                row.unsure && "bg-[#fff6cc]",
+              )}
+            >
+              {row.status}
+            </span>
+            <span
+              className={cn(CELL, "text-ink truncate border-r-0", row.unsure && "bg-[#fff6cc]")}
+            >
+              {row.resume}
+              {row.n === 83 && (
+                <span className="caret-blink bg-ink inline-block h-3 w-px align-middle" />
+              )}
             </span>
           </div>
-          <ul className="mt-3">
-            {ROLES.map((role, i) => (
-              <li
-                key={role.title}
-                className="journey-in flex items-baseline gap-3 border-t border-slate-900/[0.05] py-2"
-                style={delay(1 + i * 0.06)}
+        ))}
+      </div>
+    </Window>
+  );
+}
+
+/** The inbox: a rejection lands minutes after applying, above an older one
+ *  and an application that never heard back. */
+const MAIL = [
+  {
+    from: "Stripe Recruiting",
+    subject: `Your application to ${followedJob.title}`,
+    preview: "After careful review, we have decided to move forward with other candidates…",
+    when: "11:47 PM",
+    chip: { text: "Minutes after you applied", tone: "bg-danger-tint text-danger" },
+  },
+  {
+    from: "Datadog Careers",
+    subject: "An update on your application",
+    preview: "Thank you for your interest. Unfortunately…",
+    when: "Tue",
+    chip: null,
+  },
+  {
+    from: "Notion",
+    subject: "We received your application",
+    preview: "We will be in touch if your experience matches…",
+    when: "Oct 28",
+    chip: { text: "No update since", tone: "text-ink-muted bg-slate-900/[0.06]" },
+  },
+];
+
+/** Turned down, or no reply: the inbox after a week of applying, the
+ *  newest rejection coming in on top. */
+export function RepliesScene() {
+  return (
+    <Window>
+      <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-3 py-2.5">
+        <Dots />
+        <span className="text-ink ml-1 text-[12px] font-semibold">Inbox</span>
+      </div>
+      <ul>
+        {MAIL.map((mail, i) => (
+          <li
+            key={mail.from}
+            className={cn(
+              "journey-in border-b border-slate-900/[0.05] px-3 py-2.5 last:border-b-0",
+              i === 0 && "bg-slate-900/[0.02]",
+            )}
+            // The newest comes in last, on top of the others.
+            style={delay(i === 0 ? 0.9 : 0.15 + i * 0.15)}
+          >
+            <div className="flex items-baseline gap-2">
+              <span className={cn("text-ink truncate text-[12px]", i === 0 && "font-semibold")}>
+                {mail.from}
+              </span>
+              <span className="text-ink-meta ml-auto shrink-0 text-[11px]">{mail.when}</span>
+            </div>
+            <p className={cn("text-ink mt-0.5 truncate text-[11.5px]", i === 0 && "font-medium")}>
+              {mail.subject}
+            </p>
+            <p className="text-ink-meta mt-0.5 truncate text-[11px]">{mail.preview}</p>
+            {mail.chip && (
+              <span
+                className={cn(
+                  "mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                  mail.chip.tone,
+                )}
               >
-                <span className="text-ink truncate text-[12px] font-medium">{role.title}</span>
-                <span className="text-ink-meta ml-auto shrink-0 text-[11px] max-sm:hidden">
-                  {role.place}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Panel>
-    </div>
+                {mail.chip.text}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Window>
   );
 }

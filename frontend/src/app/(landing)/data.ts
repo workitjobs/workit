@@ -346,62 +346,74 @@ export const heroFits: { title: string; company: string; domain: string; score: 
 ];
 
 /**
- * Where applications get lost (problems.tsx, KAN-923), the page's why
- * before its how, in the market's terms: the user asked for the common
- * problems with applying, the hiring system's screen first. Each problem
- * says what goes wrong, then one line on what WorkIt does about it. The
- * market claims are hedged ("many", "often"), as the archived statement's
- * were, and never a statistic WorkIt cannot back; no line promises to get a
- * resume past a hiring system. WorkIt's lines are product claims: Tailor's
- * keyword step lists the posting's keywords a resume is missing and adds
- * only the ones the student picks (docs/tailor_resume.md, the truth rule);
- * Auto Apply fills each form and the student clicks Submit; the Jobs page
- * reads thousands of company job boards (about 5,000 in
- * scraper/boards.csv) and opens on Best Match. It speaks of the job
- * application process as a whole, never of internships and new-grad
- * roles (the user's call: the problems are everyone's).
+ * Applying as it is (problems.tsx, KAN-923), the page's why before its
+ * how: what a job seeker goes through day to day, before WorkIt. The user
+ * asked for the whole job application process, not one problem (an earlier
+ * headline, "Many applications stop before a person reads them", sold
+ * screening alone), with no numbers in the headline, and for any fact to
+ * look like a fact, with its source. So six problems in the order a search
+ * meets them, three before applying and three after, and one sourced figure.
+ *
+ * Every line is a claim, kept to what the research supports (2026-11-20):
+ * "full-time job" is how job seekers describe it in interviews (Cornell
+ * Daily Sun, Nov 2025; NBC News, Aug 2025). Tailoring: 58% say it works,
+ * 17% always do it, 31% say it takes too long (Resume Genius, 900 U.S. job
+ * seekers, Nov 2026). Forms: 30% call filling forms by hand the worst part,
+ * 92% have abandoned a tedious application (same survey). Cover letters:
+ * 30% find writing a new one for each job too repetitive (same survey).
+ * Ghost jobs: 60% suspect they have seen one (Greenhouse, Dec 2024), so
+ * "some postings sit open for months", never a share. Screening is hedged
+ * ("often"): no study backs "75% of resumes are rejected by an ATS",
+ * which the page never says, nor "recruiters read a resume in 6 seconds".
+ * The figure is checked against its source (Greenhouse, Oct 20, 2026).
+ * It speaks of the job application process as a whole, never of
+ * internships and new-grad roles (the user's call).
  */
 export const problems = {
-  title: "Many applications stop before a person reads them",
-  /** The three places, in the order a click walks them; `scene` names the
-   *  screen problem-scenes.tsx draws for each. A title short enough to sit
-   *  beside its glyph on one line, one short line, and WorkIt's answer,
-   *  which shows in the frame's foot bar for the open one: the section read
-   *  as too dense with a paragraph and an answer under every problem (the
-   *  user's call, 2026-11-20). */
+  title: "Applying for jobs has become a full-time job",
+  subtitle:
+    "Hours of searching, retyping and rewriting, for applications that often never hear back.",
+  /** In the order a search meets them; `scene` names the visual
+   *  problem-scenes.tsx draws for each. The first three stand on the hub's
+   *  left, the last three on its right. */
   items: [
     {
-      scene: "screen",
-      title: "Screened out by keywords",
-      body: "Many hiring systems filter resumes before a recruiter looks.",
-      fix: "WorkIt shows the keywords you’re missing and adds only the ones you’ve used.",
+      scene: "boards",
+      title: "Jobs scattered everywhere",
+      body: "Every company posts on its own site, and some postings sit open for months.",
+    },
+    {
+      scene: "resumes",
+      title: "A new resume for every job",
+      body: "Tailoring helps, and there is never time to do it for each one.",
     },
     {
       scene: "forms",
       title: "The same form, every time",
-      body: "The same questions, typed into one company’s form after another.",
-      fix: "WorkIt fills each form from your profile. You click Submit.",
+      body: "Make an account, upload your resume, then type it all in again.",
     },
     {
-      scene: "boards",
-      title: "Good jobs, scattered",
-      body: "Every company posts on its own job board.",
-      fix: "WorkIt puts them on one Jobs page, best fits first.",
+      scene: "question",
+      title: "“Why do you want to work here?”",
+      body: "Every form asks it, and each one needs a new answer.",
+    },
+    {
+      scene: "tracker",
+      title: "A tracker that’s never current",
+      body: "Which resume went where? The spreadsheet doesn’t say.",
+    },
+    {
+      scene: "replies",
+      title: "Turned down, or no reply",
+      body: "Often before anyone at the company has read a word.",
     },
   ],
-  /** The hiring system's applicant screen: the posting's role and the
-   *  keywords it screens on, and whether the one resume sent everywhere
-   *  has each. */
-  screen: {
-    role: "Software Engineer Intern",
-    keywords: [
-      { word: "Python", found: true },
-      { word: "SQL", found: true },
-      { word: "React", found: true },
-      { word: "REST APIs", found: false },
-      { word: "TypeScript", found: false },
-      { word: "Kubernetes", found: false },
-    ],
+  /** The one figure, shown as a fact with its source under it. */
+  stat: {
+    figure: "81%",
+    text: "of U.S. job seekers were turned down for a job this past year without speaking to anyone at the company.",
+    source: "Greenhouse, 2026 Future of Hiring Candidate Report",
+    href: "https://www.greenhouse.com/newsroom/6-in-10-job-seekers-are-rethinking-how-they-write-to-avoid-sounding-like-ai-even-as-most-use-it-in-their-search",
   },
 } as const;
 

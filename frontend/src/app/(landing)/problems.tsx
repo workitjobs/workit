@@ -1,40 +1,50 @@
 import { problems } from "./data";
 import { CONTAINER, SectionHeading } from "./layout-parts";
-import { BoardsScene, FormsScene, ScreenScene } from "./problem-scenes";
-import { ProblemTabs } from "./problem-tabs";
+import { ProblemHub } from "./problem-hub";
+import {
+  BoardsScene,
+  FormsScene,
+  QuestionScene,
+  RepliesScene,
+  ResumesScene,
+  TrackerScene,
+} from "./problem-scenes";
 
 /**
- * Where applications get lost (KAN-923), right after the logo strip, so the
- * page says why before it says how: the user asked for the common problems
- * with applying, the hiring system's screen first, designed rather than set
- * as text. A centred chapter heading, one wide flat frame holding one
- * real-looking screen, and three problem cards under it; a click on a card
- * shows its screen (`ProblemTabs`). Each card names the problem in one
- * line; the open one adds what WorkIt does, after the WorkIt mark.
+ * Applying as it is (KAN-923), right after the logo strip, so the page says
+ * why before it says how: what a job seeker goes through day to day,
+ * before WorkIt. A centred heading about the whole search ("Applying for
+ * jobs has become a full-time job") with its line, then the hub: six
+ * problems, three on each side, one large visual in the middle for the open
+ * one, and the section's one figure with its source (`ProblemHub`).
  *
- * It follows the taste rules' "chapter" (one wide frame of the thing
- * itself, the names under it). It replaced a bento of three cards, each a
- * small scene centred in a coloured box, which the user found ugly and
- * AI-made; the taste rules say why: the three problems are equal but the
- * bento made one twice the size, the product showed only as small pieces
- * on coloured panels, and the boxes nested three deep. The screens are in
- * problem-scenes.tsx; copy, hedging and sources: `problems` in data.ts.
+ * The user's calls (2026-11-20): the whole job application process, not
+ * one problem (the heading was "Many applications stop before a person
+ * reads them"); no numbers in the heading, where "Forty tabs, nine forms,
+ * and not one reply" confused them; any fact shown as a fact with its
+ * source; three problems on each side with the visual between. Before
+ * that it was a bento of three cards, which the user found ugly and
+ * AI-made, then one wide frame of three clickable screens. The visuals are
+ * in problem-scenes.tsx; copy, hedging and sources: `problems` in data.ts.
  */
 
-/** Keyed, since they reach `ProblemTabs` as a list. */
+/** Keyed, since they reach `ProblemHub` as a list. */
 const SCENES = {
-  screen: <ScreenScene key="screen" />,
-  forms: <FormsScene key="forms" />,
   boards: <BoardsScene key="boards" />,
+  resumes: <ResumesScene key="resumes" />,
+  forms: <FormsScene key="forms" />,
+  question: <QuestionScene key="question" />,
+  tracker: <TrackerScene key="tracker" />,
+  replies: <RepliesScene key="replies" />,
 };
 
 export function Problems() {
-  const { title, items } = problems;
+  const { title, subtitle, items, stat } = problems;
   return (
     <section aria-labelledby="problems-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHeading id="problems-title" title={title} />
-        <ProblemTabs problems={items} scenes={items.map((item) => SCENES[item.scene])} />
+        <SectionHeading id="problems-title" title={title} subtitle={subtitle} />
+        <ProblemHub problems={items} scenes={items.map((item) => SCENES[item.scene])} stat={stat} />
       </div>
     </section>
   );

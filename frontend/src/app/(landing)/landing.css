@@ -1622,144 +1622,16 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* WorkIt's answer in the problems' frame (problem-tabs.tsx) rises in as
- * a card opens it; still with reduced motion. */
+/* A text cursor waiting in an empty field (problem-scenes.tsx): it blinks
+ * a few times as its visual shows, then stays, so nothing on the page
+ * blinks for good; still with reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
-  .problem-answer {
-    animation: problem-answer 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  .caret-blink {
+    animation: caret-blink 1s steps(1, end) 4;
   }
 }
-@keyframes problem-answer {
-  from {
+@keyframes caret-blink {
+  50% {
     opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
-/*
- * The problems' screening scene (problem-scenes.tsx): one document at a
- * time comes into the screen, a scan line reads it, its marked phrases tint
- * as the line passes, its verdict comes up, and it is swiped away; three
- * documents, one 3.6s turn each (`--i` on each), and the last one stays.
- * The rest styles are the finished frame (the passed documents gone, the
- * last one marked with its verdict), so reduced motion shows it still; the
- * keyframes start from the waiting pose. While the frame waits to be seen
- * (`data-arrived="false"`) every part holds at its start; the frame mounts
- * the scene afresh after hydration and after each click, so it plays from
- * the beginning.
- */
-.scan-doc,
-.scan-line {
-  opacity: 0;
-}
-.scan-mark {
-  background-color: var(--mark);
-}
-.scan-stamp {
-  rotate: -10deg;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .scan-doc {
-    animation: scan-pass 3.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i) * 3.6s);
-  }
-  .scan-doc-last {
-    animation: scan-stay 3.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i) * 3.6s);
-  }
-  .scan-mark {
-    animation: scan-mark 0.35s ease-out both;
-    animation-delay: calc(var(--i) * 3.6s + var(--t));
-  }
-  .scan-verdict {
-    animation: scan-verdict 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i) * 3.6s + 2s);
-  }
-  /* The X disc lands on the page as the verdict comes up: in large and
-   * turned, a small give, then still. */
-  .scan-stamp {
-    animation: scan-stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
-    animation-delay: calc(var(--i) * 3.6s + 1.9s);
-  }
-  .scan-line {
-    animation: scan-line 3.6s linear 3 both;
-  }
-  [data-arrived="false"] .scan-anim {
-    animation-play-state: paused;
-  }
-}
-/* A document comes off the waiting pile and, turned away, lands on the
- * other: 16.5rem is half the screen (8.5rem), the gap (2.5rem) and half a
- * pile (5.5rem), and a pile's page is about 0.68 of the screen's. */
-@keyframes scan-pass {
-  0% {
-    opacity: 0;
-    transform: translateX(-16.5rem) scale(0.68);
-  }
-  12%,
-  80% {
-    opacity: 1;
-    transform: none;
-  }
-  94% {
-    opacity: 1;
-    transform: translateX(16.5rem) scale(0.68) rotate(3deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(16.5rem) scale(0.68) rotate(3deg);
-  }
-}
-@keyframes scan-stay {
-  0% {
-    opacity: 0;
-    transform: translateX(-16.5rem) scale(0.68);
-  }
-  12%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes scan-mark {
-  from {
-    background-color: transparent;
-  }
-}
-@keyframes scan-stamp {
-  from {
-    opacity: 0;
-    scale: 1.8;
-    rotate: -24deg;
-  }
-  60% {
-    opacity: 1;
-    scale: 0.92;
-  }
-}
-@keyframes scan-verdict {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-/* The line sweeps the page from 0.5s to 1.8s of each turn. */
-@keyframes scan-line {
-  0%,
-  13% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-  15% {
-    opacity: 1;
-  }
-  48% {
-    opacity: 1;
-    transform: translateY(100%);
-  }
-  52%,
-  100% {
-    opacity: 0;
-    transform: translateY(100%);
   }
 }

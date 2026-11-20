@@ -423,74 +423,56 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     four features three times (the features card, the journey, the product
     sections) and never who WorkIt is for or what problem it fixes. So the
     journey is archived and two sections replace it. **The problems**
-    (`problems.tsx`, after the logo strip): "Many applications stop before
-    a person reads them", the job application process as a whole (never
-    internships and new-grad roles alone: the user's call), as the
-    `design-taste` skill's "chapter": a centred heading with no line under
-    it, one wide frame holding one real-looking window cut by the frame's
-    foot, and three problem cards under it. **The frame is flat grey
-    (`bg-well`), not a `StudioBox` sky**, the one picture on the home page
-    outside a `StudioBox` (the user's call, 2026-11-20: these screens are the
-    search as it is, not WorkIt's features, so they get no feature's
-    gradient; nothing in them is violet, WorkIt's own mark). **A click on a
-    card shows its screen** (`ProblemTabs` in `problem-tabs.tsx`, the user's
-    ask; screens in `problem-scenes.tsx`): **a screening machine**, one
-    application at a time (the student's resume, its cover letter, the
-    resume again) coming into a hiring system's screen, where a scan line
-    reads it, tints the keywords it looks for green and the generic lines
-    red, and flags it: a red disc with a white X lands on the page's
-    corner, and under the page a yellow caution chip (the keyword count, or
-    "Reads as generic") sits beside a solid red "Not moved forward" (as two
-    pale pills the no blended into the Screening label above, the user's
-    catch), before it is swiped onto the
-    pile of turned-away applications; from lg up a waiting pile stands on
-    its left and that pile on its right, and the last resume rests marked
-    (`.scan-*` in landing.css, one 3.6s turn a document). It replaced an
-    applicant table whose rows sorted under a cut-off, which the user found
-    harder to read than one document at a time, and takes its marked
-    phrases from the archived statement without its art (no bin, stamp or
-    crumpled page). Then three companies' forms side by side, the same six
-    questions typed into one after another; and a browser crowded with
-    company job board tabs, the open one listing every role with the
-    internship that fits unmarked in the middle. Nothing changes on a
-    timer: timed tabs are banned by the taste rules and would need a pause
-    control. Each screen plays once as it shows: the frame carries
-    `data-arrived` as `Arrive` does, and "false" again for two frames after
-    a click, so the new screen mounts waiting and then plays; it also mounts
-    the scene afresh once hydrated (its key reads `mounted`), so a CSS
-    animation the server's HTML started off screen starts again, held until
-    seen. **The heading, the frame and the cards fit one screen together**
-    under the floating header: from lg up the frame is `clamp(16rem, 100svh
-    - 26.5rem, 28rem)` tall, what is left once the header, the two-line
-    heading and the cards are counted. At 16:7 the cards ran below a
-    laptop's screen, and sized from the cards alone the heading went under
-    the header (both the user's catch, 2026-11-20). Checked at 1440 × 800
-    and 1280 × 720; a change to the heading, the cards or the gaps means
-    measuring again. **The cards are the switch**: each a button with
-    `aria-pressed` (not tabs, since the screens are `aria-hidden` pictures
-    and each card's words are its button's name), its glyph and a title
-    short enough for one line beside it, then one short line. The open
-    card is a white `.surface-card` with its glyph on ink; the closed ones
-    are flat grey. **WorkIt's answer is the frame's white foot bar**, after
-    the WorkIt mark, a polite live region that changes with the open card:
-    as a line in the open card it made every card in the row as tall as
-    that one, empty room at the foot of the closed ones (the user's catch).
-    The screening scene leaves room above the bar. **Keep the text this
-    short**: with a subtitle, a paragraph and an answer under every problem
-    the user found the section too dense (2026-11-20). Each
-    window is at least 34rem tall so the frame's foot always cuts it: a
-    window that ended just above the foot read as a floating card. **It
-    replaced a bento** of three `.surface-card`s, each a small
-    scene centred in a coloured box, which the user found ugly and AI-made;
-    the taste rules say why: three equal problems drawn at two sizes, the
-    product shown only as small pieces on coloured panels (`cards.md`, about
-    3.5 points under Linear in its testing), and boxes nested three deep.
-    Before that, three pains as plain text under hairlines, which the user
-    found boring. It leads with the hiring system's screen at the user's
-    ask, and never shows a resume passing the screen. **Its market claims are hedged**
-    ("many", "often"), as the statement's were: never a statistic WorkIt
-    cannot back, and never a promise to get past a hiring system (the
-    scene shows the fix, not a pass). **Control** (`control.tsx`, after the
+    (`problems.tsx`, after the logo strip): "Applying for jobs has become a
+    full-time job", what a job seeker goes through day to day across the
+    whole job application process (never internships and new-grad roles
+    alone: the user's call). **A hub** (`problem-hub.tsx`, the user's
+    layout, 2026-11-20): six problems in the order a search meets them,
+    three before applying on the left (jobs scattered across company job
+    boards, a new resume for every job, the same form every time) and three
+    after on the right (the written question, a tracker that is never
+    current, turned down or no reply), one large visual in the middle for
+    the open one, and under it the section's one figure, shown as a fact
+    with its source (81%, Greenhouse's 2026 candidate report, linked), in
+    a dark ink box with the number in red, so it stands out as the fact
+    behind the problems (the user's ask: as plain text under a hairline it
+    did not read as a sourced fact). A
+    hover (mouse only), a click, a tap or keyboard focus opens a problem;
+    nothing changes on a timer. The problems are buttons with
+    `aria-pressed`; the open one is a white `.surface-card`, the rest flat
+    grey, and every problem's words stay on screen, so only the picture
+    changes. **The visuals are moments everybody has**
+    (`problem-scenes.tsx`): a browser of company job board tabs with roles
+    posted months ago, a folder of resume versions ending in
+    "Resume_FINAL (1).pdf", a hiring system asking for the work history
+    after the resume upload, an empty "Why do you want to work at Notion?"
+    box, the student's spreadsheet with "??" in it, and an inbox where a
+    rejection lands "minutes after you applied". Each is plain UI centred
+    on a flat grey stage (no feature's sky: this is the search before
+    WorkIt, so nothing in it is violet), safely centred so a tall one keeps
+    its top in view on a short screen, and plays once as it shows (the
+    stage's `data-arrived`, "false" for two frames after a switch; a caret
+    blinks four times, `.caret-blink`, then stays). **The heading, the hub
+    and the figure fit one screen** under the floating header from lg up:
+    the stage is `clamp(17.5rem, 100svh - 30rem, 26rem)` tall (measured at
+    1440 × 800; at 1280 × 720 the figure falls about 40px below). **Why
+    this shape, the user's calls**: the heading covers the whole search,
+    not one problem ("Many applications stop before a person reads them"
+    sold screening alone); no numbers in the heading ("Forty tabs, nine
+    forms, and not one reply" confused them); a fact looks like a fact,
+    with its source; three on each side with the visual between. **What
+    it replaced**: a screening machine, a scan line reading one document
+    at a time onto a "Not moved forward" pile, which the user found AI-made
+    (a process nobody sees); before it, one wide frame of three clickable
+    screens with WorkIt's answer in a foot bar; before that, a bento of
+    three cards, each a small scene centred in a coloured box (ugly and
+    AI-made: three equal problems at two sizes, small pieces on coloured
+    panels, boxes three deep); and first, three pains as plain text. **Its
+    claims follow the research** in the comment on `problems` in data.ts:
+    hedged ("some", "often") where a survey measures a fear, not a fact,
+    the one figure checked against its source, and never "75% of resumes
+    are rejected by an ATS", "40% of jobs are fake" or "recruiters read a
+    resume in 6 seconds", which no sound study backs. **Control** (`control.tsx`, after the **Control** (`control.tsx`, after the
     product sections): "You stay in control", designed the same way, its
     scenes on WorkIt's violet sky where the problems' are slate (the
     search as it is, then WorkIt's answer). The lead, wide: the followed
