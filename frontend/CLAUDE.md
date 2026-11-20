@@ -434,11 +434,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     current, turned down or no reply), one large visual in the middle for
     the open one, and under it the section's one figure, shown as a fact
     with its source (81%, Greenhouse's 2026 candidate report, linked), in
-    an outlined box set as a quote, a large red opening quote breaking its
-    top-left edge and a closing one its bottom-right, the number in red
-    behind a hairline (the user's asks: as plain text under a hairline it
-    did not read as a sourced fact, a filled dark box read as heavy and
-    odd, and a "By the numbers" label on the edge was not needed). A
+    an outlined box set as a quote, a large grey opening quote breaking its
+    top-left edge and a closing one its bottom-right, each glyph's ink
+    centred on its line (measured: set by their line boxes, both sat
+    high), and the number in red behind a hairline (the user's asks: as
+    plain text under a hairline it did not read as a sourced fact, a
+    filled dark box read as heavy and odd, a "By the numbers" label on the
+    edge was not needed, and red quote marks competed with the number). A
     click, a tap or Enter opens a problem, never a hover (the user's call:
     the cards changed under a passing pointer); nothing changes on a
     timer. The problems are buttons with

@@ -157,17 +157,23 @@ export function ProblemHub({
           its source. A filled dark box read as heavy and out of place; as
           plain text under a hairline it did not read as a sourced fact. */}
       <figure className="relative mx-auto mt-7 grid max-w-3xl items-center gap-x-6 gap-y-1.5 rounded-2xl border border-slate-900/15 px-6 pt-5 pb-4 text-center sm:grid-cols-[auto_minmax(0,1fr)] sm:px-8 sm:text-left">
-        <span
-          aria-hidden="true"
-          className="font-editorial text-danger absolute -top-[1.15rem] left-5 h-9 bg-white px-1.5 text-[3.75rem] leading-[0.95]"
-        >
-          “
+        {/* Each mark is a 20px white tile centred on the outline (its top
+            and its foot), breaking the line; the glyph sits in it so its
+            ink, about 3 to 19px down a 60px Newsreader line, is centred on
+            the line too (measured: set by their line boxes, both sat high).
+            Grey, as the outline is: red marks competed with the figure. */}
+        <span aria-hidden="true" className="absolute -top-[10.5px] left-5 h-5 bg-white px-1.5">
+          <span className="font-editorial text-ink-meta -mt-px block text-[3.75rem] leading-none">
+            “
+          </span>
         </span>
         <span
           aria-hidden="true"
-          className="font-editorial text-danger absolute right-5 -bottom-[1.15rem] h-9 overflow-hidden bg-white px-1.5 text-[3.75rem] leading-[0.95]"
+          className="absolute top-[calc(100%-9.5px)] right-5 h-5 bg-white px-1.5"
         >
-          ”
+          <span className="font-editorial text-ink-meta -mt-px block text-[3.75rem] leading-none">
+            ”
+          </span>
         </span>
         <p className="font-display text-danger text-[3.25rem] leading-none font-medium tracking-[-0.04em] sm:row-span-2 sm:border-r sm:border-slate-900/10 sm:pr-6">
           {stat.figure}
