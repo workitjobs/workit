@@ -364,13 +364,33 @@ export const heroFits: { title: string; company: string; domain: string; score: 
 export const problems = {
   title: "Many applications stop before a person reads them",
   subtitle: "The job application process breaks in the same three places.",
+  /** The three places, in the order a click walks them; `scene` names the
+   *  screen problem-scenes.tsx draws for each. */
+  items: [
+    {
+      scene: "screen",
+      title: "Screened out before anyone reads it",
+      body: "Many companies’ hiring systems sort applications against the posting’s keywords and screening questions before a recruiter looks. One resume sent to every posting often gets filtered out there.",
+      fix: "WorkIt shows the posting’s keywords your resume is missing, and Tailor adds only the ones you’ve really used.",
+    },
+    {
+      scene: "forms",
+      title: "The same form, again and again",
+      body: "Your name, school, work history and the same questions, typed into one company’s form after another.",
+      fix: "WorkIt fills each form from your profile. You check it and click Submit.",
+    },
+    {
+      scene: "boards",
+      title: "Good jobs, scattered everywhere",
+      body: "Each company posts on its own job board, so the roles that fit you hide among thousands.",
+      fix: "One Jobs page from thousands of company job boards, best fits first.",
+    },
+  ],
+  /** The hiring system's applicant screen: the posting's role and the
+   *  keywords it screens on, and whether the one resume sent everywhere
+   *  has each. */
   screen: {
-    title: "Screened out before anyone reads it",
-    body: "Many companies’ hiring systems sort applications against the posting’s keywords and screening questions before a recruiter looks. One resume sent to every posting often gets filtered out there.",
-    fix: "WorkIt shows the posting’s keywords your resume is missing, and Tailor adds only the ones you’ve really used.",
     role: "Software Engineer Intern",
-    /** The posting's keywords, and whether the one resume sent everywhere
-     *  has each. */
     keywords: [
       { word: "Python", found: true },
       { word: "SQL", found: true },
@@ -379,24 +399,7 @@ export const problems = {
       { word: "TypeScript", found: false },
       { word: "Kubernetes", found: false },
     ],
-    /** Tailor's keyword step for the missing ones: the student ticks only
-     *  what they have used, so Kubernetes stays out. */
-    used: ["REST APIs", "TypeScript"],
   },
-  cards: [
-    {
-      scene: "forms",
-      title: "The same form, again and again",
-      body: "Your name, school, work history and the same questions, typed into one company’s form after another.",
-      fix: "WorkIt fills each form from your profile. You check it and click Submit.",
-    },
-    {
-      scene: "scattered",
-      title: "Good jobs, scattered everywhere",
-      body: "Each company posts on its own job board, so the roles that fit you hide among thousands.",
-      fix: "One Jobs page from thousands of company job boards, best fits first.",
-    },
-  ],
 } as const;
 
 /**

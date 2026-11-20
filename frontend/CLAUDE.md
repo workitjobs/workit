@@ -425,19 +425,38 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     journey is archived and two sections replace it. **The problems**
     (`problems.tsx`, after the logo strip): "Many applications stop before
     a person reads them", the job application process as a whole (never
-    internships and new-grad roles alone: the user's call), as a bento of
-    three `.surface-card`s with a scene each in a `StudioBox` on a
-    slate sky (the search as it is, before WorkIt; violet is WorkIt's own
-    mark): the lead, a hiring system's applicant screen marking the
-    posting's keywords a generic resume lacks ("Not moved forward") with
-    Tailor's "Add the Keywords You Have Used" laid over it, Kubernetes left
-    unticked; the same form cascaded across three companies, the front one
-    filled; and employers' logos scattered round the one posting that fits.
-    Each card says what goes wrong, then, after the WorkIt mark, what
-    WorkIt does; the scenes play once as their card arrives (`Arrive`, the
-    `.journey-*` classes). It replaced three pains as plain text under
-    hairlines, which the user found boring, and leads with the hiring
-    system's screen at the user's ask. **Its market claims are hedged**
+    internships and new-grad roles alone: the user's call), as the
+    `design-taste` skill's "chapter": the heading on the left with its line
+    beside it, one wide `StudioBox` on a slate sky (the search as it is,
+    before WorkIt; violet is WorkIt's own mark, so no screen in it is
+    violet) holding one real-looking window cut by the box's foot, and the
+    three problems under it as columns. **A click on a problem shows its
+    screen** (`ProblemTabs` in `problem-tabs.tsx`, the user's ask, 2026-11-20;
+    screens in `problem-scenes.tsx`): a hiring system's applicant list,
+    where the student's resume comes in as New, scores 3 of 6 keywords and
+    slides under the screening cut-off, Not moved forward (`.ats-*` in
+    landing.css); three companies' forms side by side, the same six
+    questions typed into one after another; and a browser crowded with
+    company job board tabs, the open one listing every role with the
+    internship that fits unmarked in the middle. Nothing changes on a
+    timer: timed tabs are banned by the taste rules and would need a pause
+    control. Each screen plays once as it shows: the frame carries
+    `data-arrived` as `Arrive` does, and "false" again for two frames after
+    a click, so the new screen mounts waiting and then plays. The problems
+    are buttons with `aria-pressed`, not tabs, since the screens are
+    `aria-hidden` pictures and every problem's words stay readable; below
+    md only the open problem shows its lines (the others are `sr-only`).
+    Each window is at least 34rem tall so the box's foot always cuts it: a
+    window that ended just above the foot read as a floating card. Each
+    problem says what goes wrong, then, after the WorkIt mark, what WorkIt
+    does. **It replaced a bento** of three `.surface-card`s, each a small
+    scene centred in a coloured box, which the user found ugly and AI-made;
+    the taste rules say why: three equal problems drawn at two sizes, the
+    product shown only as small pieces on coloured panels (`cards.md`, about
+    3.5 points under Linear in its testing), and boxes nested three deep.
+    Before that, three pains as plain text under hairlines, which the user
+    found boring. It leads with the hiring system's screen at the user's
+    ask, and never shows a resume passing the screen. **Its market claims are hedged**
     ("many", "often"), as the statement's were: never a statistic WorkIt
     cannot back, and never a promise to get past a hiring system (the
     scene shows the fix, not a pass). **Control** (`control.tsx`, after the

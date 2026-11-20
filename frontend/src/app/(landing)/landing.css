@@ -1602,3 +1602,39 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: scaleX(0);
   }
 }
+
+/*
+ * The problems' applicant screen (problem-scenes.tsx): the student's resume
+ * arrives at the top of the list as New, then slides to its place under
+ * the screening cut-off while the rows above it close up. While waiting,
+ * the rows above the cut-off and the cut-off line stand one row lower and
+ * the student's row stands at the top (`--ats-row`, `--ats-cut` on the
+ * scene). The moves are timed only on the way in (`data-arrived="true"`):
+ * back to waiting is instant, so a screen hidden or shown again never plays
+ * backwards. "New" shows only while it waits. Finished without script and
+ * with reduced motion.
+ */
+.ats-gone {
+  opacity: 0;
+}
+[data-arrived="true"] .ats-shift,
+[data-arrived="true"] .ats-you {
+  transition:
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.6s,
+    opacity 0.4s ease-out 0.2s;
+}
+[data-arrived="true"] .ats-gone {
+  transition: opacity 0.3s ease-out 1.6s;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-arrived="false"] .ats-shift {
+    transform: translateY(var(--ats-row));
+  }
+  [data-arrived="false"] .ats-you {
+    opacity: 0;
+    transform: translateY(calc(-3 * var(--ats-row) - var(--ats-cut)));
+  }
+  [data-arrived="false"] .ats-gone {
+    opacity: 1;
+  }
+}
