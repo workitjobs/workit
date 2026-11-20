@@ -63,14 +63,16 @@ box, a chip, a pill, a white button on a fill).
 
 ## Type
 
-`TYPE` in `layout-parts.tsx`. Plus Jakarta Sans for headings, Newsreader
-for a product's heading, Inter for everything else.
+`TYPE` in `layout-parts.tsx`. Plus Jakarta Sans for headings, Inter for
+everything else. A product's heading was Newsreader, the site's only
+serif; the user found it fancy and out of place (2026-11-20), so it is
+Jakarta too and the face is gone.
 
 | Step | Face | Desktop / phone | Use |
 | --- | --- | --- | --- |
 | `display` | Jakarta 500 | 72 / 40 | A page's h1 (home, feature, Pricing, Resources) |
 | `chapter` | Jakarta 500 | 56 / 34 | `SectionHeading` (hiring systems' too), the closing call to action, the statement |
-| `product` | Newsreader 500 | 48 / 30 | A product section's h2 only, two lines at every width (30 to 40 characters, 12em) |
+| `product` | Jakarta 500 | 44 / 30 | A product section's h2 only, two lines at every width (30 to 40 characters, 12em) |
 | `card` | Jakarta 500 | 28 / 24 | A card's heading |
 | `item` | Jakarta 500 | 18 | A row's title (the product accordion) |
 | `lead` | Inter 400 | 19 / 18 | The line under a display or chapter heading |
@@ -229,7 +231,8 @@ the pill painted under the grey and the open tab did not show.
 
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once
-(`Arrive`); only the product sections pin; no shine sweeps or glows.
+(`Arrive`); nothing pins, and the product sections' rows turn on a timer
+that a click stops; no shine sweeps or glows.
 There is no Pause Animations button since the user had it removed, which
 leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 

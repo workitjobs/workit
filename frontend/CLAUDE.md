@@ -298,8 +298,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     on a card or a pill; after a change to a scene, check what sits on the
     bare ground. **No scene fills the screen**, as on Calendly, whose
     animations sit in boxes of 290 to 424px. A new picture goes in a
-    `StudioBox`, never a full-width panel of its own. The one thing that
-    pins is a product section, as one block at the screen's middle (below).
+    `StudioBox`, never a full-width panel of its own. Nothing on the home
+    page pins: the product sections did, until 2026-11-20 (below).
   - **The hero is the first screen and nothing else** (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
@@ -521,41 +521,39 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     (`features/content/`), **four products with four rows each** (the
     user's call: Job Matching had three, so it gained "Why each job fits",
     the reasons a job card's match rail shows; the Application Tracker took
-    the place hiring systems had, which in a product section's serif and
+    the place hiring systems had, which in a product section's heading and
     halves read as a fifth product and is now a centred chapter). **Each
     headline wraps to two lines at every width**: written at about 30 to
     40 characters, held to 12em and balanced (a tablet's full-width line
     ran on one), so a new product's headline is written to that length.
     The feature's label above it is the 36px mark and its name at 18px
-    (at 24px and 14px it read as a caption). They scroll like Calendly's (the user pointed
-    back to it, twice). **The section pins as one block at the screen's
-    middle** (`.product-track` and `.product-stage` in landing.css, from lg
-    up on a screen at least 40rem tall): the feature's chip and serif
-    headline at the top of the column, its deep dives as rows at the foot,
-    level with the square `StudioBox`, all held still under the header
-    while the scroll opens one row at a time, 25svh of scroll a row (at
-    45svh each product took about 2.9 screens and the four about 11.7, the
-    web review, 2026-11-20; now about 2.1 each). The
-    open row shows its body and its own arrow link to that deep dive on the
-    feature page (`deepDiveAnchor` in `features/catalog.ts`, which the
-    feature page sets as the deep dive's id); a line in the feature's
-    colour fills along its foot with the scroll through its stretch
-    (`--row-progress`), and the box shows its still scene, swapping with a
-    fade. A click on a row's title scrolls to that row's stretch. Once the
-    last row's stretch ends, the section scrolls away. **Why**: the first
-    build stuck the heading under the header while the rows scrolled up
-    beneath it, so the section went to the screen's top and then the list
-    moved inside it, and a row's title was cut by the heading's foot; the
-    user found it broken. **The rows keep room for the longest open body**
-    (measured), bottom-aligned, so the block keeps one height whichever row
-    is open: grown with each row, it shifted by up to 10px. Each row has
-    the deep dive's icon (`icon` in `features/types.ts`, required). The
-    open row is measured on scroll only while the section is near. Below
-    lg, and on a screen under 40rem tall (a pinned block would not fit),
-    nothing sticks and a tap opens a row; below lg the order is heading,
-    box, rows (one tree, `display: contents`). Checked at 1024 × 768 to
-    1920 × 1080 (the block fits the screen) and at 1366 × 620, 768 ×
-    1024 and 375 × 812 (in the flow). `product-accordion.tsx`.
+    (at 24px and 14px it read as a caption). **The headline is Plus
+    Jakarta Sans** (`TYPE.product`, 44px from lg), as every other heading:
+    it was Newsreader, the site's only serif, after Calendly's split, and
+    the user found it fancy and out of place (2026-11-20); the face is gone
+    from the site. **The rows open one after another on their own**, as
+    Calendly's do (the user's ask, 2026-11-20): the open row shows its body
+    and its own arrow link to that deep dive on the feature page
+    (`deepDiveAnchor` in `features/catalog.ts`, which the feature page sets
+    as the deep dive's id), centred on the body beside it (at its foot it
+    sat apart, the user's catch); a line in the feature's colour fills
+    along its foot over six seconds (`.row-fill`, `TURN`), and when it is
+    full the next row opens, the first again after the last; the box shows
+    the open row's still scene, swapping with a fade. **It plays only while
+    someone can watch**: with the section well on screen, the tab shown, and
+    no pointer or keyboard focus on the rows. **A click on a row opens it
+    and stops the turns** for good, its line full: the reader has taken
+    over, and it is the way to stop the motion WCAG 2.2.2 asks for. With
+    reduced motion nothing turns and every line is full. **Nothing pins**:
+    each section is about 0.9 of a laptop screen. It was a pinned block at
+    the screen's middle whose rows the scroll opened, 45svh and then 25svh
+    of scroll a row; each product took two to three screens, and the page
+    about 18 (the web review, 2026-11-20); it is now about 9.4. **The rows
+    keep room for the longest open body** (measured), bottom-aligned, so
+    the column keeps one height whichever row is open: grown with each row,
+    it shifted by up to 10px. Each row has the deep dive's icon (`icon` in
+    `features/types.ts`, required). Below lg the order is heading, box, rows
+    (one tree, `display: contents`). `product-accordion.tsx`.
   - **Drifting rows** (`.drift-row`: the logo strip)
     draw their items twice and move by half their width, still with
     reduced motion.
@@ -595,10 +593,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   landing.css; it always shows in the top 96px, a move must pass 6px
   either way so a trackpad's jitter does not flicker it, and it stays
   while keyboard focus is in it or a menu is open; `:focus-within` kept
-  it after any mouse click, so the rule reads `:focus-visible`). The
-  pinned product sections still stand 5.5rem under the top, so a gap
-  shows there while the bar is away; moving them with the bar would make
-  them jump on every scroll up. And the site's feature
+  it after any mouse click, so the rule reads `:focus-visible`). And the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
   through the four features, each with its own app colour, in the
@@ -1476,8 +1471,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own
-  (since KAN-923 only the product sections pin, and their scroll only
-  picks the open row; the rule holds for any scene that returns);
+  (since 2026-11-20 nothing on the home page pins, and the product
+  sections' rows turn on a timer; the rule holds for any scene that returns);
   the scroll only takes the reader to the next phase. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two
@@ -1661,21 +1656,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   decides access by it.
 - **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
   everything else is Inter** (2026-11-10, Jobright's split: a display face
-  on marketing headlines, Inter in the product), **with Newsreader for a
-  product's own heading** (KAN-923, Calendly's split: a sans heads each
-  chapter, a serif each product). **Sizes come from `TYPE` in
+  on marketing headlines, Inter in the product); a product's own heading
+  was Newsreader, a serif (KAN-923, Calendly's split), until the user found
+  it fancy and out of place (2026-11-20), and the face is gone. **Sizes come from `TYPE` in
   `layout-parts.tsx`**, one step per job: `display` (the hero, 72px from
   lg, 40px on a phone), `chapter` (`SectionHeading` and the closing call
-  to action, 56px and 34px), `product` (the serif, `font-editorial`, 48px
+  to action, 56px and 34px), `product` (a product section's h2, 44px
   and 30px), `card` (28px), `item`, `lead` and `eyebrow` (a small grey
   line in capitals, never a label above a heading: `SectionHeading` takes
   none since the user had every violet eyebrow removed, KAN-923; capitals set
   wide). Every heading is weight 500: the size steps carry the hierarchy,
   as on Calendly, where before every h2 was 600 at 30 to 36px and nothing
   read as a chapter or a detail. `SectionHeading` changed with it, so the
-  feature pages and Pricing take the new chapter size too. Newsreader
-  loads in `app/fonts.ts` beside Jakarta, at weight 500 with its optical
-  size, read by the `font-editorial` utility (globals.css). One rule in landing.css
+  feature pages and Pricing take the new chapter size too. One rule in landing.css
   gives every `h1` to `h3` under `.landing` the face, so a new section's
   heading cannot miss it; a display line that is no heading (the bridge's
   lines, the footer's tagline, the quote, a plan's price) takes the

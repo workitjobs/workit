@@ -1,4 +1,4 @@
-import { Newsreader, Plus_Jakarta_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
 /**
  * Plus Jakarta Sans, the marketing pages' headline face (2026-11-10). The
@@ -17,18 +17,4 @@ import { Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 export const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta-sans",
   subsets: ["latin"],
-});
-
-/**
- * Newsreader, the home page's product headings (KAN-923, 2026-11-19): a
- * calm text serif at weight 500, after Calendly's split, where a sans heads
- * each chapter and a serif heads each product. The `font-editorial`
- * utility (globals.css) reads it. One weight, the variable font's optical
- * size left on, so a 30px phone heading and a 48px desktop one each get
- * their own cut. Loaded where Jakarta is, for the same reason.
- */
-export const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-  weight: "500",
 });

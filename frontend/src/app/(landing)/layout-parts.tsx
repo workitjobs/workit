@@ -48,9 +48,11 @@ export const TOUR_COVER_VH = 100;
  * The marketing pages' type scale (KAN-923, after Calendly's): each step
  * has one job, and the steps carry the hierarchy, not the weight, so every
  * heading is weight 500. Plus Jakarta Sans for the hero and each chapter
- * (h1 to h3 take it by landing.css's rule), Newsreader for a product's own
- * section (`product`, the home page's product sections and hiring systems),
- * Inter for the rest. Before it every h2 was Jakarta 600 at 30 to 36px, so
+ * (h1 to h3 take it by landing.css's rule) and for a product's own section
+ * (`product`), Inter for the rest. A product's heading was Newsreader, a
+ * serif, after Calendly's split; the only serif on the site, it read as
+ * fancy and out of place beside every other heading (the user's call,
+ * 2026-11-20), and the face went with it. Before it every h2 was Jakarta 600 at 30 to 36px, so
  * nothing read as a chapter and nothing as a detail, which the user named
  * as part of the site looking AI-made. Use these, not a size of your own.
  */
@@ -62,10 +64,10 @@ export const TYPE = {
    *  56px from lg, 34px on a phone. */
   chapter:
     "text-[2.125rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl lg:text-[3.5rem]",
-  /** A product's left-aligned h2, in the serif: 48px from lg, 30px on a
-   *  phone. Newsreader runs smaller than Jakarta, so it takes a size up. */
+  /** A product's left-aligned h2: 44px from lg, 30px on a phone, a step
+   *  under a chapter's 56px, in the same face. */
   product:
-    "font-editorial text-[1.875rem] leading-[1.1] font-medium tracking-[-0.015em] text-balance sm:text-[2.5rem] lg:text-5xl",
+    "text-[1.875rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-[2.5rem] lg:text-[2.75rem]",
   /** A card's heading: 28px, 24px on a phone. */
   card: "text-2xl leading-tight font-medium tracking-[-0.015em] text-balance sm:text-[1.75rem]",
   /** A list item's title inside a section (an accordion row). */

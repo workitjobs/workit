@@ -1437,13 +1437,6 @@ body:has([data-skyline]) {
   font-family: var(--font-jakarta-sans, var(--font-sans)), system-ui, sans-serif;
 }
 
-/* The home page's product headings, Newsreader (app/fonts.ts, KAN-923):
- * read on the element for the same reason as font-display. Falls back to a
- * system serif where the layout does not load it. */
-@utility font-editorial {
-  font-family: var(--font-newsreader), ui-serif, Georgia, serif;
-}
-
 @utility hit-area {
   &::after {
     content: "";

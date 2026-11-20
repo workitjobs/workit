@@ -2,14 +2,13 @@
 
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { Fit } from "./fit";
-import { useMediaQuery } from "./hooks";
+import { useLoopsHeld } from "./hooks";
 import { StudioBox, TYPE } from "./layout-parts";
-import { scrollPageTo } from "./smooth-scroll";
 
 export type ProductItem = {
   title: string;
@@ -21,37 +20,31 @@ export type ProductItem = {
   visual: ReactNode;
 };
 
-/** Where the section pins: from lg up, on a screen tall enough to hold the
- *  heading, the rows and the box at once (`.product-track` and
- *  `.product-stage` in landing.css use the same query). */
-const PIN_QUERY = "(min-width: 64rem) and (min-height: 40rem)";
+/** How long each row stays open before the next opens, in ms. */
+const TURN = 6000;
 
 /**
  * A product section's heading, rows and picture (product-sections.tsx,
- * KAN-923), after Calendly's product sections. Where it pins (`PIN_QUERY`)
- * the whole section stops in the middle of the screen under the header,
- * heading, rows and box together, and the scroll opens one row at a time:
- * each row has its own stretch of scroll (`.product-track`, 25svh a row),
- * the open row shows its body and its arrow link to its deep dive, a line
- * in the feature's colour fills along its foot as the scroll moves through
- * its stretch, and the box shows its still scene, swapping with a fade.
- * Once the last row's stretch ends, the section scrolls away. A click on a
- * row's title scrolls to that row's stretch. The scroll picks the row; the
- * swap plays in time ("scroll cues, time plays"), and only the line tracks
- * the scroll.
+ * KAN-923), after Calendly's product sections: the rows open one after
+ * another on their own, as Calendly's do (the user's ask, 2026-11-20). The
+ * open row shows its body and its arrow link to its deep dive, a line in
+ * the feature's colour fills along its foot over `TURN` (`.row-fill` in
+ * landing.css), and when it is full the next row opens, back to the first
+ * after the last; the box shows the open row's still scene, swapping with a
+ * fade.
  *
- * It replaced a sticky heading over rows that scrolled up beneath it, which
- * the user found broken: the section went to the top of the screen, then
- * the list moved inside it, and a row's title was cut by the heading's
- * foot. Calendly's section stops as one block.
+ * It plays only while someone can watch: with the section well on screen,
+ * the tab shown, and no pointer or keyboard focus on the rows (a reader
+ * there is reading). A click or tap on a row opens it and stops the turns
+ * for good, its line full: the reader has taken over, and it is the way to
+ * stop the motion that WCAG 2.2.2 asks for. With reduced motion nothing
+ * turns, each line is full, and a click opens a row.
  *
- * Below lg, and on a screen too short to pin, nothing sticks: a tap on a
- * row's title opens it and shows its scene; below lg the box sits between
- * the heading and the rows (one tree, `display: contents`).
- *
- * The open row is worked out on scroll only (a passive listener, one read
- * of the track's rect per frame at most), and only while the section is
- * near the screen: nothing runs at rest.
+ * It replaced a pinned version where the scroll opened the rows (each row
+ * a stretch of scroll, the section held still at the screen's middle):
+ * each product took two to three screens, and four of them most of the
+ * page (the web review). Below lg the box sits between the heading and the
+ * rows (one tree, `display: contents`).
  */
 export function ProductAccordion({
   heading,
@@ -71,14 +64,17 @@ export function ProductAccordion({
   flip?: boolean;
 }) {
   const [active, setActive] = useState(0);
-  const pinned = useMediaQuery(PIN_QUERY) === true;
-  const trackRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  // Once the reader picks a row, the turns stop and stay stopped.
+  const [taken, setTaken] = useState(false);
+  const [inView, setInView] = useState(false);
+  const [resting, setResting] = useState(false);
+  const hidden = useLoopsHeld();
+  const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const id = useId();
-  // The rows' height with the longest body open, so the column, and the
-  // pinned block centred on it, keep one height whichever row is open:
-  // grown and shrunk with each row, the block shifted by up to 10px.
+  // The rows' height with the longest body open, so the column keeps one
+  // height whichever row is open: grown and shrunk with each row, the
+  // section shifted by up to 10px.
   const [listHeight, setListHeight] = useState<number>();
 
   useEffect(() => {
@@ -100,169 +96,143 @@ export function ProductAccordion({
     return () => observer.disconnect();
   }, [items.length]);
 
-  // Where it pins, the open row follows how far the track has scrolled
-  // past the point where the stage sticks; the line under the open row
-  // reads the same progress (`--row-progress`, 0 to 1 within the row).
+  // The turns run only while the section is well on screen.
   useEffect(() => {
-    const track = trackRef.current;
-    const stage = stageRef.current;
-    if (!pinned || !track || !stage) return;
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const stickAt = parseFloat(getComputedStyle(stage).top) || 0;
-      const travel = track.offsetHeight - stage.offsetHeight;
-      if (travel <= 0) return;
-      const progress = Math.min(
-        1,
-        Math.max(0, (stickAt - track.getBoundingClientRect().top) / travel),
-      );
-      const row = Math.min(items.length - 1, Math.floor(progress * items.length));
-      setActive(row);
-      track.style.setProperty("--row-progress", String(progress * items.length - row));
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
-    };
-    const near = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          window.addEventListener("scroll", onScroll, { passive: true });
-          measure();
-        } else window.removeEventListener("scroll", onScroll);
-      },
-      { rootMargin: "50% 0px" },
-    );
-    near.observe(track);
-    return () => {
-      near.disconnect();
-      window.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, [pinned, items.length]);
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
+      threshold: 0.35,
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
+  const playing = !taken && inView && !hidden && !resting;
 
   const pick = (i: number) => {
-    const track = trackRef.current;
-    const stage = stageRef.current;
-    if (!pinned || !track || !stage) return setActive(i);
-    // To the start of the row's stretch, a little in, so it is the open one.
-    const stickAt = parseFloat(getComputedStyle(stage).top) || 0;
-    const travel = track.offsetHeight - stage.offsetHeight;
-    const trackTop = window.scrollY + track.getBoundingClientRect().top;
-    scrollPageTo(trackTop - stickAt + ((i + 0.05) / items.length) * travel);
+    setTaken(true);
+    setActive(i);
   };
 
   return (
     <div
-      ref={trackRef}
-      className="product-track"
-      style={{ "--rows": items.length } as CSSProperties}
+      ref={rootRef}
+      className="grid w-full gap-y-8 lg:grid-cols-2 lg:items-center lg:gap-x-16 lg:gap-y-0"
     >
-      <div ref={stageRef} className="product-stage">
-        <div className="grid w-full gap-y-8 lg:grid-cols-2 lg:items-center lg:gap-x-16 lg:gap-y-0">
-          {/* The heading at the top of the column and the rows at its foot,
-              level with the box; below lg its children join the grid so the
-              box can sit between them. */}
-          <div
-            className={cn(
-              "contents lg:flex lg:flex-col lg:justify-between lg:gap-8 lg:self-stretch",
-              flip && "lg:order-2",
-            )}
-          >
-            <div className="order-1">{heading}</div>
-            {/* Rows sit at the foot of the room kept for them, so an open
-                body pushes the rows above it up, as on Calendly. */}
-            <ol
-              ref={listRef}
-              className="order-3 flex flex-col justify-end"
-              style={pinned ? { minHeight: listHeight } : undefined}
-            >
-              {items.map((item, i) => {
-                const isActive = i === active;
-                const bodyId = `${id}-row-${i}`;
-                return (
-                  <li
-                    key={item.title}
-                    className="relative border-b border-slate-900/10 first:border-t"
-                  >
-                    <h3>
-                      <button
-                        type="button"
-                        onClick={() => pick(i)}
-                        aria-expanded={isActive}
-                        aria-controls={bodyId}
-                        className={cn(
-                          TYPE.item,
-                          "flex w-full items-center gap-3 py-4 text-left transition-colors",
-                          isActive ? "text-ink" : "text-ink-meta hover:text-ink",
-                        )}
-                      >
-                        <span aria-hidden="true" className="shrink-0 [&>svg]:size-5">
-                          {item.icon}
-                        </span>
-                        {item.title}
-                      </button>
-                    </h3>
-                    {/* The open row's body, its height eased open; a closed
-                        one is inert, so its link takes no focus. */}
-                    <div
-                      id={bodyId}
-                      inert={!isActive}
-                      className={cn(
-                        "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
-                        isActive ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-                      )}
-                    >
-                      <div className="overflow-hidden">
-                        <div
-                          data-body
-                          className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-6 pb-5"
-                        >
-                          <p className="text-ink-meta text-pretty">{item.body}</p>
-                          {/* Its own way in, as each of Calendly's rows has. */}
-                          <Link
-                            href={item.href}
-                            aria-label={`Open ${item.title}`}
-                            className="text-ink grid size-9 place-items-center rounded-lg bg-slate-900/[0.05] transition-colors hover:bg-slate-900/[0.1]"
-                          >
-                            <ArrowUpRightIcon aria-hidden="true" className="size-4" />
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                    {/* The open row's line in the feature's colour: it fills
-                        with the scroll through the row's stretch where the
-                        section pins, and is full elsewhere. */}
-                    {isActive && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-x-0 -bottom-px h-0.5 origin-left"
-                        style={{
-                          background: accent,
-                          transform: pinned ? "scaleX(var(--row-progress, 0))" : undefined,
-                        }}
-                      />
+      {/* The heading at the top of the column and the rows at its foot,
+          level with the box; below lg its children join the grid so the
+          box can sit between them. */}
+      <div
+        className={cn(
+          "contents lg:flex lg:flex-col lg:justify-between lg:gap-8 lg:self-stretch",
+          flip && "lg:order-2",
+        )}
+      >
+        <div className="order-1">{heading}</div>
+        {/* Rows sit at the foot of the room kept for them, so an open body
+            pushes the rows above it up, as on Calendly. A pointer or focus
+            on them holds the turn. */}
+        <ol
+          ref={listRef}
+          className="order-3 flex flex-col justify-end"
+          style={{ minHeight: listHeight }}
+          onPointerEnter={(event) => event.pointerType === "mouse" && setResting(true)}
+          onPointerLeave={(event) => event.pointerType === "mouse" && setResting(false)}
+          onFocus={() => setResting(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setResting(false);
+          }}
+        >
+          {items.map((item, i) => {
+            const isActive = i === active;
+            const bodyId = `${id}-row-${i}`;
+            return (
+              <li key={item.title} className="relative border-b border-slate-900/10 first:border-t">
+                <h3>
+                  <button
+                    type="button"
+                    onClick={() => pick(i)}
+                    aria-expanded={isActive}
+                    aria-controls={bodyId}
+                    className={cn(
+                      TYPE.item,
+                      "flex w-full items-center gap-3 py-4 text-left transition-colors",
+                      isActive ? "text-ink" : "text-ink-meta hover:text-ink",
                     )}
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-          <StudioBox
-            ground={ground}
-            className={cn(
-              "order-2 aspect-square w-full max-w-[34rem] justify-self-center lg:max-w-[min(34rem,calc(100svh-8rem))]",
-              flip && "lg:order-1",
-            )}
-          >
-            {items.map((item, i) => (
-              <Layer key={item.title} shown={i === active}>
-                {item.visual}
-              </Layer>
-            ))}
-          </StudioBox>
-        </div>
+                  >
+                    <span aria-hidden="true" className="shrink-0 [&>svg]:size-5">
+                      {item.icon}
+                    </span>
+                    {item.title}
+                  </button>
+                </h3>
+                {/* The open row's body, its height eased open; a closed one
+                    is inert, so its link takes no focus. */}
+                <div
+                  id={bodyId}
+                  inert={!isActive}
+                  className={cn(
+                    "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+                    isActive ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    {/* The arrow is centred on the body beside it: at its
+                        foot it sat apart from the text (the user's catch). */}
+                    <div
+                      data-body
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 pb-5"
+                    >
+                      <p className="text-ink-meta text-pretty">{item.body}</p>
+                      {/* Its own way in, as each of Calendly's rows has. */}
+                      <Link
+                        href={item.href}
+                        aria-label={`Open ${item.title}`}
+                        className="text-ink grid size-9 place-items-center rounded-lg bg-slate-900/[0.05] transition-colors hover:bg-slate-900/[0.1]"
+                      >
+                        <ArrowUpRightIcon aria-hidden="true" className="size-4" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+                {/* The open row's line in the feature's colour: it fills over
+                    `TURN` while the turns run, and opens the next row when
+                    full; full once the reader has picked a row. Keyed by the
+                    row, so each turn fills from empty. */}
+                {isActive && (
+                  <span
+                    key={active}
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute inset-x-0 -bottom-px h-0.5 origin-left",
+                      !taken && "row-fill",
+                    )}
+                    style={{
+                      background: accent,
+                      animationDuration: `${TURN}ms`,
+                      animationPlayState: playing ? "running" : "paused",
+                    }}
+                    onAnimationEnd={() => setActive((at) => (at + 1) % items.length)}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
       </div>
+      <StudioBox
+        ground={ground}
+        className={cn(
+          "order-2 aspect-square w-full max-w-[34rem] justify-self-center lg:max-w-[min(34rem,calc(100svh-8rem))]",
+          flip && "lg:order-1",
+        )}
+      >
+        {items.map((item, i) => (
+          <Layer key={item.title} shown={i === active}>
+            {item.visual}
+          </Layer>
+        ))}
+      </StudioBox>
     </div>
   );
 }

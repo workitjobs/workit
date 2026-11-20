@@ -164,11 +164,11 @@ export function ProblemHub({
       <figure className="relative mx-auto mt-7 grid max-w-3xl items-center gap-x-6 gap-y-1.5 rounded-2xl border border-slate-900/15 px-6 pt-5 pb-4 text-center sm:grid-cols-[auto_minmax(0,1fr)] sm:px-8 sm:text-left">
         {/* Each mark is a 20px white tile centred on the outline (its top
             and its foot), breaking the line; the glyph sits in it so its
-            ink, about 3 to 19px down a 60px Newsreader line, is centred on
+            ink, about 9 to 23px down a 60px Plus Jakarta line, is centred on
             the line too (measured: set by their line boxes, both sat high).
             Grey, as the outline is: red marks competed with the figure. */}
         <span aria-hidden="true" className="absolute -top-[10.5px] left-5 h-5 bg-white px-1.5">
-          <span className="font-editorial text-ink-meta -mt-px block text-[3.75rem] leading-none">
+          <span className="font-display text-ink-meta -mt-1.5 block text-[3.75rem] leading-none">
             “
           </span>
         </span>
@@ -176,7 +176,7 @@ export function ProblemHub({
           aria-hidden="true"
           className="absolute top-[calc(100%-9.5px)] right-5 h-5 bg-white px-1.5"
         >
-          <span className="font-editorial text-ink-meta -mt-px block text-[3.75rem] leading-none">
+          <span className="font-display text-ink-meta -mt-1.5 block text-[3.75rem] leading-none">
             ”
           </span>
         </span>
