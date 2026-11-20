@@ -424,15 +424,19 @@ export const problems = {
  * section, KAN-923): what WorkIt is, then what it does. The user picked
  * "one place for your whole job search", the platform idea, over "WorkIt
  * does the busywork" (2026-11-20). Every clause of the line is a claim the
- * app keeps today: the Experiences bank, Tailor (adds only keywords the
- * student has used, docs/tailor_resume.md), the Jobs page's Best Match,
- * Auto Apply filling each form, and the student's own Submit. It promises
+ * app keeps today: the Experiences bank, Documents (every resume, and the
+ * one each application went out with), the Jobs page's Best Match, Auto
+ * Apply filling each form from the profile, and the Tracker. It promises
  * no replies or interviews: the one problem above WorkIt cannot fix.
  */
 export const featuresIntro = {
   title: "WorkIt is one place for your whole job search",
+  /** What "one place" means, never the hero's line again: the first
+   *  version listed the same four steps as the hero's subtitle, nearly word
+   *  for word (the user's catch). Each part answers a problem above: the
+   *  scattered jobs, the resume versions, the retyping, the tracker. */
   subtitle:
-    "It keeps your experience, tailors your resume to each job, finds the jobs that fit you and fills in each application. You check it and click Submit.",
+    "Your experience, every resume, your best-fit jobs and every application live in one account, so nothing gets retyped or lost.",
 };
 
 /**

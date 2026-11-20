@@ -405,11 +405,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     (`hero-features.tsx`, their own section since the hero became one
     screen). **Its heading is the turn from the problems to the product**
     (the user's ask, 2026-11-20): "WorkIt is one place for your whole job
-    search", what WorkIt is, then one line of what it does ("It keeps your
-    experience, tailors your resume to each job, finds the jobs that fit
-    you and fills in each application. You check it and click Submit.",
+    search", what WorkIt is, then one line on what "one place" means
+    ("Your experience, every resume, your best-fit jobs and every
+    application live in one account, so nothing gets retyped or lost.",
     `featuresIntro` in data.ts, each clause a claim the app keeps and no
-    promise of replies). It was "Every step of the search, in one place",
+    promise of replies). **Never the hero's line again**: the first
+    version listed the hero subtitle's four steps nearly word for word
+    (the user's catch, 2026-11-20). It was "Every step of the search, in one place",
     which listed the features but did not answer the problems. On the plain white
     page with no eyebrow: on a second violet panel with a violet eyebrow
     the user found it off; the tab track is slate at 5% so it reads on
