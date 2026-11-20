@@ -276,9 +276,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   under `perspective`; a flat icon read as 2D), with "What is WorkIt?"
   under it as an app's name sits under its icon, the pair centred in its
   column both ways and evenly between the frame's side line and the
-  words; on the right one large line of who WorkIt is for and one smaller
-  line of how, in other words than the hero's line, read in word by word
-  as they arrive. It was a small grey label beside one six-line
+  words; on the right one large line of what WorkIt holds ("Your resume,
+  your job matches and every application, finally in one place.", the
+  user's pick of five) and one smaller line of how, in other words than
+  the hero's line, read in word by word as they arrive. **"Busywork" is
+  the hero's word**: it stays in the headline (and the footer's tagline
+  and the tab title, which repeat it) and nowhere else, since it was on
+  four lines of the page (the user's catch, 2026-11-20). It was a small grey label beside one six-line
   paragraph, which read as plain text and a wall of words, the user's
   catches), where applications
   get lost (`problems.tsx`, **the page's one dark band before the

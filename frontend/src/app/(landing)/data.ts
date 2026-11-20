@@ -97,8 +97,13 @@ export const hero = {
  * band since 2026-11-20, `problems` below), then why WorkIt exists over the
  * product demo.
  *
- * `whatIs` says who WorkIt is for and why, in other words than the hero's
- * line, which already says what it does step by step. "Connected" is the
+ * `whatIs` says what WorkIt holds, the whole search in one place, in other
+ * words than the hero's line, which already says what it does step by step,
+ * and without "busywork", which the hero's headline keeps: the word was on
+ * four lines of the page (the user's catch, 2026-11-20). The user picked the
+ * large line from five (2026-11-20); "The job search app for anyone tired
+ * of doing the same work twice." was here and did not sound right to them.
+ * "Connected" is the
  * claim: the resumes, the matches and the filled forms all read the one
  * experience bank and profile, and the tracker keeps what each application
  * sent. Quality, never volume (the rule on `site.tagline`). The answer is
@@ -108,9 +113,9 @@ export const hero = {
  */
 export const whatIs = {
   label: "What is WorkIt?",
-  statement: "The job search app for anyone tired of doing the same work twice.",
+  statement: "Your resume, your job matches and every application, finally in one place.",
   detail:
-    "Your experience, resumes, matches and applications stay connected, so less of your week goes to busywork and more goes to applications worth sending.",
+    "Your experience, resumes, matches and applications stay connected, so the time you save goes into applications worth sending.",
 };
 
 /**
@@ -433,7 +438,9 @@ export const problems = {
   /** One line under the heading from lg up: on two, with the two-line
    *  heading, the section's top took a third of the screen and the hub
    *  looked small under it (the user's catch). */
-  subtitle: "Hours of busywork, for applications that often never hear back.",
+  // "Hours of busywork…" until the word was on four lines of the page (the
+  // user's catch, 2026-11-20); "retyping" keeps it one line from lg up.
+  subtitle: "Hours of retyping, for applications that often never hear back.",
   /** In the order a search meets them; `scene` names the visual
    *  problem-scenes.tsx draws for each. The first three stand on the hub's
    *  left, the last three on its right. Each card's words and icon are the
