@@ -421,7 +421,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     typing the same things over and over."), then the four products as a
     row of flat tiles, each in its feature's pale tint with its mark
     ringed in white (`FeatureJumps`; grey, the four read as alike, the
-    user's call, 2026-11-20), each its mark, its name, **a
+    user's call, 2026-11-20). **The tiles arrive as the tools they
+    replace collapse into them** (`tools-collapse.tsx`, `toolsCollapse` in
+    data.ts, after Loopsii's "your whole stack, in one app", the user's
+    pick, 2026-11-20): from lg up, eight tool cards a student juggles
+    (Google Docs and Overleaf, careers pages and job sites, a notes app
+    and copy and paste, Google Sheets and a calendar) lie scattered on a
+    drafting grid round the row, and once the section is well on screen
+    each pair flies into the product that replaces it, the tile comes up
+    as its last card lands, and a count turns from "8 tools" to "1 app".
+    It plays in about 1.5 s and rests finished (`useArrived`), again only
+    after the section has gone wholly below the screen; nothing pins. The
+    frame's padding (6.5rem each way) is CSS, so the server's HTML has
+    the room; below lg and with reduced motion the tiles show as they are,
+    and without script the cards stay hidden. Each card flies to its
+    tile's centre, measured from the layout on every resize. The ul is
+    `relative` so the tiles paint over the grid (as a static block they
+    sat under the absolutely placed frame, and its lines crossed their
+    text). Its lines say what a student uses each tool for and name no
+    price. Each tile has its mark, its name, **a
     selling line that says what the product does** and "See how", a
     `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
     `/#tracker`, the product sections' ids). The heading, the line and the

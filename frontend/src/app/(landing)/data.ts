@@ -499,6 +499,29 @@ export const featuresIntro = {
 };
 
 /**
+ * The tools a student juggles before WorkIt, which collapse into its four
+ * products under "One app for every step of applying" (tools-collapse.tsx,
+ * KAN-923). Two per product, `tile` being its index in the tiles' order
+ * (Resume Builder, Job Matching, Auto Apply, Application Tracker). Each line
+ * says what a student uses the tool for, never anything about the tool
+ * itself, and names no price: costs would be a guess.
+ */
+export const toolsCollapse = {
+  before: "8 tools",
+  after: "1 app",
+  tools: [
+    { icon: "docs", name: "Google Docs", line: "Resume_v7_FINAL", tile: 0 },
+    { icon: "latex", name: "Overleaf", line: "Fighting the template", tile: 0 },
+    { icon: "careers", name: "Careers pages", line: "One tab per company", tile: 1 },
+    { icon: "sites", name: "Job sites", line: "Scrolling for fits", tile: 1 },
+    { icon: "notes", name: "Notes app", line: "Saved answers", tile: 2 },
+    { icon: "clipboard", name: "Copy and paste", line: "Your details, again", tile: 2 },
+    { icon: "sheet", name: "Google Sheets", line: "Job search 2026", tile: 3 },
+    { icon: "calendar", name: "Calendar", line: "Interview dates", tile: 3 },
+  ],
+} as const;
+
+/**
  * The promises behind the product (control.tsx, KAN-923), the worry any
  * auto apply tool raises, answered as what WorkIt does rather than as a
  * warning. Each is a claim, tied to its source: WorkIt never submits and

@@ -197,6 +197,17 @@ read as muddy. Nothing writes straight on the lower fifth: no one text
 colour holds 4.5:1 on every foot (ink fails on the blue, violet and pink;
 white fails on the green). Text there sits on a card or a pill.
 
+### The drafting grid (`.tools-frame` in landing.css)
+
+Faint slate hairlines in a grid with a small ink square at each corner,
+as a drawing's registration marks, after Loopsii's frames (the user's
+pick, 2026-11-20). It frames the tools collapse under "One app for every
+step of applying" (`tools-collapse.tsx`), from lg up. It is neutral,
+never a feature's colour, and the content it frames paints above it
+(make that content `relative`, or the absolutely placed grid draws over
+it). It may spread to other sections' frames; one look, so the sections
+read as one system.
+
 ### Pills and chips
 
 - `HERO_PILL`: frosted white, `--mk-shadow-float`, the pill above a
@@ -242,7 +253,10 @@ the pill painted under the grey and the open tab did not show.
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once
 (`Arrive`); nothing pins, and the product sections' rows turn on a timer
-that a click stops; no shine sweeps or glows.
+that a click stops; no shine sweeps or glows. The tools collapse
+(`tools-collapse.tsx`) is the one flight on the page: eight tool cards
+fly into the four product tiles once, cued by the scroll and played in
+time.
 There is no Pause Animations button since the user had it removed, which
 leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 
