@@ -266,10 +266,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `hero.title`, which is `site.tagline`, "Your job search, without the
   busywork.", and a line that ends on why: the time saved goes into making
   each application better; the sign-up pair, which a Download
-  for Mac button from KAN-922 joins in the same wrapping row), the job
-  feed the hero flows into (`hero-feed.tsx`, below; it replaced the logo
-  strip, `logo-strip.tsx`, unmounted, and keeps its line and real
-  employers, `logoStrip` in data.ts), **the opening run after Loopsii's** (the
+  for Mac button from KAN-922 joins in the same wrapping row), the logo
+  strip (`logo-strip.tsx`, real employers from
+  `logoStrip` in data.ts), **the opening run after Loopsii's** (the
   user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`, a small label
   and one large statement of who WorkIt is for, in other words than the
   hero's line, read in word by word as it arrives), where applications
@@ -653,48 +652,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     it shifted by up to 10px. Each row has the deep dive's icon (`icon` in
     `features/types.ts`, required). Below lg the order is heading, box, rows
     (one tree, `display: contents`). `product-accordion.tsx`.
-  - **The hero flows into the job feed** (`hero-feed.tsx`, the user's
-    idea, after the game Snake, 2026-11-20). Under the hero sits a feed on
-    the hero's own columns (`.feed-grid` copies `.hero-grid`'s 4, 6, 7, 9
-    and 11): a drop cell under the hero's bottom-left tile beside the line
-    "Job postings pulled fresh from thousands of company job boards", then
-    a row of pale violet track cells ending in a white WorkIt cell. **From
-    lg up the whole frame turns into one snake as the page scrolls**: the
-    ring of tiles round the headline unzips at the bottom-left, steps down
-    into the drop cell and along the row, each tile following the cells the
-    one ahead took (at step `s` tile `k` stands at `k + s` on one path of
-    measured cell boxes: the ring from tail to head, the drop, the row,
-    WorkIt; it moves in straight lines between neighbouring cells, never on
-    a curve), and WorkIt eats the head end tile by tile with a pulse. The
-    tiles are glass in the hero, violet once out, logo tiles on the row.
-    The headline's tile fades and draws back (gone by two thirds of the
-    way) and the violet ground fades to the page (`.hero-fade`), both on
-    `--snake-p`, **so nothing is left of the hero** by the time the page is
-    down the hero's height (`RANGE`), where the tail reaches the row's
-    first cell and the row lies full, logo against logo. **The scroll
-    drives it** (the user's call): a first build played it on a 2.4 s
-    timer, which ran far quicker than anyone scrolls, and the user wanted
-    the hero empty by the time they reach the feed; it rests where the
-    reader stops and plays backwards on the way up. Then the row feeds
-    WorkIt on its own every `BEAT` (1.8 s): each logo steps one cell, the
-    last goes into WorkIt and a new one enters the first cell, **so the row
-    is always full**: one entering every other beat left an empty cell
-    between two logos (the user's catch). It rests off screen and in a
-    hidden tab. **How**: the hero's own tiles stay and hide once the page
-    leaves the top (`data-snake`); copies (`.snake-tile`, with no backdrop
-    blur, which twenty-eight moving tiles could not afford) move on
-    transforms, set once a frame while the page scrolls. Every box is
-    measured from the layout, again on each resize, so it fits 7, 9 or 11
-    columns (checked: 20, 24 and 28 tiles, the row full at the end, the
-    feed's cells under the hero's columns to the pixel). Below lg there is
-    no ring: a phone gets the feed's row alone, full and stepping. With
-    reduced motion and before the script runs, the row shows its logos at
-    rest (`.feed-static`) and the hero stays whole. **Testing**: the
-    Browser pane, hidden, runs no animation frames, so a scroll there never
-    moves the snake; check in a visible browser, or dispatch `resize`,
-    which renders at once. A hot reload logs "Encountered a script tag
-    while rendering": the hero's shuffle script, re-rendered in the client
-    wrapper; a fresh load has no error and the script runs.
+  - **Drifting rows** (`.drift-row`: the logo strip)
+    draw their items twice and move by half their width, still with
+    reduced motion.
   - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
     (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
     (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),
@@ -1658,7 +1618,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   rule that held each CSS loop are deleted, and nothing reads the key, so
   a visitor who had paused is not left paused with no way back. **This
   leaves WCAG 2.2.2 open on the home page**: the hero's lights and the
-  job feed's loop (hero-feed.tsx) run with no pause on the page; only the operating
+  logo strip's drift loop with no pause on the page; only the operating
   system's reduced motion stills them. Bringing a pause back means
   restoring those two files and the CSS rule from git history.
   - Timed loops still read `useLoopsHeld` (hooks.ts), now a hidden tab
