@@ -70,27 +70,32 @@ export function WhatIs() {
             className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] lg:gap-12"
             style={stepping ? { opacity: fade, transform: recede } : undefined}
           >
-            {/* WorkIt's app icon in glass (app-icon.tsx), large in its own
-                column, in place of a bare grey label (the user's ask,
-                2026-11-20). */}
-            <div data-arrived={mounted ? String(arrived) : undefined} className="what-is-mark">
-              <AppIcon className="size-20 sm:size-24 lg:size-36" />
-            </div>
-            {/* The question over its answer: the question in the display
-                face, grey, the answer one large line, then one smaller line
-                on how. One long paragraph at the statement's size read as a
-                wall of text (the user's catch, 2026-11-20). */}
-            <div>
+            {/* WorkIt's app icon as a floating slab of glass (app-icon.tsx)
+                with its name under it, as on a home screen, centred in its
+                column both ways: across, between the frame's side line
+                (1.5rem outside the column) and the words, so the column's
+                padding is that 1.5rem (the user's asks, 2026-11-20). Beside
+                the name below lg. */}
+            <div
+              data-arrived={mounted ? String(arrived) : undefined}
+              className="what-is-mark flex items-center gap-4 lg:flex-col lg:justify-center lg:gap-3 lg:pl-6"
+            >
+              <AppIcon />
               <h2
                 id="what-is-title"
-                className="text-ink-meta text-xl font-medium tracking-[-0.01em] sm:text-2xl"
+                className="text-ink-meta text-lg font-medium tracking-[-0.01em] lg:text-center lg:text-xl"
               >
                 {whatIs.label}
               </h2>
+            </div>
+            {/* The answer: one large line, then one smaller line on how.
+                One long paragraph at the large size read as a wall of text
+                (the user's catch, 2026-11-20). */}
+            <div className="lg:py-4">
               <p
                 ref={ref}
                 data-arrived={mounted ? String(arrived) : undefined}
-                className="word-reveal font-display text-ink mt-4 text-[2rem] leading-[1.1] font-medium tracking-[-0.025em] text-balance sm:text-[2.5rem] lg:text-[3rem]"
+                className="word-reveal font-display text-ink text-[2rem] leading-[1.1] font-medium tracking-[-0.025em] text-balance sm:text-[2.5rem] lg:text-[3rem]"
               >
                 {words.map((word, i) => (
                   <span key={i} style={{ "--w": i } as CSSProperties}>

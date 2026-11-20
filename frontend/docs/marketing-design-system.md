@@ -21,8 +21,10 @@ screens follow `design.md`, not this file.
    the four read as alike. Never a fade to white: a colour washing to
    white was the option the user turned down as AI-made. The logo is
    violet wherever it shows, and What is WorkIt draws it as an app icon
-   (`AppIcon`, the user's ask, 2026-11-20): a violet squircle lit from
-   above with a frosted sheet and the white figure, its shadows slate.
+   (`AppIcon`, the user's asks, 2026-11-20): a thin slab of glass tilted
+   in 3D and floating over a slate shadow, its face a violet squircle lit
+   from above with a frosted sheet and the white figure, its edge deeper
+   violets.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
    never fills a button or a card. Two exceptions: the home hero's
