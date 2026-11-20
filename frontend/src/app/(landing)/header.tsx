@@ -14,7 +14,7 @@ import { PrimaryButton, SecondaryButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
-import { resourcePages, type Resource } from "./resources/catalog";
+import { RESOURCES_IN_NAV, resourcePages, type Resource } from "./resources/catalog";
 import { SessionSwap } from "./session-swap";
 
 /** The Features menu's foot row: the first few hiring systems by name. */
@@ -25,7 +25,8 @@ const WORKS_WITH = hiringSystems.slice(0, 3);
  * floats: the bar becomes a white rounded panel with a shadow, inset from
  * the window's edges like the panels below it (FloatingHeader sets the
  * state). The links: Features ▾ (the feature pages, features/catalog.ts),
- * Resources ▾ (resources/catalog.ts), Pricing, Download (the Mac app's
+ * Resources ▾ (resources/catalog.ts; archived behind `RESOURCES_IN_NAV`
+ * since 2026-11-20), Pricing, Download (the Mac app's
  * page, KAN-922, public before the build too: it says Coming soon until
  * then), then Log in and Get started,
  * or one "Open WorkIt" for a signed-in visitor (KAN-581), from the first
@@ -65,11 +66,13 @@ export function Header() {
                   <FeaturesPanel />
                 </NavMenu>
               </li>
-              <li>
-                <NavMenu label="Resources">
-                  <ResourcesPanel />
-                </NavMenu>
-              </li>
+              {RESOURCES_IN_NAV && (
+                <li>
+                  <NavMenu label="Resources">
+                    <ResourcesPanel />
+                  </NavMenu>
+                </li>
+              )}
               <li>
                 <Link href={site.pricing.href} className={NAV_ITEM}>
                   {site.pricing.label}
@@ -140,7 +143,7 @@ export function Header() {
         <ul className="mt-4 grid gap-1">
           {/* The two header menus as expandable lists. */}
           <MobileGroup label="Features" items={featurePages} />
-          <MobileGroup label="Resources" items={resourcePages} />
+          {RESOURCES_IN_NAV && <MobileGroup label="Resources" items={resourcePages} />}
           <li>
             <Link
               href={site.pricing.href}

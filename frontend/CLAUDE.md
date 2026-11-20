@@ -1169,9 +1169,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   in and Get started (the team renamed Product to Features); its old anchor links (Features, Applications, FAQ) are gone.
   The team first kept two links and turned down a third, Help Center among
   them; on 2026-10-21 it reversed that and added Resources ▾ (MCP docs,
-  Help Center, Blog). Still turned down: Integrations (too small for a
-  page), a public job list (no postings shown signed out), What's New and
-  For Career Centers.
+  Help Center, Blog). **Resources ▾ is archived from the header** (the
+  user's call, 2026-11-20: `RESOURCES_IN_NAV` in `resources/catalog.ts`,
+  false), in the bar and the phone menu, since none of its pages exists;
+  the routes and the footer's Resources column stay. Still turned down:
+  Integrations (too small for a page), a public job list (no postings
+  shown signed out), What's New and For Career Centers.
   **The Resources list is `resources/catalog.ts`**: each item's name, link,
   icon and menu line, in menu order. The Resources menu, the phone menu and
   the footer's Resources column read it. None of the three has a page yet,

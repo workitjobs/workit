@@ -78,3 +78,11 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
 
 /** The three items in menu order. */
 export const resourcePages = Object.values(RESOURCES);
+
+/**
+ * Whether the header shows Resources ▾, in the bar and the phone menu.
+ * Archived (the user's call, 2026-11-20): none of the three pages exists
+ * yet, so the menu offered only "Soon". The pages, their routes and the
+ * footer's Resources column stay; set this to true to bring the menu back.
+ */
+export const RESOURCES_IN_NAV = false;
