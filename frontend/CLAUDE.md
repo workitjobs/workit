@@ -419,7 +419,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     for every step of applying", then one line on why one app beats four
     ("Set up your profile once. Every tool below uses it, so you stop
     typing the same things over and over."), then the four products as a
-    row of flat grey tiles (`FeatureJumps`), each its mark, its name, **a
+    row of flat tiles, each in its feature's pale tint with its mark
+    ringed in white (`FeatureJumps`; grey, the four read as alike, the
+    user's call, 2026-11-20), each its mark, its name, **a
     selling line that says what the product does** and "See how", a
     `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
     `/#tracker`, the product sections' ids). The heading, the line and the
@@ -1636,7 +1638,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (checks,
   feature tiles, Plus's limit pills, and the pale tint of a selected item
-  the visitor clicked, the problems hub's open card); **shadows are slate, never violet**
+  the visitor clicked, the problems hub's open card; one exception to
+  grey cards: the four product tiles, each flat in its own feature's pale
+  tint, 2026-11-20); **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
   A new style that breaks one of these goes in the doc first, with the
   user's yes.

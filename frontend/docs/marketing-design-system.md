@@ -12,7 +12,14 @@ screens follow `design.md`, not this file.
 1. **Colour lives in two places only**: the home hero (its grainy violet
    ground under glass tiles) and the framed boxes (`StudioBox`). The page, its cards and its buttons are white,
    ink and grey. A violet card, a violet shadow or a violet-tinted white
-   anywhere else reads as AI-made.
+   anywhere else reads as AI-made. **One exception, the four product
+   tiles** under "One app for every step of applying" (`FeatureJumps`,
+   the user's call, 2026-11-20): each is flat in its feature's pale
+   tint, its colour mixed 9% into white (14% on hover), the same share
+   for all four so none stands out, and its mark ringed in white with a
+   slate shadow so the mark's pastel squircle stands off the tint. Grey,
+   the four read as alike. Never a fade to white: a colour washing to
+   white was the option the user turned down as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
    never fills a button or a card. Two exceptions: the home hero's
