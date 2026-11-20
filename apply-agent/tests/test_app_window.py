@@ -595,3 +595,11 @@ def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
         signal.signal(signal.SIGTERM, before)
 
     assert window.closed
+
+
+def test_app_pages_stay_light():
+    """The student page is light only, so sign-in, first run and Settings never turn dark beside it."""
+    for page in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.SETTINGS):
+        assert "prefers-color-scheme: dark" not in page
+        assert '<meta name="color-scheme" content="light">' in page
+    assert "prefers-color-scheme: dark" in app_window.STYLE  # the Developer dashboard keeps its dark scheme
