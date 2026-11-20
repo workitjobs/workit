@@ -433,8 +433,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     2026-11-20): each line sells what the product saves the student, with
     their time going into quality ("Spend your time on the jobs your
     experience fits best"), never a feature name or a count of
-    applications. **The four lines stay even**: close in length (54 to 69
-    characters) and short, so the tiles take the same lines; lines from 36
+    applications. **The four lines stay even**: close in length (54 to 57
+    characters) and short, so the tiles take the same two lines; lines from 36
     to 120 characters, each in its own pattern, read as uneven (the
     user's catch, 2026-11-20). **The tracker "fills itself in", never
     "updates itself"**: a saved job lands on its own, Auto Apply marks a

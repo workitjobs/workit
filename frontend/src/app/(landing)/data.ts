@@ -481,10 +481,10 @@ export const featuresIntro = {
   /** Each product's selling line on its link, in `PRODUCTS` order, the
    *  user's picks (2026-11-20): sell what each saves the student, with time
    *  going into quality, never volume. **Even**: the four are close in
-   *  length (54 to 69 characters), so three take two lines from 1100 to
-   *  1440px and the tracker's three, and their "See how" links line up;
-   *  lines from 36 to 120 characters, each in its own pattern, read as
-   *  uneven (the user's catch). */
+   *  length (54 to 57 characters), so all four take two lines from 1100
+   *  to 1440px and their "See how" links line up; lines from 36 to 120
+   *  characters, each in its own pattern, read as uneven (the user's
+   *  catch), and a 69-character tracker line took a third. */
   products: {
     resumes: "Making a resume has never been easier. Tailor in a click.",
     matching: "Spend your time on the jobs your experience fits best.",
@@ -494,7 +494,7 @@ export const featuresIntro = {
     // tab, and Apply Now asks "Did you apply?" on the way back; stages past
     // Applied are set by hand, since WorkIt reads no email. Each application
     // keeps the resume it went out with (docs/sent_resume.md).
-    tracker: "The spreadsheet that fills itself in. Every resume you sent, on file.",
+    tracker: "The spreadsheet that fills itself in, resumes and all.",
   },
 };
 
