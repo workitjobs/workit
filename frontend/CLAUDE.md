@@ -252,7 +252,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   headline on its widest phrase and the city, taken when a strong match shows,
   since a red 67% was the wrong first impression. A change to the hero's look
   means taking it again. The home page's tab title is short (`site.tabTitle`,
-  a tab shows about 30 characters); its preview carries the whole tagline.
+  a tab shows about 30 characters). Its description, in search results and
+  the preview, is `homeDescription` in data.ts, in other words than the
+  hero's line, which a preview showed beside the hero's own (the web review,
+  2026-11-20).
   After a deploy, check a link in a preview debugger: a platform caches the
   old card for days.
 - **The home page since KAN-923** (2026-11-19, after Calendly's home page;
@@ -264,7 +267,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
   `logoStrip` in data.ts), where applications get lost (`problems.tsx`),
-  the four features (`HeroFeatures`), one product section each
+  WorkIt's answer with the four products as links to their sections
+  (`FeatureJumps` in `product-sections.tsx`), one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), what stays the student's call (`control.tsx`),
   the hiring systems as a centred chapter
@@ -401,32 +405,27 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     cards, then a grid capped at 84rem, which left bare grey margins on a
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
-  - **The four features, after the problems**
-    (`hero-features.tsx`, their own section since the hero became one
-    screen). **Its heading is the turn from the problems to the product**
-    (the user's ask, 2026-11-20): "WorkIt is one place for your whole job
-    search", what WorkIt is, then one line on what "one place" means
-    ("Your experience, every resume, your best-fit jobs and every
-    application live in one account, so nothing gets retyped or lost.",
-    `featuresIntro` in data.ts, each clause a claim the app keeps and no
-    promise of replies). **Never the hero's line again**: the first
-    version listed the hero subtitle's four steps nearly word for word
-    (the user's catch, 2026-11-20). It was "Every step of the search, in one place",
-    which listed the features but did not answer the problems. On the plain white
-    page with no eyebrow: on a second violet panel with a violet eyebrow
-    the user found it off; the tab track is slate at 5% so it reads on
-    white): the four
-    `TOUR_TABS` as a tab row (WAI tabs, arrow keys move), and one
-    `.surface-card` with the open feature's copy (`StopCopy`,
-    `stop-copy.tsx`, shared with the unmounted tour) beside its story in a
-    `StudioBox`, scaled by `Fit` with `max={1}`. Each story plays once and
-    the next tab opens: `Story` calls the `StoryEnd` context (story.tsx)
-    in place of looping, and only the hero provides it; once the visitor
-    picks a tab, the card stays and its story loops. Stories hold off
-    screen and in a hidden tab, so the tabs move only
-    while someone watches. The stories load through `features/animations.tsx`,
-    so only the open one's chunk loads. Below sm only the open tab shows
-    its label: four labels ran past a 390px screen.
+  - **WorkIt's answer, after the problems**: a short section, "WorkIt is
+    one place for your whole job search", what WorkIt is, then one line on
+    what "one place" means ("Your experience, every resume, your best-fit
+    jobs and every application live in one account, so nothing gets
+    retyped or lost.", `featuresIntro` in data.ts, each clause a claim the
+    app keeps and no promise of replies), then the four products as a row
+    of flat grey tiles (`FeatureJumps`), each its mark, its name, "Fixes"
+    and the problem above it answers (`FIXES`, by its title in `problems`),
+    and "See how", a `Link` to its section (`/#resumes`, `/#matching`,
+    `/#auto-apply`, `/#tracker`, the product sections' ids). **The turn
+    from the problems to the product** is the user's ask (2026-11-20); the
+    heading was "Every step of the search, in one place", which listed the
+    features but did not answer the problems. **Never the hero's line
+    again**: the first version listed the hero subtitle's four steps nearly
+    word for word (the user's catch). **The links are `Link`s to
+    "/#slug"**, as the Features menu's "/#hiring-systems" is: as plain
+    anchors, "#slug" and "/#slug" jumped to the page's top. **It replaced
+    the four features' tabs** (`hero-features.tsx`, unmounted, kept: a tab
+    row over one large card telling the open feature's story), which told
+    the same four products' stories that the product sections told again
+    right below, the same resume text in both (the web review, 2026-11-20).
   - **Why before how** (the user's plan, 2026-11-19, after Calendly's
     "Built for people whose work runs on meetings"): the page named the
     four features three times (the features card, the journey, the product
@@ -491,17 +490,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     hedged ("some", "often") where a survey measures a fear, not a fact,
     the one figure checked against its source, and never "75% of resumes
     are rejected by an ATS", "40% of jobs are fake" or "recruiters read a
-    resume in 6 seconds", which no sound study backs. **Control** (`control.tsx`, after the **Control** (`control.tsx`, after the
+    resume in 6 seconds", which no sound study backs. **Control** (`control.tsx`, after the
     product sections): "You stay in control", designed the same way, its
     scenes on WorkIt's violet sky where the problems' are slate (the
-    search as it is, then WorkIt's answer). The lead, wide: the followed
-    application's form filled, Ready to Submit, the student's cursor named
-    "You" on the company's Submit; then Nothing invented (Tailor's marked
-    rewording of the student's own line, with Undo), Your words win (the
-    student's answer typed over the draft, kept for next time) and Five at
-    a time, never a flood (Up Next's five tabs in the queue's own states).
-    It replaced four cards of an icon and two lines, which the user found
-    undesigned. Both sections draw with `scene-parts.tsx` (`Panel`,
+    search as it is, then WorkIt's answer). Two promises side by side:
+    Nothing invented (Tailor's marked rewording of the student's own line,
+    with Undo) and Your words win (the student's answer typed over the
+    draft, kept for next time). It led with "You click Submit, every time"
+    and ended on "Five at a time, never a flood"; both went with the web
+    review (2026-11-20), since Auto Apply's product section says them just
+    above. It replaced four cards of an icon and two lines, which the user
+    found undesigned. Both sections draw with `scene-parts.tsx` (`Panel`,
     `delay`). The worry any auto apply tool raises, answered as what
     WorkIt does, where the archived statement said it as a warning. Both are claims, each tied to
     its source in `problems` and `control` in data.ts: never a number
@@ -531,7 +530,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     up on a screen at least 40rem tall): the feature's chip and serif
     headline at the top of the column, its deep dives as rows at the foot,
     level with the square `StudioBox`, all held still under the header
-    while the scroll opens one row at a time, 45svh of scroll a row. The
+    while the scroll opens one row at a time, 25svh of scroll a row (at
+    45svh each product took about 2.9 screens and the four about 11.7, the
+    web review, 2026-11-20; now about 2.1 each). The
     open row shows its body and its own arrow link to that deep dive on the
     feature page (`deepDiveAnchor` in `features/catalog.ts`, which the
     feature page sets as the deep dive's id); a line in the feature's

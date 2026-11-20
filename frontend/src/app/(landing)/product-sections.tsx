@@ -1,5 +1,9 @@
+import { ArrowDownIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
+
 import { cn } from "@/lib/cn";
 
+import { problems } from "./data";
 import { deepDiveAnchor, FEATURES, type FeatureSlug } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
@@ -10,7 +14,69 @@ import { ProductAccordion } from "./product-accordion";
  *  with four rows (its feature page's four deep dives). The tracker joined
  *  them at the user's ask, in place of the hiring systems, which looked like
  *  a fifth product here and became a chapter of their own (hiring-grid.tsx). */
-const PRODUCTS: FeatureSlug[] = ["resumes", "matching", "auto-apply", "tracker"];
+const PRODUCTS = [
+  "resumes",
+  "matching",
+  "auto-apply",
+  "tracker",
+] as const satisfies readonly FeatureSlug[];
+
+/**
+ * The four products as a row of links, each to its section below (`/#<slug>`,
+ * the section's id): the intro under "WorkIt is one place for your whole job
+ * search" (page.tsx). It replaced a tabs row over a large card that told the
+ * four products' stories, which the product sections then told again, word
+ * for word, right below (the web review's first finding, 2026-11-20). Each is
+ * a flat grey tile, as the problems' closed cards are: the product's mark, its
+ * name, the problem above it fixes (`FIXES`, by its title in `problems`) and
+ * "See how", with no picture, since the picture is a scroll away. The tiles
+ * first carried each product's menu line, which the product's own heading
+ * repeated a scroll later; the problem ties the products back to the
+ * section above instead. Auto Apply answers the forms, not the written
+ * questions: it writes no answer to a new written question.
+ */
+const FIXES: Record<(typeof PRODUCTS)[number], (typeof problems.items)[number]["scene"]> = {
+  resumes: "resumes",
+  matching: "boards",
+  "auto-apply": "forms",
+  tracker: "tracker",
+};
+export function FeatureJumps() {
+  return (
+    <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-12 lg:grid-cols-4">
+      {PRODUCTS.map((slug) => {
+        const page = FEATURES[slug];
+        return (
+          <li key={slug}>
+            {/* A `Link` to "/#slug", as the Features menu's "/#hiring-systems"
+                is: as a plain anchor, "#slug" or "/#slug" jumped to the
+                page's top instead of to the section. */}
+            <Link
+              href={`/#${slug}`}
+              className="group focus-visible:outline-ink flex h-full flex-col rounded-2xl bg-slate-900/[0.035] p-5 transition-colors hover:bg-slate-900/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              <FeatureIcon feature={page} size="md" />
+              <span className={cn(TYPE.item, "text-ink mt-4")}>{page.name}</span>
+              <span className="text-ink-meta mt-3 text-xs font-semibold tracking-[0.06em] uppercase">
+                Fixes
+              </span>
+              <span className="text-ink-muted mt-1 text-[15px] leading-snug text-pretty">
+                {problems.items.find((item) => item.scene === FIXES[slug])?.title}
+              </span>
+              <span className="text-ink mt-auto inline-flex items-center gap-1 pt-4 text-sm font-medium">
+                See how
+                <ArrowDownIcon
+                  aria-hidden="true"
+                  className="size-3.5 transition-transform group-hover:translate-y-0.5"
+                />
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /**
  * One section per product (KAN-923), after Calendly's: the feature's chip
@@ -27,7 +93,7 @@ export function ProductSections() {
     const content = featureContent[slug];
     const titleId = `product-${slug}`;
     return (
-      <section key={slug} aria-labelledby={titleId} className="py-16 sm:py-24">
+      <section key={slug} id={slug} aria-labelledby={titleId} className="py-16 sm:py-24">
         <div className={CONTAINER}>
           <ProductAccordion
             heading={

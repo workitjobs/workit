@@ -6,7 +6,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 import { SIGNED_IN_HINT } from "@/lib/supabase/cookies";
 
-import { hero } from "./(landing)/data";
+import { homeDescription } from "./(landing)/data";
 import "./globals.css";
 
 /**
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
    * would not. `default` is what a page without its own title inherits.
    */
   title: { default: "WorkIt", template: "%s · WorkIt" },
-  description: hero.subtitle,
+  description: homeDescription,
   // No title or description here: a page's own carry over to its link
   // preview. Set here, every page would have unfurled as this one.
   openGraph: SHARE_DEFAULTS,

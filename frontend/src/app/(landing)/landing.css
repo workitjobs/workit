@@ -1555,7 +1555,9 @@ html[data-tab-flight="flying"] .tour-tabs {
 @layer components {
   @media (min-width: 64rem) and (min-height: 40rem) {
     .product-track {
-      height: calc(100svh - 5.5rem + var(--rows, 1) * 45svh);
+      /* 25svh of scroll a row: at 45svh each product took about 2.9
+       * screens and the four about 11.7 (the web review, 2026-11-20). */
+      height: calc(100svh - 5.5rem + var(--rows, 1) * 25svh);
     }
     .product-stage {
       position: sticky;

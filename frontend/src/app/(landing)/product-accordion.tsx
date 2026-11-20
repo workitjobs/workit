@@ -31,7 +31,7 @@ const PIN_QUERY = "(min-width: 64rem) and (min-height: 40rem)";
  * KAN-923), after Calendly's product sections. Where it pins (`PIN_QUERY`)
  * the whole section stops in the middle of the screen under the header,
  * heading, rows and box together, and the scroll opens one row at a time:
- * each row has its own stretch of scroll (`.product-track`, 45svh a row),
+ * each row has its own stretch of scroll (`.product-track`, 25svh a row),
  * the open row shows its body and its arrow link to its deep dive, a line
  * in the feature's colour fills along its foot as the scroll moves through
  * its stretch, and the box shows its still scene, swapping with a fade.

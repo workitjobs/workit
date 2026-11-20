@@ -83,6 +83,16 @@ export const hero = {
 };
 
 /**
+ * The home page's description for search results and link previews
+ * (page.tsx, the root layout): what WorkIt is, in other words than the
+ * hero's line, which a preview showed beside the hero's own words (the web
+ * review, 2026-11-20). Each clause is a claim the app keeps; no promise of
+ * replies or interviews.
+ */
+export const homeDescription =
+  "WorkIt is one place for your whole job search: your experience, a tailored resume for each job, the jobs that fit you and every application, filled in and tracked. You click Submit.";
+
+/**
  * The home page's hiring-systems section: the job pipeline
  * (docs/job-pipeline.md) drawn as a stream (hiring-systems.tsx). Every line
  * is a claim: the scraper runs every 3 hours, reads the company job boards
@@ -90,18 +100,22 @@ export const hero = {
  * reads their facts, merges duplicates and drops postings that closed. The
  * page says "freshest" rather than the 3-hour schedule, at the team's ask,
  * and labels only the two ends of the pipeline (no cadence or sort note).
+ * It names no role type ("internships and new-grad roles" went, the user's
+ * call for the whole page, and its step is "Sorting roles by level") and
+ * does not repeat the logo strip's "thousands of company job boards" (the
+ * web review, 2026-11-20).
  */
 export const hiringSystemsSection = {
   // "hiring systems" kept on one line: the page's own term, split across
   // two it read as two words.
   title: "Straight from the hiring\u00a0systems companies use",
   subtitle:
-    "WorkIt pulls the freshest internships and new-grad roles from thousands of company job boards on these hiring systems, and links each one to the company's own application.",
+    "WorkIt reads each company’s own job board on these hiring systems, so every posting is fresh and links to the company’s own application.",
   intake: "Company job boards",
   output: "Your Jobs page",
   /** What WorkIt does to the stream, one line at a time under its mark. */
   steps: [
-    "Keeping internships and new-grad roles",
+    "Sorting roles by level",
     "Reading pay, work style and visa",
     "Merging duplicate job postings",
     "Dropping job postings that closed",
@@ -454,13 +468,12 @@ export const featuresIntro = {
  */
 export const control = {
   title: "You stay in control",
-  subtitle: "WorkIt does the busywork. Every decision stays yours.",
+  subtitle: "WorkIt works from what you’ve done and what you’ve written, never past it.",
+  /** The two promises no other section makes. "You click Submit, every
+   *  time" and "Five at a time" went (the web review, 2026-11-20): Auto
+   *  Apply's product section says both, and here they made a second pass at
+   *  the same claims. */
   promises: [
-    {
-      scene: "submit",
-      title: "You click Submit, every time",
-      body: "WorkIt fills each application and never sends one. You look it over and click the company’s own Submit button.",
-    },
     {
       scene: "truth",
       title: "Nothing invented",
@@ -470,11 +483,6 @@ export const control = {
       scene: "words",
       title: "Your words win",
       body: "Rewrite an answer in a form and WorkIt keeps your version for next time. It never writes over it.",
-    },
-    {
-      scene: "five",
-      title: "Five at a time, never a flood",
-      body: "Auto Apply fills up to five applications at once, each in its own tab, from jobs you picked yourself.",
     },
   ],
 } as const;

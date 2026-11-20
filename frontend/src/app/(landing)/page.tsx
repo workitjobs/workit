@@ -8,15 +8,14 @@ import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { SecondaryButton } from "./buttons";
 import { Control } from "./control";
-import { featuresIntro, hero, site, testimonial } from "./data";
+import { featuresIntro, hero, homeDescription, site, testimonial } from "./data";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
-import { HeroFeatures } from "./hero-features";
 import { HiringGrid } from "./hiring-grid";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
-import { ProductSections } from "./product-sections";
+import { FeatureJumps, ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
 
@@ -25,13 +24,13 @@ const shareTitle = `${site.name}: ${site.tagline}`;
 
 export const metadata: Metadata = {
   title: { absolute: `${site.name} · ${site.tabTitle}` },
-  description: hero.subtitle,
+  description: homeDescription,
   alternates: { canonical: "/" },
-  openGraph: { ...SHARE_DEFAULTS, url: "/", title: shareTitle, description: hero.subtitle },
+  openGraph: { ...SHARE_DEFAULTS, url: "/", title: shareTitle, description: homeDescription },
   twitter: {
     card: "summary_large_image",
     title: shareTitle,
-    description: hero.subtitle,
+    description: homeDescription,
     images: [SHARE_IMAGE],
   },
 };
@@ -119,15 +118,14 @@ export default function LandingPage() {
       {/* Applying as it is, before how WorkIt works: problems.tsx. */}
       <Problems />
 
-      {/* WorkIt's answer to the problems, then the four features, one at a
-          time: a section of their own since the hero became one screen
-          (hero-features.tsx). Its heading is the turn from the problems to
-          the product (the user's ask, 2026-11-20): what WorkIt is, then
-          what it does, in a line of claims the app keeps (Experiences,
-          Tailor, the Jobs page's Best Match, Auto Apply, the student's own
-          Submit); it never promises replies or interviews. On the plain
-          white page with no label above the heading: on the hero's violet
-          panel, with a violet eyebrow, it read as off (the user's call). */}
+      {/* WorkIt's answer to the problems: what it is, what "one place"
+          means, and the four products as links to their sections below
+          (FeatureJumps, product-sections.tsx). The turn from the problems to
+          the product (the user's ask, 2026-11-20); it never promises replies
+          or interviews. A tabs row over a large card was here, telling the
+          four products' stories that the product sections tell again below,
+          and the line under the heading repeated the hero's: both went with
+          the web review. hero-features.tsx stays, unmounted. */}
       <section aria-labelledby="features-title" className="py-16 sm:py-24">
         <div className={CONTAINER}>
           <SectionHeading
@@ -135,9 +133,7 @@ export default function LandingPage() {
             title={featuresIntro.title}
             subtitle={featuresIntro.subtitle}
           />
-          <div className="mt-10 sm:mt-14">
-            <HeroFeatures />
-          </div>
+          <FeatureJumps />
         </div>
       </section>
 
