@@ -1603,6 +1603,20 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
+/* WorkIt's answer in the problems' frame (problem-tabs.tsx) rises in as
+ * a card opens it; still with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .problem-answer {
+    animation: problem-answer 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+@keyframes problem-answer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 /*
  * The problems' screening scene (problem-scenes.tsx): one document at a
  * time comes into the screen, a scan line reads it, its marked phrases tint

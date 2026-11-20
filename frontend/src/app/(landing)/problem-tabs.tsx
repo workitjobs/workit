@@ -22,19 +22,22 @@ const ICONS = { screen: FunnelSimpleIcon, forms: RepeatIcon, boards: BrowsersIco
  * the frame carries `data-arrived` as `Arrive` does, "false" until it is
  * well on screen, and "false" again for two frames after a click, so the
  * new screen mounts in its waiting pose and then plays (the `.journey-*`
- * and `.ats-*` classes in landing.css). No attribute in the server's HTML,
+ * and `.scan-*` classes in landing.css). No attribute in the server's HTML,
  * so the first screen shows finished without script.
  *
  * The frame is flat grey, not a `StudioBox` sky: these screens are the
  * search as it is, not WorkIt's features, and the user found the gradient
- * wrong here (2026-11-20). The open card is a white `.surface-card`, the
- * closed ones flat grey, and only the open one shows WorkIt's answer: with
- * a paragraph and an answer under every problem the section read as too
- * dense. The closed answers keep their room from md up, so the row never
- * jumps; below md a closed card is its glyph and title alone.
+ * wrong here (2026-11-20). WorkIt's answer to the open problem is the
+ * frame's white foot bar, not a line in the card: in the cards it made
+ * every card as tall as the open one, and the section did not fit a
+ * laptop's screen. So a card is its glyph and title on one row and one
+ * short line; the open one is a white `.surface-card`, the closed ones flat
+ * grey.
  *
  * The cards are buttons with `aria-pressed`, not tabs: the screens are
  * pictures (`aria-hidden`), and each card's words are its button's name.
+ * The foot bar is a polite live region, so a screen reader hears the answer
+ * a click brings up.
  */
 export function ProblemTabs({
   problems,
@@ -62,15 +65,16 @@ export function ProblemTabs({
   };
 
   return (
-    <div className="mt-10 sm:mt-14">
+    <div className="mt-8 sm:mt-10">
       <div
         ref={frameRef}
         data-arrived={mounted ? String(arrived && !hold) : undefined}
-        // From lg up the frame takes what the screen has left once the
-        // header and the cards are counted (about 25rem, with room to spare), so the frame and
-        // the cards show together: at 16:7 the cards ran below a laptop's
-        // screen (the user's catch, 2026-11-20).
-        className="bg-well relative h-[22rem] overflow-hidden rounded-2xl sm:h-[26rem] lg:h-[clamp(18rem,calc(100svh-25rem),30rem)]"
+        // From lg up the heading, the frame and the cards fit one screen
+        // under the floating header: the frame takes what is left once the
+        // header (about 6rem), the two-line heading and its gap (about 10rem)
+        // and the cards (about 9rem) are counted. Sized from the cards alone,
+        // the heading went under the header (the user's catch, 2026-11-20).
+        className="bg-well relative h-[22rem] overflow-hidden rounded-2xl sm:h-[26rem] lg:h-[clamp(16rem,calc(100svh-26.5rem),28rem)]"
       >
         {/* Keyed by `mounted` too: the scene mounts afresh once hydrated,
             so a CSS animation the server's HTML started off screen starts
@@ -78,6 +82,15 @@ export function ProblemTabs({
         <div key={mounted ? at : "server"} className="absolute inset-0">
           {scenes[at]}
         </div>
+        <p
+          aria-live="polite"
+          className="text-ink absolute inset-x-0 bottom-0 z-10 flex items-start gap-2.5 border-t border-slate-900/[0.06] bg-white px-4 py-3 text-[14px] leading-snug sm:px-5"
+        >
+          <Logo size="mark" decorative className="mt-[3px] h-3.5 shrink-0" />
+          <span key={at} className="problem-answer">
+            {problems[at].fix}
+          </span>
+        </p>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         {problems.map((problem, i) => {
@@ -90,45 +103,32 @@ export function ProblemTabs({
               aria-pressed={open}
               onClick={() => pick(i)}
               className={cn(
-                // 20px in: at 24px the first title missed one line by 4px.
-                "flex flex-col rounded-2xl p-5 text-left transition-[background-color,box-shadow] duration-300",
+                "flex flex-col rounded-2xl p-4 text-left transition-[background-color,box-shadow] duration-300 sm:p-5",
                 "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
                 open ? "surface-card" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
               )}
             >
-              <span
-                className={cn(
-                  "grid size-9 place-items-center rounded-[10px] transition-colors duration-300",
-                  open ? "bg-ink text-white" : "text-ink-meta bg-white",
-                )}
-              >
-                <Icon aria-hidden="true" className="size-[18px]" />
+              <span className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "grid size-8 shrink-0 place-items-center rounded-[9px] transition-colors duration-300",
+                    open ? "bg-ink text-white" : "text-ink-meta bg-white",
+                  )}
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                </span>
+                <span
+                  className={cn(
+                    TYPE.item,
+                    "transition-colors",
+                    open ? "text-ink" : "text-ink-muted",
+                  )}
+                >
+                  {problem.title}
+                </span>
               </span>
-              <span
-                className={cn(
-                  TYPE.item,
-                  "mt-4 block text-balance transition-colors",
-                  open ? "text-ink" : "text-ink-muted",
-                )}
-              >
-                {problem.title}
-              </span>
-              <span
-                className={cn(
-                  "text-ink-meta mt-1.5 block text-[15px] leading-snug text-pretty",
-                  !open && "max-md:hidden",
-                )}
-              >
+              <span className="text-ink-meta mt-2 block text-[15px] leading-snug text-pretty">
                 {problem.body}
-              </span>
-              <span
-                className={cn(
-                  "text-ink mt-4 flex items-start gap-2 border-t border-slate-900/[0.07] pt-4 text-[15px] leading-snug text-pretty transition-opacity duration-300",
-                  !open && "invisible opacity-0 max-md:hidden",
-                )}
-              >
-                <Logo size="mark" decorative className="mt-[3px] h-3.5 shrink-0" />
-                <span>{problem.fix}</span>
               </span>
             </button>
           );

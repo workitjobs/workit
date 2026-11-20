@@ -364,26 +364,27 @@ export const heroFits: { title: string; company: string; domain: string; score: 
 export const problems = {
   title: "Many applications stop before a person reads them",
   /** The three places, in the order a click walks them; `scene` names the
-   *  screen problem-scenes.tsx draws for each. One short line each, and
-   *  WorkIt's answer only on the open card: the section read as too dense
-   *  with a paragraph and an answer under every problem (the user's call,
-   *  2026-11-20). */
+   *  screen problem-scenes.tsx draws for each. A title short enough to sit
+   *  beside its glyph on one line, one short line, and WorkIt's answer,
+   *  which shows in the frame's foot bar for the open one: the section read
+   *  as too dense with a paragraph and an answer under every problem (the
+   *  user's call, 2026-11-20). */
   items: [
     {
       scene: "screen",
-      title: "Screened out before anyone reads it",
-      body: "Many hiring systems filter resumes by keyword before a recruiter looks.",
+      title: "Screened out by keywords",
+      body: "Many hiring systems filter resumes before a recruiter looks.",
       fix: "WorkIt shows the keywords you’re missing and adds only the ones you’ve used.",
     },
     {
       scene: "forms",
-      title: "The same form, again and again",
+      title: "The same form, every time",
       body: "The same questions, typed into one company’s form after another.",
       fix: "WorkIt fills each form from your profile. You click Submit.",
     },
     {
       scene: "boards",
-      title: "Good jobs, scattered everywhere",
+      title: "Good jobs, scattered",
       body: "Every company posts on its own job board.",
       fix: "WorkIt puts them on one Jobs page, best fits first.",
     },

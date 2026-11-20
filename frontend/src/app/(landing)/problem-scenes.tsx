@@ -112,7 +112,7 @@ export function ScreenScene() {
   return (
     <div
       aria-hidden="true"
-      className="absolute inset-0 flex items-center justify-center gap-10 px-4 py-5"
+      className="absolute inset-0 flex items-center justify-center gap-10 px-4 pt-4 pb-16"
     >
       <Pile label="Waiting" count={211} />
       <div className="flex h-full max-h-[22rem] w-full max-w-[17rem] flex-col items-center">
@@ -173,8 +173,8 @@ const STACKED = [
  */
 function Pile({ label, count, out = false }: { label: string; count: number; out?: boolean }) {
   return (
-    <div className="flex w-[11rem] shrink-0 flex-col items-center max-lg:hidden">
-      <div className="relative h-[14rem] w-full">
+    <div className="flex h-full max-h-[18rem] w-[11rem] shrink-0 flex-col items-center justify-center max-lg:hidden">
+      <div className="relative min-h-0 w-full flex-1">
         {STACKED.map((paper) => (
           <span
             key={paper.r}
@@ -195,7 +195,7 @@ function Pile({ label, count, out = false }: { label: string; count: number; out
           </span>
         ))}
       </div>
-      <p className="mt-5 text-center text-[11px] leading-tight">
+      <p className="mt-4 shrink-0 text-center text-[11px] leading-tight">
         <span
           className={cn(
             "block text-[15px] font-semibold tabular-nums",

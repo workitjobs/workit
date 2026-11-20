@@ -455,20 +455,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     a click, so the new screen mounts waiting and then plays; it also mounts
     the scene afresh once hydrated (its key reads `mounted`), so a CSS
     animation the server's HTML started off screen starts again, held until
-    seen. **The frame and the cards fit one screen together**: from lg up
-    the frame is `clamp(18rem, 100svh - 25rem, 30rem)` tall, what is left
-    once the header and the cards are counted; at 16:7 the cards ran below
-    a laptop's screen (the user's catch, 2026-11-20). Checked at 1440 × 800
-    and 1280 × 720. **The cards
-    are the switch**: each a button with `aria-pressed` (not tabs, since the
-    screens are `aria-hidden` pictures and each card's words are its
-    button's name), a glyph, the problem's title and one short line. The
-    open card is a white `.surface-card` with its glyph on ink and WorkIt's
-    answer under a hairline, after the WorkIt mark; the closed ones are flat
-    grey, their answers hidden but keeping their room from md up, so the row
-    never jumps; below md a closed card is its glyph and title. **Keep the
-    text this short**: with a subtitle, a paragraph and an answer under
-    every problem the user found the section too dense (2026-11-20). Each
+    seen. **The heading, the frame and the cards fit one screen together**
+    under the floating header: from lg up the frame is `clamp(16rem, 100svh
+    - 26.5rem, 28rem)` tall, what is left once the header, the two-line
+    heading and the cards are counted. At 16:7 the cards ran below a
+    laptop's screen, and sized from the cards alone the heading went under
+    the header (both the user's catch, 2026-11-20). Checked at 1440 × 800
+    and 1280 × 720; a change to the heading, the cards or the gaps means
+    measuring again. **The cards are the switch**: each a button with
+    `aria-pressed` (not tabs, since the screens are `aria-hidden` pictures
+    and each card's words are its button's name), its glyph and a title
+    short enough for one line beside it, then one short line. The open
+    card is a white `.surface-card` with its glyph on ink; the closed ones
+    are flat grey. **WorkIt's answer is the frame's white foot bar**, after
+    the WorkIt mark, a polite live region that changes with the open card:
+    as a line in the open card it made every card in the row as tall as
+    that one, empty room at the foot of the closed ones (the user's catch).
+    The screening scene leaves room above the bar. **Keep the text this
+    short**: with a subtitle, a paragraph and an answer under every problem
+    the user found the section too dense (2026-11-20). Each
     window is at least 34rem tall so the frame's foot always cuts it: a
     window that ended just above the foot read as a floating card. **It
     replaced a bento** of three `.surface-card`s, each a small
