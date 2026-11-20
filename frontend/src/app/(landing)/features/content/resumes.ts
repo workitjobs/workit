@@ -9,12 +9,12 @@
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
  */
-import { DatabaseIcon, FileTextIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react/ssr";
+import { DatabaseIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
 import { SparkleIcon } from "@/components/sparkle-icon";
 
 import { ResumeAnimation } from "../animations";
 import type { FeatureContent } from "../types";
-import { BankVisual, BuildVisual, SentResumeVisual, TailorVisual } from "../visuals/resumes";
+import { BankVisual, BuildVisual, FitVisual, TailorVisual } from "../visuals/resumes";
 
 const content: FeatureContent = {
   line: "One experience bank, a tailored resume for every job.",
@@ -45,7 +45,7 @@ const content: FeatureContent = {
       title: "Edit right on the page",
       icon: FileTextIcon,
       body: "WorkIt lays out your bank in the Jake’s Resume template. Click any line and type, as in Google Docs, and the page is typeset in LaTeX for you, with no LaTeX to write.",
-      points: ["Fit to One Page trims it until it fits", "Download as PDF, Word or LaTeX"],
+      points: ["The page reflows as you type", "Download as PDF, Word or LaTeX"],
       visual: BuildVisual,
     },
     {
@@ -59,11 +59,16 @@ const content: FeatureContent = {
       ],
       visual: TailorVisual,
     },
+    // Fit to One Page, in place of "Know which resume went where": the
+    // Tracker's last row says the same about the sent resume with the same
+    // scene, and both showed on the home page (the copy review, 2026-11-20).
+    // The sent resume stays in How it works below.
     {
-      title: "Know which resume went where",
-      icon: PaperPlaneTiltIcon,
-      body: "WorkIt keeps the resume you sent with each application, so you never wonder which version a company has. Open it from your tracker before the interview.",
-      visual: SentResumeVisual,
+      title: "Too long? Fit it to one page",
+      icon: ScissorsIcon,
+      body: "When your resume runs onto a second page, Fit to One Page hides lines until it fits. On a tailored resume, what the job cares about least goes first, and nothing leaves your bank.",
+      points: ["A cut hides a line on this resume only", "It uses none of your AI limit"],
+      visual: FitVisual,
     },
   ],
   howItWorks: {

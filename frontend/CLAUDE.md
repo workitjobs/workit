@@ -263,11 +263,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The user found the old page AI-made: a rolling gradient headline, one
   heading size, and scenes that pinned whole screens. The order, each
   section leading into the next, is `page.tsx`: the hero (a fixed headline,
-  `hero.title`, which is `site.tagline`, "Apply to more jobs, with a better
-  resume for each.", and a line that starts from what the student does
-  first, "Upload your resume."; they were "Your job search, without the
-  busywork." and "WorkIt learns your experience…", which the copy review
-  found model-written and vague, 2026-11-20; the sign-up pair, which a Download
+  `hero.title`, which is `site.tagline`, "Your job search, without the
+  busywork.", and a line that ends on why: the time saved goes into making
+  each application better; the sign-up pair, which a Download
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
   `logoStrip` in data.ts), where applications get lost (`problems.tsx`),
@@ -287,6 +285,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   status chips (deleted, with its `closing` copy; `ClosingCta` stays for
   the feature pages).
   **The rules it set:**
+  - **WorkIt sells quality, never volume** (the user's call, 2026-11-20):
+    it takes the busywork of applying off the student, so their time goes
+    into making each application better, since applying to more jobs gets
+    no one hired. Competitors sell mass applying; no line on the site
+    sells "apply to more jobs" or a count of applications sent, and none
+    promises replies, interviews or offers. "Five at a time" is a fact
+    about Auto Apply, never a pitch for volume. "Apply to more jobs, with a
+    better resume for each." was the hero for a day and went for this.
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground with a fine grain (`.studio-box` in
     landing.css; faint ruled lines across it went, the user found them odd
@@ -558,7 +564,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     Resume…", "press Change in the WorkIt panel" read as a manual) or on a
     limit ("Each form gets your default resume." led the Auto Apply row).
     The rows are the feature pages' deep dives, so the same words show
-    there. **It plays only while
+    there. **No two products' rows say the same thing or share a scene**:
+    the Resume Builder's last row was the sent resume, which the Tracker's
+    last row says with the same scene, so it became Fit to One Page (the
+    copy review, 2026-11-20); the sent resume stays in the Resume Builder
+    page's How it works. **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken
@@ -1469,7 +1479,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on the server, so on a prerendered page it is frozen at build time and
   rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
-  students ("Apply to more jobs, with a better resume for each."): the site's
+  students ("Your job search, without the busywork."): the site's
   two-sided pitch to recruiters went while the business side is hidden.
   The footer marks the Resources pages Soon, as the header's menu does: none has a
   page yet. **Below lg

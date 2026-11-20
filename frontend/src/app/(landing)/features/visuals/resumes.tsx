@@ -7,6 +7,8 @@ import {
   FileArrowDownIcon,
   GraduationCapIcon,
   PlusIcon,
+  ScissorsIcon,
+  WarningIcon,
   WrenchIcon,
 } from "@phosphor-icons/react/ssr";
 
@@ -113,7 +115,7 @@ function PageSection({
       </p>
       {entries.map(([title, place], i) => (
         <div key={title} className="mt-1.5">
-          <p className="text-ink flex justify-between text-[9px] font-bold">
+          <p className="text-ink flex justify-between gap-2 text-[9px] font-bold">
             {title}
             <span className="font-normal italic">{place}</span>
           </p>
@@ -186,6 +188,56 @@ export function BuildVisual() {
             {format}
           </p>
         ))}
+      </div>
+    </Vignette>
+  );
+}
+
+/** A resume over one page in the editor: the Projects section runs past the
+ *  page break, and the editor's own Over One Page notice offers Fit to One
+ *  Page (`FitToast` in resumes/[resumeId]/fit-notice.tsx, its words and
+ *  button). Projects is the section Fit gives way first of those shown
+ *  (docs/cut_to_one_page.md). */
+export function FitVisual() {
+  return (
+    <Vignette className="items-start pl-5">
+      <div
+        className="w-[192px] bg-white px-4 py-3.5 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.3)] ring-1 ring-slate-900/8"
+        style={{ fontFamily: JAKES_FACE }}
+      >
+        <p className="text-ink text-center text-[14px] font-bold">{candidate.name}</p>
+        <PageSection name="Education" entries={[["Northview University", "May 2027"]]} />
+        <PageSection
+          name="Experience"
+          entries={[
+            ["Teaching Assistant", "Data Structures"],
+            // Short, so title and place share a line on the narrower page.
+            ["IT Support Intern", "Help Desk"],
+          ]}
+        />
+        {/* The page break, as the editor's pages meet: what is under it
+            runs onto page 2. */}
+        <div className="relative -mx-4 mt-3 border-t border-dashed border-slate-400">
+          <span className="text-ink-muted absolute -top-[7px] left-2 bg-white px-1 font-sans text-[8px] font-semibold">
+            Page 2
+          </span>
+        </div>
+        <PageSection name="Projects" entries={[["Budget Tracker", "React · Node.js"]]} />
+      </div>
+      <div className="surface-card absolute right-3 bottom-8 flex w-[164px] items-start gap-2 rounded-xl p-3">
+        <span className="bg-warning-tint text-warning grid size-6 shrink-0 place-items-center rounded-full">
+          <WarningIcon className="size-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-ink text-[11px] font-semibold">Over One Page</p>
+          <p className="text-ink-meta mt-0.5 text-[9.5px] leading-snug">
+            About 4 lines run onto page 2.
+          </p>
+          <span className="bg-ink mt-2 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold whitespace-nowrap text-white">
+            <ScissorsIcon className="size-3" />
+            Fit to One Page
+          </span>
+        </div>
       </div>
     </Vignette>
   );
