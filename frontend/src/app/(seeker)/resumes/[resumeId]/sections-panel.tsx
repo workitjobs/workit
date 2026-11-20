@@ -24,6 +24,7 @@ import {
   moveSkill,
   printedSections,
   printedSkills,
+  sectionOrderAfter,
   type PrintedEntry,
   type PrintedSkillGroup,
 } from "./model";
@@ -561,11 +562,14 @@ export function SectionsOutline({
           // after them, so a section the student adds later lands in its usual
           // spot. A custom section that no longer prints leaves the order
           // (KAN-498): it comes back where a new one goes
-          const moved = moveItem(sections, from, to).map((section) => section.id);
-          onOrder([
-            ...moved,
-            ...order.filter((id) => !moved.includes(id) && !id.startsWith("custom:")),
-          ]);
+          onOrder(
+            sectionOrderAfter(
+              sections.map((section) => section.id),
+              order,
+              from,
+              to,
+            ),
+          );
         }}
         row={(section, handle) => {
           const open = openSection === section.id;

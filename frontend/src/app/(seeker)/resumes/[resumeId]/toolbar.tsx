@@ -8,6 +8,7 @@ import {
   ArrowUpIcon,
   CircleNotchIcon,
   LightbulbIcon,
+  QuestionIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
@@ -24,7 +25,7 @@ import {
   type RefObject,
 } from "react";
 
-import { CheckIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
+import { ChevronRightIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,6 +43,7 @@ import type { Choices, PageSettings, RenderBox, RenderedPdf } from "@/lib/built-
 import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
+import { overText } from "./fit-notice";
 import type { Line } from "./model";
 import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
@@ -100,47 +102,6 @@ export type ReviewTools = {
 };
 
 /**
- * Whether the edits are saved, in the title row beside Download on the
- * desktop and at the end of the phone's top row (KAN-799): "Saving…" while
- * anything is on its way, "Saved" once the first render has landed and
- * nothing is. It read "Saved, N ms", the render's time, which was for us,
- * not for a student, and it sat in the bar and left it below 58rem. An
- * error is not said here: the line under the bar says what went wrong.
- */
-export function SaveStatus({
-  saving,
-  fitting,
-  ready,
-  short = false,
-}: {
-  saving: boolean;
-  fitting: boolean;
-  /** The first render has landed. */
-  ready: boolean;
-  /** The phone's "Fitting…", for its narrow row. */
-  short?: boolean;
-}) {
-  const saved = ready && !saving && !fitting;
-  return (
-    <span
-      aria-live="polite"
-      className="text-note text-ink-meta flex shrink-0 items-center gap-1 whitespace-nowrap"
-    >
-      {saved && <CheckIcon className="size-3.5" />}
-      {fitting
-        ? short
-          ? "Fitting…"
-          : "Fitting to One Page…"
-        : saving
-          ? "Saving…"
-          : saved
-            ? "Saved"
-            : ""}
-    </span>
-  );
-}
-
-/**
  * One of an open line's tools after its size and its bold and italic: what
  * the desktop bar draws in its middle group and lists in More once it has
  * left a narrow bar, and what the phone's line sheet draws (KAN-799), so both
@@ -188,6 +149,11 @@ export type LineHandlers = {
  */
 export function lineTools(line: Line, _choices: Choices, { moves }: LineHandlers): LineTool[] {
   if (line.kind === "header" || line.kind === "skill" || !moves) return [];
+  return moveTools(moves);
+}
+
+/** Move Up and Move Down, for an open line or a picked block (KAN-920). */
+export function moveTools(moves: MoveTools): LineTool[] {
   return [
     {
       key: "move-up",
@@ -242,10 +208,15 @@ export function SheetTool({ tool }: { tool: LineTool }) {
   );
 }
 
-/** The bar's middle while a line is open: the line's tools (`lineTools`),
- *  its two arrows. Its size, bold, italic and Done stood here too until
- *  KAN-586. */
-export type OpenLine = { tools: LineTool[] };
+/** One step of the breadcrumb (KAN-920): a section, an entry, a bullet or
+ *  a field. A step with a `target` picks that block (`onCrumb`); the last is
+ *  where the selection is, and has none. */
+export type Crumb = { label: string; target?: string };
+
+/** The bar's middle while a line is open or a block picked: where it sits
+ *  (`crumbs`) and its tools (`lineTools`, `moveTools`), its two arrows. Its
+ *  size, bold, italic and Done stood here too until KAN-586. */
+export type OpenLine = { tools: LineTool[]; crumbs?: Crumb[] };
 
 /** The open line as the bar shows it, or null while the bar is idle: no
  *  line open, or one with no tools (`lineTools`). */
@@ -302,6 +273,10 @@ export function Bar({
   format,
   zoom,
   history,
+  crumbs = null,
+  onCrumb,
+  onTour,
+  blockMoves = null,
 }: {
   /** The open line and its box, or null while none is. */
   line: Line | null;
@@ -318,19 +293,43 @@ export function Bar({
   format: FormatTools;
   zoom: ZoomTools;
   history: HistoryTools;
+  /** Where the open line or the picked block sits (KAN-920). */
+  crumbs?: Crumb[] | null;
+  onCrumb?: (target: string) => void;
+  /** Takes the Getting Started tour again: the ? before the panel's button,
+   *  from 64rem, where the tour is drawn (./walkthrough.tsx). It was Take
+   *  the Tour in the page's ⋯ until the ⋯ went (2026-11-19); Google Docs
+   *  keeps its help under the toolbar the same way. */
+  onTour?: () => void;
+  /** A picked block's moves, in place of an open line's. */
+  blockMoves?: MoveTools | null;
 }) {
-  const open = openLineOf({
+  const blockTools = blockMoves ? moveTools(blockMoves) : null;
+  const lineOpen = openLineOf({
     line,
     box,
     tools: line ? lineTools(line, choices, handlers) : [],
   });
+  const steps_ = crumbs?.length ? crumbs : undefined;
+  const open: OpenLine | null = blockTools
+    ? { tools: blockTools, crumbs: steps_ }
+    : lineOpen
+      ? { ...lineOpen, crumbs: steps_ }
+      : steps_
+        ? { tools: [], crumbs: steps_ }
+        : null;
   const bar = useRef<HTMLDivElement>(null);
   const fits = rendered && rendered.page_count > 1;
   // The fold measures again whenever what the row holds changes
   useFoldToFit(
     bar,
     open
-      ? ["line", ...open.tools.map((t) => `${t.key}:${t.label}`), Boolean(rendered)].join("|")
+      ? [
+          "line",
+          ...(open.crumbs ?? []).map((c) => c.label),
+          ...open.tools.map((t) => `${t.key}:${t.label}:${t.disabled}`),
+          Boolean(rendered),
+        ].join("|")
       : [
           "idle",
           Boolean(experiences?.picker),
@@ -358,7 +357,7 @@ export function Bar({
       <History tools={history} />
       <Divider />
       {open ? (
-        <LineGroup open={open} />
+        <LineGroup open={open} onCrumb={onCrumb} />
       ) : (
         <>
           {experiences?.picker && (
@@ -455,6 +454,24 @@ export function Bar({
             above where the panel opens: never folded away, since it is the
             only way back to a closed panel */}
         <Divider />
+        {onTour && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  aria-label="Take the Tour"
+                  className="shrink-0 max-lg:hidden"
+                  onClick={onTour}
+                />
+              }
+            >
+              <QuestionIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>Take the Tour</TooltipContent>
+          </Tooltip>
+        )}
         <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
       </div>
     </div>
@@ -517,11 +534,12 @@ function useFoldToFit(bar: RefObject<HTMLDivElement | null>, contents: string) {
 }
 
 /** The bar's middle with a line open: its tools, the two arrows. */
-function LineGroup({ open }: { open: OpenLine }) {
+function LineGroup({ open, onCrumb }: { open: OpenLine; onCrumb?: (target: string) => void }) {
   // The line's arrows only (`lineTools`): the size, bold, italic, its other
   // tools and Done stood here until the user cut them (KAN-586)
   return (
     <>
+      {open.crumbs && <Crumbs crumbs={open.crumbs} onCrumb={onCrumb} />}
       {open.tools.map((tool) => (
         <span
           key={tool.key}
@@ -534,6 +552,40 @@ function LineGroup({ open }: { open: OpenLine }) {
         </span>
       ))}
     </>
+  );
+}
+
+/**
+ * Where the selection sits, as a breadcrumb (KAN-920): "Experience › Acme ›
+ * Bullet 2". Each step above the last picks its block, so the student climbs
+ * from a line to its entry or section on the page, as Esc does, with no
+ * Sections panel. Each step is cut short rather than pushing the arrows off.
+ */
+function Crumbs({ crumbs, onCrumb }: { crumbs: Crumb[]; onCrumb?: (target: string) => void }) {
+  return (
+    <nav aria-label="Selection" className="flex min-w-0 shrink items-center gap-0.5 pr-1">
+      {crumbs.map((crumb, i) => (
+        <span key={`${i}:${crumb.label}`} className="flex min-w-0 items-center gap-0.5">
+          {i > 0 && <ChevronRightIcon className="text-ink-meta size-3 shrink-0" />}
+          {crumb.target && onCrumb ? (
+            <button
+              type="button"
+              onClick={() => onCrumb(crumb.target!)}
+              className="text-label text-ink-muted hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring max-w-40 truncate rounded-xs px-1 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {crumb.label}
+            </button>
+          ) : (
+            <span
+              aria-current="true"
+              className="text-label text-ink max-w-40 truncate px-1 font-medium"
+            >
+              {crumb.label}
+            </span>
+          )}
+        </span>
+      ))}
+    </nav>
   );
 }
 
@@ -834,14 +886,10 @@ export function FitButton({
   fitting: boolean;
   onFit: () => void;
 }) {
-  const over =
-    linesOver > 0
-      ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-      : `It runs to ${pages} pages.`;
   return (
     <FoldButton
       label={fitting ? "Fitting…" : "Fit to One Page"}
-      hint={`${over} This hides the least useful lines until it fits.`}
+      hint={`${overText(pages, linesOver)} This hides the least useful lines until it fits.`}
       icon={
         fitting ? (
           <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />

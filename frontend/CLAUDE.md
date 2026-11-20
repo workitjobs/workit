@@ -1999,26 +1999,37 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-825), through three shared pieces; a new place that shows a resume
   uses them, never its own:
   - **One Primary mark, `PrimaryBadge`** (`components/resume-row.tsx`): the
-    table row, a grid card's page corner, the title of the editor and of an
-    upload's page, the resume pickers and Experiences' Showing card.
+    table row, a grid card's page corner, the resume pickers and
+    Experiences' Showing card. A resume's own page has the star instead
+    (`PrimaryStar` in its title, 2026-11-19), filled on the primary and a
+    Make Primary button on any other, as a Google Doc's star.
     `wordClassName` says where the word folds. There were five: the badge,
     a black disc, a star with the word, a bare purple star and nothing.
-  - **One rename, `RenameField`**: the name's field in its own place with
-    Cancel and Save (a card edited in place), Enter and Escape, in the
-    table row, the grid card and `ResumeTitle`. There were four, the
-    editor's saving on a click away with no buttons.
-  - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
-    at `text-heading`, and the badge), then the page's status ("Saved", or
-    an upload's date), the filled Download, and `ResumeMenu`
-    (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
-    with Rename, Make Primary, Take the Tour and Delete. `TitleRowProvider`
-    joins the two ends: the menu's Rename opens the title's field, Take the
-    Tour opens the editor's Getting Started walkthrough (the editor hands it
-    over, `attachTour`; `docs/editor-walkthrough.md`),
-    and a failed Make Primary or Delete shows under the title. Tailor's review keeps its h2
-    title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
-    focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
-    button stays, and its focus return took the focus from the new field.
+  - **One rename in the lists, `RenameField`**: the name's field in its
+    own place with Cancel and Save (a card edited in place), Enter and
+    Escape, in the table row and the grid card. There were four. **A
+    resume's own page renames in its title** (`ResumeTitle`'s
+    `TitleField`, 2026-11-19): the name itself becomes the field, in its
+    own words and size, as a Google Doc's title does, with no buttons;
+    Enter or a click away saves, Esc puts the name back. KAN-825 gave the
+    title `RenameField` too, and the user found it a different editor
+    opening in the title's place.
+  - **One title row on both resume pages, with no ⋯** (2026-11-19, after
+    Google Docs and Drive: the editor is the document, Resumes the drive):
+    `ResumeTitle` (the name, an h1 at `text-heading`, renamed in place, and
+    the star), then an upload's date, the filled Download, and on an
+    upload's page alone its trash (`ResumeDelete` in
+    `resumes/[resumeId]/resume-menu.tsx`, which asks first): an upload's
+    page is a file's preview, and a built resume is deleted from Resumes,
+    never mid edit. The editor's toolbar has a ? for Take the Tour (the Getting
+    Started walkthrough, `docs/editor-walkthrough.md`), before the panel's
+    button. KAN-825 put Rename, Make Primary, Take the Tour and Delete in a
+    ⋯ after Download (the list's `RowMoreMenu`); the title and the star do
+    the first two, and onboarding's review lost its ⋯ the same way.
+    `TitleRowProvider` keeps the line under the title, where a failed
+    rename, Make Primary or Delete shows. **`RowMoreMenu` hands no focus
+    back to ⋯ after Rename** (`finalFocus`): a list's row keeps the
+    button, and its focus return took the focus from the new field.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
@@ -2563,6 +2574,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   it was done. Never put a rule for typed text (GPA parsing, a label typed
   back, `https://` on a link) back in the browser: `model.ts` held them
   until KAN-391 and dropped a GPA it could not read without a word.
+- **The editor's page moves and adds itself** (KAN-920,
+  `docs/screens.md`, Resume editor): a hover shows a + and a drag handle in
+  the margin, a drag moves a section, entry or bullet among its siblings,
+  a click on the handle opens the block's menu there (Edit and Add, the
+  moves, Remove From Resume), and a breadcrumb in the toolbar with Esc
+  climbs from a line to its entry and section. A new bullet is typed in on
+  the page, under the bullet it follows, never in a form (`newBullets`,
+  `inserts` on `PdfPages`), set from the page alone: its anchor's marker
+  copied from the canvas, the page's own spacing and its font's measured
+  metrics, so every Format setting holds. **To check where something sits
+  on the page, measure against the page canvas's own rect (or a box's
+  `style` percentages), never the page frame's**: the frame's 1px border
+  put every reading off by up to 0.9pt, which once set the new line's dot
+  0.6pt low and passed a check that compared it in the same wrong frame. A form a page's + opens
+  puts the cursor in the row it added (`focusBullet`, read by the entry
+  dialog as `data-initial-focus`), not the form's first field. Where each block sits is read from the boxes
+  (`page-outline.ts`): a new kind of box, or a template that indents
+  differently, changes it there, never in the handles.
 - **Each edit is a render and a save, side by side, and neither waits for
   the other** (KAN-391): typed lines, moves, hides, put-backs and wording
   switches render through `renderEdit` (`POST .../render`, from the
@@ -2709,8 +2738,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing. The time away is measured from timestamps, never timers, which
   Chrome throttles in a hidden tab. **Still open:** the Experiences page
   and Tailor do not announce their writes, so an editor tab learns of
-  them only after 5 minutes away; the bar says "Saving…" while a quiet
-  reload runs; and two tabs editing within the same few seconds still
+  them only after 5 minutes away; and two tabs editing within the same few seconds still
   need a version check on each save.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
@@ -2837,8 +2865,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   review's icons in the title row were 40px.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
-  Primary badge, the save status ("Saving…", "Saved"; `SaveStatus`) and
-  Download, the page's one filled button (secondary on Tailor's review,
+  Primary badge and Download (a "Saving…" and "Saved" status stood
+  before it until 2026-11-19, which the user found a developer's watch on
+  how long a save took; a failed save says so under the bar), the page's one filled button (secondary on Tailor's review,
   whose fill is Finish), with the review's Original and Suggestions before
   it, then on the editor's own page the resume's ⋯ (`more`, KAN-825). The bar is three groups
   that keep their places: Undo and Redo; the middle; the zoom and **the side

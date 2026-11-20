@@ -3793,8 +3793,9 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename is one form on every resume** (KAN-825, `RenameField` in
-  `components/resume-row.tsx`): the name becomes its field in its own
+- **Rename is one form in every list** (KAN-825, `RenameField` in
+  `components/resume-row.tsx`; a resume's own page renames in its title,
+  below under Resume editor, `TitleField`): the name becomes its field in its own
   place, selected, with Cancel and Save after it (a card edited in place,
   `docs/design.md`); Enter saves, Escape cancels, and an unchanged name
   saves nothing. A table row keeps its height; a grid card puts it under
@@ -3833,11 +3834,11 @@ so every resume opens inside WorkIt (a built one opens the editor, next).
 Back (to the page that opened it, such as Experiences, else `/resumes`;
 `(seeker)/back-link.tsx`), then **the editor's own title row** (KAN-825;
 the editor's layout since KAN-799): the file's name (`ResumeTitle`, the
-editor's h1 at the same size, renamed in place) with the Primary badge
-after it on the primary, then at the right "Uploaded Oct 21" (where the
-editor says "Saved"), **Download**, the page's one filled button, and ⋯
-(`ResumeMenu`: Rename, Make Primary while it is not, Delete). Until
-KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
+editor's h1 at the same size, renamed in place) with the star after it
+(filled on the primary, Make Primary on any other), then at the right
+"Uploaded Oct 21", **Download**, the page's one filled button, and the
+trash (`ResumeDelete`, which asks first; a ⋯ with Rename, Make Primary and
+Delete until 2026-11-19). Until KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
 it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
 a lavender bar with a ring and a shadow until KAN-576) holds the page's one
@@ -3879,6 +3880,128 @@ student who opened a resume from Experiences landed on another view.
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
   response's boxes is a button laid over its line in percent of the page,
   so the targets follow the canvas at any width without a redraw.
+- **The page is its own outline** (KAN-920): teammates and students found
+  the editor too like Jobright's, a preview beside a side list of sections,
+  entries and bullets, so the page itself moves and adds, and the Sections
+  panel is optional.
+  - **Hover a section heading, an entry or a bullet**, and a + and a drag
+    handle (the Sections panel's six dots) show in the margin beside its
+    first line (`page-handles.tsx`). Where each block sits is read from the
+    line boxes (`page-outline.ts`, tested): an entry is its fields' and
+    bullets' boxes, and a section, whose heading has no box, starts where
+    the block above it ends. A section's handle clears its heading (Jake's
+    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`).
+  - **Drag the handle** (pointer events, not HTML drag and drop): a brand
+    drop line shows where it lands, among its siblings only (a bullet in
+    its entry, an entry in its section, a section between sections). The
+    drop is a move with Undo, as the panel's: an entry or a bullet shows it
+    at once (`swapsOf`), and so does a section when it and its neighbour
+    sit on one page (`sectionStrip`, `orderSwaps`; a section is a page
+    setting, so across a page break it waits for its PDF). Near the
+    window's top or foot the page scrolls under the drag. **It moves as
+    Notion's blocks do** (2026-11-19, the user found it unclean beside
+    Notion's): the block's picture, cut from its page's canvas, rides the
+    pointer with a lift shadow while its source fades in place
+    (`snapshot`, `Ghost`); the drop line is 3px; and a move or a hide on
+    its way slides or closes on the page over 200ms, ease out
+    (`MOTION_MS`, a strip's or a band's `t` in `PageCanvas`), where it had
+    jumped there in one frame. With reduced motion it jumps. The click
+    targets land at once. A typed line's or a new bullet's shift moves the
+    handles too: the blocks are read from the boxes where the page shows
+    them, and a handle sat a line off its block.
+  - **The + means one thing where it shows**: on a bullet, a new bullet
+    typed in on the page under it (below); on a section heading, a new
+    entry in that section's form, put first in it (`place`).
+    An entry's own rows (title, organization, dates) take only the handle:
+    a + there read as either another entry or another bullet, which the
+    user found made no sense (2026-11-18). Skills and a Lines section have
+    no + yet. Each button is 24px, WCAG 2.2's smallest target.
+  - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
+    `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
+    Add Bullet, opens an empty line at once under that bullet (or the
+    entry's last one on this resume), and the caret in it. **Every number
+    of the line comes from the page**, so it keeps whatever the Format
+    panel sets (2026-11-19): it opens by the space between bullets on its
+    own page (`bulletSpace`; LaTeX stretches it per page and with the font
+    size, 2.92pt at 10pt and 4.74pt at 12pt on the test resume), its
+    baseline sits as far under its top as a printed line's (the box's fixed
+    ascent), and **its marker is its anchor's own, copied pixel for pixel**
+    from the page as drawn into the space it opens (`Marker`, in
+    `compose`), so a dot, a dash, a size or a font needs no number here.
+    Measured at Latin Modern 10pt and at Lato 12pt with dashes: the marker
+    within 0.2pt of its place, the text's baseline within 0.03 to 0.14pt of
+    the PDF's. A dot drawn by the page came first: a guess, then
+    measures taken against the page frame's outer edge, which a 1px border
+    puts off the canvas, so the dot sat 0.6pt low and 0.7pt left, which the
+    user saw. **Measure the page against its canvas's own rect, or a box's
+    `style` percentages, never the frame's.** The dot is drawn only for an
+    anchor over a page break (`DOT_LEFT`, `DOT_OVER`, `DOT_SIZE`: 7.35pt
+    left of the text, 0.266em over the baseline, 0.273em across), as an SVG
+    circle (a 3.4px `rounded-full` box was snapped to whole pixels and drew
+    an oval). It is the field any line is typed in, its ring included, in
+    the page's type and pure black ink, with no grey "New bullet" hint,
+    which looked like no line on the page. Every typed line's text is pure black on white
+    (`lineLook`): the app's near-black `text-ink` set it a shade off the
+    printed lines; the page under it opens by a line and by each line it wraps
+    to (`inserts` on `PdfPages`, a line of no height whose `by` moves what
+    is under it, as a typed line's wrap does). Enter adds it and opens the
+    next line under it; Enter or Esc on an empty line, or a click away from
+    one, takes it away with nothing saved; Esc or a click away from one with
+    text adds it. Added, its text stays drawn until the PDF that prints it
+    paints, over its printed line once that PDF is in hand (`by` 0, no
+    marker) and gone only as the page paints it (`drawn`); dropped as the
+    PDF arrived, the text was gone for the moment the page took to paint.
+    **An overlaid line moves only by the lines before it** (`livesShown`
+    in `PdfPages`, the order `compose` opens them): the added bullet and
+    the empty line Enter opens under it sit at one place, each counted the
+    other as over it, and the empty field covered the added text for the
+    seconds its save took (2026-11-19). On the save: the bank gets the bullet (`addBullet`), then this resume shows
+    it after the bullet it follows (`bulletsWithNew`, tested), as one change
+    with Undo, which hides it. The bank keeps it, as every form does. It
+    opened the entry's form on an empty row until then, which broke the
+    editing in place. A menu's item runs a tick after the menu closes: the
+    menu hands the focus back to the handle once closed, and the new line,
+    focused first, lost it there and went as an empty line does.
+  - **A click on the handle with no drag picks the block and opens its
+    menu** at the handle, as Notion's block handle does (2026-11-19,
+    `actionsOf`, `BlockAction`, `BlockMenu`). The block takes a soft brand
+    tint that multiplies into its ink, fading in, from its first line to
+    its last (a section's from its heading's capitals, `HEADING_INK`, its
+    `top`), as Notion's selection: a 2px brand ring came first, drawn from
+    where the block above ended, and over Education it crossed the
+    contact line. The toolbar's middle shows where it sits, as a breadcrumb
+    ("Experience › Acme › Bullet 2", `Crumbs`); an open line shows its
+    breadcrumb too, and a step of it picks that block. The menu is the
+    app's ⋯ menu (`DropdownMenu`, anchored to the handle), its buttons
+    alone in three groups: what changes it (Edit, Add), where it sits (Move
+    Up, Move Down), and Remove From Resume, last and red. A heading with
+    the block's name, the moves' ⌥↑ and ⌥↓, and a "…" after an Edit that
+    opens a form were drawn first; the user found the menu off with more
+    in it than its buttons (2026-11-19). A bullet's are Edit Bullet (opens
+    it for typing), Add Bullet Below, the moves and Remove; an entry's Edit
+    School (its form, for the dates and place the page does not type), Add
+    Bullet (a new bullet typed in under its last one on this resume; its
+    form on an empty row when it shows none), the moves and
+    Remove; a section's Add <noun>, the moves and Remove (every entry, or
+    every skill), with no Edit, since its heading has nothing to type.
+    Remove is the panel's hide, with Undo, the bank keeping the item; a
+    move keeps the block picked. Enter or Space on a focused handle opens
+    it too. The item runs once the menu has closed, so the focus it hands
+    back to the handle lands before a form the item opens takes it. With
+    the menu, nothing a panel row does needs the panel. **A bar of icons
+    at the block's right end came first**: a click there was far from the
+    pointer, nothing on the handle said a click did anything, and its
+    icons needed tooltips to read. **The menu is marked `data-block-menu`**,
+    which the page's own press-away leaves alone: React passes a press in
+    the menu's portal up through the page, and the page let go of the
+    block the menu acts on.
+    **Esc climbs**: an open line to its entry, an entry to its section, a
+    section to nothing; it only closed the line before. **Option with an
+    arrow moves** the picked block, or the open line while its field has no
+    focus, and the handle's own arrow keys move its block.
+  - Not on Tailor's review or a phone. Still open: empty sections drawn
+    on the page, and the panel as an
+    optional Outline (KAN-920's later slices).
 - **Click a line and type** (`editor.tsx`). A text field opens over the
   line's first box, in type sized in `cqw` of the page (each page is a size
   container), so the typed text shows at once. The field is set in Latin
@@ -3886,8 +4009,16 @@ student who opened a resume from Experiences landed on another view.
   this page only), at the line's size, weight and slant, with its baseline
   on the PDF's, so its text covers the printed glyphs and wraps where the
   PDF does; before this, a wider fallback serif wrapped early and the field
-  covered the lines below. Its 1.5px ring (2px read too thick over the
-  page's fine type) is the line's only outline while it is open: the
+  covered the lines below. The field's baseline comes from its font's
+  own ascent and descent, measured in the browser (`metricsOf`), since
+  each family the page prints differs: Latin Modern's numbers set every
+  family until 2026-11-19. Its 1.5px ring (2px read too thick over the
+  page's fine type) is a box of its own over the field (`ringed`), from
+  0.82em over the baseline to 0.28em under it, so it centres on where a
+  list's dot sits (0.266em up) and wraps the letters evenly: as the
+  field's own line box it reached over the font's whole ascent and stood
+  1.8pt above the dot beside it. It is the line's only outline while it
+  is open: the
   line's own selected outline sat a few pixels off the field, and with the
   field's drop shadow it showed as extra lines under the ring, so both go
   while the field shows, as does a Tailor highlight's border. It opens with the caret where the press landed
@@ -3922,27 +4053,33 @@ student who opened a resume from Experiences landed on another view.
   the resume's name, renamed in place as on Tailor's review: plain text
   with its pencil in `ink-meta` at rest (KAN-574: shown on hover alone, touch
   never saw it, and the name read as a plain heading), a faint outline when
-  pointed at, and a click opens the one Rename form (`RenameField`, above
-  under Resumes: the field with Cancel and Save; Enter saves, Esc
-  cancels; it saved on a click away with no buttons until KAN-825). It is
+  pointed at, and a click makes the name itself the field (`TitleField`,
+  2026-11-19), as a Google Doc's title is: the same words, size and
+  place, selected, a ring its one sign, and no buttons; Enter or a click
+  away saves, Esc puts the name back, and an empty name keeps the old one.
+  KAN-825 opened the lists' Rename form there (`RenameField`, above under
+  Resumes, with Cancel and Save), which the user found a different editor
+  opening in the title's place. It is
   the page's h1 here, at a sub-page's size (`text-heading`, `text-title` on
   a phone's column), and an h2 on the review (`text-subtitle`), under its
-  step's sr-only h1. **The Primary badge** follows the name on the primary
-  (KAN-825: the editor showed no sign of it). It spans the page and the
+  step's sr-only h1. **The star** follows the name (2026-11-19; the
+  Primary badge from KAN-825, when the editor showed no sign of it): filled
+  on the primary, and on any other a button that makes it the primary at
+  once, a failure putting it back with the reason under the title. The
+  review has none. It spans the page and the
   column beside it, so the review's panel starts level with the bar.
   It was a plain h1 at heading size until KAN-411, and `text-subtitle`
   from then until KAN-825; a failed load still
-  shows it over the error. At its right (KAN-799) the save status,
-  "Saving…" or "✓ Saved" (`SaveStatus`; "Fitting to One Page…" during a
-  fit), **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
-  page's one filled button, and on this page (not the review) **⋯**
-  (`ResumeMenu`, `[resumeId]/resume-menu.tsx`, KAN-825): the Resumes
-  list's own menu with Rename, Make Primary while it is not, Take the Tour
-  (from 64rem, the Getting Started walkthrough, `docs/editor-walkthrough.md`)
-  and Delete,
-  which asks first and returns to Resumes. An upload's page draws the same
-  row. Until KAN-825 a student could not make a resume primary, or delete
-  it, from the editor. Download and the status sat in the bar until KAN-799: Download as a
+  shows it over the error. At its right (KAN-799) **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
+  page's one filled button, and nothing after it (2026-11-19). The editor
+  is the document and Resumes the drive, as Google Docs and Drive are: the
+  title renames in place, **the star** after the name makes the resume the
+  primary (`PrimaryStar`, filled on the primary; the Primary badge until
+  then), the toolbar's **?** before the panel's button takes the tour
+  (from 64rem, `docs/editor-walkthrough.md`), and a resume is deleted from
+  Resumes. A ⋯ after Download (`ResumeMenu`, KAN-825) held Rename, Make
+  Primary, Take the Tour and Delete until then. An upload's page draws the
+  same row, with its trash after Download. Download and the status sat in the bar until KAN-799: Download as a
   secondary button among the tools, which left the bar while a line was
   open, and the status as "Saved, 412 ms", hidden below 58rem. Download
   keeps nothing (KAN-267) and holds a PDF with characters the font lacks
@@ -4037,13 +4174,16 @@ student who opened a resume from Experiences landed on another view.
   Header sheets; the user found it all over the place beside the new
   desktop design.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
-  opens on a resume over one page, or an edit pushes one over, a toast at
-  the bottom right (across the foot on a phone) says by how much, with
-  Fit to One Page and a cross. It closes on Fit, on the cross, once the
-  resume fits, or after 10 seconds, since the bar's chip keeps the same
-  fix. On a phone it does not show while a line's sheet is open, which it
-  would cover. The editor notices the change while rendering (the last
-  count is kept in state), not in an effect.
+  opens on a resume over one page, or an edit pushes one over, the app's
+  own toast (`useToast`) says by how much in one line ("Your resume runs 3
+  lines onto page 2.", or "Your resume runs to 3 pages." past two pages,
+  `overText`), with Fit to One Page as its action. It goes on Fit, on its
+  cross, after the toasts' 8 seconds, once the resume fits, or when the
+  editor closes, since the bar's Fit to One Page keeps the same fix. It was
+  a white card of its own until 2026-11-19: an amber warning disc, a
+  title, two sentences, a scissors button and a cross, which the user
+  found outdated and too dense; scissors are Cut From Resume's glyph, and
+  Fit's has been lines pressed together since KAN-799.
 - **Fit to One Page is the API's** (`POST .../fit`,
   `docs/cut_to_one_page.md`): bullets down to two per entry, then one,
   then whole entries, least needed section first, with skills, awards,
@@ -4811,7 +4951,7 @@ editor had neither. **On a built resume the editor's Getting Started walkthrough
 first ("Check your details", Looks Right), cards of a line or two, a
 pulsing ring on the control to press, each section's step open while the
 student adds as many as they have, and practice examples where a new student
-has nothing. Its ⋯ (Rename, Take the Tour) runs it again. **An upload opens
+has nothing. The toolbar's ? runs it again, and the title renames. **An upload opens
 as an editable copy** (`startFromResume`), so an uploader meets the editor
 and the walkthrough too; the file alone is the fallback. **The header's
 contact details** are its first step, since the header is the one part of the

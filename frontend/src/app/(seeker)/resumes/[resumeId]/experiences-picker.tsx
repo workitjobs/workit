@@ -418,7 +418,7 @@ function SkillGroups({
 
 /**
  * Cut From Resume: what Fit to One Page cut, in the Experiences picker's
- * layout but amber, the fit's own color (./fit-notice.tsx), so it reads as
+ * layout but amber, the fit's own color, so it reads as
  * Fit's list and not the bank. A tick puts an item back on the page, as one
  * Undo step like any pick. A row stays once it is back, ticked, so a wrong
  * click can be taken back here too. It has no resume or group filters: a

@@ -1,6 +1,12 @@
 "use client";
 
-import { CloudSlashIcon, ScissorsIcon, StackIcon } from "@phosphor-icons/react/ssr";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CloudSlashIcon,
+  ScissorsIcon,
+  StackIcon,
+} from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import {
   Suspense,
@@ -15,7 +21,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { CloseIcon } from "@/components/icons";
+import { CloseIcon, PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { closeScout, setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -23,7 +29,9 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { useToast } from "@/components/ui/toast";
 import {
+  addBullet,
   addSkill,
   getBank,
   type Bank,
@@ -54,10 +62,9 @@ import { markResumesStale } from "@/lib/resumes-stale";
 
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
-import { FitToast } from "./fit-notice";
+import { overText } from "./fit-notice";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
-import { TitleRowContext } from "./resume-menu";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
   SAMPLE_BANK,
@@ -69,7 +76,9 @@ import {
 import { Notice } from "@/components/ui/notice";
 import {
   addCuts,
+  bulletsWithNew,
   customKey,
+  shownBullets,
   cutLeft,
   HEADER,
   LINK_FIELDS,
@@ -77,6 +86,10 @@ import {
   NO_CUTS,
   mergeChoices,
   move,
+  moveTo,
+  orderSwaps,
+  printedSections,
+  sectionOrderAfter,
   withWording,
   swapsOf,
   typed,
@@ -87,10 +100,13 @@ import {
 } from "./model";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import { OutlineEntryDialog } from "./outline-entry";
+import type { BlockAction, PageOutline } from "./page-handles";
+import { outlineOf, sectionStrip, type BlockKind, type OutlineBlock } from "./page-outline";
 import {
   afterStrips,
   boxKey,
   type Gap,
+  type Insert,
   kindLabel,
   loadPdfjs,
   PageSkeleton,
@@ -114,10 +130,10 @@ import { SLIM_BAR } from "./slim-bar";
 import {
   Bar,
   ReviewButtons,
-  SaveStatus,
   type HistoryTools,
   type LineHandlers,
   type MoveTools,
+  type Crumb,
   PanelTabs,
   type PanelTab,
   type Side,
@@ -262,8 +278,43 @@ function typeOf(
 // em content area. A box's top is its first baseline less ASCENT (the API's
 // resume_render), more for the name.
 const LINE_HEIGHT = 1.2;
-const fieldBaseline = (lineHeight: number) => 1.127 - (1.417 - lineHeight) / 2;
 const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
+
+/** A font's ascent and descent, in ems, as the browser lays its lines out:
+ *  measured, since the families the page can print in differ (Latin
+ *  Modern's 1.127 and 0.29 set every family's text until 2026-11-19, and a
+ *  family with a shorter ascent sat high). Kept once the font has loaded. */
+const LATIN_MODERN_METRICS = { ascent: 1.127, descent: 0.29 };
+const metricsCache = new Map<string, typeof LATIN_MODERN_METRICS>();
+function metricsOf(family: string): typeof LATIN_MODERN_METRICS {
+  if (typeof document === "undefined") return LATIN_MODERN_METRICS;
+  const kept = metricsCache.get(family);
+  if (kept) return kept;
+  const font = `100px ${family}`;
+  if (!document.fonts.check(font)) return LATIN_MODERN_METRICS;
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return LATIN_MODERN_METRICS;
+  context.font = font;
+  const { fontBoundingBoxAscent: ascent, fontBoundingBoxDescent: descent } =
+    context.measureText("Hxgp");
+  if (!(ascent > 0) || !(descent >= 0)) return LATIN_MODERN_METRICS;
+  const metrics = { ascent: ascent / 100, descent: descent / 100 };
+  metricsCache.set(family, metrics);
+  return metrics;
+}
+
+/** Where a field's first baseline sits below its top, in ems: the half of
+ *  its line height its font's ascent and descent leave, then the ascent. */
+const fieldBaseline = (lineHeight: number, metrics: typeof LATIN_MODERN_METRICS) =>
+  (lineHeight - metrics.ascent - metrics.descent) / 2 + metrics.ascent;
+
+/** A typed line's ring, in ems from its baseline: over its tallest letters
+ *  and under its descenders, centred where a list's dot sits as printed
+ *  (0.266em over the baseline, `DOT_OVER`). It was the field's line box,
+ *  which reaches over the font's whole ascent: a box that stood 1.8pt over
+ *  the dot beside it. */
+const RING_OVER = 0.82;
+const RING_UNDER = 0.28;
 
 /** The open line's field: a bullet's is a rich one, the others plain. */
 type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
@@ -271,8 +322,19 @@ type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
 /** How the open line's field is outlined. The ring alone: a shadow read as a
  *  soft second edge under the line. 1.5px: at 2px the user found it too thick
  *  over the page's fine type. */
-const FIELD_RING =
-  "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
+/** A new line's dot when its anchor's own cannot be copied (an anchor over a
+ *  page break): where Jake's page draws one, read from 30 dots' pixels at
+ *  their boxes' exact places (2026-11-19): centred 7.35pt left of the text
+ *  and 0.266em over the baseline, 0.273em across, on every one. Read
+ *  against the page frame's outer edge, which a 1px border puts off the
+ *  canvas, the measure gave 8.06pt and 0.6pt lower, which is the dot the
+ *  user saw sit low. A new line copies its anchor's marker otherwise
+ *  (`Marker`), which matches every font, size and bullet style. */
+const DOT_LEFT = 7.35;
+const DOT_OVER = 0.266;
+const DOT_SIZE = 0.273;
+
+const FIELD = "resize-none overflow-hidden outline-none field-sizing-content";
 
 /** Lines that wrap: typed in a field as wide as the text column. A
  *  project's tools line does not: it is a heading's row, a tabular's `l`
@@ -444,6 +506,9 @@ type Printed = Pick<ResumeCopy, "identity" | "template" | "file_name">;
  *  last PDF printed (KAN-391). An Undo step keeps one on each side. */
 type Held = { bank: Bank; choices: Choices; printed: Printed | null };
 
+/** A block picked as a whole (KAN-920, ./page-outline.ts). */
+type Picked = { kind: BlockKind; id: string };
+
 /** A choice change whose compile was skipped for the one after it
  *  (KAN-919): its id, its changes, the lines drawn over the page for it and
  *  its step, all answered by the render that carries it. */
@@ -463,6 +528,31 @@ function printedBy(pdf: RenderedPdf): Printed | null {
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
+}
+
+/** A bullet typed in on the page (KAN-920, `newBullets`): `key` names it
+ *  until the bank gives it an id; `saving` once it has been left. */
+type NewBullet = {
+  key: string;
+  entryId: string;
+  anchor: string;
+  after: string;
+  text: string;
+  saving: boolean;
+};
+
+/** The new bullets still to draw against a PDF: those it prints are gone,
+ *  and one typed after a printed one is drawn under that one. */
+function placeNew(list: NewBullet[], printed: (key: string) => string | undefined): NewBullet[] {
+  const out: NewBullet[] = [];
+  const moved = new Map<string, string>();
+  for (const n of list) {
+    const id = printed(n.key);
+    const anchor = moved.get(n.anchor) ?? n.anchor;
+    if (id) moved.set(n.anchor, id);
+    else out.push(anchor === n.anchor ? n : { ...n, anchor });
+  }
+  return out;
 }
 
 export function Editor({
@@ -601,6 +691,8 @@ export function Editor({
   // three PDFs in a row. What a skipped change left for the next one
   // (`Carried`), and whether the last change skipped (its PDF is no step's)
   const choiceJobs = useRef(new Set<number>());
+  // The section moves of skipped page compiles, drawn until a page lands
+  const carriedPages = useRef<string[]>([]);
   const carried = useRef<Carried[]>([]);
   const skippedChoice = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
@@ -611,12 +703,32 @@ export function Editor({
   // entries and bullets each change hides, by change id
   const [hides, setHides] = useState<{ id: string; items: string[] }[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  // The block picked from its handle on the page or the breadcrumb (KAN-920):
+  // a section, an entry or a bullet as a whole, which Option with an arrow
+  // moves and Esc climbs from. A line opened for typing clears it
+  const [picked, setPicked] = useState<Picked | null>(null);
   // Typed text by box key (KAN-391): the selected line's, and each line
   // left before the PDF that prints it has painted. The page draws it over
   // the line until then, so leaving a line never shows its old text.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // How many lines each wrapping draft shows, for the live page's shift
   const [draftLines, setDraftLines] = useState<Record<string, number>>({});
+  // Bullets typed in on the page (KAN-920), each drawn under `anchor`, the
+  // printed bullet it follows (`after` is that bullet, or the new one typed
+  // before it), until the PDF that prints it paints. Kept in a ref too: an
+  // Enter and the blur after it read the list before React renders again.
+  const [newBullets, setNewBullets] = useState<NewBullet[]>([]);
+  const newNow = useRef<NewBullet[]>([]);
+  const setNew = useCallback((change: (list: NewBullet[]) => NewBullet[]) => {
+    newNow.current = change(newNow.current);
+    setNewBullets(newNow.current);
+  }, []);
+  // Each new bullet's id once the bank has it, by its key, and the adds in
+  // order: one waits for the one before, which it may follow
+  const newIds = useRef(new Map<string, string>());
+  const adding = useRef<Promise<unknown>>(Promise.resolve());
+  const newCount = useRef(0);
+  const focusedNew = useRef(new Set<string>());
   // What is on its way, by line key or change id, counted: a line's draft
   // and a move's swap stay until the PDF after it lands
   const onTheirWay = useRef(new Map<string, number>());
@@ -648,21 +760,29 @@ export function Editor({
   useEffect(() => {
     latestReview.current = review;
   });
-  // Over one page, a toast says so when the editor opens and again when an
-  // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
-  // is kept in state, so the change is caught while rendering, not after.
+  // Over one page, the app's toast says so when the editor opens and again
+  // when an edit pushes the resume over, with Fit to One Page as its action
+  // (./fit-notice.tsx, KAN-258). It goes once the resume fits, or the editor
+  // closes. Its words and Fit are read through a ref: the toast is shown
+  // only as `over` turns true, never again on each render.
   const over = (rendered?.page_count ?? 1) > 1;
-  const [toast, setToast] = useState(over);
-  const [wasOver, setWasOver] = useState(over);
-  if (over !== wasOver) {
-    setWasOver(over);
-    setToast(over);
-  }
+  const toasts = useToast();
+  const fitToast = useRef({ message: "", fit: () => {} });
+  // Before the effect that shows it, which runs in the same commit
   useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(false), 10_000);
-    return () => clearTimeout(timer);
-  }, [toast]);
+    fitToast.current = {
+      message: rendered ? overText(rendered.page_count, rendered.lines_over) : "",
+      fit,
+    };
+  });
+  useEffect(() => {
+    if (!over) return;
+    const id = toasts.show({
+      message: fitToast.current.message,
+      action: { label: "Fit to One Page", onClick: () => fitToast.current.fit() },
+    });
+    return () => toasts.dismiss(id);
+  }, [over, toasts]);
   const latest = useRef(0);
   // When the newest edit was sent, for the round trip's measure (`drawn`)
   const started = useRef<number | null>(null);
@@ -750,13 +870,6 @@ export function Editor({
   // Add Experiences' practice examples while the walkthrough shows it to a
   // student with nothing saved: ticked on screen, never sent to the API
   const [sample, setSample] = useState<Choices | null>(null);
-  const titleRow = use(TitleRowContext);
-  const attachTour = titleRow?.attachTour;
-  useEffect(() => {
-    if (suggestions || !attachTour) return;
-    attachTour(() => setWalking(true));
-    return () => attachTour(null);
-  }, [attachTour, suggestions]);
   // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
   // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
   const [cuts, setCuts] = useState(NO_CUTS);
@@ -1055,6 +1168,22 @@ export function Editor({
     async (settings: PageSettings, recorded = true) => {
       const step = recorded ? record({ page: settings }) : null;
       if (step) step.undo = { page: pageNow.current };
+      // A section moved shows at once (KAN-920), as an entry's move does: its
+      // strip of the page trades places with its neighbours' until the PDF
+      // lands. Only the sections that print can move
+      const { bank: nowBank, choices: nowChoices } = held.current;
+      const printedIn = (order: string[]) =>
+        printedSections(nowBank, nowChoices, order).map((s) => s.id);
+      const moved = orderSwaps(
+        "section",
+        printedIn(pageNow.current.section_order),
+        printedIn(settings.section_order),
+      );
+      const id = moved.length ? `page:${++changeCount.current}` : null;
+      if (id) {
+        sent(id);
+        setSwaps((s) => [...s, ...moved.map((m) => ({ ...m, id }))]);
+      }
       keepPage(settings);
       sendPage(settings);
       const job = jobs.current + 1;
@@ -1067,8 +1196,12 @@ export function Editor({
         // does the step's before after it: Undo renders those
         if (pageJobs.current.has(job + 1)) {
           skippedPage.current = true;
+          // Its section moves stay drawn until the page that replaces it lands
+          if (id) carriedPages.current.push(id);
           return;
         }
+        const drawnFor = [...carriedPages.current, ...(id ? [id] : [])];
+        carriedPages.current = [];
         const current = begin();
         started.current = performance.now();
         if (step) {
@@ -1077,6 +1210,9 @@ export function Editor({
         }
         skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
+        drawnFor.forEach(answered);
+        // Failed, the moves leave the page with the change
+        if (!data) setSwaps((s) => s.filter((x) => !drawnFor.includes(x.id)));
         if (data) {
           lastPdf.current = data.render;
           if (step) {
@@ -1387,6 +1523,7 @@ export function Editor({
       placed.current = null;
       selectedNow.current = key;
       setSelected(key);
+      if (key !== null) setPicked(null);
       if (key === null) refresh();
     },
     [drop, flush, refresh],
@@ -1405,11 +1542,27 @@ export function Editor({
     setSide(to);
   };
 
+  // Esc climbs, as the breadcrumb reads (KAN-920): an open line to its
+  // entry, an entry to its section, a section to nothing. It closed the
+  // line and nothing more until then. Option with an arrow moves the picked
+  // block, or the open line while its field does not have the focus (in a
+  // field it moves the caret by a paragraph). Each render hands over its own
+  // (`keys`), since they read the line and the outline as drawn
+  const keys = useRef<{ climb: () => void; nudge: (by: -1 | 1) => boolean }>({
+    climb: () => select(null),
+    nudge: () => false,
+  });
   useEffect(() => {
-    const clear = (event: KeyboardEvent) => event.key === "Escape" && select(null);
-    window.addEventListener("keydown", clear);
-    return () => window.removeEventListener("keydown", clear);
-  }, [select]);
+    const press = (event: KeyboardEvent) => {
+      if (event.key === "Escape") return keys.current.climb();
+      if (!event.altKey || event.metaKey || event.ctrlKey) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if ((event.target as Element).closest?.("input, textarea, [contenteditable='true']")) return;
+      if (keys.current.nudge(event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
+    };
+    window.addEventListener("keydown", press);
+    return () => window.removeEventListener("keydown", press);
+  }, []);
 
   /** The page as a step left it: its state and its PDF, at once. */
   const restore = useCallback(
@@ -1529,6 +1682,16 @@ export function Editor({
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [selected, phone, select]);
+  // A picked block lets go the same way (KAN-920): a press off the page and
+  // the bar. A press on a line opens it instead (`select`)
+  useEffect(() => {
+    if (!picked || phone) return;
+    const away = (event: PointerEvent) => {
+      if (!(event.target as Element).closest?.(`[${KEEPS_SELECTION}], [data-box]`)) setPicked(null);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [picked, phone]);
 
   function type(key: string, text: string) {
     setDrafts((d) => ({ ...d, [key]: text }));
@@ -1681,6 +1844,8 @@ export function Editor({
     const strips: Strip[] = [];
     let placed = boxes;
     const regionOf = (kind: Swap["kind"], id: string) => {
+      // A section is its heading and everything under it (KAN-920)
+      if (kind === "section") return sectionStrip(placed, bank, id);
       const bullets = new Set(
         kind === "entry" ? bank.entries.find((e) => e.id === id)?.bullets.map((b) => b.id) : [],
       );
@@ -1736,6 +1901,264 @@ export function Editor({
     return [...bands, ...skills];
   };
 
+  // Bullets typed in on the page (KAN-920): each opens a line under the
+  // bullet it follows, where the PDF will print it. The space between two
+  // bullets of one entry, read from the page, sets where its text sits.
+  const entryOfBullet = useMemo(() => {
+    const of = new Map<string, string>();
+    for (const e of bank.entries) for (const b of e.bullets) of.set(b.id, e.id);
+    return of;
+  }, [bank]);
+  // On `page`: LaTeX stretches the space per page to fill it (2.94pt on
+  // one page of the test resume, 2.65pt on another), so the least on any
+  // page opened a line short, and its dot sat high
+  const bulletSpace = (boxes: RenderBox[], page: number) => {
+    const bullets = boxes
+      .filter((b) => b.kind === "bullet" && b.page === page)
+      .sort((a, b) => a.y0 - b.y0);
+    const gaps: number[] = [];
+    for (let i = 1; i < bullets.length; i++) {
+      const [a, b] = [bullets[i - 1], bullets[i]];
+      const gap = b.y0 - a.y1;
+      if (entryOfBullet.get(a.item_id) === entryOfBullet.get(b.item_id))
+        if (gap > 0 && gap < GAP_SPACE) gaps.push(gap);
+    }
+    // The middle one: every gap on a page is the same but for rounding
+    gaps.sort((a, b) => a - b);
+    return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 2.9;
+  };
+  /** A new bullet's place against these boxes: under its anchor's last
+   *  line, `space` below it, one line tall (`one`) and as many more as its
+   *  text wraps to. */
+  const newPlace = (n: NewBullet, boxes: RenderBox[]) => {
+    const own = boxes.filter((b) => b.kind === "bullet" && b.item_id === n.anchor);
+    if (!own.length) return null;
+    const last = own.reduce((a, b) =>
+      b.page > a.page || (b.page === a.page && b.y1 > a.y1) ? b : a,
+    );
+    // Its first line, where its marker prints
+    const first = own.reduce((a, b) =>
+      b.page < a.page || (b.page === a.page && b.y0 < a.y0) ? b : a,
+    );
+    const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
+    const one = last.y1 - last.y0 - (boxLines(last, step) - 1) * step;
+    const space = bulletSpace(boxes, last.page);
+    return { first, last, one, space, lines: draftLines[`${n.key}.bullet`] ?? 1, step };
+  };
+  // Each new line is set from its anchor as the page prints it: its top the
+  // anchor's foot and the page's space between bullets, its baseline as far
+  // under that top as a printed line's, and its marker the anchor's,
+  // copied. So the line keeps every format setting the page has (size,
+  // spacing, font, dot or dash) with no number of its own
+  const insertsOn = (boxes: RenderBox[]): Insert[] => {
+    const printed = new Set(boxes.map((b) => b.item_id));
+    const printedAs = (key: string) => {
+      const id = newIds.current.get(key);
+      return id && printed.has(id) ? id : undefined;
+    };
+    // A bullet the PDF in hand prints keeps its text over its printed line,
+    // opening nothing, until that PDF has painted (`drawn`), as a typed
+    // line's draft does: dropped as the PDF arrived, its text was gone for
+    // the moment the page took to paint it
+    const printing = newBullets.flatMap((n): Insert[] => {
+      const id = printedAs(n.key);
+      const own = id ? boxes.filter((b) => b.kind === "bullet" && b.item_id === id) : [];
+      if (!own.length) return [];
+      const first = own.reduce((a, b) =>
+        b.page < a.page || (b.page === a.page && b.y0 < a.y0) ? b : a,
+      );
+      return [{ ...first, item_id: n.key, by: 0, base: boxAscent("bullet") }];
+    });
+    return printing.concat(
+      placeNew(newBullets, printedAs).flatMap((n) => {
+        const at = newPlace(n, boxes);
+        if (!at) return [];
+        const top = at.last.y1 + at.space;
+        const y = at.last.y1 + at.space / 2;
+        return [
+          {
+            ...at.last,
+            item_id: n.key,
+            text: "",
+            y0: y,
+            y1: y,
+            by: at.space + at.one + (at.lines - 1) * at.step,
+            base: at.space / 2 + boxAscent("bullet"),
+            marker:
+              at.first.page === at.last.page
+                ? {
+                    x0: at.first.x0 - 14,
+                    x1: at.first.x0 - 0.6,
+                    top: at.first.y0,
+                    bottom: at.first.y0 + at.one,
+                    to: top,
+                  }
+                : undefined,
+          },
+        ];
+      }),
+    );
+  };
+
+  /** Opens a new bullet's line under `after` (KAN-920): a printed bullet,
+   *  or a new one still on its way, whose line it is drawn under. */
+  const openNew = (entryId: string, after: string) => {
+    select(null);
+    setPicked(null);
+    const key = `new-bullet-${++newCount.current}`;
+    setNew((list) => {
+      const before = list.findIndex((n) => n.key === after);
+      const item: NewBullet = {
+        key,
+        entryId,
+        anchor: before >= 0 ? list[before].anchor : after,
+        after,
+        text: "",
+        saving: false,
+      };
+      return before < 0
+        ? [...list, item]
+        : [...list.slice(0, before + 1), item, ...list.slice(before + 1)];
+    });
+  };
+  const dropNew = (key: string) => setNew((list) => list.filter((n) => n.key !== key));
+
+  /** Leaves a new bullet's line: an empty one goes; one with text is added
+   *  to its entry, then shown on this resume after the bullet it follows, as
+   *  one change with Undo. `next` opens another line under it (Enter). */
+  const leaveNew = (key: string, next = false) => {
+    const n = newNow.current.find((x) => x.key === key);
+    if (!n || n.saving) return;
+    const text = n.text.trim();
+    if (!text) return dropNew(key);
+    setNew((list) => list.map((x) => (x.key === key ? { ...x, text, saving: true } : x)));
+    if (next) openNew(n.entryId, key);
+    adding.current = adding.current.then(async () => {
+      const { data, error } = await addBullet(n.entryId, text);
+      if (!data) {
+        dropNew(key);
+        setError(error ?? "Your bullet didn't save. Try again.");
+        return;
+      }
+      newIds.current.set(key, data.id);
+      const bank = held.current.bank;
+      held.current.bank = {
+        ...bank,
+        entries: bank.entries.map((e) =>
+          e.id === n.entryId ? { ...e, bullets: [...e.bullets, data] } : e,
+        ),
+      };
+      setBank(held.current.bank);
+      // It follows a printed bullet, or a new one: that one's id, or, if it
+      // did not save, the bullet that one followed
+      let after = n.after;
+      while (after.startsWith("new-bullet-")) {
+        const id = newIds.current.get(after);
+        if (id) {
+          after = id;
+          break;
+        }
+        after = newNow.current.find((x) => x.key === after)?.after ?? n.anchor;
+      }
+      announce(true);
+      await apply({
+        bullets: bulletsWithNew(held.current.bank, held.current.choices, n.entryId, data.id, after),
+      });
+    });
+  };
+
+  /** A new bullet's line: its field while typed in, its text once left,
+   *  with the dot the PDF will print beside it. */
+  function newField(n: NewBullet, target: Insert) {
+    const key = `${n.key}.bullet`;
+    const look = lineLook({ ...target, item_id: n.anchor });
+    // The page copies the anchor's marker into the line (`Marker`); only an
+    // anchor over a page break leaves it to this dot, an SVG circle since a
+    // `rounded-full` box about 3.4px across was snapped to 3 by 4 pixels and
+    // drew an oval
+    // (A line its PDF prints, `by` 0, has the printed dot under it)
+    const dot = !target.marker && target.by > 0 && (
+      <svg
+        aria-hidden
+        viewBox="0 0 30 30"
+        className="absolute"
+        style={{
+          width: pt(DOT_SIZE * look.size * 3),
+          height: pt(DOT_SIZE * look.size * 3),
+          left: `-${pt(DOT_LEFT + (DOT_SIZE * look.size * 3) / 2)}`,
+          top: pt(look.baseline - DOT_OVER * look.size - (DOT_SIZE * look.size * 3) / 2),
+        }}
+      >
+        <circle cx="15" cy="15" r="5" fill="#000" />
+      </svg>
+    );
+    if (n.saving)
+      return (
+        <div key="saving" className="relative">
+          {dot}
+          <div
+            ref={(element) => measure(key, "bullet", element)}
+            aria-hidden
+            className={cn(look.className, "break-words whitespace-pre-wrap")}
+            style={look.style}
+          >
+            {wordsOf(n.text)}
+          </div>
+        </div>
+      );
+    return ringed(
+      look,
+      richLine(
+        n.text,
+        (text) => setNew((list) => list.map((x) => (x.key === n.key ? { ...x, text } : x))),
+        {
+          attach: (element) => {
+            if (element && !focusedNew.current.has(n.key)) {
+              focusedNew.current.add(n.key);
+              element.focus({ preventScroll: true });
+            }
+            return measure(key, "bullet", element);
+          },
+          "aria-label": "New bullet",
+          onBlur: () => leaveNew(n.key),
+          // Enter adds it and opens the next line; Escape leaves it (an
+          // empty line goes), never climbing out of a block as it does
+          onKeyDown: (e) => {
+            if (e.key !== "Enter" && e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            leaveNew(n.key, e.key === "Enter");
+          },
+          // The field any line is typed in, ring and all (`ringed`), in the
+          // type and ink the PDF will print, with no grey hint: a "New
+          // bullet" hint looked like no line on the page (2026-11-19)
+          className: cn(look.className, FIELD),
+          style: look.style,
+        },
+      ),
+      dot,
+    );
+  }
+
+  /** A typed line's field in its ring: the ring a box of its own over the
+   *  field, from its tallest letters to its descenders (`RING_OVER`,
+   *  `RING_UNDER`), so it sits even about the line as printed and about a
+   *  bullet's dot beside it. Keyed, so the field never stands in for a
+   *  line's plain text, or the text for it. */
+  function ringed(look: ReturnType<typeof lineLook>, field: ReactNode, beside?: ReactNode) {
+    return (
+      <div key="ringed" className="relative w-fit">
+        {beside}
+        {field}
+        <span
+          aria-hidden
+          className="ring-brand pointer-events-none absolute -inset-x-[0.4cqw] rounded-[2px] ring-[1.5px]"
+          style={look.ring}
+        />
+      </div>
+    );
+  }
+
   /** The text a typed line's field opens on: what the line prints. */
   function startText(line: Line, target: RenderBox) {
     return typed(line) ? target.text : null;
@@ -1754,8 +2177,10 @@ export function Editor({
     return () => observer.disconnect();
   }
 
-  /** Jake's type for a box's line, as the field and the read-only text set it. */
-  function lineLook(target: RenderBox) {
+  /** Jake's type for a box's line, as the field and the read-only text set it,
+   *  on the line's baseline: its box's fixed ascent under its top, or a new
+   *  line's own `base`. */
+  function lineLook(target: RenderBox & { base?: number }) {
     const of = lineOf(bank, target);
     const settings = rendered?.page_settings ?? DEFAULT_PAGE;
     const entry = of?.kind === "entry" || of?.kind === "bullet" ? of.entry : null;
@@ -1771,21 +2196,36 @@ export function Editor({
     const lineHeight = wraps
       ? (rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE) / look.size
       : LINE_HEIGHT;
+    const family = FONTS.find((font) => font.value === settings.font_family)?.css;
+    const metrics = metricsOf(family ?? latinModern.style.fontFamily);
+    // The first baseline below the field's top, in points
+    const baseline = fieldBaseline(lineHeight, metrics) * look.size;
     return {
+      // The ring's edges against the field's: from its first line's top and
+      // its last line's foot
+      ring: {
+        top: pt(baseline - RING_OVER * look.size),
+        bottom: pt(lineHeight * look.size - baseline - RING_UNDER * look.size),
+      },
+      size: look.size,
+      baseline,
       className: cn(
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
         // text lands on the PDF's own glyphs
-        "bg-panel text-ink -mx-[0.4cqw] block px-[0.4cqw]",
+        // The page's own ink, pure black on white paper in either theme:
+        // the app's near-black `text-ink` set typed text a shade off the
+        // printed lines around it
+        "-mx-[0.4cqw] block bg-white px-[0.4cqw] text-black",
         look.bold && "font-bold",
         look.italic && "italic",
       ),
       style: {
-        fontFamily: FONTS.find((font) => font.value === settings.font_family)?.css,
+        fontFamily: family,
         fontSize: pt(look.size),
         lineHeight: pt(look.size * lineHeight),
         // Puts the text's baseline on the PDF's
-        marginTop: pt(boxAscent(target.kind) - fieldBaseline(lineHeight) * look.size),
+        marginTop: pt((target.base ?? boxAscent(target.kind)) - baseline),
         ...(wraps
           ? {
               width: `calc(${pt(PAGE_WIDTH - settings.side_margin * 72 - target.x0)} + 0.8cqw)`,
@@ -1798,7 +2238,9 @@ export function Editor({
 
   /** What the page draws over an overlaid line: the selected line's field,
    *  or a line's typed text while the PDF that prints it is on its way. */
-  function overlay(target: RenderBox) {
+  function overlay(target: Insert) {
+    const fresh = newBullets.find((n) => n.key === target.item_id);
+    if (fresh) return newField(fresh, target);
     const key = boxKey(target);
     if (key === selected) return field(target);
     const text = drafts[key];
@@ -1914,7 +2356,7 @@ export function Editor({
     element.setSelectionRange(offset, offset);
   }
 
-  function field(target: RenderBox) {
+  function field(target: Insert) {
     const start = line && startText(line, target);
     if (start == null || !line) return null;
     const key = boxKey(target);
@@ -1933,11 +2375,14 @@ export function Editor({
         e.preventDefault();
         select(null);
       },
-      className: cn(look.className, FIELD_RING),
+      className: cn(look.className, FIELD),
       style: look.style,
     };
     if (target.kind === "bullet") {
-      return richLine(value, (text) => type(key, text), { ...common, attach });
+      return ringed(
+        look,
+        richLine(value, (text) => type(key, text), { ...common, attach }),
+      );
     }
     const text = {
       ...common,
@@ -1946,12 +2391,23 @@ export function Editor({
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         type(key, e.target.value),
     };
-    return WRAPS.has(target.kind) ? <textarea {...text} rows={1} /> : <input {...text} />;
+    return ringed(
+      look,
+      WRAPS.has(target.kind) ? <textarea {...text} rows={1} /> : <input {...text} />,
+    );
   }
 
   /** Called when every page of a new PDF has painted: a line whose save
    *  has landed is now printed by the page itself, so its typed text goes. */
   const drawn = () => {
+    // A new bullet the PDF now prints goes, and the next typed after it is
+    // drawn under it
+    const printed = new Set(rendered?.boxes.map((b) => b.item_id));
+    const placed = placeNew(newNow.current, (key) => {
+      const id = newIds.current.get(key);
+      return id && printed.has(id) ? id : undefined;
+    });
+    if (placed.length !== newNow.current.length) setNew(() => placed);
     setDrafts((d) => {
       const kept = Object.entries(d).filter(
         ([k]) => k === selectedNow.current || onTheirWay.current.has(k),
@@ -1991,21 +2447,6 @@ export function Editor({
       onHide={hide}
       onFit={fit}
       className={className}
-    />
-  );
-
-  // A phone shows it only with no line's sheet open, which it would cover.
-  const fitToast = toast && rendered && !(phone && selected) && (
-    <FitToast
-      pages={rendered.page_count}
-      linesOver={rendered.lines_over}
-      disabled={saving || fittingNow}
-      onFit={() => {
-        setToast(false);
-        fit();
-      }}
-      onClose={() => setToast(false)}
-      className={phone ? "inset-x-4 bottom-4" : "right-6 bottom-6 w-[22rem]"}
     />
   );
 
@@ -2155,6 +2596,10 @@ export function Editor({
     target: BankEntry | null;
     section: EntrySection;
     customSectionId: string | null;
+    /** A page's + (KAN-920): a new entry goes after this one, or first in
+     *  its section when null; a new bullet row opens after this bullet. */
+    place?: { after: string | null };
+    newBulletAfter?: string;
   } | null>(null);
   const formOpener = useRef<() => HTMLElement | null>(() => null);
   const openEntryForm = (form: NonNullable<typeof entryForm>, opener: HTMLElement) => {
@@ -2250,9 +2695,25 @@ export function Editor({
           customSectionId={entryForm.customSectionId}
           returnTo={formOpener}
           tip={walkChapter === entryForm.section ? ENTRY_TIPS[entryForm.section] : undefined}
+          newBulletAfter={entryForm.newBulletAfter}
           onClose={() => setEntryForm(null)}
           onSaved={async ({ entryId, bankChanged, bullets, shows }) => {
             if (bankChanged) await reload(null);
+            // A page's + puts the new entry where it was pressed (KAN-920):
+            // a new entry lands last in its section, so it moves from there
+            const place = !entryForm.target ? entryForm.place : undefined;
+            if (place && entryId) {
+              const { bank: nowBank, choices: nowChoices } = held.current;
+              const created = nowBank.entries.find((e) => e.id === entryId);
+              const ids =
+                created &&
+                printedSections(nowBank, nowChoices, pageNow.current.section_order)
+                  .find((s) => s.entries.some((e) => e.id === entryId))
+                  ?.entries.map((e) => e.id);
+              const to = ids ? (place.after ? ids.indexOf(place.after) + 1 : 0) : -1;
+              const changes = to >= 0 && moveTo(nowBank, nowChoices, "entry", entryId, to);
+              if (changes) void apply(changes);
+            }
             const entry = held.current.bank.entries.find((e) => e.id === entryId);
             if (!entry || !bullets) return;
             // A school's switches join the same change, one Undo step
@@ -2316,6 +2777,308 @@ export function Editor({
       : null;
   // What the open line's tools act through, on both layouts (KAN-799)
   const handlers: LineHandlers = { moves };
+
+  // The page as its outline (KAN-920): the sections that print, in order,
+  // for the breadcrumb, the picked block's moves and the page's handles
+  const printed = printedSections(bank, choices, page.section_order);
+  const sectionHolding = (entryId: string) =>
+    printed.find((s) => s.entries.some((e) => e.id === entryId));
+  const pick = (block: Picked | null) => {
+    select(null);
+    setPicked(block);
+  };
+  /** Moves a section, an entry or a bullet to `to` among its siblings, with
+   *  Undo, as any move: an entry or a bullet shows its move at once
+   *  (`swapsOf`); a section is a page setting, so it moves when its PDF lands. */
+  const moveBlock = (block: Picked, to: number) => {
+    flush();
+    if (block.kind === "section") {
+      const now = pageNow.current;
+      const ids = printedSections(held.current.bank, held.current.choices, now.section_order).map(
+        (s) => s.id,
+      );
+      const from = ids.indexOf(block.id);
+      if (from < 0 || to < 0 || to >= ids.length || to === from) return;
+      void applyPage({
+        ...now,
+        section_order: sectionOrderAfter(ids, now.section_order, from, to),
+      });
+      return;
+    }
+    const changes = moveTo(held.current.bank, held.current.choices, block.kind, block.id, to);
+    if (changes) void apply(changes);
+  };
+  /** A block's place among its siblings, for a move by one. */
+  const indexOf = (block: Picked): number => {
+    if (block.kind === "section") return printed.findIndex((s) => s.id === block.id);
+    if (block.kind === "entry")
+      return sectionHolding(block.id)?.entries.findIndex((e) => e.id === block.id) ?? -1;
+    for (const section of printed)
+      for (const entry of section.entries) {
+        const at = entry.bullets.findIndex((b) => b.id === block.id);
+        if (at >= 0) return at;
+      }
+    return -1;
+  };
+  const siblingCount = (block: Picked): number => {
+    if (block.kind === "section") return printed.length;
+    if (block.kind === "entry") return sectionHolding(block.id)?.entries.length ?? 0;
+    const entry = printed
+      .flatMap((s) => s.entries)
+      .find((e) => e.bullets.some((b) => b.id === block.id));
+    return entry?.bullets.length ?? 0;
+  };
+  // Only a block the page still prints counts as picked
+  const pickedNow = picked && indexOf(picked) >= 0 ? picked : null;
+  const blockMoves: MoveTools | null = pickedNow
+    ? {
+        up: indexOf(pickedNow) > 0,
+        down: indexOf(pickedNow) < siblingCount(pickedNow) - 1,
+        onMove: (by) => moveBlock(pickedNow, indexOf(pickedNow) + by),
+      }
+    : null;
+  /** The breadcrumb's steps for the picked block or the open line: its
+   *  section, then its entry, then the bullet or field itself. */
+  const crumbs = ((): Crumb[] => {
+    const sectionStep = (id: string, last: boolean): Crumb => ({
+      label: printed.find((s) => s.id === id)?.label ?? id,
+      ...(!last && { target: `section:${id}` }),
+    });
+    const entryStep = (entryId: string, last: boolean): Crumb[] => {
+      const section = sectionHolding(entryId);
+      const entry = section?.entries.find((e) => e.id === entryId);
+      if (!section || !entry) return [];
+      return [
+        sectionStep(section.id, false),
+        {
+          label: entry.title || section.noun,
+          ...(!last && { target: `entry:${entryId}` }),
+        },
+      ];
+    };
+    const bulletStep = (entryId: string, bulletId: string): Crumb[] => {
+      const entry = sectionHolding(entryId)?.entries.find((e) => e.id === entryId);
+      const n = (entry?.bullets.findIndex((b) => b.id === bulletId) ?? -1) + 1;
+      return [...entryStep(entryId, false), { label: n > 0 ? `Bullet ${n}` : "Bullet" }];
+    };
+    if (pickedNow?.kind === "section") return [sectionStep(pickedNow.id, true)];
+    if (pickedNow?.kind === "entry") return entryStep(pickedNow.id, true);
+    if (pickedNow?.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
+      return entry ? bulletStep(entry.id, pickedNow.id) : [];
+    }
+    if (line?.kind === "bullet") return bulletStep(line.entry.id, line.bullet.id);
+    if (line?.kind === "entry" && box)
+      return [...entryStep(line.entry.id, false), { label: kindLabel(box.kind) }];
+    if (line?.kind === "skill")
+      return printed.some((s) => s.id === "skills")
+        ? [sectionStep("skills", false), { label: line.skill.name }]
+        : [];
+    return [];
+  })();
+  /** What Esc climbs to from the open line or the picked block. */
+  const parentOf = (): Picked | null => {
+    if (line?.kind === "bullet") return { kind: "entry", id: line.entry.id };
+    if (line?.kind === "entry") return { kind: "entry", id: line.entry.id };
+    if (line?.kind === "skill") return { kind: "section", id: "skills" };
+    if (pickedNow?.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
+      return entry ? { kind: "entry", id: entry.id } : null;
+    }
+    if (pickedNow?.kind === "entry") {
+      const section = sectionHolding(pickedNow.id);
+      return section ? { kind: "section", id: section.id } : null;
+    }
+    return null;
+  };
+  const keysNow: typeof keys.current = {
+    climb: () => (selected || pickedNow ? pick(parentOf()) : undefined),
+    nudge: (by) => {
+      if (blockMoves) {
+        if (by < 0 ? blockMoves.up : blockMoves.down) blockMoves.onMove(by);
+        return true;
+      }
+      if (!moves) return false;
+      if (by < 0 ? moves.up : moves.down) moves.onMove(by);
+      return true;
+    },
+  };
+  useEffect(() => {
+    keys.current = keysNow;
+  });
+  /** What a block's + adds after it: a bullet in its entry's form, an entry
+   *  in its section's, in the place after it; null where nothing can be (the
+   *  skills, a Lines section). */
+  const addAfter = (
+    block: OutlineBlock,
+  ): { noun: string; add: (opener: HTMLElement) => void } | null => {
+    // A bullet's opens a new line under it, typed in on the page: the
+    // entry's form for one bullet broke the editing in place (2026-11-19)
+    if (block.kind === "bullet") {
+      const entry = bank.entries.find((e) => e.id === block.parent);
+      if (!entry) return null;
+      return { noun: "Bullet", add: () => openNew(entry.id, block.id) };
+    }
+    // An entry's own rows (its title, organization, dates) take no +: one
+    // there read as either another entry or another bullet. A section's
+    // heading adds an entry, first in it; a bullet adds a bullet
+    if (block.kind === "entry") return null;
+    const section = printed.find((s) => s.id === block.id);
+    if (!section?.addable) return null;
+    return {
+      noun: section.noun,
+      add: (opener) =>
+        openEntryForm(
+          {
+            target: null,
+            ...sectionOf(section.id),
+            place: { after: null },
+          },
+          opener,
+        ),
+    };
+  };
+  /** A block's menu, at its handle (KAN-920): what the Sections panel's
+   *  row does for it, in its words, plus its moves, in three groups. Edit
+   *  opens a bullet for typing on the page, and an entry's form for its
+   *  details (dates, location), which the page does not type; Add
+   *  Bullet puts an empty row in the entry's form, after the bullet or
+   *  last; Remove From Resume is the panel's hide, with Undo, the bank
+   *  keeping it. A section has no Edit: its heading has nothing to type. */
+  const actionsOf = (block: OutlineBlock): BlockAction[] => {
+    const at = { kind: block.kind, id: block.id };
+    const index = indexOf(at);
+    const moves: BlockAction[] = [
+      {
+        key: "up",
+        text: "Move Up",
+        group: "move",
+        icon: <ArrowUpIcon aria-hidden />,
+        disabled: index <= 0,
+        onClick: () => moveBlock(at, index - 1),
+      },
+      {
+        key: "down",
+        text: "Move Down",
+        group: "move",
+        icon: <ArrowDownIcon aria-hidden />,
+        disabled: index < 0 || index >= siblingCount(at) - 1,
+        onClick: () => moveBlock(at, index + 1),
+      },
+    ];
+    const remove = (changes: ChoicesUpdate): BlockAction => ({
+      key: "remove",
+      text: "Remove From Resume",
+      group: "remove",
+      icon: <TrashIcon />,
+      onClick: () => {
+        setPicked(null);
+        void apply(changes);
+      },
+    });
+    if (block.kind === "bullet") {
+      const add = addAfter(block);
+      return [
+        {
+          key: "edit",
+          text: "Edit Bullet",
+          group: "change",
+          icon: <PencilIcon />,
+          onClick: () => select(`${block.id}.bullet`),
+        },
+        ...(add
+          ? [
+              {
+                key: "add",
+                text: "Add Bullet Below",
+                group: "change" as const,
+                icon: <PlusIcon />,
+                onClick: add.add,
+              },
+            ]
+          : []),
+        ...moves,
+        remove({ bullets: [{ bullet_id: block.id, shown: false }] }),
+      ];
+    }
+    if (block.kind === "entry") {
+      const entry = bank.entries.find((e) => e.id === block.id);
+      if (!entry) return moves;
+      const noun = printed.find((s) => s.id === block.parent)?.noun ?? "Entry";
+      const form = (opener: HTMLElement, newBulletAfter?: string) =>
+        openEntryForm(
+          {
+            target: entry,
+            section: entry.section,
+            customSectionId: entry.custom_section_id ?? null,
+            newBulletAfter,
+          },
+          opener,
+        );
+      return [
+        {
+          key: "edit",
+          text: `Edit ${noun}`,
+          group: "change",
+          icon: <PencilIcon />,
+          onClick: (opener) => form(opener),
+        },
+        {
+          key: "add",
+          text: "Add Bullet",
+          group: "change",
+          icon: <PlusIcon />,
+          // A new line under its last bullet on this resume, typed in on the
+          // page; an entry that shows none has no line to open it under, so
+          // its form opens on an empty row
+          onClick: (opener) => {
+            const last = shownBullets(entry, choices).at(-1);
+            if (last) openNew(entry.id, last.id);
+            else form(opener, "");
+          },
+        },
+        ...moves,
+        remove({ entries: [{ entry_id: block.id, shown: false }] }),
+      ];
+    }
+    const section = printed.find((s) => s.id === block.id);
+    const add = addAfter(block);
+    return [
+      ...(add
+        ? [
+            {
+              key: "add",
+              text: `Add ${add.noun}`,
+              group: "change" as const,
+              icon: <PlusIcon />,
+              onClick: add.add,
+            },
+          ]
+        : []),
+      ...moves,
+      remove(
+        block.id === "skills"
+          ? {
+              skills: choices.skills
+                .filter((c) => c.shown)
+                .map((c) => ({ skill_id: c.skill_id, shown: false })),
+            }
+          : { entries: (section?.entries ?? []).map((e) => ({ entry_id: e.id, shown: false })) },
+      ),
+    ];
+  };
+  // The page's own handles, on the editor's own page (not Tailor's review,
+  // whose page is for reading its changes)
+  const pageOutline: PageOutline | undefined = suggestions
+    ? undefined
+    : {
+        blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
+        picked: pickedNow,
+        onPick: (block) => pick({ kind: block.kind, id: block.id }),
+        onMove: (block, to) => moveBlock(block, to),
+        addOf: addAfter,
+        actionsOf,
+      };
   if (phone) {
     const start = line && box && startText(line, box);
     // A bullet's field is a rich one, as on the desktop, so the sheet's bold
@@ -2398,7 +3161,6 @@ export function Editor({
           history={history}
           cuts={cuts}
         />
-        {fitToast}
       </>
     );
   }
@@ -2407,12 +3169,20 @@ export function Editor({
     <Bar
       line={line}
       box={box}
+      crumbs={crumbs}
+      onCrumb={(target) => {
+        // At the first colon: a custom section's id has its own ("custom:x")
+        const at = target.indexOf(":");
+        pick({ kind: target.slice(0, at) as BlockKind, id: target.slice(at + 1) });
+      }}
       choices={choices}
       handlers={handlers}
       rendered={rendered}
       saving={saving || fittingNow}
       fitting={fittingNow}
       onFit={fit}
+      // The toolbar's ?, on the editor's own page (not Tailor's review)
+      onTour={suggestions ? undefined : () => setWalking(true)}
       experiences={
         // They wait for the first render, since a pick renders again
         rendered
@@ -2493,14 +3263,18 @@ export function Editor({
           // closes it, as a press off the page does: the page keeps the
           // selection for its lines, so until then only Enter or Escape
           // left a line once it was open. A line's own target opens that
-          // line, and the field and the margin dots keep it
+          // line, and the field and the margin dots keep it. So does a
+          // block's menu (KAN-920): React passes a press in its portal up
+          // through the page, and it let go of the block it acts on
           onPointerDown={(e) => {
             if (
               !(e.target as Element).closest(
-                "[data-box], [data-popup], input, textarea, button, [contenteditable]",
+                "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
               )
-            )
+            ) {
               select(null);
+              setPicked(null);
+            }
           }}
         >
           {pdfPane((pdf) => (
@@ -2514,10 +3288,12 @@ export function Editor({
               overlay={overlay}
               overlaid={overlaid}
               shiftOf={shiftOf}
+              inserts={insertsOn}
               swaps={swapsOn}
               gaps={gapsOn}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
+              outline={pageOutline}
               marks={showMarks ? allMarks : undefined}
               lit={lit}
               focus={showMarks ? focus : undefined}
@@ -2700,7 +3476,6 @@ export function Editor({
           {shownOriginal}
         </section>
       )}
-      {fitToast}
     </div>
   );
   // The title spans the page and the column beside it, so the column starts
@@ -2711,16 +3486,18 @@ export function Editor({
   return (
     <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
       {/* The title row (KAN-799): the resume and its file, the name at the
-          left, then whether it is saved, the review's columns and Download,
+          left, then the review's columns and Download,
           the page's one filled button (secondary on Tailor's review, whose
           fill is Finish), at the right, then on the editor's own page the
-          resume's ⋯ (KAN-825), as an upload's page has. Download and the
-          status sat in the bar until then, among the tools */}
+          resume's ⋯ (KAN-825), as an upload's page has. Download sat in
+          the bar until then, among the tools. A "Saving…" and "Saved" status
+          stood before Download until 2026-11-19: the user found it a
+          developer's tool, a watch on how long a save took; a save that
+          fails says so under the bar, and Fit says "Fitting…" itself */}
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
-        <SaveStatus saving={saving} fitting={fittingNow} ready={Boolean(rendered)} />
         {reviewing && (
           <div className="flex shrink-0 items-center gap-1">
             <ReviewButtons
