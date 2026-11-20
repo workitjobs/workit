@@ -87,10 +87,11 @@ export const hero = {
  * (page.tsx, the root layout): what WorkIt is, in other words than the
  * hero's line, which a preview showed beside the hero's own words (the web
  * review, 2026-11-20). Each clause is a claim the app keeps; no promise of
- * replies or interviews.
+ * replies or interviews. It opened "WorkIt is one place for your whole job
+ * search", the features heading the user found off (2026-11-20).
  */
 export const homeDescription =
-  "WorkIt is one place for your whole job search: your experience, a tailored resume for each job, the jobs that fit you and every application, filled in and tracked. You click Submit.";
+  "One app for applying to jobs: tailor your resume to each posting, see the jobs that fit you, fill in applications five at a time and track every one.";
 
 /**
  * The home page's hiring-systems section: the job pipeline
@@ -434,23 +435,42 @@ export const problems = {
 } as const;
 
 /**
- * The turn from the problems to the product (page.tsx, the four features'
- * section, KAN-923): what WorkIt is, then what it does. The user picked
- * "one place for your whole job search", the platform idea, over "WorkIt
- * does the busywork" (2026-11-20). Every clause of the line is a claim the
- * app keeps today: the Experiences bank, Documents (every resume, and the
- * one each application went out with), the Jobs page's Best Match, Auto
- * Apply filling each form from the profile, and the Tracker. It promises
- * no replies or interviews: the one problem above WorkIt cannot fix.
+ * The turn from the problems to the product (page.tsx, KAN-923): a plain
+ * answer to "Applying for jobs has become a full-time job", then why one
+ * app beats four (one profile feeds every tool), then each product sold in
+ * one or two short lines on the row of links (`FeatureJumps`). It was
+ * "WorkIt is one place for your whole job search", which the user found
+ * off, over cards that named each product and the problem it "fixes"
+ * without saying what it does (2026-11-20). Selling, on facts the app keeps
+ * today:
+ * - Resume Builder: the editor shows each line on the page as it is typed,
+ *   and the page is typeset in LaTeX (Tectonic, docs/live_page.md, ADR
+ *   0002), with no LaTeX to write; Tailor rewords a copy for a posting in
+ *   one click once the student picks the keywords (docs/tailor_resume.md).
+ *   Google Docs and LaTeX name the two ways students make resumes today.
+ * - Job Matching: postings from about 5,000 company job boards
+ *   (scraper/boards.csv), scored on the student's experience bank, Best
+ *   Match first.
+ * - Auto Apply: fills forms from the profile, up to five at a time, and
+ *   the student reviews each and clicks Submit (never "applies for you").
+ * - Tracker: one list with each application's stage, its dated events
+ *   and the resume it went out with (docs/sent_resume.md).
+ * No promise of replies or interviews.
  */
 export const featuresIntro = {
-  title: "WorkIt is one place for your whole job search",
-  /** What "one place" means, never the hero's line again: the first
-   *  version listed the same four steps as the hero's subtitle, nearly word
-   *  for word (the user's catch). Each part answers a problem above: the
-   *  scattered jobs, the resume versions, the retyping, the tracker. */
+  title: "One app for every step of applying",
   subtitle:
-    "Your experience, every resume, your best-fit jobs and every application live in one account, so nothing gets retyped or lost.",
+    "Set up your profile once. Every tool below uses it, so you stop typing the same things over and over.",
+  /** Each product's selling line on its link, in `PRODUCTS` order. */
+  products: {
+    resumes: "Edits like Google Docs, typesets like LaTeX. Tailor a copy to any job in one click.",
+    matching:
+      "Jobs from thousands of company job boards, scored on your experience, best fits first.",
+    "auto-apply":
+      "Fills in applications from your profile, five at a time. You review each one and click Submit.",
+    tracker:
+      "Every application in one list, with its stage, its interview dates and the resume you sent.",
+  },
 };
 
 /**

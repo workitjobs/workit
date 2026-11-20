@@ -405,21 +405,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     cards, then a grid capped at 84rem, which left bare grey margins on a
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
-  - **WorkIt's answer, after the problems**: a short section, "WorkIt is
-    one place for your whole job search", what WorkIt is, then one line on
-    what "one place" means ("Your experience, every resume, your best-fit
-    jobs and every application live in one account, so nothing gets
-    retyped or lost.", `featuresIntro` in data.ts, each clause a claim the
-    app keeps and no promise of replies), then the four products as a row
-    of flat grey tiles (`FeatureJumps`), each its mark, its name, "Fixes"
-    and the problem above it answers (`FIXES`, by its title in `problems`),
-    and "See how", a `Link` to its section (`/#resumes`, `/#matching`,
-    `/#auto-apply`, `/#tracker`, the product sections' ids). **The turn
-    from the problems to the product** is the user's ask (2026-11-20); the
-    heading was "Every step of the search, in one place", which listed the
-    features but did not answer the problems. **Never the hero's line
-    again**: the first version listed the hero subtitle's four steps nearly
-    word for word (the user's catch). **The links are `Link`s to
+  - **WorkIt's answer, after the problems**: a short section, "One app
+    for every step of applying", then one line on why one app beats four
+    ("Set up your profile once. Every tool below uses it, so you stop
+    typing the same things over and over."), then the four products as a
+    row of flat grey tiles (`FeatureJumps`), each its mark, its name, **a
+    selling line that says what the product does** and "See how", a
+    `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
+    `/#tracker`, the product sections' ids). The heading, the line and the
+    four selling lines are `featuresIntro` in data.ts, each claim tied to
+    its source in the comment there (the editor types on the page and
+    typesets in LaTeX, Tailor in one click, about 5,000 company job
+    boards, five forms at a time, the sent resume), and none promises
+    replies or interviews. **Sell on facts the student feels** (the
+    user's ask, 2026-11-20): each line names the pain the product removes
+    in the student's own terms (Google Docs and LaTeX for the resume, the
+    same form typed again), not a feature name. **What it replaced**: the
+    heading "WorkIt is one place for your whole job search", which the
+    user found off, over tiles that read "Fixes" and the problem above it
+    (`FIXES`), which named the problem but not what the product does;
+    before that, "Every step of the search, in one place", which listed
+    the features but did not answer the problems. **The turn from the
+    problems to the product** is the user's ask (2026-11-20). **Never the
+    hero's line again**: the first version listed the hero subtitle's four
+    steps nearly word for word (the user's catch). **The links are `Link`s to
     "/#slug"**, as the Features menu's "/#hiring-systems" is: as plain
     anchors, "#slug" and "/#slug" jumped to the page's top. **It replaced
     the four features' tabs** (`hero-features.tsx`, unmounted, kept: a tab

@@ -118,11 +118,11 @@ export default function LandingPage() {
       {/* Applying as it is, before how WorkIt works: problems.tsx. */}
       <Problems />
 
-      {/* WorkIt's answer to the problems: what it is, what "one place"
-          means, and the four products as links to their sections below
-          (FeatureJumps, product-sections.tsx). The turn from the problems to
-          the product (the user's ask, 2026-11-20); it never promises replies
-          or interviews. A tabs row over a large card was here, telling the
+      {/* WorkIt's answer to the problems: one app, why one profile beats
+          four tools, and the four products, each with its selling line, as
+          links to their sections below (FeatureJumps, product-sections.tsx).
+          The turn from the problems to the product (the user's ask,
+          2026-11-20); it never promises replies or interviews. A tabs row over a large card was here, telling the
           four products' stories that the product sections tell again below,
           and the line under the heading repeated the hero's: both went with
           the web review. hero-features.tsx stays, unmounted. */}
