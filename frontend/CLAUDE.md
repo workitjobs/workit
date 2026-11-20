@@ -584,7 +584,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
   renders a Skip to Content link, the header and the footer, and each page
   renders its own `<main id="main">`, the link's target, KAN-580); the header floats as a white rounded bar
-  once the page scrolls (`floating-header.tsx`); and the site's feature
+  once the page scrolls (`floating-header.tsx`), **slides up out of the
+  way while the reader scrolls down and comes back on a scroll up**
+  (KAN-923, the user's ask, 2026-11-20: `data-hidden`, `.site-header` in
+  landing.css; it always shows in the top 96px, a move must pass 6px
+  either way so a trackpad's jitter does not flicker it, and it stays
+  while keyboard focus is in it or a menu is open; `:focus-within` kept
+  it after any mouse click, so the rule reads `:focus-visible`). The
+  pinned product sections still stand 5.5rem under the top, so a gap
+  shows there while the bar is away; moving them with the bar would make
+  them jump on every scroll up. And the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
   through the four features, each with its own app colour, in the

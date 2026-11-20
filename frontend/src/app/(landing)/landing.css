@@ -117,6 +117,25 @@ html:has(.landing) {
   scroll-padding-top: 5rem;
 }
 
+/* The header slides up out of the way while the reader scrolls down and
+ * comes back on a scroll up (`data-hidden`, floating-header.tsx). It stays
+ * while keyboard focus is inside it or a menu is open (a header menu's
+ * `aria-expanded`, the phone menu's popover), so a keyboard visitor never
+ * tabs into a hidden bar and an open panel never leaves with it. Keyboard
+ * focus only (`:focus-visible`): a button a mouse clicked keeps focus, and
+ * with `:focus-within` the bar stayed until the reader clicked elsewhere. */
+.site-header {
+  transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.site-header[data-hidden]:not(:has(:focus-visible, [aria-expanded="true"], :popover-open)) {
+  translate: 0 calc(-100% - 1rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header {
+    transition: none;
+  }
+}
+
 /*
  * Lenis (smooth-scroll.tsx) marks <html> with .lenis while it runs. These
  * are lenis.css's rules, less its `html.lenis { height: auto }`, which
