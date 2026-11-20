@@ -23,7 +23,10 @@ screens follow `design.md`, not this file.
    tools collapse fills them, each tile is an empty slot: a dashed
    outline in its feature's colour at 55% over a 5% wash, with its mark
    and name (the user's pick of three drawn options, 2026-11-20); the
-   tool screens leaning on the slots stay white and slate.
+   tool screens leaning on the slots stay white and slate. The logo is
+   violet wherever it shows, and What is WorkIt draws it as an app icon
+   (`AppIcon`, the user's ask, 2026-11-20): a violet squircle lit from
+   above with a frosted sheet and the white figure, its shadows slate.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
    never fills a button or a card. Two exceptions: the home hero's

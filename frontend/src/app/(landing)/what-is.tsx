@@ -3,6 +3,7 @@
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRef, useSyncExternalStore, type CSSProperties } from "react";
 
+import { AppIcon } from "./app-icon";
 import { whatIs } from "./data";
 import { DraftLines } from "./draft-lines";
 import { useArrived, useMediaQuery } from "./hooks";
@@ -10,9 +11,10 @@ import { CONTAINER } from "./layout-parts";
 
 /**
  * What is WorkIt (KAN-923, after Loopsii's "What is Loopsii", the user's
- * ask, 2026-11-20): right after the hero and the logo strip, a small label
- * on the left and one large statement on the right, of who WorkIt is for
- * and why, in the drafting grid's frame.
+ * ask, 2026-11-20): right after the hero and the logo strip, WorkIt's app
+ * icon in glass over a small label on the left (`AppIcon`; a bare grey
+ * label read as plain text, the user's catch) and one large statement on
+ * the right, of who WorkIt is for and why, in the drafting grid's frame.
  *
  * As the problems' dark band rises over it and zooms in, the statement
  * steps back: it fades to a quarter and shrinks to 96% over the last
@@ -60,9 +62,18 @@ export function WhatIs() {
             className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] lg:gap-12"
             style={stepping ? { opacity: fade, transform: recede } : undefined}
           >
-            <h2 id="what-is-title" className="text-ink-meta font-sans text-[15px] font-medium">
-              {whatIs.label}
-            </h2>
+            {/* WorkIt's app icon in glass over its name (app-icon.tsx), in
+                place of the bare grey label (the user's ask, 2026-11-20);
+                beside the name below lg. */}
+            <div
+              data-arrived={mounted ? String(arrived) : undefined}
+              className="what-is-mark flex items-center gap-4 lg:flex-col lg:items-start lg:gap-5"
+            >
+              <AppIcon className="size-16 lg:size-24" />
+              <h2 id="what-is-title" className="text-ink-meta font-sans text-[15px] font-medium">
+                {whatIs.label}
+              </h2>
+            </div>
             <p
               ref={ref}
               data-arrived={mounted ? String(arrived) : undefined}
