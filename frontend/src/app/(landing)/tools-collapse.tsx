@@ -103,6 +103,12 @@ export function ToolsCollapse({ children }: { children: ReactNode }) {
       className="tools-collapse relative mt-10 lg:mt-12"
     >
       <div aria-hidden="true" className="tools-frame">
+        {/* The shared frame's lines (draft-lines.tsx), so this grid reads
+            as the same drawing as every other section's. */}
+        <span className="draft-h top-0" />
+        <span className="draft-h bottom-0" />
+        <span className="draft-v left-0" />
+        <span className="draft-v right-0" />
         <i className="top-0 left-0" />
         <i className="top-0 left-full" />
         <i className="top-full left-0" />

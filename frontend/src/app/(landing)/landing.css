@@ -1633,6 +1633,50 @@ html[data-tab-flight="flying"] .tour-tabs {
     animation: caret-blink 1s steps(1, end) 4;
   }
 }
+/* The drafting grid's frame (draft-lines.tsx), shared by every section
+   and the tools collapse's frame: hairlines across the window at a block's
+   top and foot (clipped by `.landing`'s overflow-x-clip), down its sides,
+   and an ink square where they cross. Neutral, never a feature's colour.
+   From lg up: below it the side lines ran along the window's edge. Every
+   frame's sides sit 1.5rem outside the container's content, so they form
+   one rail down the page, and run 6rem past each frame, so the rail joins
+   across the gap between two framed sections (it broke at 2.5rem). */
+@layer components {
+  .draft {
+    display: none;
+  }
+}
+@media (min-width: 64rem) {
+  .draft {
+    display: block;
+    position: absolute;
+    inset: calc(-1 * var(--gap, 1.25rem)) -1.5rem;
+    pointer-events: none;
+  }
+}
+.draft-h,
+.draft-v {
+  position: absolute;
+  background: rgb(15 23 42 / 0.08);
+}
+.draft-h {
+  left: -100vw;
+  right: -100vw;
+  height: 1px;
+}
+.draft-v {
+  top: -6rem;
+  bottom: -6rem;
+  width: 1px;
+}
+.draft > i {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--color-ink);
+  transform: translate(-50%, -50%);
+}
+
 /* The tools collapse under "One app for every step of applying"
    (tools-collapse.tsx): eight tool cards on a drafting grid fly into the
    four product tiles. Only from lg up with motion allowed; elsewhere the
@@ -1654,7 +1698,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   .tools-collapse .tools-frame {
     display: block;
     position: absolute;
-    inset: 0;
+    inset: 0 -1.5rem;
     background-image:
       linear-gradient(rgb(15 23 42 / 0.06) 1px, transparent 1px),
       linear-gradient(90deg, rgb(15 23 42 / 0.06) 1px, transparent 1px);

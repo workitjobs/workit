@@ -293,6 +293,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     promises replies, interviews or offers. "Five at a time" is a fact
     about Auto Apply, never a pitch for volume. "Apply to more jobs, with a
     better resume for each." was the hero for a day and went for this.
+  - **The drafting grid frames every section** between the hero and the
+    footer (`DraftLines` in `draft-lines.tsx`, the user's call,
+    2026-11-20, after Loopsii): hairlines across the window at each
+    block's top and foot, side lines on one rail 1.5rem outside the
+    container's content that run 6rem past each frame and so join between
+    sections, and ink squares where they cross. It takes no room (absolute,
+    in a `relative` parent at the container's width) and shows from lg
+    up. The rules: `docs/marketing-design-system.md`, "The drafting grid".
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground with a fine grain (`.studio-box` in
     landing.css; faint ruled lines across it went, the user found them odd

@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
+import { DraftLines } from "./draft-lines";
 import { Fit } from "./fit";
 import { useLoopsHeld } from "./hooks";
 import { StudioBox, TYPE } from "./layout-parts";
@@ -117,8 +118,11 @@ export function ProductAccordion({
   return (
     <div
       ref={rootRef}
-      className="grid w-full gap-y-8 lg:grid-cols-2 lg:items-center lg:gap-x-16 lg:gap-y-0"
+      className="relative grid w-full gap-y-8 lg:grid-cols-2 lg:items-center lg:gap-x-16 lg:gap-y-0"
     >
+      {/* The drafting grid's frame round the section: out of the grid's
+          flow, so it takes no cell. */}
+      <DraftLines gap="1.5rem" />
       {/* The heading at the top of the column and the rows at its foot,
           level with the box; below lg its children join the grid so the
           box can sit between them. */}

@@ -14,6 +14,7 @@ import { useRef, useState, useSyncExternalStore, type ComponentProps, type React
 
 import { cn } from "@/lib/cn";
 
+import { DraftLines } from "./draft-lines";
 import { useArrived } from "./hooks";
 
 type Scene = "boards" | "resumes" | "forms" | "question" | "tracker" | "replies";
@@ -159,7 +160,9 @@ export function ProblemHub({
   );
 
   return (
-    <div className="mt-8">
+    <div className="relative mt-8">
+      {/* The drafting grid's frame round the hub and its figure. */}
+      <DraftLines gap="1rem" />
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[17rem_minmax(0,1fr)_17rem] lg:gap-3 xl:grid-cols-[20.5rem_minmax(0,1fr)_20.5rem]">
         {column(0, half, "lg:order-1")}
         <div

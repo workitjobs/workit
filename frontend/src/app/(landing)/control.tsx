@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 
 import { Arrive } from "./arrive";
 import { control } from "./data";
+import { DraftLines } from "./draft-lines";
 import { FaviconLogo } from "./favicon-logo";
 import { CONTAINER, SectionHeading, StudioBox, studioGround, TYPE } from "./layout-parts";
 import { delay, Panel } from "./scene-parts";
@@ -37,7 +38,8 @@ export function Control() {
     <section aria-labelledby="control-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
         <SectionHeading id="control-title" title={title} subtitle={subtitle} />
-        <div className="mt-10 grid gap-3 sm:mt-14 md:grid-cols-2">
+        <div className="relative mt-10 grid gap-3 sm:mt-14 md:grid-cols-2">
+          <DraftLines gap="1.25rem" />
           {promises.map((promise) => (
             <Arrive
               key={promise.title}

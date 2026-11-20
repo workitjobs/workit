@@ -197,16 +197,30 @@ read as muddy. Nothing writes straight on the lower fifth: no one text
 colour holds 4.5:1 on every foot (ink fails on the blue, violet and pink;
 white fails on the green). Text there sits on a card or a pill.
 
-### The drafting grid (`.tools-frame` in landing.css)
+### The drafting grid (`draft-lines.tsx`, `.draft` in landing.css)
 
-Faint slate hairlines in a grid with a small ink square at each corner,
-as a drawing's registration marks, after Loopsii's frames (the user's
-pick, 2026-11-20). It frames the tools collapse under "One app for every
-step of applying" (`tools-collapse.tsx`), from lg up. It is neutral,
-never a feature's colour, and the content it frames paints above it
-(make that content `relative`, or the absolutely placed grid draws over
-it). It may spread to other sections' frames; one look, so the sections
-read as one system.
+Faint slate hairlines with a small ink square where they cross, as a
+drawing's registration marks, after Loopsii's frames (the user's picks,
+2026-11-20: first for the tools collapse, then "grid frame everywhere").
+Every section between the hero and the footer is framed: the problems
+hub, the tools collapse under "One app for every step of applying" (its
+frame also fills with a grid, `.tools-frame`), each product section,
+You stay in control and the hiring systems' box. Each frame is two lines
+across the window at the block's top and foot and two down its sides.
+
+- **One rail.** Every frame's sides sit 1.5rem outside the container's
+  content, so the side lines run in one line down the page, and they run
+  6rem past each frame, so the rail joins across the gap between two
+  framed sections. At different offsets the sides jumped from section to
+  section, and at 2.5rem the rail broke between the product sections.
+- **It takes no room.** `DraftLines` is absolutely placed `gap` above
+  and below its block, inside a `relative` parent that spans the
+  container's width; nothing shifts, and the problems section still fits
+  one screen. Content the frame sits behind must be positioned
+  (`relative`), or the absolutely placed lines draw over it.
+- **From lg up.** Below it the side lines ran along the window's edge.
+- **Neutral**, never a feature's colour. The hero is not framed for
+  now: its violet panel already fills the screen edge to edge.
 
 ### Pills and chips
 
