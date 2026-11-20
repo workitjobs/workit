@@ -135,14 +135,20 @@ export default function LandingPage() {
           four products' stories that the product sections tell again below,
           and the line under the heading repeated the hero's: both went with
           the web review. hero-features.tsx stays, unmounted. */}
-      <section aria-labelledby="features-title" className="py-16 sm:py-24">
+      {/* From lg up with motion the section pins while the scroll plays
+          the tools collapse (tools-collapse.tsx); its stage centres the
+          heading and the frame on the screen, so it needs no padding. */}
+      <section aria-labelledby="features-title" className="py-16 sm:py-24 lg:motion-safe:py-0">
         <div className={CONTAINER}>
-          <SectionHeading
-            id="features-title"
-            title={featuresIntro.title}
-            subtitle={featuresIntro.subtitle}
+          <FeatureJumps
+            heading={
+              <SectionHeading
+                id="features-title"
+                title={featuresIntro.title}
+                subtitle={featuresIntro.subtitle}
+              />
+            }
           />
-          <FeatureJumps />
         </div>
       </section>
 

@@ -288,12 +288,12 @@ the pill painted under the grey and the open tab did not show.
 
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once
-(`Arrive`); nothing pins, and the product sections' rows turn on a timer
-that a click stops; no shine sweeps or glows. The tools collapse
-(`tools-collapse.tsx`) is the one flight on the page: eight tool cards
-fly into the four product tiles once, cued by the scroll and played in
-time, only once the frame is nearly all on screen and after a short hold,
-so the reader sees the tools scattered first.
+(`Arrive`); the product sections' rows turn on a timer that a click
+stops; no shine sweeps or glows. The tools collapse (`tools-collapse.tsx`)
+is the one flight on the page and the one pin: the section holds on the
+screen while the scroll flies eight tool cards into the four product
+tiles, then lets go (the user's call, 2026-11-20). Nothing else pins or
+follows the scroll frame by frame.
 There is no Pause Animations button since the user had it removed, which
 leaves WCAG 2.2.2 open (frontend/CLAUDE.md says what).
 

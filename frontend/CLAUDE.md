@@ -333,7 +333,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     bare ground. **No scene fills the screen**, as on Calendly, whose
     animations sit in boxes of 290 to 424px. A new picture goes in a
     `StudioBox`, never a full-width panel of its own. Nothing on the home
-    page pins: the product sections did, until 2026-11-20 (below).
+    page pins but the tools collapse (below, the user's call): the
+    product sections did, until 2026-11-20 (below).
   - **The hero is the first screen and nothing else** (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
@@ -451,18 +452,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     pick, 2026-11-20): from lg up, eight tool cards a student juggles
     (Google Docs and Overleaf, careers pages and job sites, a notes app
     and copy and paste, Google Sheets and a calendar) lie scattered on a
-    drafting grid round the row, and once 80% of the frame is on screen
-    the cards hold still for 0.8 s, then each pair flies into the product
-    that replaces it, the tile comes up as its last card lands, and a
-    count turns from "8 tools" to "1 app". **The reader sees the scattered
-    tools first** (the user's catch, 2026-11-20): cued with the frame's
-    top two thirds up and flying at once, it played before the cards were
-    in view. It plays in about 3 s and rests finished (`useArrived`,
-    threshold 0.8), again only after the section has gone wholly below
-    the screen; nothing pins. The
-    frame's padding (6.5rem each way) is CSS, so the server's HTML has
-    the room; below lg and with reduced motion the tiles show as they are,
-    and without script the cards stay hidden. Each card flies to its
+    drafting grid round the row. **The section pins and the scroll
+    drives the collapse** (the user's call, 2026-11-20, the home page's
+    one pin and the one exception to "Scroll cues, time plays"): the
+    heading and the frame stay centred on the screen (`.tools-stage`,
+    sticky) while the page scrolls 120svh (`.tools-pin`), and over that
+    stretch the cards hold still, then each pair flies into the product
+    that replaces it, the tile comes up as its last card lands, the count
+    turns from "8 tools" to "1 app", and it rests finished before the page
+    moves on; scrolling back plays it backwards. Played in time on
+    arrival, it ran before the reader had looked at the scattered tools,
+    even with a hold. The poses are set by script from `useScroll`, one
+    per element per scroll frame (transforms and opacity, `HOLD`, `FLY`
+    and the rest in tools-collapse.tsx). The pin's height and the
+    frame's padding (6.5rem each way) are CSS, so the server's HTML has
+    the room and `/#resumes` and the other anchors below still land; the
+    stage centres its 656px of heading and frame, so the section has no
+    padding there. Below lg and with reduced motion there is no pin and
+    the tiles show as they are; without script the cards stay hidden and
+    the pinned stretch stands still. Each card flies to its
     tile's centre, measured from the layout on every resize. The ul is
     `relative` so the tiles paint over the grid (as a static block they
     sat under the absolutely placed frame, and its lines crossed their
@@ -1576,8 +1584,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own
-  (since 2026-11-20 nothing on the home page pins, and the product
-  sections' rows turn on a timer; the rule holds for any scene that returns);
+  (since 2026-11-20 nothing on the home page pins but the tools collapse,
+  and the product sections' rows turn on a timer; the rule holds for any
+  scene that returns). **The tools collapse is the one exception**: the
+  user asked for it pinned and scrubbed by the scroll (2026-11-20), so the
+  reader stays on it until the scroll finishes it;
   the scroll only takes the reader to the next phase. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two

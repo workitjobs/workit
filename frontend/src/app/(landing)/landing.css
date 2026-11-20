@@ -1719,11 +1719,13 @@ html[data-tab-flight="flying"] .tour-tabs {
 
 /* The tools collapse under "One app for every step of applying"
    (tools-collapse.tsx): eight tool cards on a drafting grid fly into the
-   four product tiles. Only from lg up with motion allowed; elsewhere the
-   cards, frame and count stay hidden and the tiles show as they are. The
-   frame's padding comes from CSS, so the server's HTML already has the
-   room and nothing shifts on hydration. The reset to scattered is instant:
-   it happens below the screen. */
+   four product tiles as the reader scrolls, while the section pins. Only
+   from lg up with motion allowed; elsewhere there is no pin, the cards,
+   frame and count stay hidden and the tiles show as they are. The pin's
+   height and the frame's padding come from CSS, so the server's HTML
+   already has the room and nothing shifts on hydration. The script sets
+   each card's, tile's and count's pose inline from the scroll
+   (`data-live`); these rules are the scattered start it begins from. */
 @layer components {
   .tools-collapse .tool-card,
   .tools-collapse .tools-frame,
@@ -1732,6 +1734,20 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  /* The section's own screen plus the 120svh the collapse plays over. */
+  .tools-pin {
+    height: calc(100svh + 120svh);
+  }
+  .tools-stage {
+    position: sticky;
+    top: 0;
+    display: flex;
+    height: 100svh;
+    flex-direction: column;
+    /* "safe": on a screen shorter than the heading and frame (656px), the
+       overflow goes below, never above the screen's top. */
+    justify-content: safe center;
+  }
   .tools-collapse {
     padding-block: 6.5rem;
   }
@@ -1768,7 +1784,6 @@ html[data-tab-flight="flying"] .tour-tabs {
     font-size: 13px;
     font-weight: 500;
     text-align: center;
-    transition: opacity 0.3s ease;
   }
   .tools-count-before {
     background: white;
@@ -1780,43 +1795,17 @@ html[data-tab-flight="flying"] .tour-tabs {
     color: white;
     opacity: 0;
   }
-  .tools-collapse[data-state="collapsed"] .tools-count-before {
-    opacity: 0;
-    transition-delay: 2.5s;
-  }
-  .tools-collapse[data-state="collapsed"] .tools-count-after {
-    opacity: 1;
-    transition-delay: 2.5s;
-  }
-  .tools-collapse[data-state] .tool-card {
+  .tools-collapse[data-live] .tool-card {
     display: block;
     position: absolute;
     z-index: 1;
     transform: rotate(var(--r));
-    will-change: transform;
-    transition:
-      transform 1.15s cubic-bezier(0.65, 0, 0.35, 1) calc(0.8s + var(--i) * 90ms),
-      opacity 0.35s ease calc(1.65s + var(--i) * 90ms);
+    will-change: transform, opacity;
   }
-  .tools-collapse[data-state="collapsed"] .tool-card {
-    transform: translate(var(--tx, 0), var(--ty, 0)) scale(0.6);
-    opacity: 0;
-  }
-  .tools-collapse[data-state] [data-tile] {
-    /* Each tile comes up as the last of its two cards lands: card 2i + 1
-       arrives at 0.8s (the hold) + (2i + 1) x 90ms + 1.15s. */
-    transition:
-      opacity 0.45s ease calc(1.9s + var(--i) * 180ms),
-      transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) calc(1.9s + var(--i) * 180ms);
-  }
-  .tools-collapse[data-state="scattered"] [data-tile] {
+  .tools-collapse[data-live] [data-tile] {
     opacity: 0;
     transform: scale(0.92);
-  }
-  .tools-collapse[data-state="scattered"] .tool-card,
-  .tools-collapse[data-state="scattered"] [data-tile],
-  .tools-collapse[data-state="scattered"] .tools-count > span {
-    transition: none;
+    will-change: transform, opacity;
   }
 }
 

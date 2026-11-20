@@ -1,6 +1,6 @@
 import { ArrowDownIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -36,22 +36,23 @@ const PRODUCTS = [
  * 2026-11-20); flat, never a fade to white, which read as AI-made. The
  * line was "Fixes" and the problem above it answered, which named the
  * problem but not what the product does (the user's catch, 2026-11-20).
- * From lg up the row arrives as the tools it replaces collapse into it
- * (`ToolsCollapse`); each tile carries `data-tile` and its index, `--i`,
- * for the flight's targets and timing.
+ * From lg up the row arrives as the tools it replaces collapse into it,
+ * while the section, its heading (`heading`) included, pins
+ * (`ToolsCollapse`); each tile carries `data-tile`, for the flight's
+ * targets.
  */
 /** A tile's fill: its feature's colour mixed into white, the same share for
  *  all four so none stands out, a step deeper on hover. */
 const TILE = (glow: string, amount: number) => `color-mix(in oklab, ${glow} ${amount}%, white)`;
 
-export function FeatureJumps() {
+export function FeatureJumps({ heading }: { heading: ReactNode }) {
   return (
-    <ToolsCollapse>
+    <ToolsCollapse heading={heading}>
       <ul className="relative grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {PRODUCTS.map((slug, i) => {
+        {PRODUCTS.map((slug) => {
           const page = FEATURES[slug];
           return (
-            <li key={slug} data-tile style={{ "--i": i } as CSSProperties}>
+            <li key={slug} data-tile>
               {/* A `Link` to "/#slug", as the Features menu's "/#hiring-systems"
                 is: as a plain anchor, "#slug" or "/#slug" jumped to the
                 page's top instead of to the section. */}
