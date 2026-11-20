@@ -5,13 +5,16 @@
  * user picked each from three rounds of sketches:
  *
  * - Resume Builder: a resume page, its last line the tailored one.
- * - Job Matching: a card with the match's score over two ticked skills,
- *   the score and the checklist the user asked it to show. The score is
- *   91%, the followed Stripe application's match (`followedJob`), the
- *   number the hero's Stripe tile shows.
- *   A job card with a ring badge came before; the user found it off.
- * - Auto Apply: a stack of filled applications with a check, many filled
- *   at once.
+ * - Job Matching: the app's match ring, its arc at 91% in the match's
+ *   green, with a check inside (the user's pick, 2026-11-20). A card with
+ *   the score over two ticked skills came before, which held too much to
+ *   read as matching; before that a job card with a ring badge, which the
+ *   user found off. 91% is the followed Stripe application's match
+ *   (`followedJob`), the number the hero's Stripe tile shows.
+ * - Auto Apply: a grid of four forms, three filled and checked and the
+ *   last still filling: several applications at once (the user's pick,
+ *   2026-11-20). A stack of forms with one check came before; its faint
+ *   back forms did not read as several.
  * - Application Tracker: a table, a header row over columns and a status
  *   column of stage pills (applied, interview, offer), the spreadsheet the
  *   tracker is. A list of rows with stage pills came before; the user
@@ -67,71 +70,90 @@ function ResumesMark({ className }: MarkProps) {
   );
 }
 
-/** A ticked skill on Job Matching's card: a green disc with a white tick. */
-function Tick({ cy }: { cy: number }) {
-  return (
-    <>
-      <circle cx="15.5" cy={cy} r="2.8" style={{ fill: MATCH }} />
-      <path
-        d={`M14.2 ${cy}l0.9 0.9 1.8-1.9`}
-        fill="none"
-        stroke="white"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </>
-  );
-}
+/** The match ring's arc: 91% of its circle (r 10.5), the followed Stripe
+ *  application's score, the number the hero's Stripe tile shows. */
+const RING = 2 * Math.PI * 10.5;
 
 function MatchingMark({ className }: MarkProps) {
   return (
     <Mark color={VIOLET} className={className}>
-      <rect x="9" y="8" width="30" height="32" rx="5" fill="white" />
-      {/* The score, in the match's green on its pale step. */}
-      <rect x="13" y="12" width="22" height="9" rx="4.5" style={{ fill: light(MATCH, 22) }} />
-      <text
-        x="24"
-        y="19.2"
-        textAnchor="middle"
-        fontSize="7.5"
-        fontWeight="700"
-        style={{ fill: deep(MATCH), fontFamily: "inherit" }}
-      >
-        91%
-      </text>
-      <Tick cy={27} />
-      <rect x="20" y="26" width="14" height="2.2" rx="1.1" style={{ fill: deep(VIOLET) }} />
-      <Tick cy={34} />
-      <rect x="20" y="33" width="10" height="2.2" rx="1.1" style={{ fill: deep(VIOLET) }} />
+      <circle cx="24" cy="24" r="15" fill="white" />
+      <circle
+        cx="24"
+        cy="24"
+        r="10.5"
+        fill="none"
+        strokeWidth="4"
+        style={{ stroke: light(MATCH, 22) }}
+      />
+      <circle
+        cx="24"
+        cy="24"
+        r="10.5"
+        fill="none"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeDasharray={`${RING * 0.91} ${RING}`}
+        transform="rotate(-90 24 24)"
+        style={{ stroke: MATCH }}
+      />
+      <path
+        d="M19.5 24.3l3 3 6-6.3"
+        fill="none"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ stroke: deep(MATCH) }}
+      />
     </Mark>
   );
 }
 
+/** Auto Apply's four forms, each at its top left: three filled and
+ *  checked, the last still filling. */
+const FORMS = [
+  { x: 9, y: 9, done: true },
+  { x: 25, y: 9, done: true },
+  { x: 9, y: 25, done: true },
+  { x: 25, y: 25, done: false },
+];
+
 function AutoApplyMark({ className }: MarkProps) {
   return (
     <Mark color={GREEN} className={className}>
-      <rect x="16" y="7" width="23" height="18" rx="3" fill="white" fillOpacity="0.55" />
-      <rect x="12.5" y="11.5" width="23" height="18" rx="3" fill="white" fillOpacity="0.8" />
-      <rect x="9" y="16" width="23" height="22" rx="3" fill="white" />
-      <rect x="9" y="16" width="23" height="4" rx="2" style={{ fill: light(GREEN, 45) }} />
-      <rect x="12" y="23" width="17" height="3" rx="1.5" style={{ fill: deep(GREEN) }} />
-      <rect x="12" y="28" width="12" height="3" rx="1.5" style={{ fill: deep(GREEN) }} />
-      <circle
-        cx="35"
-        cy="35"
-        r="6"
-        strokeWidth="2"
-        style={{ fill: deep(GREEN), stroke: ground(GREEN) }}
-      />
-      <path
-        d="M32.4 35l1.9 1.9 3.4-3.7"
-        fill="none"
-        stroke="white"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {FORMS.map(({ x, y, done }) => (
+        <g key={`${x}-${y}`}>
+          <rect x={x} y={y} width="14" height="14" rx="2.5" fill="white" />
+          <rect
+            x={x + 2.5}
+            y={y + 3}
+            width="9"
+            height="1.8"
+            rx="0.9"
+            style={{ fill: deep(GREEN) }}
+          />
+          <rect
+            x={x + 2.5}
+            y={y + 6.5}
+            width={done ? 6 : 4}
+            height="1.8"
+            rx="0.9"
+            style={{ fill: done ? deep(GREEN) : light(GREEN, 45) }}
+          />
+          {done ? (
+            <circle cx={x + 10.5} cy={y + 10.5} r="2" style={{ fill: GREEN }} />
+          ) : (
+            <circle
+              cx={x + 10.5}
+              cy={y + 10.5}
+              r="2"
+              fill="none"
+              strokeWidth="1"
+              style={{ stroke: light(GREEN, 45) }}
+            />
+          )}
+        </g>
+      ))}
     </Mark>
   );
 }

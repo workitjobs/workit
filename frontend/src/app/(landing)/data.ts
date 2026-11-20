@@ -460,29 +460,39 @@ export const problems = {
  *   and the page is typeset in LaTeX (Tectonic, docs/live_page.md, ADR
  *   0002), with no LaTeX to write; Tailor rewords a copy for a posting in
  *   one click once the student picks the keywords (docs/tailor_resume.md).
- *   Google Docs and LaTeX name the two ways students make resumes today.
- * - Job Matching: postings from about 5,000 company job boards
- *   (scraper/boards.csv), scored on the student's experience bank, Best
- *   Match first.
- * - Auto Apply: fills forms from the profile, up to five at a time, and
- *   the student reviews each and clicks Submit (never "applies for you").
- * - Tracker: one list with each application's stage, its dated events
- *   and the resume it went out with (docs/sent_resume.md).
+ *   "Never been easier" is the user's selling ask, puffery the editor's
+ *   typing on the page and one-click Tailor stand behind.
+ * - Job Matching: every posting is scored on the student's experience
+ *   bank and the Jobs page opens on Best Match, so the fits come first.
+ * - Auto Apply: fills the basic fields from the profile on up to five
+ *   applications at a time, each in its own tab; a new written question
+ *   waits for the student, who reviews each form and clicks Submit (never
+ *   "applies for you").
+ * - Tracker: a saved job lands on its own, Auto Apply marks a job applied
+ *   when the student submits in its tab, Apply Now asks "Did you apply?"
+ *   on the way back, and each application keeps the resume it went out
+ *   with (docs/sent_resume.md).
  * No promise of replies or interviews.
  */
 export const featuresIntro = {
   title: "One app for every step of applying",
   subtitle:
     "Set up your profile once. Every tool below uses it, so you stop typing the same things over and over.",
-  /** Each product's selling line on its link, in `PRODUCTS` order. */
+  /** Each product's selling line on its link, in `PRODUCTS` order, the
+   *  user's picks and asks (2026-11-20): sell what each saves the student,
+   *  with time going into quality, never volume. */
   products: {
-    resumes: "Edits like Google Docs, typesets like LaTeX. Tailor a copy to any job in one click.",
-    matching:
-      "Jobs from thousands of company job boards, scored on your experience, best fits first.",
+    resumes:
+      "Making a resume has never been easier. Type on the page, LaTeX handles the layout, and one click tailors it to any job.",
+    matching: "Spend your time on the jobs you fit.",
     "auto-apply":
-      "Fills in applications from your profile, five at a time. You review each one and click Submit.",
+      "The basics fill themselves on up to five applications at once, so your time goes into the answers that matter.",
+    // "Fills itself in", never "updates itself": a saved job lands on its
+    // own, Auto Apply marks a job applied when the student submits in its
+    // tab, and Apply Now asks "Did you apply?" on the way back; stages past
+    // Applied are set by hand, since WorkIt reads no email.
     tracker:
-      "Every application in one list, with its stage, its interview dates and the resume you sent.",
+      "The spreadsheet that fills itself in. Every job you save or apply to through WorkIt lands here, with the resume you sent.",
   },
 };
 

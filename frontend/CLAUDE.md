@@ -425,12 +425,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `/#tracker`, the product sections' ids). The heading, the line and the
     four selling lines are `featuresIntro` in data.ts, each claim tied to
     its source in the comment there (the editor types on the page and
-    typesets in LaTeX, Tailor in one click, about 5,000 company job
-    boards, five forms at a time, the sent resume), and none promises
-    replies or interviews. **Sell on facts the student feels** (the
-    user's ask, 2026-11-20): each line names the pain the product removes
-    in the student's own terms (Google Docs and LaTeX for the resume, the
-    same form typed again), not a feature name. **What it replaced**: the
+    typesets in LaTeX, Tailor in one click, Best Match first, five forms at
+    a time, the tracker filling itself in), and none promises replies or
+    interviews. **Sell on facts the student feels** (the user's ask,
+    2026-11-20): each line sells what the product saves the student, with
+    their time going into quality ("Spend your time on the jobs you fit",
+    "your time goes into the answers that matter"), never a feature name
+    or a count of applications. **The tracker "fills itself in", never
+    "updates itself"**: a saved job lands on its own, Auto Apply marks a
+    job applied when the student submits in its tab and Apply Now asks
+    "Did you apply?", but stages past Applied are set by hand, since
+    WorkIt reads no email. **What it replaced**: the
     heading "WorkIt is one place for your whole job search", which the
     user found off, over tiles that read "Fixes" and the problem above it
     (`FIXES`), which named the problem but not what the product does;

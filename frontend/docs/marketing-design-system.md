@@ -208,8 +208,8 @@ three rounds of sketches:
 | Feature | Mark | Why it reads |
 | --- | --- | --- |
 | Resume Builder | A resume page, its last line in the full blue (the tailored one) | The thing the feature makes |
-| Job Matching | A card with the match's score (91%) over two ticked skills | A score and a checklist, what matching gives a student; 91% is the followed Stripe application's match on the page's journey. A job card with a ring badge read as off |
-| Auto Apply | A stack of filled forms with a check | Many applications filled at once |
+| Job Matching | The app's match ring, its arc at 91% in the match's green, with a check inside | The match itself, the ring a student sees on every job card (the user's pick, 2026-11-20); 91% is the followed Stripe application's match. A card with the score over two ticked skills held too much to read as matching, and a job card with a ring badge read as off |
+| Auto Apply | A grid of four forms, three filled and checked, the last still filling | Several applications filling at once (the user's pick, 2026-11-20); a stack of forms with one check came before, and its faint back forms read as one form |
 | Application Tracker | A table: a header row, column lines and a status column of stage pills (applied, interview, offer) | The tracker is a spreadsheet of applications; a list of rows with pills read as off, and a board would show the archived board view |
 
 Rules: one colour family per mark, from the feature's token (the ground
