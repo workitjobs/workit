@@ -2011,9 +2011,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     at `text-heading`, and the badge), then the page's status ("Saved", or
     an upload's date), the filled Download, and `ResumeMenu`
     (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
-    with Rename, Make Primary and Delete. `TitleRowProvider` joins the two
-    ends: the menu's Rename opens the title's field, and a failed Make
-    Primary or Delete shows under the title. Tailor's review keeps its h2
+    with Rename, Make Primary, Take the Tour and Delete. `TitleRowProvider`
+    joins the two ends: the menu's Rename opens the title's field, Take the
+    Tour opens the editor's Getting Started walkthrough (the editor hands it
+    over, `attachTour`; `docs/editor-walkthrough.md`),
+    and a failed Make Primary or Delete shows under the title. Tailor's review keeps its h2
     title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
     focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
     button stays, and its focus return took the focus from the new field.
@@ -3454,25 +3456,84 @@ are in `docs/auth.md`.
   replaceMatching: true })` on the student's Save Resume, which replaces
   the other uploads' copies of the same entries. Every other upload screen
   calls `uploadResume` plain and keeps ADR 0005's one-owner rule. Its
-  Profile step then saves the home `location` and the links through
+  Contact page then saves the home `location` and the links through
   `updateProfile`, checked with `webLink` first, the same fields My Profile
   edits. Screen: `docs/screens.md`, Applicant onboarding.
-- **Onboarding never asks the self-identification** (KAN-387): its Profile
-  step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
+- **Onboarding never asks the self-identification** (KAN-387): its
+  Authorization page asks only work authorization and sponsorship, never
+  `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
   disability). The extension asks them on the first form that does and saves
   them through the same PATCH; Application Info's Voluntary
   Self-Identification card edits all of them (KAN-550). A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Onboarding is one question per page, and Find Jobs opens /jobs** for
+  every student. **Build makes the resume at once, from scratch**
+  (`make-resume.ts`, Generate's `blank`: the header alone, whatever the bank
+  holds) **and the editor's Getting Started walkthrough teaches the rest**
+  (2026-11-18, `docs/editor-walkthrough.md`: one path down the page, header
+  first, cards of a line or two with a pointing hand tapping the control to
+  press, each section's step open while the student adds as many as they
+  have, practice examples in Add Experiences for a student with nothing
+  saved; from 64rem only). An upload opens as an editable copy with the same
+  walkthrough. It replaced a fixed one-action-per-
+  section tour, and before that three builder pages and a sketch of the
+  student's typed words, which read as the real resume.
+  **Once the resume step's resume exists, the step is that resume**
+  (`made-review.tsx`): the real editor for one built there, with Scout's
+  panel beside it for Sections and Format, the file for an upload, full width
+  under onboarding's logo and footer, whose Continue goes on to
+  Authorization; the editor's data is read with the same server actions its
+  page reads. Opening the editor's own page in the app's shell instead read
+  as if onboarding were over. **The Sections panel lists Education,
+  Experience, Projects and Skills even when empty**, for their Add
+  (`printedSections`' `withEmpty`): an empty resume listed nothing to add to.
+  A tour step's control carries `data-tour`. **No onboarding page
+  scrolls** at 1440 x 800 or 1366 x 680: one question a page, a tight
+  chrome, and the `short` variant (`globals.css`) under 760px of height;
+  measure a new page at both before it ships.
+  (2026-11-16, after Figma's sign-up; `docs/screens.md`, Applicant
+  onboarding). The white left half asks; the right half
+  shows one graphic a stage (2026-11-17): for the feed's questions
+  (`onboarding/applicant/preview-panel.tsx`) the student's Jobs page
+  building from the answers, its cards from `preview-jobs.ts`: three real
+  employers per role slug, shaped by every answer. A role added to the Role
+  filter gets a row there. The pages are `WIZARD_PAGES` in `steps.ts`, in
+  two tracks: setup (Role to Links; Start Date only with an internship),
+  whose last page saves everything and
+  opens /jobs, and the extension track (Extension, Add Claude, Practice),
+  opened only by `EXTENSION_STEP_PATH`. Each page's address is
+  `?step=<slug>` (`PAGE_SLUGS`), written with `history.replaceState` as
+  the student moves; a new page needs a slug there. A new question is a new page with
+  one question, or two that belong together, never a third on an existing
+  page: the old first page held seven and the student scrolled a form. Its
+  controls come from `role-step.tsx`'s pieces (`JobTypeChoices`,
+  `WorkplaceChoices`...), which Settings' Job Preferences draws whole
+  (`RoleStep`), so the two ask the same questions. Role is the one
+  difference: onboarding shows eight hand-picked roles as tiles
+  (`POPULAR_ROLES`, by slug; not the eight with the most postings, which
+  put Sales Representative and Nurse first) over the search
+  (`PopularRoleChoices`, with the rest behind Search All Roles, a
+  dialog with its list already open, `SearchDialog`, as Location's other
+  places are: on the page each list scrolled the page), Settings
+  the search alone (`RolePicker`). **A role WorkIt doesn't list can be
+  typed** (2026-11-16): `FeedFilters.customRoles`, `?custom_role=` and the
+  saved preferences' `custom_role`, which the API finds in job titles, one
+  Role filter with the picked roles. Every Role picker holds both in one
+  list of values, a typed role as `custom:<text>` (`roleValues`,
+  `roleOptions`, `splitRoleValues` in `jobs/filter-query.ts`);
+  `SearchPicker`'s `create` adds one ("Add “UX Researcher” as your own
+  role", `addCustomRole`) in onboarding, Settings and All Filters, and the
+  Jobs page's Role dropdown lists them first, to untick. Anything that
+  checks for a role counts both. The preview's chips show only the answered ones and the
+  current page's, and its score rings only once a resume is saved.
 - **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
   `onboarding/applicant/claude-step.tsx`): the install link from
   `claudeConnectorLink()`, read in `page.tsx` and passed down, and
   `getClaudeConnected` asked every 3 seconds while the page shows, so the
   line turns done without a reload. Its main button is Skip for Now,
   which goes on to the practice batch, until Claude is added; then Next
-  (KAN-572). The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
-  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
-  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  (KAN-572).
   The extension's add-Claude moment (KAN-387) already skips a student whose
   connector is added: keep that check there, not a flag set here.
 - **Writing samples are edited in Application Info only**

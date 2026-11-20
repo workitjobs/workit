@@ -347,6 +347,7 @@ export function Bar({
       ref={bar}
       data-keeps-selection
       data-page-bar
+      data-tour="toolbar"
       className={cn(SLIM_BAR, "@container/bar")}
       // A press on a button keeps focus in the open line's field, so it does
       // not blur and save first
@@ -783,7 +784,7 @@ export function PanelTabs({
   onClose: () => void;
 }) {
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex items-end gap-2" data-tour="panel-tabs">
       <TabButtons
         label="Side Panel"
         ruled
@@ -855,6 +856,7 @@ export function FitButton({
           variant="secondary"
           size="sm"
           data-bar-action
+          data-tour="fit"
           className="shrink-0"
           disabled={disabled}
           onClick={onFit}

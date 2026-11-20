@@ -38,6 +38,20 @@ PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})
 # job_roles_slug_shape CHECK holds the same pattern, capped here.
 RoleSlug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
+# A role the student typed that the Role filter doesn't list ("UX
+# Researcher", 2026-11-16): found in job titles as whole words, in order
+# (queries/jobs/filters.py, custom_roles). Trimmed; it must hold a letter or
+# digit (the pattern is a search, not anchored), since only words are matched.
+# 60 characters, longer than any job_roles name.
+CustomRole = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=2, max_length=60, pattern=r"[A-Za-z0-9]"),
+]
+
+# How many custom roles a student keeps: the Role filter's own roles are the
+# main way in, and each custom one is a title scan (filters.title_says).
+MAX_CUSTOM_ROLES = 5
+
 # ?job_type=: the column's four, internship among them (KAN-233).
 JobTypeKey = Literal["full_time", "part_time", "contract", "internship"]
 

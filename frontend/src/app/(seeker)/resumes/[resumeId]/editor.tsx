@@ -57,6 +57,16 @@ import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
+import { TitleRowContext } from "./resume-menu";
+import { Walkthrough, type WalkApi } from "./walkthrough";
+import {
+  SAMPLE_BANK,
+  sampleChoices,
+  sampleTicked,
+  walkCounts,
+  type ChapterId,
+} from "./walkthrough-model";
+import { Notice } from "@/components/ui/notice";
 import {
   addCuts,
   customKey,
@@ -89,6 +99,7 @@ import {
 } from "./pdf-pages";
 import {
   DEFAULT_PAGE,
+  companyLeads,
   degreeLeads,
   FONTS,
   FormatOptions,
@@ -187,6 +198,17 @@ const EXPERIENCES_MARK = (
   </span>
 );
 
+/** The walkthrough's line over the entry form, by section (2026-11-18):
+ *  what makes a good one, while its chapter runs. */
+const ENTRY_TIPS: Partial<Record<EntrySection, string>> = {
+  education:
+    "Only the school, degree and graduation date are needed. Add a GPA if it is 3.5 or higher.",
+  experience:
+    "Write 2 or 3 bullets. Start each with a verb and add a number: \u201cCut load time by 30%.\u201d",
+  projects:
+    "Say what you built, with which tools, and what it did: \u201cBuilt a course planner used by 200 students.\u201d",
+};
+
 // Letter is 612 pt wide; field type is set in cqw of the page so it matches
 // the PDF's at any width.
 const PAGE_WIDTH = 612;
@@ -205,19 +227,33 @@ const latinModern = localFont({
 
 /** Jake's type for each kind of line on this page: its size in points, and
  *  whether it is bold or italic. */
-function typeOf(kind: string, section: string | null, page: PageSettings, degreeFirst: boolean) {
-  const size = sizeOf(textRoleOf(kind, section, degreeFirst), page);
+function typeOf(
+  kind: string,
+  section: string | null,
+  page: PageSettings,
+  degreeFirst: boolean,
+  companyFirst: boolean,
+) {
+  const size = sizeOf(textRoleOf(kind, section, degreeFirst, companyFirst), page);
   // \scshape has no bold small capitals in Latin Modern, so the name prints bold
   if (kind === "full_name") return { size, bold: true, italic: false };
-  // Degree First prints the school on the degree's row, in its italic
-  if (kind === "title") return { size, bold: !degreeFirst, italic: degreeFirst };
-  if (kind === "organization") return { size, bold: false, italic: true };
+  // Degree First prints the school on the degree's row, in its italic, and
+  // Company First a job's role on the company's
+  const under = degreeFirst || companyFirst;
+  if (kind === "title") return { size, bold: !under, italic: under };
+  // Company First prints the company on the title's row, bold and upright
+  if (kind === "organization") return { size, bold: companyFirst, italic: !companyFirst };
   // A project's tools line (KAN-738) is \textit{\small ...}, the body's size
   if (kind === "tools") return { size, bold: false, italic: true };
   // Education's location is the heading's right slot, upright, and so is
   // the header's (KAN-436), which has no section
   if (kind === "location")
-    return { size, bold: false, italic: section !== null && section !== "education" };
+    return {
+      size,
+      bold: false,
+      // on the title's row (Education's, or a job's under Company First), upright
+      italic: section !== null && section !== "education" && !companyFirst,
+    };
   return { size, bold: false, italic: false };
 }
 
@@ -442,6 +478,8 @@ export function Editor({
   heading,
   more,
   original,
+  tour = false,
+  onTourEnd,
 }: {
   resumeId: string;
   /** The first render, started by the page and not awaited. */
@@ -473,6 +511,11 @@ export function Editor({
   phoneBar?: ReactNode;
   /** The phone arrow's target, when not the page that opened the editor. */
   phoneBack?: ComponentProps<typeof PhoneEditor>["back"];
+  /** Start the tour (./walkthrough.tsx) once the first render lands:
+   *  onboarding's, on the resume it just made. */
+  tour?: boolean;
+  /** The tour ended, finished or left. */
+  onTourEnd?: () => void;
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
@@ -693,6 +736,27 @@ export function Editor({
   const showExperiences = () => {
     showPanel("experiences");
   };
+  // GETTING STARTED (./walkthrough.tsx, 2026-11-18): opened by `tour` once
+  // the first render lands (onboarding's), or by the title row's Take the
+  // Tour. Not on Tailor's review, a step of a run. It holds no logic here
+  // but its hooks (`walkApi`, below)
+  const [walking, setWalking] = useState(false);
+  const [walkAsked, setWalkAsked] = useState(false);
+  if (tour && !suggestions && rendered && !walkAsked) {
+    setWalkAsked(true);
+    setWalking(true);
+  }
+  const [walkChapter, setWalkChapter] = useState<ChapterId | null>(null);
+  // Add Experiences' practice examples while the walkthrough shows it to a
+  // student with nothing saved: ticked on screen, never sent to the API
+  const [sample, setSample] = useState<Choices | null>(null);
+  const titleRow = use(TitleRowContext);
+  const attachTour = titleRow?.attachTour;
+  useEffect(() => {
+    if (suggestions || !attachTour) return;
+    attachTour(() => setWalking(true));
+    return () => attachTour(null);
+  }, [attachTour, suggestions]);
   // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
   // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
   const [cuts, setCuts] = useState(NO_CUTS);
@@ -1700,6 +1764,7 @@ export function Editor({
       entry?.section ?? null,
       settings,
       entry ? degreeLeads(entry, settings) : false,
+      entry ? companyLeads(entry, settings) : false,
     );
     const wraps = WRAPS.has(target.kind);
     // A wrapping line's field steps as the page's lines do
@@ -2103,6 +2168,32 @@ export function Editor({
     const custom = bank.sections.find((s) => customKey(s.name) === id);
     return { section: "custom", customSectionId: custom?.id ?? null };
   };
+  // The walkthrough's hooks into the editor (./walkthrough.tsx)
+  const openPanel = (view: PanelTab) => {
+    setTab(view);
+    setPanelView(view);
+    setScoutOpen(true);
+  };
+  const walkApi: WalkApi = {
+    counts: walkCounts(bank, choices, page.section_order, header),
+    sampleTicks: sample ? sampleTicked(sample) : null,
+    lineOpen: selected !== null,
+    pageKey: JSON.stringify(page),
+    openSection: (id) => {
+      setHeaderOpen(id === "header");
+      openPanel("sections");
+    },
+    openFormat: () => openPanel("format"),
+    openExperiences: () => {
+      if (!bank.entries.length && !bank.skills.length) setSample((s) => s ?? sampleChoices());
+      setPanelView("experiences");
+      setScoutOpen(true);
+    },
+    closeExperiences: () => {
+      setSample(null);
+      openPanel("sections");
+    },
+  };
   const sectionsOutline = (
     <>
       <SectionsOutline
@@ -2112,6 +2203,8 @@ export function Editor({
         onOrder={(section_order) => void applyPage({ ...page, section_order })}
         onApply={apply}
         header={headerPanel}
+        lit={walkChapter ? [walkChapter] : []}
+        reveal={walkChapter}
         headerOpen={headerOpen}
         onHeaderOpen={setHeaderOpen}
         onEditEntry={(entryId, opener) => {
@@ -2156,6 +2249,7 @@ export function Editor({
           section={entryForm.section}
           customSectionId={entryForm.customSectionId}
           returnTo={formOpener}
+          tip={walkChapter === entryForm.section ? ENTRY_TIPS[entryForm.section] : undefined}
           onClose={() => setEntryForm(null)}
           onSaved={async ({ entryId, bankChanged, bullets, shows }) => {
             if (bankChanged) await reload(null);
@@ -2490,8 +2584,33 @@ export function Editor({
               {ASK_SCOUT_LIVE && assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
-                <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              <div
+                data-tour="experiences-panel"
+                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-4 pt-2 pb-4"
+              >
+                {sample ? (
+                  <>
+                    <Notice Icon={StackIcon}>
+                      Practice: these are examples. Nothing you tick here is saved.
+                    </Notice>
+                    <ExperiencesPicker
+                      bank={SAMPLE_BANK}
+                      choices={sample}
+                      opened={["experience", "projects", "skills"]}
+                      onApply={(changes) => setSample((s) => s && mergeChoices(s, changes))}
+                    />
+                  </>
+                ) : (
+                  <ExperiencesPicker
+                    key={walkChapter === "reuse" ? "walk" : "own"}
+                    bank={bank}
+                    choices={choices}
+                    onApply={apply}
+                    // The walkthrough's step opens every group, so its ring has
+                    // a box to land on
+                    opened={walkChapter === "reuse" ? ["education", "experience", "projects"] : []}
+                  />
+                )}
               </div>
             )}
             {panelView === "cut" && (
@@ -2504,7 +2623,10 @@ export function Editor({
                 <div className="shrink-0 px-4 pt-3">
                   <PanelTabs tab={tab} onTab={showTab} onClose={closeScout} />
                 </div>
-                <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-3 pb-4">
+                <div
+                  data-tour="panel-body"
+                  className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-3 pb-4"
+                >
                   {panelView === "sections" ? (
                     sectionsOutline
                   ) : (
@@ -2611,10 +2733,23 @@ export function Editor({
             />
           </div>
         )}
-        <DownloadMenu download={download} secondary={Boolean(suggestions)} />
+        <span data-tour="download" className="flex shrink-0">
+          <DownloadMenu download={download} secondary={Boolean(suggestions)} />
+        </span>
         {more}
       </div>
       <DownloadNotes download={download} />
+      {walking && !suggestions && (
+        <Walkthrough
+          api={walkApi}
+          onChapter={setWalkChapter}
+          onClose={() => {
+            setWalking(false);
+            setSample(null);
+            onTourEnd?.();
+          }}
+        />
+      )}
       {grid}
     </div>
   );

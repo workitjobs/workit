@@ -50,6 +50,7 @@ export function OutlineEntryDialog({
   section,
   customSectionId = null,
   returnTo,
+  tip,
   onClose,
   onSaved,
 }: {
@@ -61,6 +62,10 @@ export function OutlineEntryDialog({
   section: EntrySection;
   customSectionId?: string | null;
   returnTo: RefObject<() => HTMLElement | null>;
+  /** A line on writing this kind of entry, over its fields: the editor's
+   *  walkthrough's (2026-11-18), while its chapter for the section runs,
+   *  since its coach mark steps aside while this form is open. */
+  tip?: string;
   onClose: () => void;
   onSaved: (saved: EntrySaved) => Promise<void>;
 }) {
@@ -118,6 +123,14 @@ export function OutlineEntryDialog({
         target?.section === "education" && row
           ? { gpa: shows.gpa, coursework: shows.coursework, onChange: setShows }
           : undefined
+      }
+      // The tip sits under the title, where it is read before the fields
+      description={
+        tip && (
+          <span className="rounded-control bg-brand-tint text-ink mt-1 inline-block px-2 py-1">
+            {tip}
+          </span>
+        )
       }
       note={
         others.length > 0 && (

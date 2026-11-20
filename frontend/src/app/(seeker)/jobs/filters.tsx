@@ -20,6 +20,9 @@ import {
   isFiltered,
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
+  roleOptions,
+  roleValues,
+  splitRoleValues,
   WORKPLACE_OPTIONS,
   type FeedFilters,
   SORT_OPTIONS,
@@ -264,21 +267,27 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
 }
 
 type RoleProps = {
+  /** The picked slugs and the student's own typed roles
+   *  (filter-query's roleValues). */
   values: string[];
   onChange: (values: string[]) => void;
+  /** The typed roles, listed first so each can be unticked here; a new one
+   *  is added in All Filters, Settings or onboarding (2026-11-16). */
+  customRoles: string[];
   className?: string;
 };
 
 /** Role's button and search, whether its options have loaded or not. */
-function RoleSearch({ roles, ...props }: RoleProps & { roles: JobFacets["role"] }) {
-  const names = new Map(roles.map((r) => [r.value, r.label]));
+function RoleSearch({ roles, customRoles, ...props }: RoleProps & { roles: JobFacets["role"] }) {
+  const options = roleOptions(roles, customRoles);
+  const names = new Map(options.map((r) => [r.value, r.label]));
   return (
     <SearchFacet
       label="Role"
       Icon={RoleIcon}
       searchLabel="Search roles"
       empty="No role by that name."
-      options={roles.map((r) => r.value)}
+      options={options.map((r) => r.value)}
       labelOf={(value) => names.get(value) ?? value}
       {...props}
     />
@@ -418,8 +427,9 @@ export function JobFilters({
     role: (className: string) => (
       <RoleFacet
         facets={facets}
-        values={shown.roles}
-        onChange={(roles) => set({ roles })}
+        values={roleValues(shown)}
+        customRoles={shown.customRoles}
+        onChange={(values) => set(splitRoleValues(values))}
         className={className}
       />
     ),

@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { matchColor } from "@/lib/match";
 
 /**
- * The moving picture behind onboarding's question (./story-panel): a scene of
+ * The moving picture beside onboarding's extension track (./onboarding-form): a scene of
  * what WorkIt does, drawn as a small mock screen (a matched job, a resume, the
  * applications board) with the notification that screen would send tucked
  * over its corner.

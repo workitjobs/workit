@@ -156,6 +156,7 @@ function ItemRow({
   actions,
   fold,
   onPress,
+  shown = false,
 }: {
   handle: ReactNode;
   name: string;
@@ -163,6 +164,8 @@ function ItemRow({
   actions?: ReactNode;
   fold?: ReactNode;
   onPress: () => void;
+  /** Its actions show without a hover: the walkthrough points at them. */
+  shown?: boolean;
 }) {
   return (
     <div className={cn(LINE, "py-0.5")}>
@@ -175,7 +178,7 @@ function ItemRow({
         <span className={ITEM_NAME}>{name}</span>
         {detail && <span className="text-note text-ink-meta block truncate">{detail}</span>}
       </button>
-      {actions && <div className={ACTIONS}>{actions}</div>}
+      {actions && <div className={cn(ACTIONS, shown && "opacity-100")}>{actions}</div>}
       {fold}
     </div>
   );
@@ -251,6 +254,7 @@ function SkillsOutline({
   onArrange,
   onRemove,
   onAddSkill,
+  shown = false,
 }: {
   groups: PrintedSkillGroup[];
   opened: Set<string>;
@@ -262,6 +266,8 @@ function SkillsOutline({
   onRemove: (skillIds: string[]) => void;
   /** Saves a new skill into the group on this resume; an error, or null. */
   onAddSkill?: (group: string, name: string) => Promise<string | null>;
+  /** The groups' + shows without a hover (the walkthrough's Skills step). */
+  shown?: boolean;
 }) {
   const [dragged, setDragged] = useState<Spot | null>(null);
   // Where the skill would land: before the skill at this index of its group
@@ -347,6 +353,7 @@ function SkillsOutline({
               name={group.label}
               detail={open ? null : group.skills.map((s) => s.name).join(", ")}
               onPress={() => toggle(id)}
+              shown={shown}
               actions={
                 <>
                   {onAddSkill && (
@@ -420,6 +427,8 @@ export function SectionsOutline({
   onEditEntry,
   onAddEntry,
   onAddSkill,
+  lit = [],
+  reveal = null,
 }: {
   bank: Bank;
   choices: Choices;
@@ -440,6 +449,12 @@ export function SectionsOutline({
   onAddEntry?: (sectionId: string, opener: HTMLElement) => void;
   /** Saves a new skill into a group on this resume; an error, or null. */
   onAddSkill?: (group: string, name: string) => Promise<string | null>;
+  /** The sections the editor's tour points at (./tour-steps): their Add
+   *  shows without a hover, since the tour's card names it. */
+  lit?: string[];
+  /** A section the walkthrough opens (its chapter's): shown open whenever
+   *  it changes, as a press on its name would. */
+  reveal?: string | null;
 }) {
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   // Opened from the page's header line, the Header row may be scrolled out
@@ -464,12 +479,22 @@ export function SectionsOutline({
     if (id !== null && headerOpen) onHeaderOpen?.(false);
   };
   const toggleSection = (id: string) => showSection(openSection === id ? null : id);
+  const [revealed, setRevealed] = useState<string | null>(null);
+  if (revealed !== reveal) {
+    setRevealed(reveal);
+    if (reveal && reveal !== "header") setOpenSection(reveal);
+  }
   const [headerWas, setHeaderWas] = useState(headerOpen);
   if (headerWas !== headerOpen) {
     setHeaderWas(headerOpen);
     if (headerOpen) setOpenSection(null);
   }
-  const sections = printedSections(bank, choices, order);
+  // Education, Experience, Projects and Skills are listed empty too, for
+  // their Add: an empty resume listed nothing to add to (2026-11-17)
+  const sections = printedSections(bank, choices, order, { withEmpty: true });
+  // A first skill's field, opened by an empty Skills row's Add, and kept
+  // open after the first save so the next can be typed
+  const [firstSkill, setFirstSkill] = useState(false);
   const skills = printedSkills(bank, choices);
   // Remove From This Resume: a hide, so Undo takes it back and the bank
   // keeps the item for Add Experiences to put back
@@ -509,7 +534,7 @@ export function SectionsOutline({
   return (
     <div className="divide-border-subtle flex flex-col divide-y">
       {header && (
-        <section ref={headerRow} className="scroll-mt-2 pb-1.5">
+        <section ref={headerRow} data-tour="section-header" className="scroll-mt-2 pb-1.5">
           <div className="flex items-center gap-1">
             <span className="text-ink-meta flex h-7 w-5 shrink-0 items-center justify-center">
               <UserIcon className="size-4" />
@@ -547,7 +572,7 @@ export function SectionsOutline({
           const isSkills = section.id === "skills";
           return (
             <section className="py-1.5">
-              <div className={LINE}>
+              <div className={LINE} data-tour={`section-${section.id}`}>
                 {handle}
                 <button
                   type="button"
@@ -556,7 +581,16 @@ export function SectionsOutline({
                 >
                   {section.label}
                 </button>
-                <div className={ACTIONS}>
+                <div className={cn(ACTIONS, lit.includes(section.id) && "opacity-100")}>
+                  {isSkills && section.empty && onAddSkill && (
+                    <Add
+                      label="Add Skill"
+                      onClick={() => {
+                        showSection(section.id);
+                        setFirstSkill(true);
+                      }}
+                    />
+                  )}
                   {!isSkills && section.addable && onAddEntry && (
                     <Add
                       label={`Add ${section.noun}`}
@@ -567,14 +601,16 @@ export function SectionsOutline({
                       }}
                     />
                   )}
-                  <Remove
-                    name={section.label}
-                    onRemove={() =>
-                      isSkills
-                        ? removeSkills(skills.flatMap((group) => group.skills.map((s) => s.id)))
-                        : removeEntries(section.entries.map((entry) => entry.id))
-                    }
-                  />
+                  {!section.empty && (
+                    <Remove
+                      name={section.label}
+                      onRemove={() =>
+                        isSkills
+                          ? removeSkills(skills.flatMap((group) => group.skills.map((s) => s.id)))
+                          : removeEntries(section.entries.map((entry) => entry.id))
+                      }
+                    />
+                  )}
                 </div>
                 <Fold
                   open={open}
@@ -582,7 +618,7 @@ export function SectionsOutline({
                   onToggle={() => toggleSection(section.id)}
                 />
               </div>
-              {open && isSkills && (
+              {open && isSkills && !section.empty && (
                 <SkillsOutline
                   groups={skills}
                   opened={opened}
@@ -591,6 +627,14 @@ export function SectionsOutline({
                   onArrange={(groups) => onApply(arrangeSkills(bank, choices, groups))}
                   onRemove={removeSkills}
                   onAddSkill={onAddSkill}
+                  shown={lit.includes("skills")}
+                />
+              )}
+              {open && isSkills && firstSkill && onAddSkill && (
+                <AddSkill
+                  group={{ key: "", label: "Technical Skills", skills: [] }}
+                  onAdd={onAddSkill}
+                  onClose={() => setFirstSkill(false)}
                 />
               )}
               {open && !isSkills && section.entries.length > 0 && (

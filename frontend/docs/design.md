@@ -1096,7 +1096,20 @@ that alone marks a state (an empty checkbox or radio, the timeline's step
 still ahead, the upload dropzone) takes `border-control`: #929292 since
 2026-11-09, 3.11:1 on white and 3.03:1 on the ground, so it meets WCAG
 1.4.11's 3:1 on each (not on `well`, 2.85:1). Buttons, chips and the
-segmented track moved to `border-surface` (above).
+segmented track moved to `border-surface` (above). The searchable picker
+(`SearchPicker`, `components/filter-controls.tsx`: Role, Location and
+Start Date on the Jobs page's filters, Settings and onboarding) missed this
+until 2026-11-16: its field had the light `border` edge, no hover and a
+ring outside the edge, so it looked dead beside the other fields. It now
+draws `FIELD_CONTROL`'s edge, hover and focus, keeps the I-beam over its
+text (typing searches the list), and its chevron takes the hand and opens
+or closes the list. **In a dialog of its own it is `inline`**: the list is
+open from the start, in the flow under the field, and fills the room left
+(onboarding's Find Your Role, 2026-11-17), with no chevron and no pills under
+it; a dropdown that unfolded into an empty dialog read as odd. It has no
+lift: under onboarding's footer it scrolled the page up to open at full
+height, which made the page scroll, and onboarding's lists moved into
+dialogs (`onboarding/applicant/search-dialog.tsx`).
 `--color-border`, `--color-border-subtle` and `--color-border-strong` are
 1.2:1 to 1.5:1, so they draw only what nothing depends on: a rule inside a
 card, a box nested in one, a score ring's empty track. A card's outline is
@@ -1571,6 +1584,35 @@ steps and questions follow the rules above: the entry form opened from a
 section's list is a step with Back, and Delete, Clear All, Delete Section
 and Discard Your Changes? are bars across the foot (`ConfirmBar`).
 
+**A tour points; it never blocks** (2026-11-17, `CoachMark` in
+`components/tour.tsx`, used by the resume editor's Getting Started,
+`docs/editor-walkthrough.md`). A step dims the screen but for its
+control, lit by a 2px brand ring, the dim being the lit box's own shadow, so
+every control still works under it; a white card (`shadow-lift`, 320px) sits
+beside the control with where the student is as a brand status badge ("Step
+3 of 9", never a grey line of text, never a count the title already says), a
+title, one or two sentences, an optional small picture and its buttons: End
+Tour at its left, then the step's own (Add Another Job, Skip, Done). A step
+that asks the student to try something moves on once they have, never on a
+Next, since a Next gets clicked through. **A walkthrough is one path down the
+screen, top first**, never a list of places to start (a checklist was tried
+and taken out on 2026-11-18: it asked a new student to choose before they knew
+the screen), and assumes no section holds one entry. **Show, do not tell**: a
+card is a line or two, and a pointing hand taps the control to press, a ring
+spreading just past its edge at the tap (`beacon`; never a ring far larger
+than the control), never "press +" in words, since people do not read long cards. It steps aside while a dialog is open, and is not drawn below
+64rem. The screen holds still under it (no wheel or touch scroll), and each
+step scrolls its own control into view as it opens, only when it is off
+screen and smoothly, the mark faded out until it lands; the lit box and one
+card glide between steps, the words fading in; a done task moves on a moment
+after, never in the frame the student acted. A control a step points at carries `data-tour`; a hover-only action
+it names shows while lit.
+
+**A sticky footer gets a rule only while content runs under it**
+(2026-11-18, onboarding's): `border-surface` on its top edge, faded in and out,
+so a page with room to spare is never cut in two, and a long one (onboarding's
+editor step) shows where the page ends and its bar begins.
+
 **A dialog's middle scrolls; its header and its buttons stay** (KAN-820).
 The shared `DialogContent` is a column no taller than the window less 16px
 at the top and the foot, and `DialogBody` (`components/shadcn/dialog.tsx`)
@@ -1608,12 +1650,16 @@ Its stock text sizes are bound the same way: `text-xs` is `--text-note` and
 construction and moves when the scale does. WorkIt's own code still writes the
 token names, never `text-sm`. Where a vendored piece draws something the scale
 has no token for, the call site sets the token: a `Calendar` takes
-`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. **A `DialogTitle` or
-`SheetTitle` is `text-subtitle` by itself** (KAN-820): both files are forked
-(`docs/shadcn.md`), and stock was 16px medium, a pairing nothing else uses.
-Every title passed `text-subtitle font-semibold` until then, and Settings and
-the application panel passed `text-title`, so the titles differed; a call site
-passes no size or weight now, only layout (`truncate`, `pr-8`). `text-base` stays
+`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. **A `DialogTitle` is
+`text-title` by itself, 20px at 600, and a `SheetTitle` `text-subtitle`**:
+both files are forked (`docs/shadcn.md`), and stock was 16px medium, a pairing
+nothing else uses. From KAN-820 both were `text-subtitle`; on 2026-11-17 the
+user found a dialog's 16px title too small to lead it (over onboarding's 40px
+question most of all), and every dialog took 20px, with `leading-tight` so a
+long title that wraps keeps its lines apart. Every title passed `text-subtitle
+font-semibold` before KAN-820, and Settings and the application panel passed
+`text-title`, so the titles differed; a call site passes no size or weight
+now, only layout (`truncate`, `pr-8`). `text-base` stays
 unbound on purpose: it is the 16px that keeps iOS from zooming into the text
 and search fields below sm. `/design-kit/type` shows what each stock size
 resolves to.
@@ -1688,7 +1734,19 @@ sm button's height, so they line up in a row) and `lg` (42px, a default
 button's and a text field's height, 16px type) for a row of short picks on a
 screen built around them (onboarding's Salary presets). A fixed answer on
 onboarding's steps is a `ChoiceTile` (`ui/choice-tile.tsx`), a full-width
-tile with a box or a dot, not a chip. Its roles: `choice` with `pressed` for filters and
+tile with a box or a dot, not a chip. Two or three answers that are
+different paths, not a list of picks, are `ChoiceCard`s
+(`ui/choice-card.tsx`, 2026-11-17) side by side: a big glyph on its own
+tint, a title, a line, a check badge (onboarding's "Do you have a
+resume?"). A text field that suggests as the student types and keeps
+whatever is typed (one value, from a list too long to hold) is a
+`SuggestField` (`ui/suggest-field.tsx`, 2026-11-17: the Education form's
+School, Degree and Field of Study); several picks from a list it holds,
+shown as pills, stay `SearchPicker`. **A caret promises a list to look
+through**: a `SuggestField` takes one (`browse`) only when its list is short
+enough to browse (Degree's 25); a long one (12,000 schools) is typed into
+with no caret, and a select with a caret is for a closed list, where
+nothing else may be typed. Its roles: `choice` with `pressed` for filters and
 button's and a text field's height, 16px type) for a screen where the chips
 are the question itself: onboarding's Salary presets. Every other answer on
 onboarding's one-question steps is a `ChoiceTile`

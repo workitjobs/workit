@@ -21,6 +21,10 @@ export type ResumeKind = "built" | "uploaded";
 type TitleRow = {
   attach: (open: (() => void) | null) => void;
   rename: () => void;
+  /** The editor's tour (./walkthrough.tsx), which it hands over once it can
+   *  run one, for the menu's Take the Tour; null on an upload's page. */
+  attachTour: (start: (() => void) | null) => void;
+  tour: (() => void) | null;
   error: string | null;
   setError: (error: string | null) => void;
 };
@@ -33,13 +37,17 @@ export const TitleRowContext = createContext<TitleRow | null>(null);
 export function TitleRowProvider({ children }: { children: ReactNode }) {
   const opener = useRef<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tour, setTour] = useState<(() => void) | null>(null);
   const [actions] = useState(() => ({
     attach: (open: (() => void) | null) => {
       opener.current = open;
     },
     rename: () => opener.current?.(),
+    attachTour: (start: (() => void) | null) => setTour(() => start),
   }));
-  return <TitleRowContext value={{ ...actions, error, setError }}>{children}</TitleRowContext>;
+  return (
+    <TitleRowContext value={{ ...actions, tour, error, setError }}>{children}</TitleRowContext>
+  );
 }
 
 /**
@@ -99,6 +107,7 @@ export function ResumeMenu({
       name={name}
       onRename={row?.rename}
       onMakePrimary={primary ? undefined : makePrimary}
+      onTour={row?.tour ?? undefined}
       onDelete={remove}
     />
   );

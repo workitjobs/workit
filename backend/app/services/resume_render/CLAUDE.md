@@ -85,6 +85,20 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   each box keeps its field; an entry with no degree line keeps the school on
   top, or the top row would print empty. Dates are never typed in the editor,
   so no format needs reading back.
+- **Experience order and project tools are page settings too** (2026-11-17):
+  `experience_first` from `EXPERIENCE_FIRST` ("role", Jake's, or "company":
+  the company and its place on the top row, the role and its dates under it,
+  as many career-center templates and finance and consulting resumes set a
+  job; Experience and Leadership) and `project_tools` from `PROJECT_TOOLS`
+  ("below", ours since KAN-738, or "after_name": "Gitlytics | Python, Flask",
+  Jake's own sample, the project's context then on the line under it). They
+  follow Education order's rule: the text and the box kinds move together
+  (`company_leads`, `tools_lead`, `heading_fields`), and an entry with no
+  company, or no tools, keeps the default look. Every layout choice is read
+  in one place, `fields.page_heading`, which the PDF and the Word file both
+  call. **Only two styles per heading**, the ones students use: each choice
+  doubles the layouts the PDF, the Word file and Fit must print, so a
+  one-line job or roles grouped under one company wait until students ask.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and

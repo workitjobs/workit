@@ -130,6 +130,7 @@ uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync cata
 uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
+uv run python scripts/build_education.py       data/schools.tsv and data/fields_of_study.tsv from IPEDS, Hipo and CIP (yearly; --src DIR builds from files)
 ```
 
 The container image builds from the repo root, not here (Deployment):
@@ -1328,7 +1329,10 @@ Find files with a directory listing; these are the rules for where code goes.
   a resume's content changes with every edit, so no hash is stored. The
   409 names the match (`name`), and **a student who confirms the copy
   gets it**: the Resumes page asks "You Already Have This Resume" and
-  sends `allow_duplicate`, which skips the check (KAN-444). Uploads stay
+  sends `allow_duplicate`, which skips the check (KAN-444). A `blank`
+  Generate (onboarding's build, 2026-11-18) skips it too: it starts the
+  resume with its header alone, every bank entry and skill hidden on it
+  (`blank_choices`), so the editor's tour has something to add. Uploads stay
   refused: `resumes_text_hash_key` keeps one upload per text. A
   test that needs two resumes from one bank adds a skill between them
   (`tests/test_built_resumes.py`'s `_another`).
@@ -1742,6 +1746,20 @@ Find files with a directory listing; these are the rules for where code goes.
   `uv run python -m app.scripts.<name>`.
 - **`data/places.tsv`** is the location resolver's gazetteer, generated from
   GeoNames by `scripts/build_geonames.py` (CC BY 4.0). Never edit it by hand.
+- **`data/schools.tsv` and `data/fields_of_study.tsv`** are the Education
+  form's suggestions (2026-11-17), built by `scripts/build_education.py`: US
+  schools that grant degrees from IPEDS's yearly directory (public domain,
+  with their aliases, so "SBU" and "UCLA" find theirs), schools elsewhere
+  from Hipo's university-domains-list (MIT license), and fields of study
+  from CIP 2020 (", General" dropped, ", Other" rows left out). Re-run it
+  yearly, raising `IPEDS_YEAR`; never edit them by hand.
+  `services/education_lists.py` searches them for `GET /education/schools`
+  and `/education/fields` (`routers/education.py`, sign-in only, eight
+  suggestions best first). They only suggest: the form saves whatever the
+  student types, and nothing checks a saved school or field against them.
+  College Scorecard, the plan's first source, is built from the same IPEDS
+  directory and needs an api.data.gov key; the directory's file needs none.
+  Tests: `tests/test_education_lists.py`.
 - **`data/feed.json`** is the import's default input when no local scraper run
   has written one (`config.default_scraper_feed()`; `SCRAPER_FEED` overrides).
   It must validate against `app/schemas/jobs.py`: refresh it in the same
