@@ -29,10 +29,10 @@ open choices (Settled choices, near the end).
   | `text-caption` | 11px, 600, capitals | A rule label ("OR CONTINUE WITH"). Never a sentence. |
   | `text-meta` | 11px | Meta: a date, a count, a file size, a caption. |
   | `text-note` | 12px | One secondary line: an employer, a pill, a status badge, a group name, a hint or an error under a field. |
-  | `text-label` | 13px, medium (450) | Field labels, buttons, links, menu rows. |
-  | `text-body` | 14px | Body copy, typed values, table cells, messages. |
-  | `text-subtitle` | 16px, 600 | A block's name: a dialog title, a job's title, an empty state's title. |
-  | `text-title` | 20px, 600 | A section's heading, a job card's title, a job description's section (bold there); the top bar title below md. |
+  | `text-label` | 13px, medium (450) | Field labels, buttons, links. |
+  | `text-body` | 14px | Body copy, typed values, table cells, messages, menu and select rows (shadcn's `text-sm`, bound to it). |
+  | `text-subtitle` | 16px, 600 | A block's name: a section's or a card's heading (`SectionHeading`), a job's title, an empty state's title. |
+  | `text-title` | 20px, 600 | A dialog's title, a job card's title, a job description's section; the top bar title below md. |
   | `text-heading` | 26px, 700 | A page's name: the top bar title from md, a sub-page's h1. |
 
   `text-display`, `text-figure` and `text-hero` are for numbers and
@@ -344,6 +344,16 @@ open choices (Settled choices, near the end).
   hex, no px and no arbitrary Tailwind value (`text-[13px]`, `p-[18px]`) in a
   screen. Other companies' brand marks (`components/icons.tsx`) and data that
   is itself a colour (a resume's print colours) are not tokens.
+- **A kind of text that several screens draw has a role** (KAN-927).
+  `components/ui/text-roles.ts` names it once (`TEXT.tableCell`,
+  `TEXT.columnHeader`), a screen imports the role and never copies its
+  classes, and `/design-kit/type` draws every role with its size, line
+  height, weight and colour read from the stylesheet. A role a `ui/` part
+  owns (a button's label, a field's label, a section heading) stays in that
+  part, and the kit draws the part itself. The tables had copied their
+  header and cell classes into seven places, so a size change meant seven
+  edits. Where a role's value differs from the Legibility table, the kit
+  flags it and Still open lists it until the size decision lands.
 - **A shadcn piece with a WorkIt wrapper goes through the wrapper.** The
   wrapper holds WorkIt's sizes and labels: `Button`, `Badge`, `Card`,
   `TextField` and `SearchField` (not `Input`), `SelectField` (not `Select`),
@@ -599,6 +609,19 @@ lands. These have no ticket of their own yet:
   and `--color-ink-subtle` is "stat tiles, a picker's chevron"
   (`design-kit/data.ts`), `Chip size="lg"` is "onboarding's answers"
   (`design-kit/buttons/page.tsx`), and the Home tiles have "no outline".
+- Text roles that differ from the Legibility table, found by the type
+  inventory of 2026-11-20 (KAN-927) and flagged on `/design-kit/type`; the
+  size decision settles each one, by moving the role or this table. Every
+  seeker table's cells are `text-note` (12px), not `text-body`, while the
+  company's tables draw 14px; a row's name is 13px at 600 for a job and at
+  450 for a resume, a letter or a company row; a group name is 13px at
+  600, not `text-note`; a date or count is 12px in a table and 11px
+  elsewhere; a `ghost` or `link` Button is 12px and a `section` one 13px;
+  the small segmented control is 12px beside 13px buttons and chips; a
+  `TextLink` draws no underline; the match score is `text-heading` at 700.
+  Only the tables' headers and cells import their roles so far: a row's
+  name, a hint, an error and a secondary line are still copied as classes,
+  and move to `TEXT` with the size decision.
 
 ## The two shells
 
