@@ -37,13 +37,13 @@ const content: FeatureContent = {
     {
       title: "Pick the jobs to fill",
       icon: ListChecksIcon,
-      body: "Press Auto Apply on a job, or add your saved jobs from the Auto Apply page. Up Next lists them all: pick the ones to fill and press Auto Apply.",
+      body: "Queue jobs straight from the Jobs page, or bring in every job you saved. Up Next holds them all, and one click starts filling the ones you pick.",
       visual: QueueVisual,
     },
     {
       title: "Every field, from your profile",
       icon: TextboxIcon,
-      body: "The extension fills each form from your profile, your experience bank and the answers you saved in Application Info, on hiring systems such as Greenhouse, Lever, Ashby and Workday.",
+      body: "Your contact details, work history and saved answers go into each form for you, on hiring systems such as Greenhouse, Lever, Ashby and Workday. No more typing your resume again after you upload it.",
       points: [
         "Contact details, education and work history",
         "Your saved answers to the questions forms ask",
@@ -52,15 +52,15 @@ const content: FeatureContent = {
       visual: FillVisual,
     },
     {
-      title: "Your resume, attached",
+      title: "The right resume on each form",
       icon: PaperclipIcon,
-      body: "Each form gets your default resume. To send the one you tailored for the job, press Change in the WorkIt panel before you submit.",
+      body: "Each form gets your default resume, and the WorkIt panel lets you swap in the copy you tailored for that job before you submit.",
       visual: AttachVisual,
     },
     {
       title: "You click Submit, every time",
       icon: CursorClickIcon,
-      body: "WorkIt never submits for you. It fills up to five applications at a time, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button.",
+      body: "Up to five applications fill at once, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button. WorkIt never submits for you.",
       visual: SubmitVisual,
     },
   ],

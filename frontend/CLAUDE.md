@@ -263,7 +263,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The user found the old page AI-made: a rolling gradient headline, one
   heading size, and scenes that pinned whole screens. The order, each
   section leading into the next, is `page.tsx`: the hero (a fixed headline,
-  `hero.title`, which is `site.tagline`; the sign-up pair, which a Download
+  `hero.title`, which is `site.tagline`, "Apply to more jobs, with a better
+  resume for each.", and a line that starts from what the student does
+  first, "Upload your resume."; they were "Your job search, without the
+  busywork." and "WorkIt learns your experience…", which the copy review
+  found model-written and vague, 2026-11-20; the sign-up pair, which a Download
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
   `logoStrip` in data.ts), where applications get lost (`problems.tsx`),
@@ -548,7 +552,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     sat apart, the user's catch); a line in the feature's colour fills
     along its foot over six seconds (`.row-fill`, `TURN`), and when it is
     full the next row opens, the first again after the last; the box shows
-    the open row's still scene, swapping with a fade. **It plays only while
+    the open row's still scene, swapping with a fade. **A row's body sells
+    first** (the copy review, 2026-11-20): it opens on what the student
+    gains, then how, and never on a button's name ("Press Generate
+    Resume…", "press Change in the WorkIt panel" read as a manual) or on a
+    limit ("Each form gets your default resume." led the Auto Apply row).
+    The rows are the feature pages' deep dives, so the same words show
+    there. **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken
@@ -1459,7 +1469,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on the server, so on a prerendered page it is frozen at build time and
   rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
-  students ("Your job search, without the busywork."): the site's
+  students ("Apply to more jobs, with a better resume for each."): the site's
   two-sided pitch to recruiters went while the business side is hidden.
   The footer marks the Resources pages Soon, as the header's menu does: none has a
   page yet. **Below lg

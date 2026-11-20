@@ -96,20 +96,29 @@ function Line({ width }: { width: string }) {
   return <span className="block h-[5px] rounded-full bg-slate-300/70" style={{ width }} />;
 }
 
-function PageSection({ name, entries }: { name: string; entries: [string, string][] }) {
+function PageSection({
+  name,
+  entries,
+  typed,
+}: {
+  name: string;
+  entries: [string, string][];
+  /** The first entry's first bullet, being typed on the page. */
+  typed?: string;
+}) {
   return (
     <div className="mt-2.5">
       <p className="text-ink border-b border-slate-400 pb-0.5 text-[9px] font-bold tracking-wide uppercase">
         {name}
       </p>
-      {entries.map(([title, place]) => (
+      {entries.map(([title, place], i) => (
         <div key={title} className="mt-1.5">
           <p className="text-ink flex justify-between text-[9px] font-bold">
             {title}
             <span className="font-normal italic">{place}</span>
           </p>
           <div className="mt-1 grid gap-1 pl-2">
-            <Line width="92%" />
+            {i === 0 && typed ? <TypedLine text={typed} /> : <Line width="92%" />}
             <Line width="78%" />
           </div>
         </div>
@@ -118,8 +127,23 @@ function PageSection({ name, entries }: { name: string; entries: [string, string
   );
 }
 
-/** A resume generated from the bank, in Jake's Resume, and the Download
- *  menu's three formats. */
+/** A bullet open in the editor: the field over the line, in the page's own
+ *  face, with the editor's 1.5px ring and a caret (frontend/docs/screens.md,
+ *  Resume editor, "Click a line and type"). */
+function TypedLine({ text }: { text: string }) {
+  return (
+    <span className="ring-advanced text-ink relative -mx-1 block rounded-[3px] bg-white px-1 py-0.5 text-[8px] leading-tight ring-[1.5px]">
+      • {text}
+      <span
+        aria-hidden="true"
+        className="caret-blink bg-ink ml-px inline-block h-[9px] w-px align-[-1px]"
+      />
+    </span>
+  );
+}
+
+/** A resume generated from the bank, in Jake's Resume, edited on the page
+ *  (a bullet being typed), and the Download menu's three formats. */
 export function BuildVisual() {
   return (
     <Vignette className="items-center">
@@ -131,7 +155,13 @@ export function BuildVisual() {
         <p className="text-ink-meta text-center text-[8px]">
           alex@example.com · linkedin.com/in/alexmorgan
         </p>
-        <PageSection name="Education" entries={[["Northview University", "May 2027"]]} />
+        {/* The typed line sits in Education, above the Download menu: in
+            Experience the menu covered it. */}
+        <PageSection
+          name="Education"
+          typed="Coursework: Data Structures, Algorithms"
+          entries={[["Northview University", "May 2027"]]}
+        />
         <PageSection
           name="Experience"
           entries={[

@@ -1,8 +1,10 @@
 /*
  * The Resume Builder page. Every line is a product claim, checked against
  * the app: the bank's sections and upload (frontend/docs/screens.md),
- * Generate Resume in Jake's Resume (the one template), the Download menu
- * (PDF, Word, LaTeX), Tailor (docs/tailor_resume.md: the student picks the
+ * Generate Resume in Jake's Resume (the one template), the editor (click a
+ * line on the PDF page and type; the page is typeset in LaTeX by Tectonic,
+ * frontend/docs/screens.md, Resume editor; docs/live_page.md), the Download
+ * menu (PDF, Word, LaTeX), Tailor (docs/tailor_resume.md: the student picks the
  * missing keywords, one click rewords, each change marked with its Undo),
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
@@ -31,7 +33,7 @@ const content: FeatureContent = {
     {
       title: "Everything you have done, in one place",
       icon: DatabaseIcon,
-      body: "Upload your resume and WorkIt reads it into your bank: education, experience, projects, leadership, awards, certifications and skills. Or add each entry yourself.",
+      body: "Upload the resume you have and WorkIt reads it into your bank, from education and experience to projects and skills. Every resume you make starts from it, so you never type an entry twice.",
       points: [
         "Start from the resume you already have",
         "Edit every entry in one place",
@@ -40,16 +42,16 @@ const content: FeatureContent = {
       visual: BankVisual,
     },
     {
-      title: "A clean resume in one click",
+      title: "Edit right on the page",
       icon: FileTextIcon,
-      body: "Press Generate Resume and WorkIt lays out your bank in the Jake’s Resume template. Edit any line, then download it.",
+      body: "WorkIt lays out your bank in the Jake’s Resume template. Click any line and type, as in Google Docs, and the page is typeset in LaTeX for you, with no LaTeX to write.",
       points: ["Fit to One Page trims it until it fits", "Download as PDF, Word or LaTeX"],
       visual: BuildVisual,
     },
     {
       title: "Tailored to each job posting",
       icon: SparkleIcon,
-      body: "Open a job posting and press Tailor My Resume. WorkIt shows which of the posting’s keywords your resume already has. Pick the missing ones you have really used, and one click rewords your bullets for the job.",
+      body: "See which of a job posting’s keywords your resume already has. Pick the missing ones you have really used, and one click rewords your bullets for that job, each change marked so you can undo it.",
       points: [
         "A keyword you do not pick is never added",
         "Every change is marked on the resume",
@@ -60,7 +62,7 @@ const content: FeatureContent = {
     {
       title: "Know which resume went where",
       icon: PaperPlaneTiltIcon,
-      body: "When you mark a job applied, WorkIt keeps the resume you sent with the application. Open it from your tracker before the interview.",
+      body: "WorkIt keeps the resume you sent with each application, so you never wonder which version a company has. Open it from your tracker before the interview.",
       visual: SentResumeVisual,
     },
   ],

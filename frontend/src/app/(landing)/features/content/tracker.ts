@@ -43,7 +43,7 @@ const content: FeatureContent = {
     {
       title: "It asks when you come back",
       icon: QuestionIcon,
-      body: "Press Apply Now and the company’s application opens in a new tab. When you come back, WorkIt asks if you applied and which resume you sent. Say yes and the job moves to Applied.",
+      body: "Apply on the company’s site, and when you come back WorkIt asks if you applied and which resume you sent. One yes moves the job to Applied, with no spreadsheet to update.",
       visual: AskedVisual,
     },
     {

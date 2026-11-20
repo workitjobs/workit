@@ -36,7 +36,7 @@ const content: FeatureContent = {
     {
       title: "Scored on what you have done",
       icon: GaugeIcon,
-      body: "Your match score weighs four things from your experience bank: how closely your background reads like the job’s description, your skills, the titles you have held, and the years of experience the posting asks for.",
+      body: "Each score compares your experience bank with the posting: how close your work is to the job, your skills, the titles you have held and the years of experience it asks for.",
       points: [
         "A match score on every job posting",
         "Built from your own experience bank",
@@ -47,7 +47,7 @@ const content: FeatureContent = {
     {
       title: "Why each job fits",
       icon: ChecksIcon,
-      body: "Each job’s match names its band, Excellent, Good, Fair or Weak Match, with up to three reasons: what fits you, such as the skills of yours it uses, and what to weigh, such as the years it asks for.",
+      body: "Every score comes with its band, from Excellent to Weak Match, and up to three reasons, such as the skills of yours the job uses or the years of experience it asks for.",
       visual: ReasonsVisual,
     },
     {
@@ -59,7 +59,7 @@ const content: FeatureContent = {
     {
       title: "Straight from company job boards",
       icon: BuildingsIcon,
-      body: "WorkIt reads job postings from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Apply Now opens the company’s own application.",
+      body: "Every posting comes from a company’s own job board on hiring systems such as Greenhouse, Lever, Ashby and Workday, so Apply Now opens the company’s own application.",
       visual: SourcesVisual,
     },
   ],

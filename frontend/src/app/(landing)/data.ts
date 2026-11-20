@@ -15,11 +15,14 @@ export const site = {
   name: "WorkIt",
   // The footer's sign-off and the title on a link's preview. For students:
   // the site's two-sided pitch to recruiters went while the business side is
-  // hidden.
-  tagline: "Your job search, without the busywork.",
+  // hidden. It was "Your job search, without the busywork.": "without the"
+  // reads as model-written, and the problems' line says "busywork" too (the
+  // copy review, 2026-11-20). "More jobs" is Auto Apply filling five forms
+  // at a time; "a better resume for each" is Tailor.
+  tagline: "Apply to more jobs, with a better resume for each.",
   // The tagline, cut down for the home page's browser tab: a tab shows about
-  // 30 characters, and the whole line ended at "without".
-  tabTitle: "Job search, no busywork",
+  // 30 characters.
+  tabTitle: "More jobs, better resumes",
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },
@@ -75,11 +78,14 @@ export const hero = {
   ],
   rest: 2,
   tail: "by hand.",
-  // The promise, step by step. Auto apply fills the form and the student
-  // clicks Submit (auto-apply/architecture.md), so it never says WorkIt
-  // applies or sends.
+  // The promise, step by step, starting from what the student does first.
+  // Auto apply fills the form and the student clicks Submit
+  // (auto-apply/architecture.md), so it never says WorkIt applies or sends.
+  // It opened "WorkIt learns your experience", which was vague and sounded
+  // like a model training on the student (the copy review, 2026-11-20).
+  // Tailor rewords the student's own bullets, so "rewords", never "rewrites".
   subtitle:
-    "WorkIt learns your experience, builds and tailors your resume, finds the jobs that fit and fills in each application. You just click Submit.",
+    "Upload your resume. WorkIt rewords it for each job, ranks the jobs that fit you and fills in your applications. You click Submit.",
 };
 
 /**
