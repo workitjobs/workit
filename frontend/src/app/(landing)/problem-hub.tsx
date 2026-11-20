@@ -2,14 +2,15 @@
 
 import {
   ArrowUpRightIcon,
-  BrowsersIcon,
-  ChatTextIcon,
+  CopyIcon,
   EnvelopeSimpleIcon,
   FilesIcon,
-  KeyboardIcon,
+  HourglassIcon,
+  MapTrifoldIcon,
   TableIcon,
+  XIcon,
 } from "@phosphor-icons/react/ssr";
-import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -18,14 +19,29 @@ import { useArrived } from "./hooks";
 type Scene = "boards" | "resumes" | "forms" | "question" | "tracker" | "replies";
 type Problem = { scene: Scene; title: string; body: string };
 
-/** Each problem's glyph: the thing it is about. */
+/** A letter with a cross at its corner: ghosted or rejected. Phosphor has
+ *  no such glyph, so the cross sits on a knock-out of the tile's own fill
+ *  (`background: inherit`), white or violet as the tile is. */
+function EnvelopeXIcon({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span className={cn("relative block [background:inherit]", className)} {...props}>
+      <EnvelopeSimpleIcon className="size-full" />
+      <span className="absolute -right-0.5 -bottom-0.5 grid size-[9px] place-items-center rounded-full [background:inherit]">
+        <XIcon weight="bold" className="size-[8px]" />
+      </span>
+    </span>
+  );
+}
+
+/** Each problem's glyph: the thing it is about (the user's picks,
+ *  2026-11-20). */
 const ICONS = {
-  boards: BrowsersIcon,
+  boards: MapTrifoldIcon,
   resumes: FilesIcon,
-  forms: KeyboardIcon,
-  question: ChatTextIcon,
+  forms: CopyIcon,
+  question: HourglassIcon,
   tracker: TableIcon,
-  replies: EnvelopeSimpleIcon,
+  replies: EnvelopeXIcon,
 };
 type Stat = { figure: string; text: string; source: string; href: string };
 
@@ -48,8 +64,11 @@ type Stat = { figure: string; text: string; source: string; href: string };
  *
  * Below lg the stage leads, then the problems: in two columns from md, one
  * on a phone. From lg up the hub is one block: each side's three cards
- * share the stage's height (rows of one third each), so their edges meet
- * the stage's; set loosely in the middle of each column, the cards were
+ * fill the stage's height, each row as tall as its words and the spare
+ * room shared out, so their edges meet the stage's. Rows of one third
+ * each made every card as tall as the longest (the spreadsheet card's two
+ * lines and four), and the section ran 96px past a 1440 × 800 screen.
+ * Set loosely in the middle of each column, the cards were
  * shorter than the stage and the section read as small and tall at once
  * (the user's catch). The heading, the hub and the figure fit one screen
  * under the floating header: the stage is at least `clamp(19rem, 100svh -
@@ -95,7 +114,7 @@ export function ProblemHub({
 
   const half = Math.ceil(problems.length / 2);
   const column = (from: number, to: number, className: string) => (
-    <div className={cn("grid gap-2.5 lg:grid-rows-3", className)}>
+    <div className={cn("grid gap-2.5", className)}>
       {problems.slice(from, to).map((problem, j) => {
         const i = from + j;
         const open = i === at;
@@ -141,7 +160,7 @@ export function ProblemHub({
 
   return (
     <div className="mt-8">
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[17rem_minmax(0,1fr)_17rem] lg:gap-3 xl:grid-cols-[19rem_minmax(0,1fr)_19rem]">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[17rem_minmax(0,1fr)_17rem] lg:gap-3 xl:grid-cols-[20.5rem_minmax(0,1fr)_20.5rem]">
         {column(0, half, "lg:order-1")}
         <div
           ref={stageRef}

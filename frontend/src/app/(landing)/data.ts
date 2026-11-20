@@ -401,37 +401,41 @@ export const problems = {
   subtitle: "Hours of busywork, for applications that often never hear back.",
   /** In the order a search meets them; `scene` names the visual
    *  problem-scenes.tsx draws for each. The first three stand on the hub's
-   *  left, the last three on its right. */
+   *  left, the last three on its right. Each card's words and icon are the
+   *  user's picks from four options a card (2026-11-20): a moment a job
+   *  seeker knows, in their words. The forms are the basic details typed
+   *  again (the written answers are the fourth card's), and the last names
+   *  both likely ends, ghosted or rejected, hedged with "too often". */
   items: [
     {
       scene: "boards",
       title: "Jobs scattered everywhere",
-      body: "Every company posts on its own site, and some postings sit open for months.",
+      body: "Greenhouse, Lever, Workday, a careers page: every company keeps its jobs somewhere new.",
     },
     {
       scene: "resumes",
-      title: "A new resume for every job",
-      body: "Tailoring helps, and there is never time to do it for each one.",
+      title: "A folder of almost-the-same resumes",
+      body: "Every job wants a slightly different you, and the copies pile up.",
     },
     {
       scene: "forms",
-      title: "The same form, every time",
-      body: "Make an account, upload your resume, then type it all in again.",
+      title: "Copy, paste, repeat",
+      body: "The same basic details, form after form, company after company.",
     },
     {
       scene: "question",
-      title: "“Why do you want to work here?”",
-      body: "Every form asks it, and each one needs a new answer.",
+      title: "Short answers that take forever",
+      body: "A few sentences each, and you rewrite them for every company.",
     },
     {
       scene: "tracker",
-      title: "A tracker that’s never current",
-      body: "Which resume went where? The spreadsheet doesn’t say.",
+      title: "The spreadsheet you stopped updating",
+      body: "Week one, it’s up to date. By week three, it’s untouched, and you can’t tell which resume went where.",
     },
     {
       scene: "replies",
-      title: "Turned down, or no reply",
-      body: "Often before anyone at the company has read a word.",
+      title: "Ghosted or rejected",
+      body: "Too often you’re ghosted for weeks, or rejected before anyone has read a word.",
     },
   ],
   /** The one figure, shown as a fact with its source under it. */

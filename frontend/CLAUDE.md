@@ -455,10 +455,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     whole job application process (never internships and new-grad roles
     alone: the user's call). **A hub** (`problem-hub.tsx`, the user's
     layout, 2026-11-20): six problems in the order a search meets them,
-    three before applying on the left (jobs scattered across company job
-    boards, a new resume for every job, the same form every time) and three
-    after on the right (the written question, a tracker that is never
-    current, turned down or no reply), one large visual in the middle for
+    three before applying on the left (Jobs scattered everywhere, A folder
+    of almost-the-same resumes, Copy, paste, repeat) and three after on the
+    right (Short answers that take forever, The spreadsheet you stopped
+    updating, Ghosted or rejected), each card's words and icon the user's
+    pick from four options a card (2026-11-20: the forms are the basic
+    details typed again, the written answers are their own card, and the
+    last card names both likely ends), one large visual in the middle for
     the open one, and under it the section's one figure, shown as a fact
     with its source (81%, Greenhouse's 2026 candidate report, linked), in
     an outlined box set as a quote, a large grey opening quote breaking its
@@ -477,17 +480,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     picture changes. **The tint is the selected state, the user's call**
     (2026-11-20): as a white `.surface-card` beside grey ones the open card
     was hard to pick out, and a violet edge read as an outline button.
-    **The hub is one block** from lg up: each side's three cards share the
-    stage's height and the stage grows to theirs, so their edges meet; set
+    **The hub is one block** from lg up: each side's three cards fill the
+    stage's height, each row as tall as its words with the spare room
+    shared out (rows of one third each made every card as tall as the
+    spreadsheet card and the section ran 96px past 1440 × 800), and the
+    stage grows to theirs, so their edges meet; set
     loosely beside a taller stage, under a two-line heading and a two-line
     line, the section read as small and tall at once (the user's catch),
     so the line under the heading is one line. **The visuals are moments everybody has**
     (`problem-scenes.tsx`): a browser of company job board tabs with roles
     posted months ago, a folder of resume versions ending in
-    "Resume_FINAL (1).pdf", a hiring system asking for the work history
-    after the resume upload, an empty "Why do you want to work at Notion?"
-    box, the student's spreadsheet with "??" in it, and an inbox where a
-    rejection lands "minutes after you applied". Each is plain UI centred
+    "Resume_FINAL (1).pdf", one more company's My information step with
+    the same name, email and school typed in again over a stack of the
+    forms before it (`Window`'s `stacked`), an empty "Why do you want to
+    work at Notion?" box, the student's spreadsheet with "??" in it, and an
+    inbox where a rejection lands "minutes after you applied" above an
+    application with "No reply in weeks". Each is plain UI centred
     on a flat grey stage (no feature's sky: this is the search before
     WorkIt, so nothing in it is violet), safely centred so a tall one keeps
     its top in view on a short screen, and plays once as it shows (the
@@ -495,7 +503,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     blinks four times, `.caret-blink`, then stays). **The heading, the hub
     and the figure fit one screen** under the floating header from lg up:
     the stage is at least `clamp(19rem, 100svh - 29.5rem, 30rem)` tall
-    (measured at 1440 × 800, the figure ending at 789px). **Why
+    (measured at 1440 × 800, the figure ending at 781px). **Why
     this shape, the user's calls**: the heading covers the whole search,
     not one problem ("Many applications stop before a person reads them"
     sold screening alone); no numbers in the heading ("Forty tabs, nine

@@ -1,11 +1,11 @@
-import { FileTextIcon, WarningIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon } from "@phosphor-icons/react/ssr";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { logoStrip } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { followedJob } from "./feature-data";
+import { candidate, followedJob } from "./feature-data";
 import { delay, Panel } from "./scene-parts";
 
 /**
@@ -22,8 +22,18 @@ import { delay, Panel } from "./scene-parts";
  * process nobody sees, and these are moments everybody has.
  */
 
-/** Every visual's window: centred on the stage, one width. */
-function Window({ children, className }: { children: ReactNode; className?: string }) {
+/** Every visual's window: centred on the stage, one width. `stacked`
+ *  draws that many more windows peeking out behind it, each a step smaller
+ *  and higher: the same thing again and again. */
+function Window({
+  children,
+  className,
+  stacked = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  stacked?: number;
+}) {
   return (
     <div
       aria-hidden="true"
@@ -31,9 +41,26 @@ function Window({ children, className }: { children: ReactNode; className?: stri
       // view and is cut at the stage's foot, not at both ends.
       className="absolute inset-0 grid [place-items:safe_center] p-4 sm:p-6"
     >
-      <Panel className={cn("journey-in w-full max-w-[22rem] overflow-hidden", className)}>
-        {children}
-      </Panel>
+      <div className="relative w-full max-w-[22rem]">
+        {Array.from({ length: stacked }, (_, i) => {
+          const step = stacked - i;
+          return (
+            <Panel
+              key={step}
+              className="journey-in absolute bottom-6"
+              style={{
+                top: -11 * step,
+                left: 14 * step,
+                right: 14 * step,
+                opacity: 1 - step * 0.2,
+              }}
+            />
+          );
+        })}
+        <Panel className={cn("journey-in relative w-full overflow-hidden", className)}>
+          {children}
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -161,14 +188,24 @@ export function ResumesScene() {
   );
 }
 
-/** A hiring system's steps to apply, the third open. */
-const STEPS = ["Account", "Resume", "My experience", "Questions"];
+/** A hiring system's steps to apply, the second open. */
+const STEPS = ["Account", "My information", "Experience", "Questions"];
 
-/** The same form, every time: the resume uploaded, and the form asking for
- *  the work history the resume already holds. */
+/** Copy, paste, repeat: one more company's My information step, the same
+ *  basic details typed in again (the name done, the email under way), with
+ *  the forms before it stacked behind. */
 export function FormsScene() {
+  const [first, ...rest] = candidate.name.split(" ");
+  const fields = [
+    { label: "First name", value: first },
+    { label: "Last name", value: rest.join(" ") },
+    { label: "Email", typing: true, wide: true },
+    { label: "School", wide: true },
+    { label: "Graduation date" },
+    { label: "Phone" },
+  ];
   return (
-    <Window className="p-4">
+    <Window className="p-4" stacked={2}>
       <p className="text-ink truncate text-[13px] font-semibold">Apply for {followedJob.title}</p>
       <ol className="mt-3 grid grid-cols-4 gap-1">
         {STEPS.map((step, i) => (
@@ -176,13 +213,13 @@ export function FormsScene() {
             <span
               className={cn(
                 "block h-1 rounded-full",
-                i < 2 ? "bg-ink" : i === 2 ? "bg-ink/40" : "bg-slate-900/10",
+                i < 1 ? "bg-ink" : i === 1 ? "bg-ink/40" : "bg-slate-900/10",
               )}
             />
             <span
               className={cn(
                 "truncate text-[10px]",
-                i === 2 ? "text-ink font-semibold" : "text-ink-meta",
+                i === 1 ? "text-ink font-semibold" : "text-ink-meta",
               )}
             >
               {step}
@@ -190,23 +227,18 @@ export function FormsScene() {
           </li>
         ))}
       </ol>
-      <div
-        className="journey-in bg-warning-tint text-warning mt-4 flex items-start gap-2 rounded-lg px-2.5 py-2 text-[11px] leading-snug font-medium"
-        style={delay(0.5)}
-      >
-        <WarningIcon weight="fill" className="mt-px size-3.5 shrink-0" />
-        Resume uploaded. Please enter your work experience below.
-      </div>
-      <div className="mt-3 grid gap-2.5">
-        {["Job title", "Company", "Role description"].map((label, i) => (
-          <div key={label} className="journey-in" style={delay(0.8 + i * 0.12)}>
-            <p className="text-ink-meta text-[10px] font-medium">{label}</p>
-            <span
-              className={cn(
-                "mt-1 block rounded-md ring-1 ring-slate-900/15",
-                label === "Role description" ? "h-10" : "h-6",
-              )}
-            />
+      <div className="mt-4 grid grid-cols-2 gap-x-2.5 gap-y-2.5">
+        {fields.map((field, i) => (
+          <div
+            key={field.label}
+            className={cn("journey-in", field.wide && "col-span-2")}
+            style={delay(0.5 + i * 0.12)}
+          >
+            <p className="text-ink-meta text-[10px] font-medium">{field.label}</p>
+            <span className="text-ink mt-1 flex h-6 items-center rounded-md px-2 text-[11px] ring-1 ring-slate-900/15">
+              {field.value}
+              {field.typing && <span className="caret-blink bg-ink inline-block h-3 w-px" />}
+            </span>
           </div>
         ))}
       </div>
@@ -324,12 +356,12 @@ const MAIL = [
     subject: "We received your application",
     preview: "We will be in touch if your experience matches…",
     when: "Oct 28",
-    chip: { text: "No update since", tone: "text-ink-muted bg-slate-900/[0.06]" },
+    chip: { text: "No reply in weeks", tone: "text-ink-muted bg-slate-900/[0.06]" },
   },
 ];
 
-/** Turned down, or no reply: the inbox after a week of applying, the
- *  newest rejection coming in on top. */
+/** Ghosted or rejected: the inbox after a few weeks of applying, the
+ *  newest rejection coming in on top of one that never heard back. */
 export function RepliesScene() {
   return (
     <Window>
