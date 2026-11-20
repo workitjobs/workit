@@ -1633,6 +1633,15 @@ html[data-tab-flight="flying"] .tour-tabs {
     animation: caret-blink 1s steps(1, end) 4;
   }
 }
+/* The problems hub's stage (problem-hub.tsx): a dot grid in slate,
+   strongest at the edges and fading to a fifth toward the middle, so the
+   visual stands on plain grey. Still, so it costs nothing per frame. */
+.problem-dots {
+  background-image: radial-gradient(rgb(148 163 184 / 0.6) 1.3px, transparent 1.5px);
+  background-size: 16px 16px;
+  background-position: center;
+  mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);
+}
 @keyframes caret-blink {
   50% {
     opacity: 0;

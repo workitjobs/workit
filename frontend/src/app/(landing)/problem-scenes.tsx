@@ -41,7 +41,7 @@ function Window({
       // view and is cut at the stage's foot, not at both ends.
       className="absolute inset-0 grid [place-items:safe_center] p-4 sm:p-6"
     >
-      <div className="relative w-full max-w-[22rem]">
+      <div className="relative w-full max-w-[20rem]">
         {Array.from({ length: stacked }, (_, i) => {
           const step = stacked - i;
           return (
@@ -207,7 +207,8 @@ export function FormsScene() {
   return (
     <Window className="p-4" stacked={2}>
       <p className="text-ink truncate text-[13px] font-semibold">Apply for {followedJob.title}</p>
-      <ol className="mt-3 grid grid-cols-4 gap-1">
+      {/* The open step's column is wider, so "My information" shows whole. */}
+      <ol className="mt-3 grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-1">
         {STEPS.map((step, i) => (
           <li key={step} className="grid gap-1">
             <span

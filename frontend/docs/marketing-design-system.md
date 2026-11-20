@@ -171,8 +171,11 @@ second blur would see nothing).
 ### `StudioBox` (`layout-parts.tsx`)
 
 The frame for every picture and animation but one (the problems' visuals
-stand on a flat grey stage: they show the search as it is, not a WorkIt
-feature, so they take no feature's sky; the user's call, 2026-11-20): 16px corners, a feature's
+stand on a grey stage under a slate dot grid that fades toward the
+middle, `.problem-dots`: they show the search as it is, not a WorkIt
+feature, so they take no feature's sky; the user's calls, 2026-11-20,
+the dots picked from six patterns over a flat grey that read as
+boring): 16px corners, a feature's
 `studioGround` and a fine grain (`.studio-box`; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.
@@ -266,7 +269,7 @@ translate inside a clipped track.
 | A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
-| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: six problems, three on each side of one large visual on a flat grey stage, and one sourced figure in an outlined box set as a quote, grey quote marks on its corners and its number in red), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
+| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: six problems, three on each side of one large visual on a grey stage under a fading dot grid, and one sourced figure in an outlined box set as a quote, grey quote marks on its corners and its number in red), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |

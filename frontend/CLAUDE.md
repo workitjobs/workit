@@ -505,9 +505,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     forms before it (`Window`'s `stacked`), an empty "Why do you want to
     work at Notion?" box, the student's spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
-    application with "No reply in weeks". Each is plain UI centred
-    on a flat grey stage (no feature's sky: this is the search before
-    WorkIt, so nothing in it is violet), safely centred so a tall one keeps
+    application with "No reply in weeks". Each is plain UI, 20rem wide,
+    centred on a grey stage under a slate dot grid that fades toward the
+    middle (`.problem-dots` in landing.css; the user's pick of six
+    patterns, 2026-11-20, since a flat grey stage read as boring; at
+    22rem the windows hid all but a thin band of dots), with no feature's
+    sky: this is the search before WorkIt, so nothing in it is violet;
+    safely centred so a tall one keeps
     its top in view on a short screen, and plays once as it shows (the
     stage's `data-arrived`, "false" for two frames after a switch; a caret
     blinks four times, `.caret-blink`, then stays). **The heading, the hub

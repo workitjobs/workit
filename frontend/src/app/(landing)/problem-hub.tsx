@@ -167,6 +167,10 @@ export function ProblemHub({
           data-arrived={mounted ? String(arrived && !hold) : undefined}
           className="bg-well relative order-first h-[22rem] overflow-hidden rounded-2xl md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-29.5rem),30rem)]"
         >
+          {/* A dot grid over the grey, fading toward the middle where the
+              visual sits (`.problem-dots`, the user's pick of six patterns,
+              2026-11-20): a flat grey stage read as boring. */}
+          <div aria-hidden="true" className="problem-dots absolute inset-0" />
           {/* Keyed by `mounted` too: the visual mounts afresh once hydrated,
               so a transition the server's HTML would skip plays when seen. */}
           <div key={mounted ? at : "server"} className="absolute inset-0">
