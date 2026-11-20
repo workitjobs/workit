@@ -1,18 +1,22 @@
 "use client";
 
+import { BrowsersIcon, FunnelSimpleIcon, RepeatIcon } from "@phosphor-icons/react/ssr";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
 import { useArrived } from "./hooks";
-import { StudioBox, TYPE } from "./layout-parts";
+import { TYPE } from "./layout-parts";
 
-type Problem = { title: string; body: string; fix: string };
+type Problem = { scene: "screen" | "forms" | "boards"; title: string; body: string; fix: string };
+
+/** Each problem's glyph on its card. */
+const ICONS = { screen: FunnelSimpleIcon, forms: RepeatIcon, boards: BrowsersIcon };
 
 /**
- * The problems' one wide screen and the three problems under it
- * (problems.tsx, KAN-923). A click on a problem shows its screen in the
+ * The problems' one wide screen and the three problem cards under it
+ * (problems.tsx, KAN-923). A click on a card shows its screen in the
  * frame; nothing changes on a timer (the taste rules ban timed tabs, and a
  * timer would need a pause control). Each screen plays once as it shows:
  * the frame carries `data-arrived` as `Arrive` does, "false" until it is
@@ -21,20 +25,23 @@ type Problem = { title: string; body: string; fix: string };
  * and `.ats-*` classes in landing.css). No attribute in the server's HTML,
  * so the first screen shows finished without script.
  *
- * The problems are buttons with `aria-pressed`, not a tab list: the screens
- * are pictures (`aria-hidden`), and every problem's words stay readable
- * beside them, so a screen reader reads all three as text. Below md only
- * the open problem shows its lines; the others keep them for screen
- * readers (`sr-only`).
+ * The frame is flat grey, not a `StudioBox` sky: these screens are the
+ * search as it is, not WorkIt's features, and the user found the gradient
+ * wrong here (2026-11-20). The open card is a white `.surface-card`, the
+ * closed ones flat grey, and only the open one shows WorkIt's answer: with
+ * a paragraph and an answer under every problem the section read as too
+ * dense. The closed answers keep their room from md up, so the row never
+ * jumps; below md a closed card is its glyph and title alone.
+ *
+ * The cards are buttons with `aria-pressed`, not tabs: the screens are
+ * pictures (`aria-hidden`), and each card's words are its button's name.
  */
 export function ProblemTabs({
   problems,
   scenes,
-  ground,
 }: {
   problems: readonly Problem[];
   scenes: readonly ReactNode[];
-  ground: string;
 }) {
   const [at, setAt] = useState(0);
   const [hold, setHold] = useState(false);
@@ -56,48 +63,67 @@ export function ProblemTabs({
 
   return (
     <div className="mt-10 sm:mt-14">
-      <div ref={frameRef} data-arrived={mounted ? String(arrived && !hold) : undefined}>
-        <StudioBox ground={ground} className="h-[22rem] sm:h-[26rem] lg:aspect-[16/7] lg:h-auto">
-          <div key={at} className="absolute inset-0">
-            {scenes[at]}
-          </div>
-        </StudioBox>
+      <div
+        ref={frameRef}
+        data-arrived={mounted ? String(arrived && !hold) : undefined}
+        className="bg-well relative h-[22rem] overflow-hidden rounded-2xl sm:h-[26rem] lg:aspect-[16/7] lg:h-auto"
+      >
+        <div key={at} className="absolute inset-0">
+          {scenes[at]}
+        </div>
       </div>
-      <div className="mt-6 grid gap-x-8 md:grid-cols-3">
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
         {problems.map((problem, i) => {
           const open = i === at;
+          const Icon = ICONS[problem.scene];
           return (
-            <div
+            <button
               key={problem.title}
+              type="button"
+              aria-pressed={open}
+              onClick={() => pick(i)}
               className={cn(
-                "group relative border-t-2 pt-4 pb-5 transition-colors duration-300 sm:pt-5",
-                open ? "border-ink" : "border-slate-900/10 hover:border-slate-900/30",
+                // 20px in: at 24px the first title missed one line by 4px.
+                "flex flex-col rounded-2xl p-5 text-left transition-[background-color,box-shadow] duration-300",
+                "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
+                open ? "surface-card" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
               )}
             >
-              {/* The whole column takes the click: the button's ::after
-                  covers it, as the tracker's stretched links do. */}
-              <button
-                type="button"
-                aria-pressed={open}
-                onClick={() => pick(i)}
+              <span
+                className={cn(
+                  "grid size-9 place-items-center rounded-[10px] transition-colors duration-300",
+                  open ? "bg-ink text-white" : "text-ink-meta bg-white",
+                )}
+              >
+                <Icon aria-hidden="true" className="size-[18px]" />
+              </span>
+              <span
                 className={cn(
                   TYPE.item,
-                  "focus-visible:outline-ink rounded-sm text-left text-balance transition-colors after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-4",
-                  open ? "text-ink" : "text-ink-meta group-hover:text-ink",
+                  "mt-4 block text-balance transition-colors",
+                  open ? "text-ink" : "text-ink-muted",
                 )}
               >
                 {problem.title}
-              </button>
-              <div className={cn(!open && "max-md:sr-only")}>
-                <p className="text-ink-meta mt-2 text-pretty">{problem.body}</p>
-                <p className="mt-4 flex items-start gap-2.5 text-[15px] text-pretty">
-                  <Logo size="mark" decorative className="mt-1 h-3.5 shrink-0" />
-                  <span className={cn("transition-colors", open ? "text-ink" : "text-ink-meta")}>
-                    {problem.fix}
-                  </span>
-                </p>
-              </div>
-            </div>
+              </span>
+              <span
+                className={cn(
+                  "text-ink-meta mt-1.5 block text-[15px] leading-snug text-pretty",
+                  !open && "max-md:hidden",
+                )}
+              >
+                {problem.body}
+              </span>
+              <span
+                className={cn(
+                  "text-ink mt-4 flex items-start gap-2 border-t border-slate-900/[0.07] pt-4 text-[15px] leading-snug text-pretty transition-opacity duration-300",
+                  !open && "invisible opacity-0 max-md:hidden",
+                )}
+              >
+                <Logo size="mark" decorative className="mt-[3px] h-3.5 shrink-0" />
+                <span>{problem.fix}</span>
+              </span>
+            </button>
           );
         })}
       </div>

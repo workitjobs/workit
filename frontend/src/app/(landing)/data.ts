@@ -363,27 +363,29 @@ export const heroFits: { title: string; company: string; domain: string; score: 
  */
 export const problems = {
   title: "Many applications stop before a person reads them",
-  subtitle: "The job application process breaks in the same three places.",
   /** The three places, in the order a click walks them; `scene` names the
-   *  screen problem-scenes.tsx draws for each. */
+   *  screen problem-scenes.tsx draws for each. One short line each, and
+   *  WorkIt's answer only on the open card: the section read as too dense
+   *  with a paragraph and an answer under every problem (the user's call,
+   *  2026-11-20). */
   items: [
     {
       scene: "screen",
       title: "Screened out before anyone reads it",
-      body: "Many companies’ hiring systems sort applications against the posting’s keywords and screening questions before a recruiter looks. One resume sent to every posting often gets filtered out there.",
-      fix: "WorkIt shows the posting’s keywords your resume is missing, and Tailor adds only the ones you’ve really used.",
+      body: "Many hiring systems filter resumes by keyword before a recruiter looks.",
+      fix: "WorkIt shows the keywords you’re missing and adds only the ones you’ve used.",
     },
     {
       scene: "forms",
       title: "The same form, again and again",
-      body: "Your name, school, work history and the same questions, typed into one company’s form after another.",
-      fix: "WorkIt fills each form from your profile. You check it and click Submit.",
+      body: "The same questions, typed into one company’s form after another.",
+      fix: "WorkIt fills each form from your profile. You click Submit.",
     },
     {
       scene: "boards",
       title: "Good jobs, scattered everywhere",
-      body: "Each company posts on its own job board, so the roles that fit you hide among thousands.",
-      fix: "One Jobs page from thousands of company job boards, best fits first.",
+      body: "Every company posts on its own job board.",
+      fix: "WorkIt puts them on one Jobs page, best fits first.",
     },
   ],
   /** The hiring system's applicant screen: the posting's role and the

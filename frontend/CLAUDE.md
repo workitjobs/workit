@@ -426,13 +426,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     (`problems.tsx`, after the logo strip): "Many applications stop before
     a person reads them", the job application process as a whole (never
     internships and new-grad roles alone: the user's call), as the
-    `design-taste` skill's "chapter": the heading on the left with its line
-    beside it, one wide `StudioBox` on a slate sky (the search as it is,
-    before WorkIt; violet is WorkIt's own mark, so no screen in it is
-    violet) holding one real-looking window cut by the box's foot, and the
-    three problems under it as columns. **A click on a problem shows its
-    screen** (`ProblemTabs` in `problem-tabs.tsx`, the user's ask, 2026-11-20;
-    screens in `problem-scenes.tsx`): a hiring system's applicant list,
+    `design-taste` skill's "chapter": a centred heading with no line under
+    it, one wide frame holding one real-looking window cut by the frame's
+    foot, and three problem cards under it. **The frame is flat grey
+    (`bg-well`), not a `StudioBox` sky**, the one picture on the home page
+    outside a `StudioBox` (the user's call, 2026-11-20: these screens are the
+    search as it is, not WorkIt's features, so they get no feature's
+    gradient; nothing in them is violet, WorkIt's own mark). **A click on a
+    card shows its screen** (`ProblemTabs` in `problem-tabs.tsx`, the user's
+    ask; screens in `problem-scenes.tsx`): a hiring system's applicant list,
     where the student's resume comes in as New, scores 3 of 6 keywords and
     slides under the screening cut-off, Not moved forward (`.ats-*` in
     landing.css); three companies' forms side by side, the same six
@@ -442,14 +444,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     timer: timed tabs are banned by the taste rules and would need a pause
     control. Each screen plays once as it shows: the frame carries
     `data-arrived` as `Arrive` does, and "false" again for two frames after
-    a click, so the new screen mounts waiting and then plays. The problems
-    are buttons with `aria-pressed`, not tabs, since the screens are
-    `aria-hidden` pictures and every problem's words stay readable; below
-    md only the open problem shows its lines (the others are `sr-only`).
-    Each window is at least 34rem tall so the box's foot always cuts it: a
-    window that ended just above the foot read as a floating card. Each
-    problem says what goes wrong, then, after the WorkIt mark, what WorkIt
-    does. **It replaced a bento** of three `.surface-card`s, each a small
+    a click, so the new screen mounts waiting and then plays. **The cards
+    are the switch**: each a button with `aria-pressed` (not tabs, since the
+    screens are `aria-hidden` pictures and each card's words are its
+    button's name), a glyph, the problem's title and one short line. The
+    open card is a white `.surface-card` with its glyph on ink and WorkIt's
+    answer under a hairline, after the WorkIt mark; the closed ones are flat
+    grey, their answers hidden but keeping their room from md up, so the row
+    never jumps; below md a closed card is its glyph and title. **Keep the
+    text this short**: with a subtitle, a paragraph and an answer under
+    every problem the user found the section too dense (2026-11-20). Each
+    window is at least 34rem tall so the frame's foot always cuts it: a
+    window that ended just above the foot read as a floating card. **It
+    replaced a bento** of three `.surface-card`s, each a small
     scene centred in a coloured box, which the user found ugly and AI-made;
     the taste rules say why: three equal problems drawn at two sizes, the
     product shown only as small pieces on coloured panels (`cards.md`, about
