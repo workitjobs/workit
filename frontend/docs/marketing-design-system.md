@@ -231,9 +231,13 @@ across the window at the block's top and foot and two down its sides.
 
 ### The dark band (`problems.tsx`)
 
-One ink band before the footer, the problems of a search: ink with a
-soft slate pool and a faint dot grain (`.problems-ground`), never a
-feature's colour, a white heading and line, the hub's cards white at 6%
+One dark band before the footer, the problems of a search: a flat
+neutral near-black (`--mk-night`, #121212, the footer's ground too) with
+no glow and no grain (`.problems-ground`), never a feature's colour. The
+ink, a blue-black, with a slate pool and dots across the band read as the
+stock dark section of an AI-made site (the user's catch, 2026-11-20); the
+stage's dots are its one texture, and the figure's number is white, not
+a light red. It has a white heading and line, the hub's cards white at 6%
 with white words (the open one solid white with ink words, the band's
 colours turned over: the pale violet tint read as off theme on the ink)
 and the figure as an outlined strip with no fill, so it stands apart

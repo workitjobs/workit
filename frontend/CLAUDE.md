@@ -546,15 +546,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the open one, and under it the section's one figure, shown as a fact
     with its source (81%, Greenhouse's 2026 candidate report, linked), as
     an outlined strip across the hub's width, no fill, a white hairline
-    and the number large in a light red, so it stands apart from the
+    and the number large in white, so it stands apart from the
     filled cards as the hub's last row (the user's calls, 2026-11-20:
     filled like the cards it blended in; on the light page an outlined box
     with quote marks on its corners read as tacked on; before it, plain
-    text under a hairline did not read as a sourced fact). **It stands on
-    the dark band**: the cards white at 6% with white words, each glyph on
-    a solid tile a step lighter than the ink (solid, so the letter glyph's
-    cross knocks out against it), and the open card solid white with ink
-    words and its glyph on an ink tile, the band's colours turned over (the
+    text under a hairline did not read as a sourced fact; its number was
+    a light red, which on the dark read as a template's stat callout).
+    **It stands on the dark band**, a flat neutral near-black
+    (`--mk-night`, #121212, shared with the footer) with no glow and no
+    grain: it was the ink, #121a28, a blue-black, with a slate pool in the
+    middle and dots across the whole band, which read as the stock dark
+    section of an AI-made site (the user's catch, 2026-11-20); the stage's
+    dot grid is its one texture. The cards are white at 6% with white
+    words, each glyph on a solid tile a step lighter than the ground
+    (solid, so the letter glyph's cross knocks out against it), and the
+    open card solid white with ink words and its glyph on a near-black
+    tile, the band's colours turned over (the
     pale violet tint it had on the light page read as off theme on the
     ink, the user's catch, 2026-11-20). A
     click, a tap or Enter opens a problem, never a hover (the user's call:
@@ -1568,7 +1575,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   its placeholder copy, hidden for now. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`) as a still signature: one SVG
-  path in white at 7% on the ink panel, its lower letters cut by the
+  path in white at 7% on the near-black panel (`--mk-night`, as the
+  problems band; it was the ink, a blue-black), its lower letters cut by the
   panel's foot (`WORD_SHOWN` in `footer.tsx`), with nothing moving and no
   script (KAN-923, the user's pick of four directions). It was the word
   filled with rows of job titles that slid in and drifted, which the user

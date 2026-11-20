@@ -49,7 +49,7 @@ export function Footer() {
 
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
-      <div className={cn(PANEL, "bg-ink overflow-hidden text-white")}>
+      <div className={cn(PANEL, "overflow-hidden bg-(--mk-night) text-white")}>
         {/* Five link columns: two a row on a phone, three at md, one row of
             five under the tagline at lg, beside it from xl, where a column
             is still wide enough for "Application Tracker" on one line. */}

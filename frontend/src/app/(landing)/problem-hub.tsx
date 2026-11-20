@@ -77,8 +77,8 @@ type Stat = { figure: string; text: string; source: string; href: string };
  * the figure are counted (measured at 1440 × 800: the band about 795px).
  *
  * It stands on the dark band (problems.tsx): the cards are white at 6% on
- * the ink, each glyph on a lighter tile, the words white; the open card is
- * solid white with ink words and its glyph on an ink tile, the band's own
+ * its near-black, each glyph on a lighter tile, the words white; the open
+ * card is solid white with ink words and its glyph on a near-black tile, the band's own
  * colours turned over, so it reads as the selected item. On the light
  * page it was the pale violet tint; on the ink that tint read as off theme
  * (the user's catch, 2026-11-20), and a violet edge read as a button.
@@ -141,7 +141,7 @@ export function ProblemHub({
                 "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
                 // Solid, not white at 10%: the letter glyph's cross knocks
                 // out against the tile's own fill (`[background:inherit]`).
-                open ? "bg-ink text-white" : "bg-[#2a313e] text-white/75",
+                open ? "bg-(--mk-night) text-white" : "bg-[#2b2b2b] text-white/75",
               )}
             >
               <Icon aria-hidden="true" className="size-[18px]" />
@@ -192,11 +192,12 @@ export function ProblemHub({
         {column(half, problems.length, "lg:order-3")}
       </div>
       {/* The section's one figure as an outlined strip across the hub's
-          width: no fill, a white hairline, the number large in a light
-          red, its sentence and its source. Filled like the cards it
-          blended in (the user's catch, 2026-11-20). */}
+          width: no fill, a white hairline, the number large in white, its
+          sentence and its source. Filled like the cards it blended in (the
+          user's catch, 2026-11-20); its number was a light red, which on
+          the dark read as a template's stat callout. */}
       <figure className="mt-3 grid items-center gap-x-7 gap-y-1.5 rounded-2xl px-5 py-5 ring-1 ring-white/20 ring-inset sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-7">
-        <p className="font-display text-[3.25rem] leading-none font-medium tracking-[-0.04em] text-[color-mix(in_oklab,var(--color-danger)_50%,white)]">
+        <p className="font-display text-[3.25rem] leading-none font-medium tracking-[-0.04em] text-white">
           {stat.figure}
         </p>
         <p className="text-[17px] leading-snug text-pretty text-white">{stat.text}</p>

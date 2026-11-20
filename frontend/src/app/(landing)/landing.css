@@ -15,6 +15,11 @@
    * page, its cards and its buttons are white, ink and grey.
    */
   --mk-hairline: rgb(15 23 42 / 0.08);
+  /* The dark panels' ground (the problems band, the footer): a neutral
+     near-black. They were the ink, #121a28, a blue-black, which with a
+     slate glow in the middle and dots across the band read as the stock
+     dark section of an AI-made site (the user's catch, 2026-11-20). */
+  --mk-night: #121212;
   /* A card resting on the page. */
   --mk-shadow-card:
     0 0 0 1px var(--mk-hairline), 0 1px 2px rgb(15 23 42 / 0.04),
@@ -1710,21 +1715,12 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* The problems' dark band (problems.tsx): ink with a soft slate pool
-   behind the hub and a faint dot grain, never a feature's colour. */
+/* The problems' dark band (problems.tsx): flat neutral near-black, with no
+   glow and no grain; the stage's dot grid (`.problem-dots`) is the band's
+   one texture. A slate pool and dots across the whole band read as AI-made
+   (the user's catch, 2026-11-20). */
 .problems-ground {
-  background:
-    radial-gradient(55% 60% at 50% 48%, rgb(148 163 184 / 0.2), transparent 72%), var(--color-ink);
-}
-.problems-ground::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1.2px, transparent 1.4px);
-  background-size: 18px 18px;
-  mask-image: radial-gradient(closest-side, transparent 30%, #000 100%);
-  pointer-events: none;
+  background: var(--mk-night);
 }
 /* The product demo's glass frame (why-exists.tsx): a frosted white bezel
    with a bright top edge and a white rim, over a StudioBox's violet sky,
