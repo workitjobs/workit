@@ -1767,7 +1767,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   will-change: transform;
 }
 .snake-tile.feeder {
-  transition-duration: 0.55s;
+  transition-duration: 0.9s;
   transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
 }
 .snake-tile[data-look="off"] {
@@ -1797,8 +1797,11 @@ html[data-tab-flight="flying"] .tour-tabs {
 .snake-tile[data-look="enter"] {
   opacity: 0;
 }
-/* While the snake is out, the hero's own tiles hide, and its ground fades
-   to the page as it empties (over the run's length). */
+/* While the snake is out, the hero's own tiles hide, and the rest of the
+   frame goes with it, as far as the snake has (`--snake-p`, 0 to 1): the
+   violet ground fades to the page, and the headline's tile fades and
+   draws back a little, gone by two thirds of the way, so nothing is left
+   of the hero once the snake is in (the user's words). */
 .hero-feed[data-snake] .hero-tile {
   visibility: hidden;
 }
@@ -1806,12 +1809,15 @@ html[data-tab-flight="flying"] .tour-tabs {
   position: absolute;
   inset: 0;
   background: white;
-  opacity: 0;
+  opacity: var(--snake-p, 0);
   pointer-events: none;
-  transition: opacity var(--run, 2.4s) linear;
 }
-.hero-feed[data-ground="faded"] .hero-fade {
-  opacity: 0.92;
+.hero-feed[data-snake] .hero-copy {
+  opacity: calc(1 - var(--snake-p, 0) * 1.6);
+  transform: scale(calc(1 - var(--snake-p, 0) * 0.05));
+}
+.hero-feed[data-hero-gone] .hero-copy {
+  pointer-events: none;
 }
 .hero-grid {
   position: relative;

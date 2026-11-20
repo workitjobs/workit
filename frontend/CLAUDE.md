@@ -654,35 +654,47 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `features/types.ts`, required). Below lg the order is heading, box, rows
     (one tree, `display: contents`). `product-accordion.tsx`.
   - **The hero flows into the job feed** (`hero-feed.tsx`, the user's
-    idea, after the game Snake, built 2026-11-20). Under the hero sits a
-    feed on the hero's own columns (`.feed-grid` copies `.hero-grid`'s 4,
-    6, 7, 9 and 11): a drop cell under the hero's bottom-left tile beside
-    the line "Job postings pulled fresh from thousands of company job
-    boards", then a row of pale violet track cells ending in a white
-    WorkIt cell. From lg up, the first scroll away from the top (past
-    32px) sends the hero's ring of tiles out as one snake: it unzips at
-    the bottom-left, steps down into the drop cell and along the row, each
-    tile following the cells the one ahead took (at step `t` tile `k`
-    stands at `min(k + t, end)` on one path of measured cell boxes: the
-    ring from tail to head, the drop, the row, WorkIt), and WorkIt eats
-    them one by one with a pulse. The tiles are glass in the hero, violet
-    once out, logo tiles on the row; the hero's ground fades to the page
-    as it empties (`.hero-fade`), and the headline's tile stays. It plays
-    in `RUN` (2.4 s), never scrubbed; back within 8px of the top it plays
-    backwards into the ring and the hero is whole again. Then the row
-    feeds WorkIt on its own: a logo tile enters every other beat and
-    steps a cell a beat (`BEAT`), resting off screen and in a hidden tab.
-    **How**: the hero's own tiles stay and hide (`data-snake`); copies
-    (`.snake-tile`, with no backdrop blur, which twenty-eight moving tiles
-    could not afford) move on transforms alone. Every box is measured from
-    the layout, again on each resize at rest, so it fits 7, 9 or 11
-    columns (checked: 20, 24 and 28 tiles, every one eaten, the feed's
-    cells under the hero's columns to the pixel). Below lg there is no
-    ring: a phone gets the feed's row alone. With reduced motion and
-    before the script runs, the row shows its logos at rest
-    (`.feed-static`) and the hero stays whole. A hot reload logs "Encountered
-    a script tag while rendering": the hero's shuffle script, re-rendered
-    in the client wrapper; a fresh load has no error and the script runs.
+    idea, after the game Snake, 2026-11-20). Under the hero sits a feed on
+    the hero's own columns (`.feed-grid` copies `.hero-grid`'s 4, 6, 7, 9
+    and 11): a drop cell under the hero's bottom-left tile beside the line
+    "Job postings pulled fresh from thousands of company job boards", then
+    a row of pale violet track cells ending in a white WorkIt cell. **From
+    lg up the whole frame turns into one snake as the page scrolls**: the
+    ring of tiles round the headline unzips at the bottom-left, steps down
+    into the drop cell and along the row, each tile following the cells the
+    one ahead took (at step `s` tile `k` stands at `k + s` on one path of
+    measured cell boxes: the ring from tail to head, the drop, the row,
+    WorkIt; it moves in straight lines between neighbouring cells, never on
+    a curve), and WorkIt eats the head end tile by tile with a pulse. The
+    tiles are glass in the hero, violet once out, logo tiles on the row.
+    The headline's tile fades and draws back (gone by two thirds of the
+    way) and the violet ground fades to the page (`.hero-fade`), both on
+    `--snake-p`, **so nothing is left of the hero** by the time the page is
+    down the hero's height (`RANGE`), where the tail reaches the row's
+    first cell and the row lies full, logo against logo. **The scroll
+    drives it** (the user's call): a first build played it on a 2.4 s
+    timer, which ran far quicker than anyone scrolls, and the user wanted
+    the hero empty by the time they reach the feed; it rests where the
+    reader stops and plays backwards on the way up. Then the row feeds
+    WorkIt on its own every `BEAT` (1.8 s): each logo steps one cell, the
+    last goes into WorkIt and a new one enters the first cell, **so the row
+    is always full**: one entering every other beat left an empty cell
+    between two logos (the user's catch). It rests off screen and in a
+    hidden tab. **How**: the hero's own tiles stay and hide once the page
+    leaves the top (`data-snake`); copies (`.snake-tile`, with no backdrop
+    blur, which twenty-eight moving tiles could not afford) move on
+    transforms, set once a frame while the page scrolls. Every box is
+    measured from the layout, again on each resize, so it fits 7, 9 or 11
+    columns (checked: 20, 24 and 28 tiles, the row full at the end, the
+    feed's cells under the hero's columns to the pixel). Below lg there is
+    no ring: a phone gets the feed's row alone, full and stepping. With
+    reduced motion and before the script runs, the row shows its logos at
+    rest (`.feed-static`) and the hero stays whole. **Testing**: the
+    Browser pane, hidden, runs no animation frames, so a scroll there never
+    moves the snake; check in a visible browser, or dispatch `resize`,
+    which renders at once. A hot reload logs "Encountered a script tag
+    while rendering": the hero's shuffle script, re-rendered in the client
+    wrapper; a fresh load has no error and the script runs.
   - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
     (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
     (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),

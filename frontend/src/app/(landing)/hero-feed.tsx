@@ -14,47 +14,54 @@ type Box = { x: number; y: number; w: number; h: number };
 const MAX_TILES = 28;
 /** The most track cells the feed's row shows: 11 columns, less WorkIt's. */
 const TRACK = 10;
-/** How long the whole snake takes, out of the hero or back into it, ms. */
-const RUN = 2400;
-/** The feed's beat once the snake has gone: one step a beat, ms. */
-const BEAT = 1100;
-/** Scrolled past this, the snake leaves; back within `HOME`, it returns. */
-const AWAY = 32;
-const HOME = 8;
+/** How far down the page, as a share of the hero's height, the snake has
+ *  wholly left the hero: the hero's full height, so it lands as the hero
+ *  scrolls away (at 85% it ran about four cells a wheel notch). */
+const RANGE = 1;
+/** The feed's beat once the snake is in: every logo steps one cell, ms. */
+const BEAT = 1800;
 
 /**
- * The hero flowing into the job feed (KAN-923, the user's idea, built
- * 2026-11-20, after the game Snake): the ring of glass tiles round the
- * headline unzips at its bottom-left corner into one snake that steps
- * down the grid, turns right along the feed's row under the hero and is
- * eaten, tile by tile, by a white WorkIt cell at the row's end, so by the
- * time the reader reaches the feed the hero's frame is empty. The tiles
- * turn violet once they leave the hero and become company logo tiles on
- * the row; the hero's violet ground fades as it empties (`.hero-fade`).
- * Then the row keeps feeding WorkIt: a logo tile enters every other beat
- * and steps one cell a beat into it. It replaced the logo strip's drifting
- * names, which the user found generic (`logo-strip.tsx`, unmounted).
+ * The hero flowing into the job feed (KAN-923, the user's idea, after the
+ * game Snake, 2026-11-20): the whole frame turns into one snake. The ring
+ * of glass tiles round the headline unzips at its bottom-left corner and
+ * steps down the grid, turns right along the feed's row under the hero,
+ * and the head is eaten by a white WorkIt cell at the row's end, while the
+ * headline's tile and the violet ground fade out, so by the time the
+ * reader reaches the feed nothing is left of the hero (the user's words).
+ * The tiles turn violet once out of the hero and become company logo tiles
+ * on the row. When the snake is in, the row lies full, logo against logo,
+ * and keeps feeding WorkIt on its own: every `BEAT` each logo steps one
+ * cell, the one at the end goes into WorkIt and a new one enters at the
+ * start, so no cell is ever empty between two (the user's catch: one
+ * entering every other beat left a gap between each). It replaced the logo
+ * strip's drifting names, which the user found generic (`logo-strip.tsx`,
+ * unmounted).
  *
- * **The scroll cues, time plays** (frontend/CLAUDE.md): the first scroll
- * away from the top sends the snake, which plays to its end in `RUN`;
- * back at the top it plays backwards out of WorkIt into the ring. Never
- * scrubbed, so it never rests half way. Nothing pins.
+ * **The scroll drives it**, the user's call over a timer, which ran the
+ * snake far quicker than anyone scrolls: it is as far along as the page is
+ * down the first `RANGE` of the hero's height, out on the way down and
+ * back in on the way up, and rests where the reader stops. A tile moves
+ * along the grid between neighbouring cells, never on a curve.
  *
- * **How it moves**: the hero's own tiles stay put and hide while the
- * snake runs (`data-snake`); copies of them (`.snake-tile`, no backdrop
- * blur, which twenty-eight moving tiles could not afford) start on their
- * cells and move along one path of cell boxes: the ring from its tail to
- * its head (bottom row, up the right side, the top row back, down the left
- * side), the feed's drop cell, the row's cells and WorkIt's. At step `t`
- * a tile `k` stands at `min(k + t, end)`, so each follows the one ahead
- * cell for cell, as Snake's body does. Every box is measured from the
- * layout, again on each resize at rest, so the path fits the hero's 7, 9
+ * **How it moves**: the hero's own tiles stay put and hide once the page
+ * leaves the top (`data-snake`); copies of them (`.snake-tile`, with no
+ * backdrop blur, which twenty-eight moving tiles could not afford) move
+ * along one path of cell boxes: the ring from its tail to its head (bottom
+ * row, up the right side, the top row back, down the left side), the feed's
+ * drop cell, the row's cells and WorkIt's. At step `s` a tile `k` stands at
+ * `k + s`, so each follows the one ahead cell for cell, as Snake's body
+ * does; `s` runs from 0 to the ring's length plus one, where the tail has
+ * reached the row's first cell and the row is full. Every box is measured
+ * from the layout, again on each resize, so the path fits the hero's 7, 9
  * or 11 columns, and the feed's row shares its columns (`.feed-grid`).
+ * Transforms and two custom properties (`--snake-p` for the fades), set
+ * once a frame while the page scrolls.
  *
  * From lg up only (below it the hero has no ring); a phone gets the feed's
- * row alone. With reduced motion, and before the script runs, the row
- * shows its logos at rest and the hero stays whole (`data-live` unset).
- * The loop rests off screen and in a hidden tab.
+ * row alone, full and stepping. With reduced motion, and before the script
+ * runs, the row shows its logos at rest and the hero stays whole
+ * (`data-live` unset). The feed rests off screen and in a hidden tab.
  */
 export function HeroFeed({
   children,
@@ -77,22 +84,23 @@ export function HeroFeed({
     const lg = window.matchMedia("(min-width: 64rem)");
     root.dataset.live = "";
 
+    const hero = root.firstElementChild as HTMLElement;
     const clones = [...root.querySelectorAll<HTMLElement>("[data-clone]")];
     const feeders = [...root.querySelectorAll<HTMLElement>("[data-feeder]")];
     const wk = root.querySelector<HTMLElement>("[data-feed-wk]")!;
 
-    type Geo = { path: Box[]; ring: number; size: Box; row: Box[] };
+    type Geo = { path: Box[]; ring: number; size: Box };
     let geo: Geo | null = null;
-    let phase: "rest" | "running" | "done" | "reversing" = "rest";
-    let snakeTimer = 0;
-    let feedTimer = 0;
-    let t = 0;
+    /** The row's cells and WorkIt's, last. */
+    let row: Box[] = [];
+    let range = 1;
+    let raf = 0;
+    let lastEaten = 0;
     let visible = false;
-    let beat = 0;
+    let feedTimer = 0;
     let nextFeeder = 0;
+    let snakeIn = false;
     const active: { el: HTMLElement; i: number }[] = [];
-    // Below lg: the feed's row alone, no snake.
-    let rowOnly: Box[] | null = null;
 
     const boxOf = (el: Element, base: DOMRect): Box => {
       const r = el.getBoundingClientRect();
@@ -105,67 +113,53 @@ export function HeroFeed({
       for (const v of sorted) if (!out.length || v - out[out.length - 1] > 4) out.push(v);
       return (v: number) => out.findIndex((o) => Math.abs(o - v) <= 4);
     };
+    const shown = (selector: string) =>
+      [...root!.querySelectorAll<HTMLElement>(selector)].filter(
+        (el) => getComputedStyle(el).display !== "none",
+      );
 
-    function measure(): Geo | null {
+    function measure() {
       const base = root!.getBoundingClientRect();
-      const cells = (selector: string) =>
-        [...root!.querySelectorAll<HTMLElement>(selector)].filter(
-          (el) => getComputedStyle(el).display !== "none",
-        );
-      const row = cells("[data-feed-cell]").map((el) => boxOf(el, base));
+      row = [...shown("[data-feed-cell]").map((el) => boxOf(el, base)), boxOf(wk, base)];
+      range = Math.max(1, hero.offsetHeight * RANGE);
+      geo = null;
+      if (!lg.matches) return;
       const drop = root!.querySelector("[data-feed-drop]");
-      if (!drop) return null;
-      const end = boxOf(wk, base);
-      const tiles = cells(".hero-tile").map((el) => boxOf(el, base));
+      const tiles = shown(".hero-tile").map((el) => boxOf(el, base));
+      if (!drop || !tiles.length) return;
       const rowOf = bands(tiles.map((b) => b.y));
       const colOf = bands(tiles.map((b) => b.x));
       const at = new Map(tiles.map((b) => [`${rowOf(b.y)},${colOf(b.x)}`, b]));
       const R = Math.max(...tiles.map((b) => rowOf(b.y))) + 1;
       const C = Math.max(...tiles.map((b) => colOf(b.x))) + 1;
-      const ring: Box[] = [];
-      for (let c = 1; c < C; c++) ring.push(at.get(`${R - 1},${c}`)!);
-      for (let r = R - 2; r >= 1; r--) ring.push(at.get(`${r},${C - 1}`)!);
-      for (let c = C - 1; c >= 0; c--) ring.push(at.get(`0,${c}`)!);
-      for (let r = 1; r < R; r++) ring.push(at.get(`${r},0`)!);
+      const ring: (Box | undefined)[] = [];
+      for (let c = 1; c < C; c++) ring.push(at.get(`${R - 1},${c}`));
+      for (let r = R - 2; r >= 1; r--) ring.push(at.get(`${r},${C - 1}`));
+      for (let c = C - 1; c >= 0; c--) ring.push(at.get(`0,${c}`));
+      for (let r = 1; r < R; r++) ring.push(at.get(`${r},0`));
       // A ring only from lg up, with every cell found.
-      if (R < 3 || ring.some((b) => !b) || ring.length !== tiles.length) return null;
-      return {
-        path: [...ring, boxOf(drop, base), ...row, end],
-        ring: ring.length,
-        size: ring[ring.length - 1],
-        row: [...row, end],
+      if (R < 3 || ring.some((b) => !b) || ring.length !== tiles.length) return;
+      const cells = ring as Box[];
+      geo = {
+        path: [...cells, boxOf(drop, base), ...row],
+        ring: cells.length,
+        size: cells[cells.length - 1],
       };
     }
 
-    const look = (i: number, g: Geo) =>
-      i < g.ring ? "glass" : i === g.ring ? "out" : i >= g.path.length - 1 ? "eaten" : "logo";
+    const look = (i: number, g: Geo) => (i < g.ring ? "glass" : i === g.ring ? "out" : "logo");
 
-    function place(el: HTMLElement, box: Box, size: Box, eaten: boolean) {
-      const sx = box.w / size.w;
-      const sy = box.h / size.h;
-      const shrink = eaten ? 0.45 : 1;
+    function place(el: HTMLElement, box: Box, size: Box, shrink = 1) {
       el.style.transform = `translate(${box.x + (box.w * (1 - shrink)) / 2}px, ${
         box.y + (box.h * (1 - shrink)) / 2
-      }px) scale(${sx * shrink}, ${sy * shrink})`;
+      }px) scale(${(box.w / size.w) * shrink}, ${(box.h / size.h) * shrink})`;
     }
-
-    function setSnake(step: number, animate: boolean) {
-      if (!geo) return;
-      const g = geo;
-      const end = g.path.length - 1;
-      clones.forEach((el, k) => {
-        if (k >= g.ring) {
-          el.dataset.look = "off";
-          return;
-        }
-        const i = Math.min(k + step, end);
-        if (!animate) el.style.transitionDuration = "0ms";
-        el.style.width = `${g.size.w}px`;
-        el.style.height = `${g.size.h}px`;
-        el.dataset.look = look(i, g);
-        place(el, g.path[i], g.size, i === end);
-      });
-    }
+    const lerp = (a: Box, b: Box, f: number): Box => ({
+      x: a.x + (b.x - a.x) * f,
+      y: a.y + (b.y - a.y) * f,
+      w: a.w + (b.w - a.w) * f,
+      h: a.h + (b.h - a.h) * f,
+    });
 
     function gulp() {
       wk.removeAttribute("data-gulp");
@@ -173,56 +167,71 @@ export function HeroFeed({
       wk.setAttribute("data-gulp", "");
     }
 
-    function snakeOn() {
-      return lg.matches && geo !== null;
-    }
-
-    function run(forward: boolean) {
-      if (!geo) return;
+    // The snake, as far along as the page is down.
+    function render() {
+      raf = 0;
+      if (!geo) return syncFeed();
       const g = geo;
-      const steps = g.path.length - 1;
-      const step = Math.min(110, Math.max(55, RUN / steps));
-      clearInterval(snakeTimer);
-      stopFeed();
-      hideFeeders();
-      phase = forward ? "running" : "reversing";
+      const p = Math.min(1, Math.max(0, window.scrollY / range));
+      root!.style.setProperty("--snake-p", p.toFixed(3));
+      if (p <= 0) {
+        delete root!.dataset.snake;
+        root!.removeAttribute("data-hero-gone");
+        clones.forEach((el) => (el.dataset.look = "off"));
+        lastEaten = 0;
+        leaveFeed();
+        return;
+      }
       root!.dataset.snake = "";
-      root!.style.setProperty("--run", `${RUN}ms`);
-      if (forward) root!.dataset.ground = "faded";
-      else delete root!.dataset.ground;
-      clones.forEach((el) => (el.style.transitionDuration = "0ms"));
-      setSnake(forward ? 0 : steps, false);
-      void root!.offsetWidth;
-      clones.forEach((el) => (el.style.transitionDuration = `${step}ms`));
-      t = forward ? 0 : steps;
-      snakeTimer = window.setInterval(() => {
-        t += forward ? 1 : -1;
-        setSnake(t, true);
-        if (forward && t <= steps) {
-          const eatenNow = clones.filter((_, k) => k < g.ring && k + t === steps).length;
-          if (eatenNow) gulp();
-        }
-        if ((forward && t >= steps) || (!forward && t <= 0)) {
-          clearInterval(snakeTimer);
-          if (forward) {
-            phase = "done";
-            syncFeed();
-            if (window.scrollY <= HOME) run(false);
-          } else {
-            phase = "rest";
-            delete root!.dataset.snake;
-            clones.forEach((el) => (el.dataset.look = "off"));
-            if (window.scrollY > AWAY) run(true);
-          }
-        }
-      }, step);
+      // The headline's buttons stop taking clicks once it has mostly gone.
+      root!.toggleAttribute("data-hero-gone", p > 0.6);
+      if (p >= 1) {
+        // The tail has reached the row's first cell: the feed takes over.
+        clones.forEach((el) => (el.dataset.look = "off"));
+        if (!snakeIn) enterFeed();
+        return;
+      }
+      leaveFeed();
+      const last = g.path.length - 1;
+      const step = p * (g.ring + 1);
+      clones.forEach((el, k) => {
+        if (k >= g.ring) return void (el.dataset.look = "off");
+        const at = k + step;
+        if (at >= last) return void (el.dataset.look = "eaten");
+        const i = Math.floor(at);
+        const f = at - i;
+        // The last cell's step shrinks the tile into WorkIt.
+        const shrink = i + 1 === last ? 1 - 0.55 * f : 1;
+        el.style.width = `${g.size.w}px`;
+        el.style.height = `${g.size.h}px`;
+        el.dataset.look = look(f > 0.5 ? i + 1 : i, g);
+        place(el, lerp(g.path[i], g.path[i + 1], f), g.size, shrink);
+      });
+      // WorkIt pulses as each tile goes in.
+      const eaten = Math.max(0, Math.min(g.ring, Math.floor(g.ring + step - last)));
+      if (eaten > lastEaten) gulp();
+      lastEaten = eaten;
     }
 
-    // The feed's loop: a logo tile enters every other beat and steps one
-    // cell a beat into WorkIt.
+    // The feed: the row full, each logo a cell along every beat.
+    function fill() {
+      active.splice(0).forEach((f) => (f.el.dataset.look = "off"));
+      const size = row[0];
+      const n = row.length - 1;
+      for (let j = 0; j < n; j++) {
+        const el = feeders[j % feeders.length];
+        el.style.transitionDuration = "0ms";
+        el.style.width = `${size.w}px`;
+        el.style.height = `${size.h}px`;
+        place(el, row[j], size);
+        el.dataset.look = "logo";
+        active.push({ el, i: j });
+      }
+      nextFeeder = n;
+      void root!.offsetWidth;
+      active.forEach((f) => (f.el.style.transitionDuration = ""));
+    }
     function feedStep() {
-      if (!geo && !rowOnly) return;
-      const row = geo ? geo.row : rowOnly!;
       const size = row[0];
       const end = row.length - 1;
       for (let a = active.length - 1; a >= 0; a--) {
@@ -234,85 +243,69 @@ export function HeroFeed({
         }
         f.i++;
         f.el.dataset.look = f.i >= end ? "eaten" : "logo";
-        place(f.el, row[f.i], size, f.i >= end);
-        if (f.i >= end) window.setTimeout(gulp, BEAT / 2);
+        place(f.el, row[f.i], size, f.i >= end ? 0.45 : 1);
+        if (f.i >= end) window.setTimeout(gulp, BEAT * 0.4);
       }
-      if (beat % 2 === 0) {
-        const el = feeders[nextFeeder % feeders.length];
+      // A new logo into the first cell, which the step just emptied.
+      let el = feeders[nextFeeder % feeders.length];
+      for (let tries = 0; active.some((f) => f.el === el) && tries < feeders.length; tries++) {
         nextFeeder++;
-        if (!active.some((f) => f.el === el)) {
-          el.style.transitionDuration = "0ms";
-          el.style.width = `${size.w}px`;
-          el.style.height = `${size.h}px`;
-          place(el, row[0], size, false);
-          el.dataset.look = "enter";
-          void el.offsetWidth;
-          el.style.transitionDuration = "";
-          el.dataset.look = "logo";
-          active.push({ el, i: 0 });
-        }
+        el = feeders[nextFeeder % feeders.length];
       }
-      beat++;
+      nextFeeder++;
+      el.style.transitionDuration = "0ms";
+      el.style.width = `${size.w}px`;
+      el.style.height = `${size.h}px`;
+      place(el, row[0], size);
+      el.dataset.look = "enter";
+      void el.offsetWidth;
+      el.style.transitionDuration = "";
+      el.dataset.look = "logo";
+      active.push({ el, i: 0 });
     }
-    function stopFeed() {
+    function enterFeed() {
+      snakeIn = true;
+      fill();
+      syncFeed();
+    }
+    function leaveFeed() {
+      if (!snakeIn) return;
+      snakeIn = false;
       clearInterval(feedTimer);
       feedTimer = 0;
-    }
-    function hideFeeders() {
       active.splice(0).forEach((f) => (f.el.dataset.look = "off"));
     }
     function syncFeed() {
-      const wanted =
-        visible && !document.hidden && (snakeOn() ? phase === "done" : rowOnly !== null);
-      if (wanted && !feedTimer) {
-        feedStep();
-        feedTimer = window.setInterval(feedStep, BEAT);
-      } else if (!wanted) stopFeed();
-    }
-
-    function measureRow() {
-      const base = root!.getBoundingClientRect();
-      const cells = [...root!.querySelectorAll<HTMLElement>("[data-feed-cell]")].filter(
-        (el) => getComputedStyle(el).display !== "none",
-      );
-      return [...cells.map((el) => boxOf(el, base)), boxOf(wk, base)];
+      // Below lg the feed runs alone; from lg up once the snake is in.
+      if (!geo && !active.length && row.length) fill();
+      const wanted = visible && !document.hidden && (geo ? snakeIn : true);
+      if (wanted && !feedTimer) feedTimer = window.setInterval(feedStep, BEAT);
+      else if (!wanted && feedTimer) {
+        clearInterval(feedTimer);
+        feedTimer = 0;
+      }
     }
 
     function layout() {
-      geo = lg.matches ? measure() : null;
-      rowOnly = geo ? null : measureRow();
+      measure();
       if (!geo) {
-        // No snake: the hero stays whole.
-        clearInterval(snakeTimer);
-        phase = "rest";
         delete root!.dataset.snake;
-        delete root!.dataset.ground;
         clones.forEach((el) => (el.dataset.look = "off"));
-      } else if (phase === "done") setSnake(geo.path.length - 1, false);
+        root!.style.removeProperty("--snake-p");
+        snakeIn = false;
+        fill();
+        syncFeed();
+      } else {
+        if (snakeIn) fill();
+        render();
+      }
     }
-
     layout();
-    // Arriving already scrolled (a return, an anchor): the snake has gone.
-    if (snakeOn() && window.scrollY > AWAY) {
-      phase = "done";
-      root.dataset.snake = "";
-      root.dataset.ground = "faded";
-      root.style.setProperty("--run", "0ms");
-      setSnake(geo!.path.length - 1, false);
-    }
 
     const onScroll = () => {
-      if (!snakeOn()) return;
-      const y = window.scrollY;
-      if (y > AWAY && phase === "rest") run(true);
-      else if (y <= HOME && phase === "done") run(false);
+      if (geo && !raf) raf = requestAnimationFrame(render);
     };
-    const onResize = () => {
-      if (phase === "running" || phase === "reversing") return;
-      layout();
-      hideFeeders();
-      syncFeed();
-    };
+    const onResize = () => layout();
     const seen = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       syncFeed();
@@ -323,8 +316,8 @@ export function HeroFeed({
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      clearInterval(snakeTimer);
-      stopFeed();
+      cancelAnimationFrame(raf);
+      clearInterval(feedTimer);
       seen.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
