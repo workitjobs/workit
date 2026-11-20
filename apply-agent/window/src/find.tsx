@@ -298,7 +298,14 @@ function Dropdown({ menu, values, set }: { menu: Menu; values: string[]; set: (v
         <div className="absolute top-10 left-0 z-30 min-w-48 rounded-card border border-border bg-panel p-1.5 shadow-lift">
           {menu.options.map(([value, label]) => (
             <label key={value} className="flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-label hover:bg-hover">
-              <input type={menu.single ? "radio" : "checkbox"} checked={values.includes(value)} onChange={() => pick(value)} className="accent-brand" />
+              {/* A ticked radio fires no change when pressed again: its click picks it, so a second press clears it. */}
+              <input
+                type={menu.single ? "radio" : "checkbox"}
+                checked={values.includes(value)}
+                onChange={() => menu.single || pick(value)}
+                onClick={() => menu.single && pick(value)}
+                className="accent-brand"
+              />
               {label}
             </label>
           ))}
