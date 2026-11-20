@@ -26,6 +26,8 @@ import { said } from "./words.ts";
 
 // The matches last read for each set of filters, so coming back to Find jobs shows them at once.
 const read = new Map<string, Match[]>();
+// How long "Finding jobs that fit you…" shows before the page says the first search is slow.
+const SLOW_MATCHES = 6_000;
 
 export function Find({ app, queue }: { app: App; queue: () => void }) {
   const [filters, setFilters] = useState<Filters>({ job_type: ["internship"] });
@@ -60,6 +62,14 @@ export function Find({ app, queue }: { app: App; queue: () => void }) {
     );
     return () => void (live = false);
   }, [app, key]); // filters is read through key
+  // Scoring the first time takes WorkIt up to a minute (app_window.MATCHES_WAIT): past a few seconds, say so.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (jobs || error) return;
+    const t = setTimeout(() => setSlow(true), SLOW_MATCHES);
+    return () => clearTimeout(t);
+  }, [jobs, error]);
   const shown = useMemo(() => (jobs ?? []).filter((j) => !hidden.has(j.url)), [jobs, hidden]);
   const toggle = (job: Match) => {
     const next = new Map(picked);
@@ -126,7 +136,7 @@ export function Find({ app, queue }: { app: App; queue: () => void }) {
               <b className="text-ink">{shown.length} jobs</b> we can apply to for you · best match first
             </>
           ) : (
-            !error && "Finding jobs that fit you…"
+            !error && (slow ? "Still scoring jobs against your experience. The first search can take up to a minute." : "Finding jobs that fit you…")
           )}
         </span>
         {shown.length > 0 && (
