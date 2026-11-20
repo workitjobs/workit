@@ -1633,6 +1633,65 @@ html[data-tab-flight="flying"] .tour-tabs {
     animation: caret-blink 1s steps(1, end) 4;
   }
 }
+/* What is WorkIt's statement (what-is.tsx): each word comes up from a
+   faint grey a little after the one before, once the line arrives. */
+.word-reveal > span {
+  transition: opacity 0.5s ease calc(var(--w) * 28ms);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .word-reveal[data-arrived="false"] > span {
+    opacity: 0.16;
+    transition: none;
+  }
+}
+
+/* The tedious-work band (tedious-work.tsx): ink with a soft slate pool
+   behind the thoughts and a fine grain, never a feature's colour. */
+.tedious-ground {
+  background:
+    radial-gradient(55% 60% at 50% 48%, rgb(148 163 184 / 0.2), transparent 72%), var(--color-ink);
+}
+.tedious-ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1.2px, transparent 1.4px);
+  background-size: 18px 18px;
+  mask-image: radial-gradient(closest-side, transparent 30%, #000 100%);
+  pointer-events: none;
+}
+.tedious-bracket {
+  font-size: clamp(3.5rem, 6vw, 5.5rem);
+  line-height: 1;
+  color: rgb(255 255 255 / 0.55);
+  font-weight: 300;
+}
+.thought {
+  transition:
+    opacity 0.35s ease calc(var(--c) * 70ms),
+    transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--c) * 70ms);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-arrived="false"] > .thought {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+    transition: none;
+  }
+}
+
+/* The product demo's glass frame (why-exists.tsx): a frosted white bezel
+   with a bright top edge and a white rim, over a StudioBox's violet sky,
+   so the blur has colour to show. */
+.demo-glass {
+  background: rgb(255 255 255 / 0.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 0 0 1px rgb(255 255 255 / 0.5),
+    0 30px 60px -30px rgb(15 23 42 / 0.45);
+}
+
 /* The drafting grid's frame (draft-lines.tsx), shared by every section
    and the tools collapse's frame: hairlines across the window at a block's
    top and foot (clipped by `.landing`'s overflow-x-clip), down its sides,

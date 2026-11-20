@@ -222,6 +222,21 @@ across the window at the block's top and foot and two down its sides.
 - **Neutral**, never a feature's colour. The hero is not framed for
   now: its violet panel already fills the screen edge to edge.
 
+### The dark band (`tedious-work.tsx`)
+
+One ink band before the footer, the tedious work in the way: ink with a
+soft slate pool and a faint dot grain (`.tedious-ground`), never a
+feature's colour, white headline halves and white thought pills. It is
+the search before WorkIt, the mood the bright product sections answer;
+keep it the only one, or the page loses that turn.
+
+### The demo's glass frame (`.demo-glass`, `why-exists.tsx`)
+
+The product demo stands in a frosted white bezel with a bright top edge
+and a white rim, inside a `StudioBox` on WorkIt's violet sky, so the blur
+has colour to show and the page's colour stays inside a box. The screen
+is a placeholder until a recording exists, named as coming soon.
+
 ### Pills and chips
 
 - `HERO_PILL`: frosted white, `--mk-shadow-float`, the pill above a

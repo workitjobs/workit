@@ -17,7 +17,10 @@ import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
 import { FeatureJumps, ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
+import { TediousWork } from "./tedious-work";
 import { Testimonial } from "./testimonial";
+import { WhatIs } from "./what-is";
+import { WhyExists } from "./why-exists";
 
 /** The home page's link preview has room for the whole tagline. */
 const shareTitle = `${site.name}: ${site.tagline}`;
@@ -115,8 +118,16 @@ export default function LandingPage() {
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
 
+      {/* The opening run after Loopsii's (the user's ask, 2026-11-20): what
+          WorkIt is, the tedious work in the way, the problems in detail,
+          then why WorkIt exists over the product demo. */}
+      <WhatIs />
+      <TediousWork />
+
       {/* Applying as it is, before how WorkIt works: problems.tsx. */}
       <Problems />
+
+      <WhyExists />
 
       {/* WorkIt's answer to the problems: one app, why one profile beats
           four tools, and the four products, each with its selling line, as

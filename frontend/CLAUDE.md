@@ -268,8 +268,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   each application better; the sign-up pair, which a Download
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), where applications get lost (`problems.tsx`),
-  WorkIt's answer with the four products as links to their sections
+  `logoStrip` in data.ts), **the opening run after Loopsii's** (the
+  user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`, a small label
+  and one large statement of who WorkIt is for, in other words than the
+  hero's line, read in word by word as it arrives), the tedious work in
+  the way (`tedious-work.tsx`, the page's one dark band before the footer:
+  ink, "Too much tedious work" at the top left and "between you and the
+  job you want" at the foot right, and between them, in brackets, a job
+  seeker's thoughts as white pills that pop in one after another), where
+  applications get lost (`problems.tsx`), and That's why WorkIt exists
+  (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
+  sky; **the demo is a placeholder**, a white screen with a play mark and
+  "Product demo, coming soon", until a recording or screenshot replaces
+  it at 16:10), then WorkIt's answer with the four products as links to their sections
   (`FeatureJumps` in `product-sections.tsx`), one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), what stays the student's call (`control.tsx`),
