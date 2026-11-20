@@ -101,12 +101,16 @@ export const hero = {
  * line, which already says what it does step by step. "Connected" is the
  * claim: the resumes, the matches and the filled forms all read the one
  * experience bank and profile, and the tracker keeps what each application
- * sent. Quality, never volume (the rule on `site.tagline`).
+ * sent. Quality, never volume (the rule on `site.tagline`). The answer is
+ * one large line of who it is for, then one smaller line of how: as one
+ * paragraph of 42 words at the large size it read as a wall of text (the
+ * user's catch, 2026-11-20).
  */
 export const whatIs = {
-  label: "What is WorkIt",
-  statement:
-    "WorkIt is for anyone applying to jobs who’s tired of doing the same work twice. It keeps your experience, resumes, matches and applications connected, so less of your week goes to busywork and more goes to applications worth sending.",
+  label: "What is WorkIt?",
+  statement: "The job search app for anyone tired of doing the same work twice.",
+  detail:
+    "Your experience, resumes, matches and applications stay connected, so less of your week goes to busywork and more goes to applications worth sending.",
 };
 
 /**

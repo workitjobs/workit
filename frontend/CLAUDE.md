@@ -269,11 +269,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for Mac button from KAN-922 joins in the same wrapping row), the logo
   strip (`logo-strip.tsx`, real employers from
   `logoStrip` in data.ts), **the opening run after Loopsii's** (the
-  user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`, WorkIt's app
-  icon in glass over a small label, `app-icon.tsx`, rising in with the
-  statement: the bare grey label read as plain text, the user's catch;
-  and one large statement of who WorkIt is for, in other words than the
-  hero's line, read in word by word as it arrives), where applications
+  user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`: WorkIt's app
+  icon in glass, large, on the left, `app-icon.tsx`, rising in with the
+  words; on the right the question "What is WorkIt?" in grey over its
+  answer, one large line of who WorkIt is for and one smaller line of how,
+  in other words than the hero's line, read in word by word as they
+  arrive. It was a small grey label beside one six-line paragraph, which
+  read as plain text and a wall of words, the user's catches), where applications
   get lost (`problems.tsx`, **the page's one dark band before the
   footer**, which zooms in as it rises: from lg up it grows from 80% to
   full size over its way up the screen, `GrowIn` with `from`, while What
