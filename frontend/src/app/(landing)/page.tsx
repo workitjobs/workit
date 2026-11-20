@@ -8,7 +8,7 @@ import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { SecondaryButton } from "./buttons";
 import { Control } from "./control";
-import { hero, site, testimonial } from "./data";
+import { featuresIntro, hero, site, testimonial } from "./data";
 import { GrowIn } from "./grow-in";
 import { HeroGrid } from "./hero-board";
 import { HeroFeatures } from "./hero-features";
@@ -116,16 +116,25 @@ export default function LandingPage() {
       {/* Real employers, drifting: logo-strip.tsx. */}
       <LogoStrip />
 
-      {/* Where applications get lost, before how WorkIt works: problems.tsx. */}
+      {/* Applying as it is, before how WorkIt works: problems.tsx. */}
       <Problems />
 
-      {/* The four features, one at a time: a section of their own since the
-          hero became one screen (hero-features.tsx). On the plain white
-          page with no label above the heading: on the hero's violet panel,
-          with a violet eyebrow, it read as off (the user's call). */}
+      {/* WorkIt's answer to the problems, then the four features, one at a
+          time: a section of their own since the hero became one screen
+          (hero-features.tsx). Its heading is the turn from the problems to
+          the product (the user's ask, 2026-11-20): what WorkIt is, then
+          what it does, in a line of claims the app keeps (Experiences,
+          Tailor, the Jobs page's Best Match, Auto Apply, the student's own
+          Submit); it never promises replies or interviews. On the plain
+          white page with no label above the heading: on the hero's violet
+          panel, with a violet eyebrow, it read as off (the user's call). */}
       <section aria-labelledby="features-title" className="py-16 sm:py-24">
         <div className={CONTAINER}>
-          <SectionHeading id="features-title" title="Every step of the search, in one place" />
+          <SectionHeading
+            id="features-title"
+            title={featuresIntro.title}
+            subtitle={featuresIntro.subtitle}
+          />
           <div className="mt-10 sm:mt-14">
             <HeroFeatures />
           </div>

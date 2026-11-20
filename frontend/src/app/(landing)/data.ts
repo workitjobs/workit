@@ -420,6 +420,22 @@ export const problems = {
 } as const;
 
 /**
+ * The turn from the problems to the product (page.tsx, the four features'
+ * section, KAN-923): what WorkIt is, then what it does. The user picked
+ * "one place for your whole job search", the platform idea, over "WorkIt
+ * does the busywork" (2026-11-20). Every clause of the line is a claim the
+ * app keeps today: the Experiences bank, Tailor (adds only keywords the
+ * student has used, docs/tailor_resume.md), the Jobs page's Best Match,
+ * Auto Apply filling each form, and the student's own Submit. It promises
+ * no replies or interviews: the one problem above WorkIt cannot fix.
+ */
+export const featuresIntro = {
+  title: "WorkIt is one place for your whole job search",
+  subtitle:
+    "It keeps your experience, tailors your resume to each job, finds the jobs that fit you and fills in each application. You check it and click Submit.",
+};
+
+/**
  * The promises behind the product (control.tsx, KAN-923), the worry any
  * auto apply tool raises, answered as what WorkIt does rather than as a
  * warning. Each is a claim, tied to its source: WorkIt never submits and

@@ -401,9 +401,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     cards, then a grid capped at 84rem, which left bare grey margins on a
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
-  - **The four features, below the hero and the logo strip**
+  - **The four features, after the problems**
     (`hero-features.tsx`, their own section since the hero became one
-    screen, "Every step of the search, in one place", on the plain white
+    screen). **Its heading is the turn from the problems to the product**
+    (the user's ask, 2026-11-20): "WorkIt is one place for your whole job
+    search", what WorkIt is, then one line of what it does ("It keeps your
+    experience, tailors your resume to each job, finds the jobs that fit
+    you and fills in each application. You check it and click Submit.",
+    `featuresIntro` in data.ts, each clause a claim the app keeps and no
+    promise of replies). It was "Every step of the search, in one place",
+    which listed the features but did not answer the problems. On the plain white
     page with no eyebrow: on a second violet panel with a violet eyebrow
     the user found it off; the tab track is slate at 5% so it reads on
     white): the four
