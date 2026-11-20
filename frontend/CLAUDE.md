@@ -431,9 +431,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     a time, the tracker filling itself in), and none promises replies or
     interviews. **Sell on facts the student feels** (the user's ask,
     2026-11-20): each line sells what the product saves the student, with
-    their time going into quality ("Spend your time on the jobs you fit",
-    "your time goes into the answers that matter"), never a feature name
-    or a count of applications. **The tracker "fills itself in", never
+    their time going into quality ("Spend your time on the jobs your
+    experience fits best"), never a feature name or a count of
+    applications. **The four lines stay even**: close in length (54 to 69
+    characters) and short, so the tiles take the same lines; lines from 36
+    to 120 characters, each in its own pattern, read as uneven (the
+    user's catch, 2026-11-20). **The tracker "fills itself in", never
     "updates itself"**: a saved job lands on its own, Auto Apply marks a
     job applied when the student submits in its tab and Apply Now asks
     "Did you apply?", but stages past Applied are set by hand, since

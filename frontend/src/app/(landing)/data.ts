@@ -479,20 +479,22 @@ export const featuresIntro = {
   subtitle:
     "Set up your profile once. Every tool below uses it, so you stop typing the same things over and over.",
   /** Each product's selling line on its link, in `PRODUCTS` order, the
-   *  user's picks and asks (2026-11-20): sell what each saves the student,
-   *  with time going into quality, never volume. */
+   *  user's picks (2026-11-20): sell what each saves the student, with time
+   *  going into quality, never volume. **Even**: the four are close in
+   *  length (54 to 69 characters), so three take two lines from 1100 to
+   *  1440px and the tracker's three, and their "See how" links line up;
+   *  lines from 36 to 120 characters, each in its own pattern, read as
+   *  uneven (the user's catch). */
   products: {
-    resumes:
-      "Making a resume has never been easier. Type on the page, LaTeX handles the layout, and one click tailors it to any job.",
-    matching: "Spend your time on the jobs you fit.",
-    "auto-apply":
-      "The basics fill themselves on up to five applications at once, so your time goes into the answers that matter.",
+    resumes: "Making a resume has never been easier. Tailor in a click.",
+    matching: "Spend your time on the jobs your experience fits best.",
+    "auto-apply": "The basics fill themselves, five applications at a time.",
     // "Fills itself in", never "updates itself": a saved job lands on its
     // own, Auto Apply marks a job applied when the student submits in its
     // tab, and Apply Now asks "Did you apply?" on the way back; stages past
-    // Applied are set by hand, since WorkIt reads no email.
-    tracker:
-      "The spreadsheet that fills itself in. Every job you save or apply to through WorkIt lands here, with the resume you sent.",
+    // Applied are set by hand, since WorkIt reads no email. Each application
+    // keeps the resume it went out with (docs/sent_resume.md).
+    tracker: "The spreadsheet that fills itself in. Every resume you sent, on file.",
   },
 };
 
