@@ -15,8 +15,13 @@ screens follow `design.md`, not this file.
    anywhere else reads as AI-made.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
-   never fills a button or a card. The one exception is the home hero's
-   ground, the page's one large field of violet.
+   never fills a button or a card. Two exceptions: the home hero's
+   ground, the page's one large field of violet, and a selected item in a
+   set the visitor clicks through, whose fill is the pale `brand-tint`
+   (its glyph on solid `brand`, no edge), as a selected row is in the app:
+   the problems hub's open card (`problem-hub.tsx`, the user's call,
+   2026-11-20; a white card beside grey ones was hard to pick out, and a
+   violet edge read as an outline button).
 3. **A heading stands alone.** No small label above a section heading
    (an "eyebrow"): the violet ones over every heading read as a template,
    and the user had them all removed. `SectionHeading` takes no eyebrow.

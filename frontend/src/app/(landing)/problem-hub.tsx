@@ -56,7 +56,12 @@ type Stat = { figure: string; text: string; source: string; href: string };
  * 29.5rem, 30rem)` tall and grows to the cards' height, what is left once the header, the heading, its one-line
  * subtitle and the figure are counted (measured at 1440 × 800).
  *
- * Each card has its glyph (`ICONS`) on a white tile, on ink when open.
+ * Each card has its glyph (`ICONS`) on a white tile. The open card is
+ * tinted violet (`brand-tint`, its glyph on solid `brand`), with no edge,
+ * so it reads as the selected item, as a selected row does in the app: as
+ * a white `.surface-card` beside flat grey ones it was hard to pick out,
+ * and a violet edge read as an outline button (the user's calls,
+ * 2026-11-20).
  *
  * The problems are buttons with `aria-pressed`, not tabs: the visuals are
  * pictures (`aria-hidden`), and each button's words are its name.
@@ -104,13 +109,13 @@ export function ProblemHub({
             className={cn(
               "flex items-start gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200 lg:items-center",
               "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
-              open ? "surface-card" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
+              open ? "bg-brand-tint" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
             )}
           >
             <span
               className={cn(
                 "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
-                open ? "bg-ink text-white" : "text-ink-meta bg-white",
+                open ? "bg-brand text-white" : "text-ink-meta bg-white",
               )}
             >
               <Icon aria-hidden="true" className="size-[18px]" />

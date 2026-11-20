@@ -452,9 +452,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     click, a tap or Enter opens a problem, never a hover (the user's call:
     the cards changed under a passing pointer); nothing changes on a
     timer. The problems are buttons with
-    `aria-pressed`, each with its glyph on a white tile (on ink when
-    open); the open one is a white `.surface-card`, the rest flat grey,
-    and every problem's words stay on screen, so only the picture changes.
+    `aria-pressed`, each with its glyph on a white tile; the open one is
+    tinted violet (`brand-tint`, its glyph on solid `brand`, no edge), the
+    rest flat grey, and every problem's words stay on screen, so only the
+    picture changes. **The tint is the selected state, the user's call**
+    (2026-11-20): as a white `.surface-card` beside grey ones the open card
+    was hard to pick out, and a violet edge read as an outline button.
     **The hub is one block** from lg up: each side's three cards share the
     stage's height and the stage grows to theirs, so their edges meet; set
     loosely beside a taller stage, under a two-line heading and a two-line
@@ -1595,7 +1598,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   buttons and the lavender gradient on cards, so: **colour lives only in
   the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (checks,
-  feature tiles, Plus's limit pills); **shadows are slate, never violet**
+  feature tiles, Plus's limit pills, and the pale tint of a selected item
+  the visitor clicked, the problems hub's open card); **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
   A new style that breaks one of these goes in the doc first, with the
   user's yes.
