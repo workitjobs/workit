@@ -1193,6 +1193,28 @@ async def test_a_model_slower_than_the_wait_leaves_the_parsers_reading(monkeypat
     assert len(reading.entries) == 6
 
 
+async def test_a_stalled_first_model_gives_way_to_the_next(monkeypatch):
+    # Gemini at "high demand" can hold a request open; the next model in the
+    # chain still reads the resume within the upload's wait.
+    import asyncio
+
+    from workit_scout.identity import Identity
+
+    from app.services import bank_import
+
+    class StalledFirst(ScriptedLLM):
+        async def _complete_schema(self, client, endpoint, messages, *args, **kwargs):
+            if endpoint == self._endpoints[0][0]:
+                await asyncio.sleep(60)
+            return await super()._complete_schema(client, endpoint, messages, *args, **kwargs)
+
+    monkeypatch.setattr(bank_import, "MODEL_TRY_SECONDS", 0.05)
+    reading = await bank_import.read_resume(
+        MODEL_TEXT, StalledFirst(["never"], _reading()), Identity(name="Sam Seeker")
+    )
+    assert reading.read_by == "model"
+
+
 async def test_a_model_reading_the_text_backs_none_of_leaves_the_parsers():
     from workit_scout.identity import Identity
 

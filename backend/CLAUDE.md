@@ -1129,7 +1129,8 @@ Find files with a directory listing; these are the rules for where code goes.
   entry by entry (`with_parsers_reading`: what the model left out comes
   from the parser, and the model's value wins where both have one); the merge rules are
   in `app/utils/CLAUDE.md`, "The model reads first". It saves the parser's reading when no use is
-  left, the model fails or runs past `MODEL_WAIT_SECONDS` (45), its reply
+  left, the model fails or runs past `MODEL_WAIT_SECONDS` (20; each model
+  in the chain gets `MODEL_TRY_SECONDS`, 10, then the next is asked), its reply
   fails the schema, or the text backs none of its entries. Only a model
   reading counts a use, committed with the bank writes (the preview
   commits it alone). No 429 and no 503: the limit and a failure both mean
