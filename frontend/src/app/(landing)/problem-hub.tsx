@@ -76,12 +76,14 @@ type Stat = { figure: string; text: string; source: string; href: string };
  * the header, the band's padding, the heading, its one-line subtitle and
  * the figure are counted (measured at 1440 × 800: the band about 795px).
  *
- * It stands on the dark band (problems.tsx): the cards are white at 6% on
- * its near-black, each glyph on a lighter tile, the words white; the open
- * card is solid white with ink words and its glyph on a near-black tile, the band's own
- * colours turned over, so it reads as the selected item. On the light
- * page it was the pale violet tint; on the ink that tint read as off theme
- * (the user's catch, 2026-11-20), and a violet edge read as a button.
+ * It stands on the band's light grey (problems.tsx): the cards are white
+ * with the page's card shadow, each glyph on a pale grey tile, the words
+ * ink; the open card is solid ink with white words and its glyph on a
+ * white tile, the band's own colours turned over, so it reads as the
+ * selected item. It was a pale violet tint, which on the band's dark days
+ * read as off theme (the user's catch, 2026-11-20), and a violet edge read
+ * as a button. The band was near-black for a day and read as out of
+ * nowhere between two white sections (the user's catch, 2026-11-20).
  * The figure is an outlined strip with no fill and a large number, so it
  * stands apart from the filled cards: filled like them, it blended in
  * (the user's catch, 2026-11-20); as an outlined box with quote marks on
@@ -132,16 +134,18 @@ export function ProblemHub({
             onClick={() => pick(i)}
             className={cn(
               "flex items-start gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200 lg:items-center",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-              open ? "bg-white" : "bg-white/[0.06] hover:bg-white/[0.1]",
+              "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
+              open
+                ? "bg-ink"
+                : "bg-white shadow-(--mk-shadow-card) hover:shadow-(--mk-shadow-float)",
             )}
           >
             <span
               className={cn(
                 "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
-                // Solid, not white at 10%: the letter glyph's cross knocks
+                // Solid, never see-through: the letter glyph's cross knocks
                 // out against the tile's own fill (`[background:inherit]`).
-                open ? "bg-(--mk-night) text-white" : "bg-[#2b2b2b] text-white/75",
+                open ? "text-ink bg-white" : "text-ink-meta bg-[#f1f1f1]",
               )}
             >
               <Icon aria-hidden="true" className="size-[18px]" />
@@ -150,7 +154,7 @@ export function ProblemHub({
               <span
                 className={cn(
                   "block text-[15px] leading-snug font-medium transition-colors",
-                  open ? "text-ink" : "text-white",
+                  open ? "text-white" : "text-ink",
                 )}
               >
                 {problem.title}
@@ -158,7 +162,7 @@ export function ProblemHub({
               <span
                 className={cn(
                   "mt-1 block text-[13.5px] leading-snug text-pretty",
-                  open ? "text-ink-meta" : "text-white/65",
+                  open ? "text-white/70" : "text-ink-meta",
                 )}
               >
                 {problem.body}
@@ -177,7 +181,7 @@ export function ProblemHub({
         <div
           ref={stageRef}
           data-arrived={mounted ? String(arrived && !hold) : undefined}
-          className="relative order-first h-[22rem] overflow-hidden rounded-2xl bg-white/[0.04] md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-33rem),30rem)]"
+          className="relative order-first h-[22rem] overflow-hidden rounded-2xl bg-white/60 ring-1 ring-slate-900/[0.06] ring-inset md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-33rem),30rem)]"
         >
           {/* A dot grid on the stage, fading toward the middle where the
               visual sits (`.problem-dots`, the user's pick of six patterns,
@@ -192,21 +196,21 @@ export function ProblemHub({
         {column(half, problems.length, "lg:order-3")}
       </div>
       {/* The section's one figure as an outlined strip across the hub's
-          width: no fill, a white hairline, the number large in white, its
+          width: no fill, a slate hairline, the number large in ink, its
           sentence and its source. Filled like the cards it blended in (the
-          user's catch, 2026-11-20); its number was a light red, which on
-          the dark read as a template's stat callout. */}
-      <figure className="mt-3 grid items-center gap-x-7 gap-y-1.5 rounded-2xl px-5 py-5 ring-1 ring-white/20 ring-inset sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-7">
-        <p className="font-display text-[3.25rem] leading-none font-medium tracking-[-0.04em] text-white">
+          user's catch, 2026-11-20); its number was a light red, which read
+          as a template's stat callout. */}
+      <figure className="mt-3 grid items-center gap-x-7 gap-y-1.5 rounded-2xl px-5 py-5 ring-1 ring-slate-900/[0.12] ring-inset sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-7">
+        <p className="font-display text-ink text-[3.25rem] leading-none font-medium tracking-[-0.04em]">
           {stat.figure}
         </p>
-        <p className="text-[17px] leading-snug text-pretty text-white">{stat.text}</p>
-        <figcaption className="text-[13px] text-white/60">
+        <p className="text-ink text-[17px] leading-snug text-pretty">{stat.text}</p>
+        <figcaption className="text-ink-meta text-[13px]">
           <a
             href={stat.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 underline decoration-white/30 underline-offset-2 hover:text-white"
+            className="hover:text-ink inline-flex items-center gap-1 underline decoration-slate-900/25 underline-offset-2"
           >
             {stat.source}
             <ArrowUpRightIcon aria-hidden="true" className="size-3" />

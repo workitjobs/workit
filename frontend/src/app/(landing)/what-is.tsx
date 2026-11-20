@@ -22,7 +22,7 @@ import { CONTAINER, TYPE } from "./layout-parts";
  * a wall of text with the label oddly placed (the user's catch,
  * 2026-11-20).
  *
- * As the problems' dark band rises over it and zooms in, the statement
+ * As the problems' grey band rises over it and zooms in, the statement
  * steps back: it fades to a quarter and shrinks to 96% over the last
  * stretch of its way up (the camera moving in, after Loopsii's statement
  * blurring under its dark card; the user's ask, 2026-11-20). Opacity and a

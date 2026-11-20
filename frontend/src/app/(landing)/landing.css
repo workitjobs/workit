@@ -20,6 +20,12 @@
      slate glow in the middle and dots across the band read as the stock
      dark section of an AI-made site (the user's catch, 2026-11-20). */
   --mk-night: #121212;
+  /* The problems band's ground: a light neutral grey, a step below the
+     white page, so the band reads as its own chapter in the page's own
+     light family and white cards stand on it. It was the night colour,
+     the one dark block before the footer, which read as out of nowhere
+     (the user's catch, 2026-11-20). */
+  --mk-mist: #f0f0f0;
   /* A card resting on the page. */
   --mk-shadow-card:
     0 0 0 1px var(--mk-hairline), 0 1px 2px rgb(15 23 42 / 0.04),
@@ -1782,12 +1788,13 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* The problems' dark band (problems.tsx): flat neutral near-black, with no
-   glow and no grain; the stage's dot grid (`.problem-dots`) is the band's
-   one texture. A slate pool and dots across the whole band read as AI-made
-   (the user's catch, 2026-11-20). */
+/* The problems band (problems.tsx): flat light grey, with no glow and no
+   grain; the stage's dot grid (`.problem-dots`) is the band's one texture.
+   It was a near-black band, and before that ink with a slate pool and dots
+   across it; both read as out of place on the white page (the user's
+   catches, 2026-11-20). */
 .problems-ground {
-  background: var(--mk-night);
+  background: var(--mk-mist);
 }
 /* The product demo's glass frame (why-exists.tsx): a frosted white bezel
    with a bright top edge and a white rim, over a StudioBox's violet sky,
@@ -1850,7 +1857,7 @@ html[data-tab-flight="flying"] .tour-tabs {
    strongest at the edges and fading to a fifth toward the middle, so the
    visual stands on the plain stage. Still, so it costs nothing per frame. */
 .problem-dots {
-  background-image: radial-gradient(rgb(255 255 255 / 0.16) 1.3px, transparent 1.5px);
+  background-image: radial-gradient(rgb(15 23 42 / 0.13) 1.3px, transparent 1.5px);
   background-size: 16px 16px;
   background-position: center;
   mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);

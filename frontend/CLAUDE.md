@@ -285,8 +285,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   four lines of the page (the user's catch, 2026-11-20). It was a small grey label beside one six-line
   paragraph, which read as plain text and a wall of words, the user's
   catches), where applications
-  get lost (`problems.tsx`, **the page's one dark band before the
-  footer**, which zooms in as it rises: from lg up it grows from 80% to
+  get lost (`problems.tsx`, **a light grey band, the page's one panel
+  between the hero and the footer**, which zooms in as it rises: from lg up it grows from 80% to
   full size over its way up the screen, `GrowIn` with `from`, while What
   is WorkIt's statement fades to a quarter and shrinks to 96%, both
   scroll-linked opacity and transform strings the browser runs off the
@@ -534,19 +534,19 @@ selling line that says what the product does** and "See how", a
     filled like the cards it blended in; on the light page an outlined box
     with quote marks on its corners read as tacked on; before it, plain
     text under a hairline did not read as a sourced fact; its number was
-    a light red, which on the dark read as a template's stat callout).
-    **It stands on the dark band**, a flat neutral near-black
-    (`--mk-night`, #121212, shared with the footer) with no glow and no
-    grain: it was the ink, #121a28, a blue-black, with a slate pool in the
-    middle and dots across the whole band, which read as the stock dark
-    section of an AI-made site (the user's catch, 2026-11-20); the stage's
-    dot grid is its one texture. The cards are white at 6% with white
-    words, each glyph on a solid tile a step lighter than the ground
-    (solid, so the letter glyph's cross knocks out against it), and the
-    open card solid white with ink words and its glyph on a near-black
-    tile, the band's colours turned over (the
-    pale violet tint it had on the light page read as off theme on the
-    ink, the user's catch, 2026-11-20). A
+    a light red, which read as a template's stat callout).
+    **It stands on a light grey band** (`--mk-mist`, #f0f0f0, a step
+    below the white page) with no glow and no grain; the stage's dot grid
+    is its one texture. **It was dark for a day** (2026-11-20): first the
+    ink, #121a28, a blue-black, with a slate pool in the middle and dots
+    across the band, which read as the stock dark section of an AI-made
+    site, then a flat near-black, which read as out of nowhere, the one
+    dark block between two white sections (the user's catches). The
+    cards are white with the page's card shadow and ink words, each glyph
+    on a solid pale grey tile (solid, so the letter glyph's cross knocks
+    out against it), and the open card solid ink with white words and its
+    glyph on a white tile, the band's colours turned over (a pale violet
+    tint read as off theme, the user's catch, 2026-11-20). A
     click, a tap or Enter opens a problem, never a hover (the user's call:
     the cards changed under a passing pointer); nothing changes on a
     timer. The problems are buttons with
@@ -569,8 +569,8 @@ selling line that says what the product does** and "See how", a
     work at Notion?" box, the student's spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
     application with "No reply in weeks". Each is plain UI, 20rem wide,
-    centred on a stage of white at 4% on the dark band under a dot grid
-    in white at 16% that fades toward the middle (`.problem-dots` in
+    centred on a stage of white at 60% with a slate hairline on the band,
+    under a dot grid in slate at 13% that fades toward the middle (`.problem-dots` in
     landing.css; the user's pick of six patterns, 2026-11-20, since a flat
     stage read as boring; at 22rem the windows hid all but a thin band of
     dots), with no feature's
@@ -1715,8 +1715,8 @@ selling line that says what the product does** and "See how", a
   the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (checks,
   feature tiles, Plus's limit pills, and the pale tint of a selected item
-  the visitor clicked on a light ground; on the problems' dark band the
-  open card is solid white instead; one exception to grey cards: the four
+  the visitor clicked on a light ground; on the problems' grey band the
+  open card is solid ink instead; one exception to grey cards: the four
   product tiles, each flat in its own feature's pale tint, 2026-11-20);
   **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).

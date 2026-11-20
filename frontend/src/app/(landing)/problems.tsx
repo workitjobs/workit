@@ -55,10 +55,10 @@ export function Problems() {
       >
         <div className={CONTAINER}>
           <div className="mx-auto max-w-3xl text-center">
-            <h2 id="problems-title" className={cn(TYPE.chapter, "text-white")}>
+            <h2 id="problems-title" className={cn(TYPE.chapter, "text-ink")}>
               {title}
             </h2>
-            <p className={cn(TYPE.lead, "mx-auto mt-5 max-w-2xl text-white/70")}>{subtitle}</p>
+            <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
           </div>
           <ProblemHub
             problems={items}

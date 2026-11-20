@@ -176,7 +176,7 @@ second blur would see nothing).
 ### `StudioBox` (`layout-parts.tsx`)
 
 The frame for every picture and animation but one (the problems' visuals
-stand on the dark band's stage under a white dot grid that fades toward
+stand on the grey band's stage under a slate dot grid that fades toward
 the middle, `.problem-dots`: they show the search as it is, not a WorkIt
 feature, so they take no feature's sky; the user's calls, 2026-11-20,
 the dots picked from six patterns over a flat stage that read as
@@ -227,24 +227,24 @@ across the window at the block's top and foot and two down its sides.
 - **Neutral**, never a feature's colour. The hero is not framed for
   now: its violet panel already fills the screen edge to edge.
 
-### The dark band (`problems.tsx`)
+### The grey band (`problems.tsx`)
 
-One dark band before the footer, the problems of a search: a flat
-neutral near-black (`--mk-night`, #121212, the footer's ground too) with
-no glow and no grain (`.problems-ground`), never a feature's colour. The
-ink, a blue-black, with a slate pool and dots across the band read as the
-stock dark section of an AI-made site (the user's catch, 2026-11-20); the
-stage's dots are its one texture, and the figure's number is white, not
-a light red. It has a white heading and line, the hub's cards white at 6%
-with white words (the open one solid white with ink words, the band's
-colours turned over: the pale violet tint read as off theme on the ink)
-and the figure as an outlined strip with no fill, so it stands apart
-from the filled cards. It is the search before WorkIt, the mood the
-bright product sections answer; keep it the only one, or the page loses
-that turn. From lg up it zooms in as it rises (`GrowIn`, from 80%) while
-What is WorkIt above fades and shrinks a little, both scroll-linked
-opacity and transforms; never a blur, which would rest half on. Its
-frame breaks the drafting grid's rail: the band is the rail's pause.
+One light grey band, the problems of a search: flat `--mk-mist`
+(#f0f0f0), a step below the white page, with no glow and no grain
+(`.problems-ground`), never a feature's colour. It has an ink heading and
+a grey line, the hub's cards white with the card shadow (the open one
+solid ink with white words, the band's colours turned over), the stage
+white at 60% under a slate dot grid, its one texture, and the figure as
+an outlined strip with no fill, its number in ink. **It was dark for a
+day** (2026-11-20): the ink with a slate pool and dots read as the stock
+dark section of an AI-made site, and a flat near-black then read as out
+of nowhere, the one dark block between two white sections (the user's
+catches); the footer is the page's one dark panel. It is the search
+before WorkIt, the chapter the product sections answer. From lg up it
+zooms in as it rises (`GrowIn`, from 80%) while What is WorkIt above
+fades and shrinks a little, both scroll-linked opacity and transforms;
+never a blur, which would rest half on. Its frame breaks the drafting
+grid's rail: the band is the rail's pause.
 
 ### The demo's glass frame (`.demo-glass`, `why-exists.tsx`)
 
