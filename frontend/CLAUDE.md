@@ -502,8 +502,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     four features three times (the features card, the journey, the product
     sections) and never who WorkIt is for or what problem it fixes. So the
     journey is archived and two sections replace it. **The problems**
-    (`problems.tsx`, after the logo strip): "Applying for jobs has become a
-    full-time job", what a job seeker goes through day to day across the
+    (`problems.tsx`, after What is WorkIt): "Applying for a job shouldn't
+    feel like a full-time job" (the user's words, 2026-11-20; it was
+    "Applying for jobs has become a full-time job"), what a job seeker goes
+    through day to day across the
     whole job application process (never internships and new-grad roles
     alone: the user's call). **A hub** (`problem-hub.tsx`, the user's
     layout, 2026-11-20): six problems in the order a search meets them,
@@ -516,24 +518,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     last card names both likely ends), one large visual in the middle for
     the open one, and under it the section's one figure, shown as a fact
     with its source (81%, Greenhouse's 2026 candidate report, linked), as
-    a flat strip in the cards' own fill and corners across the hub's
-    width, the number in a light red, so it reads as the hub's last row
-    (the user's call, 2026-11-20: an outlined box with quote marks on its
-    corners read as tacked on; before it, plain text under a hairline did
-    not read as a sourced fact). **It stands on the dark band**: the
-    cards white at 6% with white words, each glyph on a solid tile a
-    step lighter than the ink (solid, so the letter glyph's cross knocks
-    out against it), and the open card the pale violet tint with ink
-    words. A
+    an outlined strip across the hub's width, no fill, a white hairline
+    and the number large in a light red, so it stands apart from the
+    filled cards as the hub's last row (the user's calls, 2026-11-20:
+    filled like the cards it blended in; on the light page an outlined box
+    with quote marks on its corners read as tacked on; before it, plain
+    text under a hairline did not read as a sourced fact). **It stands on
+    the dark band**: the cards white at 6% with white words, each glyph on
+    a solid tile a step lighter than the ink (solid, so the letter glyph's
+    cross knocks out against it), and the open card solid white with ink
+    words and its glyph on an ink tile, the band's colours turned over (the
+    pale violet tint it had on the light page read as off theme on the
+    ink, the user's catch, 2026-11-20). A
     click, a tap or Enter opens a problem, never a hover (the user's call:
     the cards changed under a passing pointer); nothing changes on a
     timer. The problems are buttons with
-    `aria-pressed`, each with its glyph on a white tile; the open one is
-    tinted violet (`brand-tint`, its glyph on solid `brand`, no edge), the
-    rest flat grey, and every problem's words stay on screen, so only the
-    picture changes. **The tint is the selected state, the user's call**
-    (2026-11-20): as a white `.surface-card` beside grey ones the open card
-    was hard to pick out, and a violet edge read as an outline button.
+    `aria-pressed`, and every problem's words stay on screen, so only the
+    picture changes. **The open card is the selected state**: never an
+    edge, which read as an outline button (the user's call, 2026-11-20).
     **The hub is one block** from lg up: each side's three cards fill the
     stage's height, each row as tall as its words with the spare room
     shared out (rows of one third each made every card as tall as the
@@ -1693,9 +1695,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the home hero's grainy ground and inside a `StudioBox`; cards, buttons and the page are
   white, ink and grey; violet marks small things only** (checks,
   feature tiles, Plus's limit pills, and the pale tint of a selected item
-  the visitor clicked, the problems hub's open card; one exception to
-  grey cards: the four product tiles, each flat in its own feature's pale
-  tint, 2026-11-20); **shadows are slate, never violet**
+  the visitor clicked on a light ground; on the problems' dark band the
+  open card is solid white instead; one exception to grey cards: the four
+  product tiles, each flat in its own feature's pale tint, 2026-11-20);
+  **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
   A new style that breaks one of these goes in the doc first, with the
   user's yes.

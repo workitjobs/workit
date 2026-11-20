@@ -78,12 +78,14 @@ type Stat = { figure: string; text: string; source: string; href: string };
  *
  * It stands on the dark band (problems.tsx): the cards are white at 6% on
  * the ink, each glyph on a lighter tile, the words white; the open card is
- * the pale violet tint (`brand-tint`, ink words, its glyph on solid
- * `brand`), with no edge, so it reads as the selected item, as a selected
- * row does in the app (the user's calls, 2026-11-20: a white card beside
- * flat grey ones was hard to pick out, a violet edge read as a button).
- * The figure is a flat strip in the cards' own style: an outlined quote
- * box read as tacked on (the user's catch).
+ * solid white with ink words and its glyph on an ink tile, the band's own
+ * colours turned over, so it reads as the selected item. On the light
+ * page it was the pale violet tint; on the ink that tint read as off theme
+ * (the user's catch, 2026-11-20), and a violet edge read as a button.
+ * The figure is an outlined strip with no fill and a large number, so it
+ * stands apart from the filled cards: filled like them, it blended in
+ * (the user's catch, 2026-11-20); as an outlined box with quote marks on
+ * the light page it read as tacked on.
  *
  * The problems are buttons with `aria-pressed`, not tabs: the visuals are
  * pictures (`aria-hidden`), and each button's words are its name.
@@ -131,7 +133,7 @@ export function ProblemHub({
             className={cn(
               "flex items-start gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200 lg:items-center",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-              open ? "bg-brand-tint" : "bg-white/[0.06] hover:bg-white/[0.1]",
+              open ? "bg-white" : "bg-white/[0.06] hover:bg-white/[0.1]",
             )}
           >
             <span
@@ -139,7 +141,7 @@ export function ProblemHub({
                 "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
                 // Solid, not white at 10%: the letter glyph's cross knocks
                 // out against the tile's own fill (`[background:inherit]`).
-                open ? "bg-brand text-white" : "bg-[#2a313e] text-white/75",
+                open ? "bg-ink text-white" : "bg-[#2a313e] text-white/75",
               )}
             >
               <Icon aria-hidden="true" className="size-[18px]" />
@@ -189,15 +191,15 @@ export function ProblemHub({
         </div>
         {column(half, problems.length, "lg:order-3")}
       </div>
-      {/* The section's one figure as a flat strip, the cards' own fill and
-          corners across the hub's width: the number, its sentence and its
-          source. As an outlined box with quote marks it read as tacked on
-          below the hub (the user's catch, 2026-11-20). */}
-      <figure className="mt-3 grid items-center gap-x-6 gap-y-1 rounded-2xl bg-white/[0.06] px-5 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-6">
-        <p className="font-display text-[2.5rem] leading-none font-medium tracking-[-0.04em] text-[color-mix(in_oklab,var(--color-danger)_55%,white)]">
+      {/* The section's one figure as an outlined strip across the hub's
+          width: no fill, a white hairline, the number large in a light
+          red, its sentence and its source. Filled like the cards it
+          blended in (the user's catch, 2026-11-20). */}
+      <figure className="mt-3 grid items-center gap-x-7 gap-y-1.5 rounded-2xl px-5 py-5 ring-1 ring-white/20 ring-inset sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-7">
+        <p className="font-display text-[3.25rem] leading-none font-medium tracking-[-0.04em] text-[color-mix(in_oklab,var(--color-danger)_50%,white)]">
           {stat.figure}
         </p>
-        <p className="text-[15px] leading-snug text-pretty text-white/85">{stat.text}</p>
+        <p className="text-[17px] leading-snug text-pretty text-white">{stat.text}</p>
         <figcaption className="text-[13px] text-white/60">
           <a
             href={stat.href}

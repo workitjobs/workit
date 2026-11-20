@@ -423,7 +423,9 @@ export const heroFits: { title: string; company: string; domain: string; score: 
  * internships and new-grad roles (the user's call).
  */
 export const problems = {
-  title: "Applying for jobs has become a full-time job",
+  // The user's words (2026-11-20), in the site's sentence case: it was
+  // "Applying for jobs has become a full-time job".
+  title: "Applying for a job shouldn’t feel like a full-time job",
   /** One line under the heading from lg up: on two, with the two-line
    *  heading, the section's top took a third of the screen and the hub
    *  looked small under it (the user's catch). */
@@ -478,7 +480,7 @@ export const problems = {
 
 /**
  * The turn from the problems to the product (page.tsx, KAN-923): a plain
- * answer to "Applying for jobs has become a full-time job", then why one
+ * answer to "Applying for a job shouldn't feel like a full-time job", then why one
  * app beats four (one profile feeds every tool), then each product sold in
  * one or two short lines on the row of links (`FeatureJumps`). It was
  * "WorkIt is one place for your whole job search", which the user found

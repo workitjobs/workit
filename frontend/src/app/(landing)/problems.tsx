@@ -17,7 +17,7 @@ import {
  * Applying as it is (KAN-923), right after the logo strip, so the page says
  * why before it says how: what a job seeker goes through day to day,
  * before WorkIt. A centred heading about the whole search ("Applying for
- * jobs has become a full-time job") with its line, then the hub: six
+ * a job shouldn't feel like a full-time job") with its line, then the hub: six
  * problems, three on each side, one large visual in the middle for the open
  * one, and the section's one figure with its source (`ProblemHub`).
  *

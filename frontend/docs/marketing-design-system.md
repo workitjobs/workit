@@ -25,10 +25,10 @@ screens follow `design.md`, not this file.
    never fills a button or a card. Two exceptions: the home hero's
    ground, the page's one large field of violet, and a selected item in a
    set the visitor clicks through, whose fill is the pale `brand-tint`
-   (its glyph on solid `brand`, no edge), as a selected row is in the app:
-   the problems hub's open card (`problem-hub.tsx`, the user's call,
-   2026-11-20; a white card beside grey ones was hard to pick out, and a
-   violet edge read as an outline button).
+   (its glyph on solid `brand`, no edge), as a selected row is in the app.
+   The problems hub's open card used it until the hub moved onto the dark
+   band, where it read as off theme; there the open card is solid white
+   (the user's calls, 2026-11-20).
 3. **A heading stands alone.** No small label above a section heading
    (an "eyebrow"): the violet ones over every heading read as a template,
    and the user had them all removed. `SectionHeading` takes no eyebrow.
@@ -227,8 +227,10 @@ across the window at the block's top and foot and two down its sides.
 One ink band before the footer, the problems of a search: ink with a
 soft slate pool and a faint dot grain (`.problems-ground`), never a
 feature's colour, a white heading and line, the hub's cards white at 6%
-with white words (the open one the pale violet tint) and the figure as a
-flat strip in the same fill. It is the search before WorkIt, the mood the
+with white words (the open one solid white with ink words, the band's
+colours turned over: the pale violet tint read as off theme on the ink)
+and the figure as an outlined strip with no fill, so it stands apart
+from the filled cards. It is the search before WorkIt, the mood the
 bright product sections answer; keep it the only one, or the page loses
 that turn. From lg up it zooms in as it rises (`GrowIn`, from 80%) while
 What is WorkIt above fades and shrinks a little, both scroll-linked
@@ -317,7 +319,7 @@ translate inside a clipped track.
 | A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
-| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: on the page's one dark band, six problems, three on each side of one large visual on a stage under a fading dot grid, and one sourced figure as a flat strip in the cards' style), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
+| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: on the page's one dark band, six problems, three on each side of one large visual on a stage under a fading dot grid, and one sourced figure as an outlined strip), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |
