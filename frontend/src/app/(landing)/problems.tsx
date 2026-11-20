@@ -1,5 +1,8 @@
+import { cn } from "@/lib/cn";
+
 import { problems } from "./data";
-import { CONTAINER, SectionHeading } from "./layout-parts";
+import { GrowIn } from "./grow-in";
+import { CONTAINER, PANEL, PANEL_INSET, TYPE } from "./layout-parts";
 import { ProblemHub } from "./problem-hub";
 import {
   BoardsScene,
@@ -41,11 +44,29 @@ const SCENES = {
 export function Problems() {
   const { title, subtitle, items, stat } = problems;
   return (
-    <section aria-labelledby="problems-title" className="py-16 sm:py-24">
-      <div className={CONTAINER}>
-        <SectionHeading id="problems-title" title={title} subtitle={subtitle} />
-        <ProblemHub problems={items} scenes={items.map((item) => SCENES[item.scene])} stat={stat} />
-      </div>
+    <section aria-labelledby="problems-title" className={cn(PANEL_INSET, "py-2")}>
+      {/* The zoom in: the band grows from 80% as it rises up the screen, a
+          scroll-linked scale the browser runs off the main thread
+          (`GrowIn`), so What is WorkIt hands over to it as if the camera
+          moved in. From lg up and without reduced motion only. */}
+      <GrowIn
+        from={0.8}
+        className={cn(PANEL, "problems-ground relative isolate overflow-hidden py-14 sm:py-20")}
+      >
+        <div className={CONTAINER}>
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 id="problems-title" className={cn(TYPE.chapter, "text-white")}>
+              {title}
+            </h2>
+            <p className={cn(TYPE.lead, "mx-auto mt-5 max-w-2xl text-white/70")}>{subtitle}</p>
+          </div>
+          <ProblemHub
+            problems={items}
+            scenes={items.map((item) => SCENES[item.scene])}
+            stat={stat}
+          />
+        </div>
+      </GrowIn>
     </section>
   );
 }

@@ -17,7 +17,6 @@ import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
 import { FeatureJumps, ProductSections } from "./product-sections";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
-import { TediousWork } from "./tedious-work";
 import { Testimonial } from "./testimonial";
 import { WhatIs } from "./what-is";
 import { WhyExists } from "./why-exists";
@@ -119,10 +118,9 @@ export default function LandingPage() {
       <LogoStrip />
 
       {/* The opening run after Loopsii's (the user's ask, 2026-11-20): what
-          WorkIt is, the tedious work in the way, the problems in detail,
-          then why WorkIt exists over the product demo. */}
+          WorkIt is, then the problems on a dark band that zooms in as it
+          rises, then why WorkIt exists over the product demo. */}
       <WhatIs />
-      <TediousWork />
 
       {/* Applying as it is, before how WorkIt works: problems.tsx. */}
       <Problems />

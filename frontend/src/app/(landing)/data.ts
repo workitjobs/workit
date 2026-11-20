@@ -93,8 +93,9 @@ export const hero = {
 
 /**
  * The home page's opening run after the hero (KAN-923, after Loopsii's,
- * the user's ask, 2026-11-20): what WorkIt is, the tedious work in the way
- * of a job, then why WorkIt exists over the product demo.
+ * the user's ask, 2026-11-20): what WorkIt is, then the problems (on a dark
+ * band since 2026-11-20, `problems` below), then why WorkIt exists over the
+ * product demo.
  *
  * `whatIs` says who WorkIt is for and why, in other words than the hero's
  * line, which already says what it does step by step. "Connected" is the
@@ -106,29 +107,6 @@ export const whatIs = {
   label: "What is WorkIt",
   statement:
     "WorkIt is for anyone applying to jobs who’s tired of doing the same work twice. It keeps your experience, resumes, matches and applications connected, so less of your week goes to busywork and more goes to applications worth sending.",
-};
-
-/**
- * The tedious work in the way (tedious-work.tsx): the heading in two
- * halves round the thoughts a job seeker has in a week of applying. The
- * thoughts are moments, not claims, each one a problem a WorkIt product
- * answers; none repeats the problems hub's words below it.
- */
-export const tediousWork = {
-  start: "Too much tedious work",
-  end: "between you and the job you want",
-  thoughts: [
-    "Did I already apply here?",
-    "Which resume did I send?",
-    "Retyping my work history. Again.",
-    "“Why do you want to work here?”",
-    "Is this posting still open?",
-    "Fix the margins, one more time",
-    "Make another account",
-    "Update the spreadsheet",
-    "Tailor it for this one too",
-    "Did they ever reply?",
-  ],
 };
 
 /**

@@ -171,10 +171,10 @@ second blur would see nothing).
 ### `StudioBox` (`layout-parts.tsx`)
 
 The frame for every picture and animation but one (the problems' visuals
-stand on a grey stage under a slate dot grid that fades toward the
-middle, `.problem-dots`: they show the search as it is, not a WorkIt
+stand on the dark band's stage under a white dot grid that fades toward
+the middle, `.problem-dots`: they show the search as it is, not a WorkIt
 feature, so they take no feature's sky; the user's calls, 2026-11-20,
-the dots picked from six patterns over a flat grey that read as
+the dots picked from six patterns over a flat stage that read as
 boring): 16px corners, a feature's
 `studioGround` and a fine grain (`.studio-box`; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
@@ -222,13 +222,18 @@ across the window at the block's top and foot and two down its sides.
 - **Neutral**, never a feature's colour. The hero is not framed for
   now: its violet panel already fills the screen edge to edge.
 
-### The dark band (`tedious-work.tsx`)
+### The dark band (`problems.tsx`)
 
-One ink band before the footer, the tedious work in the way: ink with a
-soft slate pool and a faint dot grain (`.tedious-ground`), never a
-feature's colour, white headline halves and white thought pills. It is
-the search before WorkIt, the mood the bright product sections answer;
-keep it the only one, or the page loses that turn.
+One ink band before the footer, the problems of a search: ink with a
+soft slate pool and a faint dot grain (`.problems-ground`), never a
+feature's colour, a white heading and line, the hub's cards white at 6%
+with white words (the open one the pale violet tint) and the figure as a
+flat strip in the same fill. It is the search before WorkIt, the mood the
+bright product sections answer; keep it the only one, or the page loses
+that turn. From lg up it zooms in as it rises (`GrowIn`, from 80%) while
+What is WorkIt above fades and shrinks a little, both scroll-linked
+opacity and transforms; never a blur, which would rest half on. Its
+frame breaks the drafting grid's rail: the band is the rail's pause.
 
 ### The demo's glass frame (`.demo-glass`, `why-exists.tsx`)
 
@@ -312,7 +317,7 @@ translate inside a clipped track.
 | A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
-| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: six problems, three on each side of one large visual on a grey stage under a fading dot grid, and one sourced figure in an outlined box set as a quote, grey quote marks on its corners and its number in red), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
+| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: on the page's one dark band, six problems, three on each side of one large visual on a stage under a fading dot grid, and one sourced figure as a flat strip in the cards' style), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |

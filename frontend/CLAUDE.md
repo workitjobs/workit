@@ -271,12 +271,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `logoStrip` in data.ts), **the opening run after Loopsii's** (the
   user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`, a small label
   and one large statement of who WorkIt is for, in other words than the
-  hero's line, read in word by word as it arrives), the tedious work in
-  the way (`tedious-work.tsx`, the page's one dark band before the footer:
-  ink, "Too much tedious work" at the top left and "between you and the
-  job you want" at the foot right, and between them, in brackets, a job
-  seeker's thoughts as white pills that pop in one after another), where
-  applications get lost (`problems.tsx`), and That's why WorkIt exists
+  hero's line, read in word by word as it arrives), where applications
+  get lost (`problems.tsx`, **the page's one dark band before the
+  footer**, which zooms in as it rises: from lg up it grows from 80% to
+  full size over its way up the screen, `GrowIn` with `from`, while What
+  is WorkIt's statement fades to a quarter and shrinks to 96%, both
+  scroll-linked opacity and transform strings the browser runs off the
+  main thread, after Loopsii's statement going out of focus under its
+  dark card; a blur was left out, since it would stay half on wherever
+  the reader stopped; the user's ask, 2026-11-20, which merged a separate
+  band of a job seeker's thoughts as pills, Loopsii's own layout, into
+  the problems), and That's why WorkIt exists
   (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
   sky; **the demo is a placeholder**, a white screen with a play mark and
   "Product demo, coming soon", until a recording or screenshot replaces
@@ -510,14 +515,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     details typed again, the written answers are their own card, and the
     last card names both likely ends), one large visual in the middle for
     the open one, and under it the section's one figure, shown as a fact
-    with its source (81%, Greenhouse's 2026 candidate report, linked), in
-    an outlined box set as a quote, a large grey opening quote breaking its
-    top-left edge and a closing one its bottom-right, each glyph's ink
-    centred on its line (measured: set by their line boxes, both sat
-    high), and the number in red behind a hairline (the user's asks: as
-    plain text under a hairline it did not read as a sourced fact, a
-    filled dark box read as heavy and odd, a "By the numbers" label on the
-    edge was not needed, and red quote marks competed with the number). A
+    with its source (81%, Greenhouse's 2026 candidate report, linked), as
+    a flat strip in the cards' own fill and corners across the hub's
+    width, the number in a light red, so it reads as the hub's last row
+    (the user's call, 2026-11-20: an outlined box with quote marks on its
+    corners read as tacked on; before it, plain text under a hairline did
+    not read as a sourced fact). **It stands on the dark band**: the
+    cards white at 6% with white words, each glyph on a solid tile a
+    step lighter than the ink (solid, so the letter glyph's cross knocks
+    out against it), and the open card the pale violet tint with ink
+    words. A
     click, a tap or Enter opens a problem, never a hover (the user's call:
     the cards changed under a passing pointer); nothing changes on a
     timer. The problems are buttons with
@@ -543,17 +550,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     work at Notion?" box, the student's spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
     application with "No reply in weeks". Each is plain UI, 20rem wide,
-    centred on a grey stage under a slate dot grid that fades toward the
-    middle (`.problem-dots` in landing.css; the user's pick of six
-    patterns, 2026-11-20, since a flat grey stage read as boring; at
-    22rem the windows hid all but a thin band of dots), with no feature's
+    centred on a stage of white at 4% on the dark band under a dot grid
+    in white at 16% that fades toward the middle (`.problem-dots` in
+    landing.css; the user's pick of six patterns, 2026-11-20, since a flat
+    stage read as boring; at 22rem the windows hid all but a thin band of
+    dots), with no feature's
     sky: this is the search before WorkIt, so nothing in it is violet;
     safely centred so a tall one keeps
     its top in view on a short screen, and plays once as it shows (the
     stage's `data-arrived`, "false" for two frames after a switch; a caret
     blinks four times, `.caret-blink`, then stays). **The heading, the hub
     and the figure fit one screen** under the floating header from lg up:
-    the stage is at least `clamp(19rem, 100svh - 29.5rem, 30rem)` tall
+    the stage is at least `clamp(19rem, 100svh - 33rem, 30rem)` tall
     (measured at 1440 × 800, the figure ending at 781px). **Why
     this shape, the user's calls**: the heading covers the whole search,
     not one problem ("Many applications stop before a person reads them"

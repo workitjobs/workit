@@ -1645,13 +1645,13 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* The tedious-work band (tedious-work.tsx): ink with a soft slate pool
-   behind the thoughts and a fine grain, never a feature's colour. */
-.tedious-ground {
+/* The problems' dark band (problems.tsx): ink with a soft slate pool
+   behind the hub and a faint dot grain, never a feature's colour. */
+.problems-ground {
   background:
     radial-gradient(55% 60% at 50% 48%, rgb(148 163 184 / 0.2), transparent 72%), var(--color-ink);
 }
-.tedious-ground::after {
+.problems-ground::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1661,25 +1661,6 @@ html[data-tab-flight="flying"] .tour-tabs {
   mask-image: radial-gradient(closest-side, transparent 30%, #000 100%);
   pointer-events: none;
 }
-.tedious-bracket {
-  font-size: clamp(3.5rem, 6vw, 5.5rem);
-  line-height: 1;
-  color: rgb(255 255 255 / 0.55);
-  font-weight: 300;
-}
-.thought {
-  transition:
-    opacity 0.35s ease calc(var(--c) * 70ms),
-    transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--c) * 70ms);
-}
-@media (prefers-reduced-motion: no-preference) {
-  [data-arrived="false"] > .thought {
-    opacity: 0;
-    transform: translateY(10px) scale(0.9);
-    transition: none;
-  }
-}
-
 /* The product demo's glass frame (why-exists.tsx): a frosted white bezel
    with a bright top edge and a white rim, over a StudioBox's violet sky,
    so the blur has colour to show. */
@@ -1839,11 +1820,12 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* The problems hub's stage (problem-hub.tsx): a dot grid in slate,
+/* The problems hub's stage (problem-hub.tsx), on the dark band: a dot
+   grid in white at 16%,
    strongest at the edges and fading to a fifth toward the middle, so the
-   visual stands on plain grey. Still, so it costs nothing per frame. */
+   visual stands on the plain stage. Still, so it costs nothing per frame. */
 .problem-dots {
-  background-image: radial-gradient(rgb(148 163 184 / 0.6) 1.3px, transparent 1.5px);
+  background-image: radial-gradient(rgb(255 255 255 / 0.16) 1.3px, transparent 1.5px);
   background-size: 16px 16px;
   background-position: center;
   mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);

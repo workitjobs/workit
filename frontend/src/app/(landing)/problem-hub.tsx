@@ -14,7 +14,6 @@ import { useRef, useState, useSyncExternalStore, type ComponentProps, type React
 
 import { cn } from "@/lib/cn";
 
-import { DraftLines } from "./draft-lines";
 import { useArrived } from "./hooks";
 
 type Scene = "boards" | "resumes" | "forms" | "question" | "tracker" | "replies";
@@ -73,15 +72,18 @@ type Stat = { figure: string; text: string; source: string; href: string };
  * shorter than the stage and the section read as small and tall at once
  * (the user's catch). The heading, the hub and the figure fit one screen
  * under the floating header: the stage is at least `clamp(19rem, 100svh -
- * 29.5rem, 30rem)` tall and grows to the cards' height, what is left once the header, the heading, its one-line
- * subtitle and the figure are counted (measured at 1440 × 800).
+ * 33rem, 30rem)` tall and grows to the cards' height, what is left once
+ * the header, the band's padding, the heading, its one-line subtitle and
+ * the figure are counted (measured at 1440 × 800: the band about 795px).
  *
- * Each card has its glyph (`ICONS`) on a white tile. The open card is
- * tinted violet (`brand-tint`, its glyph on solid `brand`), with no edge,
- * so it reads as the selected item, as a selected row does in the app: as
- * a white `.surface-card` beside flat grey ones it was hard to pick out,
- * and a violet edge read as an outline button (the user's calls,
- * 2026-11-20).
+ * It stands on the dark band (problems.tsx): the cards are white at 6% on
+ * the ink, each glyph on a lighter tile, the words white; the open card is
+ * the pale violet tint (`brand-tint`, ink words, its glyph on solid
+ * `brand`), with no edge, so it reads as the selected item, as a selected
+ * row does in the app (the user's calls, 2026-11-20: a white card beside
+ * flat grey ones was hard to pick out, a violet edge read as a button).
+ * The figure is a flat strip in the cards' own style: an outlined quote
+ * box read as tacked on (the user's catch).
  *
  * The problems are buttons with `aria-pressed`, not tabs: the visuals are
  * pictures (`aria-hidden`), and each button's words are its name.
@@ -128,14 +130,16 @@ export function ProblemHub({
             onClick={() => pick(i)}
             className={cn(
               "flex items-start gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-[background-color,box-shadow] duration-200 lg:items-center",
-              "focus-visible:outline-ink focus-visible:outline-2 focus-visible:outline-offset-2",
-              open ? "bg-brand-tint" : "bg-slate-900/[0.035] hover:bg-slate-900/[0.06]",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+              open ? "bg-brand-tint" : "bg-white/[0.06] hover:bg-white/[0.1]",
             )}
           >
             <span
               className={cn(
                 "grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors duration-200",
-                open ? "bg-brand text-white" : "text-ink-meta bg-white",
+                // Solid, not white at 10%: the letter glyph's cross knocks
+                // out against the tile's own fill (`[background:inherit]`).
+                open ? "bg-brand text-white" : "bg-[#2a313e] text-white/75",
               )}
             >
               <Icon aria-hidden="true" className="size-[18px]" />
@@ -144,12 +148,17 @@ export function ProblemHub({
               <span
                 className={cn(
                   "block text-[15px] leading-snug font-medium transition-colors",
-                  open ? "text-ink" : "text-ink-muted",
+                  open ? "text-ink" : "text-white",
                 )}
               >
                 {problem.title}
               </span>
-              <span className="text-ink-meta mt-1 block text-[13.5px] leading-snug text-pretty">
+              <span
+                className={cn(
+                  "mt-1 block text-[13.5px] leading-snug text-pretty",
+                  open ? "text-ink-meta" : "text-white/65",
+                )}
+              >
                 {problem.body}
               </span>
             </span>
@@ -160,19 +169,17 @@ export function ProblemHub({
   );
 
   return (
-    <div className="relative mt-8">
-      {/* The drafting grid's frame round the hub and its figure. */}
-      <DraftLines gap="1rem" />
+    <div className="mt-8">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[17rem_minmax(0,1fr)_17rem] lg:gap-3 xl:grid-cols-[20.5rem_minmax(0,1fr)_20.5rem]">
         {column(0, half, "lg:order-1")}
         <div
           ref={stageRef}
           data-arrived={mounted ? String(arrived && !hold) : undefined}
-          className="bg-well relative order-first h-[22rem] overflow-hidden rounded-2xl md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-29.5rem),30rem)]"
+          className="relative order-first h-[22rem] overflow-hidden rounded-2xl bg-white/[0.04] md:col-span-2 md:h-[24rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(19rem,calc(100svh-33rem),30rem)]"
         >
-          {/* A dot grid over the grey, fading toward the middle where the
+          {/* A dot grid on the stage, fading toward the middle where the
               visual sits (`.problem-dots`, the user's pick of six patterns,
-              2026-11-20): a flat grey stage read as boring. */}
+              2026-11-20): a flat stage read as boring. */}
           <div aria-hidden="true" className="problem-dots absolute inset-0" />
           {/* Keyed by `mounted` too: the visual mounts afresh once hydrated,
               so a transition the server's HTML would skip plays when seen. */}
@@ -182,40 +189,21 @@ export function ProblemHub({
         </div>
         {column(half, problems.length, "lg:order-3")}
       </div>
-      {/* The section's one figure as a quote: an outlined box with a large
-          opening quote breaking its top-left edge and a closing one its
-          bottom-right (the user's ask), the number in red, its sentence and
-          its source. A filled dark box read as heavy and out of place; as
-          plain text under a hairline it did not read as a sourced fact. */}
-      <figure className="relative mx-auto mt-7 grid max-w-3xl items-center gap-x-6 gap-y-1.5 rounded-2xl border border-slate-900/15 px-6 pt-5 pb-4 text-center sm:grid-cols-[auto_minmax(0,1fr)] sm:px-8 sm:text-left">
-        {/* Each mark is a 20px white tile centred on the outline (its top
-            and its foot), breaking the line; the glyph sits in it so its
-            ink, about 9 to 23px down a 60px Plus Jakarta line, is centred on
-            the line too (measured: set by their line boxes, both sat high).
-            Grey, as the outline is: red marks competed with the figure. */}
-        <span aria-hidden="true" className="absolute -top-[10.5px] left-5 h-5 bg-white px-1.5">
-          <span className="font-display text-ink-meta -mt-1.5 block text-[3.75rem] leading-none">
-            “
-          </span>
-        </span>
-        <span
-          aria-hidden="true"
-          className="absolute top-[calc(100%-9.5px)] right-5 h-5 bg-white px-1.5"
-        >
-          <span className="font-display text-ink-meta -mt-1.5 block text-[3.75rem] leading-none">
-            ”
-          </span>
-        </span>
-        <p className="font-display text-danger text-[3.25rem] leading-none font-medium tracking-[-0.04em] sm:row-span-2 sm:border-r sm:border-slate-900/10 sm:pr-6">
+      {/* The section's one figure as a flat strip, the cards' own fill and
+          corners across the hub's width: the number, its sentence and its
+          source. As an outlined box with quote marks it read as tacked on
+          below the hub (the user's catch, 2026-11-20). */}
+      <figure className="mt-3 grid items-center gap-x-6 gap-y-1 rounded-2xl bg-white/[0.06] px-5 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-6">
+        <p className="font-display text-[2.5rem] leading-none font-medium tracking-[-0.04em] text-[color-mix(in_oklab,var(--color-danger)_55%,white)]">
           {stat.figure}
         </p>
-        <p className="text-ink text-[16px] leading-snug text-pretty">{stat.text}</p>
-        <figcaption className="text-ink-meta text-[13px]">
+        <p className="text-[15px] leading-snug text-pretty text-white/85">{stat.text}</p>
+        <figcaption className="text-[13px] text-white/60">
           <a
             href={stat.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-ink inline-flex items-center gap-1 underline decoration-slate-300 underline-offset-2"
+            className="inline-flex items-center gap-1 underline decoration-white/30 underline-offset-2 hover:text-white"
           >
             {stat.source}
             <ArrowUpRightIcon aria-hidden="true" className="size-3" />
