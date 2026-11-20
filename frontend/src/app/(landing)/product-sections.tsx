@@ -38,8 +38,9 @@ const PRODUCTS = [
  * problem but not what the product does (the user's catch, 2026-11-20).
  * From lg up the row arrives as the tools it replaces collapse into it,
  * while the section, its heading (`heading`) included, pins
- * (`ToolsCollapse`); each tile carries `data-tile`, for the flight's
- * targets.
+ * (`ToolsCollapse`): each tile (`data-tile`) starts as its empty slot
+ * (`data-ghost`) and its body (`data-tile-body`) fills it as its tools
+ * land.
  */
 /** A tile's fill: its feature's colour mixed into white, the same share for
  *  all four so none stands out, a step deeper on hover. */
@@ -52,13 +53,22 @@ export function FeatureJumps({ heading }: { heading: ReactNode }) {
         {PRODUCTS.map((slug) => {
           const page = FEATURES[slug];
           return (
-            <li key={slug} data-tile>
+            <li key={slug} data-tile className="relative">
+              {/* The product's empty slot while the tools lie scattered
+                (`ToolsCollapse`): a dashed outline in its colour with its
+                mark and name, which the tile fills as its tools land. Shown
+                only from lg up with motion (landing.css). */}
+              <span aria-hidden="true" data-ghost style={{ "--ghost": page.glow } as CSSProperties}>
+                <FeatureIcon feature={page} size="md" />
+                <span className={cn(TYPE.item, "text-ink-meta")}>{page.name}</span>
+              </span>
               {/* A `Link` to "/#slug", as the Features menu's "/#hiring-systems"
                 is: as a plain anchor, "#slug" or "/#slug" jumped to the
                 page's top instead of to the section. */}
               <Link
                 href={`/#${slug}`}
-                className="group focus-visible:outline-ink flex h-full flex-col rounded-2xl bg-(--tile) p-5 transition-colors hover:bg-(--tile-hover) focus-visible:outline-2 focus-visible:outline-offset-2"
+                data-tile-body
+                className="group focus-visible:outline-ink relative flex h-full flex-col rounded-2xl bg-(--tile) p-5 transition-colors hover:bg-(--tile-hover) focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={
                   {
                     "--tile": TILE(page.glow, 9),

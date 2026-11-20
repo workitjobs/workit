@@ -28,21 +28,119 @@ const ICONS = {
   calendar: CalendarDotsIcon,
 };
 
-/** Where each tool card starts, in `toolsCollapse.tools` order: its left
- *  edge as a share of the row, its top from the frame's top, and its tilt.
- *  One high and one low for each product, so no card
- *  covers another or leaves the frame from 1024 to 1440px (measured: at
- *  30% and 51%, two lower cards overlapped by 14px at 1024). */
+/** Where each tool card starts, in `toolsCollapse.tools` order: the first
+ *  of each pair leans on its product's empty slot from above and the
+ *  second from below, each `EDGE` from the frame's top or foot so it covers
+ *  the slot's edge by about half its height and leaves the slot's mark and
+ *  name in view; `nudge` moves it in from its column's left edge, and
+ *  `rotate` tilts it. The last top card tilts clockwise, so its right
+ *  corner stays clear of the count. */
 const SCATTER = [
-  { left: "2%", top: 44, rotate: -6 },
-  { left: "6%", top: 300, rotate: 5 },
-  { left: "27%", top: 8, rotate: 4 },
-  { left: "29%", top: 318, rotate: -4 },
-  { left: "54%", top: 28, rotate: -3 },
-  { left: "52%", top: 306, rotate: 6 },
-  { left: "77%", top: 112, rotate: 5 },
-  { left: "75%", top: 316, rotate: -6 },
+  { nudge: "0.25rem", rotate: -5 },
+  { nudge: "1.75rem", rotate: 4 },
+  { nudge: "1.5rem", rotate: 4 },
+  { nudge: "0.5rem", rotate: -4 },
+  { nudge: "0.5rem", rotate: -3 },
+  { nudge: "1.75rem", rotate: 5 },
+  { nudge: "0.75rem", rotate: 5 },
+  { nudge: "0.25rem", rotate: -5 },
 ];
+const EDGE = "3.25rem";
+
+/** Each tool's screen at its worst moment, by its `icon`: what the student
+ *  sees in it, drawn small. Plain UI in slate, the search before WorkIt, as
+ *  the problems' scenes are; red marks the trouble. */
+const LINE = "block h-1.5 rounded-full bg-slate-900/[0.08]";
+const SCREENS: Record<keyof typeof ICONS, ReactNode> = {
+  docs: (
+    <>
+      <span className="text-ink block text-[12px] font-medium">Resume_v7_FINAL (2)</span>
+      <span className={`${LINE} mt-2 w-11/12`} />
+      <span className={`${LINE} mt-1.5 w-8/12`} />
+      <span className={`${LINE} mt-1.5 w-10/12`} />
+    </>
+  ),
+  latex: (
+    <span className="block font-mono text-[11px] leading-[1.5]">
+      <span className="text-ink-meta block">\section{"{Experience}"}</span>
+      <span className="text-danger block">! Overfull \hbox</span>
+    </span>
+  ),
+  careers: (
+    <>
+      <span className="flex gap-1 text-[11px]">
+        {["Stripe", "Notion", "Figma"].map((tab) => (
+          <span key={tab} className="text-ink-meta rounded-md border border-slate-900/10 px-1.5">
+            {tab}
+          </span>
+        ))}
+        <span className="text-ink-meta">+14</span>
+      </span>
+      <span className="text-ink-meta mt-1.5 block text-[11px]">Another careers page to check</span>
+    </>
+  ),
+  sites: (
+    <span className="text-ink-meta block text-[11px] leading-[1.6]">
+      <span className="block">
+        <span className="text-ink">Software Intern</span> ·{" "}
+        <span className="text-danger">3 months ago</span>
+      </span>
+      <span className="block">
+        <span className="text-ink">Data Intern</span> · 1,204 applicants
+      </span>
+    </span>
+  ),
+  notes: (
+    <>
+      <span className="text-ink block text-[12px] font-medium">Why this company?</span>
+      <span className={`${LINE} mt-2 w-10/12`} />
+      <span className={`${LINE} mt-1.5 w-6/12`} />
+    </>
+  ),
+  clipboard: (
+    <>
+      <span className="text-ink-meta flex justify-between text-[11px]">
+        Email<span>Pasted again</span>
+      </span>
+      <span className="text-ink mt-1 block rounded-md border border-slate-900/15 px-1.5 py-0.5 text-[11px]">
+        alex@school.edu
+      </span>
+    </>
+  ),
+  sheet: (
+    <span className="grid grid-cols-2 gap-0.5 text-[11px]">
+      <span className="text-ink bg-slate-900/[0.04] px-1.5">Stripe</span>
+      <span className="text-ink-meta bg-slate-900/[0.04] px-1.5">Applied</span>
+      <span className="text-ink bg-slate-900/[0.04] px-1.5">Figma</span>
+      <span className="text-danger bg-danger/10 px-1.5">??</span>
+    </span>
+  ),
+  calendar: (
+    <>
+      <span className="text-ink-meta block text-[11px]">Thu, 2:00 PM</span>
+      <span className="text-ink mt-1 block border-l-2 border-slate-400 bg-slate-900/[0.04] px-1.5 py-0.5 text-[11px]">
+        Interview? Which company
+      </span>
+    </>
+  ),
+};
+
+/** An element's offset from `root`, summed up its offset parents, so a
+ *  tile inside the list and a card on the frame compare in one space
+ *  (offsets ignore transforms). */
+function offsetIn(el: HTMLElement, root: HTMLElement) {
+  let x = 0;
+  let y = 0;
+  for (
+    let at: HTMLElement | null = el;
+    at && at !== root;
+    at = at.offsetParent as HTMLElement | null
+  ) {
+    x += at.offsetLeft;
+    y += at.offsetTop;
+  }
+  return { x, y };
+}
 
 /** The collapse along the pin's scroll, from 0 (the pin starts) to 1 (it
  *  lets go). The cards hold still for the first stretch, so the reader
@@ -65,12 +163,16 @@ const outBack = (t: number) => 1 + 2.4 * (t - 1) ** 3 + 1.4 * (t - 1) ** 2;
 /**
  * The tools a student juggles, collapsing into WorkIt's four products
  * (KAN-923, after Loopsii's "your whole stack, in one app", the user's
- * pick, 2026-11-20): under "One app for every step of applying", eight
- * tool cards lie scattered on a drafting grid around the four product
- * tiles (`children`, `FeatureJumps`), and as the reader scrolls each pair
- * flies into the product that replaces it and the tiles come up in their
- * place, while the count turns from "8 tools" to "1 app". The end state is
- * the tiles as they are, links and all.
+ * pick, 2026-11-20): under "One app for every step of applying", the four
+ * products wait as empty slots on a drafting grid (each tile's
+ * `data-ghost`: a dashed outline in its colour, its mark and its name;
+ * `children`, `FeatureJumps`), and the eight tools they replace lean on
+ * them two by two, each card a piece of the tool's own screen at its worst
+ * moment (`SCREENS`). As the reader scrolls each pair flies into its slot,
+ * the tile fills it, and the count turns from "8 tools" to "1 app". The
+ * user picked this over plain cards with a line each, which were boring
+ * and hinted at nothing, from three drawn options (2026-11-20). The end
+ * state is the tiles as they are, links and all.
  *
  * **The scroll drives it, and the section pins until it is done** (the
  * user's call, 2026-11-20, the one exception to "Scroll cues, time plays"
@@ -102,6 +204,8 @@ export function ToolsCollapse({ heading, children }: { heading: ReactNode; child
     if (!live || !root) return;
     const cards = [...root.querySelectorAll<HTMLElement>("[data-tool]")];
     const tiles = [...root.querySelectorAll<HTMLElement>("[data-tile]")];
+    const bodies = tiles.map((tile) => tile.querySelector<HTMLElement>("[data-tile-body]"));
+    const ghosts = tiles.map((tile) => tile.querySelector<HTMLElement>("[data-ghost]"));
     const counts = [...root.querySelectorAll<HTMLElement>(".tools-count > span")];
     // When each tile's last card lands.
     const lands = tiles.map((_, k) =>
@@ -118,13 +222,18 @@ export function ToolsCollapse({ heading, children }: { heading: ReactNode; child
         const t = clamp01((p - HOLD - i * STAGGER) / FLY);
         const e = inOut(t);
         const { x, y } = targets[i];
-        card.style.transform = `translate(${x * e}px, ${y * e}px) rotate(${SCATTER[i].rotate * (1 - e)}deg) scale(${1 - 0.4 * e})`;
+        card.style.transform = `translate(${x * e}px, ${y * e}px) rotate(${SCATTER[i].rotate * (1 - e)}deg) scale(${1 - 0.45 * e})`;
         card.style.opacity = String(1 - clamp01((t - 0.7) / 0.3));
       });
-      tiles.forEach((tile, k) => {
+      tiles.forEach((_, k) => {
         const u = clamp01((p - lands[k] + 0.03) / TILE_RISE);
-        tile.style.opacity = String(u);
-        tile.style.transform = `scale(${0.92 + 0.08 * outBack(u)})`;
+        const body = bodies[k];
+        if (body) {
+          body.style.opacity = String(u);
+          body.style.transform = `scale(${0.92 + 0.08 * outBack(u)})`;
+        }
+        const ghost = ghosts[k];
+        if (ghost) ghost.style.opacity = String(1 - u);
       });
       const c = clamp01((p - COUNT_AT) / COUNT_TURN);
       counts.forEach((span, j) => (span.style.opacity = String(j === 0 ? 1 - c : c)));
@@ -134,9 +243,11 @@ export function ToolsCollapse({ heading, children }: { heading: ReactNode; child
       targets = cards.map((card) => {
         const tile = tiles[Number(card.dataset.tool)];
         if (!tile) return { x: 0, y: 0 };
+        const t = offsetIn(tile, root);
+        const c = offsetIn(card, root);
         return {
-          x: tile.offsetLeft + tile.offsetWidth / 2 - (card.offsetLeft + card.offsetWidth / 2),
-          y: tile.offsetTop + tile.offsetHeight / 2 - (card.offsetTop + card.offsetHeight / 2),
+          x: t.x + tile.offsetWidth / 2 - (c.x + card.offsetWidth / 2),
+          y: t.y + tile.offsetHeight / 2 - (c.y + card.offsetHeight / 2),
         };
       });
       pose(scrollYProgress.get());
@@ -148,7 +259,8 @@ export function ToolsCollapse({ heading, children }: { heading: ReactNode; child
     return () => {
       observer.disconnect();
       stop();
-      for (const el of [...cards, ...tiles, ...counts]) {
+      for (const el of [...cards, ...bodies, ...ghosts, ...counts]) {
+        if (!el) continue;
         el.style.transform = "";
         el.style.opacity = "";
       }
@@ -188,18 +300,21 @@ export function ToolsCollapse({ heading, children }: { heading: ReactNode; child
                 key={tool.name}
                 aria-hidden="true"
                 data-tool={tool.tile}
-                className="tool-card surface-card w-48 rounded-xl px-3.5 py-3 xl:w-52"
-                style={{ left: at.left, top: at.top, "--r": `${at.rotate}deg` } as CSSProperties}
+                className="tool-card surface-card w-48 overflow-hidden rounded-xl xl:w-52"
+                style={
+                  {
+                    left: `calc(${tool.tile * 25}% + ${at.nudge})`,
+                    [i % 2 === 0 ? "top" : "bottom"]: EDGE,
+                    "--r": `${at.rotate}deg`,
+                  } as CSSProperties
+                }
               >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-ink-meta grid size-7 shrink-0 place-items-center rounded-lg bg-slate-900/[0.05]">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="text-ink text-[14px] font-medium">{tool.name}</span>
+                {/* The tool's own bar, then its screen. */}
+                <span className="text-ink-meta flex items-center gap-1.5 border-b border-slate-900/[0.06] px-3 py-1.5 text-[11.5px] font-medium">
+                  <Icon className="size-3.5" />
+                  {tool.name}
                 </span>
-                <span className="text-ink-meta mt-1.5 block text-[12.5px] leading-snug">
-                  {tool.line}
-                </span>
+                <span className="block px-3 py-2.5">{SCREENS[tool.icon]}</span>
               </div>
             );
           })}

@@ -19,7 +19,11 @@ screens follow `design.md`, not this file.
    for all four so none stands out, and its mark ringed in white with a
    slate shadow so the mark's pastel squircle stands off the tint. Grey,
    the four read as alike. Never a fade to white: a colour washing to
-   white was the option the user turned down as AI-made.
+   white was the option the user turned down as AI-made. Before the
+   tools collapse fills them, each tile is an empty slot: a dashed
+   outline in its feature's colour at 55% over a 5% wash, with its mark
+   and name (the user's pick of three drawn options, 2026-11-20); the
+   tool screens leaning on the slots stay white and slate.
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
    never fills a button or a card. Two exceptions: the home hero's

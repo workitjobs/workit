@@ -1729,7 +1729,8 @@ html[data-tab-flight="flying"] .tour-tabs {
 @layer components {
   .tools-collapse .tool-card,
   .tools-collapse .tools-frame,
-  .tools-collapse .tools-count {
+  .tools-collapse .tools-count,
+  .tools-collapse [data-ghost] {
     display: none;
   }
 }
@@ -1802,10 +1803,26 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: rotate(var(--r));
     will-change: transform, opacity;
   }
-  .tools-collapse[data-live] [data-tile] {
+  .tools-collapse[data-live] [data-tile-body] {
     opacity: 0;
     transform: scale(0.92);
     will-change: transform, opacity;
+  }
+  /* A product's empty slot, the tile's place before its tools land: a
+     dashed outline in the product's colour over a wash of it, its mark and
+     name in the middle, where the cards leaning on its edges leave them in
+     view. The tile's body fades in over it. */
+  .tools-collapse[data-live] [data-ghost] {
+    display: flex;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    gap: 0.75rem;
+    padding-inline: 1.25rem;
+    border: 1.5px dashed color-mix(in oklab, var(--ghost) 55%, white);
+    border-radius: 1rem;
+    background: color-mix(in oklab, var(--ghost) 5%, white);
+    will-change: opacity;
   }
 }
 

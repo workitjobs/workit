@@ -449,10 +449,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     user's call, 2026-11-20). **The tiles arrive as the tools they
     replace collapse into them** (`tools-collapse.tsx`, `toolsCollapse` in
     data.ts, after Loopsii's "your whole stack, in one app", the user's
-    pick, 2026-11-20): from lg up, eight tool cards a student juggles
-    (Google Docs and Overleaf, careers pages and job sites, a notes app
-    and copy and paste, Google Sheets and a calendar) lie scattered on a
-    drafting grid round the row. **The section pins and the scroll
+    pick, 2026-11-20): from lg up, the four products start as empty
+    slots on a drafting grid (each tile's `data-ghost`: a dashed outline
+    in its colour, its mark and name), and the eight tools a student
+    juggles (Google Docs and Overleaf, careers pages and job sites, a
+    notes app and copy and paste, Google Sheets and a calendar) lean on
+    them two by two, one over each slot's top edge and one over its foot,
+    leaving the mark and name in view. **Each card is a piece of the
+    tool's own screen at its worst moment** (`SCREENS`: the sixth resume
+    file, a LaTeX error, a tab per company, a posting months old, the
+    same question again, the email pasted again, a sheet with "??", an
+    interview with no company), the user's pick of three drawn options
+    (2026-11-20): plain cards with a line each were boring and hinted at
+    nothing of how they become the four products. **The section pins and the scroll
     drives the collapse** (the user's call, 2026-11-20, the home page's
     one pin and the one exception to "Scroll cues, time plays"): the
     heading and the frame stay centred on the screen (`.tools-stage`,
@@ -471,11 +480,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     padding there. Below lg and with reduced motion there is no pin and
     the tiles show as they are; without script the cards stay hidden and
     the pinned stretch stands still. Each card flies to its
-    tile's centre, measured from the layout on every resize. The ul is
+    tile's centre, measured from the layout on every resize, with each
+    offset summed up to the frame (`offsetIn`): a tile's own offset is
+    from the list, which is `relative`, so the cards aimed 6.5rem above
+    their tiles until 2026-11-20. The ul is
     `relative` so the tiles paint over the grid (as a static block they
     sat under the absolutely placed frame, and its lines crossed their
-    text). Its lines say what a student uses each tool for and name no
-    price. Each tile has its mark, its name, **a
+    text). The screens show the student's trouble, never a knock on the
+    tool, and name no price; at 1024 each line fits one row ("Pasted
+    again" and the question wrapped). Each tile has its mark, its name, **a
     selling line that says what the product does** and "See how", a
     `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
     `/#tracker`, the product sections' ids). The heading, the line and the
