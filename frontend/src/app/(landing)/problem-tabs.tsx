@@ -66,9 +66,16 @@ export function ProblemTabs({
       <div
         ref={frameRef}
         data-arrived={mounted ? String(arrived && !hold) : undefined}
-        className="bg-well relative h-[22rem] overflow-hidden rounded-2xl sm:h-[26rem] lg:aspect-[16/7] lg:h-auto"
+        // From lg up the frame takes what the screen has left once the
+        // header and the cards are counted (about 25rem, with room to spare), so the frame and
+        // the cards show together: at 16:7 the cards ran below a laptop's
+        // screen (the user's catch, 2026-11-20).
+        className="bg-well relative h-[22rem] overflow-hidden rounded-2xl sm:h-[26rem] lg:h-[clamp(18rem,calc(100svh-25rem),30rem)]"
       >
-        <div key={at} className="absolute inset-0">
+        {/* Keyed by `mounted` too: the scene mounts afresh once hydrated,
+            so a CSS animation the server's HTML started off screen starts
+            again, held until the frame is seen. */}
+        <div key={mounted ? at : "server"} className="absolute inset-0">
           {scenes[at]}
         </div>
       </div>

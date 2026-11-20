@@ -1604,37 +1604,109 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * The problems' applicant screen (problem-scenes.tsx): the student's resume
- * arrives at the top of the list as New, then slides to its place under
- * the screening cut-off while the rows above it close up. While waiting,
- * the rows above the cut-off and the cut-off line stand one row lower and
- * the student's row stands at the top (`--ats-row`, `--ats-cut` on the
- * scene). The moves are timed only on the way in (`data-arrived="true"`):
- * back to waiting is instant, so a screen hidden or shown again never plays
- * backwards. "New" shows only while it waits. Finished without script and
- * with reduced motion.
+ * The problems' screening scene (problem-scenes.tsx): one document at a
+ * time comes into the screen, a scan line reads it, its marked phrases tint
+ * as the line passes, its verdict comes up, and it is swiped away; three
+ * documents, one 3.6s turn each (`--i` on each), and the last one stays.
+ * The rest styles are the finished frame (the passed documents gone, the
+ * last one marked with its verdict), so reduced motion shows it still; the
+ * keyframes start from the waiting pose. While the frame waits to be seen
+ * (`data-arrived="false"`) every part holds at its start; the frame mounts
+ * the scene afresh after hydration and after each click, so it plays from
+ * the beginning.
  */
-.ats-gone {
+.scan-doc,
+.scan-line {
   opacity: 0;
 }
-[data-arrived="true"] .ats-shift,
-[data-arrived="true"] .ats-you {
-  transition:
-    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.6s,
-    opacity 0.4s ease-out 0.2s;
-}
-[data-arrived="true"] .ats-gone {
-  transition: opacity 0.3s ease-out 1.6s;
+.scan-mark {
+  background-color: var(--mark);
 }
 @media (prefers-reduced-motion: no-preference) {
-  [data-arrived="false"] .ats-shift {
-    transform: translateY(var(--ats-row));
+  .scan-doc {
+    animation: scan-pass 3.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i) * 3.6s);
   }
-  [data-arrived="false"] .ats-you {
+  .scan-doc-last {
+    animation: scan-stay 3.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i) * 3.6s);
+  }
+  .scan-mark {
+    animation: scan-mark 0.35s ease-out both;
+    animation-delay: calc(var(--i) * 3.6s + var(--t));
+  }
+  .scan-verdict {
+    animation: scan-verdict 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i) * 3.6s + 2s);
+  }
+  .scan-line {
+    animation: scan-line 3.6s linear 3 both;
+  }
+  [data-arrived="false"] .scan-anim {
+    animation-play-state: paused;
+  }
+}
+/* A document comes off the waiting pile and, turned away, lands on the
+ * other: 16.5rem is half the screen (8.5rem), the gap (2.5rem) and half a
+ * pile (5.5rem), and a pile's page is about 0.68 of the screen's. */
+@keyframes scan-pass {
+  0% {
     opacity: 0;
-    transform: translateY(calc(-3 * var(--ats-row) - var(--ats-cut)));
+    transform: translateX(-16.5rem) scale(0.68);
   }
-  [data-arrived="false"] .ats-gone {
+  12%,
+  80% {
     opacity: 1;
+    transform: none;
+  }
+  94% {
+    opacity: 1;
+    transform: translateX(16.5rem) scale(0.68) rotate(3deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(16.5rem) scale(0.68) rotate(3deg);
+  }
+}
+@keyframes scan-stay {
+  0% {
+    opacity: 0;
+    transform: translateX(-16.5rem) scale(0.68);
+  }
+  12%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes scan-mark {
+  from {
+    background-color: transparent;
+  }
+}
+@keyframes scan-verdict {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* The line sweeps the page from 0.5s to 1.8s of each turn. */
+@keyframes scan-line {
+  0%,
+  13% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  15% {
+    opacity: 1;
+  }
+  48% {
+    opacity: 1;
+    transform: translateY(100%);
+  }
+  52%,
+  100% {
+    opacity: 0;
+    transform: translateY(100%);
   }
 }

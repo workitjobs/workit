@@ -434,17 +434,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     search as it is, not WorkIt's features, so they get no feature's
     gradient; nothing in them is violet, WorkIt's own mark). **A click on a
     card shows its screen** (`ProblemTabs` in `problem-tabs.tsx`, the user's
-    ask; screens in `problem-scenes.tsx`): a hiring system's applicant list,
-    where the student's resume comes in as New, scores 3 of 6 keywords and
-    slides under the screening cut-off, Not moved forward (`.ats-*` in
-    landing.css); three companies' forms side by side, the same six
+    ask; screens in `problem-scenes.tsx`): **a screening machine**, one
+    application at a time (the student's resume, its cover letter, the
+    resume again) coming into a hiring system's screen, where a scan line
+    reads it, tints the keywords it looks for green and the generic lines
+    red, and flags it "Not moved forward" before it is swiped onto the
+    pile of turned-away applications; from lg up a waiting pile stands on
+    its left and that pile on its right, and the last resume rests marked
+    (`.scan-*` in landing.css, one 3.6s turn a document). It replaced an
+    applicant table whose rows sorted under a cut-off, which the user found
+    harder to read than one document at a time, and takes its marked
+    phrases from the archived statement without its art (no bin, stamp or
+    crumpled page). Then three companies' forms side by side, the same six
     questions typed into one after another; and a browser crowded with
     company job board tabs, the open one listing every role with the
     internship that fits unmarked in the middle. Nothing changes on a
     timer: timed tabs are banned by the taste rules and would need a pause
     control. Each screen plays once as it shows: the frame carries
     `data-arrived` as `Arrive` does, and "false" again for two frames after
-    a click, so the new screen mounts waiting and then plays. **The cards
+    a click, so the new screen mounts waiting and then plays; it also mounts
+    the scene afresh once hydrated (its key reads `mounted`), so a CSS
+    animation the server's HTML started off screen starts again, held until
+    seen. **The frame and the cards fit one screen together**: from lg up
+    the frame is `clamp(18rem, 100svh - 25rem, 30rem)` tall, what is left
+    once the header and the cards are counted; at 16:7 the cards ran below
+    a laptop's screen (the user's catch, 2026-11-20). Checked at 1440 × 800
+    and 1280 × 720. **The cards
     are the switch**: each a button with `aria-pressed` (not tabs, since the
     screens are `aria-hidden` pictures and each card's words are its
     button's name), a glyph, the problem's title and one short line. The

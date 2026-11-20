@@ -9,13 +9,11 @@ import { delay, Panel } from "./scene-parts";
 
 /**
  * The three screens of the problems section (problems.tsx, problem-tabs.tsx,
- * KAN-923): each a real-looking window at about true size, standing in the
- * wide frame and cut by its foot, after the taste rules' "chapter" (one
- * screen shown big, never a small picture centred on a coloured panel).
- * Mock UI of the search as it is, before WorkIt, so nothing here is violet.
- * Each plays once as it shows (the `.journey-*` and `.ats-*` classes),
- * finished without script and with reduced motion. All are `aria-hidden`:
- * the problems' words beside them say what they show.
+ * KAN-923), each in the wide flat frame. Mock UI of the search as it is,
+ * before WorkIt, so nothing here is violet. Each plays once as it shows
+ * (the `.journey-*` and `.scan-*` classes), finished without script and
+ * with reduced motion. All are `aria-hidden`: the problem cards beside them
+ * say what they show.
  */
 
 /** Three window dots, as a desktop window's title bar has. */
@@ -29,198 +27,259 @@ function Dots() {
   );
 }
 
-/** Where a screen's window stands: centred, its top inset, its foot cut by
- *  the frame. Each window is at least 34rem tall, taller than the frame at
+/** Where a window stands: centred, its top inset, its foot cut by the
+ *  frame. Each window is at least 34rem tall, taller than the frame at
  *  every width, so its foot never shows. */
 const STAGE = "absolute inset-x-0 top-0 px-3 pt-6 sm:px-10 sm:pt-10";
 
-/** The applicant screen's row and cut-off line heights, which the
- *  arrival's slide reads (`.ats-shift`, `.ats-you` in landing.css). */
-const ATS = { "--ats-row": "2.5rem", "--ats-cut": "1.5rem" } as CSSProperties;
+/** A phrase the screen marks as it reads: a keyword it looks for, or a
+ *  line that reads as generic. `at` is seconds into the document's turn,
+ *  just after the scan line passes it. */
+type Marked = { mark: string; tone: "match" | "generic"; at: number };
+type Line = readonly (string | Marked)[];
 
-/** The other applicants, sorted as the screen sorts them: by how many of
- *  the posting's keywords each resume has. */
-const ABOVE = [
-  { initials: "JP", found: 6 },
-  { initials: "MR", found: 6 },
-  { initials: "AK", found: 5 },
-];
-const BELOW = [
-  { initials: "DT", found: 2 },
-  { initials: "SL", found: 2 },
-  { initials: "RV", found: 1 },
-  { initials: "KO", found: 1 },
+/** The student's one resume, sent to every posting: three of the posting's
+ *  six keywords, and a line any resume could hold. */
+const RESUME: { head: string; sub: string; sections: { title: string; lines: Line[] }[] } = {
+  head: "Alex Morgan",
+  sub: "Northview University · Computer Science",
+  sections: [
+    {
+      title: "Experience",
+      lines: [
+        ["Built a budget app with ", { mark: "React", tone: "match", at: 1.0 }],
+        [{ mark: "Hard-working team player", tone: "generic", at: 1.1 }],
+        [
+          "Analyzed survey data with ",
+          { mark: "Python", tone: "match", at: 1.18 },
+          " and ",
+          { mark: "SQL", tone: "match", at: 1.2 },
+        ],
+        ["Made a website for a student club"],
+      ],
+    },
+    {
+      title: "Skills",
+      lines: [
+        ["Excel, Microsoft Office, ", { mark: "detail-oriented", tone: "generic", at: 1.45 }],
+      ],
+    },
+  ],
+};
+
+/** The cover letter that goes out with it: the same words any letter has. */
+const LETTER: Line[] = [
+  ["Dear Hiring Manager,"],
+  [
+    { mark: "I am writing to express my interest", tone: "generic", at: 0.8 },
+    " in the position at your company.",
+  ],
+  [
+    "I am a ",
+    { mark: "passionate team player", tone: "generic", at: 1.0 },
+    " who loves technology.",
+  ],
+  [{ mark: "I would be a great fit", tone: "generic", at: 1.16 }, " for your team."],
+  [{ mark: "Thank you for your time and consideration.", tone: "generic", at: 1.28 }],
+  ["Sincerely,"],
+  ["Alex Morgan"],
 ];
 
-/** Applicant, keywords, status. On a phone the keywords are the count
- *  alone and an applicant is their initials (the file name went: cut to
- *  "resume.…", it read as a glitch). */
-const COLUMNS =
-  "gap-x-2 grid-cols-[minmax(0,1fr)_3.75rem_7.5rem] sm:grid-cols-[minmax(0,1fr)_9rem_9rem]";
+/** What the screen reads, one at a time: the resume, its cover letter, the
+ *  resume again for the next posting, where it rests. */
+const DOCS = [
+  { paper: "resume", verdict: "3 of 6 keywords" },
+  { paper: "letter", verdict: "Reads as generic" },
+  { paper: "resume", verdict: "3 of 6 keywords" },
+] as const;
 
 /**
- * Screened out: a hiring system's applicant list as a recruiter's team sees
- * it, screening on the posting's keywords. The student's resume, the one
- * they send everywhere, arrives at the top as New, is scored (3 of the 6
- * keywords) and slides to its place under the screening cut-off: Not moved
- * forward. It never shows the resume passing: the site never promises that.
+ * Screened out: one application at a time comes into a hiring system's
+ * screen, a scan line reads it top to bottom, marking the keywords it
+ * looks for and the lines that read as generic, and it is flagged Not
+ * moved forward and swiped away; the next comes in. The last, the resume,
+ * rests marked with its verdict. From lg up the applications waiting sit
+ * on its left and the ones it turned away pile up on its right, so it
+ * reads as a machine that keeps going; each document comes off the one and
+ * lands on the other (`.scan-*` in landing.css reads their spacing). Below
+ * lg a document leaves off the frame's edge. Inspired by the archived statement's
+ * marked phrases, without its art: no bin, stamp or crumpled page (the
+ * team found those AI-made). It never shows a document passing: the site
+ * never promises that. Timing: `.scan-*` in landing.css, one 3.6s turn per
+ * document.
  */
 export function ScreenScene() {
-  const { role, keywords } = problems.screen;
-  const yours = keywords.filter((keyword) => keyword.found).length;
-  return (
-    <div aria-hidden="true" className={STAGE} style={ATS}>
-      <Panel className="mx-auto min-h-[34rem] w-full max-w-[44rem] overflow-hidden rounded-b-none">
-        <div className="flex items-center gap-2 border-b border-slate-900/[0.06] px-4 py-2.5">
-          <Dots />
-          <span className="text-ink-muted ml-1.5 text-[11px] font-semibold">Applicants</span>
-          <span className="text-ink-meta truncate text-[11px]">{role}</span>
-          <span className="text-ink-meta ml-auto shrink-0 text-[11px] tabular-nums">
-            214 applicants
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-900/[0.06] px-4 py-2.5">
-          <span className="text-ink-meta mr-1 text-[11px]">Screen on</span>
-          {keywords.map((keyword) => (
-            <span
-              key={keyword.word}
-              className="text-ink-muted rounded-full bg-slate-900/[0.05] px-2 py-0.5 text-[11px]"
-            >
-              {keyword.word}
-            </span>
-          ))}
-        </div>
-        <div
-          className={cn(
-            "text-ink-meta grid px-4 pt-2.5 pb-1.5 text-[10px] font-semibold tracking-[0.06em] uppercase",
-            COLUMNS,
-          )}
-        >
-          <span>Applicant</span>
-          <span>Keywords</span>
-          <span>Status</span>
-        </div>
-        <div className="relative">
-          {ABOVE.map((applicant) => (
-            <Applicant key={applicant.initials} {...applicant} total={keywords.length} up />
-          ))}
-          <div className="ats-shift flex h-6 items-center gap-2 px-4">
-            <span className="flex-1 border-t border-dashed border-slate-900/25" />
-            <span className="text-ink-meta text-[10px] font-semibold tracking-[0.06em] uppercase">
-              Screening cut-off
-            </span>
-            <span className="flex-1 border-t border-dashed border-slate-900/25" />
-          </div>
-          <div
-            className={cn(
-              "ats-you relative z-10 mx-1.5 grid h-10 items-center rounded-lg bg-white px-2.5 shadow-[var(--mk-shadow-float)] ring-1 ring-slate-900/10",
-              COLUMNS,
-            )}
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="bg-ink grid h-5 shrink-0 place-items-center rounded-full px-1.5 text-[10px] font-semibold text-white">
-                You
-              </span>
-              <span className="text-ink truncate text-[12px] font-medium max-sm:hidden">
-                resume.pdf
-              </span>
-            </span>
-            <Score found={yours} total={keywords.length} tone="bg-danger" at={0.8} />
-            <span className="grid">
-              <span className="ats-gone text-ink-muted col-start-1 row-start-1 w-fit rounded-full bg-slate-900/[0.06] px-2 py-0.5 text-[11px] font-semibold">
-                New
-              </span>
-              <span
-                className="journey-in bg-danger-tint text-danger col-start-1 row-start-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
-                style={delay(2.2)}
-              >
-                Not moved forward
-              </span>
-            </span>
-          </div>
-          {BELOW.map((applicant) => (
-            <Applicant key={applicant.initials} {...applicant} total={keywords.length} />
-          ))}
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-/** Another applicant's row: initials, their keyword score, their status. */
-function Applicant({
-  initials,
-  found,
-  total,
-  up = false,
-}: {
-  initials: string;
-  found: number;
-  total: number;
-  up?: boolean;
-}) {
   return (
     <div
-      className={cn(
-        "grid h-10 items-center border-t border-slate-900/[0.05] px-4",
-        COLUMNS,
-        up && "ats-shift",
-      )}
+      aria-hidden="true"
+      className="absolute inset-0 flex items-center justify-center gap-10 px-4 py-5"
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="text-ink-meta grid size-6 shrink-0 place-items-center rounded-full bg-slate-900/[0.06] text-[10px] font-semibold">
-          {initials}
+      <Pile label="Waiting" count={211} />
+      <div className="flex h-full max-h-[22rem] w-full max-w-[17rem] flex-col items-center">
+        <span className="text-ink-muted inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold shadow-[var(--mk-shadow-float)]">
+          <span className="size-1.5 rounded-full bg-slate-400" />
+          Screening · {problems.screen.role}
         </span>
-        <span
-          className={cn("truncate text-[12px] max-sm:hidden", up ? "text-ink" : "text-ink-meta")}
-        >
-          resume.pdf
-        </span>
-      </span>
-      <Score found={found} total={total} tone={up ? "bg-positive" : "bg-slate-400"} />
-      <span
-        className={cn(
-          "w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-          up ? "bg-positive-tint text-positive-ink" : "text-ink-meta bg-slate-900/[0.05]",
-        )}
-      >
-        {up ? "Moved forward" : "Not moved forward"}
-      </span>
+        <div className="relative mt-3 w-full flex-1">
+          <Corners />
+          {DOCS.map((doc, i) => (
+            <div
+              key={i}
+              className={cn(
+                "scan-anim absolute inset-2.5",
+                i === DOCS.length - 1 ? "scan-doc-last" : "scan-doc",
+              )}
+              style={{ "--i": i } as CSSProperties}
+            >
+              <div className="h-full overflow-hidden rounded-md bg-white p-4 shadow-[var(--mk-shadow-float)]">
+                {doc.paper === "resume" ? <ResumePaper /> : <LetterPaper />}
+              </div>
+              <div className="scan-anim scan-verdict absolute inset-x-0 -bottom-3 flex justify-center gap-1.5">
+                <span className="text-ink-muted rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
+                  {doc.verdict}
+                </span>
+                <span className="bg-danger-tint text-danger rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-[var(--mk-shadow-float)]">
+                  Not moved forward
+                </span>
+              </div>
+            </div>
+          ))}
+          <div className="pointer-events-none absolute inset-2.5 overflow-hidden rounded-md">
+            <div className="scan-anim scan-line absolute inset-0">
+              <span className="absolute inset-x-0 top-0 h-8 -translate-y-full bg-linear-to-t from-slate-500/15 to-transparent" />
+              <span className="absolute inset-x-0 top-0 h-0.5 bg-slate-500/60" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <Pile label="Not moved forward" count={186} out />
     </div>
   );
 }
 
-/** A resume's keyword score: a short bar and "n of 6". With `at`, it fills
- *  and its count shows that many seconds into the screen's play. */
-function Score({
-  found,
-  total,
-  tone,
-  at,
-}: {
-  found: number;
-  total: number;
-  tone: string;
-  at?: number;
-}) {
+/** Each paper in a pile: turned a little, offset, so the pile reads as
+ *  several. */
+const STACKED = [
+  { x: -6, y: 6, r: -4 },
+  { x: 5, y: 2, r: 3 },
+  { x: 0, y: 0, r: -1 },
+];
+
+/**
+ * A pile of applications beside the screen, from lg up: the ones waiting on
+ * its left, the ones it turned away on its right (`out`, greyed, its count
+ * in the danger colour). Blank pages with lines for text: what matters is
+ * how many.
+ */
+function Pile({ label, count, out = false }: { label: string; count: number; out?: boolean }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-slate-900/[0.07] sm:block">
+    <div className="flex w-[11rem] shrink-0 flex-col items-center max-lg:hidden">
+      <div className="relative h-[14rem] w-full">
+        {STACKED.map((paper) => (
+          <span
+            key={paper.r}
+            className={cn(
+              "absolute inset-0 grid content-start gap-1.5 rounded-md p-3.5 shadow-[var(--mk-shadow-float)]",
+              out ? "bg-slate-50" : "bg-white",
+            )}
+            style={{ translate: `${paper.x}px ${paper.y}px`, rotate: `${paper.r}deg` }}
+          >
+            <span className="mx-auto mb-1 block h-2 w-1/2 rounded-full bg-slate-900/15" />
+            {[100, 90, 95, 70, 85, 60].map((width, i) => (
+              <span
+                key={i}
+                className="block h-1.5 rounded-full bg-slate-900/[0.08]"
+                style={{ width: `${width}%` }}
+              />
+            ))}
+          </span>
+        ))}
+      </div>
+      <p className="mt-5 text-center text-[11px] leading-tight">
         <span
-          className={cn("block h-full rounded-full", tone, at !== undefined && "journey-grow")}
-          style={{ width: `${(found / total) * 100}%`, ...(at !== undefined && delay(at)) }}
-        />
-      </span>
+          className={cn(
+            "block text-[15px] font-semibold tabular-nums",
+            out ? "text-danger" : "text-ink",
+          )}
+        >
+          {count}
+        </span>
+        <span className="text-ink-meta">{label}</span>
+      </p>
+    </div>
+  );
+}
+
+/** The screen's frame: four corner marks round the document it reads. */
+function Corners() {
+  const corner = "absolute size-4 border-slate-900/30";
+  return (
+    <>
+      <span className={cn(corner, "top-0 left-0 rounded-tl-md border-t-2 border-l-2")} />
+      <span className={cn(corner, "top-0 right-0 rounded-tr-md border-t-2 border-r-2")} />
+      <span className={cn(corner, "bottom-0 left-0 rounded-bl-md border-b-2 border-l-2")} />
+      <span className={cn(corner, "right-0 bottom-0 rounded-br-md border-r-2 border-b-2")} />
+    </>
+  );
+}
+
+/** A line of a document, its marked phrases tinted as the scan passes. */
+function Words({ line }: { line: Line }) {
+  return line.map((part, i) =>
+    typeof part === "string" ? (
+      <span key={i}>{part}</span>
+    ) : (
       <span
+        key={i}
         className={cn(
-          "text-ink-meta text-[11px] tabular-nums",
-          at !== undefined && "journey-in text-ink",
+          "scan-anim scan-mark rounded-[3px] px-0.5",
+          part.tone === "match"
+            ? "[--mark:var(--color-positive-tint)]"
+            : "[--mark:var(--color-danger-tint)]",
         )}
-        style={at !== undefined ? delay(at) : undefined}
+        style={{ "--t": `${part.at}s` } as CSSProperties}
       >
-        {found} of {total}
+        {part.mark}
       </span>
-    </span>
+    ),
+  );
+}
+
+function ResumePaper() {
+  return (
+    <div className="text-ink text-[10.5px] leading-[1.55]">
+      <p className="text-center text-[13px] font-semibold">{RESUME.head}</p>
+      <p className="text-ink-meta text-center text-[10px]">{RESUME.sub}</p>
+      {RESUME.sections.map((section) => (
+        <div key={section.title} className="mt-3">
+          <p className="text-ink-meta border-b border-slate-900/10 pb-0.5 text-[9px] font-semibold tracking-[0.08em] uppercase">
+            {section.title}
+          </p>
+          <ul className="mt-1.5 grid gap-1">
+            {section.lines.map((line, i) => (
+              <li key={i} className="flex gap-1.5">
+                <span className="text-ink-meta">•</span>
+                <span>
+                  <Words line={line} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LetterPaper() {
+  return (
+    <div className="text-ink grid gap-2 text-[10.5px] leading-[1.55]">
+      {LETTER.map((line, i) => (
+        <p key={i}>
+          <Words line={line} />
+        </p>
+      ))}
+    </div>
   );
 }
 
