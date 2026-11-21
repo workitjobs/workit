@@ -199,7 +199,9 @@ class _Run:
                 resume_at = None
                 later: list[Posting] = []  # links sent into a busy Worker, first in line again after
                 while (requests or queue) and free:
-                    resume_at = self._resume_at(self._adapters.usage.reading())
+                    reading = self._adapters.usage.reading()
+                    self._adapters.answer_bank.follow(reading.bank_version)  # this Application plans with WorkIt's bank
+                    resume_at = self._resume_at(reading)
                     if resume_at:
                         break
                     if not requests and self._at_daily_cap(p for p, _ in running.values()):

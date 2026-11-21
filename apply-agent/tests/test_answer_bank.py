@@ -310,3 +310,26 @@ def test_a_change_waiting_behind_one_to_the_same_question_waits_without_spinning
     assert time.process_time() - used < 0.2
     bank.close()
     assert [e[0]["answer"] for e, _ in server.sent] == ["From LinkedIn.", "From LinkedIn.", "From a friend."]
+
+
+def test_before_an_application_the_bank_is_read_again_only_when_workits_version_moved():
+    """Fault: a choice the student gave in the extension never reached the app's next Application (W11)."""
+    server = Server()
+    bank = loaded(server)
+    bank.follow(7)
+    assert server.reads == 1  # the version memory holds: nothing to read
+
+    server.answers[key(SKILLS.label)] = {"question": SKILLS.label, "answer": ["Software"], "own": True}
+    server.version = 8  # the extension saved it
+    bank.follow(8)
+    assert server.reads == 2 and bank.get(SKILLS.label).answer == ["Software"]
+
+    bank.follow()  # a reading without the version (a Developer checkout off the Model route): the bank asks
+    assert (server.asked, server.reads) == (1, 2)
+
+    server.version, server.fails = 9, 3  # WorkIt down: memory stays, and the next check reads
+    bank.follow(9)
+    assert server.reads == 3 and bank.get(SKILLS.label).answer == ["Software"]
+    bank.follow(9)
+    assert server.reads == 4
+

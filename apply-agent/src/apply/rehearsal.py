@@ -694,13 +694,15 @@ def _after_the_limit(adapters: Adapters) -> None:
 
     It never raises. A reading that fails (a Developer checkout's `claude -p` logged out, or its probe refused) is
     no limit: the form's own calls say what is wrong, inside the link's try. Raised here, before that try, the
-    link's thread ended holding its Worker's turn, and the run waited on its summary until Ctrl-C."""
-    paused = False
+    link's thread ended holding its Worker's turn, and the run waited on its summary until Ctrl-C. Then the Answer
+    bank follows WorkIt's version, from the same reading (AnswerBank.follow, W11)."""
+    paused, version = False, None
     while True:
         try:
             reading = adapters.usage.reading()
         except (SetupError, ClaudeError):
             break
+        version = reading.bank_version
         if not reading.limited:
             break
         until = reading.resets_at or adapters.clock.now() + UNKNOWN_RESET_WAIT
@@ -709,6 +711,7 @@ def _after_the_limit(adapters: Adapters) -> None:
         paused = True
     if paused:
         adapters.board.run(paused_until=None)
+    adapters.answer_bank.follow(version)  # the link's form plans with WorkIt's bank as it is now (W11)
 
 
 def _until(release: threading.Event) -> str:

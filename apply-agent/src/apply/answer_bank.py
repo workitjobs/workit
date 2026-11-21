@@ -78,6 +78,10 @@ class Source(Protocol):
         each entry it kept out, by question."""
         ...
 
+    def version_now(self) -> int:
+        """The bank's version now, read alone."""
+        ...
+
 
 class WorkItSource:
     """The bank on WorkIt, as the signed-in student."""
@@ -90,6 +94,10 @@ class WorkItSource:
 
     def change(self, entries: list[dict], deleted: list[str]) -> tuple[int, dict[str, str]]:
         return self._workit().change_answer_bank(entries, deleted)
+
+    def version_now(self) -> int:
+        # The usage route's, as the Model route's reading carries it: one integer, no bank.
+        return int(self._workit().call("GET", "/apply-app/usage")["bank_version"])
 
     def _workit(self):
         if self._client is None:
@@ -181,6 +189,21 @@ class AnswerBank:
         seconds for it. Whether the bank is read."""
         self._wake.set()
         return self._ready.wait(wait)
+
+    def follow(self, version: int | None = None) -> None:
+        """Before each Application (W11): read the bank again when WorkIt's version is not memory's, so a change
+        saved elsewhere (the extension, another Mac) fills this Application. `version` comes with the run's usage
+        reading; with none (a Developer checkout off the Model route), the bank asks WorkIt itself. A read that fails
+        keeps memory as it is, and the next Application tries again."""
+        if self._source is None or not self.ready:
+            return
+        try:
+            if version is None:
+                version = self._source.version_now()
+            if version != self._version:
+                self.load()
+        except Exception:  # WorkIt down, or signed out: the bank in memory still fills, and the next check retries
+            pass
 
     def get(self, question: str) -> Entry | None:
         with self._lock:

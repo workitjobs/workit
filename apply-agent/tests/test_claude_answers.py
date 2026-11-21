@@ -35,7 +35,7 @@ from apply import (
     writing,
 )
 from apply.adapters import Adapters
-from apply.answer_bank import AnswerBank
+from apply.answer_bank import AnswerBank, key
 from apply.cli import main
 from apply.cover_letter import is_cover_letter
 from apply.essays import giveaways
@@ -864,6 +864,24 @@ def test_a_draft_names_its_form_by_the_workit_job_when_its_posting_has_one(monke
 
     [([entry], [])] = server.sent
     assert entry["question"].startswith(HOUSING) and entry["job_id"] == "j1" and "company" not in entry
+
+
+def test_an_answer_saved_in_the_extension_meanwhile_fills_the_next_application(monkeypatch):
+    """W11's Done when: a choice the student gives in the extension fills the app's next Application, with no
+    sync step and no restart. A Developer checkout off the Model route asks the bank's version itself."""
+    server = Server()
+    bank = AnswerBank(server)
+    bank.load()
+    form = without_cover_letter(ResearchForm("MetOx International"))
+    [housing] = [q.label for q in form.questions if q.label.startswith(HOUSING)]
+    server.answers[key(housing)] = {"question": housing, "answer": "No", "own": True}
+    server.version += 1  # the extension saved it after the app read the bank
+
+    row = run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
+    bank.close()
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, HOUSING) == "No" and server.sent == []  # the student's, never drafted
 
 
 def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted_again(monkeypatch):

@@ -28,6 +28,7 @@ from conftest import (
     SKYDIO_URL,
 )
 from fake_bamboohr import FakeBambooServer
+from fake_bank import Source
 from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
@@ -479,6 +480,21 @@ def test_a_draft_names_the_workit_job_the_queue_gave_its_link(monkeypatch, tmp_p
     assert done.outcome == "ready to submit", done.why
     assert done.posting.job_id == "j1"  # the Worker's drafts send it (test_claude_answers)
     assert fake.submissions == []
+
+
+def test_a_rehearsal_reads_the_bank_again_when_the_usage_reading_names_a_newer_version(monkeypatch, tmp_path):
+    """W11: the version rides on the usage reading each link already asks, so the bank costs no request of its own
+    unless it changed."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    workit = Source()  # at version 7
+    bank = AnswerBank(workit)
+    bank.load()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearse([ARC_URL], fake, profile_with(tmp_path), answer_bank=bank,
+                 usage=ScriptedUsage(lambda: UsageReading(bank_version=8)))
+
+    assert (workit.reads, workit.asked) == (2, 0)
 
 
 def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(monkeypatch, tmp_path):

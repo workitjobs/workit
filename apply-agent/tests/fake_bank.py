@@ -11,7 +11,7 @@ class Source:
     """WorkIt's bank as `GET .../answer-bank` serves it, or a read that fails until `fails` reads have."""
 
     def __init__(self, answers: dict | None = None, version: int = 7, fails: int = 0):
-        self.answers, self.version, self.fails, self.reads = answers or {}, version, fails, 0
+        self.answers, self.version, self.fails, self.reads, self.asked = answers or {}, version, fails, 0, 0
 
     def read(self) -> tuple[dict, int]:
         self.reads += 1
@@ -19,6 +19,9 @@ class Source:
             raise Unreachable("WorkIt didn't answer")
         return self.answers, self.version
 
+    def version_now(self) -> int:
+        self.asked += 1
+        return self.version
 
 
 class Server(Source):

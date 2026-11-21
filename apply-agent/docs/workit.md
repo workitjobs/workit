@@ -308,9 +308,16 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
     1, 5 and 30 seconds, then dropped; a refusal (a 4xx) is dropped at
     once. The log names the question only, masked. At quit the sender has
     5 seconds (`close`: the app's `finally`, a command's `atexit`).
-- **Not built yet** (W11 step 4): the version checks before each
-  Application, and a way for an `answer-bank.yaml` from before to reach
-  WorkIt.
+- **Before each Application the bank follows WorkIt's version**
+  (`AnswerBank.follow`): the run's usage reading (`GET /apply-app/usage`,
+  `UsageReading.bank_version`) carries it, and when it is not memory's
+  the bank is read again, so an answer saved in the extension fills the
+  next Application. A Developer checkout off the Model route has no such
+  reading, so the bank asks the usage route itself. A read that fails
+  keeps memory, and the next Application tries again. While no run goes,
+  a change made elsewhere waits for the next run.
+- **Not built yet** (W11 step 4): a way for an `answer-bank.yaml` from
+  before to reach WorkIt.
 
 **Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
 `tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,

@@ -196,6 +196,9 @@ class UsageReading:
     weekly_resets_at: datetime | None = None
     limited: bool = False
     resets_at: datetime | None = None
+    # The Answer bank's version on WorkIt, from the same `GET /apply-app/usage` (W11); None when this reading didn't
+    # ask WorkIt (a Developer checkout off the Model route, or WorkIt not answering): the bank then asks itself.
+    bank_version: int | None = None
 
 
 def lean(claude) -> bool:

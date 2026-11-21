@@ -447,8 +447,9 @@ class WorkItAsk:
     def reading(self) -> UsageReading:
         """The run's usage (Adapters.usage): `claude`'s (a Developer checkout's Max windows), and limited from the
         moment today's use reaches WorkIt's Usage cap (GET /apply-app/usage) until it resets, so no form opens until
-        then (rehearsal._after_the_limit, orchestrator._resume_at). WorkIt not answering reads as not limited: the
-        next ask says what is wrong itself."""
+        then (rehearsal._after_the_limit, orchestrator._resume_at), and the Answer bank's version (W11), which the
+        run follows (AnswerBank.follow). WorkIt not answering reads as not limited: the next ask says what is wrong
+        itself."""
         try:
             reading = self._claude.reading()
         except SetupError:  # no claude -p on this Mac: only drive and research need it, and they say so
@@ -457,6 +458,7 @@ class WorkItAsk:
             usage = self._workit.call("GET", "/apply-app/usage")
         except WorkItError:
             return reading
+        reading = replace(reading, bank_version=usage.get("bank_version"))
         if usage["used"] < usage["cap"]:
             return reading
         # Local and naive, as the Clock's and claude_cli's times are; a minute away at least, so a Mac clock a little
