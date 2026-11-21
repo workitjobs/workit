@@ -10,7 +10,10 @@
 //   as-is if it already exists locally or on origin.
 // - Env files are copied from the primary checkout, because a new worktree
 //   has none and the app and the API fail without them. They are copies:
-//   re-run with --env-only to refresh them.
+//   re-run with --env-only to refresh them, or run `npm run env` in the
+//   worktree to pull them from Infisical (docs/secrets.md). frontend/.env is
+//   the file Infisical's export writes; .env.local is copied for checkouts
+//   that still keep one.
 // - The sample resumes in frontend/public/resumes/ (git-ignored: real
 //   people's resumes) are copied the same way, so an agent testing an upload
 //   in any worktree finds one there.
@@ -26,7 +29,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-const ENV_FILES = [".env", join("frontend", ".env.local")];
+const ENV_FILES = [".env", join("frontend", ".env"), join("frontend", ".env.local")];
 const SAMPLE_RESUMES = join("frontend", "public", "resumes");
 const TECTONIC = join("backend", "vendor", "tectonic");
 

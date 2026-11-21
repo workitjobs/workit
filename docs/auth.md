@@ -207,8 +207,9 @@ app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
   can't hand the link. A teammate who signs Apply in to the live site
   needs their email on that list, which also opens the admin pages
   (every student's fix reports) and sends them the reports' alert emails.
-  Locally it is the root `.env`; for the live API, the `CF_API_SECRETS_JSON`
-  secret (`.github/CLAUDE.md`), which reaches the API at the next deploy.
+  Locally it is the root `.env`; for the live API, `WORKIT_ADMINS` in
+  Infisical's `workit-prod/api` (`secrets.md`), which reaches the API at the
+  next deploy.
 - **Not the shared client's `verify_otp`**: it would keep the student's
   session on the service-role client that every route uses. `/verify`
   is a plain HTTP call, and no log holds its body.
