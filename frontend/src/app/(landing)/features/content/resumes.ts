@@ -27,8 +27,8 @@
 import {
   CursorTextIcon,
   FilePlusIcon,
+  FoldersIcon,
   NotePencilIcon,
-  ScissorsIcon,
 } from "@phosphor-icons/react/ssr";
 
 import { ResumeAnimation } from "../animations";
@@ -94,10 +94,23 @@ const content: FeatureContent = {
     // scene, and both showed on the home page (the copy review, 2026-11-20).
     // The sent resume stays in How it works below.
     {
-      title: "Too long? Fit it to one page",
-      icon: ScissorsIcon,
-      body: "When your resume runs onto a second page, Fit to One Page hides lines until it fits. On a tailored resume, what the job cares about least goes first, and nothing leaves your bank.",
-      points: ["A cut hides a line on this resume only", "It uses none of your AI limit"],
+      title: "Every version, labelled by job",
+      // Folders (the user's pick, 2026-11-21). The Documents page
+      // (frontend/docs/screens.md, Resumes): one list of every resume,
+      // uploaded, generated and tailored; a tailored one shows its Target
+      // Job, the posting it was made for (never the jobs it was sent to:
+      // the Tracker keeps each application's sent resume); search, Type and
+      // Company filters, Sort; the star marks the primary resume, which
+      // Auto Apply attaches when no resume is tailored to that posting
+      // (auto-apply/architecture.md, `pick_resume`). This point replaced
+      // "Too long? Fit it to one page", which moved into the editing point.
+      icon: FoldersIcon,
+      body: "One list for every resume. Each tailored one shows its job. Search, sort and star your main one.",
+      points: [
+        "Filter by type or by company",
+        "Your starred resume goes on Auto Apply's forms",
+        "Rename, download or delete any resume",
+      ],
       visual: FitVisual,
     },
   ],
