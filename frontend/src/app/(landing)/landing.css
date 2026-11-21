@@ -135,6 +135,37 @@ html:has(.landing) {
   transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* A header menu's hover fill (menu-glide.tsx): one fill behind the items
+ * that glides to whichever the pointer or the keyboard is on. Placed with
+ * no transition while hidden, so it lands on the first item without a
+ * slide, then moved by a transform. An item's own hover fill is off under
+ * it. */
+.menu-glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  border-radius: 0.75rem;
+  background: rgb(15 23 42 / 0.05);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.menu-glide[data-shown] {
+  opacity: 1;
+  transition:
+    opacity 0.15s,
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-glide] a:hover {
+  background-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-glide[data-shown] {
+    transition: opacity 0.15s;
+  }
+}
+
 /* The header as the drafting grid's top row (header.tsx, 2026-11-21). A
  * hairline along the bar's foot, across the window: shown once the page
  * scrolls, on every page. On a page that draws the grid (one with a

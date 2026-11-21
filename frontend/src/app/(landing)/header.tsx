@@ -12,6 +12,7 @@ import { FeatureIcon } from "./features/feature-icon";
 import { FloatingHeader } from "./floating-header";
 import { PrimaryButton, SecondaryButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
+import { GlideList } from "./menu-glide";
 import { MobileMenu } from "./mobile-menu";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
 import { RESOURCES_IN_NAV, resourcePages, type Resource } from "./resources/catalog";
@@ -236,13 +237,13 @@ const MENU_PANEL =
 function FeaturesPanel() {
   return (
     <div className={cn(MENU_PANEL, "w-[36rem]")}>
-      <ul className="grid grid-cols-2 gap-1">
+      <GlideList className="grid grid-cols-2 gap-1">
         {featurePages.map((page) => (
           <li key={page.slug}>
             <MenuLink item={page} line={featureContent[page.slug].line} />
           </li>
         ))}
-      </ul>
+      </GlideList>
       {/* The home page's hiring-systems section, which has no page of its own. */}
       <Link
         href="/#hiring-systems"
@@ -275,13 +276,13 @@ function FeaturesPanel() {
 function ResourcesPanel() {
   return (
     <div className={cn(MENU_PANEL, "w-[21rem]")}>
-      <ul className="grid gap-1">
+      <GlideList className="grid gap-1">
         {resourcePages.map((resource) => (
           <li key={resource.slug}>
             <MenuLink item={resource} line={resource.line} />
           </li>
         ))}
-      </ul>
+      </GlideList>
     </div>
   );
 }
