@@ -1998,9 +1998,10 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
     - **`unreviewed_answers: hold`** makes an Application that takes a
       flagged answer a Hold, its reason naming those questions.
     - **The one-time upload** runs at the app's startup (a Developer
-      command's, before its run), with a progress line: only the questions
+      command's, before its run), and says nothing: only the questions
       WorkIt doesn't hold yet, in PATCHes of 100, then the file is renamed.
-      A failed upload is tried again at the next start.
+      What WorkIt's rule keeps out is dropped with no word (decided
+      2026-11-21). A failed upload is tried again at the next start.
     - **The Tracker's Answers tab goes** (`Tracker.add_answer`,
       `Tracker.answers`, `AnswerRow`, the Sheet's Answers code,
       `orchestrator.list_answers`, `take_edits`); the Answers view is the
