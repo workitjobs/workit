@@ -1604,7 +1604,9 @@ itself (D17, D18, D20).
    3.12, with Apple's tools only, with no docstrings, and refuses an app
    that holds a developer module, Python source or a docstring
    (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
-   window and ran the relay. It claims `workit-auto-apply://` and takes
+   window and ran the relay. On 2026-11-21 it passed the sign-in round trip
+   in the browser and the Worker setup, which ends on a real plain Worker's
+   hello through the app's own relay. It claims `workit-auto-apply://` and takes
    the sign-in link itself (W5's last step), and ships the plain
    Workers' window capture helper, built by `swiftc` in the build, since a
    student's Mac has no `swiftc`. Step 1 is done.
