@@ -14,8 +14,8 @@
  */
 import {
   BuildingsIcon,
+  ChartDonutIcon,
   ChecksIcon,
-  GaugeIcon,
   SortDescendingIcon,
 } from "@phosphor-icons/react/ssr";
 
@@ -38,9 +38,13 @@ const content: FeatureContent = {
   animation: MatchingAnimation,
   sections: [
     {
-      title: "Scored on what you have done",
-      icon: GaugeIcon,
-      body: "Each score compares your experience bank with the posting: how close your work is to the job, your skills, the titles you have held and the years of experience it asks for.",
+      title: "Every job, scored on your experience",
+      // A ring partly filled, close to the app's own match ring (the user's
+      // pick, 2026-11-21; it was a gauge). This point joins the old first
+      // and third ("The best fits at the top"): the score and the ranking
+      // are one idea.
+      icon: ChartDonutIcon,
+      body: "Every job gets a score from your real experience, and the best fits come first.",
       points: [
         "A match score on every job posting",
         "Built from your own experience bank",
