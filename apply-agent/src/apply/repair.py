@@ -10,7 +10,6 @@ and its message's shape, or the question's wording. Requests live as one
 JSON file each in a gitignored folder.
 """
 
-import fcntl
 import hashlib
 import json
 import re
@@ -19,6 +18,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from apply import locks
 from apply.home import HOME
 from apply.model import Posting, Status, one_line
 from apply.records import SECRET, Filled
@@ -145,13 +145,8 @@ class RepairRequests:
             if self.folder is None:
                 yield
                 return
-            self.folder.mkdir(parents=True, exist_ok=True)
-            with open(self.folder / ".lock", "a") as lock:
-                fcntl.flock(lock, fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(lock, fcntl.LOCK_UN)
+            with locks.held(self.folder / ".lock"):
+                yield
 
 
 def _questions(filled: Filled | None) -> list[dict]:

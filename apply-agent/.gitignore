@@ -23,6 +23,7 @@
 /apply-records/
 /default-probes/
 /answer-ledger.jsonl
+/answer-bank.lock
 /question-types.json
 /workday-trees.json
 /sheet-id

@@ -2,7 +2,6 @@
 scripted edit and commit in the Repair's worktree, and a fake suite says how
 the tests went. Real claude never runs here."""
 
-import fcntl
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -10,7 +9,7 @@ from pathlib import Path
 import pytest
 from fakes import ScriptedUsage
 
-from apply import claude_fill, cli, eightfold, home
+from apply import claude_fill, cli, eightfold, home, locks
 from apply.adapters import Drive, UsageReading
 from apply.model import Status
 from apply.notify import RecordingNotifier
@@ -576,9 +575,7 @@ def test_no_repair_runs_while_lisuls_usage_is_high(repo, tmp_path):
 
 def test_only_one_repair_runs_at_a_time(repo, tmp_path):
     world = World(repo, tmp_path, FakeClaude(FIX))
-    (tmp_path / "worktrees").mkdir()
-    with open(tmp_path / "worktrees" / ".lock", "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)  # another `apply repair` is going
+    with locks.held(tmp_path / "worktrees" / ".lock"):  # another `apply repair` is going
 
         assert world.repair() == []
 

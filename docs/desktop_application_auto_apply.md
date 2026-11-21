@@ -1084,9 +1084,9 @@ on Windows each one stops Apply:
 
 - **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
   `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
-  at their top, which Windows lacks, so Apply can't even start there. A
-  cross-platform lock library (such as `filelock`) does the job (W4's
-  rules).
+  at their top, which Windows lacks, so Apply can't even start there. Built
+  (KAN-929): every lock goes through `apply.locks`, on `portalocker`
+  (`windows_desktop.md`, P1).
 - **The channel between Apply and the plain Workers.** `plain/bridge.py`,
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with

@@ -46,7 +46,6 @@ that cannot reach WorkIt (no answer, or no live login) waits in
 import base64
 import dataclasses
 import email.utils
-import fcntl
 import hashlib
 import json
 import os
@@ -70,6 +69,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
+from apply import locks
 from apply.home import HOME
 from apply.keychain import WORKIT, SystemKeychain
 
@@ -401,9 +401,7 @@ class WorkIt:
 
     @contextmanager
     def _locked(self):
-        self.login.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.login.with_suffix(".lock"), "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.login.with_suffix(".lock")):
             yield
 
 
@@ -528,9 +526,7 @@ class WaitingWrites:
 
     @contextmanager
     def _locked(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.path.with_suffix(".lock")):
             yield
 
 

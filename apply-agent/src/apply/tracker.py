@@ -6,7 +6,6 @@ accounts and the Answers list. The record of where each application stands
 is WorkIt's Applications Tracker (../docs/adr/0007)."""
 
 import dataclasses
-import fcntl
 import json
 import os
 import sys
@@ -16,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from apply import locks
 from apply.home import HOME
 from apply.model import Outcome, Posting, Status
 from apply.workit import Stage, Write
@@ -206,9 +206,7 @@ class FileTracker(InMemoryTracker):
 
     @contextmanager
     def _held(self, write: bool):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.path.with_suffix(".lock")):
             self._load()
             yield
             if write:

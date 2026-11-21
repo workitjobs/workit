@@ -1,6 +1,6 @@
 # WorkIt Auto Apply on Windows
 
-**Status (2026-11-21, KAN-929):** a plan, not built. This note lists what
+**Status (2026-11-21, KAN-929):** a plan. P1 is built; the rest is not. This note lists what
 stops Apply on Windows, one problem per section, in the order to solve
 them. It expands F4 and W4's "Found on the way" list in
 `desktop_application_auto_apply.md`. Line numbers are at commit
@@ -194,14 +194,14 @@ Each problem says what it is, where it is, what breaks on Windows, whom it
 stops, how to fix it, and how to know it is done. Section 5 gives the rules
 for each fix, section 6 the tests, and section 7 the order.
 
-### P1. File locks (`fcntl`)
+### P1. File locks (`fcntl`): built
 
 - **What it is.** Two Apply processes can write Apply's data files at the
   same time: a run, the window, `apply ask`. The files are the Tracker,
   Records, the Answer bank and its queue, the open-forms list and the
   WorkIt login. A lock file stops two writes at once (`fcntl.flock`, for
   example `tracker.py:211`).
-- **Where.** `import fcntl` at the top of 10 modules: `tracker.py:9`,
+- **Where it was** (line numbers before the fix). `import fcntl` at the top of 10 modules: `tracker.py:9`,
   `records.py:5`, `batch.py:14`, `answer_bank.py:18`, `answer_sync.py:24`,
   `verify.py:11`, `workit.py:49`, and the developer-only `repair.py:13`,
   `repairer.py:30` and `sheet.py:10`.
@@ -210,29 +210,47 @@ for each fix, section 6 the tests, and section 7 the order.
   Mac with `fcntl` blocked: `apply.cli`, `apply.first_run` and
   `apply.plain.seed_setup` all fail to import, through `tracker.py:9`.
 - **Who.** Both.
-- **Fix.** One lock helper in one module, on a cross-platform library such
-  as `filelock` (W4's rule: a library first). Every module uses the helper.
-  The library joins the third-party notices by itself. Three catches:
-  - **Never point `filelock` at a data file.** It opens its lock file with
-    `O_TRUNC` on macOS, Linux and Windows (read in its `_unix.py` and
-    `_windows.py`), which empties the file. Always lock a separate
-    `<file>.lock`.
-  - **The Answer bank locks its own file** (`answer_bank.py:207`, `:226`:
-    "no lock file beside it"). It needs a lock file beside it, for the
-    catch above, and because a lock on Windows also stops other processes
-    from reading the locked file.
-  - **`filelock` has only exclusive locks.** The Answer bank's read takes a
-    shared lock (`LOCK_SH`, `answer_bank.py:207`). It takes the exclusive
-    lock instead: reads then wait for each other, and a read is short.
-    `repairer.py:247`'s try-once lock (`LOCK_NB`) is `filelock`'s
-    `timeout=0`.
-  - On macOS and Linux, `filelock` waits by polling every 0.05 s, where
-    `flock` waited in the kernel. A wait can take that much longer.
-- **Done when.** A test imports `apply.cli`, `apply.first_run` and
-  `apply.plain.seed_setup` with `fcntl` blocked (its fault: a module
-  imports `fcntl` again). It runs in the fast list on Ubuntu, so it guards
-  Windows before a Windows job exists. And the new test that writes the
-  Tracker from two processes passes (section 6).
+- **The fix (KAN-929).** `apply.locks` (`apply-agent/src/apply/locks.py`)
+  is the one way Apply locks a file. `held(path)` waits for the lock.
+  `tried(path)` takes it only if it is free, as `apply repair` needs.
+  Every one of the 10 modules uses it. It runs on `portalocker`.
+  - **A lock file is never emptied.** `held` and `tried` open the lock
+    file to append. Three lock files were opened with `"w"`, which empties
+    a file: the Answer bank queue's (`answer_sync.py`), and the WorkIt
+    login's and the WorkIt queue's (`workit.py`). They append now.
+  - **Each data file has its own lock file beside it**, `<name>.lock`,
+    which holds nothing. The Sheet shares the Tracker's lock on purpose
+    (`sheet.locked`), so that their writes never interleave.
+  - **The Answer bank has its own lock file now**, `answer-bank.lock`.
+    Before, it locked `answer-bank.yaml` itself. On Windows a lock also
+    stops every other handle from reading the locked bytes, so the bank's
+    own read would fail.
+  - **Every lock is exclusive.** portalocker's Windows lock is exclusive
+    only: a shared one needs pywin32. The Answer bank's read took a shared
+    lock. It takes the exclusive one now, so two reads wait for each
+    other. A read is short.
+  - **A wait never gives up on Windows.** portalocker's Windows lock tries
+    for about 10 s, then raises `AlreadyLocked`, and `held` tries again.
+  - **Why portalocker, not filelock.** filelock opens its lock file with
+    `O_TRUNC`, which empties it (read in its `_unix.py` and
+    `_windows.py`). portalocker locks a file that Apply opens itself, in
+    the mode that Apply picks. On macOS and Linux it uses `fcntl.flock`,
+    as Apply did, so the Mac's locks work as before. It has no required
+    dependency, and its license is BSD-3-Clause.
+  - **After a pull, restart every Apply process.** An older process and a
+    newer one on the same data folder still exclude each other on every
+    lock file except the Answer bank's: the older one locks
+    `answer-bank.yaml` and the newer one `answer-bank.lock`.
+- **Tests.** `tests/test_locks.py`, in the fast list. Each test went red
+  with its fault in.
+  - Another process holds the Tracker's lock between its read and its
+    save. This process's write waits, `tried` sees the lock, and then both
+    writes land. Fault: the lock does nothing.
+  - No module of Apply imports `fcntl`. Fault: a module imports it again.
+    The test reads the source. An import with `fcntl` blocked can't work
+    as a test, because portalocker itself imports `fcntl` on macOS and
+    Linux.
+- **Still open.** Run Apply on Windows. M1 also needs P2 and P3.
 
 ### P2. "Is it still running?" (`os.kill(pid, 0)`)
 
@@ -469,7 +487,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 
 | Problem | Kind of fix |
 |---|---|
-| P1 file locks | A library (`filelock`): the same code on every OS |
+| P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
 | P2 "is it still running?" | A library (`psutil.pid_exists`): the same code on every OS |
 | P3 profile lock | A library (psutil finds the Chrome): the same code on every OS |
 | P4 channel | The standard library (`multiprocessing.connection`): one API, a socket on macOS and Linux and a named pipe on Windows |
@@ -491,8 +509,8 @@ can break, on each OS. The goal is not a high count of tests.
 
 | Problem | Test, new or extended | The fault it turns red | Where it runs |
 |---|---|---|---|
-| P1 | New: two processes write the Tracker at the same time, and both writes are there after. No test checks this today | The lock does nothing | The fast list |
-| P1 | New: import `apply.cli`, `apply.first_run` and `apply.plain.seed_setup` with `fcntl` blocked | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
+| P1 | Built, `tests/test_locks.py`: two processes write the Tracker at the same time, and both writes are there after | The lock does nothing | The fast list |
+| P1 | Built, `tests/test_locks.py`: no module of Apply imports `fcntl`, read from the source | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
 | P2 | `tests/test_each_os.py`, `tests/test_into.py`: a live PID and a dead PID; the check never stops the process | The check stops a live process, or misses it | The fast list |
 | P3 | `tests/test_plain_orphans.py`, `tests/test_each_os.py`: the profile's own Chrome is found; a helper process (`--type=`), another profile's Chrome and a reused PID never count | Another process is taken for the profile's Chrome | The fast list |
 | P4 | `tests/test_plain_bridge.py` on the new channel: a hello, a message over 512 KiB, and a client without the key, which is refused | A client that isn't Apply's host gets in | The fast list, on every OS |

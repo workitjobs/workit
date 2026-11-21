@@ -2,7 +2,6 @@
 screenshot (and, once submitted, a screenshot of the page its submit led to), kept outside the Tracker (in the private apply-records repo) and
 linked from its row."""
 
-import fcntl
 import json
 import re
 import subprocess
@@ -13,6 +12,7 @@ from datetime import date
 from html import escape
 from pathlib import Path
 
+from apply import locks
 from apply.home import HOME
 from apply.model import Answers, Posting, Question, QuestionSet, Readback, Status
 
@@ -230,14 +230,9 @@ class GitRecords:
 
     @contextmanager
     def _locked(self):
-        # Several Workers or runs on this Mac share one clone.
-        self._clone.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._clone.parent / f"{self._clone.name}.lock", "a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+        # Several Workers or runs on this computer share one clone.
+        with locks.held(self._clone.parent / f"{self._clone.name}.lock"):
+            yield
 
     def _ensure_clone(self) -> None:
         if (self._clone / ".git").exists():
