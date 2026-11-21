@@ -26,16 +26,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
 from apply.model import Question, one_line
-
-if TYPE_CHECKING:
-    from apply.tracker import AnswerRow
 
 CLAUDE, LISUL = "claude", "lisul"  # who gave an answer
 FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
@@ -61,9 +58,7 @@ class Entry:
     reviewed: bool = False  # Lisul has looked at it
     first_seen: date | None = None
     company: str = ""  # where it was first asked
-    uses: int = 0  # how many Applications it answered after its first
     facts: tuple[str, ...] = ()  # the profile keys and Story bank lines Claude's draft drew on
-    last_used: date | None = None
     none: bool = False  # a multi-select none of whose options holds (answer []): its boxes stay unticked
 
 
@@ -129,40 +124,6 @@ class AnswerBank:
             found.pop("facts", None)  # what the old draft drew on
             found.pop("none", None)
             return True
-
-    def take_edits(self, rows: list["AnswerRow"]) -> list[str]:
-        """Copy Lisul's edits from the Answers tab into the bank: an answer he
-        changed from the one Apply listed becomes his (source lisul, reviewed),
-        and a tick in Reviewed marks it reviewed. Returns the questions changed."""
-        changed = []
-        with self._writing() as entries:
-            for row in rows:
-                found = _find(entries, row.question)
-                if not isinstance(found, dict):
-                    continue
-                was = found.get("answer")
-                answer = [a.strip() for a in row.answer.split(";") if a.strip()] if isinstance(was, list) else row.answer.strip()
-                if answer and row.answer.strip() != row.drafted.strip() and answer != was:
-                    found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
-                    found["source"], found["reviewed"] = LISUL, True
-                    found.pop("none", None)
-                elif row.reviewed and found.get("reviewed") is not True:
-                    found["reviewed"] = True
-                else:
-                    continue
-                changed.append(row.question)
-        return changed
-
-    def use(self, questions: list[str], day: date) -> None:
-        """Count one more use, on `day`, of each answer in the bank to `questions`:
-        an answer a later form took from the bank. The file is only written
-        when one of them is in it, and an answer never used again has no count."""
-        with self._writing() as entries:
-            for question in questions:
-                found = _find(entries, question)
-                if isinstance(found, dict):
-                    was = found.get("uses") if isinstance(found.get("uses"), dict) else {}
-                    found["uses"] = {"count": int(was.get("count") or 0) + 1, "last": day}
 
     def answer(self, question: str, answer: str | list[str], day: date) -> None:
         """Lisul's own answer to `question`, from the Apply window: it replaces
@@ -278,7 +239,6 @@ def _find(entries: dict, question: str) -> Any:
 
 def _entry(found: dict) -> Entry:
     seen = found.get("first_seen") or {}
-    uses = found.get("uses") if isinstance(found.get("uses"), dict) else {}
     answer = found["answer"]
     return Entry(
         question=str(found.get("question") or ""),
@@ -288,9 +248,7 @@ def _entry(found: dict) -> Entry:
         reviewed=found.get("reviewed") is True,
         first_seen=seen.get("date") if isinstance(seen.get("date"), date) else None,
         company=str(seen.get("company") or ""),
-        uses=int(uses.get("count") or 0),
         facts=tuple(str(f) for f in found.get("facts") or ()),
-        last_used=uses.get("last") if isinstance(uses.get("last"), date) else None,
         none=found.get("none") is True and answer == [],
     )
 

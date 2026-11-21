@@ -74,11 +74,10 @@ def test_each_change_goes_to_workit_and_a_claude_draft_goes_as_claude_s(fake, tm
     assert AnswerBank(tmp_path / "answer-bank.yaml").raw()[HEARD.label.casefold()]["edited_at"]
 
 
-def test_a_delete_goes_and_a_counted_use_sends_nothing(fake, tmp_path):
+def test_a_delete_goes(fake, tmp_path):
     bank = answer_sync.bank(tmp_path / "answer-bank.yaml", ON, AnswerSync(logged_in(fake, tmp_path), tmp_path / "q.json"))
     bank.add(SHIFTS, ["Mornings"], "Initech", DAY)
 
-    bank.use([SHIFTS.label], DAY)
     assert len(fake.synced) == 1
     bank.delete(SHIFTS.label)
 

@@ -35,7 +35,6 @@ from apply.adapters import (
     SetupError,
     UsageReading,
 )
-from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
 from apply.applicant import as_applicant
 from apply.captcha import Waiter
@@ -52,7 +51,7 @@ from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.records import Record
 from apply.request import is_request, resolve
-from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
+from apply.tracker import EmployerAccount, Row, options_cell
 from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
@@ -100,17 +99,13 @@ def run(
     Every run, even one for Requests only, takes approvals first, so an
     approval waits no longer than the next 5-minute Requests check. A Developer checkout's: the Student build has
     no live run (apply.build)."""
-    from apply.notify import TITLE, summary, used_again
+    from apply.notify import TITLE, summary
 
     accounts_before = len(adapters.tracker.employer_accounts())
     this_run = _Run(adapters, profile)
-    this_run.list_answers()
     this_run.go(workers, matches, requests)
     new_accounts = len(adapters.tracker.employer_accounts()) - accounts_before
-    reused = list(this_run.reused.values())
-    if reused:
-        print(f"Unreviewed drafts used again (review them in the Answers tab): {used_again(reused)}")
-    adapters.notifier.notify(TITLE, summary(this_run.statuses, new_accounts, list(this_run.drafted.values()), reused))
+    adapters.notifier.notify(TITLE, summary(this_run.statuses, new_accounts, list(this_run.drafted.values())))
     _push(adapters, profile, this_run.waiting)
 
 
@@ -137,8 +132,6 @@ class _Run:
         self.statuses: Counter = Counter()  # how this run's Applications ended
         self.drafted: dict[str, tuple[str, str]] = {}  # new answers Claude drafted this run, by the bank's key
         self.waiting: list[tuple[Status, str, str, str]] = []  # (status, company, role, reason) left for Lisul
-        # unreviewed drafts the bank answered a form with this run, with their latest uses, by the bank's key
-        self.reused: dict[str, tuple[str, str, int]] = {}
         self._answers: dict[str, dict[str, str]] = {}  # Lisul's Missing fact answers, by Application ID
         self._calibrating: set[str] = set()  # Applications this run held for the Calibration run
         self._approved: dict[str, str] = {}  # the Essay cell of each Hold Lisul approved, by Application ID
@@ -154,31 +147,9 @@ class _Run:
             self._note(row.application_id, row.posting_url, row.status, row.reason)
         # Sites whose password sign-in failed: no Application tries them again.
         self._failed_sign_ins = failed_sites([row.reason for row in self._rows])
-        self._listed: set[str] = set()  # Answer bank entries the Answers tab lists, by the bank's key
         # Matches applied to today, in earlier runs and this one, by Application ID: the Daily cap's count.
         today = adapters.clock.now().date()
         self._applied_today = {row.application_id for row in self._rows if _applied_on(today, row)}
-
-    def list_answers(self) -> None:
-        """Copy Lisul's edits in the Tracker's Answers tab into the Answer bank,
-        then list there every answer in the bank it lacks (drafted in a
-        rehearsal, say), so he sees each one."""
-        tracker, bank = self._adapters.tracker, self._adapters.answer_bank
-        rows = tracker.answers()
-        bank.take_edits(rows)
-        self._listed = {bank_key(row.question) for row in rows}
-        for entry in bank.entries():
-            self._list(entry)
-
-    def _list(self, entry: Entry) -> None:
-        if bank_key(entry.question) in self._listed:
-            return
-        shown = "; ".join(entry.answer) if isinstance(entry.answer, list) else entry.answer
-        with self._writing:
-            self._adapters.tracker.add_answer(AnswerRow(
-                entry.question, shown, entry.reviewed, shown, entry.options, entry.company, entry.first_seen,
-            ))
-        self._listed.add(bank_key(entry.question))
 
     def go(self, workers: int, matches: bool, with_requests: bool) -> None:
         requests, queue = self._to_apply(matches, with_requests)
@@ -501,12 +472,6 @@ class _Run:
             self._applied_today.add(posting.id)
         for question, answer in result.drafted:  # two Workers may draft one question at once: listed once
             self.drafted.setdefault(bank_key(question), (question, answer))
-            if entry := self._adapters.answer_bank.get(question):
-                self._list(entry)
-        for question, answer, uses in result.reused:
-            was = self.reused.get(bank_key(question))
-            if not was or was[2] < uses:
-                self.reused[bank_key(question)] = (question, answer, uses)
 
     def _to_everyday_chrome(self, posting: Posting) -> None:
         """A bot block's Handoff (KAN-590): open the posting in Lisul's everyday Chrome, where the extension fills

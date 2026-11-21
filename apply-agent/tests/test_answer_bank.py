@@ -9,7 +9,6 @@ from apply import fill_engine
 from apply.answer_bank import AnswerBank
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
-from apply.tracker import AnswerRow
 
 HEARD = Question("q1", "Tell us how you heard about Zipline", "text", required=True)
 SAMPLES = Question("q2", "Will you be including a link on your resume to samples of projects you've worked on?",
@@ -98,42 +97,6 @@ def test_the_notes_atop_a_bank_with_no_answers_yet_stay_put(tmp_path):
 SKILLS = Question("q3", "Skill Areas (Select all that apply)", "multi_select", True, ("Finance", "Software", "Robotics"))
 
 
-def listed(question: Question, answer: str, drafted: str, reviewed: bool = False) -> AnswerRow:
-    """The question's row in the Answers tab, as Lisul left it."""
-    return AnswerRow(question.label, answer, reviewed, drafted, question.options, "Zipline", DAY)
-
-
-def test_lisuls_edit_in_the_answers_tab_becomes_the_banks_answer(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    bank = AnswerBank(path)
-    for question, answer in ((SAMPLES, "Yes"), (HEARD, "From the Simplify list."), (SKILLS, ["Software"])):
-        bank.add(question, answer, "Zipline", DAY)
-
-    changed = bank.take_edits([
-        listed(SAMPLES, "No", drafted="Yes"),  # edited
-        listed(HEARD, "From the Simplify list.", drafted="From the Simplify list.", reviewed=True),  # ticked only
-        listed(SKILLS, "Software; Robotics", drafted="Software"),
-        listed(Question("q9", "Not in the bank?", "text"), "Whatever", drafted=""),
-    ])
-
-    assert changed == [SAMPLES.label, HEARD.label, SKILLS.label]
-    saved = AnswerBank(path)
-    samples, heard, skills = (saved.get(q.label) for q in (SAMPLES, HEARD, SKILLS))
-    assert (samples.answer, samples.source, samples.reviewed) == ("No", "lisul", True)
-    assert (heard.answer, heard.source, heard.reviewed) == ("From the Simplify list.", "claude", True)
-    assert (skills.answer, skills.source) == (["Software", "Robotics"], "lisul")
-    assert saved.get("Not in the bank?") is None
-
-
-def test_an_answer_the_tab_still_shows_as_drafted_leaves_an_edit_made_in_the_file(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    AnswerBank(path).add(SAMPLES, "Yes", "Zipline", DAY)
-    path.write_text(path.read_text().replace("answer: 'Yes'", "answer: 'No'"))
-
-    assert AnswerBank(path).take_edits([listed(SAMPLES, "Yes", drafted="Yes")]) == []
-    assert AnswerBank(path).get(SAMPLES.label).answer == "No"
-
-
 # Lisul's own edits, from the Answers tab of the Apply window.
 
 def test_lisuls_answer_in_the_window_replaces_the_draft_and_counts_as_reviewed(tmp_path):
@@ -209,40 +172,6 @@ def test_lisuls_edits_and_workers_drafts_at_once_lose_nothing(tmp_path):
     bank = AnswerBank(path)
     assert [bank.get(q.label).answer for q in questions] == \
         [f"Mine q{n}" for n in range(8)] + [f"Draft q{n}" for n in range(8, 16)]
-
-
-def test_each_use_of_an_answer_is_counted_with_the_day_it_was_last_used(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    bank = AnswerBank(path)
-    bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
-    bank.add(SAMPLES, "Yes", "Zipline", DAY)
-
-    bank.use([HEARD.label], date(2026, 10, 17))
-    bank.use(["tell us how you heard about zipline *", SAMPLES.label, "Never asked before?"], date(2026, 10, 18))
-
-    heard, samples = AnswerBank(path).get(HEARD.label), AnswerBank(path).get(SAMPLES.label)
-    assert (heard.uses, heard.last_used) == (2, date(2026, 10, 18))
-    assert (samples.uses, samples.last_used) == (1, date(2026, 10, 18))
-    assert yaml.safe_load(path.read_text())[HEARD.label.casefold()]["uses"] == {"count": 2, "last": date(2026, 10, 18)}
-
-
-def test_an_answer_never_used_again_has_no_count_in_the_file(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    path.write_text(
-        "Tell us how you heard about Zipline:\n"
-        "  question: Tell us how you heard about Zipline\n"
-        "  answer: A friend on the avionics team.\n"
-        "  source: lisul\n"
-        "  reviewed: true\n"
-    )
-    before = path.read_text()
-    bank = AnswerBank(path)
-
-    bank.use([], DAY)
-    bank.use(["Never asked before?"], DAY)
-
-    assert path.read_text() == before
-    assert (bank.get(HEARD.label).uses, bank.get(HEARD.label).last_used) == (0, None)
 
 
 def test_a_draft_keeps_the_facts_it_drew_on_and_one_with_none_names_none(tmp_path):

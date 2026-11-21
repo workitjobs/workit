@@ -149,8 +149,6 @@ class Result:
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank, in form order
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one, in form order
     named: tuple[str, str] = ("", "")  # the company and role the form's own page named (Claude fill)
-    # (question, answer, uses) of each unreviewed draft the Answer bank answered this form with, in form order
-    reused: tuple[tuple[str, str, int], ...] = ()
     bot_signals: tuple[str, ...] = ()  # what suggested the job system took the browser for a bot (apply.bot_signals)
     verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
     # each answer Claude wrote for the form, kept so Lisul can have one written again (apply.regenerate)
@@ -257,7 +255,6 @@ def apply_to(
                            e.plan.type if e.plan else essays.question_type(e.question), e.text,
                            story=e.plan.story if e.plan else "")
     result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
-    result.reused = tuple(planned.reused)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
@@ -416,11 +413,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                             go_on(page)
                     continue
                 problems += _unasked(filler, page, questions)
-                planned.use_bank()
                 if planned.handoffs:  # filled but for what only Lisul may answer; no Claude call
                     checked = ["Pre-submit check failed. " + "; ".join(problems)] if problems else []
                     return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + planned.to_tick + [FILLED_BUT]), filled)
-                holds += planned.overused()
+                holds += planned.unreviewed()
                 on_verify(None)  # Verifying: the window shows it while the form is read back and checked
                 found = []
                 if problems:
@@ -578,7 +574,6 @@ class _Planned:
         self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted into the Answer bank
         self.unbanked: list[essays.Draft] = []  # Claude's answers to one-off questions about this company
         self.banked: list[Question] = []  # one-off questions the Answer bank answered
-        self.reused: list[tuple[str, str, int]] = []  # the unreviewed drafts among them, with their uses
         self._asked: set[Question] = set()  # one-off questions sent to Claude to draft
         self.material: str | None = None  # the <company> block, read once the form has essays
         self.brief = ""  # the Company brief's facts: web text, so never searched for traps or bans as the material is
@@ -852,25 +847,16 @@ class _Planned:
             self.answers = self._answers
         return changed
 
-    def use_bank(self) -> None:
-        """Count one use of each Answer bank answer the filled form took (a
-        rehearsal, which sends nothing, counts none), and note the unreviewed
-        drafts among them with their uses, this one included."""
-        labels = [self.wording(q) for q in self.banked if q.name in self.answers]
-        if not self._rehearse:
-            self._bank.use(labels, self._today)
-        drafts = [entry for label in labels if (entry := self._bank.get(label)) and not entry.reviewed]
-        self.reused = [(one_line(e.question), ", ".join(e.answer) if isinstance(e.answer, list) else e.answer,
-                        e.uses + self._rehearse) for e in drafts]
-
-    def overused(self) -> list[str]:
-        """Why the unreviewed drafts used again too often hold the Application,
-        under the max_unreviewed_uses policy (off unless set); never an approved Hold."""
-        limit = self.profile.policy("max_unreviewed_uses")
-        if not limit or self._approved is not None:
+    def unreviewed(self) -> list[str]:
+        """Why the Answer bank answers the form took that no one has reviewed hold the Application, under the
+        unreviewed_answers policy: `use` (the default) fills them at once and holds nothing; `hold` holds the
+        Application until each is reviewed in the Answers tab. Never an approved Hold."""
+        if self.profile.policy("unreviewed_answers") != "hold" or self._approved is not None:
             return []
-        return [f"'{q}': unreviewed answer used {n} times: review it in the Answers tab"
-                for q, _, n in self.reused if n >= limit]
+        waiting = [entry for q in self.banked if q.name in self.answers
+                   if (entry := self._bank.get(self.wording(q))) and entry.source != LISUL and not entry.reviewed]
+        return [f"'{one_line(e.question)}': an answer that waits for your review: review it in the Answers tab"
+                for e in waiting]
 
     def known(self) -> str:
         """What the essays know of the company: the Company material, with the Company brief in it."""

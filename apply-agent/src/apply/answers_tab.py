@@ -58,7 +58,7 @@ class AnswersTab:
         """What the tab shows, read again from the bank and the profile."""
         facts = self._profile_now().facts()
         return {
-            "bank": [_shown(entry) for entry in _reused_first(self._bank.read_again())],
+            "bank": [_shown(entry) for entry in self._bank.read_again()],
             "answered": [{"question": q, "answer": _text(a)} for q, a in (facts.get(ANSWERED) or {}).items()
                          if not SECRET.search(str(q))],
             "stock": [{"key": k, "answer": _text(a)} for k, a in (facts.get(STOCK) or {}).items()
@@ -200,16 +200,10 @@ def _scalar(text: str) -> str:
     return SingleQuotedScalarString(text) if bool_like else text
 
 
-def _reused_first(entries: list[Entry]) -> list[Entry]:
-    """The unreviewed drafts used again first, the most used first; the rest in bank order."""
-    return sorted(entries, key=lambda e: -e.uses if e.uses and not e.reviewed else 0)
-
-
 def _shown(entry: Entry) -> dict:
     return {"question": entry.question, "answer": entry.answer, "options": list(entry.options), "source": entry.source,
             "reviewed": entry.reviewed, "company": entry.company.strip(),
-            "date": entry.first_seen.isoformat() if entry.first_seen else "",
-            "uses": entry.uses, "last_used": entry.last_used.isoformat() if entry.last_used else ""}
+            "date": entry.first_seen.isoformat() if entry.first_seen else ""}
 
 
 def _flat(value: Any, prefix: str = "", files: bool = False) -> list[list[str]]:

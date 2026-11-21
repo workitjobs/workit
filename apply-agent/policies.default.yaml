@@ -162,11 +162,11 @@ target_companies: []
 # applicant can judge Claude's answers before anything is submitted unseen.
 calibration_run: 10
 
-# Off (null) by default: an unreviewed Answer bank draft is used again on every
-# form that asks it, and each run lists those used again. Set a number N to
-# hold every Application that uses an unreviewed draft for the Nth time or
-# later, until the applicant reviews or edits it in the Answers tab.
-max_unreviewed_uses: null
+# What an Answer bank answer no one has reviewed yet does (a draft of the
+# model's): `use` (the default) fills every later form that asks it at once;
+# `hold` holds each Application that would take one, until the applicant
+# reviews or edits it in the Answers tab.
+unreviewed_answers: use
 
 # Workers' Chrome runs headless (true: no window; the applicant watches every
 # Worker in the dashboard) or headed (false: a visible window per Worker). Runs

@@ -43,7 +43,7 @@ from apply.model import Answers, Posting, Question
 from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import InMemoryRecords
-from apply.tracker import AnswerRow, InMemoryTracker, Row
+from apply.tracker import InMemoryTracker, Row
 
 NOW = datetime(2026, 10, 15, 9, 30)
 PROFILE = FIXTURES / "planner-profile.yaml"
@@ -914,44 +914,6 @@ def test_a_drafted_answer_is_banked_with_the_facts_it_drew_on(monkeypatch):
     assert entry.facts == ("identity.summer_2027_location", story)  # what Claude named that a source holds
 
 
-def test_each_application_an_answer_in_the_bank_answers_counts_one_use(monkeypatch):
-    form, bank = ResearchForm("MetOx International"), AnswerBank()
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    [drafted] = bank.entries()
-    assert drafted.uses == 0  # drafting it is not a use again
-
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co", "Third Co"], bank=bank)
-
-    [entry] = bank.entries()
-    assert (entry.uses, entry.last_used) == (2, NOW.date())
-
-
-def test_the_run_notification_lists_the_unreviewed_drafts_used_again(monkeypatch, capsys):
-    form, bank, notifier = ResearchForm("MetOx International"), AnswerBank(), RecordingNotifier()
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    [entry] = bank.entries()
-    bank.use([entry.question], NOW.date())
-
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co"], bank=bank, notifier=notifier)
-
-    [(_, message)] = notifier.sent
-    assert message.endswith(f"1 unreviewed draft used again: {entry.question} → Yes (2 uses)")
-    assert f"Unreviewed drafts used again (review them in the Answers tab): {entry.question} → Yes (2 uses)" \
-        in capsys.readouterr().out
-
-
-def test_a_reviewed_answer_used_again_is_not_listed(monkeypatch):
-    form, bank, notifier = ResearchForm("MetOx International"), AnswerBank(), RecordingNotifier()
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    bank.review(bank.entries()[0].question)
-
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co"], bank=bank, notifier=notifier)
-
-    [(_, message)] = notifier.sent
-    assert "used again" not in message
-    assert bank.entries()[0].uses == 1
-
-
 def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch, tmp_path):
     form, path = ResearchForm("MetOx International"), tmp_path / "answer-bank.yaml"
     run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=AnswerBank(path))
@@ -1109,32 +1071,6 @@ def test_the_record_lists_what_claude_drafted(monkeypatch):
     assert f"- {HOUSING}" in readme and "→ Yes" in readme
 
 
-def test_each_drafted_answer_is_listed_in_the_answers_tab_where_lisuls_edit_wins_next_run(monkeypatch, tmp_path):
-    form, tracker, path = ResearchForm("MetOx International"), InMemoryTracker(), tmp_path / "answer-bank.yaml"
-    run_all(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), ["MetOx International"], bank=AnswerBank(path),
-            tracker=tracker)
-    [listed] = tracker.answers()
-    assert listed == AnswerRow(listed.question, "Yes", False, "Yes", ("Yes", "No"), "MetOx International", NOW.date())
-    assert listed.question.startswith(HOUSING)
-
-    tracker.edit_answer_as_lisul(listed.question, answer="No")
-    run_all(monkeypatch, form, FakeClaude(), ["MetOx International", "Another Co"], bank=AnswerBank(path), tracker=tracker)
-
-    assert [s[label] for s in form.submitted for label in s if label.startswith(HOUSING)] == ["Yes", "No"]
-    entry = AnswerBank(path).get(listed.question)
-    assert (entry.answer, entry.source, entry.reviewed) == ("No", "lisul", True)
-    assert len(tracker.answers()) == 1
-
-
-def test_an_answer_banked_outside_a_run_is_listed_in_the_answers_tab_at_the_next(monkeypatch):
-    bank, tracker = AnswerBank(), InMemoryTracker()
-    bank.add(Question("x", "Drafted in a rehearsal?", "select", True, ("Yes", "No")), "Yes", "Zipline", NOW.date())
-
-    run_all(monkeypatch, ResearchForm("Northwood Space"), FakeClaude(), ["Example Co"], bank=bank, tracker=tracker)
-
-    assert tracker.answers() == [AnswerRow("Drafted in a rehearsal?", "Yes", False, "Yes", ("Yes", "No"), "Zipline", NOW.date())]
-
-
 def with_policies(tmp_path, policies: str) -> Path:
     """The test profile, with a policies.yaml beside it."""
     profile = tmp_path / "profile.yaml"
@@ -1143,48 +1079,33 @@ def with_policies(tmp_path, policies: str) -> Path:
     return profile
 
 
-def banked_housing(reviewed: bool = False, uses: int = 0) -> AnswerBank:
+def banked_housing(reviewed: bool = False) -> AnswerBank:
     bank = AnswerBank()
     housing = next(q for q in ResearchForm("MetOx International").questions if q.label.startswith(HOUSING))
     bank.add(housing, "Yes", "MetOx International", NOW.date())
-    for _ in range(uses):
-        bank.use([housing.label], NOW.date())
     if reviewed:
         bank.review(housing.label)
     return bank
 
 
-def test_an_unreviewed_draft_used_max_unreviewed_uses_times_holds_the_application(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "max_unreviewed_uses: 2\n")
+def test_with_unreviewed_answers_hold_an_application_that_takes_one_waits_for_review(monkeypatch, tmp_path):
+    profile = with_policies(tmp_path, "unreviewed_answers: hold\n")
     form, bank = ResearchForm("MetOx International"), banked_housing()
 
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co", "Second Co", "Third Co"], profile, bank=bank)
+    [row] = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
 
-    # Workers fill at once, so which Application uses the draft first varies.
-    assert sorted(row.status for row in rows) == ["held", "held", "submitted"]
     [entry] = bank.entries()
-    reasons = " | ".join(row.reason for row in rows if row.status == "held")
-    assert f"'{entry.question}': unreviewed answer used 2 times: review it in the Answers tab" in reasons
-    assert "unreviewed answer used 3 times" in reasons
+    assert row.status == "held"
+    assert f"'{entry.question}': an answer that waits for your review: review it in the Answers tab" in row.reason
 
 
-def test_with_max_unreviewed_uses_off_a_draft_used_again_and_again_holds_nothing(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "")
-    form, bank = ResearchForm("MetOx International"), banked_housing(uses=10)
+def test_by_default_an_unreviewed_answer_fills_at_once_and_a_reviewed_one_never_holds(monkeypatch, tmp_path):
+    form = ResearchForm("MetOx International")
+    used = run_all(monkeypatch, form, FakeClaude(), ["First Co"], with_policies(tmp_path, ""), bank=banked_housing())
+    reviewed = run_all(monkeypatch, form, FakeClaude(), ["Second Co"],
+                       with_policies(tmp_path, "unreviewed_answers: hold\n"), bank=banked_housing(reviewed=True))
 
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
-
-    assert [row.status for row in rows] == ["submitted"], rows[0].reason
-    assert bank.entries()[0].uses == 11
-
-
-def test_a_reviewed_answer_is_never_held_for_its_uses(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "max_unreviewed_uses: 1\n")
-    form, bank = ResearchForm("MetOx International"), banked_housing(reviewed=True, uses=5)
-
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
-
-    assert [row.status for row in rows] == ["submitted"], rows[0].reason
+    assert [row.status for row in used + reviewed] == ["submitted", "submitted"], [r.reason for r in used + reviewed]
 
 
 def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
@@ -1302,7 +1223,6 @@ def test_an_answer_still_holding_a_tell_is_edited_once_more_with_it_flagged():
 
     assert writing.edit(claude, {"q1": "It was a project."}, "") == {"q1": "It was an important project."}
     assert _flagged_with(sent[1], "pivotal")
-
 
 
 def test_tells_and_copied_runs_are_found():

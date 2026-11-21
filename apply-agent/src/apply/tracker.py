@@ -64,21 +64,6 @@ class EmployerAccount:
     created: date
 
 
-@dataclass(frozen=True)
-class AnswerRow:
-    """One Answer bank entry in the Tracker's Answers tab. Apply adds a row
-    for each answer Claude drafts and never writes it again; Lisul edits its
-    answer or ticks it reviewed, and the next run copies that into the bank."""
-
-    question: str
-    answer: str  # Lisul's to edit; a select-all-that-apply's options are joined by "; "
-    reviewed: bool = False  # Lisul's
-    drafted: str = ""  # the answer as Apply listed it, so an edit shows
-    options: tuple[str, ...] = ()
-    company: str = ""  # where it was first asked
-    first_seen: date | None = None
-
-
 # Heads a Missing fact options cell whose question takes any number of the options.
 ANY_OF = "Any of:"
 
@@ -122,7 +107,6 @@ class InMemoryTracker:
         self._rows: dict[str, Row] = {}
         self._requests: list[str] = []
         self._accounts: list[EmployerAccount] = []
-        self._answers: list[AnswerRow] = []
 
     def add(self, row: Row) -> None:
         check_new(row)
@@ -170,17 +154,6 @@ class InMemoryTracker:
     def employer_accounts(self) -> list[EmployerAccount]:
         return list(self._accounts)
 
-    def add_answer(self, row: AnswerRow) -> None:
-        self._answers.append(row)
-
-    def answers(self) -> list[AnswerRow]:
-        return list(self._answers)
-
-    def edit_answer_as_lisul(self, question: str, **fields) -> None:
-        """Lisul edits an answer in the Answers tab, or ticks it reviewed."""
-        [n] = [n for n, row in enumerate(self._answers) if row.question == question]
-        self._answers[n] = dataclasses.replace(self._answers[n], **fields)
-
     def paste_request(self, url: str) -> None:
         """Lisul pastes a Posting link into the Requests tab."""
         self._requests.append(url.strip())
@@ -191,8 +164,8 @@ TRACKER = HOME / "tracker.json"
 
 # FileTracker's methods that change the file; every other one only reads it.
 _WRITES = ("add", "update", "answer", "approve", "edit_as_lisul", "remove_request", "add_request", "paste_request",
-           "add_employer_account", "add_answer", "edit_answer_as_lisul")
-_READS = ("get", "rows", "requests", "employer_accounts", "answers")
+           "add_employer_account")
+_READS = ("get", "rows", "requests", "employer_accounts")
 
 
 class FileTracker(InMemoryTracker):
@@ -230,15 +203,12 @@ class FileTracker(InMemoryTracker):
         self._requests = list(saved.get("requests", []))
         self._accounts = [EmployerAccount(**{**a, "created": date.fromisoformat(a["created"])})
                           for a in saved.get("employer_accounts", [])]
-        self._answers = [AnswerRow(**{**a, "options": tuple(a["options"]),
-                                      "first_seen": date.fromisoformat(a["first_seen"]) if a["first_seen"] else None})
-                         for a in saved.get("answers", [])]
+        # A file from before W11 also holds an "answers" list (the Tracker's Answers tab, removed): its next save drops it.
 
     def _save(self) -> None:
         saved = {"applications": [dataclasses.asdict(row) for row in self._rows.values()],
                  "requests": self._requests,
-                 "employer_accounts": [dataclasses.asdict(a) for a in self._accounts],
-                 "answers": [dataclasses.asdict(a) for a in self._answers]}
+                 "employer_accounts": [dataclasses.asdict(a) for a in self._accounts]}
         part = self.path.with_suffix(".part")
         part.write_text(json.dumps(saved, indent=1, default=_plain))
         os.replace(part, self.path)

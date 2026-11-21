@@ -91,9 +91,9 @@ def test_the_answers_tab_lists_the_bank_his_answers_his_stock_answers_and_his_pr
 
     assert view["bank"] == [
         {"question": SKILLS.label, "answer": ["Software"], "options": list(SKILLS.options), "source": "claude",
-         "reviewed": False, "company": "Zipline", "date": "2026-10-16", "uses": 0, "last_used": ""},
+         "reviewed": False, "company": "Zipline", "date": "2026-10-16"},
         {"question": HEARD.label, "answer": "From the Simplify list.", "options": [], "source": "claude",
-         "reviewed": False, "company": "Skydio", "date": "2026-10-16", "uses": 0, "last_used": ""},
+         "reviewed": False, "company": "Skydio", "date": "2026-10-16"},
     ]
     assert view["answered"] == [{"question": "Do you have a valid driver's license?", "answer": "Yes"}]
     assert view["stock"] == [
@@ -106,23 +106,6 @@ def test_the_answers_tab_lists_the_bank_his_answers_his_stock_answers_and_his_pr
                                           ["pronouns", ""]]},
         {"section": "files", "facts": [["resume_pdf", "Test_Person_Resume.pdf"]]},  # a name, never a path
         {"section": "logistics", "facts": [["available_terms", "Summer 2027, Fall 2027"]]},
-    ]
-
-
-def test_unreviewed_drafts_used_again_come_first_most_used_first_with_their_uses(board, files):
-    path = files[1]
-    AnswerBank(path).answer("Are you open to a hybrid schedule?", "Yes", DAY)
-    AnswerBank(path).use(["Are you open to a hybrid schedule?", HEARD.label], date(2026, 10, 17))
-    AnswerBank(path).use(["Are you open to a hybrid schedule?", HEARD.label], date(2026, 10, 18))
-    AnswerBank(path).use([SKILLS.label], date(2026, 10, 18))
-    AnswerBank(path).use([HEARD.label], date(2026, 10, 19))
-
-    bank = get_json(board.url + "/answers")["bank"]
-
-    assert [(e["question"], e["uses"], e["last_used"]) for e in bank] == [
-        (HEARD.label, 3, "2026-10-19"),
-        (SKILLS.label, 1, "2026-10-18"),
-        ("Are you open to a hybrid schedule?", 2, "2026-10-18"),  # his own: in bank order
     ]
 
 
@@ -162,8 +145,7 @@ def test_lisuls_answer_saved_in_the_tab_becomes_the_banks_and_counts_as_reviewed
     skills = AnswerBank(files[1]).get(SKILLS.label)
     assert (skills.answer, skills.source, skills.reviewed) == (["Software", "Robotics"], "lisul", True)
     assert view["bank"][0] == {"question": SKILLS.label, "answer": ["Software", "Robotics"], "options": list(SKILLS.options),
-                               "source": "lisul", "reviewed": True, "company": "Zipline", "date": "2026-10-16",
-                               "uses": 0, "last_used": ""}
+                               "source": "lisul", "reviewed": True, "company": "Zipline", "date": "2026-10-16"}
 
 
 def test_marking_reviewed_in_the_tab_leaves_claudes_answer(board, files):
@@ -376,17 +358,6 @@ def test_lisul_opens_the_answers_tab_and_edits_a_choice_and_a_text_answer(board,
     window.wait_for_function("[...document.querySelectorAll('.bank-entry .status')].some(s => s.textContent === 'Saved')")
     entry_now = AnswerBank(files[1]).get(HEARD.label)
     assert (entry_now.answer, entry_now.source, entry_now.reviewed) == ("A friend on the avionics team.", "lisul", True)
-
-
-def test_an_unreviewed_draft_used_again_shows_how_often_and_comes_first(board, files, window):
-    AnswerBank(files[1]).use([HEARD.label], date(2026, 10, 17))
-    AnswerBank(files[1]).use([HEARD.label], date(2026, 10, 18))
-    window.goto(board.url + "/#answers")
-
-    first = window.locator(".bank-entry").first
-    assert HEARD.label in first.inner_text()
-    assert "Used on 3 applications · last 2026-10-18" in first.inner_text()
-    assert "Used on" not in entry(window, SKILLS.label).inner_text()
 
 
 def test_lisul_marks_one_reviewed_deletes_another_and_adds_his_own(board, files, window):

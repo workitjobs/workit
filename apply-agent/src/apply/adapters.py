@@ -20,7 +20,7 @@ from apply.records import InMemoryRecords, Record
 if TYPE_CHECKING:
     from apply.gmail import MailedCode
     from apply.repair import RepairRequests
-    from apply.tracker import AnswerRow, EmployerAccount, Row
+    from apply.tracker import EmployerAccount, Row
 
 
 class Feed(Protocol):
@@ -74,14 +74,6 @@ class Tracker(Protocol):
     def add_employer_account(self, account: "EmployerAccount") -> None: ...
 
     def employer_accounts(self) -> list["EmployerAccount"]: ...
-
-    def add_answer(self, row: "AnswerRow") -> None:
-        """List an Answer bank entry in the Answers tab."""
-        ...
-
-    def answers(self) -> list["AnswerRow"]:
-        """The Answers tab's rows, as Lisul left them."""
-        ...
 
 
 class JobSite(Protocol):

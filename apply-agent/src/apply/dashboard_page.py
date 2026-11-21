@@ -401,8 +401,6 @@ const bankEntry = (entry) => {
       el('div', {className: 'meta'},
         entry.reviewed ? null : el('span', {className: 'badge unreviewed', textContent: 'Check this'}),
         el('span', {textContent: entry.source === 'lisul' ? 'Written by you' : 'Written by Claude'}),
-        entry.uses && !entry.reviewed ? el('span', {className: 'badge used',
-          textContent: `Used on ${entry.uses + 1} applications` + (entry.last_used ? ' · last ' + entry.last_used : '')}) : null,
         el('span', {textContent: [entry.company && 'first asked by ' + entry.company, entry.date].filter(Boolean).join(' · ')}))));
   card.dataset.key = key;
   card.dataset.text = [entry.question, shown(entry.answer), entry.company, ...entry.options].join('\n').toLowerCase();
