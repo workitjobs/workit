@@ -385,7 +385,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the headline is centred in the room above the pipeline, and the logo
     strip starts below the first screen. Checked at 1440 × 900 (the
     frame's foot at 884px), 1024 × 768 (752px) and 375 × 812, with no
-    sideways scroll. **The Browser pane holds CSS
+    sideways scroll. **The page's entrance draws the grid** (2026-11-21,
+    the user's ask: only the hero's words came in on load): the header's
+    foot line grows from the centre, the rails draw up through the header
+    and down the hero's sides, the ink squares pop as the lines reach
+    them, the header's content fades in, the four cells rise left to
+    right 80ms apart, and the pipeline's loop starts as the last lands,
+    about 1.3s in all (the `load-*` rules at the foot of landing.css,
+    with the timeline in their comment). CSS on the server's HTML, scale,
+    opacity and translate only, each rule filled backwards only so
+    nothing stays on an element after it plays; never a loading screen;
+    the lines from lg up, the fade and rise below it; nothing with
+    reduced motion. **The Browser pane holds CSS
     animations at their first frame**, so there the hero shows no words
     and unfilled scenes: before a screenshot run
     `document.getAnimations().forEach((a) => { try { a.finish() } catch {

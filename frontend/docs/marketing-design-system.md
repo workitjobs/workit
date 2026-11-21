@@ -176,8 +176,12 @@ hero reads as the page's contents.
   full cells. CSS
   only, opacity and transform, stopped off screen, finished and still
   with reduced motion.
-- **The grid is the page's**: the frame is `DraftLines` (`first`, so its
-  side lines start at its top and do not cross the header), and the
+- **The entrance draws the grid** (the `load-*` rules in landing.css):
+  the header's foot line grows from the centre, the rails draw, the ink
+  squares pop as lines reach them, the cells rise left to right, and the
+  loop starts as the last lands, about 1.3s. Never a loading screen.
+- **The grid is the page's**: the frame is `DraftLines` (`first`: it hangs
+  from the header's foot line, which the header draws), and the
   cells' rule and dividers are the same hairline with the same ink
   squares at each crossing.
 - **Scenes are in em**: drawn at 252 × 201px, scaled by the box's own

@@ -2039,7 +2039,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   --p2: clamp(0, 2 - var(--i), 1);
   --p3: clamp(0, 3 - var(--i), 1);
   animation-duration: calc(var(--pipe-slot) * 5);
-  animation-delay: 0.9s;
+  animation-delay: 1.3s;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: infinite;
   animation-fill-mode: both;
@@ -2280,5 +2280,104 @@ html[data-tab-flight="flying"] .tour-tabs {
 @media (prefers-reduced-motion: reduce) {
   .pipe-anim {
     animation: none;
+  }
+}
+
+/*
+ * The home page's entrance (2026-11-21, the user's ask: only the hero's
+ * words came in on load, and the entrance should use the grid). The grid
+ * draws itself, then the content sets into its cells, in about 1.3s:
+ *
+ *   0s     the header's foot line grows from the centre to both edges
+ *   0.2s   the header's logo, links and buttons fade in
+ *   0.3s   the rails draw: up through the header, down the hero's sides
+ *   0.4s   the header's two ink squares pop as the rails leave them
+ *   0.55s  the pipeline's top rule grows from the centre
+ *   0.6s   the four cells rise, left to right, 80ms apart
+ *   0.8s   the dividers between the cells draw down; the squares on the
+ *          top rule pop
+ *   0.9s   the frame's foot line grows; its squares pop at 1.1s
+ *   1.3s   the pipeline's loop starts (`.pipe-anim`'s delay), as the last
+ *          cell lands
+ *
+ * The headline keeps its own rise (`.hero-rise`, from 0.15s), so the
+ * page's main words are never late. A line grows by a scale, a square pops
+ * by a scale and a piece rises by opacity and a translate; every rule
+ * fills backwards only, so nothing is left on an element once it has
+ * played (a transform or opacity left on the header would make it the
+ * menu panels' backdrop root). CSS on the server's HTML, so it plays
+ * before any script. Never a loading screen: the content is in the HTML,
+ * and a curtain would hide a finished page. The lines draw from lg up,
+ * where the grid shows; below it the header fades and the cells rise.
+ * With reduced motion nothing here runs and the page is simply there.
+ *
+ * The header's fade runs on every marketing page's hard load (the header
+ * is shared); the lines only where the page draws the grid.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .site-header nav > :not(.header-marks) {
+    animation: load-fade 0.5s ease-out 0.2s backwards;
+  }
+  .pipe li {
+    animation: load-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) calc(0.6s + var(--i) * 0.08s) backwards;
+  }
+}
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .landing:has(.draft) .header-line {
+    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) backwards;
+  }
+  .header-marks > span {
+    transform-origin: bottom;
+    animation: load-draw-y 0.35s ease-out 0.3s backwards;
+  }
+  .header-marks > i {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.4s backwards;
+  }
+  .draft-first > .draft-v {
+    transform-origin: top;
+    animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
+  }
+  .pipe-lines > .draft-h {
+    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.55s backwards;
+  }
+  .pipe-lines > .pipe-v {
+    transform-origin: top;
+    animation: load-draw-y 0.4s ease-out 0.8s backwards;
+  }
+  .pipe-lines > i.top-0 {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.85s backwards;
+  }
+  .draft-first > .draft-h {
+    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
+  }
+  .pipe-lines > i.top-full,
+  .draft-first > i {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 1.1s backwards;
+  }
+}
+@keyframes load-draw-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes load-draw-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes load-mark {
+  from {
+    transform: translate(-50%, -50%) scale(0);
+  }
+}
+@keyframes load-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes load-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
   }
 }
