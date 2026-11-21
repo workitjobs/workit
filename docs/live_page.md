@@ -110,6 +110,12 @@ Built so far (option A, the typed line only):
   already did. A section emptied by a hide keeps its heading, and a line a
   skill leaves does not pull the next line's skills up, until the PDF
   lands. Show and wording switches show nothing until then.
+- **A new bullet shows at once, and moves and hides slide** (KAN-920): a
+  bullet added from the page opens in place, set as the PDF will print it
+  (`inserts` on `PdfPages`; `frontend/docs/screens.md`, Resume editor),
+  and its text stays in view until the PDF that prints it paints. A
+  move's strips and a hide's band slide over `MOTION_MS` (200 ms, ease
+  out) where they jumped in one frame; with reduced motion they jump.
 - **Fit to One Page is an edit like the others** (KAN-584): the editor
   sends its copy and the measure of the PDF it shows (each render answers
   its points, text area and shrinks beside the boxes) to `POST

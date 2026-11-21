@@ -12,7 +12,7 @@ import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
-import { ResumeMenu, TitleRowProvider } from "../../[resumeId]/resume-menu";
+import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
 import { SLIM_BAR } from "../../[resumeId]/slim-bar";
 import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
@@ -21,10 +21,10 @@ import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
  * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
  * and with the editor's title row (KAN-825): the name (`ResumeTitle`,
  * renamed in place with the field every resume renames with) and the
- * Primary badge on the primary, then at the right when it was uploaded
- * (where the editor says whether it is saved), Download, the page's one
- * filled button, and the resume's ⋯ (`ResumeMenu`: Rename, Make Primary,
- * Delete, the Resumes list's own menu); then a sticky bar in the editor's
+ * star after it (filled on the primary, a Make Primary button on any
+ * other), then at the right when it was uploaded, Download, the page's one
+ * filled button, and Delete (`ResumeDelete`, the trash, which asks first;
+ * a ⋯ with Rename, Make Primary and Delete until 2026-11-19); then a sticky bar in the editor's
  * own look (`SLIM_BAR`, ../../[resumeId]/slim-bar.ts) holding the zoom;
  * then the file. Until KAN-825 its title was larger, Make Primary, Rename
  * and Delete were bordered buttons, and "★ Primary" sat under the name.
@@ -37,7 +37,7 @@ import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
  * nothing until then). A DOCX cannot be drawn that way, so its place
  * holds the file's name and Download.
  *
- * Delete asks first, under ⋯, and returns to the Resumes view.
+ * Delete asks first and returns to the Resumes view.
  */
 export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: string | null }) {
   const name = resume.original_filename ?? "Resume";
@@ -54,7 +54,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   return (
     <TitleRowProvider>
       {/* The title row, the editor's (KAN-825): the name and the badge at
-          the left; when it was uploaded, Download and ⋯ at the right. One
+          the left; when it was uploaded, Download and Delete at the right. One
           row that never wraps: below @md Download keeps its glyph alone */}
       <div className="mt-4 flex items-center gap-3">
         <div className="min-w-0 flex-1">
@@ -76,7 +76,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           <FileArrowDownIcon aria-hidden className="size-4" />
           <span className="@max-md/main:sr-only">Download</span>
         </Button>
-        <ResumeMenu kind="uploaded" resumeId={resume.id} name={name} primary={resume.is_default} />
+        <ResumeDelete resumeId={resume.id} name={name} />
       </div>
 
       <div className="mt-3 flex flex-col gap-4">

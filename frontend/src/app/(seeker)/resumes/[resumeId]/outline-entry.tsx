@@ -50,6 +50,8 @@ export function OutlineEntryDialog({
   section,
   customSectionId = null,
   returnTo,
+  tip,
+  newBulletAfter,
   onClose,
   onSaved,
 }: {
@@ -61,6 +63,14 @@ export function OutlineEntryDialog({
   section: EntrySection;
   customSectionId?: string | null;
   returnTo: RefObject<() => HTMLElement | null>;
+  /** A line on writing this kind of entry, over its fields: the editor's
+   *  walkthrough's (2026-11-18), while its chapter for the section runs,
+   *  since its coach mark steps aside while this form is open. */
+  tip?: string;
+  /** A page's + on a bullet (KAN-920): an empty bullet row opens after it;
+   *  "" puts it after the last bullet this resume shows (an entry's Add
+   *  Bullet). */
+  newBulletAfter?: string;
   onClose: () => void;
   onSaved: (saved: EntrySaved) => Promise<void>;
 }) {
@@ -69,7 +79,26 @@ export function OutlineEntryDialog({
       ? (bank.sections.find((s) => s.id === customSectionId)?.name ?? "Entry")
       : NOUNS[section][0];
   const others = target ? usedIn(resumeId, target, bank.resumes ?? []) : [];
-  const initial = target ? resumeDraft(target, choices) : emptyDraft(section, customSectionId);
+  const drafted = target ? resumeDraft(target, choices) : emptyDraft(section, customSectionId);
+  // Where the empty row goes: after this index, -1 for first; null for none
+  const found = newBulletAfter ? drafted.bullets.findIndex((b) => b.id === newBulletAfter) : -1;
+  const after =
+    newBulletAfter === ""
+      ? drafted.bullets.filter((b) => !b.off).length - 1
+      : newBulletAfter && found >= 0
+        ? found
+        : null;
+  const initial =
+    after !== null
+      ? {
+          ...drafted,
+          bullets: [
+            ...drafted.bullets.slice(0, after + 1),
+            { text: "" },
+            ...drafted.bullets.slice(after + 1),
+          ],
+        }
+      : drafted;
   // A school's two switches, this resume's (its choice row), saved with the
   // bullets' order and boxes
   const row = target && choices.entries.find((c) => c.entry_id === target.id);
@@ -114,10 +143,19 @@ export function OutlineEntryDialog({
       title={`${target ? "Edit" : "Add"} ${noun}`}
       initial={initial}
       resumeMode={target !== null}
+      focusBullet={after !== null ? after + 1 : undefined}
       resumeSwitches={
         target?.section === "education" && row
           ? { gpa: shows.gpa, coursework: shows.coursework, onChange: setShows }
           : undefined
+      }
+      // The tip sits under the title, where it is read before the fields
+      description={
+        tip && (
+          <span className="rounded-control bg-brand-tint text-ink mt-1 inline-block px-2 py-1">
+            {tip}
+          </span>
+        )
       }
       note={
         others.length > 0 && (

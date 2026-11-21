@@ -1949,8 +1949,8 @@ KAN-283's `autofill_answers` (`backend/app/models/autofill_answers.py`) holds
 the nine answers hiring systems repeat on every form:
 `work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
 `security_clearance`, `gender`, `hispanic_latino`, `race`,
-`veteran_status`, `disability_status`. Onboarding's Profile step and My
-Profile write it, and the extension writes only the self-identification a
+`veteran_status`, `disability_status`. Onboarding's Authorization page
+(the first two) and Application Info write it, and the extension writes only the self-identification a
 form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 `engineProfile` turns each option key into the fact the engine's rules
 read (yes/no as true/false, "declined" as "decline", the rest in

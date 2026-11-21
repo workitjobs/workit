@@ -6,6 +6,7 @@ import type { BankEntry, EntryFields } from "@/lib/bank-actions";
 import {
   changesOf,
   draftOf,
+  graduationEnd,
   emptyDraft,
   emptyLine,
   formatDates,
@@ -188,4 +189,21 @@ test("a date given as a year alone shows as the year (KAN-808)", () => {
     year_only: ["award_date"],
   } as EntryFields;
   assert.equal(formatDates(award), "2024");
+});
+
+test("a graduation date is Expected after this month, Ended before, none when cleared", () => {
+  assert.deepEqual(graduationEnd("2027-05", "2026-11"), {
+    end_kind: "expected",
+    end_month: "2027-05",
+  });
+  assert.deepEqual(graduationEnd("2026-05", "2026-11"), {
+    end_kind: "month",
+    end_month: "2026-05",
+  });
+  // This month has come: the student graduates now, not later.
+  assert.deepEqual(graduationEnd("2026-11", "2026-11"), {
+    end_kind: "month",
+    end_month: "2026-11",
+  });
+  assert.deepEqual(graduationEnd("", "2026-11"), { end_kind: null, end_month: null });
 });

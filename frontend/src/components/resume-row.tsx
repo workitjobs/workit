@@ -2,6 +2,7 @@
 
 import {
   ArrowSquareOutIcon,
+  CompassIcon,
   FileArrowDownIcon,
   FileTextIcon,
   StarIcon,
@@ -833,6 +834,7 @@ export function RowMoreMenu({
   onRename,
   download,
   onMakePrimary,
+  onTour,
   onDelete,
 }: {
   name: string;
@@ -841,6 +843,9 @@ export function RowMoreMenu({
   onRename?: () => void;
   download?: { label: string; busy?: boolean; onPick: () => void };
   onMakePrimary?: () => void;
+  /** Take the Tour: the editor's tour again (a resume's own page, from
+   *  64rem, where the tour is drawn). */
+  onTour?: () => void;
   onDelete?: () => Promise<void>;
 }) {
   const router = useRouter();
@@ -907,6 +912,12 @@ export function RowMoreMenu({
             <DropdownMenuItem onClick={onMakePrimary}>
               <StarIcon aria-hidden className="text-ink size-4" />
               Make Primary
+            </DropdownMenuItem>
+          )}
+          {onTour && (
+            <DropdownMenuItem className="max-lg:hidden" onClick={onTour}>
+              <CompassIcon aria-hidden className="text-ink size-4" />
+              Take the Tour
             </DropdownMenuItem>
           )}
           {onDelete && always && <DropdownMenuSeparator />}

@@ -1455,7 +1455,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   rows with the same names. **Each section has one name in the panel**
   (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
-  two sets of names for one app (2026-11-05). **The same names are used
+  two sets of names for one app (2026-11-05). A name may take two lines on
+  its tile, no more: "Auto Apply Desktop" (KAN-835, `docs/screens.md`) does,
+  and `RAIL_BUTTON` wraps it where shadcn cut it to "o Apply Desk". **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
   "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
@@ -1997,24 +1999,37 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-825), through three shared pieces; a new place that shows a resume
   uses them, never its own:
   - **One Primary mark, `PrimaryBadge`** (`components/resume-row.tsx`): the
-    table row, a grid card's page corner, the title of the editor and of an
-    upload's page, the resume pickers and Experiences' Showing card.
+    table row, a grid card's page corner, the resume pickers and
+    Experiences' Showing card. A resume's own page has the star instead
+    (`PrimaryStar` in its title, 2026-11-19), filled on the primary and a
+    Make Primary button on any other, as a Google Doc's star.
     `wordClassName` says where the word folds. There were five: the badge,
     a black disc, a star with the word, a bare purple star and nothing.
-  - **One rename, `RenameField`**: the name's field in its own place with
-    Cancel and Save (a card edited in place), Enter and Escape, in the
-    table row, the grid card and `ResumeTitle`. There were four, the
-    editor's saving on a click away with no buttons.
-  - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
-    at `text-heading`, and the badge), then the page's status ("Saved", or
-    an upload's date), the filled Download, and `ResumeMenu`
-    (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
-    with Rename, Make Primary and Delete. `TitleRowProvider` joins the two
-    ends: the menu's Rename opens the title's field, and a failed Make
-    Primary or Delete shows under the title. Tailor's review keeps its h2
-    title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
-    focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
-    button stays, and its focus return took the focus from the new field.
+  - **One rename in the lists, `RenameField`**: the name's field in its
+    own place with Cancel and Save (a card edited in place), Enter and
+    Escape, in the table row and the grid card. There were four. **A
+    resume's own page renames in its title** (`ResumeTitle`'s
+    `TitleField`, 2026-11-19): the name itself becomes the field, in its
+    own words and size, as a Google Doc's title does, with no buttons;
+    Enter or a click away saves, Esc puts the name back. KAN-825 gave the
+    title `RenameField` too, and the user found it a different editor
+    opening in the title's place.
+  - **One title row on both resume pages, with no ⋯** (2026-11-19, after
+    Google Docs and Drive: the editor is the document, Resumes the drive):
+    `ResumeTitle` (the name, an h1 at `text-heading`, renamed in place, and
+    the star), then an upload's date, the filled Download, and on an
+    upload's page alone its trash (`ResumeDelete` in
+    `resumes/[resumeId]/resume-menu.tsx`, which asks first): an upload's
+    page is a file's preview, and a built resume is deleted from Resumes,
+    never mid edit. The editor's toolbar has a ? for Take the Tour (the Getting
+    Started walkthrough, `docs/editor-walkthrough.md`), before the panel's
+    button. KAN-825 put Rename, Make Primary, Take the Tour and Delete in a
+    ⋯ after Download (the list's `RowMoreMenu`); the title and the star do
+    the first two, and onboarding's review lost its ⋯ the same way.
+    `TitleRowProvider` keeps the line under the title, where a failed
+    rename, Make Primary or Delete shows. **`RowMoreMenu` hands no focus
+    back to ⋯ after Rename** (`finalFocus`): a list's row keeps the
+    button, and its focus return took the focus from the new field.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
@@ -2559,6 +2574,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   it was done. Never put a rule for typed text (GPA parsing, a label typed
   back, `https://` on a link) back in the browser: `model.ts` held them
   until KAN-391 and dropped a GPA it could not read without a word.
+- **The editor's page moves and adds itself** (KAN-920,
+  `docs/screens.md`, Resume editor): a hover shows a + and a drag handle in
+  the margin, a drag moves a section, entry or bullet among its siblings,
+  a click on the handle opens the block's menu there (Edit and Add, the
+  moves, Remove From Resume), and a breadcrumb in the toolbar with Esc
+  climbs from a line to its entry and section. A new bullet is typed in on
+  the page, under the bullet it follows, never in a form (`newBullets`,
+  `inserts` on `PdfPages`), set from the page alone: its anchor's marker
+  copied from the canvas, the page's own spacing and its font's measured
+  metrics, so every Format setting holds. **To check where something sits
+  on the page, measure against the page canvas's own rect (or a box's
+  `style` percentages), never the page frame's**: the frame's 1px border
+  put every reading off by up to 0.9pt, which once set the new line's dot
+  0.6pt low and passed a check that compared it in the same wrong frame. A form a page's + opens
+  puts the cursor in the row it added (`focusBullet`, read by the entry
+  dialog as `data-initial-focus`), not the form's first field. Where each block sits is read from the boxes
+  (`page-outline.ts`): a new kind of box, or a template that indents
+  differently, changes it there, never in the handles.
 - **Each edit is a render and a save, side by side, and neither waits for
   the other** (KAN-391): typed lines, moves, hides, put-backs and wording
   switches render through `renderEdit` (`POST .../render`, from the
@@ -2705,8 +2738,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing. The time away is measured from timestamps, never timers, which
   Chrome throttles in a hidden tab. **Still open:** the Experiences page
   and Tailor do not announce their writes, so an editor tab learns of
-  them only after 5 minutes away; the bar says "Saving…" while a quiet
-  reload runs; and two tabs editing within the same few seconds still
+  them only after 5 minutes away; and two tabs editing within the same few seconds still
   need a version check on each save.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
@@ -2833,8 +2865,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   review's icons in the title row were 40px.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
-  Primary badge, the save status ("Saving…", "Saved"; `SaveStatus`) and
-  Download, the page's one filled button (secondary on Tailor's review,
+  Primary badge and Download (a "Saving…" and "Saved" status stood
+  before it until 2026-11-19, which the user found a developer's watch on
+  how long a save took; a failed save says so under the bar), the page's one filled button (secondary on Tailor's review,
   whose fill is Finish), with the review's Original and Suggestions before
   it, then on the editor's own page the resume's ⋯ (`more`, KAN-825). The bar is three groups
   that keep their places: Undo and Redo; the middle; the zoom and **the side
@@ -3452,25 +3485,84 @@ are in `docs/auth.md`.
   replaceMatching: true })` on the student's Save Resume, which replaces
   the other uploads' copies of the same entries. Every other upload screen
   calls `uploadResume` plain and keeps ADR 0005's one-owner rule. Its
-  Profile step then saves the home `location` and the links through
+  Contact page then saves the home `location` and the links through
   `updateProfile`, checked with `webLink` first, the same fields My Profile
   edits. Screen: `docs/screens.md`, Applicant onboarding.
-- **Onboarding never asks the self-identification** (KAN-387): its Profile
-  step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
+- **Onboarding never asks the self-identification** (KAN-387): its
+  Authorization page asks only work authorization and sponsorship, never
+  `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
   disability). The extension asks them on the first form that does and saves
   them through the same PATCH; Application Info's Voluntary
   Self-Identification card edits all of them (KAN-550). A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Onboarding is one question per page, and Find Jobs opens /jobs** for
+  every student. **Build makes the resume at once, from scratch**
+  (`make-resume.ts`, Generate's `blank`: the header alone, whatever the bank
+  holds) **and the editor's Getting Started walkthrough teaches the rest**
+  (2026-11-18, `docs/editor-walkthrough.md`: one path down the page, header
+  first, cards of a line or two with a pointing hand tapping the control to
+  press, each section's step open while the student adds as many as they
+  have, practice examples in Add Experiences for a student with nothing
+  saved; from 64rem only). An upload opens as an editable copy with the same
+  walkthrough. It replaced a fixed one-action-per-
+  section tour, and before that three builder pages and a sketch of the
+  student's typed words, which read as the real resume.
+  **Once the resume step's resume exists, the step is that resume**
+  (`made-review.tsx`): the real editor for one built there, with Scout's
+  panel beside it for Sections and Format, the file for an upload, full width
+  under onboarding's logo and footer, whose Continue goes on to
+  Authorization; the editor's data is read with the same server actions its
+  page reads. Opening the editor's own page in the app's shell instead read
+  as if onboarding were over. **The Sections panel lists Education,
+  Experience, Projects and Skills even when empty**, for their Add
+  (`printedSections`' `withEmpty`): an empty resume listed nothing to add to.
+  A tour step's control carries `data-tour`. **No onboarding page
+  scrolls** at 1440 x 800 or 1366 x 680: one question a page, a tight
+  chrome, and the `short` variant (`globals.css`) under 760px of height;
+  measure a new page at both before it ships.
+  (2026-11-16, after Figma's sign-up; `docs/screens.md`, Applicant
+  onboarding). The white left half asks; the right half
+  shows one graphic a stage (2026-11-17): for the feed's questions
+  (`onboarding/applicant/preview-panel.tsx`) the student's Jobs page
+  building from the answers, its cards from `preview-jobs.ts`: three real
+  employers per role slug, shaped by every answer. A role added to the Role
+  filter gets a row there. The pages are `WIZARD_PAGES` in `steps.ts`, in
+  two tracks: setup (Role to Links; Start Date only with an internship),
+  whose last page saves everything and
+  opens /jobs, and the extension track (Extension, Add Claude, Practice),
+  opened only by `EXTENSION_STEP_PATH`. Each page's address is
+  `?step=<slug>` (`PAGE_SLUGS`), written with `history.replaceState` as
+  the student moves; a new page needs a slug there. A new question is a new page with
+  one question, or two that belong together, never a third on an existing
+  page: the old first page held seven and the student scrolled a form. Its
+  controls come from `role-step.tsx`'s pieces (`JobTypeChoices`,
+  `WorkplaceChoices`...), which Settings' Job Preferences draws whole
+  (`RoleStep`), so the two ask the same questions. Role is the one
+  difference: onboarding shows eight hand-picked roles as tiles
+  (`POPULAR_ROLES`, by slug; not the eight with the most postings, which
+  put Sales Representative and Nurse first) over the search
+  (`PopularRoleChoices`, with the rest behind Search All Roles, a
+  dialog with its list already open, `SearchDialog`, as Location's other
+  places are: on the page each list scrolled the page), Settings
+  the search alone (`RolePicker`). **A role WorkIt doesn't list can be
+  typed** (2026-11-16): `FeedFilters.customRoles`, `?custom_role=` and the
+  saved preferences' `custom_role`, which the API finds in job titles, one
+  Role filter with the picked roles. Every Role picker holds both in one
+  list of values, a typed role as `custom:<text>` (`roleValues`,
+  `roleOptions`, `splitRoleValues` in `jobs/filter-query.ts`);
+  `SearchPicker`'s `create` adds one ("Add “UX Researcher” as your own
+  role", `addCustomRole`) in onboarding, Settings and All Filters, and the
+  Jobs page's Role dropdown lists them first, to untick. Anything that
+  checks for a role counts both. The preview's chips show only the answered ones and the
+  current page's, and its score rings only once a resume is saved.
 - **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
   `onboarding/applicant/claude-step.tsx`): the install link from
   `claudeConnectorLink()`, read in `page.tsx` and passed down, and
   `getClaudeConnected` asked every 3 seconds while the page shows, so the
   line turns done without a reload. Its main button is Skip for Now,
   which goes on to the practice batch, until Claude is added; then Next
-  (KAN-572). The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
-  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
-  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  (KAN-572).
   The extension's add-Claude moment (KAN-387) already skips a student whose
   connector is added: keep that check there, not a flag set here.
 - **Writing samples are edited in Application Info only**

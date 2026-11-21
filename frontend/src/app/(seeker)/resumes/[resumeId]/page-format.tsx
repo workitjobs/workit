@@ -92,6 +92,8 @@ export const DEFAULT_PAGE: PageSettings = {
   body_size: null,
   date_format: "short",
   education_first: "school",
+  experience_first: "role",
+  project_tools: "below",
   hidden_header: [],
 };
 
@@ -188,14 +190,30 @@ export const degreeLeads = (entry: BankEntry, page: PageSettings) =>
   entry.section === "education" &&
   Boolean(entry.degree || entry.field_of_study || entry.organization);
 
+/** Whether a job or a club role prints its company over its role, as the
+ *  API's `company_leads` decides: with no company, the role stays on top. */
+export const companyLeads = (entry: BankEntry, page: PageSettings) =>
+  page.experience_first === "company" &&
+  (entry.section === "experience" || entry.section === "leadership") &&
+  Boolean(entry.organization);
+
 /** Which kind of text a line is. A one-row entry (a project) sets its title in
  *  body type, and Education's location sits on its title's row. `degreeFirst`
- *  swaps a school and its degree line (`degreeLeads`), and their type with them. */
-export function textRoleOf(kind: string, section: string | null, degreeFirst = false) {
+ *  swaps a school and its degree line (`degreeLeads`), and `companyFirst` a
+ *  job's role and company (`companyLeads`), their type with them: the company
+ *  and its place take the title's row. */
+export function textRoleOf(
+  kind: string,
+  section: string | null,
+  degreeFirst = false,
+  companyFirst = false,
+) {
   const twoRow = section === "education" || section === "experience" || section === "leadership";
   if (kind === "full_name") return TEXT_ROLES.name;
   if (degreeFirst && kind === "degree") return TEXT_ROLES.title;
   if (degreeFirst && kind === "title") return TEXT_ROLES.body;
+  if (companyFirst && (kind === "organization" || kind === "location")) return TEXT_ROLES.title;
+  if (companyFirst && kind === "title") return TEXT_ROLES.body;
   if (kind === "title" && twoRow) return TEXT_ROLES.title;
   if (kind === "location" && section === "education") return TEXT_ROLES.title;
   return TEXT_ROLES.body;
@@ -305,6 +323,45 @@ const BULLETS: Tile<PageSettings["bullet"]>[] = [
 const EDUCATION_ORDERS: Tile<PageSettings["education_first"]>[] = [
   { value: "school", label: "School First", preview: educationRows("School") },
   { value: "degree", label: "Degree First", preview: educationRows("Degree") },
+];
+
+/** A heading's two rows as the page sets them: the top one bold, the one
+ *  under it italic, as `educationRows` draws a school's. */
+function headingRows(top: string, under: string) {
+  return (
+    <span aria-hidden className="text-note flex flex-col items-start gap-0.5">
+      <span className="text-ink font-semibold">{top}</span>
+      <span className="text-ink-muted italic">{under}</span>
+    </span>
+  );
+}
+
+/** A project's line, its name bold and what follows the divider italic,
+ *  over the italic line under it. */
+function projectRows(after: string, under: string) {
+  return (
+    <span aria-hidden className="text-note flex flex-col items-start gap-0.5">
+      <span className="text-ink">
+        <span className="font-semibold">Project</span>{" "}
+        <span className="text-ink-muted italic">| {after}</span>
+      </span>
+      <span className="text-ink-muted italic">{under}</span>
+    </span>
+  );
+}
+
+// Resumes order a job's two rows both ways (2026-11-17): the role first, as
+// Jake's and most tech resumes do, or the company first, as many university
+// career-center templates and finance and consulting resumes do. And a
+// project's tools print on their own line or after its name, as Jake's own
+// sample does. A tile shows each look, which reads faster than its name.
+const EXPERIENCE_ORDERS: Tile<PageSettings["experience_first"]>[] = [
+  { value: "role", label: "Role First", preview: headingRows("Role", "Company") },
+  { value: "company", label: "Company First", preview: headingRows("Company", "Role") },
+];
+const PROJECT_TOOL_PLACES: Tile<PageSettings["project_tools"]>[] = [
+  { value: "below", label: "Tools Below", preview: projectRows("Context", "Tools") },
+  { value: "after_name", label: "Tools After Name", preview: projectRows("Tools", "Context") },
 ];
 
 /** A kind of text's size, typed or a step at a time, in the panel (the
@@ -668,6 +725,18 @@ export function FormatOptions({
           tiles={EDUCATION_ORDERS}
           onPick={(education_first) => onChange({ ...page, education_first })}
         />
+        <Tiles
+          label="Experience Order"
+          value={page.experience_first}
+          tiles={EXPERIENCE_ORDERS}
+          onPick={(experience_first) => onChange({ ...page, experience_first })}
+        />
+        <Tiles
+          label="Project Tools"
+          value={page.project_tools}
+          tiles={PROJECT_TOOL_PLACES}
+          onPick={(project_tools) => onChange({ ...page, project_tools })}
+        />
       </Group>
       <Group title="Spacing & Margin">
         {SPACINGS.map((stops) => (
@@ -682,7 +751,7 @@ export function FormatOptions({
         />
       </Group>
       {/* Always there, as Jobright's is; off while nothing is set */}
-      <div className="pt-5">
+      <div className="pt-5" data-tour="format-reset">
         <Button
           variant="secondary"
           className="w-full"

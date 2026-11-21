@@ -8,6 +8,7 @@ the reason this file exists; keep provider-specific behaviour out of the rest
 of this package.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Sequence
@@ -216,6 +217,7 @@ class LLM:
         *,
         identity: Identity,
         max_tokens: int | None = None,
+        wait: float | None = None,
     ) -> T:
         """
         One whole reply, not streamed, as JSON checked against `schema`. Nothing
@@ -223,12 +225,22 @@ class LLM:
         be tried. A reply that fails the check is rejected, not repaired: the
         caller decides whether to ask again. `max_tokens` caps the reply,
         reasoning included; a reply stopped at the cap raises `ReplyCutOff`.
+        `wait` is how many seconds each endpoint gets: one that has not
+        answered by then is given up and the next is asked, as at a 503.
+        Unset, an endpoint is waited for as long as the client allows.
         """
         messages = _deidentified(messages, identity)
         failure = OFFLINE
         for endpoint, client in self._endpoints:
             try:
-                text = await self._complete_json(client, endpoint, messages, schema, max_tokens)
+                text = await asyncio.wait_for(
+                    self._complete_json(client, endpoint, messages, schema, max_tokens), wait
+                )
+            except TimeoutError as exc:
+                # A stalled provider is treated as a down one: the next may
+                # answer at once, and the caller is waiting on the reply.
+                _log_failure(endpoint, exc)
+                continue
             except (APIConnectionError, APIStatusError) as exc:
                 _log_failure(endpoint, exc)
                 if not _worth_another_try(exc):

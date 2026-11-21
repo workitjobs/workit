@@ -275,7 +275,13 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
 const RAIL = "group-data-[side=left]:border-border-surface [&>[data-slot=sidebar-inner]]:bg-panel";
 const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
-  "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
+  "h-16 flex-col justify-center gap-1 px-1 py-1 text-center text-note leading-3.5 font-medium [&_svg]:size-6 " +
+  // A name too long for one line wraps to a second under the icon: shadcn
+  // truncates a row's last span, and "Auto Apply Desktop" (KAN-835) read
+  // "o Apply Desk", cut at both sides. Two 14px lines, the 4px gap and the
+  // 24px icon are 56px, what the 64px tile holds inside 4px of padding; at
+  // shadcn's 8px and 15px lines the second line was cut off.
+  "[&>span:last-child]:whitespace-normal! " +
   // A lighter line than the app's other icons: at 24px globals.css's added
   // outline (KAN-365) drew a 2px line that read heavy beside the 12px
   // names (2026-10-27). About 1.7px for Phosphor's 256 grid (16 + 2) and

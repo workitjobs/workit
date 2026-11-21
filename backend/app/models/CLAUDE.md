@@ -797,6 +797,16 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
 - **Roles are `applicant_job_roles` rows**, not a column, for their foreign
   key to `job_roles` (RESTRICT, as above). The API checks the slugs first so a
   bad one is a 422 that names it, not an `IntegrityError`.
+- **A role the student typed is text, `custom_roles`** (2026-11-16,
+  `8bf848bb95e5`): a role `job_roles` lacks ("UX Researcher"), at most 5
+  (`schemas/jobs.py` `MAX_CUSTOM_ROLES`, a CHECK too), each 2 to 60
+  characters holding a letter or digit, once ignoring case. Not
+  `applicant_job_roles` rows: those have a foreign key to `job_roles`, and
+  a custom role has no row there. GET /jobs takes them as `?custom_role=`
+  and keeps a job whose title says one's words in order
+  (`queries/jobs/filters.py`, `title_says`), as one Role filter with
+  `?role=`: a job matching either is kept. If students' custom roles start
+  to repeat, that is the list of roles to add to `job_roles`.
 - **Places are `applicant_locations` rows, built like `job_locations`**: a
   country, and the state when one was picked, with the same foreign keys and
   `UNIQUE NULLS NOT DISTINCT`. `Place.from_code` (`services/location_resolver.py`)

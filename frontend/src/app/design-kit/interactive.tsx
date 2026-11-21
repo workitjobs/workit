@@ -1,6 +1,6 @@
 "use client";
 
-import { GearIcon } from "@phosphor-icons/react/ssr";
+import { FileArrowUpIcon, GearIcon, NotePencilIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -8,6 +8,9 @@ import { Avatar } from "@/components/avatar";
 import { DateField } from "@/components/date-field";
 import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
+import { ChoiceCard } from "@/components/ui/choice-card";
+import { SuggestField } from "@/components/ui/suggest-field";
+import { suggestDegrees } from "@/lib/degrees";
 import { ChoiceTile } from "@/components/ui/choice-tile";
 import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { RemovableChip } from "@/components/ui/chip";
@@ -280,6 +283,56 @@ export function MonthFieldSpecimen() {
         value={value}
         onValueChange={setValue}
         clearable
+      />
+    </div>
+  );
+}
+
+/** A field that suggests as you type and keeps what is typed, as the
+ *  Education form's Degree draws it (the list is lib/degrees.ts). */
+export function SuggestFieldSpecimen() {
+  const [degree, setDegree] = useState("");
+  return (
+    <div className="w-72">
+      <SuggestField
+        id="dk-degree"
+        label="Degree"
+        placeholder="Bachelor of Science"
+        openOnFocus
+        browse
+        value={degree}
+        onValueChange={setDegree}
+        suggest={(typed) => suggestDegrees(typed).map((name) => ({ name }))}
+      />
+    </div>
+  );
+}
+
+/** Two big answers side by side, as onboarding's "Do you have a resume?"
+ *  draws them: each its own tint, a check badge and a bounce on the pick. */
+export function ChoiceCardSpecimen() {
+  const [plan, setPlan] = useState<"upload" | "build">("build");
+  return (
+    <div
+      role="group"
+      aria-label="Do You Have a Resume?"
+      className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2"
+    >
+      <ChoiceCard
+        pressed={plan === "upload"}
+        onClick={() => setPlan("upload")}
+        Icon={(props) => <FileArrowUpIcon weight="duotone" {...props} />}
+        tone="bg-brand-tint text-brand"
+        title="Yes, I have one"
+        line="Upload a PDF or Word file."
+      />
+      <ChoiceCard
+        pressed={plan === "build"}
+        onClick={() => setPlan("build")}
+        Icon={(props) => <NotePencilIcon weight="duotone" {...props} />}
+        tone="bg-positive-tint text-positive-ink"
+        title="No, build one for me"
+        line="Answer three short questions."
       />
     </div>
   );
