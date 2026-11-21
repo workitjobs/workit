@@ -350,7 +350,7 @@ folder to one place:
 | `workit-prod/api` | Repository | `API_{{secretKey}}` | on, checked |
 | `workit-prod/github` | Repository | none | on, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a deploy passed with them) and `CHROME_EXTENSION_ID`; `DATABASE_URL` and `SCOUT_ENDPOINTS` only until this change is on `main` (Still open) |
 | `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off: the folder is empty until `GOOGLE_CLIENT_SECRET` is issued again |
-| `workit-prod/desktop-fill-engine` | Repository Environment, `apply-engine` | none | set up; GitHub's copy still dates from 2026-11-17 (Still open) |
+| `workit-prod/desktop-fill-engine` | Repository Environment, `apply-engine` | none | off: not needed while the folder holds only the signing key, which never changes (Still open) |
 
 **Only GitHub holds these keys (2026-11-21):** `FILL_ENGINE_TOKEN`,
 `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_PUBLISHER_ID` and
@@ -370,6 +370,11 @@ again.
   sync behavior, Overwrite Destination Secrets, removes every GitHub secret
   that the folder does not hold. `/github` has no key schema, so it would
   delete the `API_*` secrets and every repo secret not yet in Infisical.
+  The cost: a key deleted from a folder stays in GitHub, so delete that
+  copy too (`gh secret delete <name>`), or it lingers unused.
+- **A sync writes real GitHub secrets,** as `gh secret set` does. A
+  workflow reads GitHub's copy and never asks Infisical, so a change in
+  Infisical reaches a run only through the sync.
 - **Turn a sync on only once each value in its folder is right:** the sync
   overwrites the working GitHub copy. With deletion off, a secret the
   folder does not hold yet stays as it is.
@@ -414,15 +419,17 @@ again.
    deploy reads it again. After a good deploy, delete
    `CF_API_SECRETS_JSON`.
 3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
-4. **The `/desktop-fill-engine` sync,** before the next engine publish.
-   First check that the PEM file is the key the apps hold. From
-   `backend/`, run
+4. **The `/desktop-fill-engine` sync waits for the Mac app's keys.** The
+   folder holds `APPLY_ENGINE_SIGNING_KEY` as the backup (2026-11-21).
+   GitHub's copy is right: the publish of 2026-11-17 passed with it, and
+   a publish refuses a key whose public half the apps do not hold. The
+   key never changes, so no sync is needed for it. Turn the sync on when
+   the folder gets the Mac app's signing and notarization secrets. To
+   check a PEM file against the key the apps hold, run this from
+   `backend/`:
    `uv run python -c "import sys; from pathlib import Path; from app.scripts.publish_engine import load_key, public_key; print(public_key(load_key(Path(sys.argv[1]))))" <PEM file>`.
    It prints only the public half, which must be `PUBLIC_KEY` in
-   `apply-agent/src/apply/engine_download.py`. Then paste the whole file
-   into `APPLY_ENGINE_SIGNING_KEY` and turn the sync on. The sync has run
-   once `gh secret list --env apply-engine` shows the day you turned it
-   on.
+   `apply-agent/src/apply/engine_download.py`.
 5. **`npm run env`.** A Node script under `frontend/scripts/`, with its
    forwarder in the root `package.json`. It runs the two exports and keeps
    any line Infisical does not have.
