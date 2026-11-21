@@ -64,6 +64,28 @@ seed. Lever, SmartRecruiters and Workable block them. So
 `worker_mode: protected`, the default, sends those hosts to plain Workers
 (`apply-agent/policies.default.yaml:184-193`).
 
+### How Apply keeps track of its processes
+
+A PID alone never names a process for long: the OS gives a dead process's
+PID to a new process later. So Apply keeps each PID with something that
+proves which process it is, or it holds the live process object.
+
+| What | Where Apply keeps it | Why there |
+|---|---|---|
+| The Workers this Apply started | In memory: `PlainWorkers.running` and `_starting`, each with its `Popen` (on the Mac, a `launcher.Chrome`) | `stop` and `stop_all` stop exactly those |
+| A Worker's Chrome that outlives its Apply | On disk: `apply-owner.json` in its profile, with Apply's PID and start time (`launcher.own`, KAN-885) | Workers keep running after a crash. The next run stops one whose Apply is gone (`reclaim`) |
+| Which Chrome holds a profile | Chrome's own `SingletonLock`, which Chrome writes, not Apply | It covers any Chrome on the profile, also one that Apply didn't start. Windows Chrome doesn't make it (P3) |
+| The open Apply windows | On disk: a note for each window in `APPLY_PROFILES/windows/` | `apply ask` and `--into` find them from another process (`into.windows`) |
+
+- **To check that a process runs:** `psutil.pid_exists` (P2). It says only
+  that some process has that PID.
+- **To check that it is Apply's:** its start time (`_owner_alive`), or its
+  command line (`orphan` and `Desk.chrome` compare its `--user-data-dir`).
+- **To stop it:** only a process that is Apply's, and only through an
+  object that remembers it: a `Popen`, or a `psutil.Process`, whose
+  `terminate` and `kill` refuse a reused PID (`_raise_if_pid_reused`, read
+  in psutil's source). How to stop a Chrome cleanly on Windows is P7.
+
 ## 3. Why Workers have their own profiles, and what the seed is
 
 ### Why not the student's own Chrome profile
