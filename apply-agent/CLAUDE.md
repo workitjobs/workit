@@ -563,6 +563,61 @@ app's build (W8) finds them.
   section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
   pages).
 
+## Building the app
+
+`python3 scripts/build_app.py`, on an Apple Silicon Mac, builds WorkIt Auto
+Apply into `build/out/WorkIt Auto Apply.app` (KAN-833, W8 of
+`../docs/desktop_application_auto_apply.md`). Its docstring lists the steps.
+Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
+so it opens on the Mac that built it and nowhere else. Signing and
+notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
+notices strict (above).
+
+- **The build has its own venv, `build/venv`**, from `uv.lock` with uv's
+  own Python 3.12 and the `build` group (Nuitka), never the checkout's
+  `.venv`: its Python can be Anaconda's or Homebrew's, which differ per
+  Mac. It installs Apply as a copy and sets `STUDENT = True` there, so the
+  checkout's `build.py` stays False. uv puts that Python in
+  `/Users/Shared/workit-auto-apply-build/python` (`PYTHON_HOME`), never in
+  its default `~/.local/share/uv`: the app carries the Python's install
+  path (its `sysconfig` settings and `libpython`'s own name), and from the
+  default place every copy held the builder's user name (2026-11-21). The
+  build refuses an app that holds the builder's home folder path.
+- **It compiles with Apple's tools and nothing from the shell** (found
+  2026-11-21). Homebrew's LLVM exports `CPPFLAGS` and `LDFLAGS`, and Nuitka
+  passed them on: the first build linked Homebrew's `libunwind`, which a
+  student's Mac lacks. With Anaconda first on the `PATH`, Nuitka ran
+  Anaconda's `install_name_tool`, which failed. So the script drops every
+  compiler variable (`COMPILER_ENV`), runs Nuitka on `/usr/bin` only, and
+  sets `SDKROOT`: the clang `xcrun` names finds no `stdlib.h` without it.
+- **No docstrings in the app.** Each one is a plain sentence about how Apply
+  works, and Nuitka keeps it as text in the program. The build passes
+  `no_docstrings` and checks that a known docstring is gone, so code on the
+  Student path must work with `__doc__` as None. Asserts stay: `launcher.py`'s
+  `NEVER` check is one. Comments in Python vanish, but JavaScript written in a
+  Python string keeps its comments in the program (the window's page code,
+  for one).
+- **The app has no checkout and no Python.** `home.CODE` is the program's
+  own folder when the module is compiled (`__compiled__`), and the build
+  puts the inputs the Student path reads there (`INPUTS`: the EULA, the
+  default policies, the sample, the Worker extension; and the notices). A
+  new file the Student path reads beside the code joins `INPUTS`. A plain
+  Worker's wrapper starts the app's own program as the relay
+  (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
+  host.py`. A new place that starts `sys.executable` needs the same.
+- **The build refuses an app** that compiled a module in `build.DEVELOPER`,
+  holds a `.py` or `.pyc` file, or still holds docstrings. Nuitka's report
+  (`build/out/report.xml`) lists every module it compiled and why.
+- **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
+  names the bundle after the entry file; the script renames it, adds
+  `LSMinimumSystemVersion` and signs it ad hoc again, since the edit breaks
+  Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
+  it.
+- **Not yet in the app:** `window_capture`'s Swift helper, which a Developer
+  checkout builds with `swiftc` on first use. A student's Mac has no
+  `swiftc`, so the tiles take the slower captureVisibleTab path until the
+  build compiles the helper and ships it.
+
 ## The privacy gate
 
 `scripts/privacy_gate.py` scans the files for personal data (phone numbers,

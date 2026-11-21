@@ -524,7 +524,7 @@ by hand (W8).
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -1569,11 +1569,13 @@ itself (D17, D18, D20).
   W7), and without it no build fits. `cryptography`'s compiled module
   (`_rust.abi3.so`) is a Mach-O file to sign like the others. Nuitka is AGPLv3 with an
   exception: the compiled app is not bound by the AGPL.
-- **The native host is a program of its own** (found 2026-11-14). Chrome
-  starts the plain Workers' relay (`apply/plain/host.py`) through a
-  wrapper that runs it with `python3 -I`. A compiled app has no Python,
-  so the build compiles the relay as a second program in the bundle, and
-  the wrapper starts that program.
+- **The native host is the app's own program** (found 2026-11-14, built
+  2026-11-21). Chrome starts the plain Workers' relay
+  (`apply/plain/host.py`) through a wrapper that runs it with `python3
+  -I`. A compiled app has no Python, so the wrapper starts the app's own
+  program with `--worker-host` first, and the program then runs only the
+  relay (`scripts/app_entry.py`). One program, not two: a second would
+  carry a second copy of Python's runtime.
 - **Sign:** Developer ID, with the hardened runtime and without
   `get-task-allow`, so other programs can't read the app's memory. Every
   Mach-O file inside is signed, the Node binary included, with the
@@ -1586,9 +1588,24 @@ itself (D17, D18, D20).
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
   (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
   Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
-- **Build by hand:** one script (for example `scripts/build_app.py`) that
-  compiles, signs, notarizes, makes the DMG and uploads it. No builds in
-  CI (D32).
+- **Build by hand:** one script, `scripts/build_app.py`, that compiles,
+  signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
+
+**Steps.**
+
+1. **Compile only. Built (KAN-833, 2026-11-21).** `python3
+   scripts/build_app.py` makes `build/out/WorkIt Auto Apply.app`, about
+   227 MB, with the compiler's ad-hoc signature, so it opens only on the
+   Mac that built it. It compiles in a venv of its own with uv's Python
+   3.12, with Apple's tools only, with no docstrings, and refuses an app
+   that holds a developer module, Python source or a docstring
+   (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
+   window and ran the relay. Left from step 1: the `workit-auto-apply://`
+   link in `Info.plist` and its handler (W5's sign-in link), and
+   `window_capture`'s Swift helper, built and shipped.
+2. Sign with Developer ID and notarize, after the Apple enrollment.
+3. Sparkle: the framework in the bundle, the key, the feed on R2.
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
