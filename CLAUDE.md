@@ -309,7 +309,10 @@ with the failure it prevents.
   (`frontend/CLAUDE.md`) and Tectonic with its warm cache
   (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
   checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
-  gets them with `npm run worktree -- --env-only`.
+  gets them with `npm run worktree -- --env-only`. **The env files come
+  from Infisical:** `npm run env` pulls the root `.env` and `frontend/.env`
+  in any checkout, keeping the lines only that computer has
+  (`docs/secrets.md`).
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
   then `git submodule update --init` and, once the branch has Apply,

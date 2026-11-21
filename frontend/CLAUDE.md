@@ -53,6 +53,12 @@ them). Notes the scripts don't say:
   your own there once, in the primary checkout: `npm run worktree` and every
   Superset workspace's setup copy it into the new worktree with the env files.
   Delete an upload once the test is done; it lands in the shared database.
+- **`npm run env` pulls `../.env` and `.env` from Infisical**
+  (`scripts/env.mjs`, `../docs/secrets.md`). It needs the Infisical CLI
+  signed in, pulls both folders before it writes either, keeps the lines
+  Infisical lacks, prints key names only and writes nothing on a failed
+  pull. It names any key that `.env.local` also sets, since Next reads
+  `.env.local` over `.env`.
 
 ## Deployment
 
