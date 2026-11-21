@@ -80,7 +80,9 @@ proves which process it is, or it holds the live process object.
 - **To check that a process runs:** `psutil.pid_exists` (P2). It says only
   that some process has that PID.
 - **To check that it is Apply's:** its start time (`_owner_alive`), or its
-  command line (`orphan` and `Desk.chrome` compare its `--user-data-dir`).
+  command line: `browsers.chrome_pid` takes a lock's PID only while that
+  process is a browser whose `--user-data-dir` is the profile, and
+  `orphan`, `in_use` and the seed wizard all ask `chrome_pid`.
 - **To stop it:** only a process that is Apply's, and only through an
   object that remembers it: a `Popen`, or a `psutil.Process`, whose
   `terminate` and `kill` refuse a reused PID (`_raise_if_pid_reused`, read
@@ -337,18 +339,31 @@ for each fix, section 6 the tests, and section 7 the order.
     gives True: it exists, but Apply may not signal it.
   - **On Windows, it asks the OS** whether a process with that PID exists,
     and it sends nothing.
-  - **One small change.** `chrome_pid` and `into.windows` counted another
-    user's process as gone, because they caught `PermissionError` with
-    every `OSError`. They count it as running now, as `cli` and the Dock
-    keeper already did. Only a reused PID can belong to another user, and
-    a reused PID of the user's own already counted as running. P3 makes
-    `chrome_pid` check that the process is the profile's own Chrome.
-    `Chrome.poll` raised on such a process; it now says "running".
-  - Where a reused PID matters, the check that the process is the one
-    Apply means stays where it was: `orphan`
-    (`plain/launcher.py:489-505`) and `Desk.chrome`
-    (`plain/seed_setup.py:153-163`) compare its `--user-data-dir`, and
-    `_owner_alive` compares its start time.
+  - **Another user's process** (found in review, 2026-11-21). The old
+    check in `chrome_pid` counted another user's process as gone, since
+    it caught `PermissionError` with every `OSError`; `pid_exists`
+    counts it as running. A Chrome that crashed leaves its lock, and the
+    OS can give its PID to a root process. Then the Worker stayed in use
+    for good: `reclaim` can't read a root process's arguments either.
+    Reproduced on a Mac with root's PID 329. The fix is the identity half
+    of P3: `chrome_pid` now takes the lock's PID only while that process
+    is a browser (no `--type=`) whose `--user-data-dir` is this profile,
+    and an `AccessDenied` counts as no browser. `orphan` and
+    `Desk.chrome` had copies of that check; both ask `chrome_pid` now.
+    Playwright starts a CDP Worker's Chrome with `--user-data-dir` too
+    (read in its driver), so CDP Workers pass the check.
+  - `into.windows` also counts another user's process as running now.
+    There a wrong answer lists a window that is gone, and its first call
+    fails with `NoWindow`, as for any closed window. `Chrome.poll` used
+    to raise on such a process; it now says "running".
+  - Tests for the review's fix, in the fast list: a lock that names
+    another program (`tests/test_plain_seed_setup.py`, the Desk test:
+    fault, `chrome_pid` trusts any live PID), and one whose process
+    Apply may not read (`tests/test_each_os.py`: fault, the same, or an
+    `AccessDenied` that escapes). Tests that need a browser to have a
+    profile open start a stand-in process whose command line names the
+    profile (`conftest.browser_on`), since a lock that names the test's
+    own process no longer counts.
 - **Tests**, in the fast list:
   - `tests/test_each_os.py`,
     `test_no_module_of_apply_makes_a_call_that_stops_windows`: no module
@@ -365,7 +380,7 @@ for each fix, section 6 the tests, and section 7 the order.
 - **Still open.** Run it on Windows (the Windows CI job, section 6). The
   tests' Chrome reaper still stops a Chrome with SIGTERM and SIGKILL (P7).
 
-### P3. Which Chrome has a profile open (`SingletonLock`)
+### P3. Which Chrome has a profile open (`SingletonLock`): half built
 
 - **What it is.** Apply finds the PID of the Chrome that has a profile
   open. With it, Apply knows that a profile is in use, stops an orphan
@@ -382,9 +397,12 @@ for each fix, section 6 the tests, and section 7 the order.
   always returns None. Every profile looks free, no orphan is ever found,
   and the seed wizard thinks Chrome never opened.
 - **Who.** Both.
-- **Fix.** On every OS, use psutil to find the browser process (no
-  `--type=` switch) whose `--user-data-dir` is this profile, as `orphan`
-  already checks. This needs no per-OS code. It reads every process's
+- **Built: the identity half** (P2's review fix). `chrome_pid` takes the
+  lock's PID only while that process is a browser (no `--type=`) whose
+  `--user-data-dir` is this profile.
+- **Fix: what is left.** Find that browser without `SingletonLock`: on
+  every OS, use psutil to find the browser process (no `--type=` switch)
+  whose `--user-data-dir` is this profile. This needs no per-OS code. It reads every process's
   arguments, so measure its time with many processes running, and handle
   `AccessDenied` for other users' processes. If the time matters, keep
   `SingletonLock` as the fast path where it exists.
@@ -583,7 +601,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 |---|---|
 | P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
 | P2 "is it still running?" | Built: a library (`psutil.pid_exists`), the same code on every OS |
-| P3 profile lock | A library (psutil finds the Chrome): the same code on every OS |
+| P3 profile lock | Half built: `chrome_pid` checks the lock's PID is the profile's browser. Left: a library (psutil finds the Chrome without the lock), the same code on every OS |
 | P4 channel | The standard library (`multiprocessing.connection`): one API, a socket on macOS and Linux and a named pipe on Windows |
 | P5 host file | A Windows entry: the registry key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
@@ -640,10 +658,11 @@ can break, on each OS. The goal is not a high count of tests.
 The store copy (W6) is not Windows work. When it ships, it changes P8's
 clicks on every OS.
 
-**Next: P3.** `browsers.chrome_pid` (`browsers.py:100-107`) still reads
-the PID from `SingletonLock`, which Windows Chrome doesn't make. P2 left
-it checking that PID with `psutil.pid_exists`. With P3 built, a Windows
-developer can run CDP Workers (M1).
+**Next: the rest of P3.** `browsers.chrome_pid` (`browsers.py:100-107`)
+still reads the PID from `SingletonLock`, which Windows Chrome doesn't
+make. It already checks that the PID is the profile's own browser, so
+what is left is finding that browser without the lock. With P3 built, a
+Windows developer can run CDP Workers (M1).
 
 ## 8. Open questions
 

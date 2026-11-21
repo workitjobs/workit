@@ -27,7 +27,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-import psutil
 import pyperclip
 
 from apply.adapters import SetupError
@@ -151,16 +150,10 @@ class Desk:
         subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
 
     def chrome(self) -> int | None:
-        """The PID of the Chrome that runs this seed. The lock names a PID; its arguments (psutil) prove that
-        it is this Chrome, not another program with a reused PID or a dead process that nothing has reaped."""
-        pid = chrome_pid(self.seed)
-        if pid is None:
-            return None
-        try:
-            arguments = psutil.Process(pid).cmdline()
-        except psutil.Error:  # gone, a zombie, or another user's
-            return None
-        return pid if f"--user-data-dir={self.seed}" in arguments else None
+        """The PID of the Chrome that runs this seed. chrome_pid takes the lock's PID only while its arguments
+        prove that it is this Chrome, not another program with a reused PID or a dead process that nothing has
+        reaped."""
+        return chrome_pid(self.seed)
 
     def terminate(self, pid: int) -> None:
         try:

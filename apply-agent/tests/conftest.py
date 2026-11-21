@@ -166,6 +166,26 @@ BELVEDERE_FORM = FORMS / "lever-belvedere"
 BELVEDERE_URL = "https://jobs.lever.co/belvederetrading/10746b3d-1760-4573-9b63-b93f5a5e4fc0/apply"
 
 
+@pytest.fixture
+def browser_on():
+    """Starts a stand-in for a browser that has a profile open, and gives its PID for the profile's SingletonLock:
+    a process whose command line names the profile, as Chrome's does. browsers.chrome_pid counts a lock's PID only
+    for such a process, so a lock that names the test's own process counts as no browser (KAN-929)."""
+    import sys
+
+    started: list[subprocess.Popen] = []
+
+    def start(profile: Path) -> int:
+        started.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)",
+                                         f"--user-data-dir={profile}"]))
+        return started[-1].pid
+
+    yield start
+    for process in started:
+        process.kill()
+        process.wait()
+
+
 @pytest.fixture(autouse=True)
 def no_network(request):
     """Fails a test that tried to reach past loopback, even if it swallowed the error, or a server's thread did.

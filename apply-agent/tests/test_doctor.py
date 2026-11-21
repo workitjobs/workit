@@ -69,10 +69,11 @@ def list_accounts(email: str) -> str:
     return base64.b64encode(text(1, account)).decode()
 
 
-def worker(profiles, name, account=None, busy=False, web=None):
+def worker(profiles, name, account=None, busy=None, web=None):
     """A Worker profile on disk as Chrome leaves it: signed in to Google as
     `account` (Chrome's own sign-in), or only on Google's web pages as `web`,
-    and with `busy` a live browser's SingletonLock (this process)."""
+    and with `busy` the PID of a live browser that has it open (browser_on),
+    named in its SingletonLock."""
     folder = profiles / name / "Default"
     folder.mkdir(parents=True)
     accounts = [{"email": account, "gaia": "1"}] if account else []
@@ -81,7 +82,7 @@ def worker(profiles, name, account=None, busy=False, web=None):
         preferences["gaia_cookie"] = {"last_list_accounts_binary_data": list_accounts(web)}
     (folder / "Preferences").write_text(json.dumps(preferences))
     if busy:
-        os.symlink(f"host.local-{os.getpid()}", profiles / name / "SingletonLock")
+        os.symlink(f"host.local-{busy}", profiles / name / "SingletonLock")
     return profiles
 
 
@@ -216,8 +217,8 @@ def test_each_worker_profile_says_its_google_account(tmp_path):
     assert "test.person@example.com" in found[0].detail
 
 
-def test_a_worker_profile_in_use_is_skipped_not_read(tmp_path):
-    profiles = worker(signed_in(tmp_path), "worker-2", busy=True)
+def test_a_worker_profile_in_use_is_skipped_not_read(tmp_path, browser_on):
+    profiles = worker(signed_in(tmp_path), "worker-2", busy=browser_on(tmp_path / "profiles" / "worker-2"))
     [busy] = [c for c in checks_named(machine(tmp_path, profiles=profiles), "worker-") if c.name == "worker-2"]
     assert busy.level == doctor.WARN
     assert "in use" in busy.detail and "skipped" in busy.detail

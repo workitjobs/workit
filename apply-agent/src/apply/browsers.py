@@ -99,12 +99,20 @@ def in_use(profile: Path) -> bool:
 
 
 def chrome_pid(profile: Path) -> int | None:
-    """The pid of the Chrome that has the profile open, if one does."""
+    """The PID of the Chrome that has `profile` open, if one does: the PID its SingletonLock names, only while that
+    process is a browser (not a helper) whose `--user-data-dir` is this very profile. A Chrome that crashed leaves
+    its lock behind, and the OS gives its PID to another process later: the student's own Chrome, or another user's
+    process, whose arguments Apply may not read. Neither counts, or the profile would stay in use for good
+    (docs/windows_desktop.md, P2)."""
     try:
         pid = int(os.readlink(profile / "SingletonLock").rsplit("-", 1)[1])
-    except (OSError, ValueError, IndexError):
+        arguments = psutil.Process(pid).cmdline()
+    except (OSError, ValueError, IndexError, psutil.Error):  # no lock, gone, a zombie, or another user's
         return None
-    return pid if psutil.pid_exists(pid) else None
+    if any(a.startswith("--type=") for a in arguments):
+        return None
+    folders = [a.partition("=")[2] for a in arguments if a.startswith("--user-data-dir=")]
+    return pid if any(Path(folder).resolve() == profile.resolve() for folder in folders) else None
 
 
 class WorkerBrowsers:

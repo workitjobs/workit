@@ -512,6 +512,13 @@ into it and the window shows "Sample data".
   starts a browser outside those two calls `chrome_reaper.watch` itself. Test
   runs leave their `/tmp/apw-*` folders, finished or not; the reaper stops
   processes only.
+- **A profile that a browser has open is a stand-in process, never the
+  test's own PID** (KAN-929). `browsers.chrome_pid` takes a
+  `SingletonLock`'s PID only while that process is a browser whose
+  `--user-data-dir` is the profile, so a lock that names `os.getpid()`
+  counts as no browser. Use the `browser_on` fixture (`conftest.py`): it
+  starts a process whose command line names the profile, and gives its
+  PID for the lock.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

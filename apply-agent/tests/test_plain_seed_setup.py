@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from apply import browsers
 from apply.browsers import ProfileInUse
 from apply.plain import extension, seed_setup
 from apply.plain.bridge import Refused
@@ -358,6 +359,8 @@ def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
 
 
 def test_the_desk_does_not_trust_a_lock_whose_pid_is_another_program(tmp_path):
+    """Fault: chrome_pid trusts any live PID that the lock names. A Chrome that crashed left its lock, and the
+    PID went to another program: then the seed's Chrome looks open, and every Worker profile in use."""
     (tmp_path / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # this test's own process: not that Chrome
     assert Desk(tmp_path).chrome() is None
     assert Desk(tmp_path / "none").chrome() is None
@@ -374,7 +377,7 @@ def test_the_desk_knows_the_seeds_own_chrome(tmp_path, monkeypatch):
         return SimpleNamespace(cmdline=lambda: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                                                 f"--user-data-dir={seed}", "--no-first-run"])
 
-    monkeypatch.setattr(seed_setup.psutil, "Process", process)  # a process's arguments, on every OS
+    monkeypatch.setattr(browsers.psutil, "Process", process)  # a process's arguments, on every OS
     assert Desk(seed).chrome() == os.getpid()
     assert asked == [os.getpid()]
 

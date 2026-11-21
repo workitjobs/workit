@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import platformdirs
+import psutil
 import pytest
 
 from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
@@ -335,6 +336,19 @@ def test_on_windows_a_folder_with_a_space_in_its_path_is_shown_whole(monkeypatch
     seed_setup.Desk(Path("/seed")).reveal(Path("/Users/Jane Doe/profiles/worker-extension"), "win32")
     # Python would quote the whole "/select,<path>" argument, and Explorer would open its default folder.
     assert ran == ['explorer /select,"/Users/Jane Doe/profiles/worker-extension"']
+
+
+def test_a_stale_lock_whose_pid_another_user_took_leaves_the_profile_free(tmp_path, monkeypatch):
+    """Fault: chrome_pid counts a live PID whose arguments Apply may not read as the profile's Chrome. A Chrome that
+    crashed left its lock, the OS gave its PID to another user's process (root's, on a Mac: AccessDenied), and the
+    Worker stayed in use for good: reclaim can't read that process either (found in review, 2026-11-21)."""
+    (tmp_path / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # a live PID, played as another user's
+
+    def denied():
+        raise psutil.AccessDenied(os.getpid())
+
+    monkeypatch.setattr(browsers.psutil, "Process", lambda pid: SimpleNamespace(cmdline=denied))
+    assert not browsers.in_use(tmp_path)
 
 
 def _stops_windows(node: ast.AST) -> str | None:

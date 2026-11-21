@@ -483,22 +483,11 @@ def _owner_alive(profile: Path) -> bool | None:
 
 
 def orphan(profile: Path) -> int | None:
-    """The PID of the Chrome holding `profile` if its Apply is gone: a browser (not a helper) whose
+    """The PID of the Chrome holding `profile` if its Apply is gone. chrome_pid counts only a browser whose
     `--user-data-dir` is this very profile, so a stale lock's PID reused by another process (the student's own
     Chrome) never counts."""
     pid = chrome_pid(profile)
-    if pid is None or _owner_alive(profile) is not False:
-        return None
-    try:
-        arguments = psutil.Process(pid).cmdline()
-    except psutil.Error:
-        return None
-    if any(a.startswith("--type=") for a in arguments):
-        return None
-    folders = [a.partition("=")[2] for a in arguments if a.startswith("--user-data-dir=")]
-    if not any(Path(folder).resolve() == profile.resolve() for folder in folders):
-        return None
-    return pid
+    return pid if pid is not None and _owner_alive(profile) is False else None
 
 
 def reclaim(profile: Path) -> bool:
