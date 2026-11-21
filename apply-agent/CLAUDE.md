@@ -568,6 +568,10 @@ app's build (W8) finds them.
 `python3 scripts/build_app.py`, on an Apple Silicon Mac, builds WorkIt Auto
 Apply into `build/out/WorkIt Auto Apply.app` (KAN-833, W8 of
 `../docs/desktop_application_auto_apply.md`). Its docstring lists the steps.
+Any teammate's Mac builds the same app: it needs only Xcode's Command Line
+Tools, uv and the network, and any `python3` runs the script, macOS's own
+3.9 too (standard library only; checked 2026-11-21 in an empty environment
+with only the system folders and uv on the `PATH`).
 Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
 so it opens on the Mac that built it and nowhere else. Signing and
 notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
@@ -594,9 +598,19 @@ notices strict (above).
   works, and Nuitka keeps it as text in the program. The build passes
   `no_docstrings` and checks that a known docstring is gone, so code on the
   Student path must work with `__doc__` as None. Asserts stay: `launcher.py`'s
-  `NEVER` check is one. Comments in Python vanish, but JavaScript written in a
-  Python string keeps its comments in the program (the window's page code,
-  for one).
+  `NEVER` check is one.
+- **No JavaScript comments in the app's page code, and all of them in the
+  checkout.** Comments in Python vanish when it compiles, but JavaScript in
+  a Python string kept them (the tiles window's page code, for one), so the
+  build strips its own copy (`scripts/strip_js_comments.py`). It changes a
+  piece only when Node parses it the same way before and after, keeps a
+  comment that names a license, and never touches `STORE_CODE`, the modules
+  whose page code goes into the Worker extension's store copy: the
+  extension checks those files by sha256, and the guards are public there.
+  The build then checks that the store copy's files are the same, and fails
+  if not: `upload_origin` was missing from `STORE_CODE` and failed it
+  (`RULE_JS` goes into the guards). A module that a new fixed function or
+  guard takes code from joins `STORE_CODE`.
 - **The app has no checkout and no Python.** `home.CODE` is the program's
   own folder when the module is compiled (`__compiled__`), and the build
   puts the inputs the Student path reads there (`INPUTS`: the EULA, the
@@ -606,7 +620,8 @@ notices strict (above).
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
   host.py`. A new place that starts `sys.executable` needs the same.
 - **The build refuses an app** that compiled a module in `build.DEVELOPER`,
-  holds a `.py` or `.pyc` file, or still holds docstrings. Nuitka's report
+  holds a `.py` or `.pyc` file, or still holds docstrings or page code
+  comments. Nuitka's report
   (`build/out/report.xml`) lists every module it compiled and why.
 - **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
   names the bundle after the entry file; the script renames it, adds

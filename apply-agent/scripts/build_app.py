@@ -3,16 +3,21 @@
 
     python3 scripts/build_app.py            (from apply-agent/, on an Apple Silicon Mac)
 
-It writes build/out/WorkIt Auto Apply.app. In order:
+It needs Xcode's Command Line Tools (xcode-select --install), uv, and the network. Any python3 runs it, macOS's
+own 3.9 too: it uses the standard library only, and builds with a Python of its own. It writes
+build/out/WorkIt Auto Apply.app. In order:
 
 1. A venv of its own, build/venv, from uv.lock: uv's own Python 3.12 (one Python for every team Mac),
    Apply installed as a copy, not editable, with the `build` group (Nuitka) and without the dev group.
-2. STUDENT = True in that copy's apply/build.py. The checkout's own build.py stays False.
+2. STUDENT = True in that copy's apply/build.py, and no JavaScript comments in its page code
+   (scripts/strip_js_comments.py), so the comments stay in the checkout for development. It checks that the
+   Worker extension's store copy is the same after.
 3. The third-party notices (scripts/third_party_notices.py) and the other inputs the app reads beside its
    program (home.CODE): the EULA, the default policies, the Test Person sample and the Worker extension.
 4. Nuitka compiles scripts/app_entry.py and what it imports, with no module of build.DEVELOPER and no
    docstrings. Every docstring would be a plain sentence in the program about how Apply works.
-5. Checks: no DEVELOPER module, no Python source or bytecode, no docstring left in the app.
+5. Checks: no DEVELOPER module, no Python source or bytecode, no docstring, no page code comment and no
+   home folder path left in the app.
 
 W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
 opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
@@ -24,7 +29,6 @@ import plistlib
 import shutil
 import subprocess
 import sys
-import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -66,8 +70,19 @@ def run(command: list[str], **kwargs) -> None:
     subprocess.run(command, check=True, **kwargs)
 
 
-def version() -> str:
-    return tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+def venv_python(code: str, **kwargs) -> str:
+    """What `code` prints, run on the build's own Python."""
+    return subprocess.run([PYTHON, "-I", "-c", code], check=True, capture_output=True, text=True,
+                          **kwargs).stdout.strip()
+
+
+def preflight() -> None:
+    if sys.platform != "darwin" or os.uname().machine != "arm64":
+        sys.exit("Build WorkIt Auto Apply on an Apple Silicon Mac (D18).")
+    if subprocess.run(["/usr/bin/xcode-select", "-p"], capture_output=True, check=False).returncode != 0:
+        sys.exit("Install Xcode's Command Line Tools first: xcode-select --install")
+    if not shutil.which("uv"):
+        sys.exit("Install uv first: https://docs.astral.sh/uv/")
 
 
 def make_venv() -> Path:
@@ -75,9 +90,7 @@ def make_venv() -> Path:
     run(["uv", "sync", "--frozen", "--no-dev", "--group", "build", "--no-editable", "--reinstall-package", "apply",
          "--managed-python", "--python", "3.12"], cwd=ROOT,
         env={**os.environ, "UV_PROJECT_ENVIRONMENT": str(VENV), "UV_PYTHON_INSTALL_DIR": str(PYTHON_HOME)})
-    found = subprocess.run([PYTHON, "-I", "-c", "import apply, pathlib; print(pathlib.Path(apply.__file__).parent)"],
-                           check=True, capture_output=True, text=True).stdout.strip()
-    return Path(found)
+    return Path(venv_python("import apply, pathlib; print(pathlib.Path(apply.__file__).parent)"))
 
 
 def set_student(package: Path) -> None:
@@ -86,6 +99,32 @@ def set_student(package: Path) -> None:
     if text.count(STUDENT_LINE[0]) != 1:
         sys.exit(f"{flag} has no single line {STUDENT_LINE[0].strip()!r}: apply.build changed, so fix this script.")
     flag.write_text(text.replace(*STUDENT_LINE))
+
+
+def store_files(package: Path) -> str:
+    """The set id of the Worker extension's built-in files (the guards, fixed.js, injected.js) as `package` makes
+    them. Apply finds the extension beside its checkout (home.CODE), so it runs here from a tree shaped like one."""
+    tree = BUILD / "store-check"
+    shutil.rmtree(tree, ignore_errors=True)
+    shutil.copytree(package, tree / "src" / "apply")
+    (tree / "worker-extension").symlink_to(ROOT / "worker-extension")
+    stamp = subprocess.run([PYTHON, "-c", "from apply.plain import extension; print(extension.store_stamp()['files'])"],
+                           cwd=tree, env={**os.environ, "PYTHONPATH": str(tree / "src")}, check=True,
+                           capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(tree)
+    return stamp
+
+
+def strip_comments(package: Path) -> None:
+    """No JavaScript comments in the copy's page code, with the Worker extension's store copy unchanged: a plain
+    Worker refuses guards or fixed functions whose sha256 isn't the store copy's."""
+    before = store_files(package)
+    node = package.parent / "playwright" / "driver" / "node"
+    run([PYTHON, "-I", ROOT / "scripts" / "strip_js_comments.py", package, node])
+    if store_files(package) != before:
+        sys.exit("Stripping comments changed the Worker extension's store files: a module that plain/fixed.py, "
+                 "plain/guards.py or plain/extension.py takes page code from is missing from STORE_CODE in "
+                 "scripts/strip_js_comments.py.")
 
 
 def stage_inputs(strict: bool) -> None:
@@ -101,7 +140,7 @@ def stage_inputs(strict: bool) -> None:
          "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=ROOT)
 
 
-def compile_app(developer: list[str]) -> None:
+def compile_app(developer: list[str], version: str) -> None:
     def xcrun(*args: str) -> str:
         return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
 
@@ -114,7 +153,7 @@ def compile_app(developer: list[str]) -> None:
     data = [f"--include-data-dir={DATA / name}={name}" if (DATA / name).is_dir()
             else f"--include-data-files={DATA / name}={name}" for name in (*INPUTS, NOTICES)]
     run([PYTHON, "-m", "nuitka", "--mode=app", f"--output-dir={OUT}", f"--output-filename={NAME}",
-         f"--macos-app-name={NAME}", f"--macos-signed-app-name={BUNDLE_ID}", f"--macos-app-version={version()}",
+         f"--macos-app-name={NAME}", f"--macos-signed-app-name={BUNDLE_ID}", f"--macos-app-version={version}",
          f"--macos-app-icon={ROOT / 'src' / 'apply' / 'Apply.icns'}", "--macos-target-arch=arm64",
          # The engine download names the app's version from Apply's metadata (W7): without it no build fits.
          "--include-distribution-metadata=apply", "--include-package-data=apply",
@@ -150,12 +189,15 @@ def check(developer: list[str]) -> None:
     docstring = b"The Student build's stand-in for `claude -p`"  # student.NoClaude's, which must be gone
     if docstring in program:
         sys.exit("The app still holds docstrings: Nuitka's no_docstrings flag didn't take.")
+    comment = b"Click a tile and it fills the window"  # one of dashboard_page.PAGE's comments, which must be gone
+    if comment in program:
+        sys.exit("The app still holds its page code's comments: scripts/strip_js_comments.py didn't take.")
     home = str(Path.home()).encode()
     if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.is_file() and home in p.read_bytes()):
         sys.exit(f"The app names this Mac's home folder ({home.decode()}), and with it who built it: "
                  f"{', '.join(found[:10])}")
-    print(f"Checked: no developer module, no Python source or bytecode, no docstrings, no home folder "
-          f"({len(compiled)} modules).")
+    print(f"Checked: no developer module, no Python source or bytecode, no docstrings, no page code comments, "
+          f"no home folder ({len(compiled)} modules).")
 
 
 def main() -> None:
@@ -163,14 +205,14 @@ def main() -> None:
     parser.add_argument("--release", action="store_true",
                         help="a build for students: the notices must be complete (third_party_notices --strict)")
     args = parser.parse_args()
-    if sys.platform != "darwin" or os.uname().machine != "arm64":
-        sys.exit("Build WorkIt Auto Apply on an Apple Silicon Mac (D18).")
+    preflight()
     package = make_venv()
     set_student(package)
-    developer = sorted(subprocess.run([PYTHON, "-I", "-c", "import apply.build as b; print(*b.DEVELOPER)"],
-                                      check=True, capture_output=True, text=True).stdout.split())
+    strip_comments(package)
+    developer = sorted(venv_python("import apply.build as b; print(*b.DEVELOPER)").split())
+    version = venv_python("import importlib.metadata as m; print(m.version('apply'))")
     stage_inputs(strict=args.release)
-    compile_app(developer)
+    compile_app(developer, version)
     check(developer)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")
