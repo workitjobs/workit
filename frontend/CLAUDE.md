@@ -788,7 +788,22 @@ selling line that says what the product does** and "See how", a
     student clicking Submit**, and if it is live the hero's "You click
     Submit.", the "You stay in control" section, the FAQ and `/terms`
     must be brought into line with it: today they all say WorkIt never
-    submits. The Tracker is next. **It plays only while
+    submits. Its rows: Skip the retyping (a text box), Applications that
+    run side by side (browser windows), Answer a question only once (a
+    pencil on a line) and Submit it yourself, or let WorkIt (a click).
+    **The Tracker** (`features/content/tracker.ts`), under "The
+    spreadsheet that fills itself in": No more updating a spreadsheet
+    (arrows in a circle), Sort it, group it, make it yours (a table),
+    Never miss an interview (a calendar with a check; WorkIt shows the
+    dates and sends no reminder) and See exactly what you sent (a paper
+    plane). **Within one section, each row title has its own shape, no
+    two end on one word, no two icons share a silhouette, and a verb is
+    not repeated across the rows** (the user's catches on Auto Apply:
+    two titles ran "noun, past verb ... time" over two box-behind-a-box
+    icons, and "filled" stood in three places). **After a run of icon or
+    import changes, restart the dev server**: Turbopack kept a compiled
+    copy that asked for a removed icon and every page failed with "module
+    factory is not available" (2026-11-21). **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken

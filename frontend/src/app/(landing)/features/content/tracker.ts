@@ -17,10 +17,10 @@
  * back; stages past Applied are set by hand.
  */
 import {
-  FlagIcon,
-  ListBulletsIcon,
+  ArrowsClockwiseIcon,
+  CalendarCheckIcon,
   PaperPlaneTiltIcon,
-  QuestionIcon,
+  TableIcon,
 } from "@phosphor-icons/react/ssr";
 
 import { UpdatesAnimation } from "../animations";
@@ -48,10 +48,12 @@ const content: FeatureContent = {
     // side by side, It asks when you come back, Move it along as you hear
     // back, and The resume you sent. Each title has its own shape and no
     // two end on one word (the lesson of the Auto Apply review). The
-    // pictures are the old points' and wait for real recordings.
+    // pictures are the old points' and wait for real recordings. Icons,
+    // picked from fourteen: arrows in a circle, a table, a calendar with a
+    // check, and the paper plane kept.
     {
       title: "No more updating a spreadsheet",
-      icon: QuestionIcon,
+      icon: ArrowsClockwiseIcon,
       body: "Save a job and it is in your list. Come back from a company’s site and WorkIt asks if you applied. One yes, and it is marked.",
       visual: AskedVisual,
     },
@@ -59,7 +61,7 @@ const content: FeatureContent = {
       // The list arranged as a table: columns, Group By, Sort and filters
       // (frontend/docs/screens.md, Applications).
       title: "Sort it, group it, make it yours",
-      icon: ListBulletsIcon,
+      icon: TableIcon,
       body: "Choose your columns, group by stage or company, and sort by date, match or pay. It works like the spreadsheet you know, without the upkeep.",
       visual: ListVisual,
     },
@@ -68,7 +70,7 @@ const content: FeatureContent = {
       // (KAN-413). WorkIt shows the dates; it sends no reminder, so "never
       // miss" means they are all in one place, the user's pick knowing it.
       title: "Never miss an interview",
-      icon: FlagIcon,
+      icon: CalendarCheckIcon,
       body: "Add an interview, an assessment or a deadline to any application. It shows on your calendar, next to the job it belongs to.",
       visual: StageVisual,
     },
