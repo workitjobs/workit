@@ -66,10 +66,14 @@ export const TYPE = {
    *  56px from lg, 34px on a phone. */
   chapter:
     "text-[2.125rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl lg:text-[3.5rem]",
-  /** A product's left-aligned h2: 44px from lg, 30px on a phone, a step
-   *  under a chapter's 56px, in the same face. */
+  /** A product's left-aligned h2: 44px on a wide laptop, 30px on a phone,
+   *  a step under a chapter's 56px, in the same face. From lg it follows
+   *  the window (3.4vw, 36 to 44px): at 1024px its column is 444px wide,
+   *  and at a fixed 44px a 46-character headline ("The easiest way to make
+   *  a resume for every job") took three lines there, where every product
+   *  headline is held to two. */
   product:
-    "text-[1.875rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-[2.5rem] lg:text-[2.75rem]",
+    "text-[1.875rem] leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-[2.5rem] lg:text-[clamp(2.25rem,3.4vw,2.75rem)]",
   /** A card's heading: 28px, 24px on a phone. */
   card: "text-2xl leading-tight font-medium tracking-[-0.015em] text-balance sm:text-[1.75rem]",
   /** A list item's title inside a section (an accordion row). */

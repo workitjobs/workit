@@ -14,6 +14,13 @@
  * removed intro): a student with no resume starts on Experiences, whose
  * intake asks about their experience one thing at a time, and Generate
  * builds the first resume from it.
+ *
+ * The headline is "The easiest way to make a resume for every job"
+ * (2026-11-21, the user's pick from four rounds of options; it was "A
+ * tailored resume for every job"): the user wanted the editor's ease up
+ * front. "Easiest" is the user's selling word, a claim no test backs; what
+ * stands behind it is the editor (click a line and type) and one-click
+ * Tailor. "For every job" carries the tailoring.
  */
 import { DatabaseIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
 import { SparkleIcon } from "@/components/sparkle-icon";
@@ -30,7 +37,7 @@ const content: FeatureContent = {
       "Build a resume from your experience bank, tailor it to each job posting, and download it as a PDF, Word or LaTeX file.",
   },
   hero: {
-    title: "A tailored resume for every job",
+    title: "The easiest way to make a resume for every job",
     subtitle:
       "Put everything you have done in one experience bank, or upload the resume you have. WorkIt builds your resume from it and tailors a copy to each job posting you pick.",
   },
