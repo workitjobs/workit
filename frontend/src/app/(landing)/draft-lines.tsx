@@ -15,9 +15,22 @@ import type { CSSProperties } from "react";
  * Plain markup with no hooks, so a server or a client component can draw
  * it. Decoration, hidden from assistive technology.
  */
-export function DraftLines({ gap = "1.25rem" }: { gap?: string }) {
+export function DraftLines({
+  gap = "1.25rem",
+  first,
+}: {
+  gap?: string;
+  /** The page's first frame (the home hero's): its side lines start at
+   *  its top line. Run on 6rem above it, as every other frame's do to
+   *  join the frame before, they crossed the header. */
+  first?: boolean;
+}) {
   return (
-    <span aria-hidden="true" className="draft" style={{ "--gap": gap } as CSSProperties}>
+    <span
+      aria-hidden="true"
+      className={first ? "draft draft-first" : "draft"}
+      style={{ "--gap": gap } as CSSProperties}
+    >
       <span className="draft-h top-0" />
       <span className="draft-h bottom-0" />
       <span className="draft-v left-0" />

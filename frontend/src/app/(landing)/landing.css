@@ -1844,7 +1844,11 @@ html[data-tab-flight="flying"] .tour-tabs {
   bottom: -6rem;
   width: 1px;
 }
-.draft > i {
+.draft-first .draft-v {
+  top: 0;
+}
+.draft > i,
+.pipe-lines > i {
   position: absolute;
   width: 6px;
   height: 6px;
@@ -1869,308 +1873,179 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * The makeover's tile system (direction E, the user's pick, 2026-11-20:
- * frontend/docs/home-page-makeover-brief.md; tiles.tsx draws with it).
- * Flat colour tiles on one grid with ink or white on them: one corner,
- * one gap, two layers, so a tile takes no shadow, gradient or border and
- * nothing on one rests tilted. The user picked it over tilted paper with
- * shadows, which read as a collage where this reads as a system.
+ * The home hero's pipeline (hero-pipeline.tsx, 2026-11-21): four cells of
+ * the drafting grid under the headline, one per product, each a framed box
+ * with a scene of one application's way through it.
  *
- * One field per product, full for its own tile and pale for a plain one:
- * sky for Resume Builder, lilac for Job Matching, mint for Auto Apply,
- * rose for the Application Tracker. They are the four feature colours as
- * mid pastels, light enough that ink holds over 9:1 on each.
+ * Its own lines, from lg up, where the cells stand in one row from rail to
+ * rail: a rule across the window at the cells' top, one down between each
+ * pair of cells to the hero frame's foot (1.5rem below, `DraftLines`' gap),
+ * and the frame's ink squares at every crossing.
  */
-.landing {
-  --mk-sky: #a9c1ff;
-  --mk-sky-pale: #dfe8ff;
-  --mk-lilac: var(--color-landing-brand-300);
-  --mk-lilac-pale: #e6dcff;
-  --mk-mint: #9fe3c6;
-  --mk-mint-pale: #dcf5ea;
-  --mk-rose: #f4b3df;
-  --mk-rose-pale: #fbe3f3;
+.pipe-lines {
+  display: none;
 }
-
-/* The pen face (app/fonts.ts): a side note beside a picture, never a
- * heading, a button or a claim. */
-.pen {
-  font-family: var(--font-pen), "Bradley Hand", cursive;
-  font-style: normal;
-  font-weight: 400;
+@media (min-width: 64rem) {
+  .pipe-lines {
+    display: block;
+    position: absolute;
+    inset: 0 0 -1.5rem;
+    pointer-events: none;
+  }
+}
+.pipe-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgb(15 23 42 / 0.08);
 }
 
 @layer components {
-  /*
-   * A picture made of tiles scales as one piece: the box is a size
-   * container, the grid's em is 16px when the box is 492px wide, and every
-   * size inside a tile is in em. So the hero's mosaic is the same picture
-   * at 343px on a phone and at 520px on a laptop.
-   */
-  .mosaic-box {
+  /* A scene is drawn at 252px wide with every size in em; the box is a
+     size container and the stage's em is 16px at that width, so the scene
+     scales as one piece (a 165px box on a phone). */
+  .pipe-scene {
     container-type: inline-size;
   }
-  .mosaic {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 0.75em;
-    aspect-ratio: 1;
-    font-size: calc(100cqi / 30.75);
-    color: var(--color-ink);
-  }
-  .tile {
-    position: relative;
-    min-width: 0;
-    overflow: hidden;
-    border-radius: 0.875em;
-    background: var(--tile);
-  }
-  .tile-name {
+  .pipe-stage {
     position: absolute;
-    top: 0.8em;
-    left: 0.9333em;
-    font-size: 0.9375em;
-    line-height: 1.15;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-  }
-  .tile-mark {
-    position: absolute;
-    bottom: 0.75em;
-    left: 0.75em;
-    width: 3.625em;
-    height: 3.625em;
-  }
-  .tile-band {
-    position: absolute;
-    right: 1.1667em;
-    bottom: 4.1em;
-    font-size: 0.75em;
-    line-height: 1.2;
-    font-weight: 600;
-  }
-  .tile-number {
-    position: absolute;
-    right: 0.35em;
-    bottom: 0.2em;
-    font-size: 2.5em;
-    line-height: 1;
-    font-weight: 500;
-    letter-spacing: -0.04em;
-  }
-  /* WorkIt's icon: the one violet tile, a squircle, the white figure. */
-  .tile-icon {
-    display: grid;
-    place-items: center;
-    border-radius: 2.125em;
-    background: var(--color-brand);
-    color: white;
-  }
-  .tile-icon svg {
-    width: 4.125em;
-    height: auto;
-  }
-  /* A plain tile's one shape. */
-  .tile-shape > span {
-    position: absolute;
-  }
-  .tile-shape-quarter > span {
     inset: 0;
-    border-radius: 0 0 0 100%;
-  }
-  .tile-shape-half > span {
-    top: 22%;
-    left: 0;
-    width: 56%;
-    height: 56%;
-    border-radius: 0 999px 999px 0;
-  }
-  .tile-shape-dome > span {
-    inset: auto 0 0;
-    height: 50%;
-    border-radius: 999px 999px 0 0;
-  }
-  .tile-shape-wedge > span {
-    inset: 0;
-    clip-path: polygon(0 100%, 100% 0, 100% 100%);
-  }
-  /* A resume as flat paper, cut off by its tile's foot. */
-  .flat-sheet {
-    position: absolute;
-    border-radius: 0.375em 0.375em 0 0;
-    background: white;
-  }
-  .flat-sheet span {
-    display: block;
-    height: 0.375em;
-    margin-bottom: 0.5em;
-    border-radius: 0.1875em;
-    background: rgb(15 23 42 / 0.14);
-  }
-  .flat-sheet .is-name {
-    width: 52%;
-    height: 0.625em;
-    margin-bottom: 0.875em;
-    background: var(--color-ink);
-  }
-  .flat-sheet .is-head {
-    width: 30%;
-    margin-top: 0.875em;
-    background: rgb(15 23 42 / 0.4);
-  }
-  .flat-sheet .is-new {
-    background: var(--color-advanced);
-    transform-origin: left;
-  }
-  .mosaic-sheet {
-    top: 3.125em;
-    left: 2.8125em;
-    width: 9.375em;
-    height: 12.5em;
-    padding: 1.125em 1em;
-  }
-  /* A tracker row and a form's field: white bars on the field. */
-  .tile-row,
-  .tile-field {
-    position: absolute;
-    right: 0.75em;
-    left: 0.75em;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: white;
-  }
-  .tile-row {
-    height: 1.75em;
-    padding: 0 0.375em 0 0.625em;
-    border-radius: 0.4375em;
-  }
-  .tile-row span {
-    font-size: 0.75em;
-    font-weight: 500;
-  }
-  .tile-row b {
-    padding: 0.27em 0.73em;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.25);
-    font-size: 0.6875em;
-    font-weight: 600;
-  }
-  .tile-row .is-current {
-    background: var(--color-ink);
-    box-shadow: none;
-    color: white;
-  }
-  .tile-field {
-    height: 2.125em;
-    padding: 0 0.625em;
-    border-radius: 0.5em;
-  }
-  .tile-field span {
-    font-size: 0.75em;
-  }
-  .tile-field::after {
-    content: "";
-    width: 0.75em;
-    height: 0.75em;
-    border-radius: 50%;
-    background: var(--color-ink);
-  }
-  .tile-field.is-open::after {
-    background: none;
-    box-shadow: inset 0 0 0 0.125em var(--color-ink);
-  }
-  .tile-submit {
-    position: absolute;
-    bottom: 1.1667em;
-    left: 1em;
-    padding: 0.667em 1.333em;
-    border-radius: 0.667em;
-    background: var(--color-ink);
-    color: white;
-    font-size: 0.75em;
-    font-weight: 600;
-  }
-  .tile-note {
-    position: absolute;
-    bottom: 0.5em;
-    left: 3.5em;
-    rotate: -4deg;
-    font-size: 1.75em;
-    line-height: 1;
-    white-space: nowrap;
-  }
-  .mosaic-note {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3em;
-    margin-top: 0.3em;
-    rotate: -3deg;
-    font-size: calc(100cqi / 14.47);
-    line-height: 1;
+    font-size: calc(100cqi / 15.75);
     color: var(--color-ink);
-  }
-  .mosaic-note svg {
-    width: 1.05em;
-    height: 0.9em;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  /*
-   * The hero's mosaic comes together on load: each tile starts a little
-   * apart and askew (`--x`, `--y`, `--r` on it, in em so the scatter scales
-   * with the picture) and snaps to the grid in its turn (`--i`), the icon
-   * tile pops in last, the resume's reworded line draws and the pen note
-   * fades in. Opacity and transform only, from the server's HTML, so it
-   * plays before any script; every tile shows from the first paint.
-   */
-  .tile-snap {
-    animation: tile-snap 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) both;
-    animation-delay: calc(var(--i) * 90ms + 350ms);
-  }
-  .mosaic .tile-icon {
-    animation: tile-pop 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) 1.25s both;
-  }
-  .mosaic .flat-sheet .is-new {
-    animation: tile-line 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 1.6s both;
-  }
-  .mosaic-note {
-    animation: tile-note 0.5s ease-out 1.9s both;
   }
 }
 
-@keyframes tile-snap {
-  from {
-    transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(0.9);
-  }
+/*
+ * The pipeline plays in turn. One loop is five slots (`--pipe-slot` each):
+ * a cell's own slot (`--i` on it, 0 to 3), then the fifth, a rest with all
+ * four done. Every moving piece shares the loop and starts at its cell's
+ * slot, so a cell empties and plays again only as its turn comes round,
+ * and the cells after it on the first loop wait unfilled. In a keyframe
+ * a cell's slot is 0 to 20%: its line fills over the whole slot, and its
+ * scene's pieces grow, pop or come in at set points inside it. Opacity
+ * and transform only. Paused while the hero is off screen
+ * (`HoldOffscreen`); with reduced motion nothing moves and every piece
+ * shows finished.
+ */
+.pipe {
+  --pipe-slot: 3.2s;
 }
-@keyframes tile-pop {
-  from {
-    transform: scale(0) rotate(-40deg);
-  }
+.pipe-anim {
+  animation-duration: calc(var(--pipe-slot) * 5);
+  animation-delay: calc(var(--i) * var(--pipe-slot) + 0.9s);
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
 }
-@keyframes tile-line {
-  from {
+.pipe[data-paused] .pipe-anim {
+  animation-play-state: paused;
+}
+.pipe-fill {
+  animation-name: pipe-fill;
+  animation-timing-function: linear;
+}
+.pipe-grow-a,
+.pipe-grow-b {
+  transform-origin: left;
+}
+.pipe-grow-a {
+  animation-name: pipe-grow-a;
+}
+.pipe-grow-b {
+  animation-name: pipe-grow-b;
+}
+.pipe-pop-a {
+  animation-name: pipe-pop-a;
+}
+.pipe-pop-b {
+  animation-name: pipe-pop-b;
+}
+.pipe-in-a {
+  animation-name: pipe-in-a;
+}
+.pipe-in-c {
+  animation-name: pipe-in-c;
+}
+@keyframes pipe-fill {
+  0% {
     transform: scaleX(0);
   }
-}
-@keyframes tile-note {
-  from {
-    opacity: 0;
+  20%,
+  100% {
+    transform: scaleX(1);
   }
 }
-
+@keyframes pipe-grow-a {
+  0%,
+  3% {
+    transform: scaleX(0);
+  }
+  9%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+@keyframes pipe-grow-b {
+  0%,
+  8% {
+    transform: scaleX(0);
+  }
+  14%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+@keyframes pipe-pop-a {
+  0%,
+  8% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  11%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pipe-pop-b {
+  0%,
+  13% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  16%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pipe-in-a {
+  0%,
+  2% {
+    opacity: 0;
+    transform: translateY(-0.6em);
+  }
+  7%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pipe-in-c {
+  0%,
+  14% {
+    opacity: 0;
+    transform: translate(0.9em, 0.9em);
+  }
+  18%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .tile-snap,
-  .mosaic .tile-icon,
-  .mosaic .flat-sheet .is-new,
-  .mosaic-note {
+  .pipe-anim {
     animation: none;
   }
 }

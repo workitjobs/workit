@@ -348,48 +348,43 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `StudioBox`, never a full-width panel of its own. Nothing on the home
     page pins: the product sections did, until 2026-11-20 (below), and so
     did the tools collapse for a day (below).
-  - **The hero since the makeover** (direction E, the user's pick,
-    2026-11-20; `docs/home-page-makeover-brief.md`): a grey panel
-    (`--mk-mist`) at least the screen's height under the header, the
-    headline, its line and the sign-up pair on the left from lg up, and
-    on the right **the mosaic** (`hero-mosaic.tsx`): the four parts of a
-    search as flat colour tiles on one 4 × 4 grid round WorkIt's violet
-    icon tile, each product's tile holding a real piece of it, flat and
-    straight (a resume with a reworded line, the followed application's
-    match with its band, tracker rows, a form with Submit and the pen
-    note "you click"). Below lg the words are centred over the mosaic.
-    **The tile system is `tiles.tsx` and `.mosaic` in landing.css**: one
-    corner, one gap, two layers (a flat colour, then ink or white), so a
-    tile takes no shadow, gradient or border and nothing on one rests
-    tilted. The user picked it over tilted paper with shadows, which read
-    as a collage where this reads as a system. **Every size inside a tile
-    is in em**: `.mosaic-box` is a size container and `.mosaic` sets its
-    em from the box's width (16px at 492px), so the picture scales as one
-    piece (319px wide on a 375px phone, 520px on a laptop); a px size in
-    a tile breaks that. One field per product (`FIELDS`: sky, lilac,
-    mint, rose, each with a pale step for a plain tile). On load each
-    tile starts a little apart and askew and snaps to the grid in turn,
-    the icon tile pops in last, the reworded line draws and the pen note
-    fades in: CSS on the server's HTML, opacity and transform only, still
-    with reduced motion; every tile shows from the first paint. The
-    mosaic's side is `min(32.5rem, 100svh - 15rem, 40vw)` from lg up, and
-    the headline `clamp(3rem, 7.6svh, 4.5rem)`, so both fit one screen at
-    1024 × 768 (checked there, at 1512 × 827 and at 375 × 812, with no
-    sideways scroll). **The sign-up pair takes `onGrey` on the mist
-    panel**: Google's #F2F2F2 vanished on #f0f0f0, so there it is slate
-    at 6%, `SecondaryButton`'s grey. **The pen face is Nanum Pen Script**
-    (`penScript` in app/fonts.ts, `.pen`): a few side notes beside a
-    picture, never a heading, a button or a claim. The picture is
-    decoration, hidden from screen readers. **The Browser pane holds CSS
-    animations at their first frame**, so there the hero shows scattered
-    tiles and no words: call `document.getAnimations().forEach((a) =>
-    a.finish())` before a screenshot, or look in Chrome. Still open: the
-    mosaic's tiles are the part of the page closest to Loopsii's hero
-    (the user knows), and the grid of lit postings below has no home yet.
-  - **The hero before the makeover** (`hero-board.tsx`, unmounted since
-    2026-11-20 and bound for the Job Matching page, since it told that
-    product's story alone; its CSS stays): **the first screen and nothing
-    else** (the user's call,
+  - **The hero is the pipeline in the drafting grid** (2026-11-21,
+    `hero-pipeline.tsx`; the user's ask: "a new hero that matches the grid
+    feel of our website and captures the whole pipeline"). On the white
+    page, in the page's first `DraftLines` frame (`first`: its side lines
+    start at its top line, or they crossed the header), the headline, its
+    line and the sign-up pair are centred, and under them stand four cells
+    of the grid, one per product in the order a search meets them: the
+    product's mark and name over one `StudioBox` on its own sky, as its
+    section uses further down. **One application runs through all four**
+    (`followedJob`): the resume with two lines reworded as the picked
+    keywords tick off, the posting's match filling to its band, the form's
+    fields filling with Submit and a pointer (the student clicks), and the
+    application landing in the tracker at Applied. **It plays in turn**
+    (`.pipe-anim` in landing.css): one loop is five slots of 3.2 s, a
+    cell's own and a fifth of rest; a line in the product's colour fills
+    along the cell's top rule (the product rows' `.row-fill` idea) while
+    its scene plays, and a cell empties only as its turn comes round
+    again. All CSS on the server's HTML, opacity and transform only,
+    paused off screen (`HoldOffscreen`, `data-paused`), finished and still
+    with reduced motion. **Scenes are in em**: drawn at 252 × 201px with
+    every size in em and the box setting the em from its own width
+    (`.pipe-stage`), so a 165px box on a phone holds the same picture; a
+    px size in a scene breaks that. From lg up the cells run rail to rail
+    (`lg:-mx-6`) with the grid's own rule, dividers and ink squares
+    (`.pipe-lines`); below lg they are two by two with no lines. The
+    section is at least the screen's height under the header with its
+    content centred, so the logo strip starts below the first screen.
+    Checked at 1512 × 827, 1024 × 768 (the frame's foot at 734px) and
+    375 × 812, with no sideways scroll. **The Browser pane holds CSS
+    animations at their first frame**, so there the hero shows no words
+    and unfilled scenes: before a screenshot run
+    `document.getAnimations().forEach((a) => { try { a.finish() } catch {
+    a.currentTime = 15500 } })`, or look in Chrome.
+  - **The hero before that** (`hero-board.tsx`, unmounted since
+    2026-11-20; it told Job Matching's story alone and may go on that
+    product's page; its CSS stays): **the first screen and nothing else**
+    (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
     header and the 8/24px inset; a minimum, so a screen too short for the
@@ -1750,14 +1745,15 @@ selling line that says what the product does** and "See how", a
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
-- **The home page's makeover lifts four of these rules** (the user's
-  yes, 2026-11-20, after Loopsii): colour may fill whole sections, a
-  scene may pin and fill the screen, the page gets a brand shape
-  language, and an object may carry from one section into the next. The
-  brief is `docs/home-page-makeover-brief.md` and the lifted rules open
-  `docs/marketing-design-system.md`; read both before changing the page
-  at `/`. Until a section is redrawn, the notes on it here describe it
-  as built.
+- **A makeover of the home page narrowed to its hero** (2026-11-20 to
+  21; `docs/home-page-makeover-brief.md`). After Loopsii the user lifted
+  four of these rules for a day and picked, from five live directions, a
+  look of flat pastel tiles. Its hero was built, and in the page, above
+  sections still in this system, the user found it off; everything from
+  the logo strip down then stayed as it was and only the hero was redrawn,
+  in this system. So the rules here are all in force. **What it taught: a
+  new look needs the whole page, and a section is judged in the page,
+  between its real neighbours, never on a sheet of its own.**
 - **The marketing design system is `docs/marketing-design-system.md`**
   (KAN-923, 2026-11-19): read it before styling anything in
   `app/(landing)/`. The user found the site still AI-made after the home

@@ -2,7 +2,7 @@ import { Google_Sans } from "next/font/google";
 
 import { cn } from "@/lib/cn";
 
-import { jakartaSans, penScript } from "../fonts";
+import { jakartaSans } from "../fonts";
 
 import { Footer } from "./footer";
 import { Header } from "./header";
@@ -23,8 +23,7 @@ const googleSans = Google_Sans({
  * No app bar or sidebar; every page in the group shares the floating
  * header and the footer, and renders its own `<main id="main">`, the skip
  * link's target. `.landing` scopes landing.css. Its text is Inter, as the
- * app's; its headlines are Plus Jakarta Sans and its few pen notes Nanum Pen
- * Script (../fonts.ts, landing.css).
+ * app's; its headlines are Plus Jakarta Sans (../fonts.ts, landing.css).
  */
 export default function LandingLayout({ children }: LayoutProps<"/">) {
   return (
@@ -33,7 +32,6 @@ export default function LandingLayout({ children }: LayoutProps<"/">) {
         "landing flex flex-1 flex-col overflow-x-clip",
         googleSans.variable,
         jakartaSans.variable,
-        penScript.variable,
       )}
     >
       <SmoothScroll />

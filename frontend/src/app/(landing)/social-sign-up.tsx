@@ -46,16 +46,7 @@ export function EmailSignUpLink() {
  * Google's rules set a least height, not a most.
  * https://developers.google.com/identity/branding-guidelines
  */
-export function SocialSignUpButton({
-  provider,
-  onGrey,
-}: {
-  provider: OAuthProvider;
-  /** On a grey panel (the home hero's mist), where #F2F2F2 would vanish:
-   *  the same soft grey as `SecondaryButton`, slate at 6%, which is the
-   *  neutral theme's grey on white and a step darker than any ground. */
-  onGrey?: boolean;
-}) {
+export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
   const google = provider === "google";
   const name = google ? "Google" : "LinkedIn";
   return (
@@ -69,10 +60,7 @@ export function SocialSignUpButton({
         className={cn(
           BUTTON_SHAPE,
           BUTTON_SIZES.md,
-          "font-google w-full gap-2.5 px-3 text-sm/5 font-medium text-[#1F1F1F] transition-colors disabled:cursor-progress",
-          onGrey
-            ? "bg-slate-900/[0.06] hover:bg-slate-900/[0.1] disabled:hover:bg-slate-900/[0.06]"
-            : "bg-[#F2F2F2] hover:bg-[#E8E8E8] disabled:hover:bg-[#F2F2F2]",
+          "font-google w-full gap-2.5 bg-[#F2F2F2] px-3 text-sm/5 font-medium text-[#1F1F1F] transition-colors hover:bg-[#E8E8E8] disabled:cursor-progress disabled:hover:bg-[#F2F2F2]",
         )}
         icon={
           google ? (

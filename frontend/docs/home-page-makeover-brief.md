@@ -1,5 +1,14 @@
 # Design brief: the home page makeover
 
+**Status (2026-11-21): narrowed to the hero.** The user saw the first
+makeover hero built in the page and found it off beside the untouched
+sections, then asked to keep everything from the logo strip down and to
+redraw only the hero, in the site's own grid look, showing the whole
+pipeline. That hero is built (`hero-pipeline.tsx`). The rest of this brief
+is the record of how the work got there; "What happened" at the foot has
+the short version. The four rules it lists as lifted were not used: the
+page below the hero still follows `marketing-design-system.md` as written.
+
 Agreed with the user on 2026-11-20, one question at a time. It is the bar
 for every later design decision on the page at `/`. It builds on KAN-923
 (`home-page-review.md`, `marketing-design-system.md`); where the two
@@ -100,56 +109,40 @@ Next.js 16, Tailwind v4, `motion` on the marketing route only. Checked at
 a pinned scene becomes a still or a short timed scene. One KAN ticket
 per pull request; no push without the user's yes.
 
-## The direction: E, Grid (the user's pick, 2026-11-20)
+## What happened
 
-The user saw five live directions. A (Blocks: a grid of flat colour
-tiles with ink shapes), B (Thread: one violet line with the logo's dot),
-C (Desk: tilted cut paper, a marker, Bricolage Grotesque) and D (a blend
-of the three) came first. The user picked C, then asked for a blend,
-then said A was still designed better. The reason, agreed: A is a
-system (one grid, one corner, two layers) and C and D are collages, and
-a system is what reads as made by a team. E is A as the base, with the
-product put into its tiles and D's turn as the one big moment.
+1. **Five directions, as one live page** (2026-11-20). A (Blocks: a
+   grid of flat colour tiles with ink shapes), B (Thread: one violet line
+   with the logo's dot), C (Desk: tilted cut paper, a marker, Bricolage
+   Grotesque), D (a blend of the three) and E (A as the base, with the
+   product in its tiles and a turn scene). The user picked C, asked for a
+   blend, found A better designed (a system: one grid, one corner, two
+   layers; C and D read as collages), and picked E.
+2. **E's hero, built** (commit 206903dc): a grey panel with a mosaic of
+   pastel tiles and pen notes. In the page, above sections still in the
+   site's own look, the user found it off.
+3. **The scope narrowed** (2026-11-21, the user's words): everything
+   from the logo strip down is untouched and stays, "which is good
+   because I still want all of that"; make "a new hero that matches the
+   grid feel of our website and captures the whole pipeline".
+4. **The hero now**: the headline centred in the drafting grid's frame,
+   and under it the pipeline as four cells of that grid, one per product,
+   each a `StudioBox` on the product's sky with one application's scene.
 
-- **One grid.** Tiles of one corner (14px) and one gap (12px), at sizes
-  of 1 × 1, 2 × 1 and 2 × 2 cells. Nothing rests tilted or overlapping.
-- **Two layers.** A flat colour, then ink or white on it. No shadow on
-  a tile and no gradient.
-- **Four fields, one per product**: sky (Resume Builder), lilac (Job
-  Matching), mint (Auto Apply), rose (Application Tracker), each with a
-  pale step for a plain tile. The ground is the grey mist or white.
-  Violet is for the app icon tile, the line and the main button.
-- **The product is in the tiles**, flat and straight: a resume sheet
-  with a reworded line, a match with its band and number, a form with
-  Submit, tracker rows.
-- **Ink marks.** Each product has one bold ink shape, drawn from its
-  feature mark (a sheet, the match ring, form bars, a table).
-- **Type.** Plus Jakarta Sans stays. A pen face (Nanum Pen Script)
-  writes a few side notes, never a heading or a claim.
-- **The line** shows in the turn only: a grey tangle through the
-  problems that the logo's dot pulls straight, in violet.
-- **Colour comes with WorkIt.** The problems are grey tiles; they take
-  their colours as they snap into the app.
+What it taught:
 
-Turned down with C and D: Bricolage Grotesque, marker yellow, tilted
-paper with shadows, and a rail beside the product cards.
-
-## Storyboard
-
-| Section | Ground | What it shows | What moves |
-| --- | --- | --- | --- |
-| Hero | Mist panel | The headline on the left; on the right a mosaic of tiles with the four products' pieces round the violet icon tile | Tiles snap to the grid on load, the icon tile last |
-| Logo strip | White | Real employers | The slow drift, as today |
-| What is WorkIt | White | The icon tile beside the large line | Words read in |
-| The problems | Dim grey | Six grey problem tiles and the 81% figure, on a tangled grey line | Tiles arrive; nothing loops |
-| The turn | Grey to white | "That's why WorkIt exists" over the app, built from the same tiles | The page's one big moment: the dot pulls the line straight, the tiles snap into the app and take colour |
-| One app for every step | White | Four product tiles with ink marks | Tiles pop in order |
-| The four products | White | Four large cards, half words and half a product piece on its field | Cards stack as the page scrolls |
-| You stay in control | White | Two tiles: Nothing invented, Your words win | Each plays once |
-| Hiring systems | Mist | A tile grid of the systems' logos | None |
+- **A direction is judged in the page, not alone.** Each prototype
+  looked right on its own sheet. The built hero sat above eight sections
+  in another look and read as a different site. Show a new section in
+  the real page, between its real neighbours, before more is built on it.
+- **A makeover of one section uses the site's language.** A new look
+  needs the whole page; one section in it reads as a mistake.
+- **The rules were not the limit.** The first answer in this brief
+  blamed the rule set. The hero the user accepted breaks none of the
+  rules: it uses the drafting grid, the framed boxes and the feature
+  marks the page already had.
 
 ## Open questions
 
-- The tile grid of lit postings: where it goes on the Job Matching page.
-- What is WorkIt's 3D glass icon (the user's ask, 2026-11-20) against a
-  flat icon tile: ask before changing it.
+- The grid of lit postings (`hero-board.tsx`, unmounted): whether it
+  goes on the Job Matching page.

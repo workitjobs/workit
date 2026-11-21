@@ -1,4 +1,4 @@
-import { Nanum_Pen_Script, Plus_Jakarta_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
 /**
  * Plus Jakarta Sans, the marketing pages' headline face (2026-11-10). The
@@ -16,19 +16,5 @@ import { Nanum_Pen_Script, Plus_Jakarta_Sans } from "next/font/google";
  */
 export const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta-sans",
-  subsets: ["latin"],
-});
-
-/**
- * Nanum Pen Script, the marketing pages' pen face (the home page's
- * makeover, direction E, 2026-11-20): a few side notes beside a picture
- * ("you click", "one app for all of it"), as a person would write on a
- * print. Never a heading, a button or a claim: a note says nothing the
- * copy beside it does not. One weight, loaded only by the marketing
- * layout; its variable is `--font-pen`, read by `.pen` in landing.css.
- */
-export const penScript = Nanum_Pen_Script({
-  variable: "--font-pen",
-  weight: "400",
   subsets: ["latin"],
 });

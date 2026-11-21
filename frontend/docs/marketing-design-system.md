@@ -7,44 +7,23 @@ buttons, the bordered sign-up buttons, the lavender gradient on cards).
 `home-page-review.md` has the Calendly review behind it. The app's own
 screens follow `design.md`, not this file.
 
-## The makeover: four rules lifted (2026-11-20)
+## The makeover narrowed to the hero (2026-11-21)
 
-The user found the page still short of a premium site (Loopsii was the
-reference) and asked what held it back. The answer was these rules taken
-together: each came from one thing the user disliked, and together they
-forbade colour outside two places, any scene that fills or holds the
-screen, and any object that moves between sections. The user lifted four
-of them for the home page's makeover. `home-page-makeover-brief.md` holds
-the brief; read it first.
-
-1. **Colour across the page.** Whole sections may sit on flat colour
-   fields from a palette built on violet and the four feature colours.
-   This replaces principle 1's "two places only" as each section is
-   redrawn. Still no dark bands.
-2. **Scenes that hold the screen.** A few sections may pin (hold the
-   screen while a scene plays or cards stack) and a scene may fill the
-   screen. This replaces principle 6's "no scene fills the screen". A
-   move still plays to its end in time and never rests half way.
-3. **A brand shape language.** Flat graphics from a small set of shapes,
-   drawn from WorkIt's own things (the logo's figure, the match ring, the
-   resume page, the form, the tracker row), not only mock app screens.
-4. **Objects that carry over.** An object may leave one section and land
-   in the next as the page scrolls, so some motion follows the scroll.
-
-Also agreed: hand-written side notes in a second face, product sections
-as large cards that stack, the hero showing the whole search in one app
-(the tile grid moves to the Job Matching page), and one big motion
-moment, the turn from the problems to "That's why WorkIt exists".
-
-What stays: the copy rules, violet as the brand colour, the flat solid
-main button, slate shadows, stillness with reduced motion, transforms
-and opacity only, and the speed budgets. The sections below describe
-the page as built; each changes in the commit that redraws its section.
+For a day (2026-11-20) the user lifted four rules for a home page
+makeover after Loopsii: colour across the page, scenes that hold the
+screen, a brand shape language, and objects that carry between sections.
+A hero in that look was built, and in the page, above sections still in
+this system, the user found it off. The user then kept everything from
+the logo strip down and had only the hero redrawn in this system. **So
+every rule below is in force**, and the lifted four were never used.
+`home-page-makeover-brief.md` has the record and what it taught: a new
+look needs the whole page, and one section in it reads as a mistake.
 
 ## Principles
 
-1. **Colour lives in two places only**: the home hero (its grainy violet
-   ground under glass tiles) and the framed boxes (`StudioBox`). The page and its cards are white,
+1. **Colour lives in the framed boxes** (`StudioBox`), the home hero's
+   four included (it was two places: the old hero had a grainy violet
+   ground under glass tiles, off the page since 2026-11-21). The page and its cards are white,
    ink and grey, and so are its buttons but the main one, which is solid
    WorkIt violet, flat (the user's pick, 2026-11-20). A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made. **One exception, the four product
@@ -160,48 +139,46 @@ outline.
 
 Google's own neutral theme: #F2F2F2 fill, no stroke, #1F1F1F Google Sans
 Medium, the full-colour G. LinkedIn takes the same treatment, its tile
-with a white "in". Always followed by "Or sign up with email". On a grey panel (the home
-hero's mist) the pair takes `onGrey`, slate at 6%, since #F2F2F2
-vanishes on #f0f0f0. It is the
+with a white "in". Always followed by "Or sign up with email". It is the
 guidelines' only theme with no border: the light theme (white with a
 #747775 stroke) read as a bordered button, and the dark theme was too
 heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 (KAN-922) sits in the same row as a `SecondaryButton`.
 
-### The tile system (`tiles.tsx`, `.mosaic` in landing.css)
+### The home hero's pipeline (`hero-pipeline.tsx`)
 
-The makeover's building block (direction E, 2026-11-20). A picture is
-flat colour tiles on one grid.
+The first screen: the headline, its line and the sign-up pair centred on
+the white page, in the drafting grid's frame, and under them the whole
+pipeline as four cells of that grid, one per product in the order a
+search meets them (Resume Builder, Job Matching, Auto Apply, Application
+Tracker). A cell is the product's mark and name over one `StudioBox` on
+the product's own sky, the same sky its section uses further down, so the
+hero reads as the page's contents.
 
-- **One corner and one gap**: 14px and 12px at the picture's design
-  size. Tiles are 1 × 1, 2 × 1 or 2 × 2 cells.
-- **Two layers**: a flat colour, then ink or white on it. No shadow,
-  gradient or border on a tile, and nothing on one rests tilted.
-- **One field per product**, full for its own tile and pale for a plain
-  one: sky (Resume Builder), lilac (Job Matching), mint (Auto Apply),
-  rose (Application Tracker); `--mk-sky` and the rest in landing.css.
-  Ink holds over 9:1 on each. Violet is the icon tile's alone.
-- **The product is in the tile**: a resume as flat paper with the
-  reworded line in the Resume Builder's blue, a match as its band and
-  number, a form as white fields with ink check dots and an ink Submit,
-  tracker rows with the current stage in ink.
-- **Ink marks**: each product's feature mark as one bold ink shape
-  (`ResumeInk`, `RingInk`, `FormInk`, `TableInk`), its cut-outs in the
-  tile's colour.
-- **Sizes in em**: the grid sets its em from its box's width, so a
-  picture scales as one piece. Never a px size inside a tile.
-- **The pen face** (Nanum Pen Script, `.pen`) writes a side note beside
-  a picture ("you click", "one app for all of it"). Never a heading, a
-  button or a claim, and no more than two on a screen.
+- **One application runs through all four** (`followedJob`): its resume
+  reworded, its match, its form with Submit left to the student, its row
+  in the tracker.
+- **It plays in turn**: a line in the product's colour fills along the
+  cell's top rule (the product rows' fill line), the cell's scene plays
+  once, the next cell starts, and after the fourth one turn rests. CSS
+  only, opacity and transform, stopped off screen, finished and still
+  with reduced motion.
+- **The grid is the page's**: the frame is `DraftLines` (`first`, so its
+  side lines start at its top and do not cross the header), and the
+  cells' rule and dividers are the same hairline with the same ink
+  squares at each crossing.
+- **Scenes are in em**: drawn at 252 × 201px, scaled by the box's own
+  width, so a phone's 165px box holds the same picture. Below lg the
+  cells are two by two and the lines are off.
 
-The home hero's mosaic (`hero-mosaic.tsx`) is the first picture built
-from it: the four products' tiles round the violet icon tile, snapping
-to the grid on load.
+Why it has this shape: it replaced a tile grid that told Job Matching's
+story alone, and then a mosaic in another look (above). A hero built
+from this system's own parts needed no new rule.
 
 ### The old home hero's grid (`hero-board.tsx`, unmounted)
 
-Off the home page since the makeover (2026-11-20): it told Job
-Matching's story alone and goes to that product's page.
+Off the home page since 2026-11-20: it told Job Matching's story alone.
+Kept in the folder; it may go on that product's page.
 
 
 The first screen and nothing else: a grainy violet panel the screen's
@@ -295,8 +272,11 @@ across the window at the block's top and foot and two down its sides.
   one screen. Content the frame sits behind must be positioned
   (`relative`), or the absolutely placed lines draw over it.
 - **From lg up.** Below it the side lines ran along the window's edge.
-- **Neutral**, never a feature's colour. The hero is not framed for
-  now: its violet panel already fills the screen edge to edge.
+- **Neutral**, never a feature's colour. The hero's frame is the page's
+  first (`DraftLines first`): its side lines start at its top line, where
+  every other frame's run 6rem above to join the frame before, since up
+  there they crossed the header. The hero's own cell lines (`.pipe-lines`)
+  use the same hairline and squares.
 
 ### The grey band (`problems.tsx`)
 
