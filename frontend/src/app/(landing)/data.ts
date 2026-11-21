@@ -587,8 +587,11 @@ export const control = {
  * **Six fields, not tech alone** (the user's ask, 2026-11-21: all fourteen
  * were tech companies, so a student in nursing or finance saw nothing for
  * them): tech (the four the page's scenes name), finance, healthcare,
- * consumer, media and engineering, in an order where no two from one
- * field sit side by side. Every name is a row of boards.csv; before
+ * consumer, media, engineering and consulting, in an order where no two
+ * from one field sit side by side. **Amazon is not here, though the user
+ * asked for it**: Amazon runs its own careers site (amazon.jobs), which no
+ * provider reads, so its name would be a false claim; its companies Twitch
+ * and Zoox are on the list. Every name is a row of boards.csv; before
  * adding one, find it there (Disney is "The Walt Disney Company"). The
  * user turned down Target, Toyota, LEGO and NASA JPL, so show the user a
  * name before it goes in. The problems' browser scene shows the first
@@ -618,6 +621,7 @@ export const logoStrip = {
     { name: "Johnson & Johnson", domain: "jnj.com" },
     { name: "SpaceX", domain: "spacex.com" },
     { name: "Datadog", domain: "datadoghq.com" },
+    { name: "Accenture", domain: "accenture.com" },
     { name: "The New York Times", domain: "nytimes.com" },
   ],
 };
