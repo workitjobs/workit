@@ -1,12 +1,9 @@
-import { ArrowDownIcon } from "@phosphor-icons/react/ssr";
-import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { Arrive } from "./arrive";
 
-import { featuresIntro } from "./data";
 import { deepDiveAnchor, FEATURES, type FeatureSlug } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
@@ -23,72 +20,6 @@ const PRODUCTS = [
   "auto-apply",
   "tracker",
 ] as const satisfies readonly FeatureSlug[];
-
-/**
- * The four products as a row of links, each to its section below (`/#<slug>`,
- * the section's id): the intro under "One app for every step of applying"
- * (page.tsx, `featuresIntro`). It replaced a tabs row over a large card that told the
- * four products' stories, which the product sections then told again, word
- * for word, right below (the web review's first finding, 2026-11-20). Each is
- * a flat tile in its feature's pale tint (`TILE`), its mark ringed in white
- * so it stands off the tint, then its name, its selling line
- * (`featuresIntro.products`) and "See how", with no picture, since the
- * picture is a scroll away. Grey, the four read as alike (the user's call,
- * 2026-11-20); flat, never a fade to white, which read as AI-made. The
- * line was "Fixes" and the problem above it answered, which named the
- * problem but not what the product does (the user's catch, 2026-11-20).
- * Eight tool cards collapsing into the tiles, pinned and scrubbed by the
- * scroll, were here for a day (2026-11-20): the user found the examples in
- * the way, serving no purpose next to the four products, and had them
- * taken out (git history: tools-collapse.tsx, up to f430254f).
- */
-/** A tile's fill: its feature's colour mixed into white, the same share for
- *  all four so none stands out, a step deeper on hover. */
-const TILE = (glow: string, amount: number) => `color-mix(in oklab, ${glow} ${amount}%, white)`;
-
-export function FeatureJumps() {
-  return (
-    <ul className="relative mt-10 grid gap-3 sm:grid-cols-2 lg:mt-12 lg:grid-cols-4">
-      {PRODUCTS.map((slug) => {
-        const page = FEATURES[slug];
-        return (
-          <li key={slug}>
-            {/* A `Link` to "/#slug", as the Features menu's "/#hiring-systems"
-                is: as a plain anchor, "#slug" or "/#slug" jumped to the
-                page's top instead of to the section. */}
-            <Link
-              href={`/#${slug}`}
-              className="group focus-visible:outline-ink flex h-full flex-col rounded-2xl bg-(--tile) p-5 transition-colors hover:bg-(--tile-hover) focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={
-                {
-                  "--tile": TILE(page.glow, 9),
-                  "--tile-hover": TILE(page.glow, 14),
-                } as CSSProperties
-              }
-            >
-              {/* A white ring and a slate shadow lift the mark's pastel
-                  squircle off a tint of its own colour, where it blended. */}
-              <span className="self-start rounded-[13px] shadow-[0_0_0_2.5px_white,0_6px_12px_-6px_rgb(15_23_42/0.35)]">
-                <FeatureIcon feature={page} size="md" className="block" />
-              </span>
-              <span className={cn(TYPE.item, "text-ink mt-4")}>{page.name}</span>
-              <span className="text-ink-meta mt-1.5 text-[15px] leading-snug text-pretty">
-                {featuresIntro.products[slug]}
-              </span>
-              <span className="text-ink mt-auto inline-flex items-center gap-1 pt-4 text-sm font-medium">
-                See how
-                <ArrowDownIcon
-                  aria-hidden="true"
-                  className="size-3.5 transition-transform group-hover:translate-y-0.5"
-                />
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /**
  * One section per product (KAN-923), after Calendly's: the feature's chip

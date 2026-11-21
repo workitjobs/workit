@@ -298,8 +298,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
   sky; **the demo is a placeholder**, a white screen with a play mark and
   "Product demo, coming soon", until a recording or screenshot replaces
-  it at 16:10), then WorkIt's answer with the four products as links to their sections
-  (`FeatureJumps` in `product-sections.tsx`), one product section each
+  it at 16:10), then one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`), what stays the student's call (`control.tsx`),
   the hiring systems as a centred chapter
@@ -534,7 +533,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     cards, then a grid capped at 84rem, which left bare grey margins on a
     wide screen; the "For internships and new-grad roles" pill was taken
     out. Data: `heroFits` in data.ts.
-  - **WorkIt's answer, after the problems**: a short section, "One app
+  - **The four product tiles are gone** (the user's call, 2026-11-21):
+    the section "One app for every step of applying", with a tile per
+    product, stood between That's why WorkIt exists and the product
+    sections. The hero now shows the four products and links each to its
+    section, so the tiles said it twice. `FeatureJumps` and
+    `featuresIntro` are deleted (git history has them). **Three of its
+    details moved into the product sections**, which the feature pages
+    share: the tracker's headline is "The spreadsheet that fills itself
+    in" (the tiles' best line; it was "Every application, in one place",
+    which repeated What is WorkIt); Auto Apply's profile row is "The
+    basics, from your profile" (it was "Every field", more than Auto
+    Apply does); and Resume Builder's first row ends "No resume yet? Add
+    your experience piece by piece, and WorkIt builds your first one."
+    (the intro's own point, said nowhere else). Dropped as said below
+    already, or as unprovable: "Making a resume has never been easier",
+    "Tailor in a click", "Spend your time on the jobs your experience
+    fits best" and "five applications at a time". The next bullet
+    describes the removed section, kept for its reasons.
+  - **WorkIt's answer, after the problems (removed 2026-11-21)**: a short section, "One app
     for every step of applying", then one line on where to start ("Start
     wherever you are, even if you don't have a resume yet."), then the four
     products as a row of flat tiles, each in its feature's pale tint with

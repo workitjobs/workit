@@ -8,15 +8,15 @@ import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { PrimaryButton, SecondaryButton } from "./buttons";
 import { Control } from "./control";
-import { featuresIntro, hero, homeDescription, site, testimonial } from "./data";
+import { hero, homeDescription, site, testimonial } from "./data";
 import { DraftLines } from "./draft-lines";
 import { GrowIn } from "./grow-in";
 import { HeroPipeline } from "./hero-pipeline";
 import { HiringGrid } from "./hiring-grid";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
-import { FeatureJumps, ProductSections } from "./product-sections";
+import { ProductSections } from "./product-sections";
 import { SessionSwap } from "./session-swap";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
@@ -155,31 +155,11 @@ export default function LandingPage() {
 
       <WhyExists />
 
-      {/* WorkIt's answer to the problems: one app for every step, wherever
-          the student starts, and the four products, each with its selling
-          line, as links to their sections below (FeatureJumps,
-          product-sections.tsx), framed like every section. The turn from the
-          problems to the product (the user's ask, 2026-11-20); it never
-          promises replies or interviews. A tabs row over a large card was
-          here, telling the four products' stories that the product sections
-          tell again below, and the line under the heading repeated the
-          hero's: both went with the web review. hero-features.tsx stays,
-          unmounted. */}
-      <section aria-labelledby="features-title" className="py-16 sm:py-24">
-        <div className={CONTAINER}>
-          <div className="relative">
-            <DraftLines gap="1.5rem" />
-            <SectionHeading
-              id="features-title"
-              title={featuresIntro.title}
-              subtitle={featuresIntro.subtitle}
-            />
-            <FeatureJumps />
-          </div>
-        </div>
-      </section>
-
-      {/* Each product in depth, from its feature page: product-sections.tsx. */}
+      {/* Each product in depth, from its feature page: product-sections.tsx.
+          A section of four product tiles under "One app for every step of
+          applying" stood before these until 2026-11-21: the hero now shows
+          the four products and links each to its section, so the tiles
+          said it twice (the user's call). */}
       <ProductSections />
 
       {/* What WorkIt will never do without you: control.tsx. */}

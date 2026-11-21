@@ -8,6 +8,12 @@
  * missing keywords, one click rewords, each change marked with its Undo),
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
+ *
+ * "No resume yet? Add your experience piece by piece, and WorkIt builds
+ * your first one." (2026-11-21, the user's point from the home page's
+ * removed intro): a student with no resume starts on Experiences, whose
+ * intake asks about their experience one thing at a time, and Generate
+ * builds the first resume from it.
  */
 import { DatabaseIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
 import { SparkleIcon } from "@/components/sparkle-icon";
@@ -33,7 +39,7 @@ const content: FeatureContent = {
     {
       title: "Everything you have done, in one place",
       icon: DatabaseIcon,
-      body: "Upload the resume you have and WorkIt reads it into your bank, from education and experience to projects and skills. Every resume you make starts from it, so you never type an entry twice.",
+      body: "Upload the resume you have and WorkIt reads it into your bank, from education and experience to projects and skills. Every resume you make starts from it, so you never type an entry twice. No resume yet? Add your experience piece by piece, and WorkIt builds your first one.",
       points: [
         "Start from the resume you already have",
         "Edit every entry in one place",

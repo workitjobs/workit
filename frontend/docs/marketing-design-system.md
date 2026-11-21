@@ -26,7 +26,8 @@ look needs the whole page, and one section in it reads as a mistake.
    ground under glass tiles, off the page since 2026-11-21). The page and its cards are white,
    ink and grey, and so are its buttons but the main one, which is solid
    WorkIt violet, flat (the user's pick, 2026-11-20). A violet card, a violet shadow or a violet-tinted white
-   anywhere else reads as AI-made. **One exception, the four product
+   anywhere else reads as AI-made. **One exception until 2026-11-21, when their
+   section was removed, the four product
    tiles** under "One app for every step of applying" (`FeatureJumps`,
    the user's call, 2026-11-20): each is flat in its feature's pale
    tint, its colour mixed 9% into white (14% on hover), the same share

@@ -490,64 +490,6 @@ export const problems = {
 } as const;
 
 /**
- * The turn from the problems to the product (page.tsx, KAN-923): a plain
- * answer to "Applying for a job shouldn't feel like a full-time job", then
- * that a student starts wherever they are, even with no resume (the
- * Experiences page's intake asks about their experience one thing at a
- * time, and Generate builds the first resume from it), then each product
- * sold in
- * one or two short lines on the row of links (`FeatureJumps`). It was
- * "WorkIt is one place for your whole job search", which the user found
- * off, over cards that named each product and the problem it "fixes"
- * without saying what it does (2026-11-20). Selling, on facts the app keeps
- * today:
- * - Resume Builder: the editor shows each line on the page as it is typed,
- *   and the page is typeset in LaTeX (Tectonic, docs/live_page.md, ADR
- *   0002), with no LaTeX to write; Tailor rewords a copy for a posting in
- *   one click once the student picks the keywords (docs/tailor_resume.md).
- *   "Never been easier" is the user's selling ask, puffery the editor's
- *   typing on the page and one-click Tailor stand behind.
- * - Job Matching: every posting is scored on the student's experience
- *   bank and the Jobs page opens on Best Match, so the fits come first.
- * - Auto Apply: fills the basic fields from the profile on up to five
- *   applications at a time, each in its own tab; a new written question
- *   waits for the student, who reviews each form and clicks Submit (never
- *   "applies for you").
- * - Tracker: a saved job lands on its own, Auto Apply marks a job applied
- *   when the student submits in its tab, Apply Now asks "Did you apply?"
- *   on the way back, and each application keeps the resume it went out
- *   with (docs/sent_resume.md).
- * No promise of replies or interviews.
- */
-export const featuresIntro = {
-  title: "One app for every step of applying",
-  subtitle:
-    // The user's point (2026-11-20): one platform for every step,
-    // wherever the student stands, even before a first resume. "Set up
-    // your profile once. Every tool below uses it…" was here, and said
-    // nothing a student cares about at this point.
-    "Start wherever you are, even if you don’t have a resume yet.",
-  /** Each product's selling line on its link, in `PRODUCTS` order, the
-   *  user's picks (2026-11-20): sell what each saves the student, with time
-   *  going into quality, never volume. **Even**: the four are close in
-   *  length (54 to 57 characters), so all four take two lines from 1100
-   *  to 1440px and their "See how" links line up; lines from 36 to 120
-   *  characters, each in its own pattern, read as uneven (the user's
-   *  catch), and a 69-character tracker line took a third. */
-  products: {
-    resumes: "Making a resume has never been easier. Tailor in a click.",
-    matching: "Spend your time on the jobs your experience fits best.",
-    "auto-apply": "The basics fill themselves, five applications at a time.",
-    // "Fills itself in", never "updates itself": a saved job lands on its
-    // own, Auto Apply marks a job applied when the student submits in its
-    // tab, and Apply Now asks "Did you apply?" on the way back; stages past
-    // Applied are set by hand, since WorkIt reads no email. Each application
-    // keeps the resume it went out with (docs/sent_resume.md).
-    tracker: "The spreadsheet that fills itself in, resumes and all.",
-  },
-};
-
-/**
  * The promises behind the product (control.tsx, KAN-923), the worry any
  * auto apply tool raises, answered as what WorkIt does rather than as a
  * warning. Each is a claim, tied to its source: WorkIt never submits and

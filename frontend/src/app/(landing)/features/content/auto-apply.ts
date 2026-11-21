@@ -6,6 +6,10 @@
  * answers; it attaches the default resume, which the student can change in
  * its panel; WorkIt writes no answer to a new written question; and it never
  * submits. Never say WorkIt submits, sends or applies.
+ *
+ * The profile row is "The basics, from your profile" (2026-11-21): it was
+ * "Every field", more than Auto Apply does, since a new written question
+ * waits for the student.
  */
 import {
   CursorClickIcon,
@@ -41,7 +45,7 @@ const content: FeatureContent = {
       visual: QueueVisual,
     },
     {
-      title: "Every field, from your profile",
+      title: "The basics, from your profile",
       icon: TextboxIcon,
       body: "Your contact details, work history and saved answers go into each form for you, on hiring systems such as Greenhouse, Lever, Ashby and Workday. No more typing your resume again after you upload it.",
       points: [

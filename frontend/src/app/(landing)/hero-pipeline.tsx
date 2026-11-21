@@ -76,7 +76,7 @@ export function HeroPipeline({ className }: { className?: string }) {
             >
               {/* The whole cell is a link to its product's section further
                   down the page (the sections' ids are the slugs, as
-                  `FeatureJumps` links them): a visitor who sees a product
+                  the product sections' ids): a visitor who sees a product
                   here tries to click it. Its name is the link's text; the
                   scene is decoration. */}
               <Link href={`/#${slug}`} className="group block rounded-2xl">

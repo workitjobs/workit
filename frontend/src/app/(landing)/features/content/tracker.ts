@@ -6,6 +6,15 @@
  * application's page; the sent resume (docs/sent_resume.md). WorkIt reads
  * no email (the Inbox is archived, docs/email_tracker.md), so no line says
  * an employer's reply moves an application.
+ *
+ * The headline is "The spreadsheet that fills itself in" (2026-11-21, from
+ * the home page's product tiles when that section went; it was "Every
+ * application, in one place", which repeated What is WorkIt's "finally in
+ * one place"). It answers the problems' card about the spreadsheet a
+ * student gives up on. "Fills itself in", never "updates itself": a saved
+ * job lands on its own, Auto Apply marks a job applied when the student
+ * submits in its tab, and Apply Now asks "Did you apply?" on the way
+ * back; stages past Applied are set by hand.
  */
 import {
   FlagIcon,
@@ -27,7 +36,7 @@ const content: FeatureContent = {
       "Keep every job you save or apply to in one list, with its stage, its match score and the resume you sent.",
   },
   hero: {
-    title: "Every application, in one place",
+    title: "The spreadsheet that fills itself in",
     subtitle:
       "Save a job or apply to it and it lands on your tracker. Move it to Interviewing or Offer as you hear back, with the resume you sent one click away.",
   },
