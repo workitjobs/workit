@@ -127,13 +127,24 @@ section heading; a hero line may keep one.
 
 | Role | Component | Look |
 | --- | --- | --- |
-| Primary | `PrimaryButton` (`.primary-btn`) | Solid WorkIt violet, flat, white label, a step deeper on hover; never a gradient, glass or glow |
+| Primary | `PrimaryButton` (`.primary-btn`) | Solid WorkIt violet, flat, white label, a step deeper on hover; never a gradient, glass or glow. It ends in an arrow on a small flat square tile, the grid's square; on hover the arrow leaves right as a second comes in from the left (2026-11-21) |
 | Secondary | `SecondaryButton` | Slate at 6%, ink label, no border |
 | On a fill | `OnFillButton` | White, ink label, `--mk-shadow-float`, no border |
 
 Two heights only: `md` 44px, `lg` 48px. The header's Get started and Open
 WorkIt are primary; Log in is secondary. No glass, no gradient, no
 outline.
+
+### The header (`header.tsx`, `floating-header.tsx`)
+
+The drafting grid's top row (2026-11-21). It spans the window: clear at
+the page's top, white with a blur and a hairline along its foot once the
+page scrolls. On a page that draws the grid, from lg up, the hairline
+shows at the top too, the grid's rails run through the bar, and an ink
+square marks where each meets the foot; the home hero's frame hangs from
+that line. A page with no grid gets the bar without the marks. It was a
+rounded white panel with a shadow, inset from the window, which read as
+another site's bar.
 
 ### The sign-up pair (`social-sign-up.tsx`)
 
@@ -231,7 +242,10 @@ the middle, `.problem-dots`: they show the search as it is, not a WorkIt
 feature, so they take no feature's sky; the user's calls, 2026-11-20,
 the dots picked from six patterns over a flat stage that read as
 boring): 16px corners, a feature's
-`studioGround` and a fine grain (`.studio-box`; ruled lines across it were
+`studioGround` (a pale sky that ends at about half the feature's colour,
+a pastel, since 2026-11-21; the full colour at the foot was too strong
+with four boxes side by side) and a grain strong enough to see
+(`.studio-box`; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.
 

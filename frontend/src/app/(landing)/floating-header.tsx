@@ -44,8 +44,8 @@ function subscribe(onChange: () => void) {
 
 /**
  * The landing header's outer element. It marks itself `data-scrolled` once
- * the page leaves the top, so header.tsx can turn the bar into a floating
- * rounded panel with `group-data-scrolled:` classes, and `data-hidden` while
+ * the page leaves the top, so header.tsx can give the bar its white fill
+ * and foot line with `group-data-scrolled:` classes, and `data-hidden` while
  * the reader scrolls down, so the bar slides up out of the way and comes
  * back on the first scroll up (the user's ask, KAN-923, 2026-11-20). It
  * stays while a menu is open or focus is inside it (`.site-header` in
@@ -63,7 +63,7 @@ export function FloatingHeader({ children }: { children: ReactNode }) {
     <header
       data-scrolled={now !== "top" || undefined}
       data-hidden={now === "hidden" || undefined}
-      className="site-header group sticky top-0 z-40 px-2 pt-2 sm:px-6 sm:pt-3"
+      className="site-header group sticky top-0 z-40"
     >
       <SessionProbe />
       {children}

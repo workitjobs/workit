@@ -336,8 +336,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     over the gradients). **The ground is a sky in one colour**
     (`studioGround`, after Calendly's boxes): a pale wash of the feature's
     colour at the top, near white through the middle with a bright band
-    behind the scene's card, then deepening to the feature's full colour at
-    the foot. It replaced blobs of the colour and of a second colour over
+    behind the scene's card, then deepening to about half the feature's colour at
+    the foot, a pastel, under a stronger grain (2026-11-21: at the full
+    colour, with four boxes side by side in the hero, the user found the
+    gradients too strong, and asked for more grain). It replaced blobs of the colour and of a second colour over
     the tint, all at one lightness with no light source, which the user
     found flat beside Calendly's. **No text sits straight on the lower
     fifth of a box**: no one colour holds 4.5:1 on every foot (ink fails
@@ -378,10 +380,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     px size in a scene breaks that. From lg up the cells run rail to rail
     (`lg:-mx-6`) with the grid's own rule, dividers and ink squares
     (`.pipe-lines`); below lg they are two by two with no lines. The
-    section is at least the screen's height under the header with its
-    content centred, so the logo strip starts below the first screen.
-    Checked at 1512 × 827, 1024 × 768 (the frame's foot at 734px) and
-    375 × 812, with no sideways scroll. **The Browser pane holds CSS
+    section fills the screen's height under the header (58rem at most),
+    with no padding above: the frame hangs from the header's foot line,
+    the headline is centred in the room above the pipeline, and the logo
+    strip starts below the first screen. Checked at 1440 × 900 (the
+    frame's foot at 884px), 1024 × 768 (752px) and 375 × 812, with no
+    sideways scroll. **The Browser pane holds CSS
     animations at their first frame**, so there the hero shows no words
     and unfilled scenes: before a screenshot run
     `document.getAnimations().forEach((a) => { try { a.finish() } catch {
@@ -742,8 +746,16 @@ selling line that says what the product does** and "See how", a
   `PANEL_INSET` in `layout-parts.tsx`, the frame every marketing page
   shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
   renders a Skip to Content link, the header and the footer, and each page
-  renders its own `<main id="main">`, the link's target, KAN-580); the header floats as a white rounded bar
-  once the page scrolls (`floating-header.tsx`), **slides up out of the
+  renders its own `<main id="main">`, the link's target, KAN-580); **the header is the drafting grid's top row**
+  (2026-11-21, the user's ask: a floating rounded bar matched none of the
+  grid): it spans the window, 4.5rem tall and 4.75rem from sm, clear at
+  the page's top and white with a blur and a foot hairline once the page
+  scrolls (`floating-header.tsx`); on a page that draws the grid, from lg
+  up, the hairline shows at the top too and the grid's rails run through
+  the bar with an ink square at each crossing (`.header-line`,
+  `.header-marks` in landing.css, switched on by `.landing:has(.draft)`),
+  and the home hero's frame hangs from it (`DraftLines first` draws no
+  top line of its own); it **slides up out of the
   way while the reader scrolls down and comes back on a scroll up**
   (KAN-923, the user's ask, 2026-11-20: `data-hidden`, `.site-header` in
   landing.css; it always shows in the top 96px, a move must pass 6px
@@ -1808,7 +1820,13 @@ selling line that says what the product does** and "See how", a
   `--mk-shadow-float`, on a coloured or grey panel, the plan cards), all
   in one shape (`rounded-control`, the app's) and two heights, `md` 44px
   and `lg` 48px. The header's Get started and Open WorkIt are primary,
-  Log in secondary. A page may change a role's colours for a tier, never
+  Log in secondary. **A primary button ends in an arrow on a small square
+  tile** (2026-11-21, the user found the plain button boring beside the
+  grid): the grid's square, flat white at 16%; on hover the arrow leaves
+  to the right as a second comes in from the left (`.primary-btn-arrow`,
+  transform only, still with reduced motion). A caller that sets the
+  padding sets the left side only (`pl-*`); `arrow={false}` where there
+  is no room (the phone header). A page may change a role's colours for a tier, never
   its shape or height. The site had five recipes, three corner shapes and
   four heights, three of them in Pricing's one row; then a violet glass
   primary and a violet outline, which the user found AI-made. **The social

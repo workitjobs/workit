@@ -134,6 +134,52 @@ html:has(.landing) {
 .site-header {
   transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* The header as the drafting grid's top row (header.tsx, 2026-11-21). A
+ * hairline along the bar's foot, across the window: shown once the page
+ * scrolls, on every page. On a page that draws the grid (one with a
+ * `.draft` frame: the home page), from lg up, it shows at the top too, and
+ * the grid's side rails run through the bar with an ink square where each
+ * meets the foot, so the hero's frame (`DraftLines first`, which draws no
+ * top line of its own) hangs from the header. A page with no grid gets
+ * none of the marks: there they would be rails that lead nowhere. */
+.header-line {
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: rgb(15 23 42 / 0.08);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.site-header[data-scrolled] .header-line {
+  opacity: 1;
+}
+@layer components {
+  .header-marks {
+    display: none;
+  }
+}
+@media (min-width: 64rem) {
+  .landing:has(.draft) .header-line {
+    opacity: 1;
+  }
+  .landing:has(.draft) .header-marks {
+    display: block;
+    position: absolute;
+    inset: 0 0.5rem;
+    pointer-events: none;
+  }
+  .header-marks > span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgb(15 23 42 / 0.08);
+  }
+  .header-marks > i {
+    top: 100%;
+  }
+}
 .site-header[data-hidden]:not(:has(:focus-visible, [aria-expanded="true"], :popover-open)) {
   translate: 0 calc(-100% - 1rem);
 }
@@ -210,6 +256,50 @@ html:has(.landing) {
   .primary-btn:focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 3px;
+  }
+  /* The button's arrow tile (buttons.tsx): the grid's square, flat. Two
+     arrows share one cell; on hover the first leaves to the right as the
+     second comes in from the left. Transform only. */
+  .primary-btn-arrow {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    overflow: hidden;
+    border-radius: 0.3125rem;
+    background: rgb(255 255 255 / 0.16);
+  }
+  .primary-btn-arrow > svg {
+    grid-area: 1 / 1;
+    width: 0.875rem;
+    height: 0.875rem;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .primary-btn-arrow > svg:last-child {
+    transform: translateX(-200%);
+  }
+  .primary-btn:hover .primary-btn-arrow > svg:first-child,
+  .primary-btn:focus-visible .primary-btn-arrow > svg:first-child {
+    transform: translateX(200%);
+  }
+  .primary-btn:hover .primary-btn-arrow > svg:last-child,
+  .primary-btn:focus-visible .primary-btn-arrow > svg:last-child {
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .primary-btn-arrow > svg {
+      transition: none;
+    }
+  }
+  /* Below 360px the header has no room for the tile beside the logo and
+     the menu button. */
+  @media (max-width: 359px) {
+    .site-header .primary-btn-arrow {
+      display: none;
+    }
+    .site-header .primary-btn {
+      padding-right: 0.75rem;
+    }
   }
 }
 
@@ -1066,7 +1156,9 @@ html[data-tab-flight="flying"] .tour-tabs {
  * fine grain over its ground, so a gradient reads as a printed surface and
  * not as a flat web gradient. Drawn under the content (z-index -1 in the
  * box's own stacking context), no pointer events. The grain is a 160px SVG
- * noise tile, about 600 bytes inline; a PNG would be a request. Faint
+ * noise tile, about 600 bytes inline; a PNG would be a request. Stronger
+ * since 2026-11-21 (55% from 22%), when the grounds went pastel: the user
+ * found the gradients too strong and asked for more grain. Faint
  * ruled lines like resume paper ran across it too until the user found
  * them odd over the gradients; they are gone.
  */
@@ -1076,8 +1168,8 @@ html[data-tab-flight="flying"] .tour-tabs {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.55;
   mix-blend-mode: soft-light;
 }
 
@@ -1825,9 +1917,12 @@ html[data-tab-flight="flying"] .tour-tabs {
   .draft {
     display: block;
     position: absolute;
-    inset: calc(-1 * var(--gap, 1.25rem)) -1.5rem;
+    inset: calc(-1 * var(--gap-top, var(--gap, 1.25rem))) -1.5rem calc(-1 * var(--gap, 1.25rem));
     pointer-events: none;
   }
+}
+.draft-first {
+  --gap-top: 0px;
 }
 .draft-h,
 .draft-v {
@@ -1848,7 +1943,8 @@ html[data-tab-flight="flying"] .tour-tabs {
   top: 0;
 }
 .draft > i,
-.pipe-lines > i {
+.pipe-lines > i,
+.header-marks > i {
   position: absolute;
   width: 6px;
   height: 6px;

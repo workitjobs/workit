@@ -20,9 +20,11 @@ export function DraftLines({
   first,
 }: {
   gap?: string;
-  /** The page's first frame (the home hero's): its side lines start at
-   *  its top line. Run on 6rem above it, as every other frame's do to
-   *  join the frame before, they crossed the header. */
+  /** The page's first frame (the home hero's), which hangs from the
+   *  header: its top edge is the header's foot, and the header draws that
+   *  line, its ink squares and the rails above it (`.header-line`,
+   *  `.header-marks`), so this frame draws no top line or top squares,
+   *  takes no gap above, and starts its side lines at its top. */
   first?: boolean;
 }) {
   return (
@@ -31,12 +33,12 @@ export function DraftLines({
       className={first ? "draft draft-first" : "draft"}
       style={{ "--gap": gap } as CSSProperties}
     >
-      <span className="draft-h top-0" />
+      {!first && <span className="draft-h top-0" />}
       <span className="draft-h bottom-0" />
       <span className="draft-v left-0" />
       <span className="draft-v right-0" />
-      <i className="top-0 left-0" />
-      <i className="top-0 left-full" />
+      {!first && <i className="top-0 left-0" />}
+      {!first && <i className="top-0 left-full" />}
       <i className="top-full left-0" />
       <i className="top-full left-full" />
     </span>

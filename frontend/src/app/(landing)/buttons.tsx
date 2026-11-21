@@ -1,3 +1,4 @@
+import { ArrowRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
@@ -38,15 +39,43 @@ type ButtonProps = {
  * landing.css). It was solid ink until the page's dark blocks went (the
  * user's pick, 2026-11-20), and before that a violet glass button, which
  * the user found AI-made.
+ *
+ * It ends in an arrow on a small square tile (2026-11-21: the user found
+ * the plain button boring beside the drafting grid). The tile is the
+ * grid's square, flat white at 16%; on hover the arrow leaves to the
+ * right as a second comes in from the left (`.primary-btn-arrow`), so the
+ * interest is in how the button answers, never in a gradient or a glow.
+ * The tile sits 8px (md) or 10px (lg) from the button's edges, so a
+ * caller that sets the padding sets the left side only (`pl-*`). `arrow`
+ * is false where there is no room for it (the phone header).
  */
-export function PrimaryButton({ href, size = "md", prefetch, className, children }: ButtonProps) {
+export function PrimaryButton({
+  href,
+  size = "md",
+  prefetch,
+  arrow = true,
+  className,
+  children,
+}: ButtonProps & { arrow?: boolean }) {
   return (
     <Link
       href={href}
       prefetch={prefetch}
-      className={cn("primary-btn", BUTTON_SHAPE, BUTTON_SIZES[size], className)}
+      className={cn(
+        "primary-btn",
+        BUTTON_SHAPE,
+        BUTTON_SIZES[size],
+        arrow && (size === "lg" ? "pr-2.5" : "pr-2"),
+        className,
+      )}
     >
       {children}
+      {arrow && (
+        <span aria-hidden="true" className="primary-btn-arrow">
+          <ArrowRightIcon weight="bold" />
+          <ArrowRightIcon weight="bold" />
+        </span>
+      )}
     </Link>
   );
 }

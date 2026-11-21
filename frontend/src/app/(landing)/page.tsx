@@ -65,14 +65,17 @@ export default function LandingPage() {
           headline, its line and the sign-up pair are centred, and under
           them the whole pipeline stands as four cells of the grid
           (hero-pipeline.tsx): one application, from the resume to the
-          tracker. At least the screen's height under the header (4.5rem,
-          4.75rem from sm) with its content centred, so the logo strip
-          starts below the first screen. */}
-      <section className="flex min-h-[calc(100svh-4.5rem)] flex-col justify-center py-10 sm:min-h-[calc(100svh-4.75rem)]">
-        <div className={CONTAINER}>
-          <div className="relative">
+          tracker. The frame hangs from the header: its top edge is the
+          header's foot line (header.tsx draws it), so the section has no
+          padding above. It fills the screen's height under the header
+          (4.5rem, 4.75rem from sm; 58rem at most, so a tall screen does
+          not stretch it), the headline centred in the room above the
+          pipeline, so the logo strip starts below the first screen. */}
+      <section className="flex min-h-[min(calc(100svh-4.5rem),58rem)] flex-col pb-10 sm:min-h-[min(calc(100svh-4.75rem),58rem)]">
+        <div className={cn(CONTAINER, "flex flex-1 flex-col")}>
+          <div className="relative flex flex-1 flex-col">
             <DraftLines gap="1.5rem" first />
-            <div className="relative mx-auto max-w-4xl text-center">
+            <div className="relative mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center py-10 text-center">
               {/* From lg up the headline takes the screen's height into
                   account (7.4svh, 48 to 72px), so its two lines and the
                   pipeline fit one screen on a short laptop (1024 × 768). */}
@@ -112,7 +115,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            <HeroPipeline className="mt-10 lg:mt-12" />
+            <HeroPipeline />
           </div>
         </div>
       </section>

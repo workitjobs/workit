@@ -21,10 +21,17 @@ import { SessionSwap } from "./session-swap";
 const WORKS_WITH = hiringSystems.slice(0, 3);
 
 /**
- * The header sits above the hero's rounded panel. Once the page scrolls it
- * floats: the bar becomes a white rounded panel with a shadow, inset from
- * the window's edges like the panels below it (FloatingHeader sets the
- * state). The links: Features ▾ (the feature pages, features/catalog.ts),
+ * The header is the drafting grid's top row (2026-11-21, the user's ask:
+ * the bar floated above the grid and matched none of it). It spans the
+ * window with no fill at the page's top; once the page scrolls it takes a
+ * white, blurred fill and a hairline along its foot (FloatingHeader sets
+ * the state). On a page that draws the grid (the home page), from lg up,
+ * the hairline shows at the top too and the grid's side rails run up
+ * through the bar with an ink square where they meet its foot
+ * (`.header-line`, `.header-marks` in landing.css), so the hero's frame
+ * hangs from the header. It was a rounded white panel with a shadow, inset
+ * from the window's edges, which read as a different site's bar. The
+ * links: Features ▾ (the feature pages, features/catalog.ts),
  * Resources ▾ (resources/catalog.ts; archived behind `RESOURCES_IN_NAV`
  * since 2026-11-20), Pricing, Download (the Mac app's
  * page, KAN-922, public before the build too: it says Coming soon until
@@ -44,14 +51,25 @@ export function Header() {
             root, and a panel's own blur would see nothing behind it. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-10 rounded-2xl transition-[background-color,box-shadow] duration-300 group-data-scrolled:bg-white/90 group-data-scrolled:shadow-lg group-data-scrolled:ring-1 group-data-scrolled:shadow-slate-900/5 group-data-scrolled:ring-slate-900/5 group-data-scrolled:backdrop-blur-md"
+          className="absolute inset-0 -z-10 transition-[background-color] duration-300 group-data-scrolled:bg-white/85 group-data-scrolled:backdrop-blur-md"
         />
+        <span aria-hidden="true" className="header-line" />
         {/* From lg up: 1fr | auto | 1fr grid, so the links are centered on the
           page regardless of how wide the groups on either side are. */}
         <nav
-          className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4 max-[359px]:gap-1 max-[359px]:px-2 sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
+          className="relative mx-auto flex h-[4.5rem] w-full max-w-6xl items-center justify-between gap-2 px-4 max-[359px]:gap-1 max-[359px]:px-2 sm:h-[4.75rem] sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
           aria-label="Main"
         >
+          {/* The grid's rails through the bar, and an ink square where each
+              meets the bar's foot: 0.5rem inside the nav's edge, where
+              `DraftLines` puts every section's (1.5rem outside the
+              container's content). */}
+          <span aria-hidden="true" className="header-marks">
+            <span className="left-0" />
+            <span className="right-0" />
+            <i className="left-0" />
+            <i className="left-full" />
+          </span>
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 lg:justify-self-start">
             {/* h-11: a 44px tap; the logo alone was 32px tall. */}
             <Link href="/" aria-label={`${site.name} home`} className="flex h-11 items-center">
@@ -104,13 +122,13 @@ export function Header() {
                       (KAN-368). 44px tall, like the menu button, for a thumb
                       (KAN-580). */}
                   <div className="sm:hidden">
-                    <PrimaryButton href={site.primaryCta.href} className="h-11 px-3">
+                    <PrimaryButton href={site.primaryCta.href} arrow={false} className="h-11 px-3">
                       Get started
                     </PrimaryButton>
                   </div>
                 </>
               }
-              signedIn={<OpenWorkIt className="px-3 sm:px-4" />}
+              signedIn={<OpenWorkIt className="pl-3 sm:pl-4" />}
             />
             <button
               type="button"
