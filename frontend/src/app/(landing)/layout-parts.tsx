@@ -120,8 +120,8 @@ export function SectionHeading({
  * right, and a pale tone for the streak of light between them. Neighbours
  * on the colour wheel, a step either side of the feature's own colour, so
  * a box blends as one family and still reads as blue, peach, green or
- * pink at a glance. Brighter than the tokens they stand for: these are
- * grounds, never text, and nothing is printed on them.
+ * pink at a glance. Written at full strength; `studioGround` mixes each
+ * toward white (`STRENGTH`).
  */
 const MESH: Record<string, [ground: string, low: string, high: string, light: string]> = {
   // Resume Builder: blue, with cyan below and periwinkle above.
@@ -135,6 +135,16 @@ const MESH: Record<string, [ground: string, low: string, high: string, light: st
   // WorkIt itself: violet, with blue below and magenta above.
   "var(--color-brand)": ["#7b58ec", "#4f93f6", "#c95fe2", "#cdbffa"],
 };
+
+/**
+ * How much of each `MESH` colour a ground keeps; the rest is white. Pastel
+ * (the user's pick, 2026-11-21, over the colours at full strength, seen
+ * side by side in the page): the site is paper and ink, a white page with
+ * hairlines, and four boxes at full strength in the hero were louder than
+ * the headline over them. The blend between neighbours stays; only its
+ * strength dropped.
+ */
+const STRENGTH = 46;
 
 /**
  * A feature's ground for a `StudioBox`: a grainy blend of neighbouring
@@ -152,9 +162,9 @@ const MESH: Record<string, [ground: string, low: string, high: string, light: st
  * white is not a gradient worth looking at; the interest is in the blend
  * between neighbours.
  *
- * Nothing writes straight on a box: the ground is a mid tone that holds
- * 4.5:1 with neither ink nor white everywhere, so text sits on a card or
- * a pill. A colour with no entry in `MESH` gets the same shape from
+ * Nothing writes straight on a box: text sits on a card or a pill
+ * (`GroundNote`), so a scene reads the same whatever the ground's
+ * strength. A colour with no entry in `MESH` gets the same shape from
  * mixes of itself.
  */
 export function studioGround({ glow }: { glow: string }) {
@@ -165,12 +175,7 @@ export function studioGround({ glow }: { glow: string }) {
     mix(85, "var(--color-ink)"),
     mix(30, "white"),
   ];
-  // TEMPORARY (2026-11-21): `--ground-strength` lets `/?ground=pastel`
-  // show the same blend at pastel strength, for the user to compare
-  // (landing.css, "TEMPORARY"). Once one is picked, mix the pick into
-  // `MESH`'s values and drop the variable.
-  const tone = (color: string) =>
-    `color-mix(in oklab, ${color} var(--ground-strength, 100%), white)`;
+  const tone = (color: string) => `color-mix(in oklab, ${color} ${STRENGTH}%, white)`;
   return [
     `radial-gradient(62% 58% at 84% -6%, ${tone(high)}, transparent 72%)`,
     `radial-gradient(78% 72% at -10% 70%, ${tone(low)}, transparent 68%)`,
