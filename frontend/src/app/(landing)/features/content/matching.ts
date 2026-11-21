@@ -77,9 +77,15 @@ const content: FeatureContent = {
       visual: BestMatchVisual,
     },
     {
-      title: "Straight from company job boards",
+      title: "Every job, in one place",
+      // The answer to the problems' "Jobs scattered everywhere" (the user's
+      // picks, 2026-11-21, who found "Straight from company job boards" too
+      // much about the source: the point is that WorkIt pulls the jobs
+      // together). Buildings stay as its icon. "Careers pages", never "job
+      // boards" alone: WorkIt reads the pages companies host on hiring
+      // systems (about 5,000, scraper/boards.csv), not Indeed or LinkedIn.
       icon: BuildingsIcon,
-      body: "Every posting comes from a company’s own job board on hiring systems such as Greenhouse, Lever, Ashby and Workday, so Apply Now opens the company’s own application.",
+      body: "No more checking one careers page after another. WorkIt reads thousands of them and puts every job in one list.",
       visual: SourcesVisual,
     },
   ],

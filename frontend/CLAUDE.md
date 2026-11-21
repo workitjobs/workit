@@ -768,8 +768,17 @@ selling line that says what the product does** and "See how", a
     recordings** (the user's call, 2026-11-21: recreated scenes do not
     match a recording's quality), so no new scene is drawn; until then the
     last Resume Builder row still shows the Fit to One Page scene, which
-    no longer matches its words. Job Matching, Auto Apply and the Tracker
-    are next, in the same way. **It plays only while
+    no longer matches its words. **Job Matching was reviewed the same
+    way** (`features/content/matching.ts`): the heading is "Know your fit
+    before you apply"; the rows are Every job, scored on your experience
+    (a score ring; the score and the ranking in one), See why a job fits,
+    or why it does not (ticked lines), Your best match, every time (a
+    target: the saved preferences, new) and Every job, in one place
+    (buildings: the answer to the problems' scattered jobs). **A body
+    starts from the student, not from how the feature works**: the user
+    turned down every description that explained bands and reasons, and
+    took "Before you spend an evening on an application…". Auto Apply and
+    the Tracker are next. **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken
