@@ -224,3 +224,15 @@ export const UserTieIcon = customIcon("UserTie", {
     </>
   ),
 });
+
+/** Saved written answers (the marketing site's Auto Apply point,
+ *  2026-11-21): Phosphor's Article, a box of text lines, with a second one
+ *  behind it. The user asked for the article as a stack; three deep closed
+ *  up at 20px, so it is two. */
+export const ArticleStackIcon = customIcon("ArticleStack", {
+  outline: <rect x="3" y="7.5" width="14.5" height="13.5" rx="1.6" />,
+  holes: <path d="M6.3 11.6h8M6.3 14.3h8M6.3 17h5" />,
+  marks: <path d="M6.5 4.2h12.4a1.6 1.6 0 0 1 1.6 1.6v11.7" />,
+  tint: <rect x="3" y="7.5" width="14.5" height="13.5" rx="1.6" />,
+  body: <rect x="3" y="7.5" width="14.5" height="13.5" rx="1.6" />,
+});

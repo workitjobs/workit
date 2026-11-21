@@ -19,13 +19,9 @@
  * submits, so the row "You click Submit, every time" must stay under it.
  * No count of forms on the site (the user's call): "five" read as a limit.
  */
-import {
-  BrowsersIcon,
-  CursorClickIcon,
-  PaperclipIcon,
-  TextboxIcon,
-} from "@phosphor-icons/react/ssr";
+import { BrowsersIcon, CursorClickIcon, TextboxIcon } from "@phosphor-icons/react/ssr";
 
+import { ArticleStackIcon } from "@/components/custom-icons";
 import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
 
 import { AutoApplyAnimation } from "../animations";
@@ -77,9 +73,10 @@ const content: FeatureContent = {
       // own Claude drafts essay answers through the connector, or the
       // student writes them on Written Answers; Check and Save runs
       // WorkIt's checks on each; a saved answer fills later forms
-      // (frontend/docs/screens.md, Auto Apply). Its icon is the old resume
-      // point's, until the user picks one for a written answer.
-      icon: PaperclipIcon,
+      // (frontend/docs/screens.md, Auto Apply). Its icon is drawn for it, an
+      // article two deep (`ArticleStackIcon`): the user wanted the article
+      // as a stack, and Phosphor has none.
+      icon: ArticleStackIcon,
       body: "Your answers to written questions are saved and used again on later forms. Your own Claude can draft them, and WorkIt checks each one before it goes in.",
       visual: AttachVisual,
     },
