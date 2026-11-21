@@ -15,7 +15,7 @@
 import {
   BuildingsIcon,
   ChartDonutIcon,
-  ChecksIcon,
+  ListChecksIcon,
   SortDescendingIcon,
 } from "@phosphor-icons/react/ssr";
 
@@ -53,9 +53,14 @@ const content: FeatureContent = {
       visual: ScoreVisual,
     },
     {
-      title: "Why each job fits",
-      icon: ChecksIcon,
-      body: "Every score comes with its band, from Excellent to Weak Match, and up to three reasons, such as the skills of yours the job uses or the years of experience it asks for.",
+      title: "See why a job fits, or why it does not",
+      // Ticked lines, as the app lists a match's reasons (the user's picks,
+      // 2026-11-21; it was a double check under "Why each job fits"). "Or
+      // why it does not": a match's reasons are what fits ("Uses 3 of your
+      // skills", "Fits your major") and one caution, "Asks for N+ years",
+      // when the posting wants more experience (matching/highlights.py).
+      icon: ListChecksIcon,
+      body: "Before you spend an evening on an application, see what the job wants and what you bring. Then decide in seconds.",
       visual: ReasonsVisual,
     },
     {
