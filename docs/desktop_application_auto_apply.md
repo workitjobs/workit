@@ -126,7 +126,7 @@ builds it.
 | D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
 | D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags in CI | GitHub Actions minutes are limited | W0 |
 | D33 | **One mode:** Apply fills each form and stops on its last page; a person always presses Submit. Rehearsals and `live_runs` go. Not a v1 blocker | Simpler and safer: Apply never sends an application | W12 |
-| D34 | **The student's data comes through the Fill engine's code as it does now.** Its redesign is a teammate's work | Out of this design's scope | W11 |
+| D34 | **The Answer bank lives on WorkIt** (2026-11-18; it was "the student's data comes through the Fill engine's code as it does now"): one row for each student, which the app and the extension read whole and the student edits in the app. The model's one-off drafts go in flagged for review and fill at once; essays, follow-ups and company answers never go in, and the WorkIt server alone decides what does. The rest of the student's data still comes as it does now | The two banks differed, and Apply never saw an answer typed in the extension. With nothing in the bank tied to one form, the whole bank fills any form | W11 |
 | D35 | **Keeping a job-site password from the student is not a requirement** (2026-11-14). The passwords Apply makes are the student's. Copy password writes through the window's own clipboard function, as the window's other copy buttons do, with no secret marks and no clear after a minute | It works on every OS with no clipboard code in Apply; the student can already see each password with Show password | W4 |
 
 ## 3. The v1 app, end to end
@@ -213,7 +213,8 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 |---|---|---|
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
-| WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Tracker writes, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Each change to the Answer bank: the student's answers and the model's one-off drafts (W11) | As it changes |
 | WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 | Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
@@ -527,7 +528,7 @@ by hand (W8).
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
-| W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Left: Apply (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -1742,11 +1743,263 @@ applying.
 
 ### W11. The student's data
 
-A teammate owns it. Until their design lands, the app reads the student's
-data as the Fill engine's code and `apply/workit.py` do now, and keeps
-its local copy in the data folder. The answer bank's redesign, the data
-contract (each fact Apply reads and the WorkIt table that serves it) and
-the sync are theirs.
+**Goal.** One Answer bank for each student, on WorkIt. The app and the
+WorkIt extension read all of it and fill from it. The student sees and
+edits it in the app. Decided 2026-11-18. The rest of the student's data
+(the Story bank, Stock answers, profile facts: W1's "Sources move to the
+server") moves later in this workstream, by the same rules. Until then the
+app reads it as the Fill engine's code and `apply/workit.py` do now.
+
+**Today.** There are two banks, and they differ:
+
+- Apply keeps `answer-bank.yaml` in the data folder. Each entry holds the
+  question, the answer, options, source (`claude` or `lisul`), reviewed,
+  first seen (date and company), uses, last used and the facts a draft
+  drew on. Claude's one-off drafts go in unreviewed (`worker.py`'s
+  `bank.add`) and fill later forms at once.
+- KAN-746's sync is opt-in (`workit_sync: {answers: true}`, off by
+  default). It sends a lossy copy to `applicant_profiles.fill_answers` and
+  never reads back. So Apply never sees an answer the student typed on a
+  form in the extension.
+- The extension reads `GET .../answer-bank` for each form. The server
+  builds a bank for that one form (`written.answer_bank`): it merges
+  `written_answers` (essays too) with `fill_answers` and drops the answers
+  that must not go there: an answer about a company or naming it, on
+  another company's form; an answer that names one of the student's other
+  employers; Claude's text that fails `checks.problems` or
+  `truth.unsupported` against this posting.
+
+**Design.**
+
+1. **Where it lives.** A new table, `answer_banks`: one row for each
+   student (`applicant_id` as the primary key, `answers` JSONB, `version`
+   integer, `updated_at`). RLS is on, with no policies. It is not a
+   column of `applicant_profiles`, whose JSONB columns load with every
+   profile read (six ORM reads load `fill_answers` today), so a bank of
+   hundreds of KB would come with each one.
+2. **An entry.** The key is the question's folded wording, as the Fill
+   engine matches it (case, spacing, curly quotes and a trailing asterisk
+   don't count: Apply's `answer_bank.key`, `apply_answers.wording`). The
+   value is `{"question": str, "answer": str | [str], "review": true}`.
+   `[]` is "none of these". `review` is only on a Claude answer that the
+   student has not reviewed. Nothing else: no options, source, company,
+   dates, uses or facts. A Claude answer never replaces the student's own
+   answer to the same question.
+3. **What enters the bank: one rule, on the WorkIt server** (decided
+   2026-11-20). The Fill engine says what kind of question it is (an
+   essay, a one-off draft, a choice), since only it reads the form. The
+   server alone decides what enters the bank, from WorkIt's database: the
+   app and the extension send the candidates, and the server's reply says
+   what it kept.
+   - **Never sent:** an answer from the profile or a rule (the profile
+     holds it already), a file, and an essay (the Plan's `essays`, a cover
+     letter too). Each essay is written for its posting, as Apply does
+     today.
+   - **Sent, and kept unless rule 4 keeps it out:** the student's answers,
+     with no flag (Needs you, the app's Answers view, their own words on a
+     form: the extension's `PUT .../answers` with `own: true`); and a
+     model's one-off draft, with `review: true` (the app's drafts, written
+     by WorkIt's model in the `essays.write` kind's `drafts`, and the
+     choices the student's Claude saves through the connector).
+   - **The extension's path.** W11 changes no extension code. The
+     extension sends no essay marker, so the server can't tell a short
+     question in words from an essay. On that path only a choice, and the
+     student's words in a field the tab never sent (one a saved answer or
+     a guess filled), are candidates. The answer to a question in words
+     that the tab sent stays on its application. An `essay` column for the
+     marker was built and dropped before it shipped (2026-11-20).
+4. **The rule** (`app/auto_apply/answer_bank.py`). It runs when an answer
+   is saved, never when it is read. An answer stays out when:
+   1. its question is a follow-up of another ("If yes, please explain.",
+      "If so, ...", "Other (please specify)": `checks.FOLLOW_UP`). The same
+      words follow other questions on other forms, and the engine files a
+      follow-up by its label alone. "If applicable, ..." stands alone and
+      is no follow-up.
+   2. its question asks about one company or role
+      (`checks.ABOUT_THE_COMPANY`).
+   3. its question, or a typed answer, names a company of the student's
+      applications, the form's own above all. The student's own employers
+      and schools don't count, unless one is the form's company. A choice
+      is checked by its question only.
+   4. it is a model's text that names any company WorkIt knows.
+   5. it is a model's draft to a question the student answered: their
+      answer stays.
+   6. it is a model's text that states something the student's own data
+      doesn't hold: what the writing checks (`checks.problems`) or the
+      truth check (`truth.py`: a number, name, date or outcome) find, with
+      the student's data as the only sources, never a posting. A fact only
+      one posting gave would be made up on any other form. Plain code, no
+      model, no tokens: it reads the student's data, and only when a save
+      holds a model's text. A model's text over 1,000 characters is not
+      read and stays out (`CHECKED_MAX`): a one-off draft averages about
+      200 bytes, and the checks take about 8 ms for 1,000 characters, so a
+      PATCH of 100 holds the API under a second (a 20,000-character text
+      took 164 ms).
+
+   An answer kept out stays on its application (`written_answers`, or the
+   app's Record) and fills only that form. **No reuse on another
+   application, even at the same company**: the model writes the answer
+   again. On the 58 saved research forms (the Fill engine's planner on
+   `test/fixtures/planner/research-forms.json`), 17 questions are about
+   one company, on 15 forms. 12 are essays, which are never banked
+   anyway, and 5 are short drafts. A redraft usually goes in the
+   Application's model call, which runs anyway, at a few hundred output
+   tokens. The Fill engine keeps its own `companySpecific`, with other
+   words: it decides only what a form is filled with (a company question
+   takes only the student's own bank answer), never what is stored.
+5. **The review flag.** A flagged answer fills later forms at once: the
+   default. The app's Answers view marks it "Needs review". Reviewed, or
+   an edit, takes the flag off, and the answer is then the student's. The
+   route gives the engine `own: !review`, the field it already reads, so
+   a flagged text answer never fills a form that bans AI-written text,
+   and a reviewed one does. A new policy, `unreviewed_answers`, is `use`
+   (the default) or `hold`. `hold` keeps an Application that would use a
+   flagged answer in Needs you until the student reviews it. It replaces
+   `max_unreviewed_uses`, which needs a use count.
+6. **Reads.** `GET /applicants/{id}/answer-bank` gives the whole bank,
+   `{folded wording: {"question", "answer", "own", "none"?}}`, with its
+   version in the `ETag` (built). A request with `If-None-Match` for the
+   current version gets 304 and no body. `company` is still accepted and
+   does nothing. A student with no profile reads an empty bank, version 0.
+   No reader filters it: rule 4 kept everything in it safe for every form.
+   - **The app reads it once, at startup** (decided 2026-11-19), into one
+     bank in memory that the window and every Worker share (Workers are
+     threads of one process). No copy on disk, and no read before a run
+     or an Application. The app can't run without WorkIt anyway: its
+     model calls, Fill engine and Question types all come from it.
+   - **A change made elsewhere reaches it by version** (decided
+     2026-11-20, built). The run already asks `GET /apply-app/usage`
+     before it opens each Application (`orchestrator.py`, the Usage cap),
+     and that reply carries `bank_version` (0 while the student has no
+     bank). When it differs from the app's, the app reads the bank once,
+     so each Application's Plan has a current bank with no request of its
+     own. The server reads one integer by its key. A push over a
+     WebSocket (Supabase Realtime) was turned down: a connection open all
+     the time, a new package and a Supabase policy that lets the
+     student's token in. The Model route's reply was turned down too: it
+     comes after the Plan. **The limit:** while no run goes, a change
+     made in the extension waits for the next run.
+   - **The extension is unchanged.** It reads the whole bank fresh for
+     each Plan, from either route. `GET .../applications/{job_id}/answer-bank`
+     stays while it calls it.
+7. **Writes.** `PATCH /applicants/{id}/answer-bank` takes
+   `{"set": [entry], "delete": [question]}`, at most 100 entries and 500
+   deletes (100, so the content checks keep one save short: below).
+   - An entry is `{question, answer, review, choice, job_id}`. `choice`
+     and `job_id` are for rule 4 and are not kept. `job_id` names the
+     form's application, so the server reads the form's company from its
+     own database, not from the app (built; it replaced `company`). A
+     `job_id` the student has no application for refuses the whole PATCH
+     (404). An Answers view entry has no `job_id`. A form WorkIt holds no
+     job for (one of Apply's Requests, whose ids start `request-`) sends
+     no draft: its one-off questions are drafted again each time.
+   - One statement merges by key (`answers = (answers || set) - deleted`)
+     and adds one to the version (built). Two writers on different keys
+     both keep their change. On one key the last write wins, except that
+     a model's draft never replaces the student's own answer.
+   - **The reply is `{"version": n, "kept_out": {question: why}}`**
+     (built; `saved` and `deleted` went). The server decides, so the app
+     puts in its memory only what was not kept out, and the Answers view
+     shows the reason when a student's own entry is kept out. When
+     `version` is the app's version plus one, only the app's own write
+     happened. Otherwise another writer saved meanwhile, and the app reads
+     the bank once.
+   - **In the app,** one background sender thread sends the model's drafts
+     in order. The form that drafted one doesn't wait, since it holds the
+     draft. Memory changes only from the reply, so no later form fills an
+     answer the server refused. A draft that fails to send is lost, and
+     the model drafts that question again the next time a form asks. The
+     student's edit in the Answers view waits for the reply (a fraction of
+     a second), then shows Saved, or the error with their text kept. There
+     is no queue file.
+   - A request goes only with a new one-off draft (0.57 a form on the 58
+     forms, and only the first time a question is met) or the student's
+     edit. Most fills send none, beside the several model calls each
+     Application makes.
+   - The server's own writes (the student's words from `PUT .../answers`,
+     the connector's one-off answers) use the same merge and the same rule.
+8. **Size.** On the same 58 forms, 33 of 1,056 questions were one-off
+   drafts (0.57 a form), all different, about 200 bytes each with their
+   answer (79% choice). A bank grows to about 10 to 40 KB after 100
+   forms, 50 to 200 KB after 500, and 200 to 800 KB after 2,000. Caps:
+   5,000 entries and 1 MB of JSON for each student (413 past either). A
+   question is at most 2,000 characters (a written question's label cap),
+   an answer 20,000, a list 100 picks.
+   `fill_answers`' cap of 2,000 entries was too low. At this size, a
+   whole-bank download is small, and rewriting the row on each write is
+   cheap.
+9. **Moving over.**
+   - The migration makes `answer_banks` empty. **A student's first read
+     (or write) fills their row**, so nothing is run by hand: from
+     `fill_answers` (an own answer with no flag, the rest flagged) and
+     from the answers saved on applications that rule 3 lets in (choices,
+     and the student's words in fields the tab never sent), each through
+     rule 4. Until Apply writes the bank itself, `PATCH .../fill-answers`
+     and the import (`import_apply_profile`) write each entry into it too.
+   - **`answer-bank.yaml` goes in every build** (decided 2026-11-20). The
+     bank on WorkIt is the only one, and a Developer checkout uses it
+     through the same code as the Student build. Apply sends the file's
+     entries once, at its first start after the change (an own, reviewed
+     entry as the student's, the rest flagged, each through rule 4), then
+     renames it `answer-bank.before-workit.yaml` and never reads it again.
+     `sample/answer-bank.yaml` goes too. **Test Person's bank is in memory
+     only and never sent**, so a sample run never puts a made-up person's
+     drafts in a signed-in student's bank. Every Developer run needs
+     `apply login`. Tests use a fake bank in memory, since no test reaches
+     the network.
+   - `workit_sync`, `apply sync-answers`, `answer_sync.py` and
+     `workit-answers-queue.json` go. `PATCH .../fill-answers` and the
+     `fill_answers` column go once no app sends them (only Developer
+     checkouts do: no student has the app yet). `/privacy` says the bank
+     is on WorkIt (W10).
+   - **The model's flag for a question only the applicant can answer is
+     `needs_applicant`** (it was `needs_lisul`: the app is no one person's).
+     `essays.write` version 2 says it, and Apply asks for version 2 (built
+     2026-11-20). Version 1 still says `needs_lisul`, for an app copy older
+     than the change, and goes once none asks for it.
+10. **What changes for the student.**
+    - A choice, or their words in a field the tab never sent, given in the
+      extension fills the app's next Application. An answer from the app
+      fills the next form in the extension.
+    - The Answers view shows no company, date or use count. A choice
+      answer is edited as text, and the engine maps it to the form's
+      option (`fit.ts`).
+    - An essay, a follow-up or a company answer from another application
+      no longer fills a form, not even at the same company.
+    - A model's text in the bank is checked once, when it is saved, and
+      not again for each form. Company answers no longer travel, so the
+      per-form checks have little left to catch.
+
+**Build order.**
+
+1. Backend, built: the table and its migration (checked offline with
+   `--sql`; the user applies it), the merge, rule 4's parts 2 to 5, the
+   GET with its version, the PATCH, the first fill, and the old route
+   reading the new table.
+2. Backend, built: the server's own writers (`PUT .../answers`, the
+   connector's one-off answers) merge into the bank. The essay marker was
+   built here and dropped (2026-11-20).
+3. Backend, built (2026-11-20): rule 4.1 (follow-ups) and 4.6 (the
+   content checks, on every save and the first fill), `job_id` in place of
+   `company`, the reply `{version, kept_out}`, and `bank_version` on the
+   usage reply.
+4. Apply: the bank in memory, read once at startup and shared by the
+   window and the Workers; the sender thread; the version checks; the
+   first-start upload and the removals in rule 9; "Needs review" and
+   Reviewed in the Answers view; `unreviewed_answers`.
+5. Removal: `fill_answers` and `PATCH .../fill-answers`; the old route
+   once no Store extension calls it.
+
+The extension has no step: W11 changes no extension code.
+
+**Done when** a choice the student gives in the extension fills the app's
+next Application, with no sync step; a model's
+draft shows "Needs review" in the Answers view until the student reviews
+it; no essay, follow-up or company answer is in any student's bank; and
+no build reads `answer-bank.yaml`. Each step updates its `CLAUDE.md`
+(`backend/app/models/CLAUDE.md`, the Fill engine's profile;
+`apply-agent/docs/workit.md`, the routes) and `apply-agent/GLOSSARY.md`
+(Answer bank).
 
 ### W12. One mode: remove Rehearsals and `live_runs`
 
@@ -2158,3 +2411,20 @@ their value on their servers; WorkIt Auto Apply does the same.
   Worker stops its drawing, and a virtual screen keeps it drawing and out
   of Mission Control. One Chrome process for every Worker and a virtual
   screen stay future work (F10). Chrome on WorkIt's servers stays out (§4.6).
+- **2026-11-18:** W11's Answer bank (D34): on WorkIt, one row for each
+  student, read whole with its version, and the app's copy refreshed by
+  version. Each entry is a question and an answer, and Claude's drafts are
+  flagged for review but used by default. The company rule runs when an
+  answer is saved, so essays and company answers never go in and are not
+  used again, even at the same company.
+- **2026-11-20:** W11 redesigned (step 3 on). The WorkIt server alone
+  decides what enters the bank, and follow-ups never do. The app reads the
+  bank once at startup into memory, learns of changes from the bank's
+  version on the usage reply (not a WebSocket push) and on each
+  PATCH reply (`{version, kept_out}`), and keeps no copy or queue file.
+  `answer-bank.yaml` goes in every build, Developer checkouts included.
+  The extension's code is unchanged, so the `essay` marker column was
+  dropped. The model's flag became `needs_applicant` (`essays.write` 2).
+  The bank's version rides on the usage reply, which the run already
+  asks before each Application, not on the Model route's reply. Step 3
+  built the backend's side.
