@@ -752,7 +752,24 @@ selling line that says what the product does** and "See how", a
     the Resume Builder's last row was the sent resume, which the Tracker's
     last row says with the same scene, so it became Fit to One Page (the
     copy review, 2026-11-20); the sent resume stays in the Resume Builder
-    page's How it works. **It plays only while
+    page's How it works. **The Resume Builder's heading and four rows were
+    reviewed with the user, one choice at a time** (2026-11-21; each pick
+    and its reason is in `features/content/resumes.ts`): the heading is
+    "The easiest way to make a resume for every job"; the rows are Start
+    from scratch, or from your resume (a page with a plus), Edit freely.
+    The layout keeps up. (the text cursor: typing, drag handles, Add
+    Experiences, the Format tab, Fit to One Page and Undo, which the
+    editor gained with KAN-920 on main), Reworded for the job, never
+    invented (the app's Tailor mark) and Every version, labelled by job
+    (folders: the Documents page). Bodies are short beats. **Read the
+    app's screen notes on `origin/main` before writing a product's
+    rows**: this branch is behind main, and the first options left out
+    the editor's newest abilities. **The rows' pictures wait for real
+    recordings** (the user's call, 2026-11-21: recreated scenes do not
+    match a recording's quality), so no new scene is drawn; until then the
+    last Resume Builder row still shows the Fit to One Page scene, which
+    no longer matches its words. Job Matching, Auto Apply and the Tracker
+    are next, in the same way. **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken
