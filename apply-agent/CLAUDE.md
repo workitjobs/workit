@@ -588,6 +588,20 @@ so it opens on the Mac that built it and nowhere else. Signing and
 notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
 notices strict (above).
 
+- **A release builds from the commit, never the working tree** (KAN-833,
+  2026-11-21). `--release` exports the current commit's files of this
+  folder with `git archive` into `build/source` and builds from there, so
+  an untracked or uncommitted file can't get in, and says when the working
+  tree has changes it leaves out. Before, Apply installed from its folder
+  with every untracked file in it (hatchling takes any file git doesn't
+  ignore), Nuitka shipped every data file of the package, and the inputs
+  were copied as whole folders: a test file in `src/apply` went into the
+  wheel. Every build writes its commit into `Info.plist` (`WorkItCommit`,
+  with `+changes` on a test build of a changed working tree), so a report
+  names the code it came from. `git archive` runs from the repo's top
+  folder: run in a subfolder, it keeps only paths under that folder,
+  inside the exported subtree too, and exported nothing.
+
 - **The build has its own venv, `build/venv`**, from `uv.lock` with uv's
   own Python 3.12 and the `build` group (Nuitka), never the checkout's
   `.venv`: its Python can be Anaconda's or Homebrew's, which differ per
@@ -635,7 +649,12 @@ notices strict (above).
   own folder when the module is compiled (`__compiled__`), and the build
   puts the inputs the Student path reads there (`INPUTS`: the EULA, the
   default policies, the sample, the Worker extension; and the notices). A
-  new file the Student path reads beside the code joins `INPUTS`. A plain
+  new file the Student path reads beside the code joins `INPUTS`. Two of
+  them are there only for now: the sample, which `student.app` copies into
+  a data folder with no Applicant profile (so a new Mac runs as Test
+  Person), leaves once W11 brings the student's own profile from WorkIt;
+  the Worker extension's folder, which the seed setup copies for Load
+  unpacked, shrinks to what the store copy needs once W6 ships it. A plain
   Worker's wrapper starts the app's own program as the relay
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
   host.py`. It names that program with `psutil.Process().exe()`, never

@@ -1596,6 +1596,8 @@ itself (D17, D18, D20).
   Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
 - **Build by hand:** one script, `scripts/build_app.py`, that compiles,
   signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
+  A release builds from the commit's own files (`git archive`), never the
+  working tree, and writes the commit into `Info.plist` (`WorkItCommit`).
 
 **Steps.**
 

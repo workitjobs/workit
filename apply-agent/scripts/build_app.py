@@ -20,8 +20,13 @@ build/out/WorkIt Auto Apply.app. In order:
 5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
    path left in the app, and a capture helper that runs.
 
-`--release` is a build for students: the notices must be complete, and Nuitka compiles with no ccache, a program it
-would download from nuitka.net with no check and run on every C file.
+`--release` is a build for students. It builds from the current commit's own files (`git archive` into
+build/source), never the working tree: Apply installs from its folder with every untracked file in it, Nuitka ships
+every data file of the package, and the inputs are copied as folders, so a stray file (a debug dump with real
+answers) went into the app. Uncommitted changes are left out, and the build says so. The notices must be complete,
+and Nuitka compiles with no ccache, a program it would download from nuitka.net with no check and run on every C
+file. Every build writes its commit into Info.plist (COMMIT_KEY), with "+changes" for a test build of a working tree
+that has some, so a report names the code it came from.
 
 W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
 opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
@@ -44,10 +49,14 @@ PYTHON = VENV / "bin" / "python"
 DATA = BUILD / "data"  # the inputs the app reads beside its program, staged for Nuitka
 OUT = BUILD / "out"
 REPORT = OUT / "report.xml"
-ENTRY = ROOT / "scripts" / "app_entry.py"
+SOURCE = BUILD / "source"  # a release's own copy of the commit's files
+# Each build step reads these from its source folder: the checkout for a test build, SOURCE for a release.
+ENTRY = Path("scripts", "app_entry.py")
+ICON = Path("src", "apply", "Apply.icns")
 # The plain Workers' live tiles film a Worker's window with this Swift program (apply.plain.window_capture). A
 # checkout builds it with swiftc on first use; a student's Mac has no swiftc, so the app ships it, built here.
-CAPTURE_SOURCE = ROOT / "src" / "apply" / "plain" / "window_capture.swift"
+CAPTURE_SOURCE = Path("src", "apply", "plain", "window_capture.swift")
+COMMIT_KEY = "WorkItCommit"  # Info.plist: the commit the app was built from
 # Where uv puts the build's Python. The app carries this path (Python's build settings, sysconfig, and libpython's
 # own name), so it names no one: in uv's default place, ~/.local/share/uv, every copy of the app held the user
 # name of whoever built it. It is also the same path on every Mac that builds.
@@ -107,6 +116,24 @@ def venv_python(code: str, *args: object) -> str:
                           text=True).stdout.strip()
 
 
+def git(*args: str) -> str:
+    return subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def committed(commit: str) -> Path:
+    """The commit's own files of this folder, in SOURCE: nothing from the working tree, tracked or not, gets in."""
+    shutil.rmtree(SOURCE, ignore_errors=True)
+    SOURCE.mkdir(parents=True)
+    prefix = git("rev-parse", "--show-prefix")  # "apply-agent/" in the WorkIt repo; "" once Apply has its own (W0)
+    # From the repo's top folder: run in a subfolder, git archive keeps only paths under it, inside the subtree too,
+    # which left nothing.
+    top = git("rev-parse", "--show-toplevel")
+    archive = subprocess.run(["git", "-C", top, "archive", "--format=tar", f"{commit}:{prefix}"], check=True,
+                             capture_output=True).stdout
+    subprocess.run(["/usr/bin/tar", "-x", "-C", str(SOURCE)], input=archive, check=True)
+    return SOURCE
+
+
 def preflight() -> None:
     if sys.platform != "darwin" or os.uname().machine != "arm64":
         sys.exit("Build WorkIt Auto Apply on an Apple Silicon Mac (D18).")
@@ -116,10 +143,10 @@ def preflight() -> None:
         sys.exit("Install uv first: https://docs.astral.sh/uv/")
 
 
-def make_venv() -> Path:
-    """build/venv from uv.lock, with Apply's source as it is now; returns the copy's apply/ folder."""
+def make_venv(source: Path) -> Path:
+    """build/venv from `source`'s uv.lock, with Apply installed from `source`; returns the copy's apply/ folder."""
     run(["uv", "sync", "--frozen", "--no-dev", "--group", "build", "--no-editable", "--reinstall-package", "apply",
-         "--managed-python", "--python", "3.12"], cwd=ROOT,
+         "--managed-python", "--python", "3.12"], cwd=source,
         env={**os.environ, "UV_PROJECT_ENVIRONMENT": str(VENV), "UV_PYTHON_INSTALL_DIR": str(PYTHON_HOME)})
     return Path(venv_python("import apply, pathlib; print(pathlib.Path(apply.__file__).parent)"))
 
@@ -132,13 +159,13 @@ def set_student(package: Path) -> None:
     flag.write_text(text.replace(*STUDENT_LINE))
 
 
-def store_files(package: Path) -> str:
+def store_files(package: Path, source: Path) -> str:
     """The set id of the Worker extension's built-in files (the guards, fixed.js, injected.js) as `package` makes
     them. Apply finds the extension beside its checkout (home.CODE), so it runs here from a tree shaped like one."""
     tree = BUILD / "store-check"
     shutil.rmtree(tree, ignore_errors=True)
     shutil.copytree(package, tree / "src" / "apply")
-    (tree / "worker-extension").symlink_to(ROOT / "worker-extension")
+    (tree / "worker-extension").symlink_to(source / "worker-extension")
     stamp = subprocess.run([PYTHON, "-c", "from apply.plain import extension; print(extension.store_stamp()['files'])"],
                            cwd=tree, env={**os.environ, "PYTHONPATH": str(tree / "src")}, check=True,
                            capture_output=True, text=True).stdout.strip()
@@ -146,32 +173,33 @@ def store_files(package: Path) -> str:
     return stamp
 
 
-def strip_comments(package: Path) -> None:
+def strip_comments(package: Path, source: Path) -> None:
     """No JavaScript comments in the copy's page code, with the Worker extension's store copy unchanged: a plain
     Worker refuses guards or fixed functions whose sha256 isn't the store copy's."""
-    before = store_files(package)
+    before = store_files(package, source)
     node = package.parent / "playwright" / "driver" / "node"
-    run([PYTHON, "-I", ROOT / "scripts" / "strip_js_comments.py", package, node])
-    if store_files(package) != before:
+    run([PYTHON, "-I", source / "scripts" / "strip_js_comments.py", package, node])
+    if store_files(package, source) != before:
         sys.exit("Stripping comments changed the Worker extension's store files: a module that plain/fixed.py, "
                  "plain/guards.py or plain/extension.py takes page code from is missing from STORE_CODE in "
                  "scripts/strip_js_comments.py.")
 
 
-def stage_inputs(strict: bool) -> None:
+def stage_inputs(source: Path, strict: bool) -> None:
     shutil.rmtree(DATA, ignore_errors=True)
     for name in INPUTS:
-        source, dest = ROOT / name, DATA / name
+        dest = DATA / name
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if source.is_dir():
-            shutil.copytree(source, dest, ignore=SKIP)
+        if (source / name).is_dir():
+            shutil.copytree(source / name, dest, ignore=SKIP)
         else:
-            shutil.copy2(source, dest)
+            shutil.copy2(source / name, dest)
     run(["uv", "run", "--frozen", "python", "scripts/third_party_notices.py",
-         "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=ROOT)
+         "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=source)
 
 
-def compile_app(developer: list[str], version: str, scheme: str, capture: str, release: bool) -> None:
+def compile_app(source: Path, developer: list[str], version: str, scheme: str, capture: str, release: bool,
+                commit: str) -> None:
     def xcrun(*args: str) -> str:
         return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
 
@@ -187,7 +215,7 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str, r
             else f"--include-data-files={DATA / name}={name}" for name in (*INPUTS, NOTICES)]
     run([PYTHON, "-m", "nuitka", "--mode=app", f"--output-dir={OUT}", f"--output-filename={NAME}",
          f"--macos-app-name={NAME}", f"--macos-signed-app-name={BUNDLE_ID}", f"--macos-app-version={version}",
-         f"--macos-app-icon={ROOT / 'src' / 'apply' / 'Apply.icns'}", "--macos-target-arch=arm64",
+         f"--macos-app-icon={source / ICON}", "--macos-target-arch=arm64",
          # The engine download names the app's version from Apply's metadata (W7): without it no build fits.
          "--include-distribution-metadata=apply", "--include-package-data=apply",
          *(f"--noinclude-data-files={path}" for path in LEAVE_OUT),
@@ -196,7 +224,7 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str, r
          # is an assert. Isolated: no PYTHON* variable or user site folder changes what the app runs.
          "--python-flag=no_docstrings", "--python-flag=isolated", "--python-flag=safe_path",
          "--assume-yes-for-downloads", *(["--disable-cache=ccache"] if release else []), f"--report={REPORT}",
-         *(f"--nofollow-import-to={module}" for module in developer), *data, ENTRY], cwd=ROOT, env=env)
+         *(f"--nofollow-import-to={module}" for module in developer), *data, source / ENTRY], cwd=source, env=env)
     # Nuitka names the bundle after the entry file and builds its program for macOS 11 (the Python's own target).
     (OUT / f"{ENTRY.stem}.app").rename(APP)
     info = APP / "Contents" / "Info.plist"
@@ -206,9 +234,10 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str, r
     # and hands it the link (apply.sign_in_link.listen).
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
     plist["NSAppleEventsUsageDescription"] = APPLE_EVENTS_REASON
+    plist[COMMIT_KEY] = commit
     info.write_bytes(plistlib.dumps(plist))
     run(["/usr/bin/xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}",
-         "-o", APP / "Contents" / "MacOS" / capture, CAPTURE_SOURCE], env=env)
+         "-o", APP / "Contents" / "MacOS" / capture, source / CAPTURE_SOURCE], env=env)
     # The edits broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
     # Step 2 replaces this with the Developer ID signature, file by file.
     run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])
@@ -254,16 +283,24 @@ def main() -> None:
                         help="a build for students: complete notices (third_party_notices --strict), no ccache")
     args = parser.parse_args()
     preflight()
-    package = make_venv()
+    commit = git("rev-parse", "HEAD")
+    changed = bool(git("status", "--porcelain", "--untracked-files=all", "--", "."))
+    if args.release:
+        source = committed(commit)
+        if changed:
+            print(f"Building the release from commit {commit[:12]}: this folder's uncommitted changes are not in it.")
+    else:
+        source, commit = ROOT, commit + ("+changes" if changed else "")
+    package = make_venv(source)
     set_student(package)
     probes = json.loads(venv_python(PROBES, package))
-    strip_comments(package)
+    strip_comments(package, source)
     developer = sorted(venv_python("import apply.build as b; print(*b.DEVELOPER)").split())
     version = venv_python("import importlib.metadata as m; print(m.version('apply'))")
     scheme = venv_python("from apply.sign_in_link import SCHEME; print(SCHEME)")
     capture = venv_python("from apply.plain.window_capture import BUNDLED_NAME; print(BUNDLED_NAME)")
-    stage_inputs(strict=args.release)
-    compile_app(developer, version, scheme, capture, release=args.release)
+    stage_inputs(source, strict=args.release)
+    compile_app(source, developer, version, scheme, capture, release=args.release, commit=commit)
     check(developer, capture, probes)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")
