@@ -93,7 +93,8 @@ has neither.
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
-  the way" list.
+  the way" list; `../docs/windows_desktop.md` takes each item in turn, with
+  where it is and how to fix it (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the
   generic Filler: code reads the form from the accessibility tree and does

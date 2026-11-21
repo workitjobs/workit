@@ -1900,6 +1900,8 @@ for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
 lock, signals, the hosts' wrappers, the seed guide's words).
+`windows_desktop.md` takes each one in turn, in the order to solve them
+(KAN-929).
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
