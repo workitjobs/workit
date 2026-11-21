@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 // workit-dev's ID, from the project's settings in Infisical. Not a secret:
 // reading a value needs an Infisical login with access to the project.
-const PROJECT_ID = "WORKIT_DEV_PROJECT_ID";
+const PROJECT_ID = "99db2e5f-640f-43c0-9092-952a418ce225";
 
 const FILES = [
   { file: ".env", folder: "/root_env" },
@@ -106,9 +106,6 @@ function pull(folder) {
 function names(list) {
   return list.length ? list.join(", ") : "none";
 }
-
-if (PROJECT_ID === "WORKIT_DEV_PROJECT_ID")
-  fail("Set PROJECT_ID in frontend/scripts/env.mjs first.");
 
 const pulls = FILES.map(({ file, folder }) => ({ file, folder, pulled: pull(folder) }));
 
