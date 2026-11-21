@@ -250,7 +250,40 @@ for each fix, section 6 the tests, and section 7 the order.
     The test reads the source. An import with `fcntl` blocked can't work
     as a test, because portalocker itself imports `fcntl` on macOS and
     Linux.
-- **Still open.** Run Apply on Windows. M1 also needs P2 and P3.
+- **Where lock files live.** Apply makes each lock file the first time it
+  locks that data file: `held` and `tried` make the folder, and opening
+  the file to append makes an empty one. Every lock file is in the data
+  folder, beside its data file. None is in the app's package: a signed Mac
+  app and Windows' `Program Files` are read-only, and each data folder
+  needs its own. Remove All My Data deletes them with the folder, and the
+  next run makes them again.
+- **After a crash.** The OS releases a lock when the process that held it
+  ends. So a crash leaves no stale lock, only an empty file, and the next
+  process takes the lock at once. On Windows the release can take a
+  moment, and `held` waits for it.
+- **Is `fcntl` gone completely?** Yes, from Apply's start (checked
+  2026-11-21):
+  - No file in `apply-agent/` imports it: not the source, the tests, the
+    tools or the scripts.
+  - No installed library imports it at its top. portalocker imports it
+    only on macOS and Linux.
+  - `uv.lock` has no OS limit, and it holds Windows' own packages
+    (pywebview's `pythonnet` and `clr-loader`), so `uv sync` resolves on
+    Windows.
+  - A scan found no module that imports another Unix-only module (`pwd`,
+    `termios`, `resource`, `readline` and the like), and none that calls
+    a Unix-only function at its top level.
+  - Not proven: nothing has run on Windows yet. The first Windows run, or
+    the Windows CI job (section 6), proves it.
+- **Unix-only calls that are left.** These fail only when they run, not
+  at import, and each one belongs to another problem: `os.kill(pid, 0)`
+  (P2), `SingletonLock` (P3), the Unix sockets and their folders (P4), and
+  SIGTERM (P7). Two more are in developer-only modules (`build.DEVELOPER`),
+  so they stop only a Windows developer's command that runs them:
+  - `os.killpg` in `claude_cli.stream_claude` (`claude_cli.py:154`), used
+    with `ask_model: claude`.
+  - `os.getuid()` in `schedule.Launchctl` (`schedule.py:133`): the Mac's
+    scheduled runs, which D10 drops.
 
 ### P2. "Is it still running?" (`os.kill(pid, 0)`)
 
@@ -306,8 +339,9 @@ for each fix, section 6 the tests, and section 7 the order.
   way.
 - **Where.** `plain/bridge.py:265` and `:273` (the Bridge),
   `plain/host.py:46` (the host), `plain/mcp.py:48`, `plain/tools.py:447`.
-  The fallback folders use `os.getuid()` (`plain/bridge.py:98`,
-  `plain/tools.py:73`).
+  The socket folders use `os.getuid()`: `plain/bridge.py:98` when the
+  socket's path is too long, and `plain/tools.py:73` always, under `/tmp`,
+  which Windows doesn't have either.
 - **What breaks.** Python on Windows has no `socket.AF_UNIX`, and `os` has
   no `getuid`. So no plain Worker can talk to Apply.
 - **Who.** Both, for plain Workers. CDP Workers don't use the channel.
@@ -539,12 +573,17 @@ can break, on each OS. The goal is not a high count of tests.
 
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
-| M1 | A developer runs CDP Workers | P1, P2, P3 | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
+| M1 | A developer runs CDP Workers | P1 (built), P2, P3 | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
 | M2 | A developer runs plain Workers, with no seed | P4, P5, P6, P9 | `plain_chrome: testing` | Every host fills; a developer never needs the seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 The store copy (W6) is not Windows work. When it ships, it changes P8's
 clicks on every OS.
+
+**Next: P2, then P3.** Both change `browsers.chrome_pid`
+(`browsers.py:100-107`): it reads the PID from `SingletonLock` (P3), then
+checks it with `os.kill(pid, 0)` (P2). Do P2 first, at all six of its
+places, and then P3 in the same function.
 
 ## 8. Open questions
 

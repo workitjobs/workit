@@ -4,6 +4,8 @@ Each data file that two Apply processes may write (a run, the window, `apply ask
 it, `<name>.lock`, that holds nothing. Files that work on their own never share a lock; files that must change
 together do (the Sheet takes the Tracker's, sheet.locked).
 
+- A lock file is made at first use, in the data folder beside its data file: never in the app's package, which is
+  read-only. The OS releases a lock when its process ends, so a crash leaves only an empty file.
 - A lock file is opened to append, so taking a lock never empties a file, even one named by mistake.
 - Never lock the data file itself: on Windows a lock also stops every other handle from reading the locked bytes,
   Apply's own too.
