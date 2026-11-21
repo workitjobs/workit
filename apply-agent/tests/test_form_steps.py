@@ -86,7 +86,7 @@ def test_a_later_steps_one_off_question_is_drafted_by_claude(monkeypatch):
 def test_a_later_steps_question_claude_cannot_answer_is_a_missing_fact(monkeypatch):
     form = SteppedForm([NAME], [SPONSOR], [ENGINE])
 
-    row = run(monkeypatch, form, FakeClaude(needs_lisul=[ENGINE.label]))
+    row = run(monkeypatch, form, FakeClaude(needs_applicant=[ENGINE.label]))
 
     assert (row.status, row.missing_fact) == ("missing fact", ENGINE.label)
     assert form.submitted == []

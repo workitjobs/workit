@@ -157,7 +157,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     else:
         _, [draft] = essays.answer(claude, form.posting, [], [q], profile, material, form.posting_text,
                                    answered=answered, redo=redo)
-        text, failed, claimed = ("" if draft.needs_lisul else draft.shown), [], []
+        text, failed, claimed = ("" if draft.needs_applicant else draft.shown), [], []
     if not text:
         return Redone(q, why="Claude couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
     if over := gates.over_cap(text, q):

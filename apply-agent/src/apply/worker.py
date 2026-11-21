@@ -728,7 +728,7 @@ class _Planned:
         self.written += written
         self._asked |= set(to_draft)
         for draft in drafted:
-            if draft.needs_lisul:
+            if draft.needs_applicant:
                 continue
             # True of this company only, or a bare date no section places: drafted again each time, never banked.
             if company_specific(draft.question, posting) or self.filed.get(draft.question.name, "") is None:
@@ -949,7 +949,7 @@ class _Planned:
         holds = []
         if high_stakes and self._approved is None:
             holds.append(f"High-stakes essay: '{one_line(q.label)}'")
-        if essay.needs_lisul:
+        if essay.needs_applicant:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
         if essay.unsupported:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")

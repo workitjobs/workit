@@ -509,7 +509,7 @@ class FakeClaude:
     a list of answers, one per call, the last kept); any other essay gets a
     plain draft. `drafts` does the same for the one-off
     questions the same call drafts for the Answer bank; any other gets its
-    first option, or a short plain answer. `needs_lisul` holds the starts of
+    first option, or a short plain answer. `needs_applicant` holds the starts of
     essay and one-off questions Claude says its sources can't answer. `reviews` are the
     problems each review finds, in order (or a review's whole answer, a dict with its
     `problems` and `fixes`); once they run out, every review passes. `replans` maps the start of a question whose answer the page
@@ -556,7 +556,7 @@ class FakeClaude:
             "He wrote down each choice he made so the next person could follow it.",
             "He tested it on the real data first and fixed what broke before the review.")
 
-    def __init__(self, essays: dict[str, str | list[str]] | None = None, needs_lisul=(), reviews: list[list[str]] = (),
+    def __init__(self, essays: dict[str, str | list[str]] | None = None, needs_applicant=(), reviews: list[list[str]] = (),
                  driver: Callable | None = None, drive_tokens: list[int] = (), drive_turns: int = 6,
                  replans: dict[str, str] | None = None, ask_tokens: int = 0, drafts: dict | None = None,
                  sent: bool | Exception = False, facts: dict | None = None, brief: list[dict] | dict | None = None,
@@ -580,7 +580,7 @@ class FakeClaude:
         self._ask_tokens = ask_tokens
         self._spent = threading.local()
         self._replans = replans or {}
-        self._needs_lisul = tuple(needs_lisul)
+        self._needs_applicant = tuple(needs_applicant)
         self._reviews = list(reviews)
         self._driver = driver
         self._drive_tokens = list(drive_tokens)
@@ -655,7 +655,7 @@ class FakeClaude:
             if short := data.get("short_questions"):
                 given["drafts"] = {
                     key: {"answer": "" if self._needs(_draft(asked)) else self._draft(_draft(asked)),
-                          "needs_lisul": self._needs(_draft(asked))}
+                          "needs_applicant": self._needs(_draft(asked))}
                     | {"facts": f for start, f in self._facts.items() if _label(asked).startswith(start)}
                     for key, asked in short.items()}
             return given
@@ -689,8 +689,8 @@ class FakeClaude:
     def _written(self, question: dict, n: int = 0) -> dict:
         """An essay; a cover letter's slots get it as their first paragraph, the rest left empty."""
         text = self._essay(question["description"], n)
-        slots = [p for p in question["properties"] if p not in ("needs_lisul", "named")]
-        return {slot: text if n == 0 else "" for n, slot in enumerate(slots)} | {"needs_lisul": self._needs(question)}
+        slots = [p for p in question["properties"] if p not in ("needs_applicant", "named")]
+        return {slot: text if n == 0 else "" for n, slot in enumerate(slots)} | {"needs_applicant": self._needs(question)}
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
                  max_tokens: int) -> Drive:
@@ -700,7 +700,7 @@ class FakeClaude:
         return Drive(output, 8, 200_000)
 
     def _needs(self, question: dict) -> bool:
-        return bool(self._needs_lisul) and question["description"].startswith(self._needs_lisul)
+        return bool(self._needs_applicant) and question["description"].startswith(self._needs_applicant)
 
     def _draft(self, question: dict):
         given = next((a for start, a in self._drafts.items() if question["description"].startswith(start)), None)

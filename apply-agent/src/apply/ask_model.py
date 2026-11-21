@@ -56,6 +56,11 @@ if TYPE_CHECKING:
     from apply.claude_cli import ClaudeCLI
 
 
+# The version of each WorkIt kind this app reads, where it is not 1 (backend/app/apply_prompts/).
+# essays.write 2: a question only the applicant can answer is flagged needs_applicant.
+VERSIONS = {"essays.write": 2}
+
+
 @dataclass(frozen=True)
 class Provider:
     """An OpenAI-compatible chat API that `ask` can use."""
@@ -469,7 +474,7 @@ class WorkItAsk:
         """WorkIt's answer. Its per-minute limit is waited out once, and WorkIt down or every model busy
         (BUSY_WAITS); its Usage cap raises UsageLimitHit, which pauses the run until the cap resets (midnight
         UTC)."""
-        return self._post("/apply-app/ask", {"kind": kind, "version": 1, "data": data}, kind)
+        return self._post("/apply-app/ask", {"kind": kind, "version": VERSIONS.get(kind, 1), "data": data}, kind)
 
     def _post(self, path: str, body: dict, kind: str) -> dict:
         waited, busy = False, list(BUSY_WAITS)

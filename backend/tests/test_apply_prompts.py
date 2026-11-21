@@ -51,6 +51,10 @@ SAMPLES = {
 }
 
 
+# Version 2 takes version 1's data; only its answer's flag is named again.
+SAMPLES["essays.write", 2] = SAMPLES["essays.write", 1]
+
+
 def _built(key):
     kind = KINDS[key]
     data = kind.data.model_validate(SAMPLES[key])
@@ -100,10 +104,19 @@ def test_a_plan_has_an_entry_for_each_question_and_lists_only_the_asked_types():
 
 
 def test_a_cover_letter_is_written_in_its_slots_and_a_choice_from_its_options():
-    schema = _built(("essays.write", 1)).schema["properties"]
+    schema = _built(("essays.write", 2)).schema["properties"]
     assert set(schema["essays"]["properties"]["q2"]["properties"]) >= {"opening", "proof", "closing"}
     area = schema["drafts"]["properties"]["d1"]["properties"]["answer"]
     assert area == {"type": "array", "items": {"type": "string", "enum": ["Backend", "ML"]}, "maxItems": 2}
+
+
+def test_version_1_of_the_writing_call_differs_from_2_only_in_the_applicant_s_flag():
+    """An app copy older than version 2 reads `needs_lisul`; version 2 says `needs_applicant`."""
+    old, new = _built(("essays.write", 1)), _built(("essays.write", 2))
+    assert "needs_lisul" not in new.system + json.dumps(new.schema)
+    assert old.system == new.system.replace("needs_applicant", "needs_lisul")
+    assert old.schema == json.loads(json.dumps(new.schema).replace('"needs_applicant"', '"needs_lisul"'))
+    assert old.prompt == new.prompt
 
 
 @pytest.mark.parametrize("change", [
@@ -120,7 +133,7 @@ def test_write_data_that_doesnt_hold_together_is_refused(change):
 def test_only_the_calls_apply_says_as_the_applicant_get_the_pronouns_note():
     # Apply's as_applicant wraps essays.py's calls and the Pre-submit review (worker.py), no others.
     assert {key for key, kind in KINDS.items() if kind.applicant} == {
-        ("essays.plan", 1), ("essays.write", 1), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
+        ("essays.plan", 1), ("essays.write", 1), ("essays.write", 2), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
         ("presubmit.review", 1)}
     assert "pronouns" not in _built(("brief.team", 1)).system
 

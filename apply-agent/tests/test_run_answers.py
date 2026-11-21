@@ -290,7 +290,7 @@ def test_a_follow_up_to_a_question_claude_answered_no_is_not_a_missing_fact(tmp_
     posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
     working = Question("w", "Are you currently working with Amplify Education, Inc.?", "select", True, ("Yes", "No"))
     agency = Question("a", "If a contingent worker, which agency are you employed with?", "text", required)
-    claude = FakeClaude(drafts={"Are you currently working": "No"}, needs_lisul=("If a contingent worker",))
+    claude = FakeClaude(drafts={"Are you currently working": "No"}, needs_applicant=("If a contingent worker",))
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
                               AnswerBank(), date(2026, 10, 21))
 

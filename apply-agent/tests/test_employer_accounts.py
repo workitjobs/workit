@@ -372,7 +372,7 @@ def test_a_missing_fact_on_a_later_workday_step_waits_for_lisul_then_the_next_ru
     question = "Which Workday-only fact would you like to share?"
     steps = [*STEPS[:2], ("Application Questions", [*STEPS[2][1], Field("extra", question, "text", True)]), *STEPS[3:]]
     world = World()
-    world.claude = FakeClaude(needs_lisul=[question])  # a one-off question Claude can't answer from his facts
+    world.claude = FakeClaude(needs_applicant=[question])  # a one-off question Claude can't answer from his facts
 
     with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, steps=steps) as server:
         [held] = world.run(server, caci())

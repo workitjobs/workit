@@ -11,7 +11,11 @@ hosted model is a run that works and is usable, not Claude's quality.
 kind and its data (`Claude.ask_kind`), as the signed-in student
 (`apply login`; a developer's own API with `APPLY_WORKIT_API`). WorkIt
 builds the prompt (`../../backend/app/apply_prompts/`), so a call never
-carries one. Its per-minute limit is waited out once; its daily Usage cap
+carries one. Each call names the kind's version: 1, or the one
+`ask_model.VERSIONS` gives, since a kind's data or answer never changes
+in place on the server. `essays.write` is at 2 (2026-11-20): an answer
+only the applicant can give is flagged `needs_applicant`, which version 1
+called `needs_lisul`. Its per-minute limit is waited out once; its daily Usage cap
 raises `UsageLimitHit`, which pauses the run until midnight UTC. It is
 also the run's usage (`Adapters.usage`, in the Student build and in a
 Developer checkout): `WorkItAsk.reading` reads `GET /apply-app/usage` and

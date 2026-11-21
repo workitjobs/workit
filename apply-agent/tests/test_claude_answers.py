@@ -671,7 +671,7 @@ def test_a_high_stakes_essay_is_held_with_the_essay_in_the_row_for_lisul_to_edit
 def test_an_essay_claude_cannot_draw_from_the_story_bank_is_held(monkeypatch):
     form = ResearchForm("Northwood Space")
 
-    row = run(monkeypatch, form, FakeClaude(needs_lisul=[PROJECT]))
+    row = run(monkeypatch, form, FakeClaude(needs_applicant=[PROJECT]))
 
     assert row.status == "held"
     assert "needs your input" in row.reason and PROJECT in row.reason
@@ -681,7 +681,7 @@ def test_an_essay_claude_cannot_draw_from_the_story_bank_is_held(monkeypatch):
 def test_an_essay_missing_one_fact_of_his_is_held_with_the_rest_drafted(monkeypatch):
     # Khan Academy: "Have you used Khan Academy before? What excites you ...?" came back empty,
     # though only whether he has used it is his to say.
-    form, claude = ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: MICROMOUSE}, needs_lisul=[PROJECT])
+    form, claude = ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: MICROMOUSE}, needs_applicant=[PROJECT])
 
     row = run(monkeypatch, form, claude)
 
@@ -963,7 +963,7 @@ def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("claude", [
-    FakeClaude(needs_lisul=[HOUSING]),
+    FakeClaude(needs_applicant=[HOUSING]),
     FakeClaude(drafts={HOUSING: "Maybe"}),  # not one of the options
 ], ids=["needs Lisul", "no such option"])
 def test_a_one_off_question_claude_cannot_answer_is_a_missing_fact(monkeypatch, claude):
@@ -1200,7 +1200,7 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
         if kind == "essays.plan":
             return FakeClaude().ask_kind(kind, data)
         if kind == "essays.write":
-            return {"essays": {"q1": paragraphs | {"needs_lisul": False}}}
+            return {"essays": {"q1": paragraphs | {"needs_applicant": False}}}
         return {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {"q1": []}}
     claude.ask_kind = ask_kind
 

@@ -106,7 +106,7 @@ class Essay:
     question: Question
     text: str
     unsupported: tuple[str, ...] = ()  # numbers it states that no source backs (apply.truth)
-    needs_lisul: bool = False  # Claude says the question asks for more than the sources hold
+    needs_applicant: bool = False  # Claude says the question asks for more than the sources hold
     giveaways: tuple[str, ...] = ()  # words that give away how it was written (GIVEAWAY)
     named: str = ""  # its Named fact: the Company brief line it ties to Lisul, as the brief writes it
     plan: "Plan | None" = None  # its Essay plan, as checked
@@ -121,7 +121,7 @@ class Draft:
 
     question: Question
     answer: str | list[str]  # an option of the question's, or several for a multi-select; "" when unusable
-    needs_lisul: bool = False  # Claude can't answer it from the sources, or its answer isn't one to use
+    needs_applicant: bool = False  # Claude can't answer it from the sources, or its answer isn't one to use
     facts: tuple[str, ...] = ()  # the profile keys and Story bank lines it drew on, as Claude named them
 
     @property
@@ -232,7 +232,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
-                    (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
+                    (written.get(key) or {}).get("needs_applicant") is True, giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
                     tuple(failed[key]) if texts[key] else (),
                     tuple(c.said() for c in found[key] if c.kind != "number"), private.sensitive(texts[key], profile))
@@ -838,8 +838,8 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
         answer = str(answer or "").strip()
         usable = bool(answer) and (answer in choices if choices else not [
             c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
-    if given.get("needs_lisul") is True or not usable:
-        return Draft(q, "", needs_lisul=True)
+    if given.get("needs_applicant") is True or not usable:
+        return Draft(q, "", needs_applicant=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
 
 

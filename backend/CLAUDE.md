@@ -362,8 +362,11 @@ Find files with a directory listing; these are the rules for where code goes.
   `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
   the app sends a kind and its data, and `app/apply_prompts/` holds each
   kind's data model, size and builder, ported from Apply's modules. A
-  kind's data fields never change in place (an app copy can be older than
-  the server): a change is a new version beside the old one. A new kind
+  kind's data fields, and the fields of its answer, never change in place
+  (an app copy can be older than the server): a change is a new version
+  beside the old one (`essays.write` 2 renamed the answer's `needs_lisul`
+  to `needs_applicant`; Apply's `ask_model.VERSIONS` names each kind it
+  reads at a version past 1). A new kind
   joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
   **A kind's build puts what is the same for many calls first** (its
   instructions, then the student's sources, then the form's data), so the

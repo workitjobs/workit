@@ -91,7 +91,7 @@ def run(monkeypatch, profile: Path, records: list[dict], phone=None, notifier=No
             feed=SimplifyFeed(lambda: json.dumps(records).encode()),
             tracker=InMemoryTracker(),
             site=NoBrowser(),
-            claude=FakeClaude(needs_lisul=["Do you have housing"]),
+            claude=FakeClaude(needs_applicant=["Do you have housing"]),
             mailbox=FakeMailbox(),
             usage=ScriptedUsage(),
             clock=FakeClock(NOW),
