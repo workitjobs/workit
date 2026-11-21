@@ -20,8 +20,8 @@
  * No count of forms on the site (the user's call): "five" read as a limit.
  */
 import {
+  BrowsersIcon,
   CursorClickIcon,
-  ListChecksIcon,
   PaperclipIcon,
   TextboxIcon,
 } from "@phosphor-icons/react/ssr";
@@ -65,9 +65,9 @@ const content: FeatureContent = {
     },
     {
       title: "Many forms, filled at the same time",
-      // Its icon is the old first point's, until the user picks one for
-      // "several at once".
-      icon: ListChecksIcon,
+      // Browser windows: each form opens in its own tab (the user's pick,
+      // 2026-11-21).
+      icon: BrowsersIcon,
       body: "Pick the jobs you want from your list. WorkIt opens each application in its own tab and fills them all at once, while you do something else.",
       visual: QueueVisual,
     },
