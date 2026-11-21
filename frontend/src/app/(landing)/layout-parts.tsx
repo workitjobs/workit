@@ -165,11 +165,17 @@ export function studioGround({ glow }: { glow: string }) {
     mix(85, "var(--color-ink)"),
     mix(30, "white"),
   ];
+  // TEMPORARY (2026-11-21): `--ground-strength` lets `/?ground=pastel`
+  // show the same blend at pastel strength, for the user to compare
+  // (landing.css, "TEMPORARY"). Once one is picked, mix the pick into
+  // `MESH`'s values and drop the variable.
+  const tone = (color: string) =>
+    `color-mix(in oklab, ${color} var(--ground-strength, 100%), white)`;
   return [
-    `radial-gradient(62% 58% at 84% -6%, ${high}, transparent 72%)`,
-    `radial-gradient(78% 72% at -10% 70%, ${low}, transparent 68%)`,
-    `radial-gradient(58% 40% at 34% 34%, ${light}, transparent 74%)`,
-    ground,
+    `radial-gradient(62% 58% at 84% -6%, ${tone(high)}, transparent 72%)`,
+    `radial-gradient(78% 72% at -10% 70%, ${tone(low)}, transparent 68%)`,
+    `radial-gradient(58% 40% at 34% 34%, ${tone(light)}, transparent 74%)`,
+    tone(ground),
   ].join(", ");
 }
 

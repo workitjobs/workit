@@ -345,7 +345,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     found AI-made and odd ("just blue and white"), that sky at full
     strength, too strong with four boxes side by side, and first blobs of
     the colour over a tint, flat and muddy: one colour and white is not a
-    gradient worth looking at. **Nothing writes straight on a box's
+    gradient worth looking at. **Still open:** the same blend at pastel strength is at
+    `/?ground=pastel` for the user to compare (`--ground-strength`,
+    marked TEMPORARY in layout-parts.tsx, page.tsx and landing.css); the
+    pick is mixed into `MESH` and the switch goes. **Nothing writes straight on a box's
     ground**: it is a mid tone that holds 4.5:1 with no one text colour,
     so a line outside a card sits on a white pill (`GroundNote` in
     `features/visuals/parts.tsx`); after a change to a scene, check what

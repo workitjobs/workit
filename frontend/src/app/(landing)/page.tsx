@@ -59,13 +59,14 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
-      {/* TEMPORARY (2026-11-21): `/?intro=b` plays the second entrance, for
-          the user to compare (landing.css, "TEMPORARY"). It writes only to
+      {/* TEMPORARY (2026-11-21): `/?intro=b` plays the second entrance and
+          `/?ground=pastel` shows the boxes at pastel strength, for the
+          user to compare (landing.css, "TEMPORARY"). It writes only to
           <html>, whose attributes hydration does not check. */}
       <script
         dangerouslySetInnerHTML={{
           __html:
-            "try{var v=new URLSearchParams(location.search).get('intro');if(v)document.documentElement.dataset.intro=v}catch(e){}",
+            "try{var q=new URLSearchParams(location.search);['intro','ground'].forEach(function(k){var v=q.get(k);if(v)document.documentElement.dataset[k]=v})}catch(e){}",
         }}
       />
       {/* Hero (redrawn 2026-11-21): the first screen, on the page's own
