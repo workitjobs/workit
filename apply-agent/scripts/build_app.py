@@ -80,9 +80,11 @@ NOTICES = "dist/THIRD-PARTY-NOTICES.txt"  # first_run.NOTICES
 COMPILER_ENV = ("CC", "CXX", "CFLAGS", "CPPFLAGS", "CXXFLAGS", "LDFLAGS", "LIBRARY_PATH", "CPATH")
 # Apple's own tools only: with Anaconda first on the PATH, Nuitka ran its install_name_tool, which failed.
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
-# Apply's package files the app doesn't ship: the Swift source (the app ships the program built from it) and the
-# tools Claude drives a page with (apply.plain.mcp, which only `claude -p` starts: a developer part, W3).
-LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json")
+# Package files the app doesn't ship: the Swift source (the app ships the program built from it), the tools Claude
+# drives a page with (apply.plain.mcp, which only `claude -p` starts: a developer part, W3), and Playwright's web UIs
+# (its trace viewer, HTML report, recorder and dashboard, 3.6 MB), which Apply never opens: its driver starts Chrome
+# and drives pages without them (checked 2026-11-21).
+LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json", "playwright/driver/package/lib/vite")
 # Why the app sends Apple events, as macOS asks it: FocusKeeper (apply.focus) has System Events bring the student's
 # app back in front of a Worker's window. With no reason in Info.plist, macOS refuses the event and never asks.
 APPLE_EVENTS_REASON = ("WorkIt Auto Apply brings the app you were using back to the front when a Worker's Chrome "

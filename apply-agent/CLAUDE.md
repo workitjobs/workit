@@ -682,9 +682,11 @@ notices strict (above).
   for macOS 13 and checks with `--check`. A Developer checkout builds it on
   first use, but a student's Mac has no `swiftc`: without the shipped one,
   every live tile took the slow captureVisibleTab path. The `.swift`
-  source stays out of the app, as does `plain/mcp_tools.json`, the tools
-  Claude drives a page with (`LEAVE_OUT`); the build refuses an app that
-  holds either. The helper is the app's child process, so
+  source stays out of the app, as do `plain/mcp_tools.json`, the tools
+  Claude drives a page with, and Playwright's web UIs (`lib/vite`: its
+  trace viewer, HTML report, recorder and dashboard, which Apply never
+  opens; its driver starts Chrome without them). They are `LEAVE_OUT`,
+  and the build refuses an app that holds any of them. The helper is the app's child process, so
   it has the app's own Screen Recording permission. macOS keys that
   permission to the app's signature: with the ad-hoc signature, each new
   build asks again; a Developer ID signature (step 2) keeps it across
