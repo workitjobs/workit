@@ -167,7 +167,9 @@ class AnswerBank:
         read = [(str(k), _entry(v)) for k, v in answers.items() if isinstance(v, dict) and "answer" in v]
         entries = {key(e.question) if e.question else k: e for k, e in read}
         with self._lock:
-            self._entries, self._version = entries, version
+            # A read older than memory (a save's reply landed while it was on its way) would undo that save.
+            if version >= self._version:
+                self._entries, self._version = entries, version
         _mask(entries.values())
         self.problem = ""
         self._ready.set()
@@ -302,21 +304,24 @@ class AnswerBank:
                 self._go(_Change(filed, found.question, None))
 
     def upload(self, folder: Path) -> None:
-        """A Developer checkout's answer-bank.yaml from before W11, in `folder`, sent to WorkIt once: only the
-        questions WorkIt doesn't hold yet, a `lisul` answer not marked unreviewed as the student's own and the rest
-        flagged, each through WorkIt's rule, which keeps out what it would at any save, with no word. The file is
-        then renamed UPLOADED and never read again. Raises what a send raises, the file kept, so the next start
-        tries again. WorkIt Auto Apply never calls it: no student has that file."""
+        """A Developer checkout's answer-bank.yaml from before W11, in `folder`, sent to WorkIt once: a `lisul`
+        answer not marked unreviewed as the student's own and the rest flagged, each through WorkIt's rule, which
+        keeps out what it would at any save, with no word. Only what WorkIt lacks goes: a question it doesn't hold,
+        or the student's own answer where it holds a model's draft (theirs wins, as at any save). Once memory has
+        read the result, the file is renamed UPLOADED and never read again. Raises what a send or that read raises,
+        the file kept, so the next start sends what WorkIt still lacks. WorkIt Auto Apply never calls it: no
+        student has that file."""
         path = folder / OLD_FILE
         if self._source is None or not path.is_file():
             return
         held = self.answers()
-        entries = [e for e in _old_entries(path) if key(e["question"]) not in held]
+        entries = [e for e in _old_entries(path)
+                   if not (found := held.get(key(e["question"]))) or (not e["review"] and not found.own)]
         for start in range(0, len(entries), UPLOAD_BATCH):
             self._source.change(entries[start:start + UPLOAD_BATCH], [])
-        path.rename(path.with_name(UPLOADED))
         if entries:
             self.load()
+        path.rename(path.with_name(UPLOADED))
 
     def close(self, wait: float = QUIT_WAIT) -> None:
         """At quit: the changes still waiting get up to `wait` seconds to reach WorkIt."""

@@ -2004,8 +2004,9 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       flagged answer a Hold, its reason naming those questions.
     - **The one-time upload** runs as a Developer command starts, never
       in WorkIt Auto Apply (decided and built 2026-11-21), and says
-      nothing: only the questions WorkIt doesn't hold yet, in PATCHes of
-      100, then the file is renamed. What WorkIt's rule keeps out is
+      nothing: only the questions WorkIt doesn't hold yet, and the
+      student's own answers where it holds only a model's draft, in
+      PATCHes of 100, then the file is renamed. What WorkIt's rule keeps out is
       dropped with no word. A failed upload is tried again at the next
       start, which says so in one line.
     - **The Tracker's Answers tab goes** (`Tracker.add_answer`,

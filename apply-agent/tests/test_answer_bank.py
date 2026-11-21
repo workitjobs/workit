@@ -390,3 +390,51 @@ def test_the_upload_goes_in_patches_of_100_and_one_that_fails_keeps_the_file_for
 
     assert [len(entries) for entries, _ in server.sent] == [100, 100, 50]
     assert len(bank.entries()) == 150
+
+
+def test_the_upload_sends_the_students_own_answer_where_workit_holds_only_a_models_draft(tmp_path):
+    """Fault: any answer WorkIt held kept the file's out, so a draft from the extension's Claude beat the student's
+    own reviewed answer (W11: a model's draft never replaces the student's own)."""
+    (tmp_path / "answer-bank.yaml").write_text(OLD_FILE)
+    server = Server({  # both the model's: the file has the student's own to the first, a draft to the second
+        key("Are you open to working in person?"): {"question": "Are you open to working in person?", "answer": "No",
+                                                    "own": False},
+        key("How did you hear about us?"): {"question": "How did you hear about us?", "answer": "LinkedIn.",
+                                            "own": False},
+    })
+    bank = loaded(server)
+
+    bank.upload(tmp_path)
+
+    assert [e["question"] for e in server.sent[0][0]] == ["Are you open to working in person?",
+                                                          "Tell us how you heard about Zipline"]
+    entry = bank.get("Are you open to working in person?")
+    assert (entry.answer, entry.own) == ("Yes", True) and bank.get("How did you hear about us?").answer == "LinkedIn."
+
+
+def test_an_upload_whose_read_back_fails_keeps_the_file_and_the_next_start_only_renames_it(tmp_path):
+    """Fault: renamed before the read, the command said the file hadn't reached WorkIt, which it had."""
+    (tmp_path / "answer-bank.yaml").write_text(OLD_FILE)
+    server = Server()
+    bank = loaded(server)
+    server.fails = 2  # the next read gets no answer
+
+    with pytest.raises(Unreachable):
+        bank.upload(tmp_path)
+    assert (tmp_path / "answer-bank.yaml").is_file() and len(server.sent) == 1
+
+    loaded(server).upload(tmp_path)  # the next command: WorkIt holds them now
+    assert len(server.sent) == 1 and (tmp_path / "answer-bank.before-workit.yaml").is_file()
+
+
+def test_a_read_that_comes_back_after_a_newer_save_keeps_the_save():
+    """Fault: a Worker's read, answered before the student's Save reached WorkIt but landing after its reply, put
+    the old bank back: the tab said Saved and showed the old answer."""
+    server = Server()
+    bank = loaded(server)
+    bank.answer(HEARD.label, "A friend.")  # version 8, in memory from its reply
+    server.answers, server.version = {}, 7  # the read that left before it
+
+    bank.load()
+
+    assert bank.get(HEARD.label).answer == "A friend."

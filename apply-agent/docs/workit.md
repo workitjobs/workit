@@ -314,16 +314,20 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
   the bank is read again, so an answer saved in the extension fills the
   next Application. A Developer checkout off the Model route has no such
   reading, so the bank asks the usage route itself. A read that fails
-  keeps memory, and the next Application tries again. While no run goes,
+  keeps memory, and the next Application tries again. A read older than
+  memory changes nothing: answered before a save reached WorkIt but
+  landing after its reply, it would undo the save. While no run goes,
   a change made elsewhere waits for the next run.
 - **A Developer checkout's `answer-bank.yaml` from before** (in the
   profile's folder) goes to WorkIt once, as a command starts
-  (`cli._answer_bank`, `AnswerBank.upload`): only the questions WorkIt
-  doesn't hold, a `lisul` answer not marked unreviewed as the student's
-  own and the rest flagged, in PATCHes of 100, each through WorkIt's
-  rule, with no word. Then the file becomes
-  `answer-bank.before-workit.yaml`. A failed upload says so in one line,
-  keeps the file, and the next command sends it. WorkIt Auto Apply never
+  (`cli._answer_bank`, `AnswerBank.upload`): a `lisul` answer not marked
+  unreviewed as the student's own and the rest flagged, in PATCHes of
+  100, each through WorkIt's rule, with no word. Only what WorkIt lacks
+  goes: a question it doesn't hold, or the student's own answer where it
+  holds a model's draft (theirs wins, as at any save). Once the bank is
+  read again, the file becomes `answer-bank.before-workit.yaml`. A failed
+  upload says so in one line, keeps the file, and the next command sends
+  what WorkIt still lacks. WorkIt Auto Apply never
   uploads, and shows nothing for it: no student has the file.
   `sample/answer-bank.yaml` went with it.
 
