@@ -782,7 +782,10 @@ selling line that says what the product does** and "See how", a
   the bar with an ink square at each crossing (`.header-line`,
   `.header-marks` in landing.css, switched on by `.landing:has(.draft)`),
   and the home hero's frame hangs from it (`DraftLines first` draws no
-  top line of its own); it **slides up out of the
+  top line of its own); its menu panels are solid white with a hairline edge
+  and a deep shadow, 8px under the foot line (`MENU_PANEL`: translucent
+  with a blur, a panel was white on white over the white hero, the
+  user's catch, 2026-11-21); it **slides up out of the
   way while the reader scrolls down and comes back on a scroll up**
   (KAN-923, the user's ask, 2026-11-20: `data-hidden`, `.site-header` in
   landing.css; it always shows in the top 96px, a move must pass 6px

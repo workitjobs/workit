@@ -216,9 +216,16 @@ function OpenWorkIt({ size, className }: { size?: "lg"; className: string }) {
   );
 }
 
-/** The surface both menu panels share, the floating bar's. */
+/**
+ * The surface both menu panels share: solid white with a hairline edge and
+ * a deep, close shadow, so it stands off the white page. It was white at
+ * 90% with a blur, a 5% ring and a 5% shadow, made for the old hero's
+ * violet ground: over the white hero it was white on white, its edge hard
+ * to find, with the headline showing through as a smear (the user's
+ * catch, 2026-11-21).
+ */
 const MENU_PANEL =
-  "rounded-2xl bg-white/90 p-2 shadow-lg ring-1 shadow-slate-900/5 ring-slate-900/5 backdrop-blur-md";
+  "rounded-2xl bg-white p-2 shadow-[0_0_0_1px_rgb(15_23_42/0.1),0_4px_12px_-2px_rgb(15_23_42/0.08),0_28px_56px_-16px_rgb(15_23_42/0.24)]";
 
 /**
  * The Features menu's panel: the feature pages in two columns, each with its
@@ -239,7 +246,7 @@ function FeaturesPanel() {
       {/* The home page's hiring-systems section, which has no page of its own. */}
       <Link
         href="/#hiring-systems"
-        className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.03] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
+        className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.045] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
       >
         <span className="flex -space-x-1.5" aria-hidden="true">
           {WORKS_WITH.map((system) => (

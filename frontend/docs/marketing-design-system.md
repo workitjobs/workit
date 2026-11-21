@@ -144,7 +144,10 @@ shows at the top too, the grid's rails run through the bar, and an ink
 square marks where each meets the foot; the home hero's frame hangs from
 that line. A page with no grid gets the bar without the marks. It was a
 rounded white panel with a shadow, inset from the window, which read as
-another site's bar.
+another site's bar. Its menu panels are solid white with a
+hairline edge and a deep, close shadow, and hang 8px under the foot line:
+at 90% white with a blur and a 5% edge, made for a coloured hero, a panel
+was white on white over the white page (the user's catch, 2026-11-21).
 
 ### The sign-up pair (`social-sign-up.tsx`)
 
