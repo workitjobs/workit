@@ -16,7 +16,7 @@ import {
   BuildingsIcon,
   ChartDonutIcon,
   ListChecksIcon,
-  SortDescendingIcon,
+  TargetIcon,
 } from "@phosphor-icons/react/ssr";
 
 import { MatchingAnimation } from "../animations";
@@ -64,9 +64,16 @@ const content: FeatureContent = {
       visual: ReasonsVisual,
     },
     {
-      title: "The best fits at the top",
-      icon: SortDescendingIcon,
-      body: "Your Jobs page opens on Best Match, so the postings that fit you most come first, each with its score. Switch to Newest any time.",
+      title: "Your best match, every time",
+      // A target: an aim set (the student's preferences) and a job that
+      // lands on it (the user's picks, 2026-11-21, who wanted a mark for the
+      // best match, not a filter or a slider). New: the saved filters (role,
+      // place, workplace, job type, pay, start term, visa sponsorship), which
+      // a fresh visit to the Jobs page applies again. The body is the
+      // user's own words. It replaced "The best fits at the top", which
+      // moved into the first point.
+      icon: TargetIcon,
+      body: "Find the jobs that match both your experience and your preferences. WorkIt remembers them every time you come back.",
       visual: BestMatchVisual,
     },
     {
