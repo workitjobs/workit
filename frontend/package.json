@@ -20,6 +20,7 @@
     "clean": "node scripts/clean.mjs",
     "favicon": "node scripts/make-favicon.mjs",
     "worktree": "node scripts/new-worktree.mjs",
+    "env": "node scripts/env.mjs",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare deploy"

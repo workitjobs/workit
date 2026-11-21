@@ -53,6 +53,12 @@ them). Notes the scripts don't say:
   your own there once, in the primary checkout: `npm run worktree` and every
   Superset workspace's setup copy it into the new worktree with the env files.
   Delete an upload once the test is done; it lands in the shared database.
+- **`npm run env` pulls `../.env` and `.env` from Infisical**
+  (`scripts/env.mjs`, `../docs/secrets.md`). It needs the Infisical CLI
+  signed in, pulls both folders before it writes either, keeps the lines
+  Infisical lacks, prints key names only and writes nothing on a failed
+  pull. It names any key that `.env.local` also sets, since Next reads
+  `.env.local` over `.env`.
 
 ## Deployment
 
@@ -3637,8 +3643,8 @@ are in `docs/auth.md`.
   normal applicant with test data only, on the one shared Supabase project, so
   it signs in to the live site too. Never create an account for testing, never
   give this one admin or company rights, and never put real personal data on
-  it. If the variables are missing, run `npm run worktree -- --env-only`; if
-  they are still missing, ask the user. Never write the values into a
+  it. If the variables are missing, run `npm run env` (or `npm run worktree
+  -- --env-only`); if they are still missing, ask the user. Never write the values into a
   committed file, PR or comment: the repo is public.
 
 ## Admin pages
