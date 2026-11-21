@@ -139,8 +139,11 @@ class Desk:
         """The seed's Chrome, in front: the user works in it. A running one takes a new tab. Started by each OS's own
         way (launcher.start_in_background): on the Mac never as this process's child. `url` is a chrome:// page,
         which Chrome 157 doesn't open from its command line: the steps have the user paste it."""
-        start_in_background([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], self.seed,
-                            self.seed.with_suffix(".log"), system, front=True)
+        try:
+            start_in_background([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], self.seed,
+                                self.seed.with_suffix(".log"), system, front=True)
+        except TimeoutError:  # its wait for the profile's lock: the setup's own error, which the CLI and window say
+            raise SetupError(f"Chrome did not open the seed profile within {OPEN_WAIT:.0f} s: {self.seed}") from None
 
     def copy(self, text: str) -> None:
         """Put `text` on the clipboard (pyperclip: every OS). A Linux with no clipboard tool gets none: the

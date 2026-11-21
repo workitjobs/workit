@@ -609,6 +609,11 @@ notices strict (above).
   Anaconda's `install_name_tool`, which failed. So the script drops every
   compiler variable (`COMPILER_ENV`), runs Nuitka on `/usr/bin` only, and
   sets `SDKROOT`: the clang `xcrun` names finds no `stdlib.h` without it.
+  It drops every `PYTHON*` variable too: `PYTHONPATH` comes before the
+  venv, so a teammate's could make Nuitka compile the checkout's Apply or
+  another copy of a library. `--release` also compiles with no ccache
+  (`--disable-cache=ccache`): on a Mac with Rosetta, Nuitka downloads it
+  from nuitka.net with no hash check and runs it on every C file.
 - **No docstrings in the app.** Each one is a plain sentence about how Apply
   works, and Nuitka keeps it as text in the program. The build passes
   `no_docstrings` and checks that a known docstring is gone, so code on the
@@ -646,8 +651,11 @@ notices strict (above).
   (`build/out/report.xml`) lists every module it compiled and why.
 - **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
   names the bundle after the entry file; the script renames it, adds
-  `LSMinimumSystemVersion` and `CFBundleURLTypes` (the app claims
+  `LSMinimumSystemVersion`, `CFBundleURLTypes` (the app claims
   `workit-auto-apply://`, WorkIt's sign-in link, `sign_in_link.SCHEME`) and
+  `NSAppleEventsUsageDescription` (FocusKeeper's `osascript` sends System
+  Events an Apple event as the app, and with no reason macOS refuses it
+  and never asks), and
   signs it ad hoc again, since the edit breaks Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
   it.
 - **The app ships the window capture helper**, `window-capture` beside the
@@ -655,7 +663,9 @@ notices strict (above).
   for macOS 13 and checks with `--check`. A Developer checkout builds it on
   first use, but a student's Mac has no `swiftc`: without the shipped one,
   every live tile took the slow captureVisibleTab path. The `.swift`
-  source stays out of the app. The helper is the app's child process, so
+  source stays out of the app, as does `plain/mcp_tools.json`, the tools
+  Claude drives a page with (`LEAVE_OUT`); the build refuses an app that
+  holds either. The helper is the app's child process, so
   it has the app's own Screen Recording permission. macOS keys that
   permission to the app's signature: with the ad-hoc signature, each new
   build asks again; a Developer ID signature (step 2) keeps it across

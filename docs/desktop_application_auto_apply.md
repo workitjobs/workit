@@ -1583,7 +1583,9 @@ itself (D17, D18, D20).
 - **Sign:** Developer ID, with the hardened runtime and without
   `get-task-allow`, so other programs can't read the app's memory. Every
   Mach-O file inside is signed, the Node binary included, with the
-  entitlements Node needs (JIT) and no more.
+  entitlements Node needs (JIT) and the app's Apple events
+  (`com.apple.security.automation.apple-events`: FocusKeeper's `osascript`
+  to System Events), and no more.
 - **Notarize** with `notarytool`, then staple.
 - **Update:** Sparkle with its own EdDSA key; the feed and builds on
   Cloudflare R2; a beta channel for testers. The app checks at launch and

@@ -20,6 +20,9 @@ build/out/WorkIt Auto Apply.app. In order:
 5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
    path left in the app, and a capture helper that runs.
 
+`--release` is a build for students: the notices must be complete, and Nuitka compiles with no ccache, a program it
+would download from nuitka.net with no check and run on every C file.
+
 W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
 opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
 """
@@ -68,6 +71,13 @@ NOTICES = "dist/THIRD-PARTY-NOTICES.txt"  # first_run.NOTICES
 COMPILER_ENV = ("CC", "CXX", "CFLAGS", "CPPFLAGS", "CXXFLAGS", "LDFLAGS", "LIBRARY_PATH", "CPATH")
 # Apple's own tools only: with Anaconda first on the PATH, Nuitka ran its install_name_tool, which failed.
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+# Apply's package files the app doesn't ship: the Swift source (the app ships the program built from it) and the
+# tools Claude drives a page with (apply.plain.mcp, which only `claude -p` starts: a developer part, W3).
+LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json")
+# Why the app sends Apple events, as macOS asks it: FocusKeeper (apply.focus) has System Events bring the student's
+# app back in front of a Worker's window. With no reason in Info.plist, macOS refuses the event and never asks.
+APPLE_EVENTS_REASON = ("WorkIt Auto Apply brings the app you were using back to the front when a Worker's Chrome "
+                       "window opens on top of it.")
 # Text the checks look for in the program, read from the build's copy before the compile (`probes`), so a reworded
 # docstring or comment can't make a check pass by finding nothing: a string constant that must be there
 # (student.NO_MODEL), a docstring's first line that must be gone (student.NoClaude's) and a page code comment that must
@@ -161,11 +171,13 @@ def stage_inputs(strict: bool) -> None:
          "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=ROOT)
 
 
-def compile_app(developer: list[str], version: str, scheme: str, capture: str) -> None:
+def compile_app(developer: list[str], version: str, scheme: str, capture: str, release: bool) -> None:
     def xcrun(*args: str) -> str:
         return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
 
-    env = {key: value for key, value in os.environ.items() if key not in COMPILER_ENV}
+    # No PYTHON* variable either: PYTHONPATH comes before the venv, so a teammate's could make Nuitka compile the
+    # checkout's Apply (STUDENT False, comments in) or another copy of a library.
+    env = {key: value for key, value in os.environ.items() if key not in COMPILER_ENV and not key.startswith("PYTHON")}
     # The clang xcrun names finds the SDK's headers only through SDKROOT ('stdlib.h' file not found without it).
     env |= {"CC": xcrun("--find", "clang"), "SDKROOT": xcrun("--show-sdk-path"), "MACOSX_DEPLOYMENT_TARGET": MIN_MACOS,
             "PATH": SYSTEM_PATH}
@@ -178,12 +190,12 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str) -
          f"--macos-app-icon={ROOT / 'src' / 'apply' / 'Apply.icns'}", "--macos-target-arch=arm64",
          # The engine download names the app's version from Apply's metadata (W7): without it no build fits.
          "--include-distribution-metadata=apply", "--include-package-data=apply",
-         f"--noinclude-data-files=apply/plain/{CAPTURE_SOURCE.name}",  # the app ships the program built from it
+         *(f"--noinclude-data-files={path}" for path in LEAVE_OUT),
          "--playwright-include-browser=none",  # Workers run the student's Chrome
          # No docstrings: each one explains Apply in plain words. No asserts stays off: launcher's NEVER check
          # is an assert. Isolated: no PYTHON* variable or user site folder changes what the app runs.
          "--python-flag=no_docstrings", "--python-flag=isolated", "--python-flag=safe_path",
-         "--assume-yes-for-downloads", f"--report={REPORT}",
+         "--assume-yes-for-downloads", *(["--disable-cache=ccache"] if release else []), f"--report={REPORT}",
          *(f"--nofollow-import-to={module}" for module in developer), *data, ENTRY], cwd=ROOT, env=env)
     # Nuitka names the bundle after the entry file and builds its program for macOS 11 (the Python's own target).
     (OUT / f"{ENTRY.stem}.app").rename(APP)
@@ -193,6 +205,7 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str) -
     # WorkIt's sign-in page sends the student back with a workit-auto-apply:// link: macOS opens this app for it
     # and hands it the link (apply.sign_in_link.listen).
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
+    plist["NSAppleEventsUsageDescription"] = APPLE_EVENTS_REASON
     info.write_bytes(plistlib.dumps(plist))
     run(["/usr/bin/xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}",
          "-o", APP / "Contents" / "MacOS" / capture, CAPTURE_SOURCE], env=env)
@@ -208,8 +221,10 @@ def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
     if found := sorted(compiled & set(developer)):
         sys.exit(f"The app compiled in developer modules: {', '.join(found)}. Import them only where "
                  "build.STUDENT never runs (apply-agent/CLAUDE.md).")
-    if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.suffix in (".py", ".pyc", ".swift")):
-        sys.exit(f"The app holds source code or bytecode, which reads back as code: {', '.join(found[:10])}")
+    if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.suffix in (".py", ".pyc")):
+        sys.exit(f"The app holds Python source or bytecode, which reads back as code: {', '.join(found[:10])}")
+    if found := [path for path in LEAVE_OUT if (APP / "Contents" / "MacOS" / path).exists()]:
+        sys.exit(f"The app holds files it must leave out: {', '.join(found)}")
     # --check answers 0 with Screen Recording permission and 3 without; anything else, it can't run here.
     helper = APP / "Contents" / "MacOS" / capture
     if subprocess.run([helper, "--check"], capture_output=True, check=False).returncode not in (0, 3):
@@ -236,7 +251,7 @@ def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--release", action="store_true",
-                        help="a build for students: the notices must be complete (third_party_notices --strict)")
+                        help="a build for students: complete notices (third_party_notices --strict), no ccache")
     args = parser.parse_args()
     preflight()
     package = make_venv()
@@ -248,7 +263,7 @@ def main() -> None:
     scheme = venv_python("from apply.sign_in_link import SCHEME; print(SCHEME)")
     capture = venv_python("from apply.plain.window_capture import BUNDLED_NAME; print(BUNDLED_NAME)")
     stage_inputs(strict=args.release)
-    compile_app(developer, version, scheme, capture)
+    compile_app(developer, version, scheme, capture, release=args.release)
     check(developer, capture, probes)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")

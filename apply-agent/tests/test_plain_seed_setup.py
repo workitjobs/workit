@@ -354,6 +354,17 @@ def test_the_desk_copies_reveals_and_opens_with_no_click(tmp_path, monkeypatch):
                    for a in calls[2][0])
 
 
+def test_a_chrome_too_slow_to_take_the_seed_is_a_setup_error(tmp_path, monkeypatch):
+    """Fault: start_in_background's TimeoutError left the desk as it was, so `apply plain seed`, which says only a
+    SetupError, printed a traceback when Chrome took the seed profile late (a first launch after an update)."""
+    def late(*args, **kwargs):
+        raise TimeoutError("no Chrome took plain-seed within 20 s of `open`")
+
+    monkeypatch.setattr(seed_setup, "start_in_background", late)
+    with pytest.raises(seed_setup.SetupError, match="did not open the seed profile"):
+        Desk(tmp_path / "plain-seed", Path("/Chrome")).open_chrome(EXTENSIONS_PAGE)
+
+
 def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
     sent = []
     monkeypatch.setattr(os, "kill", lambda pid, number: sent.append((pid, number)))
