@@ -41,7 +41,10 @@ ModelAnswer {answer, tokens, usage}.
        503  with Retry-After: every model is busy, out of quota or down, or
             the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
-GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
+GET  /apply-app/usage  UsageNow {used, cap, resets_at, bank_version}: today's
+     tokens, and the version of the student's Answer bank (W11, 0 with none),
+     so the app, which asks before each Application, knows when its copy in
+     memory is old, with no request of its own.
 GET  /apply-app/types  The Question types Apply classifies questions and checks
      plans with: each type's front matter and the order to try them in
      (app/apply_prompts/guides.py, `served`), never a guide's body, which is
@@ -99,7 +102,7 @@ from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session, get_supabase
 from app.deps import get_current_account, is_admin
-from app.queries import model_usage
+from app.queries import answer_banks, model_usage
 from app.schemas.apply_app import (
     AppSession,
     AskCall,
@@ -111,6 +114,7 @@ from app.schemas.apply_app import (
     SignInCode,
     SignInStart,
     Usage,
+    UsageNow,
 )
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.security import decode_access_token
@@ -145,9 +149,10 @@ def _refused(code: int, message: str, wait: float) -> HTTPException:
 async def usage(
     account: AuthenticatedAccount = Depends(_student),
     db: AsyncSession = Depends(get_session),
-) -> Usage:
+) -> UsageNow:
     now = _now()
-    return _usage(await model_usage.used_today(db, account.id, now), now)
+    today = _usage(await model_usage.used_today(db, account.id, now), now)
+    return UsageNow(**today.model_dump(), bank_version=await answer_banks.fetch_version(db, account.id) or 0)
 
 
 @router.post("/sign-in", status_code=status.HTTP_201_CREATED)

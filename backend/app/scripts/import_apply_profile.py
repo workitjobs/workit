@@ -20,7 +20,10 @@ transaction:
    forms), by the rules Apply's sync uses too (services/apply_answers.py):
    only an entry with `source: lisul`, and never one marked `reviewed:
    false`, is the student's own words; Claude's drafts come as their
-   Claude's. A choice's entry (its options, or a list) is `choice`;
+   Claude's. A choice's entry (its options, or a list) is `choice`. The
+   same entries go into the student's Answer bank (`answer_banks`, W11),
+   the student's own as theirs and Claude's flagged for review, except
+   those the company rule keeps out (app/auto_apply/answer_bank.py);
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
@@ -62,6 +65,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import answer_bank
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.documents import Student_Document
@@ -303,6 +307,12 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
     await _set_transcript(session, profile, apply_dir, facts, report)
     await _set_writing(session, applicant_id, apply_dir, report)
     await session.flush()
+    # The same answers into the student's Answer bank (W11), over any saved there, each through its company rule.
+    await answer_bank.keep(session, applicant_id, [
+        answer_bank.Kept(question=question, answer=entry["answer"], review=not entry["own"], choice=entry["choice"],
+                         company=entry["company"])
+        for question, entry in profile.fill_answers.items()
+    ])
     return report
 
 

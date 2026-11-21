@@ -127,7 +127,7 @@ async def test_at_the_cap_nothing_reaches_the_model_until_midnight(student, monk
     assert refused.json()["detail"] == "Today's model use is reached; it resets at midnight UTC."
     assert int(refused.headers["Retry-After"]) == (resets_at(NOW) - NOW).total_seconds()
     assert len(fake.prompts) == 1
-    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-11-14T00:00:00Z"}
+    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-11-14T00:00:00Z", "bank_version": 0}
 
 
 async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, monkeypatch):
@@ -227,3 +227,16 @@ async def test_the_question_types_are_served_as_data_never_as_guidance(student):
         served = (await api.get("/apply-app/types")).json()
     assert served["order"][0] == "cover-letter" and set(served["order"]) < set(served["types"])
     assert set(served["types"]["why-company"]) == {"company_link", "stock", "high_stakes", "length", "match", "slots"}
+
+
+async def test_the_usage_reply_carries_the_answer_bank_s_version(student):
+    """WorkIt Auto Apply asks for its usage before each Application: the bank's
+    version rides along, so it reads the bank again only when it changed (W11)."""
+    async with _api() as api:
+        before = (await api.get("/apply-app/usage")).json()["bank_version"]
+        saved = await api.patch(f"/applicants/{student.id}/answer-bank", json={"set": [
+            {"question": "Which shifts can you work?", "answer": "Nights", "choice": True}]})
+        after = (await api.get("/apply-app/usage")).json()["bank_version"]
+
+    assert saved.status_code == 200, saved.text
+    assert (before, after) == (0, saved.json()["version"])

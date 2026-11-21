@@ -45,8 +45,9 @@ rules that were one student's own dropped.
 this company, or about what isn't on their resume (saved, and named back
 to their Claude, `pipeline.read_first`).
 
-`company_specific` says which saved answers are about one company and so
-never offered on another company's form (`pipeline.answer_bank`).
+`ABOUT_THE_COMPANY` says which questions ask about one company or role,
+and `FOLLOW_UP` which follow another question: neither's answer enters the
+student's Answer bank (answer_bank.py's rule, which also reads `names`).
 """
 
 import re
@@ -112,6 +113,15 @@ _WORD = re.compile(r"[a-z0-9']+")
 ABOUT_THE_COMPANY = re.compile(
     r"\bwhy\b.*\b(?:us|here|join|work(?:ing)?\s+(?:at|for|with)|intern(?:ing)?\s+(?:at|for|with)|company|team|role|position)\b"
     r"|\b(?:this|our|the)\s+(?:company|team|role|position|opportunity|mission|product|products|values|culture)\b",
+    re.IGNORECASE,
+)
+# A question that follows another one on its form: "If yes, please explain.", 'If you answered "No",
+# which agency?', "Please specify", "Other (please specify)". The same words follow other questions on
+# other forms, so its answer fits only this one. "If applicable, ..." stands alone and is no follow-up.
+FOLLOW_UP = re.compile(
+    r"^\W*if\W+(?:yes|no|so|not|other)\b"
+    r"|^\W*if\s+you\s+(?:answered|selected|chose|checked|said|responded|ticked)\b"
+    r"|^\W*(?:other\W*)?(?:please\s+)?(?:explain|specify|elaborate)\W*$",
     re.IGNORECASE,
 )
 
@@ -232,16 +242,6 @@ def numbers(text: str) -> set[str]:
     """The numbers `text` states, each as one form: "1,200" as "1200",
     "3.80" as "3.8"."""
     return {_normal(n) for n in _NUMBER.findall(text)}
-
-
-def company_specific(question: str, answer: str, company: str | None) -> bool:
-    """Whether an answer fits only the company it was written for: its
-    question asks about the company or the role, or the question or the
-    answer names the company. Such an answer is never offered on another
-    company's form."""
-    if ABOUT_THE_COMPANY.search(question):
-        return True
-    return bool(company and company.strip()) and (names(question, company) or names(answer, company))
 
 
 def names(text: str, name: str) -> bool:

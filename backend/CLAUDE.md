@@ -414,7 +414,9 @@ Find files with a directory listing; these are the rules for where code goes.
   its form is open: `open_application`, `get_application`) and the errors
   for it. `written.py` holds the written-answer steps (the questions a tab
   sends, the connector's and the Written Answers page's saves, each checked
-  by `checks.py`, and the answer bank); `pipeline.py` re-exports them, so
+  by `checks.py`), and `answer_bank.py` the student's Answer bank (W11:
+  the whole bank read, PATCH, and what the saves put in it); `pipeline.py`
+  re-exports them, so
   callers keep naming them `pipeline.save_answers` and so on, but a test
   that fakes one of their layer-1 calls patches `written`. `resume.py`
   holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
@@ -482,13 +484,14 @@ Find files with a directory listing; these are the rules for where code goes.
   The paste passes `by="student"`, which skips only the copy check against
   the student's own writing samples (that check stops their Claude
   parroting them; a student may paste their own words). Re-checks of a
-  saved answer (`ask_questions`, `answer_bank`) leave the copy check out
-  for the same reason: the save ran it.
+  saved answer (`ask_questions`) leave the copy check out for the same
+  reason: the save ran it.
   **Claude's written answer carries its Essay plan and claim check**
   (KAN-369, Apply's evidence-first writer): the plan it was written from
   (type, story, company fact, angle, and its type's slots, each with
-  quotes) and the claims the prompt's check listed (`unsupported`), stored
-  in `written_answers.review` as `{plan, unsupported}`. `plans.check`
+  quotes) and the claims the prompt's check listed (`unsupported`). The
+  plan is stored in `written_answers.review` as `{plan}`; the list is
+  checked at the save and not kept, since nothing read it. `plans.check`
   (pure, `tests/test_plans.py`) holds the plan to the sources the
   connector gave (`written._plan_sources`: the experience as
   `bank_context` writes it, skills, posting, brief facts, the
@@ -877,8 +880,8 @@ Find files with a directory listing; these are the rules for where code goes.
   the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
   names the claims and marks the first one's sentence. It holds until the
   answer changes or the student keeps it. The pre-submit review's own flag
-  shows first. `answer_bank` never offers one of their Claude's answers
-  that has such claims on another form. Plain
+  shows first. An answer of their Claude's with such claims never enters
+  the student's Answer bank. Plain
   code only: judgment stays with their Claude's claim check and the
   pre-submit review. **`apply-agent/src/apply/truth.py` is a byte-for-byte
   copy** that Apply's tests compare: change this one, then copy it there.
@@ -886,29 +889,40 @@ Find files with a directory listing; these are the rules for where code goes.
   filled without passing that form's checks**: when a tab sends the form's
   own limit (`ask_questions`; a question read early had none), each saved
   answer of their Claude's is checked again and a failing one dropped
-  (`queries.drop_written`) for their Claude to write again; `answer_bank`
-  offers one of their Claude's on another application only if it passes
-  that application's checks (the engine checks the form's limit on the page). **An answer about one
-  company is offered on that company's forms only** (`checks.company_specific`,
-  read through `pipeline.answer_bank`: reuse saved answers through it, never
-  from `written_answers` directly). A draft of their Claude's brought
-  from Apply with no company (no `first_seen`) that names a company WorkIt
-  knows (`written.companies_named`; the student's own places don't count)
-  is that company's answer. The companies WorkIt knows
-  (`queries.fetch_company_names`) never include an added job's company:
-  one student typed it (KAN-515, KAN-542). **The student's own words win**
-  (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
-  written into a field WorkIt didn't fill, or replacing what it filled) set
-  the row's `own`, which their Claude's later save never overwrites and
-  `answer_bank` offers first, unchecked by the checks meant for their
-  Claude's text (only the company rule, no other application's company
-  named, and the form's limit on the page apply to them); an edit of an answer WorkIt filled (`own`
-  false) stays not own and passes the same checks as their Claude's save;
-  the extension plans every batch form with `GET .../answer-bank`, so a
-  saved question never reaches their Claude, and every form outside a
-  batch with `GET /applicants/{id}/answer-bank?company=` (no application:
-  an answer about a company only when the page's company is that one). Seam-2 tests:
-  `tests/test_connector_saved_answers.py`. Seam-2 tests:
+  (`queries.drop_written`) for their Claude to write again. **Later forms
+  reuse an answer only through the student's Answer bank** (W11,
+  `app/auto_apply/answer_bank.py`; models/CLAUDE.md, "The Answer bank"),
+  never from `written_answers` directly. A save puts an answer there only
+  for a choice or a field the tab never sent (a question in words the tab
+  sent may be an essay, which the row can't tell: the extension sends no
+  essay marker) and only past the one rule for what enters the bank,
+  which only the server runs, at the save and not at the read: no question about the
+  company or role, and no company of the student's applications (the
+  form's own included; their own places excepted) named in the question
+  or a text answer, and no follow-up of another question
+  (`checks.FOLLOW_UP`). A model's text also goes in only when the
+  student's own data holds what it states, checked with no posting
+  (`answer_bank._unsupported`: `checks.problems` and the truth check,
+  plain code), and names no company WorkIt knows
+  (`answer_bank.companies_named`), flagged `review` for the student.
+  WorkIt Auto Apply's PATCH names its form by `job_id`, whose company the
+  server reads itself, and learns the bank's version from `GET
+  /apply-app/usage`, which it asks before each Application. The companies WorkIt knows (`queries.fetch_company_names`)
+  never include an added job's company: one student typed it (KAN-515,
+  KAN-542). So the whole bank fits every form: `GET .../answer-bank`
+  answers all of it, with its version as the ETag (304 for the version
+  the reader holds). **The student's own words win** (KAN-379): the
+  student's words in a tab (`PUT .../answers`, `own` true: written into a
+  field WorkIt didn't fill, or replacing what it filled) set the row's
+  `own`, which their Claude's later save never overwrites, and go in the
+  bank unflagged, unchecked by the checks meant for their Claude's text;
+  in the bank too their Claude's answer never replaces the student's. An
+  edit of an answer WorkIt filled (`own` false) stays not own, passes the
+  same checks as their Claude's save, and goes in the bank flagged. Undo
+  (`DELETE .../answers`) takes the answer out of the bank too. The
+  extension plans every form with the bank, so a saved question never
+  reaches their Claude. Seam-2 tests:
+  `tests/test_connector_saved_answers.py`, `tests/test_answer_bank.py`. Seam-2 tests:
   `tests/test_connector_checks.py`. The writing samples are KAN-384's;
   until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches

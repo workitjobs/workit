@@ -31,6 +31,15 @@ class Usage(BaseModel):
     resets_at: datetime.datetime
 
 
+class UsageNow(Usage):
+    """GET /apply-app/usage: today's use, and the version of the student's
+    Answer bank (W11; 0 while they have none), which WorkIt Auto Apply reads
+    before each Application: it reads the bank again only when this differs
+    from the version it holds."""
+
+    bank_version: int
+
+
 class ModelAnswer(BaseModel):
     answer: dict[str, Any]
     # Tokens this call spent, every provider tried included.

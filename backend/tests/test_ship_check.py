@@ -58,7 +58,7 @@ async def test_a_chat_is_handed_its_applications_in_order_and_saves_their_place(
     assert first["style_card_needed"] is True
     saved = json.loads((folder / "connector" / "chat-2.json").read_text())
     assert saved == [{"application": "core", "question": "why", "answer": "Buses.",
-                      "review": {"plan": STORED, "unsupported": []}, "chat": 2, "position": 1}]
+                      "review": {"plan": STORED}, "chat": 2, "position": 1}]
 
 
 def _answers(folder, ours: list[tuple[str, int, int]]) -> None:

@@ -1,8 +1,9 @@
 """
 Apply's sync of its Answer bank (KAN-746): PATCH .../fill-answers as Apply
 sends it, then the answer bank as the extension reads it (GET
-.../answer-bank), against this run's throwaway test database. Every value
-here is made up.
+.../answer-bank: the student's Answer bank, W11, which the sync writes too
+until Apply writes it itself), against this run's throwaway test database.
+Every value here is made up.
 """
 
 import datetime
@@ -24,6 +25,14 @@ pytestmark = pytest.mark.anyio
 NOW = datetime.datetime.now(datetime.UTC)
 DAY = datetime.timedelta(days=1)
 LANGUAGE = "What is your favorite programming language?"
+
+
+def filed(question: str) -> str:
+    return " ".join(question.lower().split()).strip(" *")
+
+
+def theirs(question: str, answer, own: bool = True) -> dict:
+    return {"question": question, "answer": answer, "own": own}
 
 
 def _entry(question: str, answer, at: datetime.datetime | None, source: str = "lisul", reviewed=True, **more) -> dict:
@@ -67,10 +76,12 @@ async def test_a_synced_answer_reaches_the_extension_s_bank_and_only_the_student
     assert res.status_code == 200, res.text
     assert res.json() == {"saved": 4, "deleted": 0, "kept": []}
     assert await _bank(applicant, job) == {
-        LANGUAGE: {"answer": "Rust, for its compiler's help.", "own": True},
-        "Which shifts can you work?": {"answer": ["Mornings"], "own": True},
-        "What drew you to logistics?": {"answer": "Watching a warehouse route its trucks.", "own": False},
-        "What do you build on weekends?": {"answer": "Small robots that sort marbles.", "own": False},
+        filed(q): theirs(q, answer, own) for q, answer, own in (
+            (LANGUAGE, "Rust, for its compiler's help.", True),
+            ("Which shifts can you work?", ["Mornings"], True),
+            ("What drew you to logistics?", "Watching a warehouse route its trucks.", False),
+            ("What do you build on weekends?", "Small robots that sort marbles.", False),
+        )
     }
 
 
@@ -82,31 +93,31 @@ async def test_a_newer_edit_wins_and_an_older_one_is_kept_out(applicant, job):  
 
     assert older.json() == {"saved": 0, "deleted": 0, "kept": [LANGUAGE.upper()]}
     assert undated.json()["kept"] == [LANGUAGE]
-    assert (await _bank(applicant, job))[LANGUAGE]["answer"] == "Go, for its tooling."
+    assert (await _bank(applicant, job))[filed(LANGUAGE)]["answer"] == "Go, for its tooling."
 
     newer = await _sync(applicant, [_entry(LANGUAGE.lower(), "Zig.", NOW)])
     assert newer.json()["saved"] == 1
-    bank = await _bank(applicant, job)
-    assert bank[LANGUAGE.lower()]["answer"] == "Zig." and LANGUAGE not in bank  # one entry per wording
+    assert await _bank(applicant, job) == {filed(LANGUAGE): theirs(LANGUAGE.lower(), "Zig.")}  # one entry per wording
 
 
-async def test_an_answer_edited_on_workit_is_never_beaten_by_an_older_apply_answer(running, applicant, database):  # noqa: F811
-    from tests.test_connector import _student_queues, _tab_asks
+async def test_the_last_write_to_a_question_wins_in_the_bank(running, applicant, database):  # noqa: F811
+    """W11: the bank keeps no edit times. An answer typed on WorkIt and one
+    synced from Apply are each the student's; whichever reached WorkIt last
+    is the one later forms take."""
+    from tests.test_connector import _student_queues
     from tests.test_connector_saved_answers import _student_answers
 
     me, (first, second) = await _student_queues(database, applicant, 2)
-    question = {"name": "question_1", "label": LANGUAGE, "required": True, "max_length": None}
-    await _tab_asks(me, first, question)
-    await _student_answers(me, first, question, "Rust, typed on WorkIt.")  # saved now
+    question = {"name": "question_1", "label": LANGUAGE}  # a field the tab never sent
+    await _sync(applicant, [_entry(LANGUAGE, "Python, from Apply.", NOW - DAY)])
+    await _student_answers(me, first, question, "Rust, typed on WorkIt.")
 
-    await _sync(applicant, [_entry(LANGUAGE, "Python, from an older Apply edit.", NOW - DAY)])
     bank = (await _get(applicant, f"/applications/{second}/answer-bank")).json()
-    assert bank[LANGUAGE] == {"answer": "Rust, typed on WorkIt.", "own": True}
+    assert bank[filed(LANGUAGE)] == theirs(LANGUAGE, "Rust, typed on WorkIt.")
 
-    # A later edit in Apply is the newer one, and wins.
     await _sync(applicant, [_entry(LANGUAGE, "Python, edited in Apply after.", datetime.datetime.now(datetime.UTC))])
     bank = (await _get(applicant, f"/applications/{second}/answer-bank")).json()
-    assert bank[LANGUAGE] == {"answer": "Python, edited in Apply after.", "own": True}
+    assert bank[filed(LANGUAGE)] == theirs(LANGUAGE, "Python, edited in Apply after.")
 
 
 async def test_a_delete_takes_an_answer_out_unless_the_stored_one_is_newer(applicant, job):  # noqa: F811

@@ -30,11 +30,22 @@ def is_text(kind):
 
 class Written_Answer(BaseModel):
     '''
-    one row per question an application's form needs written. The extension
-    writes the question when its tab plans the form; the connector's save
-    writes the answer. A row per question, not JSONB on the application: the
-    connector reads "the oldest application with a question left" in SQL,
-    and an answer saves without rewriting the others.
+    one row per question an application's form needs written: its essays,
+    and its one-off questions nothing else answers (a choice, or a short
+    question in words). The extension writes the question when its tab
+    plans the form; the connector's save (or the student's paste, or their
+    words in the tab) writes the answer; the tab reads it back and fills it.
+    So the table is the work queue between the tab and the student's
+    Claude, and the record of what this one application was sent. An
+    answer belongs to its application: later forms reuse one only through
+    the student's Answer bank (answer_banks, W11). Only a choice's answer,
+    and the student's words in a field the tab never sent (one a saved
+    answer or a guess filled), are copied into it when saved: a question in
+    words the tab sent may be an essay, which the row can't tell.
+
+    A row per question, not JSONB on the application: the connector reads
+    "the oldest application with a question left" in SQL, and an answer
+    saves without rewriting the others.
     '''
     __tablename__ = "written_answers"
     applicant_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
@@ -61,14 +72,22 @@ class Written_Answer(BaseModel):
     answer: Mapped[str | None] = mapped_column(Text)
     answered_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     # the student's own words (KAN-379): an edit in the tab, or their answer
-    # before their Claude's. Their Claude's save never replaces it, and it is
-    # the answer later forms reuse for the same question
+    # before their Claude's. Their Claude's save never replaces it. On a
+    # choice, or a field the tab never sent, it also goes in their Answer
+    # bank as theirs (W11)
     own: Mapped[bool] = mapped_column(server_default=text("false"))
-    # what the student's Claude's passes found on the answer it saved here
-    # (KAN-369): {"plan": its Essay plan (type, story, company_fact, angle,
-    # slots: {slot: [quotes]}), "unsupported": the claims the claim check
-    # listed and the edit cut}. NULL for a choice, a pasted answer or the
-    # student's own words
+    # the Essay plan the student's Claude wrote the answer from (KAN-369):
+    # {"plan": {type, story, company_fact, angle, slots: {slot: [quotes]}}}.
+    # It is read again: no two answers on one application lead with one
+    # story (written.fetch_plans), the next applications' plans steer off
+    # the stories sent ones led with (led_before), and its type finds the
+    # cover letters. Rows saved before 2026-11-19 also carry "unsupported"
+    # (the claim check's list), which nothing reads; a save checks that
+    # list and no longer keeps it. While the row has no answer it
+    # may hold instead the fact their Claude asks the student for
+    # ({"ask": ...}, written.ask_fact). NULL for a choice, a pasted answer
+    # or the student's own words. Not job_applications.answer_review, which
+    # holds the pre-submit review's flags
     review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # the company brief fact the answer uses, {"fact", "url"} as the brief
     # had it when saved, so the student can read up on it before an

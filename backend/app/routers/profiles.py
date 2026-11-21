@@ -18,14 +18,17 @@ are also written by the PATCH below.
 PATCH .../fill-answers {"answers": [...], "deleted": [...]} is Apply's sync of
 its Answer bank (KAN-746, apply-agent docs/workit.md): each entry as Apply
 keeps it (question, answer, options, source, reviewed, company, edited_at),
-at most 200 of each, merged into `fill_answers` key by key, so the
-extension's answer bank (GET .../answer-bank) has it with no import. WorkIt
+at most 200 of each, merged into `fill_answers` key by key. WorkIt
 decides `own` (services/apply_answers.py: `source: lisul`, never one marked
 `reviewed: false`). A newer edit wins: a change older than the stored
-entry's `edited_at` is left out and named in `kept`; the student's own
-words they saved on WorkIt win over an older Apply answer when served
-(written.answer_bank). An empty answer deletes. Answers {saved, deleted,
-kept}. 404 with no profile, 422 past 2000 saved answers.
+entry's `edited_at` is left out and named in `kept`. Every change not kept
+out goes into the student's Answer bank too (W11, auto_apply/answer_bank.py:
+the student's own as theirs, the rest flagged for review, each through the
+company rule), which the extension reads (GET .../answer-bank) with no
+import; there the last write to a question wins, whichever side made it.
+An empty answer deletes. Answers {saved, deleted, kept}. 404 with no
+profile, 422 past 2000 saved answers. It goes once Apply writes the bank
+itself (PATCH .../answer-bank).
 """
 
 import uuid
@@ -33,6 +36,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import answer_bank
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
@@ -95,6 +99,10 @@ async def sync_fill_answers(
         raise HTTPException(422, str(exc)) from exc
     if merged is None:
         raise HTTPException(404, "Profile not found")
+    # The same change into the Answer bank (W11), which the extension and the app read, until Apply writes it itself.
+    later = set(merged.kept)
+    kept, empty = answer_bank.from_apply(a for a in body.answers if a.question not in later)
+    await answer_bank.keep(session, applicant_id, kept, [*empty, *(d.question for d in body.deleted if d.question not in later)])
     await session.commit()
     return FillAnswersMerged(saved=merged.saved, deleted=merged.deleted, kept=merged.kept)
 

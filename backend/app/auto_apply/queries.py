@@ -411,7 +411,8 @@ def _written(r: Written_Answer) -> WrittenAnswer:
     ask = (r.review or {}).get("ask") if r.answer is None else None
     return WrittenAnswer(
         name=r.name, label=r.label, required=r.required, max_length=r.max_length, description=r.description,
-        kind=r.kind, options=r.options, answer=r.answer, ask=ask and ask.get("question"), ask_about=ask and ask.get("entry"),
+        kind=r.kind, options=r.options, answer=r.answer, ask=ask and ask.get("question"),
+        ask_about=ask and ask.get("entry"),
     )
 
 
@@ -791,6 +792,21 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
     return list(rows)
 
 
+async def fetch_form_companies(
+    db: AsyncSession, applicant_id: uuid.UUID, job_ids: Collection[uuid.UUID],
+) -> dict[uuid.UUID, str | None]:
+    """The company of each of `job_ids` the applicant has an application
+    for, by job (an added job's as the student typed it); a job they have
+    none for is left out."""
+    company = typed_text(Job_Post.company_name, Job_Application.company_name)
+    rows = await db.execute(
+        select(Job_Application.job_id, company.label("company"))
+        .join(Job_Post, Job_Post.id == Job_Application.job_id)
+        .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id.in_(list(job_ids)))
+    )
+    return {r.job_id: r.company for r in rows}
+
+
 async def fetch_company_names(db: AsyncSession) -> list[str]:
     """Every company WorkIt knows by name: its job postings' and its
     company profiles', each once. Not an added job's: one student typed
@@ -839,6 +855,43 @@ async def fetch_saved_answers(
         SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=not is_text(r.kind),
                     at=r.answered_at)
         for r in await db.execute(query)
+    ]
+
+
+def one_off():
+    """In SQL: the row's answer may enter the student's Answer bank (W11): a
+    choice, or a question the tab never sent (a field a saved answer or a
+    guess filled). A question in words the tab sent may be an essay, which
+    the row can't tell, so it stays on its application."""
+    return or_(Written_Answer.kind.is_not(None), Written_Answer.position >= UNSENT)
+
+
+async def is_one_off(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> bool:
+    """Whether the application's question `name` is a one-off (one_off):
+    read from its row, which the student's first save of a field the tab
+    never sent makes. False with no row."""
+    return bool(await db.scalar(select(one_off()).where(
+        Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id, Written_Answer.name == name,
+    )))
+
+
+async def fetch_one_off_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:
+    """Every answer saved to a one-off question on the applicant's
+    applications (one_off), with its posting's company: what WorkIt held
+    for the Answer bank before it had one. The student's own first, then
+    newest first."""
+    rows = await db.execute(
+        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Written_Answer.kind, Job_Post.company_name,
+               Written_Answer.answered_at)
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(Written_Answer.applicant_id == applicant_id, Written_Answer.answer.is_not(None), one_off())
+        .order_by(Written_Answer.own.desc(), Written_Answer.answered_at.desc().nulls_last(), Written_Answer.job_id,
+                  Written_Answer.name)
+    )
+    return [
+        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=not is_text(r.kind),
+                    at=r.answered_at)
+        for r in rows
     ]
 
 

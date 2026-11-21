@@ -143,9 +143,9 @@ async def test_only_the_student_reads_or_pastes_their_answers(running, applicant
 async def test_the_student_may_paste_their_own_writing_sample_but_their_claude_may_not(running, applicant, database):  # noqa: F811
     """The 5-word copy check stops the student's Claude parroting their
     samples; a sample the student pastes in themselves is their choice. It
-    is saved, stays through the tab's re-check (PUT .../questions with the
-    form's limit) and is offered on their next form, while their Claude
-    saving the same words is still refused."""
+    is saved and stays through the tab's re-check (PUT .../questions with
+    the form's limit), while their Claude saving the same words is still
+    refused."""
     me, (job, claudes, later) = await _student_queues(database, applicant, 3)
     async with _api() as webapp:
         added = await webapp.post(f"{me}/writing-samples", json={"text": SAMPLE})
@@ -164,7 +164,8 @@ async def test_the_student_may_paste_their_own_writing_sample_but_their_claude_m
     assert (await _tab_asks(me, claudes))[0]["answer"] is None
     async with database() as db:
         bank = await pipeline.answer_bank(db, applicant, later)
-    assert {q: a.answer for q, a in bank.items()} == {PROUD["label"]: SAMPLE}
+    # A question in words the tab sent may be an essay: the paste stays on its application (W11).
+    assert bank.answers == {}
 
 
 async def test_a_pasted_answer_is_deleted_from_the_page_and_asked_again(running, applicant, database):  # noqa: F811

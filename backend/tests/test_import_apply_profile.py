@@ -247,16 +247,19 @@ async def test_brought_answers_reach_later_forms_and_keep_to_their_company(
 
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
 
-    assert bank == {
-        "What is your favorite programming language?": {
+    expected = {
+        "what is your favorite programming language?": {
+            "question": "What is your favorite programming language?",
             "answer": "Python, for how quickly an idea becomes a working program.", "own": False,
         },
-        "Which of these tools have you used?": {"answer": ["Git", "Docker"], "own": True},
+        "which of these tools have you used?": {
+            "question": "Which of these tools have you used?", "answer": ["Git", "Docker"], "own": True,
+        },
     }
-    # Asked at Initech, about Initech: only an Initech form gets it.
+    assert bank == expected
+    # Asked at Initech, about Initech: it stays out of the bank (W11), so no form gets it, Initech's neither.
     await _company(database, job, "Initech")
-    bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
-    assert bank["Why do you want to work at Initech?"]["own"] is True
+    assert (await _get(applicant, f"/applications/{job}/answer-bank")).json() == expected
 
 
 DRAFTS = """\
@@ -307,29 +310,33 @@ async def test_only_the_student_s_answers_come_as_their_own_and_their_claude_s_d
     # reviewed is still their Claude's, so a form that bans AI text never takes it;
     # and one marked unreviewed is never theirs, whatever its source says.
     assert bank == {
-        "What is your dream project?": {"answer": "A tram timetable that rewrites itself when a line closes.", "own": True},
-        "What drew you to logistics?": {"answer": "Watching a warehouse route its trucks.", "own": False},
-        "What do you build on weekends?": {"answer": "Small robots that sort marbles by colour.", "own": False},
-        "Which shifts can you work?": {"answer": ["Mornings", "Evenings"], "own": False},
-        "What is your favourite tool?": {"answer": "A label maker.", "own": False},
+        question.lower(): {"question": question, "answer": answer, "own": own} for question, answer, own in (
+            ("What is your dream project?", "A tram timetable that rewrites itself when a line closes.", True),
+            ("What drew you to logistics?", "Watching a warehouse route its trucks.", False),
+            ("What do you build on weekends?", "Small robots that sort marbles by colour.", False),
+            ("Which shifts can you work?", ["Mornings", "Evenings"], False),
+            ("What is your favourite tool?", "A label maker.", False),
+        )
     }
 
 
 async def test_the_student_s_own_words_on_an_application_win_over_a_brought_answer(
     running, applicant, database, apply_dir, local_files,
 ):
-    from tests.test_connector import _student_queues, _tab_asks
+    from tests.test_connector import _student_queues
     from tests.test_connector_saved_answers import _student_answers
 
     await _import(database, applicant, apply_dir)
     me, (first, second) = await _student_queues(database, applicant, 2)
-    question = {"name": "question_1", "label": "What is your favorite programming language?", "required": True, "max_length": None}
-    await _tab_asks(me, first, question)
+    # A field the tab never sent: the brought answer filled it, and the student wrote over it.
+    question = {"name": "question_1", "label": "What is your favorite programming language?"}
     await _student_answers(me, first, question, "Rust, for its compiler's help.")
 
     bank = (await _get(applicant, f"/applications/{second}/answer-bank")).json()
 
-    assert bank["What is your favorite programming language?"] == {"answer": "Rust, for its compiler's help.", "own": True}
+    assert bank["what is your favorite programming language?"] == {
+        "question": "What is your favorite programming language?", "answer": "Rust, for its compiler's help.", "own": True,
+    }
 
 
 async def test_the_resume_attaches_from_this_computer_and_is_the_default(running, applicant, database, apply_dir, local_files):
@@ -441,16 +448,16 @@ NAMING = """\
 """
 
 
-async def test_a_brought_draft_with_no_company_that_names_one_keeps_to_it(
+async def test_a_brought_draft_that_names_a_company_workit_knows_stays_out_of_the_bank(
     running, applicant, database, apply_dir, local_files,
 ):
+    """W11: their Claude's text names no company in the bank, which fills every
+    form. The rule reads the companies WorkIt knows when the answer is saved."""
     from sqlalchemy import text
 
     from tests.test_connector import _student_queues
     from tests.test_connector_checks import _company
 
-    (apply_dir / "answer-bank.yaml").write_text(NAMING)
-    await _import(database, applicant, apply_dir)
     _, (job, initech, acme) = await _student_queues(database, applicant, 3)
     # Two postings the student hasn't applied to: Initech, and Acme, where they worked.
     await _company(database, initech, "Initech")
@@ -459,14 +466,13 @@ async def test_a_brought_draft_with_no_company_that_names_one_keeps_to_it(
         await session.execute(text("DELETE FROM job_applications WHERE job_id IN (:a, :b)"), {"a": initech, "b": acme})
         await session.commit()
     await _company(database, job, "Hooli")
+    (apply_dir / "answer-bank.yaml").write_text(NAMING)
+    await _import(database, applicant, apply_dir)
 
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
-    assert "What are you proud of?" not in bank
-    assert "What did you learn last summer?" in bank
-
-    await _company(database, job, "Initech")
-    bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
-    assert "What are you proud of?" in bank
+    assert "what are you proud of?" not in bank
+    # Acme is where the student worked: naming it is their own story.
+    assert "what did you learn last summer?" in bank
 
 
 def test_a_local_path_never_leaves_the_folder(local_files):

@@ -99,28 +99,34 @@ async def test_one_failing_answer_keeps_the_others_from_saving(running, applican
     assert [q["answer"] for q in await _tab_asks(me, job)] == [None, None]
 
 
-async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(running, applicant, database):  # noqa: F811
+async def test_an_answer_about_one_company_never_enters_the_answer_bank(running, applicant, database):  # noqa: F811
+    """W11: the company rule runs when an answer is saved, so the bank holds
+    nothing about one company and fits every form, that company's too."""
     me, (acme, globex, acme_again) = await _student_queues(database, applicant, 3)
-    await _company(database, globex, "Globex")
-    proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
-    general = "I built a resume builder with FastAPI, and students used it to make their first resumes."
+    for job, company in ((acme, "Acme"), (globex, "Globex"), (acme_again, "Acme")):
+        await _company(database, job, company)
+    sponsor = {"name": "question_8", "label": "Will you need Acme to sponsor a visa?", "required": True,
+               "max_length": None, "kind": "choice", "options": ["Yes", "No"]}
+    shifts = {"name": "question_9", "label": "Which shifts can you work?", "required": True, "max_length": None,
+              "kind": "choice", "options": ["Mornings", "Nights"]}
     for job in (acme, globex, acme_again):
-        await _tab_asks(me, job, WHY, proud)
+        await _tab_asks(me, job, sponsor, shifts)
 
     async with claude(applicant) as client:
         saved = await client.call_tool("save_answers", {"job_id": acme, "answers": [
-            {"name": "question_7", "answer": CLEAN, **WRITTEN}, {"name": "question_8", "answer": general, **WRITTEN}]})
+            {"name": "question_8", "answer": "No"}, {"name": "question_9", "answer": "Nights"}]})
     assert saved.is_error is False, saved.content
 
     async with database() as db:
         on_globex = await pipeline.answer_bank(db, applicant, globex)
         on_acme = await pipeline.answer_bank(db, applicant, acme_again)
 
-    assert {q: a.answer for q, a in on_globex.items()} == {proud["label"]: general}
-    assert {q: a.answer for q, a in on_acme.items()} == {WHY["label"]: CLEAN, proud["label"]: general}
+    assert {e["question"]: e["answer"] for e in on_globex.answers.values()} == {shifts["label"]: "Nights"}
+    assert on_acme.answers == on_globex.answers
+    assert [q["answer"] for q in await _tab_asks(me, acme)] == ["No", "Nights"]
 
 
-async def test_a_written_answer_needs_its_claim_check_and_keeps_it(running, applicant, database):  # noqa: F811
+async def test_a_written_answer_needs_its_claim_check_and_keeps_only_its_plan(running, applicant, database):  # noqa: F811
     me, (job,) = await _student_queues(database, applicant, 1)
     await _tab_asks(me, job, WHY)
     cut = ["I led the whole team"]
@@ -136,7 +142,7 @@ async def test_a_written_answer_needs_its_claim_check_and_keeps_it(running, appl
     async with database() as session:
         stored = (await session.execute(text(
             "SELECT review FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
-    assert stored["unsupported"] == cut
+    assert list(stored) == ["plan"]
 
 
 async def test_a_claim_the_check_cut_must_be_gone_from_the_answer(running, applicant, database):  # noqa: F811
