@@ -396,9 +396,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     frame's foot at 884px), 1024 × 768 (752px) and 375 × 812, with no
     sideways scroll. **The page's entrance draws the grid, and nothing in it
     fades** (2026-11-21, the user's asks: only the hero's words came in on
-    load; then the first version's fades read as AI-made). The header's
-    foot line grows from the centre and uncovers the header's content with
-    it; the headline, its line and the sign-up pair rise from behind their
+    load; then the first version's fades read as AI-made). The header
+    drops down from above the window as one bar (a plain move, the user's
+    call: a wipe from the centre was more than the bar needed); the
+    headline, its line and the sign-up pair rise from behind their
     own foot, as from a slot (`.hero-reveal`); the rails draw and the ink
     squares pop as lines reach them; **the four cells are drawn, left to
     right**: each is dragged out from its top left corner like a frame in
@@ -410,8 +411,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     piece is hidden by a clip, never by opacity or a blur; each rule fills
     backwards only, so no clip or transform stays on an element (a clip
     left on the nav would cut its menus). Never a loading screen. The
-    lines, the handles and the header's wipe from lg up; nothing with
-    reduced motion. The foot's five squares are the pipeline's
+    lines and the handles from lg up; nothing with reduced motion. The foot's five squares are the pipeline's
     (`.pipe-lines`), so `DraftLines first` draws none. **The Browser pane holds CSS
     animations at their first frame**, so there the hero shows no words
     and unfilled scenes: before a screenshot run

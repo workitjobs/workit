@@ -180,8 +180,7 @@ hero reads as the page's contents.
   only, opacity and transform, stopped off screen, finished and still
   with reduced motion.
 - **The entrance draws the grid, with no fades** (the `load-*` rules in
-  landing.css): the header's foot line grows from the centre and
-  uncovers the header, the words rise from behind their own foot, the
+  landing.css): the header drops down from above as one bar, the words rise from behind their own foot, the
   rails draw, the ink squares pop as lines reach them, each cell is
   dragged out from its corner like a frame in a design tool with an ink
   square as its handle, and the loop starts, about 1.7s. A

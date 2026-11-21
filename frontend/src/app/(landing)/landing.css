@@ -2307,12 +2307,13 @@ html[data-tab-flight="flying"] .tour-tabs {
  * first version's fades read as AI-made, so nothing here fades). The grid
  * draws itself and the content comes out of it, in about 1.7s:
  *
- *   0s     the header's foot line grows from the centre to both edges, and
- *          the header's content is uncovered from the centre with it
+ *   0s     the header drops down from above the window, as one bar: its
+ *          content, its foot line and its rails together (a plain move,
+ *          the user's call: its foot line first grew from the centre and
+ *          uncovered the content like a wipe, which the bar did not need)
  *   0.1s   the headline rises from behind its own foot, as from a slot;
  *          its line and the sign-up pair follow (`.hero-reveal`, `--rd`)
- *   0.3s   the rails draw: up through the header, down the hero's sides
- *   0.4s   the header's two ink squares pop as the rails leave them
+ *   0.3s   the rails draw down the hero's sides, from the header's foot
  *   0.55s  the pipeline's top rule grows from the centre
  *   0.6s   the four cells are drawn, left to right, 160ms apart: each is
  *          dragged out from its top left corner like a frame in a design
@@ -2333,11 +2334,12 @@ html[data-tab-flight="flying"] .tour-tabs {
  * still on the page while the piece passes it. A line grows by a scale and
  * a square pops by a scale. Every rule fills backwards only, so no clip or
  * transform is left on an element once it has played (a clip left on the
- * nav would cut its menu panels). CSS on the server's HTML, so it plays
- * before any script. Never a loading screen: the content is in the HTML,
- * and a curtain would hide a finished page. The lines, the handles and the
- * header's wipe run from lg up, on a page that draws the grid; below lg
- * the words rise and the cells are drawn with no lines. With reduced
+ * header would hold its menu panels in its own box). CSS on the server's
+ * HTML, so it plays before any script. Never a loading screen: the content
+ * is in the HTML, and a curtain would hide a finished page. The lines and
+ * the handles run from lg up, where the grid shows; below lg the header
+ * drops, the words rise and the cells are drawn with no lines. The
+ * header's drop runs only on a page that draws the grid. With reduced
  * motion nothing here runs and the page is simply there.
  */
 @media (prefers-reduced-motion: no-preference) {
@@ -2348,6 +2350,9 @@ html[data-tab-flight="flying"] .tour-tabs {
     animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
       backwards;
   }
+  .landing:has(.draft) .site-header > div {
+    animation: load-drop 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
 }
 /* The handles travel a cell's width and the pipeline's height, which only
    container units can say in a transform. */
@@ -2357,19 +2362,6 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .landing:has(.draft) .header-line {
-    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) backwards;
-  }
-  .landing:has(.draft) .site-header nav {
-    animation: load-open-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) backwards;
-  }
-  .header-marks > span {
-    transform-origin: bottom;
-    animation: load-draw-y 0.35s ease-out 0.3s backwards;
-  }
-  .header-marks > i {
-    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.4s backwards;
-  }
   .draft-first > .draft-v {
     transform-origin: top;
     animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
@@ -2444,12 +2436,9 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: translate(calc(-50% - 25cqw), calc(-50% - 100cqh));
   }
 }
-/* Uncovered from the centre outward, open below for the bar's menus. */
-@keyframes load-open-x {
+/* The header, down from above the window. */
+@keyframes load-drop {
   from {
-    clip-path: inset(0 50% -100vh 50%);
-  }
-  to {
-    clip-path: inset(0 0% -100vh 0%);
+    transform: translateY(-100%);
   }
 }
