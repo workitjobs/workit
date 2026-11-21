@@ -560,48 +560,157 @@ selling line that says what the product does** and "See how", a
     whole job application process (never internships and new-grad roles
     alone: the user's call). **A hub** (`problem-hub.tsx`, the user's
     layout, 2026-11-20): six problems in the order a search meets them,
-    three before applying on the left (Jobs scattered everywhere, A folder
-    of almost-the-same resumes, Copy, paste, repeat) and three after on the
-    right (Short answers that take forever, The spreadsheet you stopped
-    updating, Ghosted or rejected), each card's words and icon the user's
+    three before applying on the left (Jobs scattered everywhere, The
+    resume you keep rewriting, Forms that ask it all again) and three after on the
+    right (The questions you dread, The spreadsheet you gave up on,
+    Silence, or an instant no), each card's words and icon the user's
     pick from four options a card (2026-11-20: the forms are the basic
     details typed again, the written answers are their own card, and the
-    last card names both likely ends), one large visual in the middle for
-    the open one, and under it the section's one figure, shown as a fact
-    with its source (81%, Greenhouse's 2026 candidate report, linked), as
-    an outlined strip across the hub's width, no fill, a white hairline
-    and the number large in white, so it stands apart from the
-    filled cards as the hub's last row (the user's calls, 2026-11-20:
-    filled like the cards it blended in; on the light page an outlined box
-    with quote marks on its corners read as tacked on; before it, plain
-    text under a hairline did not read as a sourced fact; its number was
-    a light red, which read as a template's stat callout).
+    last card names both likely ends) and one large visual in the middle
+    for the open one. **The section's one figure is archived** (the user's
+    call, 2026-11-21: `ProblemStat` in `problem-stat.tsx`, unmounted, with
+    `problems.stat` in data.ts): 81%, Greenhouse's 2026 candidate report,
+    linked, shown as a fact with its source. It was the hub's last row, an
+    outlined strip with no fill and the number large in ink, and read as
+    hiding at the foot; it waits for a better place. Its look came from
+    the user's calls of 2026-11-20: filled like the cards it blended in;
+    an outlined box with quote marks on its corners read as tacked on;
+    plain text under a hairline did not read as a sourced fact; its number
+    in light red read as a template's stat callout.
+    **The first card sells the pain, not the list of places** (the
+    user's picks, 2026-11-21, of nine icons and seven lines): two browser
+    windows (Phosphor's `BrowsersIcon`; the folded map read as tidy where
+    the card is about a mess) over "Jobs are posted all over. Some you
+    never even see." The user first picked "Every company posts somewhere
+    different. Some jobs you never even see.", which at 70 characters took
+    three lines in the card where the other five took two, then this
+    shorter one. It was "Greenhouse, Lever, Workday, a careers page: every
+    company keeps its jobs somewhere new."
+    **The second card** (the user's picks the same day, of seven icons,
+    five titles and six lines): the Files icon stays, over "The resume you
+    keep rewriting" and "You know you should tailor it. You rarely have the
+    time." The title was "A folder of almost-the-same resumes", two lines
+    in the card.
+    **The third card** (the user's picks the same day, of seven icons,
+    five titles and six lines): Phosphor's `RepeatIcon` over "Forms that
+    ask it all again" and "The same details, typed into a new form for
+    every company." It was the copy glyph over "Copy, paste, repeat".
+    **The fourth card** (the user's picks the same day, of seven icons,
+    five titles and six lines): Phosphor's `PencilSimpleLineIcon` over
+    "The questions you dread" and "Good answers take time. Rushed ones
+    sound like everyone else's." It was an hourglass over "Short answers
+    that take forever".
+    **The fifth card** (the user's picks the same day, of seven icons,
+    five titles and six lines): the Table icon stays, over "The
+    spreadsheet you gave up on" and "Keeping it current is one more job
+    on top of the search.", which echoes the heading. It was "The
+    spreadsheet you stopped updating" over "Week one, it's up to date. By
+    week three, it's untouched, and you can't tell which resume went
+    where."
+    **The sixth card** (the user's picks the same day, of seven icons,
+    five titles and six lines): Phosphor's `ChatSlashIcon` over "Silence,
+    or an instant no" and "You put in the work. Too often, nothing comes
+    back." It was Phosphor's envelope with its cross set on the corner by
+    hand (`EnvelopeXIcon`, deleted) over "Ghosted or rejected". **All six
+    icons are single Phosphor glyphs.**
+    **Offer choices before changing a card's icon or words**: a trial put
+    in the page before the pick was taken back out. An icon comes from
+    Phosphor first; a hand-drawn glyph is a choice to offer, never the
+    default.
     **It stands on a light grey band** (`--mk-mist`, #f0f0f0, a step
     below the white page) with no glow and no grain; the stage's dot grid
     is its one texture. **It was dark for a day** (2026-11-20): first the
     ink, #121a28, a blue-black, with a slate pool in the middle and dots
     across the band, which read as the stock dark section of an AI-made
     site, then a flat near-black, which read as out of nowhere, the one
-    dark block between two white sections (the user's catches). The
-    cards are white with the page's card shadow and ink words, each glyph
-    on a solid pale grey tile (solid, so the letter glyph's cross knocks
-    out against it), and the open card solid ink with white words and its
-    glyph on a white tile, the band's colours turned over (a pale violet
-    tint read as off theme, the user's catch, 2026-11-20). A
+    dark block between two white sections (the user's catches).
+    **The hub's colour** (the user's pick of three directions previewed
+    in the page, 2026-11-21): the five closed cards have no box, their
+    words on the band and each glyph on a white tile, with a faint white
+    fill under the pointer; the open card is the one white, lifted card
+    (`--mk-shadow-float`), its glyph on an ink tile; the stage is a well a
+    step darker than the band (`--mk-well`, #e4e4e4, `.problem-well`), so
+    a picture's white window stands out on it. The open card and the
+    window are one material, white on grey, which says which card shows
+    which picture. **Contrast is a budget: spend it where the eye should
+    go.** Until then the open card was solid ink with white words, so a
+    card at the side was the strongest shape in the section while the
+    picture sat on the weakest ground (a white window on white at 60%),
+    and six white cards with the stage were seven boxes of one weight
+    (the user: "something about it"). The ink is also a blue-black, a
+    cold colour on a neutral grey band. A dark stage was the third
+    preview and the boldest; not taken, since a dark block here was
+    taken out once already. Before the ink the open card was a pale
+    violet tint, which read as off theme (the user's catch, 2026-11-20). A
     click, a tap or Enter opens a problem, never a hover (the user's call:
-    the cards changed under a passing pointer); nothing changes on a
-    timer. The problems are buttons with
+    the cards changed under a passing pointer). **The cards take turns**
+    from lg up (the user's idea, 2026-11-21, since nothing told a reader
+    the cards could be clicked): a hairline draws clockwise round the
+    open card over 8 s (`TURN`, `.card-ring` in landing.css) and the next
+    card opens when it closes, in the order of a search, round again
+    after the sixth. It follows the product rows' rules: it plays only
+    while the hub is well on screen, the tab is shown and no pointer or
+    keyboard focus is on a card; with reduced motion nothing turns and
+    there is no ring. **A click opens a card and the turns go on from
+    it**, its ring drawn again from empty (the user's catch, 2026-11-21:
+    "when I clicked a card, the progress doesn't appear anymore"). For an
+    hour a click stopped the turns for good and took the ring away, as
+    the product rows do; the reader saw the timer vanish and read it as
+    broken. So a card is held by keeping the pointer or the keyboard's
+    focus on it, and **a faint track runs round the open card all the
+    time** (`.card-track`), so the timer shows even when its line is
+    empty or held: without it, a card just clicked, with the pointer
+    still on it, showed no ring at all. Only focus the keyboard put
+    there holds a turn (`:focus-visible`): a clicked button keeps focus
+    after the pointer has gone, and the turn never started again.
+    **One clock in the hub**: where the cards
+    turn, the browser picture's four tabs make one pass per turn
+    (`--board-loop`) and are held whenever the ring is (`data-held`), so
+    two timers never run at two speeds in one panel; below lg the tabs
+    keep their own 12.8 s loop. **Below lg nothing turns**:
+    there the picture sits above the list, and a card that opened by
+    itself would move the lit row under the reader's thumb. The ring is
+    1.5px of ink at half strength at one steady speed: a timer, not a
+    second focus. It is a stroke, so the browser repaints that one card's
+    edge each frame, the one place on the page that does; measured in
+    Chrome at 120 frames a second with no frame over 14 ms. **It
+    replaced "nothing changes on a timer"**, the hub's first rule: the
+    taste rules ban timed tabs, and WorkIt's own design system allows a
+    turn the reader can hold. With it every
+    section from the hero to the footer moves by itself; if that is too
+    much, still the logo strip before adding a pause button.
+    The problems are buttons with
     `aria-pressed`, and every problem's words stay on screen, so only the
-    picture changes. **The open card is the selected state**: never an
+    picture changes. **The open card is the selected state**, shown by
+    its white fill and its lift: never an
     edge, which read as an outline button (the user's call, 2026-11-20).
     **The hub is one block** from lg up: each side's three cards fill the
-    stage's height, each row as tall as its words with the spare room
-    shared out (rows of one third each made every card as tall as the
-    spreadsheet card and the section ran 96px past 1440 × 800), and the
-    stage grows to theirs, so their edges meet; set
+    stage's height and the stage grows to theirs; set
     loosely beside a taller stage, under a two-line heading and a two-line
     line, the section read as small and tall at once (the user's catch),
-    so the line under the heading is one line. **The visuals are moments everybody has**
+    so the line under the heading is one line. **From xl up the stage
+    stands 1.5rem above and below the card stacks** (the user's ask,
+    2026-11-21, so the centre stands out; the columns' `xl:py-6`): with
+    their edges level, the stage read as a seventh card. The cards still
+    fill their column, so nothing sits loose. **The six cards are one
+    height** from md up (the user's ask, 2026-11-21: `md:auto-rows-fr`,
+    the words centred in each): rows as tall as their words, with the
+    spare room shared out, left six heights from 90 to 129px, which read
+    as inconsistent. Every row is as tall as the longest card, so a longer
+    line on one card makes the whole hub taller: the fifth card's first
+    words, a two-line title over a line of 101 characters, put the band
+    57px past a 1024 × 768 screen. **Write a card to one line of title
+    (about 30 characters) and a line of about 60**: a longer one makes
+    every card taller, and the band with them.
+    On a phone, one column, each card keeps its own height: held to one
+    height there, the short ones showed blank room under their words.
+    **The visual is the hub's main piece** (the user's ask, 2026-11-21):
+    from xl up the side columns are 19.75rem, the widest that leaves the
+    stage 27rem (at 20.5rem the stage was a quarter wider than a card and
+    read as one more card), and a visual is drawn 1.1, 1.15 or 1.2 times
+    its size where its stage has the room (`.problem-window` in landing.css,
+    `zoom` by the screen's size; the reasons are in the comment there).
+    **The visuals are moments everybody has**
     (`problem-scenes.tsx`): a browser of company job board tabs with roles
     posted months ago, a folder of resume versions ending in
     "Resume_FINAL (1).pdf", one more company's My information step with
@@ -609,8 +718,87 @@ selling line that says what the product does** and "See how", a
     forms before it (`Window`'s `stacked`), an empty "Why do you want to
     work at Notion?" box, the student's spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
-    application with "No reply in weeks". Each is plain UI, 20rem wide,
-    centred on a stage of white at 60% with a slate hairline on the band,
+    application with "No reply in weeks". **Each is the real kind of app
+    it stands for** (the user's ask, 2026-11-21, "Google Sheets or Excel
+    is green at the header"): a green spreadsheet with a formula bar,
+    column letters, a dropdown pill in each status cell, a selected cell
+    and its one sheet tab (a second tab, "Copy of Sheet1", was taken out
+    at the user's ask); a mail inbox with the
+    senders' logos, unread dots and a count (its tray icon an outline:
+    filled, it drew as a solid blue block, the user's catch); a file
+    window with a sidebar, red PDF icons and a blue selected row; a
+    browser with real window dots, four tabs and a lock (below); two
+    application forms with the company's logo, a blue focus ring and a
+    main button. All six were one
+    white window with three grey dots and a bold title, in greys alone,
+    and the user found the section boring: the whole band was one grey
+    family with the open card its only dark shape, so the eye went to the
+    side, and no picture read as a real app. **The rule below bans WorkIt's
+    violet, never colour**: it had been drawn as "no colour". The colours
+    are each app's own kind (the constants in problem-scenes.tsx) and the
+    hub's only colour, so the open picture leads; the cards and the band
+    stay white, ink and grey. **No product's logo or name** on a picture:
+    a green sheet reads as a spreadsheet without Google's or Microsoft's
+    mark (employers' logos stay, as everywhere on the page). **One detail
+    in each tells its card's story**: "Last edit 3 weeks ago" on the
+    sheet, postings months old in amber, the resume uploaded above the
+    fields that ask for it again, and in the inbox the same sender twice
+    a quarter of an hour apart (received at 11:32 PM, turned down at
+    11:47 PM) over the student's own follow-up with a mail app's nudge,
+    "Sent 24 days ago. Follow up?". **The story is told with what the
+    real app shows, never with a caption laid over it**: the inbox had
+    two pills, "Minutes after you applied" and "No reply in weeks", and
+    no mail app has such labels, so they read as notes stuck on the
+    picture. The question picture has none beyond
+    its empty box: a "Session expires in 12:48" line under it was taken
+    out at the user's ask (2026-11-21). **The browser's tabs take turns**
+    (`BoardsScene`, the user's ask, 2026-11-21: "switching through tabs
+    like a company website or a job board"): four company job boards,
+    3.2 s each, round and round, the lit tab, the address and the page
+    changing together. Each company is on the hiring system it is on in
+    `scraper/boards.csv`, with that board's own address, and each page is
+    laid out as that system lays one out: Stripe on Greenhouse (a
+    department's roles), Nike on Workday (a search, a count, results),
+    Spotify on Lever (filters over a team's postings), Goldman Sachs on
+    Oracle (a grid of tiles). **Only show a company on a system it is
+    on**; a change to the four checks the file. Three or four postings a
+    page, each a job card with a title, a place and an age: six bare text
+    rows read as a table, not a job page (the user's catch). It has its
+    own list of four and does not read the logo strip. **Its loop** is
+    CSS on opacity alone, the three parts on one clock
+    set apart by whole turns (`.board-turn` in landing.css: 12.8 s on its
+    own, the cards' 8 s turn while they turn, above), held while
+    the stage waits to arrive and while none of it is on screen
+    (`HoldOffscreen`), and still on the first board with reduced motion.
+    **The six pictures share one type system** (`T` in problem-scenes.tsx;
+    the user's catch, 2026-11-21, "a clash of fonts"): five roles (title,
+    text, meta, label, button), two weights (regular and semibold, never
+    medium between them), sentence case but for the one label role, and
+    sizes of 10 to 12px, with the question's own line at 13px. Each job
+    board was first drawn in "its own" type: a title was medium, then
+    blue, then bold, then a size smaller; the line under it sentence
+    case, then Title Case, then tracked capitals. The tabs turn every
+    3.2 s, so the type changed under the same words again and again.
+    **Things that take turns in one place are set apart by layout, never
+    by type**: each board keeps its own structure (a department's list,
+    a search over result cards, filters over postings with Apply, a grid
+    of tiles) and one rhythm (12px of room, a 24px head, a body that ends
+    about 20px above the window's foot; two pages once ended 40px short
+    and read as unfinished). One hairline and one control edge too
+    (`RULE`, `FIELD`): six border greys and four corner sizes had crept
+    in. **Amber means one thing in all six**: this has sat too long (an
+    old posting, a letter nobody answered). Smaller truths to each app:
+    a tab shows a bare favicon, not one on a white tile; a sheet tints
+    the letter and the number beside its selected cell; a file window
+    keeps its count of items in the bar at its foot, and loses its
+    sidebar on a window narrower than 19.5rem so the file names show
+    whole. **Review a picture in Chrome, zoomed, before calling it
+    done** (`zoom` on the stage): the faults above showed at twice the
+    size and not in the page. **A picture is
+    20rem wide and at most 319px tall as drawn**
+    (the six are 254 to 304px): the stage's height and the picture's
+    sizes are worked out from that, so measure after a change. Each is
+    centred on the stage, a grey well with a slate hairline (above),
     under a dot grid in slate at 13% that fades toward the middle (`.problem-dots` in
     landing.css; the user's pick of six patterns, 2026-11-20, since a flat
     stage read as boring; at 22rem the windows hid all but a thin band of
@@ -619,10 +807,18 @@ selling line that says what the product does** and "See how", a
     safely centred so a tall one keeps
     its top in view on a short screen, and plays once as it shows (the
     stage's `data-arrived`, "false" for two frames after a switch; a caret
-    blinks four times, `.caret-blink`, then stays). **The heading, the hub
-    and the figure fit one screen** under the floating header from lg up:
-    the stage is at least `clamp(19rem, 100svh - 33rem, 30rem)` tall
-    (measured at 1440 × 800, the figure ending at 781px). **Why
+    blinks four times, `.caret-blink`, then stays). **The band fits the
+    screen with room to spare** from lg up (the user's catch, 2026-11-21:
+    at 794px on an 800px screen the reader had to scroll it into place
+    exactly, or it was cut): the band's padding is 3.5rem (it was 5rem)
+    and the stage is `clamp(23rem, 100svh - 23.5rem, 30rem)` tall, which
+    leaves about 4rem of the screen free. Measured: 738px at 1440 × 800
+    (62px free, the stage 432 × 424, each card 316 × 119, the visual at
+    1.15 times), 794px at 1440 × 900 and wider (the stage 480px, the
+    visual at 1.2 times), 682px at 1280 × 720 (38px free, the visual at
+    its drawn size) and 721px at 1024 × 768 (47px free). The visual's
+    three sizes follow the stage's height rule: change the two together
+    (`.problem-window` in landing.css). **Why
     this shape, the user's calls**: the heading covers the whole search,
     not one problem ("Many applications stop before a person reads them"
     sold screening alone); no numbers in the heading ("Forty tabs, nine
@@ -1680,8 +1876,11 @@ selling line that says what the product does** and "See how", a
   its state (`motion-toggle.tsx`, `motion-pause.ts`) and landing.css's
   rule that held each CSS loop are deleted, and nothing reads the key, so
   a visitor who had paused is not left paused with no way back. **This
-  leaves WCAG 2.2.2 open on the home page**: the hero's lights and the
-  logo strip's drift loop with no pause on the page; only the operating
+  leaves WCAG 2.2.2 open on the home page**: the hero's lights, the
+  logo strip's drift and the problems hub's browser tabs loop with no
+  pause on the page (the product rows turn too, but a click stops those;
+  the hub's cards turn and are held only by a pointer or keyboard focus
+  on a card, which a touch screen from lg up cannot do); only the operating
   system's reduced motion stills them. Bringing a pause back means
   restoring those two files and the CSS rule from git history.
   - Timed loops still read `useLoopsHeld` (hooks.ts), now a hidden tab
@@ -1781,7 +1980,7 @@ selling line that says what the product does** and "See how", a
   button, solid and flat, `.primary-btn`, since 2026-11-20; checks,
   feature tiles, Plus's limit pills, and the pale tint of a selected item
   the visitor clicked on a light ground; on the problems' grey band the
-  open card is solid ink instead; one exception to grey cards: the four
+  open card is the one white, lifted card instead; one exception to grey cards: the four
   product tiles, each flat in its own feature's pale tint, 2026-11-20);
   **shadows are slate, never violet**
   (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).

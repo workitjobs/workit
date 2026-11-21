@@ -444,43 +444,84 @@ export const problems = {
   /** In the order a search meets them; `scene` names the visual
    *  problem-scenes.tsx draws for each. The first three stand on the hub's
    *  left, the last three on its right. Each card's words and icon are the
-   *  user's picks from four options a card (2026-11-20): a moment a job
-   *  seeker knows, in their words. The forms are the basic details typed
-   *  again (the written answers are the fourth card's), and the last names
-   *  both likely ends, ghosted or rejected, hedged with "too often". */
+   *  user's picks, first from four options a card (2026-11-20), then again
+   *  card by card (2026-11-21, the comment on each): a moment a job seeker
+   *  knows, in their words. The forms are the basic details typed again
+   *  (the written answers are the fourth card's), and the last names both
+   *  likely ends, silence or a fast rejection, hedged with "too often".
+   *  **A card is one line of title, about 30 characters, and a line of
+   *  about 60**: the six are one height, so the longest sets them all. */
   items: [
     {
       scene: "boards",
       title: "Jobs scattered everywhere",
-      body: "Greenhouse, Lever, Workday, a careers page: every company keeps its jobs somewhere new.",
+      // The pain, not the list of places (the user's picks, 2026-11-21):
+      // the student looks all over, and a job they would want can still
+      // pass them by, hedged with "some". First "Every company posts
+      // somewhere different. Some jobs you never even see.", of seven
+      // lines; then this shorter one, of seven more, since at 70
+      // characters that line took three lines in the card where the other
+      // five take two. It was "Greenhouse, Lever, Workday, a careers page:
+      // every company keeps its jobs somewhere new.", which named the
+      // places and not what they cost.
+      body: "Jobs are posted all over. Some you never even see.",
     },
     {
       scene: "resumes",
-      title: "A folder of almost-the-same resumes",
-      body: "Every job wants a slightly different you, and the copies pile up.",
+      // The user's picks of five titles and six lines (2026-11-21). The
+      // title fits one line in the card, where "A folder of almost-the-same
+      // resumes" took two. The line is the survey's finding in the job
+      // seeker's words: most say tailoring works, few always do it, and it
+      // takes too long (58%, 17% and 31%, above); "rarely" is the hedge. It
+      // was "Every job wants a slightly different you, and the copies pile
+      // up."
+      title: "The resume you keep rewriting",
+      body: "You know you should tailor it. You rarely have the time.",
     },
     {
       scene: "forms",
-      title: "Copy, paste, repeat",
-      body: "The same basic details, form after form, company after company.",
+      // The user's picks of five titles and six lines (2026-11-21). It was
+      // "Copy, paste, repeat" over "The same basic details, form after form,
+      // company after company."
+      title: "Forms that ask it all again",
+      body: "The same details, typed into a new form for every company.",
     },
     {
       scene: "question",
-      title: "Short answers that take forever",
-      body: "A few sentences each, and you rewrite them for every company.",
+      // The user's picks of five titles and six lines (2026-11-21): the
+      // feeling, then the trade of time against quality, which is the
+      // site's own pitch (WorkIt sells quality, never volume). The line
+      // makes no claim about what an employer does with a rushed answer.
+      // It was "Short answers that take forever" over "A few sentences
+      // each, and you rewrite them for every company."
+      title: "The questions you dread",
+      body: "Good answers take time. Rushed ones sound like everyone else’s.",
     },
     {
       scene: "tracker",
-      title: "The spreadsheet you stopped updating",
-      body: "Week one, it’s up to date. By week three, it’s untouched, and you can’t tell which resume went where.",
+      // The user's picks of five titles and six lines (2026-11-21). The
+      // line echoes the heading's "full-time job". It was "The spreadsheet
+      // you stopped updating" over "Week one, it's up to date. By week
+      // three, it's untouched, and you can't tell which resume went
+      // where.", the one two-line title and the longest line of the six,
+      // which set every card's height.
+      title: "The spreadsheet you gave up on",
+      body: "Keeping it current is one more job on top of the search.",
     },
     {
       scene: "replies",
-      title: "Ghosted or rejected",
-      body: "Too often you’re ghosted for weeks, or rejected before anyone has read a word.",
+      // The user's picks of five titles and six lines (2026-11-21). The
+      // title names both ends, as the visual's two labels do ("No reply in
+      // weeks", "Minutes after you applied"); the line closes the six on
+      // effort in and silence out, hedged with "too often". It was "Ghosted
+      // or rejected" over "Too often you're ghosted for weeks, or rejected
+      // before anyone has read a word."
+      title: "Silence, or an instant no",
+      body: "You put in the work. Too often, nothing comes back.",
     },
   ],
-  /** The one figure, shown as a fact with its source under it. */
+  /** The one figure, shown as a fact with its source. Archived with
+   *  `ProblemStat` (problem-stat.tsx, 2026-11-21): no section shows it. */
   stat: {
     figure: "81%",
     text: "of U.S. job seekers were turned down for a job this past year without speaking to anyone at the company.",
