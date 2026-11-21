@@ -387,7 +387,9 @@ scale, an ink square pops, and a piece comes out from behind an edge (a
 clip paired with a translate). Never an opacity fade or a blur, which read
 as AI-made. Every `DraftLines` frame draws itself as it arrives, so each
 framed section has a transition; What is WorkIt's icon pops and its words
-rise one by one. In time on arrival, never scrubbed by the scroll.
+rise one by one; every `SectionHeading` rises from behind its own foot
+(`.rise` under an `Arrive`). In time on arrival, never scrubbed by the
+scroll.
 
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once

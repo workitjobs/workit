@@ -2,6 +2,8 @@ import type { CSSProperties, ReactNode, Ref } from "react";
 
 import { cn } from "@/lib/cn";
 
+import { Arrive } from "./arrive";
+
 /**
  * The landing pages' shared frame: the content width, the rounded panels
  * every full-width band sits in, and the section heading. The home page,
@@ -102,15 +104,23 @@ export function SectionHeading({
   align?: "center" | "left";
   className?: string;
 }) {
+  // It rises as it arrives (`Arrive`, `.rise` in landing.css): the title
+  // from behind its own foot, as the hero's headline, then the subtitle.
+  // No fade. On every page that draws a section heading.
   return (
-    <div className={cn("max-w-3xl", align === "center" && "mx-auto text-center", className)}>
-      <h2 id={id} className={cn(TYPE.chapter, "text-ink")}>
+    <Arrive className={cn("max-w-3xl", align === "center" && "mx-auto text-center", className)}>
+      <h2 id={id} className={cn(TYPE.chapter, "rise text-ink")}>
         {title}
       </h2>
       {subtitle && (
-        <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
+        <p
+          className={cn(TYPE.lead, "rise text-ink-meta mx-auto mt-5 max-w-2xl")}
+          style={{ "--rise": "0.12s" } as CSSProperties}
+        >
+          {subtitle}
+        </p>
       )}
-    </div>
+    </Arrive>
   );
 }
 

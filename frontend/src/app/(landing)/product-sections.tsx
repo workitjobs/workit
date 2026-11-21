@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
+import { Arrive } from "./arrive";
+
 import { featuresIntro } from "./data";
 import { deepDiveAnchor, FEATURES, type FeatureSlug } from "./features/catalog";
 import { featureContent } from "./features/content";
@@ -107,11 +109,12 @@ export function ProductSections() {
         <div className={CONTAINER}>
           <ProductAccordion
             heading={
-              <>
-                {/* The feature's label, its 36px mark and its name at 18px:
+              <Arrive>
+                {/* The label and the headline rise as the section arrives
+                    (`.rise`), the label first. The feature's label, its 36px mark and its name at 18px:
                     at 24px and 14px it read as a caption over the 48px
                     serif (the user's catch). */}
-                <p className="text-ink inline-flex items-center gap-3 text-lg font-medium">
+                <p className="rise text-ink inline-flex items-center gap-3 text-lg font-medium">
                   <FeatureIcon feature={page} size="md" />
                   {page.name}
                 </p>
@@ -122,11 +125,12 @@ export function ProductSections() {
                     are even. */}
                 <h2
                   id={titleId}
-                  className={cn(TYPE.product, "text-ink mt-4 max-w-[12em] text-balance")}
+                  className={cn(TYPE.product, "rise text-ink mt-4 max-w-[12em] text-balance")}
+                  style={{ "--rise": "0.1s" } as CSSProperties}
                 >
                   {content.hero.title}
                 </h2>
-              </>
+              </Arrive>
             }
             items={content.sections.map((section) => ({
               title: section.title,

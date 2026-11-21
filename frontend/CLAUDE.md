@@ -1826,10 +1826,18 @@ selling line that says what the product does** and "See how", a
   translate; it came up from a faint grey before, a fade). In time, once
   the section is well on screen (`useArrived`), never scrubbed; no
   `data-arrived` in the server's HTML, so nothing is hidden without
-  script; nothing moves with reduced motion. **Still open:** the other
-  sections' headings still come in through `FocusIn`, a blur and a fade,
-  which is the look the user called AI-made in the hero; they have not
-  been moved to this vocabulary yet.
+  script; nothing moves with reduced motion. **Every section heading
+  rises the same way** (`SectionHeading` is an `Arrive` whose title and
+  subtitle are `.rise`; each product section's label and headline too):
+  from behind its own foot, as the hero's headline. On the home page
+  these headings had no entrance before. So a new section gets its
+  transition by using `SectionHeading` and `DraftLines`; a piece of its
+  own takes `.rise` as a direct child of an `Arrive`. `FocusIn`, which
+  brought a heading out of a blur, now rises its pieces too and is left
+  on Pricing's FAQ rows and closing band. **Still open:** the pieces
+  inside the scenes (`.journey-in`: Control's cards, the problems'
+  pictures) still come in on a short fade; the problems section's own
+  heading is the Problem session's.
 - **No feature wears violet** (the user's call, 2026-11-21). The four
   feature colours are the usual pastel four: blue (Resume Builder), peach
   (Job Matching, `--color-matching` with its `-tint` and `-ink` in

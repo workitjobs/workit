@@ -867,24 +867,49 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * A section heading comes into focus as it arrives (focus-in.tsx marks the
- * wrapper): the title and the subtitle each rise out of a blur, a little
- * apart. "wait" has no transition, so hiding is instant;
- * "in" transitions back to the elements' own values, so the blur ends as
- * `none`, never a leftover blur(0px), which would make the heading a
- * backdrop root.
+ * A piece that rises as its section arrives, from behind its own foot, as
+ * the hero's headline does (2026-11-21): a direct child of an `Arrive`
+ * (`data-arrived`), hidden by a clip and shifted down by its own height,
+ * so its foot stands still on the page while it comes up. `--rise` is its
+ * delay. Every `SectionHeading` rises this way, and each product
+ * section's label and headline. A clip and a translate, never opacity or
+ * a blur. The resting clip is open past the box, so no letter and no
+ * focus ring is cut. No `data-arrived` in the server's HTML, so nothing
+ * is hidden without script.
  */
+@media (prefers-reduced-motion: no-preference) {
+  [data-arrived] > .rise {
+    clip-path: inset(-0.5em -1em -0.5em -1em);
+    transition:
+      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rise, 0s),
+      clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rise, 0s);
+  }
+  [data-arrived="false"] > .rise {
+    transform: translateY(100%);
+    clip-path: inset(-0.5em -1em 100% -1em);
+    transition: none;
+  }
+}
+
+/*
+ * `FocusIn` (focus-in.tsx), for a block that is no `SectionHeading`
+ * (Pricing's FAQ rows and closing band): its pieces rise the same way,
+ * one after another. It was a blur and a fade ("comes into focus") until
+ * 2026-11-21, the look the user called AI-made in the hero. "wait" has no
+ * transition, so hiding is instant.
+ */
+.focus-in[data-focus] > * > * {
+  clip-path: inset(-1rem -1rem -1rem -1rem);
+}
 .focus-in[data-focus="wait"] > * > * {
-  opacity: 0;
-  filter: blur(10px);
-  transform: translateY(14px);
+  transform: translateY(100%);
+  clip-path: inset(-1rem -1rem 100% -1rem);
 }
 
 .focus-in[data-focus="in"] > * > * {
   transition:
-    opacity 0.7s ease-out,
-    filter 0.8s ease-out,
-    transform 0.9s var(--ease-glide);
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .focus-in[data-focus="in"] > * > :nth-child(2) {
@@ -900,7 +925,7 @@ html[data-tab-flight="flying"] .tour-tabs {
  * in time: the list sits in a FocusIn (page.tsx), whose rules above move
  * each row, and each row waits its turn (`--i`, faq-list.tsx). Scrubbed by
  * the scroll over each row's own few pixels at the screen's foot, a row
- * that stopped there stayed half faded.
+ * that stopped there stayed half way.
  */
 .focus-in[data-focus="in"] > .faq-rise > * {
   transition-delay: calc(var(--i, 0) * 0.07s);

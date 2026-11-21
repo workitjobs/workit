@@ -87,9 +87,7 @@ export default function PricingPage() {
           rise in one after another once the list is on screen. */}
       <section className="py-20 sm:py-28">
         <div className={CONTAINER}>
-          <FocusIn>
-            <SectionHeading title="Billing, answered" />
-          </FocusIn>
+          <SectionHeading title="Billing, answered" />
           <FocusIn>
             <FaqList items={billingFaqs} className="faq-rise mt-12" />
           </FocusIn>
