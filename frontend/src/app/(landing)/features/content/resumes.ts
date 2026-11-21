@@ -22,7 +22,7 @@
  * stands behind it is the editor (click a line and type) and one-click
  * Tailor. "For every job" carries the tailoring.
  */
-import { DatabaseIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
+import { FilePlusIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
 import { SparkleIcon } from "@/components/sparkle-icon";
 
 import { ResumeAnimation } from "../animations";
@@ -45,7 +45,9 @@ const content: FeatureContent = {
   sections: [
     {
       title: "Everything you have done, in one place",
-      icon: DatabaseIcon,
+      // A page with a plus: making a resume (the user's pick from eight
+      // icons of creation, 2026-11-21). It was a database, a technical mark.
+      icon: FilePlusIcon,
       body: "Upload the resume you have and WorkIt reads it into your bank, from education and experience to projects and skills. Every resume you make starts from it, so you never type an entry twice. No resume yet? Add your experience piece by piece, and WorkIt builds your first one.",
       points: [
         "Start from the resume you already have",
