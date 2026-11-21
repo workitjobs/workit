@@ -127,7 +127,8 @@ user to remind the team, with the steps in `backend/CLAUDE.md`
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
-the `CF_API_SECRETS_JSON` secret (`.github/CLAUDE.md`); each half's
+Infisical's `workit-prod/api`, which syncs to the `API_*` repo secrets that
+`deploy.yml` sends to the Worker (`docs/secrets.md`); each half's
 Deployment section has the rest.
 
 **Vercel is retired** (2026-10-29): set nothing up there and check nothing

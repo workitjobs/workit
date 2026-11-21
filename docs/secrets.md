@@ -4,11 +4,11 @@ KAN-899. Every secret the team shares lives in Infisical (Infisical Cloud,
 US region, Free plan). GitHub and Cloudflare hold copies that Infisical or a
 workflow writes. A copy can be lost; the value in Infisical cannot.
 
-**Status (2026-11-20): Infisical holds the values, nothing reads them yet.**
-The GitHub syncs, the `deploy.yml` and `publish-engine.yml` changes and
-`npm run env` are still open (end of this file). Until each one lands, the
-old way in `.github/CLAUDE.md` still applies to it: GitHub secrets are set
-with `gh secret set`, and the API's values go in `CF_API_SECRETS_JSON`.
+**Status (2026-11-20): the `/api` sync is on and checked, and `deploy.yml`
+and `publish-engine.yml` read its `API_*` secrets.** The `/github`, `/web`
+and `/desktop-fill-engine` syncs and `npm run env` are still open (end of
+this file). Until a folder's sync is on, its GitHub secrets are still set
+with `gh secret set`.
 
 ## Rules
 
@@ -167,9 +167,9 @@ Not in this folder: `DIRECT_URL` (**never**: migrations stay a local step),
 
 Not in this folder: `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL`
 (no workflow reads them; `scrape.yml` writes its small chain itself, as the
-computer's Ollama; GitHub still held both on 2026-11-20 and can delete
-them), `CF_API_SECRETS_JSON` (replaced by `/api`; deleted once "Still open"
-is done), `APPLY_ENGINE_SIGNING_KEY` (`/desktop-fill-engine`),
+computer's Ollama; the repo copies were deleted on 2026-11-20),
+`CF_API_SECRETS_JSON` (no longer read: `/api` replaced it; delete it after
+the first good deploy), `APPLY_ENGINE_SIGNING_KEY` (`/desktop-fill-engine`),
 `GEMINI_API_KEY` (no workflow reads it).
 
 ### `workit-prod/desktop-fill-engine` (environment `apply-engine`)
@@ -323,39 +323,58 @@ Workers & Pages, the Worker (`workit-api` or `workit-web`), Settings,
 Variables and Secrets. It lists every secret's name, never its value. For
 GitHub, `gh secret list` does the same.
 
+## Syncs
+
+The repo connects through Infisical's GitHub App, installed on the
+`workitjobs` organization for the `workit` repo only. Each sync is one
+folder to one place:
+
+| Sync | Scope | Key schema | State (2026-11-20) |
+|---|---|---|---|
+| `workit-prod/api` | Repository | `API_{{secretKey}}` | on, checked |
+| `workit-prod/github` | Repository | none | off: the folder is empty |
+| `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off |
+| `workit-prod/desktop-fill-engine` | Repository Environment, `apply-engine` | none | off |
+
+- **Set the key schema before a sync first runs.** The `/api` sync first
+  ran without one (2026-11-20): it wrote `/api`'s keys to GitHub under
+  their plain names, over the live `DATABASE_URL` and `SCOUT_ENDPOINTS`
+  that `scrape.yml` and the job workflows read, and added
+  `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `WORKIT_ADMINS` repo secrets
+  that nothing reads. A sync leaves names outside its schema alone, so
+  those strays were deleted by hand (`gh secret delete`).
+- **Turn on "Disable Secret Deletion" on every one.** The only initial
+  sync behavior, Overwrite Destination Secrets, removes every GitHub secret
+  that the folder does not hold. `/github` has no key schema, so it would
+  delete the `API_*` secrets and every repo secret not yet in Infisical.
+- **Turn a sync on only once each value in its folder is right:** the sync
+  overwrites the working GitHub copy. With deletion off, a secret the
+  folder does not hold yet stays as it is.
+- **Check a sync without seeing a value.** The run "Secrets check"
+  (https://github.com/workitjobs/workit/actions/runs/44858092532, from
+  commit `a5dcec4e`) prints each `API_*`, `WEB_*`, `DATABASE_URL` and
+  `SCOUT_ENDPOINTS` secret's length, never its value, flags a value still
+  written `${...}`, and lists the names the deploy would send. Re-run it
+  from the Actions tab: a re-run uses its own commit, so it works after
+  the workflow file is gone. GitHub holds it for a person's approval.
+  Infisical's docs do not say whether a sync fills in references, so
+  re-run it once the `/github` sync is on.
+
 ## Still open
 
-1. **GitHub syncs.** Connect the repo through Infisical's GitHub App. Make
-   four syncs: `/github` (scope Repository), `/api` (key schema
-   `API_{{secretKey}}`), `/web` (key schema `WEB_{{secretKey}}`) and
-   `/desktop-fill-engine` (scope Repository Environment, `apply-engine`).
-   **Set the key schema before a sync first runs.** The `/api` sync first
-   ran without one (2026-11-20): it wrote `/api`'s keys to GitHub under
-   their plain names, over the live `DATABASE_URL` and `SCOUT_ENDPOINTS`
-   that `scrape.yml` and the job workflows read, and added
-   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `WORKIT_ADMINS` repo secrets
-   that nothing reads. A sync leaves names outside its schema alone, so
-   such strays are deleted by hand (`gh secret delete`).
-   **Turn on "Disable Secret Deletion" on every one.** The only initial
-   sync behavior, Overwrite Destination Secrets, removes every GitHub secret
-   that the folder does not hold. `/github` has no key schema, so it would
-   delete `CF_API_SECRETS_JSON` and the `API_*` and `WEB_*` secrets. Turn a
-   sync on only once each value in its folder is right, because the sync
-   overwrites GitHub. Infisical's docs do not say whether a sync fills in
-   references. Check it once with a test key and a workflow step that
-   prints the secret's length.
-2. **`deploy.yml`.** The API job's "Set runtime secrets" step builds its
-   JSON from the `API_*` secrets
-   (`${{ toJSON(secrets) }}` piped through
-   `jq 'with_entries(select(.key | startswith("API_")) | .key |= ltrimstr("API_"))'`).
-   The web job gets the same step for `WEB_*`.
-3. **`publish-engine.yml`** reads `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
-   out of `CF_API_SECRETS_JSON`. It must read `API_SUPABASE_URL` and
-   `API_SUPABASE_SERVICE_KEY` **before** `CF_API_SECRETS_JSON` is deleted.
-4. **`npm run env`.** A Node script under `frontend/scripts/`, with its
+1. **The `/github` sync.** Put the keys in `workit-prod/github` (its
+   table above), start with the two references and the values you can
+   read, turn the sync on, and re-run the check: `DATABASE_URL` and
+   `SCOUT_ENDPOINTS` must show the same lengths as their `API_*` twins.
+2. **The first deploy from the `API_*` secrets**, when this change merges:
+   the health check (`/health/db`) passes, Scout answers a message on
+   workitjobs.ai, and an admin opens a fill report. If it fails,
+   `CF_API_SECRETS_JSON` still exists: revert the change, and the next
+   deploy reads it again. After a good deploy, delete
+   `CF_API_SECRETS_JSON`.
+3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
+4. **The `/desktop-fill-engine` sync,** before the next engine publish.
+5. **`npm run env`.** A Node script under `frontend/scripts/`, with its
    forwarder in the root `package.json`. It runs the two exports and keeps
    any line Infisical does not have.
-5. **Rotate** every value that was sent over Slack.
-6. Then delete `CF_API_SECRETS_JSON` and the unused `SCOUT_ENDPOINTS_LARGE`
-   and `SCOUT_ENDPOINTS_SMALL` repo secrets, and update `.github/CLAUDE.md`
-   and `backend/CLAUDE.md` (Deployment) to point here.
+6. **Rotate** every value that was sent over Slack.

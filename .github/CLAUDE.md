@@ -322,18 +322,25 @@ one's code and the API on the other's.
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
-- **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
-  object of every variable the API reads in production (first copied from
-  Vercel's production env, before Vercel was retired). The job pipes it to
-  `wrangler secret bulk` **before** the deploy: the image rollout restarts the containers with the secrets of that
-  moment, and a secrets-only version restarts none, so set after, the new
-  values reach no container until each sleeps (found 2026-10-21). `secret
-  bulk` never deletes a secret, so a key dropped from the JSON keeps its old
-  value. **Build it from the root `.env`, never `vercel env pull`**: Vercel
-  returns every sensitive variable as the text `[SENSITIVE]`, which once
-  shipped as the database URL and keys. To change one value, rewrite the whole JSON
-  (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
-  workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
+- **The API's runtime values are the `API_*` repo secrets** that Infisical's
+  `workit-prod/api` sync writes (key schema `API_{{secretKey}}`,
+  `../docs/secrets.md`, which lists every key). The job collects every
+  `API_*` secret, drops the prefix and any empty value (GitHub passes a
+  missing secret as `""`), and pipes the JSON to `wrangler secret bulk`
+  **before** the deploy: the image rollout restarts the containers with the
+  secrets of that moment, and a secrets-only version restarts none, so set
+  after, the new values reach no container until each sleeps (found
+  2026-10-21). With no `API_*` secret at all the step fails, since the sync
+  then wrote nothing. `secret bulk` never deletes a secret, so a key removed
+  from Infisical keeps its old value on the Worker until someone deletes it
+  in the Cloudflare dashboard. **To change a value, change it in Infisical**
+  and run this workflow; never `gh secret set` an `API_*` secret, which the
+  next sync overwrites, and never put a value in the workflow. `DIRECT_URL`
+  never goes in `/api`: migrations stay a local step. The web job does the
+  same with the `WEB_*` secrets (`workit-prod/web`) and skips when there is
+  none, so `GOOGLE_CLIENT_SECRET`, set on the Worker by hand, stays until
+  `/web` holds it. The old single secret, `CF_API_SECRETS_JSON`, is no longer
+  read; delete it after the first good deploy from the `API_*` secrets.
 - **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
   `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (KAN-442) and
   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` are repo variables, not secrets**: Next
@@ -424,14 +431,14 @@ before, and a shorter PR run not yet taken up are in
 - **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
   `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
   own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
-  `SCOUT_ENDPOINTS` secret, the hosted default chain copied from the root
-  `.env` as one JSON line, is its fallback. The four single `SCOUT_*`
+  `SCOUT_ENDPOINTS` secret, the hosted default chain (in Infisical's
+  `workit-prod/github`, a reference to the API's chain;
+  `../docs/secrets.md`), is its fallback. The four single `SCOUT_*`
   variables are not passed. These are the import's own: the deployed API
-  reads its chains from `CF_API_SECRETS_JSON`. The step unsets an empty
+  reads its chains from its `API_*` secrets. The step unsets an empty
   one, because GitHub passes a missing secret as `""`, which Scout's
-  settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
-  `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
-  for the job alerts.
+  settings refuse as a list. No `SCOUT_ENDPOINTS_SMALL` or `GEMINI_API_KEY`
+  secret is read here, and the repo holds neither (2026-11-20).
 - **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
   computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
   one model every vector comes from (the computer's bank job embeds the
@@ -704,10 +711,10 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
     other branch can't read it; a repo secret reaches every branch's
     workflows. A job that names an environment that doesn't exist makes it
     with no branch rule, so make the environment before the first run.
-  - `CF_API_SECRETS_JSON`: the step takes its `SUPABASE_URL` and
-    `SUPABASE_SERVICE_KEY`, so the build goes to the project the deployed
-    API reads, with no second copy of the service key. It masks the key it
-    takes out: GitHub masks only a secret's whole value.
+  - `API_SUPABASE_URL` and `API_SUPABASE_SERVICE_KEY`, the repo secrets
+    Infisical's `workit-prod/api` sync writes (`../docs/secrets.md`), so the
+    build goes to the project the deployed API reads, with no second copy of
+    the service key. The environment job reads repo secrets too.
   - `FILL_ENGINE_TOKEN`, for the submodule, as in `publish-extension.yml`.
     Without it the job fails at checkout.
 - **One run at a time** (group `publish-engine`): each run reads

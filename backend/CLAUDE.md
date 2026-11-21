@@ -657,7 +657,7 @@ Find files with a directory listing; these are the rules for where code goes.
   fills none of them, with no Store release. The list lives in the database,
   not in config: the backend's small settings are env vars
   (`app/config.py`), but changing one needs a redeploy
-  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  (Infisical's `workit-prod/api`), and an admin must flip this in minutes. The queue
   reads the same list: the matches (`JobFilters.disabled_job_systems`, by
   `FORM_URL`, so a job board's posting naming a Workday form counts as
   Workday's) and `queue_applications` leave those postings out, and an Auto
@@ -1874,7 +1874,9 @@ go then. A change needs to work on Cloudflare only.
   container stays short; a hint places an object only when it is first
   made, so changing it needs new names (now `enam-N`).
 - **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
-  `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
+  `CLOUDFLARE_API_TOKEN`, from the `API_*` repo secrets that Infisical's
+  `workit-prod/api` sync writes; `../docs/secrets.md` lists every key),
+  never `wrangler.jsonc`, which is committed. The
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
@@ -1882,7 +1884,7 @@ go then. A change needs to work on Cloudflare only.
   so production's OAuth issuer and MCP address read `http://localhost:8000`
   and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
   value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
-  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  forwarded the same way; never also put its name in `workit-prod/api`,
   since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
@@ -1915,7 +1917,7 @@ go then. A change needs to work on Cloudflare only.
   business holding that connection. **The deployed API makes no
   embeddings** (KAN-726): its provider is the default `none`, and it reads
   the vectors the team computer stores (`app/services/matching/CLAUDE.md`).
-  `CF_API_SECRETS_JSON` must not set `EMBEDDING_PROVIDER`: the Worker
+  `workit-prod/api` must not hold `EMBEDDING_PROVIDER`: the Worker
   forwards it when set, and `gemini` there would write Gemini vectors beside
   the Qwen3 ones.
 - **The bank job does not deploy on merge** (KAN-726). It runs all the
