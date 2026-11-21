@@ -279,6 +279,11 @@ with the failure it prevents.
   Info and Written Answers keep their addresses and never go back to
   Profile (KAN-550). Read it before changing the seeker sidebar, the
   Jobs page's layout or any `/auto-apply` address.
+- `docs/secrets.md` — KAN-899, being set up: every shared secret lives in
+  Infisical (`workit-dev` for everyone, `workit-prod` and `workit-logins`
+  for Admins), and GitHub and Cloudflare hold copies a sync or a workflow
+  writes; how to pull a `.env`, change a value and load the first values.
+  Read it before adding, changing or sharing any secret.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
