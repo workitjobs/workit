@@ -1,4 +1,5 @@
-import { CheckIcon, CursorIcon } from "@phosphor-icons/react/ssr";
+import { ArrowDownIcon, CheckIcon, CursorIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 import { MatchGlyph } from "@/components/match-badge";
@@ -44,8 +45,10 @@ import { StudioBox, studioGround } from "./layout-parts";
  *
  * Each scene is drawn at 252 × 201px with every size in em, and the box
  * sets the em from its own width (`.pipe-stage`), so a scene is the same
- * picture in a 165px box on a phone. Decoration: the names are text, the
- * scenes are hidden from screen readers.
+ * picture at any width. On a phone the cells are one row that swipes
+ * sideways, so a box is about 268px wide and its words can be read. Each
+ * cell is a link to its product's section; its name is the link's text
+ * and the scene is hidden from screen readers.
  */
 const STAGES: { slug: FeatureSlug; scene: ReactNode }[] = [
   { slug: "resumes", scene: <ResumeScene /> },
@@ -57,32 +60,48 @@ const STAGES: { slug: FeatureSlug; scene: ReactNode }[] = [
 export function HeroPipeline({ className }: { className?: string }) {
   return (
     <HoldOffscreen className={cn("pipe relative lg:-mx-6", className)}>
-      <ul className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-0">
+      {/* Below sm the cells are one row that swipes sideways, a cell at
+          78% of the row so the next one shows at the edge: two by two on a
+          phone, each box was 165px wide and the words in its scene 6 to
+          8px tall. The row runs to the screen's edges (`-mx-4`). From sm
+          it is the grid: two by two, then four across from lg. */}
+      <ul className="relative -mx-4 flex snap-x snap-mandatory scroll-pl-4 [scrollbar-width:none] gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4 lg:gap-0 [&::-webkit-scrollbar]:hidden">
         {STAGES.map(({ slug, scene }, i) => {
           const feature = FEATURES[slug];
           return (
             <li
               key={slug}
-              className="relative lg:px-4 lg:pt-4"
+              className="relative w-[78%] shrink-0 snap-start sm:w-auto lg:px-4 lg:pt-4"
               style={{ "--i": i } as CSSProperties}
             >
-              <span
-                aria-hidden="true"
-                className="pipe-anim pipe-fill absolute inset-x-0 top-0 hidden h-0.5 origin-left lg:block"
-                style={{ background: feature.glow }}
-              />
-              <p className="text-ink flex items-center gap-2 text-sm font-medium">
-                <FeatureIcon feature={feature} />
-                {feature.name}
-              </p>
-              <StudioBox
-                ground={studioGround({ glow: feature.glow })}
-                className="pipe-scene mt-3 aspect-[5/4]"
-              >
-                <div aria-hidden="true" className="pipe-stage">
-                  {scene}
-                </div>
-              </StudioBox>
+              {/* The whole cell is a link to its product's section further
+                  down the page (the sections' ids are the slugs, as
+                  `FeatureJumps` links them): a visitor who sees a product
+                  here tries to click it. Its name is the link's text; the
+                  scene is decoration. */}
+              <Link href={`/#${slug}`} className="group block rounded-2xl">
+                <span
+                  aria-hidden="true"
+                  className="pipe-anim pipe-fill absolute inset-x-0 top-0 hidden h-0.5 origin-left lg:block"
+                  style={{ background: feature.glow }}
+                />
+                <p className="text-ink flex items-center gap-2 text-sm font-medium">
+                  <FeatureIcon feature={feature} />
+                  {feature.name}
+                  <ArrowDownIcon
+                    aria-hidden="true"
+                    className="text-ink-meta ml-auto size-4 transition-transform duration-200 group-hover:translate-y-0.5"
+                  />
+                </p>
+                <StudioBox
+                  ground={studioGround({ glow: feature.glow })}
+                  className="pipe-scene mt-3 aspect-[5/4]"
+                >
+                  <div aria-hidden="true" className="pipe-stage">
+                    {scene}
+                  </div>
+                </StudioBox>
+              </Link>
             </li>
           );
         })}

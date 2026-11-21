@@ -190,6 +190,11 @@ hero reads as the page's contents.
   from the header's foot line, which the header draws), and the
   cells' rule and dividers are the same hairline with the same ink
   squares at each crossing.
+- **Each cell is a link** to its product's section, and on a phone the
+  cells are one row that swipes sideways, so a scene's words stay
+  readable.
+- **A signed-in student** sees one Open WorkIt in place of the sign-up
+  pair, as in the header.
 - **Scenes are in em**: drawn at 252 × 201px, scaled by the box's own
   width, so a phone's 165px box holds the same picture. Below lg the
   cells are two by two and the lines are off.

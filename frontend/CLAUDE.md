@@ -388,13 +388,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     (`.pipe-stage`), so a 165px box on a phone holds the same picture; a
     px size in a scene breaks that. From lg up the cells run rail to rail
     (`lg:-mx-6`) with the grid's own rule, dividers and ink squares
-    (`.pipe-lines`); below lg they are two by two with no lines. The
+    (`.pipe-lines`); from sm to lg they are two by two with no lines, and
+    **below sm they are one row that swipes sideways**, a cell at 78% of
+    the row so the next shows at the edge (two by two on a phone, a box
+    was 165px wide and its scene's words 6 to 8px tall; now 268px and 9.5
+    to 12.6px). **Each cell is a link to its product's section**
+    (`/#resumes` and so on, as `FeatureJumps` links them): a visitor who
+    sees a product in the hero tries to click it. **A signed-in student
+    sees one Open WorkIt in place of the sign-up pair** (`SessionSwap`,
+    as the header: the hero offered "Sign up" under a header that said
+    Open WorkIt). The
     section fills the screen's height under the header (58rem at most),
     with no padding above: the frame hangs from the header's foot line,
     the headline is centred in the room above the pipeline, and the logo
     strip starts below the first screen. Checked at 1440 × 900 (the
-    frame's foot at 884px), 1024 × 768 (752px) and 375 × 812, with no
-    sideways scroll. **The page's entrance draws the grid, and nothing in it
+    frame's foot at 884px), 1024 × 768 (752px) and 375 × 812 (the swipe row ends at 772px), signed in and
+    signed out, with no sideways scroll of the page. **The page's entrance draws the grid, and nothing in it
     fades** (2026-11-21, the user's asks: only the hero's words came in on
     load; then the first version's fades read as AI-made). The header
     drops down from above the window as one bar (a plain move, the user's

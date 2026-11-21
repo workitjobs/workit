@@ -6,7 +6,7 @@ import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { SecondaryButton } from "./buttons";
+import { PrimaryButton, SecondaryButton } from "./buttons";
 import { Control } from "./control";
 import { featuresIntro, hero, homeDescription, site, testimonial } from "./data";
 import { DraftLines } from "./draft-lines";
@@ -17,6 +17,7 @@ import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TYPE } from "./layout-pa
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
 import { FeatureJumps, ProductSections } from "./product-sections";
+import { SessionSwap } from "./session-swap";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
 import { WhatIs } from "./what-is";
@@ -94,25 +95,46 @@ export default function LandingPage() {
               >
                 {hero.subtitle}
               </p>
-              {/* The sign-up pair, then Download for Mac (KAN-922) as a
-                  `SecondaryButton`, the same soft grey as the pair, only
-                  while there is a build. The row wraps, so the third button
-                  needs no other change. */}
+              {/* The sign-up pair for a visitor, or one Open WorkIt for a
+                  signed-in student, as the header does (`SessionSwap`:
+                  both are drawn, and landing.css shows one by <html
+                  data-signed-in>, so the page stays prerendered). The hero
+                  offered "Sign up" to a student the header already greeted
+                  with Open WorkIt (2026-11-21). Then Download for Mac
+                  (KAN-922) as a `SecondaryButton`, only while there is a
+                  build. The row wraps, so a third button needs no other
+                  change. */}
               <div
                 className="hero-reveal mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
                 style={{ "--rd": ".4s" } as CSSProperties}
               >
-                <SocialSignUpButton provider="google" />
-                <SocialSignUpButton provider="linkedin_oidc" />
+                <SessionSwap
+                  signedOut={
+                    <>
+                      <SocialSignUpButton provider="google" />
+                      <SocialSignUpButton provider="linkedin_oidc" />
+                    </>
+                  }
+                  signedIn={
+                    <PrimaryButton href="/go-home" prefetch={false} size="lg">
+                      Open WorkIt
+                    </PrimaryButton>
+                  }
+                />
                 {DESKTOP_DOWNLOAD_URL && (
                   <SecondaryButton href={site.download.href}>
                     <DownloadSimpleIcon aria-hidden className="size-5" />
                     Download for Mac
                   </SecondaryButton>
                 )}
-                <div className="w-full text-center sm:basis-full">
-                  <EmailSignUpLink />
-                </div>
+                <SessionSwap
+                  signedOut={
+                    <div className="w-full text-center sm:basis-full">
+                      <EmailSignUpLink />
+                    </div>
+                  }
+                  signedIn={null}
+                />
               </div>
             </div>
             <HeroPipeline />
