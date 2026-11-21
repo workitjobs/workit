@@ -38,6 +38,21 @@ const LOCKUP_WIDTH = MARK_WIDTH + GAP + WORD_WIDTH;
 const WORD =
   "M18 77.7 1 27.7H14.4L24.8 59.9L35.3 27.7H48.3L58.6 59.4L69.1 27.7H82.5L65.5 77.7H52.5L41.8 43.9L31 77.7H18ZM109.6 78.9Q102 78.9 96 75.5Q90.1 72.2 86.8 66.3Q83.4 60.4 83.4 52.7Q83.4 45 86.7 39.1Q90 33.2 95.9 29.9Q101.8 26.5 109.4 26.5Q117.1 26.5 123 29.9Q128.9 33.2 132.2 39.1Q135.5 45 135.5 52.7Q135.5 60.4 132.2 66.3Q128.9 72.2 123.1 75.5Q117.2 78.9 109.6 78.9ZM109.6 66.7Q113.3 66.7 116.1 64.9Q118.9 63.1 120.4 60Q122 56.8 122 52.7Q122 48.6 120.4 45.4Q118.8 42.3 116 40.5Q113.1 38.7 109.4 38.7Q105.8 38.7 102.9 40.5Q100.1 42.3 98.5 45.4Q96.9 48.6 96.9 52.7Q96.9 56.8 98.5 60Q100.1 63.1 103 64.9Q105.9 66.7 109.6 66.7ZM142.7 77.7V27.7H155.9V36.9Q159 32.2 163.7 29.8Q168.5 27.5 173.6 27.5V40.3Q169 40.3 165 41.4Q160.9 42.5 158.4 45Q155.9 47.5 155.9 51.4V77.7H142.7ZM179.1 77.7V7.7H192.3V46.3L209.4 27.7H225.1L206.2 48.8L226.6 77.7H211.1L197.8 58.3L192.3 64.3V77.7H179.1ZM232.2 77.7V27.7H245.4V77.7H232.2ZM238.8 19.6Q235.8 19.6 233.5 17.3Q231.2 15.1 231.2 12Q231.2 8.9 233.5 6.7Q235.8 4.4 238.8 4.4Q241.9 4.4 244.2 6.7Q246.4 8.9 246.4 12Q246.4 15.1 244.2 17.3Q241.9 19.6 238.8 19.6ZM276.7 78.9Q268.4 78.9 264.1 74.8Q259.9 70.7 259.9 63.1V38.9H251.8V27.7H259.9V12.1H273.1V27.7H285.6V38.9H273.1V60.2Q273.1 63.4 274.5 65.1Q275.9 66.7 278.6 66.7Q279.6 66.7 280.8 66.2Q282 65.8 283.3 64.9L287.9 74.8Q285.5 76.6 282.5 77.8Q279.6 78.9 276.7 78.9Z";
 
+/** The figure: a w with its arms up and a head above it, in currentColor. */
+const FIGURE = (
+  <>
+    <path
+      d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={15.88}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx={59.24} cy={13.44} r={13.44} fill="currentColor" />
+  </>
+);
+
 const SIZES = {
   /** Company bar's corner cell: the lockup, the figure in violet. 26px tall
    *  renders ~124px wide, the word's letters 20px tall. */
@@ -73,19 +88,7 @@ export function Logo({ size = "bar", decorative = false, className }: LogoProps)
       aria-hidden={decorative || undefined}
       className={cn("block w-auto shrink-0", classes, className)}
     >
-      {part !== "word" && (
-        <g className={figure}>
-          <path
-            d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={15.88}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx={59.24} cy={13.44} r={13.44} fill="currentColor" />
-        </g>
-      )}
+      {part !== "word" && <g className={figure}>{FIGURE}</g>}
       {part !== "mark" && (
         <path
           d={WORD}
@@ -94,6 +97,23 @@ export function Logo({ size = "bar", decorative = false, className }: LogoProps)
           transform={part === "lockup" ? `translate(${MARK_WIDTH + GAP} 0)` : undefined}
         />
       )}
+    </svg>
+  );
+}
+
+/**
+ * The figure alone, in the colour of the text round it: for a ground that
+ * sets its own colour, as the marketing pages' violet icon tile does with
+ * a white figure. Decorative; give its size with a width class.
+ */
+export function LogoFigure({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox={`0 0 ${MARK_WIDTH} ${HEIGHT}`}
+      aria-hidden="true"
+      className={cn("block shrink-0", className)}
+    >
+      {FIGURE}
     </svg>
   );
 }

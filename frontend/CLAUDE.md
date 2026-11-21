@@ -348,7 +348,48 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `StudioBox`, never a full-width panel of its own. Nothing on the home
     page pins: the product sections did, until 2026-11-20 (below), and so
     did the tools collapse for a day (below).
-  - **The hero is the first screen and nothing else** (the user's call,
+  - **The hero since the makeover** (direction E, the user's pick,
+    2026-11-20; `docs/home-page-makeover-brief.md`): a grey panel
+    (`--mk-mist`) at least the screen's height under the header, the
+    headline, its line and the sign-up pair on the left from lg up, and
+    on the right **the mosaic** (`hero-mosaic.tsx`): the four parts of a
+    search as flat colour tiles on one 4 × 4 grid round WorkIt's violet
+    icon tile, each product's tile holding a real piece of it, flat and
+    straight (a resume with a reworded line, the followed application's
+    match with its band, tracker rows, a form with Submit and the pen
+    note "you click"). Below lg the words are centred over the mosaic.
+    **The tile system is `tiles.tsx` and `.mosaic` in landing.css**: one
+    corner, one gap, two layers (a flat colour, then ink or white), so a
+    tile takes no shadow, gradient or border and nothing on one rests
+    tilted. The user picked it over tilted paper with shadows, which read
+    as a collage where this reads as a system. **Every size inside a tile
+    is in em**: `.mosaic-box` is a size container and `.mosaic` sets its
+    em from the box's width (16px at 492px), so the picture scales as one
+    piece (319px wide on a 375px phone, 520px on a laptop); a px size in
+    a tile breaks that. One field per product (`FIELDS`: sky, lilac,
+    mint, rose, each with a pale step for a plain tile). On load each
+    tile starts a little apart and askew and snaps to the grid in turn,
+    the icon tile pops in last, the reworded line draws and the pen note
+    fades in: CSS on the server's HTML, opacity and transform only, still
+    with reduced motion; every tile shows from the first paint. The
+    mosaic's side is `min(32.5rem, 100svh - 15rem, 40vw)` from lg up, and
+    the headline `clamp(3rem, 7.6svh, 4.5rem)`, so both fit one screen at
+    1024 × 768 (checked there, at 1512 × 827 and at 375 × 812, with no
+    sideways scroll). **The sign-up pair takes `onGrey` on the mist
+    panel**: Google's #F2F2F2 vanished on #f0f0f0, so there it is slate
+    at 6%, `SecondaryButton`'s grey. **The pen face is Nanum Pen Script**
+    (`penScript` in app/fonts.ts, `.pen`): a few side notes beside a
+    picture, never a heading, a button or a claim. The picture is
+    decoration, hidden from screen readers. **The Browser pane holds CSS
+    animations at their first frame**, so there the hero shows scattered
+    tiles and no words: call `document.getAnimations().forEach((a) =>
+    a.finish())` before a screenshot, or look in Chrome. Still open: the
+    mosaic's tiles are the part of the page closest to Loopsii's hero
+    (the user knows), and the grid of lit postings below has no home yet.
+  - **The hero before the makeover** (`hero-board.tsx`, unmounted since
+    2026-11-20 and bound for the Job Matching page, since it told that
+    product's story alone; its CSS stays): **the first screen and nothing
+    else** (the user's call,
     2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
     the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
     header and the 8/24px inset; a minimum, so a screen too short for the

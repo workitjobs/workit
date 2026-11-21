@@ -160,13 +160,49 @@ outline.
 
 Google's own neutral theme: #F2F2F2 fill, no stroke, #1F1F1F Google Sans
 Medium, the full-colour G. LinkedIn takes the same treatment, its tile
-with a white "in". Always followed by "Or sign up with email". It is the
+with a white "in". Always followed by "Or sign up with email". On a grey panel (the home
+hero's mist) the pair takes `onGrey`, slate at 6%, since #F2F2F2
+vanishes on #f0f0f0. It is the
 guidelines' only theme with no border: the light theme (white with a
 #747775 stroke) read as a bordered button, and the dark theme was too
 heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 (KAN-922) sits in the same row as a `SecondaryButton`.
 
-### The home hero's grid (`hero-board.tsx`)
+### The tile system (`tiles.tsx`, `.mosaic` in landing.css)
+
+The makeover's building block (direction E, 2026-11-20). A picture is
+flat colour tiles on one grid.
+
+- **One corner and one gap**: 14px and 12px at the picture's design
+  size. Tiles are 1 × 1, 2 × 1 or 2 × 2 cells.
+- **Two layers**: a flat colour, then ink or white on it. No shadow,
+  gradient or border on a tile, and nothing on one rests tilted.
+- **One field per product**, full for its own tile and pale for a plain
+  one: sky (Resume Builder), lilac (Job Matching), mint (Auto Apply),
+  rose (Application Tracker); `--mk-sky` and the rest in landing.css.
+  Ink holds over 9:1 on each. Violet is the icon tile's alone.
+- **The product is in the tile**: a resume as flat paper with the
+  reworded line in the Resume Builder's blue, a match as its band and
+  number, a form as white fields with ink check dots and an ink Submit,
+  tracker rows with the current stage in ink.
+- **Ink marks**: each product's feature mark as one bold ink shape
+  (`ResumeInk`, `RingInk`, `FormInk`, `TableInk`), its cut-outs in the
+  tile's colour.
+- **Sizes in em**: the grid sets its em from its box's width, so a
+  picture scales as one piece. Never a px size inside a tile.
+- **The pen face** (Nanum Pen Script, `.pen`) writes a side note beside
+  a picture ("you click", "one app for all of it"). Never a heading, a
+  button or a claim, and no more than two on a screen.
+
+The home hero's mosaic (`hero-mosaic.tsx`) is the first picture built
+from it: the four products' tiles round the violet icon tile, snapping
+to the grid on load.
+
+### The old home hero's grid (`hero-board.tsx`, unmounted)
+
+Off the home page since the makeover (2026-11-20): it told Job
+Matching's story alone and goes to that product's page.
+
 
 The first screen and nothing else: a grainy violet panel the screen's
 height, filled edge to edge by frosted glass tiles. The headline sits in

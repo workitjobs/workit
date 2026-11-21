@@ -100,9 +100,56 @@ Next.js 16, Tailwind v4, `motion` on the marketing route only. Checked at
 a pinned scene becomes a still or a short timed scene. One KAN ticket
 per pull request; no push without the user's yes.
 
+## The direction: E, Grid (the user's pick, 2026-11-20)
+
+The user saw five live directions. A (Blocks: a grid of flat colour
+tiles with ink shapes), B (Thread: one violet line with the logo's dot),
+C (Desk: tilted cut paper, a marker, Bricolage Grotesque) and D (a blend
+of the three) came first. The user picked C, then asked for a blend,
+then said A was still designed better. The reason, agreed: A is a
+system (one grid, one corner, two layers) and C and D are collages, and
+a system is what reads as made by a team. E is A as the base, with the
+product put into its tiles and D's turn as the one big moment.
+
+- **One grid.** Tiles of one corner (14px) and one gap (12px), at sizes
+  of 1 × 1, 2 × 1 and 2 × 2 cells. Nothing rests tilted or overlapping.
+- **Two layers.** A flat colour, then ink or white on it. No shadow on
+  a tile and no gradient.
+- **Four fields, one per product**: sky (Resume Builder), lilac (Job
+  Matching), mint (Auto Apply), rose (Application Tracker), each with a
+  pale step for a plain tile. The ground is the grey mist or white.
+  Violet is for the app icon tile, the line and the main button.
+- **The product is in the tiles**, flat and straight: a resume sheet
+  with a reworded line, a match with its band and number, a form with
+  Submit, tracker rows.
+- **Ink marks.** Each product has one bold ink shape, drawn from its
+  feature mark (a sheet, the match ring, form bars, a table).
+- **Type.** Plus Jakarta Sans stays. A pen face (Nanum Pen Script)
+  writes a few side notes, never a heading or a claim.
+- **The line** shows in the turn only: a grey tangle through the
+  problems that the logo's dot pulls straight, in violet.
+- **Colour comes with WorkIt.** The problems are grey tiles; they take
+  their colours as they snap into the app.
+
+Turned down with C and D: Bricolage Grotesque, marker yellow, tilted
+paper with shadows, and a rail beside the product cards.
+
+## Storyboard
+
+| Section | Ground | What it shows | What moves |
+| --- | --- | --- | --- |
+| Hero | Mist panel | The headline on the left; on the right a mosaic of tiles with the four products' pieces round the violet icon tile | Tiles snap to the grid on load, the icon tile last |
+| Logo strip | White | Real employers | The slow drift, as today |
+| What is WorkIt | White | The icon tile beside the large line | Words read in |
+| The problems | Dim grey | Six grey problem tiles and the 81% figure, on a tangled grey line | Tiles arrive; nothing loops |
+| The turn | Grey to white | "That's why WorkIt exists" over the app, built from the same tiles | The page's one big moment: the dot pulls the line straight, the tiles snap into the app and take colour |
+| One app for every step | White | Four product tiles with ink marks | Tiles pop in order |
+| The four products | White | Four large cards, half words and half a product piece on its field | Cards stack as the page scrolls |
+| You stay in control | White | Two tiles: Nothing invented, Your words win | Each plays once |
+| Hiring systems | Mist | A tile grid of the systems' logos | None |
+
 ## Open questions
 
-- Which of the directions shown to the user sets the colour, the shape
-  set and the hand-written face.
-- The object that carries through the story (the app icon, or the four
-  parts of the search).
+- The tile grid of lit postings: where it goes on the Job Matching page.
+- What is WorkIt's 3D glass icon (the user's ask, 2026-11-20) against a
+  flat icon tile: ask before changing it.
