@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
-import { useRef, useSyncExternalStore, type CSSProperties } from "react";
+import { Fragment, useRef, useSyncExternalStore, type CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -30,12 +30,16 @@ import { CONTAINER, TYPE } from "./layout-parts";
  * the main thread; no blur, which would stay half on wherever the reader
  * stopped. From lg up and without reduced motion only.
  *
- * The answer reads in word by word as it arrives, in time, not scrubbed
- * by the scroll (`useArrived`; `.word-reveal` in landing.css): each word
- * comes up from a faint grey a little after the one before, the large
- * line and then the smaller one, and the icon rises in with them. The server's
- * HTML has no `data-arrived`, so without script, and with reduced motion,
- * the words show at once.
+ * **Its entrance, in the hero's vocabulary, with no fades** (2026-11-21,
+ * the user's ask for a proper transition here): as the section arrives its
+ * frame draws itself (`DraftLines`), the app icon pops in as the grid's
+ * ink squares do, its name rises from behind its own foot, and the answer
+ * rises word by word the same way, the large line and then the smaller
+ * one (`.what-is-mark`, `.word-rise` in landing.css). In time, not
+ * scrubbed by the scroll (`useArrived`). A clip and a translate, never
+ * opacity: the words came up from a faint grey before, a fade. The
+ * server's HTML has no `data-arrived`, so without script, and with reduced
+ * motion, everything shows at once.
  */
 export function WhatIs() {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -95,22 +99,24 @@ export function WhatIs() {
               <p
                 ref={ref}
                 data-arrived={mounted ? String(arrived) : undefined}
-                className="word-reveal font-display text-ink text-[2rem] leading-[1.1] font-medium tracking-[-0.025em] text-balance sm:text-[2.5rem] lg:text-[3rem]"
+                className="word-rise font-display text-ink text-[2rem] leading-[1.1] font-medium tracking-[-0.025em] text-balance sm:text-[2.5rem] lg:text-[3rem]"
               >
                 {words.map((word, i) => (
-                  <span key={i} style={{ "--w": i } as CSSProperties}>
-                    {word}{" "}
-                  </span>
+                  <Fragment key={i}>
+                    <span style={{ "--w": i } as CSSProperties}>{word}</span>{" "}
+                  </Fragment>
                 ))}
               </p>
               <p
                 data-arrived={mounted ? String(arrived) : undefined}
-                className={cn(TYPE.lead, "word-reveal text-ink-meta mt-6 max-w-2xl text-pretty")}
+                className={cn(TYPE.lead, "word-rise text-ink-meta mt-6 max-w-2xl text-pretty")}
               >
                 {detail.map((word, i) => (
-                  <span key={i} style={{ "--w": words.length + 2 + i } as CSSProperties}>
-                    {word}{" "}
-                  </span>
+                  <Fragment key={i}>
+                    <span style={{ "--w": words.length + 2 + i } as CSSProperties}>
+                      {word}
+                    </span>{" "}
+                  </Fragment>
                 ))}
               </p>
             </div>

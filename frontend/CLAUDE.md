@@ -1812,6 +1812,24 @@ selling line that says what the product does** and "See how", a
   **Still open:** the hiring-systems section, the Job Matching rows and
   the FAQ still say "company job boards"; the user has not said whether
   they change too.
+- **Sections arrive in the hero's vocabulary: drawn lines and pieces that
+  come out from behind an edge, never a fade** (2026-11-21, the user's
+  ask for transitions between the sections). **Every drafting frame draws
+  itself as it arrives** (`DraftLines`, now a client component for one
+  observer: `.draft[data-arrived]` in landing.css): the top line grows
+  from the centre, the side lines draw down, the foot line grows, and
+  each corner's ink square pops as its lines reach it; so every framed
+  section has a transition with no code of its own. **What is WorkIt**
+  then brings its content in the same way: the app icon pops as the ink
+  squares do, its name rises from behind its own foot, and the answer
+  rises word by word (`.word-rise`: each word its own box, a clip and a
+  translate; it came up from a faint grey before, a fade). In time, once
+  the section is well on screen (`useArrived`), never scrubbed; no
+  `data-arrived` in the server's HTML, so nothing is hidden without
+  script; nothing moves with reduced motion. **Still open:** the other
+  sections' headings still come in through `FocusIn`, a blur and a fade,
+  which is the look the user called AI-made in the hero; they have not
+  been moved to this vocabulary yet.
 - **No feature wears violet** (the user's call, 2026-11-21). The four
   feature colours are the usual pastel four: blue (Resume Builder), peach
   (Job Matching, `--color-matching` with its `-tint` and `-ink` in

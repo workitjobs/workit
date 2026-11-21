@@ -1756,6 +1756,30 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 /* What is WorkIt's statement (what-is.tsx): each word comes up from a
    faint grey a little after the one before, once the line arrives. */
+/* Words that rise one after another from behind their own foot, as the
+   hero's headline does (what-is.tsx): each word is its own box, hidden by
+   a clip and shifted down by its height, so its foot stands still while
+   it comes up. `--w` is the word's place. A clip and a translate, never
+   opacity. The resting clip is open past the box, so no letter is cut. */
+.word-rise > span {
+  display: inline-block;
+  clip-path: inset(-0.2em -0.2em -0.3em -0.2em);
+  transition:
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--w) * 30ms + 0.3s),
+    clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--w) * 30ms + 0.3s);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .word-rise[data-arrived="false"] > span {
+    transform: translateY(100%);
+    clip-path: inset(-0.2em -0.2em 100% -0.2em);
+    transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-rise > span {
+    transition: none;
+  }
+}
 .word-reveal > span {
   transition: opacity 0.5s ease calc(var(--w) * 28ms);
 }
@@ -1874,15 +1898,25 @@ html[data-tab-flight="flying"] .tour-tabs {
   .app-icon-shadow {
     animation: app-icon-shadow 6s ease-in-out infinite;
   }
-  /* It rises in with the words (`data-arrived` on its column). */
+  /* It pops in as the grid's ink squares do, from nothing with a small
+     overshoot, and its name rises from behind its own foot (`data-arrived`
+     on their column). No opacity: it rose in on a fade before. */
   .what-is-mark .app-icon-3d {
-    transition:
-      opacity 0.5s ease,
-      transform 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+    transition: transform 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s;
   }
   .what-is-mark[data-arrived="false"] .app-icon-3d {
-    opacity: 0;
-    transform: translateY(14px) scale(0.88);
+    transform: scale(0);
+    transition: none;
+  }
+  .what-is-mark h2 {
+    clip-path: inset(0 0 -0.3em 0);
+    transition:
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.4s,
+      clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.4s;
+  }
+  .what-is-mark[data-arrived="false"] h2 {
+    transform: translateY(100%);
+    clip-path: inset(0 0 100% 0);
     transition: none;
   }
 }
@@ -1941,6 +1975,42 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 .draft-first {
   --gap-top: 0px;
+}
+/* A frame draws itself as it arrives (draft-lines.tsx): the top line grows
+   from the centre, the side lines draw down from it, the foot line grows,
+   and each corner's ink square pops as its lines reach it. Held undrawn,
+   with no transition, while `data-arrived` is "false"; the attribute is
+   absent in the server's HTML and on the page's first frame, which the
+   page's own entrance draws. Scale only. */
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .draft[data-arrived] > .draft-h {
+    transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .draft[data-arrived] > .draft-h.bottom-0 {
+    transition-delay: 0.5s;
+  }
+  .draft[data-arrived] > .draft-v {
+    transform-origin: top;
+    transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1) 0.15s;
+  }
+  .draft[data-arrived] > i {
+    transition: transform 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.2s;
+  }
+  .draft[data-arrived] > i.top-full {
+    transition-delay: 0.8s;
+  }
+  .draft[data-arrived="false"] > .draft-h {
+    transform: scaleX(0);
+    transition: none;
+  }
+  .draft[data-arrived="false"] > .draft-v {
+    transform: scaleY(0);
+    transition: none;
+  }
+  .draft[data-arrived="false"] > i {
+    transform: translate(-50%, -50%) scale(0);
+    transition: none;
+  }
 }
 .draft-h,
 .draft-v {

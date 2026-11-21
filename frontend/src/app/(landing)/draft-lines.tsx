@@ -1,4 +1,8 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useRef, useSyncExternalStore, type CSSProperties } from "react";
+
+import { useArrived } from "./hooks";
 
 /**
  * The drafting grid's frame (KAN-923, after Loopsii's, the user's call to
@@ -12,8 +16,19 @@ import type { CSSProperties } from "react";
  * container's width, and keeps clear of the lines. From lg up (`.draft`
  * in landing.css): below it the lines ran along the window's edge.
  *
- * Plain markup with no hooks, so a server or a client component can draw
- * it. Decoration, hidden from assistive technology.
+ * **It draws itself as it arrives** (2026-11-21, the user's ask for
+ * transitions between the sections, in the hero's own vocabulary): the top
+ * line grows from the centre, the side lines draw down, the foot line
+ * grows, and an ink square pops at each corner as its lines reach it
+ * (`.draft[data-arrived]` in landing.css). In time, once the frame is well
+ * on screen, never scrubbed by the scroll (`useArrived`), and again only
+ * after the reader has scrolled back above it. No `data-arrived` in the
+ * server's HTML, so without script, and with reduced motion, the frame is
+ * simply there. The page's first frame takes no part: the page's own
+ * entrance draws it (the `load-*` rules).
+ *
+ * A client component for that one observer; a server or a client component
+ * can draw it. Decoration, hidden from assistive technology.
  */
 export function DraftLines({
   gap = "1.25rem",
@@ -29,10 +44,21 @@ export function DraftLines({
    *  are the cells' handles on load (hero-pipeline.tsx). */
   first?: boolean;
 }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  // False on the server and while hydrating, true after (as `Arrive`).
+  const mounted = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
+  const watching = mounted && !first;
+  const arrived = useArrived(ref, watching);
   return (
     <span
+      ref={ref}
       aria-hidden="true"
       className={first ? "draft draft-first" : "draft"}
+      data-arrived={watching ? String(arrived) : undefined}
       style={{ "--gap": gap } as CSSProperties}
     >
       {!first && <span className="draft-h top-0" />}
@@ -50,3 +76,5 @@ export function DraftLines({
     </span>
   );
 }
+
+const noSubscribe = () => () => {};
