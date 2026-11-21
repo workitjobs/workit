@@ -24,7 +24,7 @@
  * stands behind it is the editor (click a line and type) and one-click
  * Tailor. "For every job" carries the tailoring.
  */
-import { FilePlusIcon, FileTextIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
+import { CursorTextIcon, FilePlusIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
 import { SparkleIcon } from "@/components/sparkle-icon";
 
 import { ResumeAnimation } from "../animations";
@@ -59,9 +59,14 @@ const content: FeatureContent = {
       visual: BankVisual,
     },
     {
-      title: "Edit right on the page",
-      icon: FileTextIcon,
-      body: "WorkIt lays out your bank in the Jake’s Resume template. Click any line and type, as in Google Docs, and the page is typeset in LaTeX for you, with no LaTeX to write.",
+      title: "Edit freely. The layout keeps up.",
+      // The text cursor: click anywhere and type (the user's pick,
+      // 2026-11-21). The point covers everything done on the page since
+      // the editor's KAN-920 work: typing, drag handles, Add Experiences,
+      // the Format tab, Fit to One Page and Undo. It named one template and
+      // LaTeX before, and none of the moving or formatting.
+      icon: CursorTextIcon,
+      body: "Type on any line. Drag to reorder. Add from your experience. Restyle the whole page, or fit it to one page in a click. Undo anything.",
       points: ["The page reflows as you type", "Download as PDF, Word or LaTeX"],
       visual: BuildVisual,
     },
