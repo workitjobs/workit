@@ -7,6 +7,10 @@
  * Grad, in every field), the match's bands (lib/match.ts) and the reasons
  * a job card's match rail shows (backend services/matching/highlights.py:
  * up to three, what fits before what to weigh).
+ *
+ * The headline is "Know your fit before you apply" (2026-11-21, the user's
+ * pick from six; it was "The jobs you fit best, at the top"): the score
+ * and its reasons come before the student spends time on a form.
  */
 import {
   BuildingsIcon,
@@ -27,7 +31,7 @@ const content: FeatureContent = {
       "WorkIt scores internship and new-grad job postings against your experience bank and puts the best fits first.",
   },
   hero: {
-    title: "The jobs you fit best, at the top",
+    title: "Know your fit before you apply",
     subtitle:
       "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top of your Jobs page.",
   },
