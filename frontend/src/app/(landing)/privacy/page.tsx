@@ -196,6 +196,15 @@ export default function PrivacyPage() {
           problem is fixed. The app sends no analytics and no automatic crash reports.
         </li>
         <li>
+          <strong>Your Answer bank.</strong> Your answers to short questions that forms ask once,
+          such as how you heard about a company: the ones you write, edit or delete in the
+          app&apos;s Answers tab, and the ones the app&apos;s AI drafts, which are marked for your
+          review. WorkIt keeps them on your account, so the app and the Chrome extension fill later
+          forms from them. It never keeps an essay, a follow-up question or an answer about one
+          company there. The app reads the bank from WorkIt each time it starts and holds it only
+          while it runs.
+        </li>
+        <li>
           <strong>What its AI calls send.</strong> The app writes and checks answers with AI through
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
           (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The

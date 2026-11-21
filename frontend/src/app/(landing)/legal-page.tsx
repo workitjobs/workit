@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /** The date both pages show. Change it with every edit to either page. */
-export const LEGAL_UPDATED = "2026-11-15";
+export const LEGAL_UPDATED = "2026-11-21";
 
 /**
  * The shell of /privacy and /terms: one readable column of text. The
