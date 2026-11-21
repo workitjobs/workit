@@ -10,6 +10,14 @@
  * The profile row is "The basics, from your profile" (2026-11-21): it was
  * "Every field", more than Auto Apply does, since a new written question
  * waits for the student.
+ *
+ * The headline is "Type your details once. Apply in parallel."
+ * (2026-11-21, the user's own words; it was "Applications filled in. You
+ * click Submit."). Two ideas: the details are filled for the student, and
+ * several forms fill at the same time. "Apply" is the student applying;
+ * the user chose it knowing the rule that no line says WorkIt applies or
+ * submits, so the row "You click Submit, every time" must stay under it.
+ * No count of forms on the site (the user's call): "five" read as a limit.
  */
 import {
   CursorClickIcon,
@@ -32,7 +40,7 @@ const content: FeatureContent = {
       "Queue the jobs you want and the WorkIt Chrome extension fills in each application. You check every one and click Submit.",
   },
   hero: {
-    title: "Applications filled in. You click Submit.",
+    title: "Type your details once. Apply in parallel.",
     subtitle:
       "Queue the jobs you want. The WorkIt Chrome extension opens each application on the company’s site and fills it in from your profile, and you check every one before you submit it.",
   },
