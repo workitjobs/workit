@@ -58,27 +58,23 @@ jobs:
         working-directory: backend
         run: uv sync --locked
 
-      # The Supabase project is the one the deployed API reads (CF_API_SECRETS_JSON), so the build goes to the
-      # bucket the API serves from. The script refuses a key whose public half Apply doesn't hold.
+      # The Supabase project is the one the deployed API reads (its API_* secrets, docs/secrets.md), so the build
+      # goes to the bucket the API serves from. The script refuses a key whose public half Apply doesn't hold.
       - name: Sign and publish
         working-directory: backend
         env:
           SIGNING_KEY: ${{ secrets.APPLY_ENGINE_SIGNING_KEY }}
-          API_SECRETS: ${{ secrets.CF_API_SECRETS_JSON }}
+          SUPABASE_URL: ${{ secrets.API_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.API_SUPABASE_SERVICE_KEY }}
         run: |
           if [ -z "$SIGNING_KEY" ]; then
             echo "::error::The APPLY_ENGINE_SIGNING_KEY secret is not set in the apply-engine environment (.github/CLAUDE.md, \"Publish the Fill engine\")."
             exit 1
           fi
-          SUPABASE_URL=$(jq -r '.SUPABASE_URL // empty' <<<"$API_SECRETS")
-          SUPABASE_SERVICE_KEY=$(jq -r '.SUPABASE_SERVICE_KEY // empty' <<<"$API_SECRETS")
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
-            echo "::error::CF_API_SECRETS_JSON has no SUPABASE_URL or SUPABASE_SERVICE_KEY."
+            echo "::error::The API_SUPABASE_URL or API_SUPABASE_SERVICE_KEY secret is not set (docs/secrets.md, workit-prod/api)."
             exit 1
           fi
-          # GitHub masks a secret's whole value, not a value taken out of it.
-          echo "::add-mask::$SUPABASE_SERVICE_KEY"
-          export SUPABASE_URL SUPABASE_SERVICE_KEY
           KEY_FILE="$RUNNER_TEMP/engine-signing-key.pem"
           trap 'rm -f "$KEY_FILE"' EXIT
           (umask 077 && printf '%s\n' "$SIGNING_KEY" > "$KEY_FILE")
