@@ -269,6 +269,14 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
   No options, source, company, date, use count or facts.
 - **Test Person's bank** (sample data) is memory only, with no WorkIt,
   and keeps no drafts (`AnswerBank(drafts=False)`).
+- **The Answers tab edits only a bank that has come from WorkIt**: before,
+  an edit answers 503 with why, since the bank landing after it would drop
+  it. Its labels say what the model's drafts are: "Needs review" and
+  "Drafted for you", beside "Written by you", and its Reviewed takes the
+  flag off.
+- **Masking.** No file holds the bank's answers, so the bank gives each one
+  to `masked.KNOWN` as it reads or writes it; `apply trace` reads the bank
+  first, and a report's Trace takes the window's (`Known.take`).
 - **Not built yet** (W11 step 4): the sender that writes each change to
   WorkIt (today a change stays in memory), the version checks, and the
   one-time upload of an `answer-bank.yaml` from before.

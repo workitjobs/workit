@@ -75,6 +75,7 @@ class AnswersTab:
 
     def save(self, question: str, answer: str | list[str]) -> None:
         """Lisul's answer to a question in the bank: his from now on, reviewed."""
+        self._bank_ready()
         question, answer = _question(question), _answer(answer)
         if not self._has(question):
             raise Refused("That question is no longer in the Answer bank.", 404)
@@ -82,17 +83,20 @@ class AnswersTab:
 
     def add(self, question: str, answer: str | list[str]) -> None:
         """A question Lisul adds to the bank himself, with his answer."""
+        self._bank_ready()
         question, answer = _question(question), _answer(answer)
         if self._has(question):
             raise Refused("That question is already in the Answer bank: edit it there.", 409)
         self._bank.answer(question, answer)
 
     def review(self, question: str) -> None:
+        self._bank_ready()
         if not self._bank.review(_question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
     def delete(self, question: str) -> None:
-        """Take a question out of the bank: Claude drafts it again the next time a form asks."""
+        """Take a question out of the bank: it is drafted again the next time a form asks."""
+        self._bank_ready()
         if not self._bank.delete(_question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
@@ -161,6 +165,11 @@ class AnswersTab:
                     offers.append({"type": type, "company": row.company, "question": essay.question.label,
                                    "answer": essay.text})
         return offers
+
+    def _bank_ready(self) -> None:
+        """An edit waits for the bank to come from WorkIt (W11): one made before would be lost when it lands."""
+        if not self._bank.ready:
+            raise Refused(self._bank.problem or "Your answers are still coming from WorkIt: try again in a moment.", 503)
 
     def _has(self, question: str) -> bool:
         return self._bank.get(question) is not None

@@ -81,6 +81,12 @@ class Known:
         for _, value in _leaves(tree.get("answered_questions"), ""):
             self.add(value, "answer", SHORTEST_ANSWER)
 
+    def take(self, other: "Known") -> None:
+        """Every value `other` holds as well: the Answer bank's answers, which only a process that read the bank
+        knows (W11; apply.answer_bank adds them to KNOWN)."""
+        for value, label in other._values.items():
+            self.add(value, label, 1)
+
     def scrub(self, text: str) -> str:
         if self._values and self._pattern is None:
             self._pattern = re.compile(

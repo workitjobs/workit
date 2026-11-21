@@ -11,6 +11,7 @@ import pytest
 from conftest import FIXTURES
 
 from apply import report
+from apply.answer_bank import AnswerBank
 from apply.model import Status
 from apply.tracker import Row
 
@@ -33,8 +34,11 @@ def test_an_applications_report_holds_its_records_files_and_its_trace_with_priva
     (traces / "harvey-123.jsonl").write_text("\n".join(json.dumps(e) for e in (
         {"t": 0, "kind": "start", "posting": "https://jobs.ashbyhq.com/harvey/123"},
         {"t": 4, "kind": "request", "body": "first=Test&last=Person&email=test.person@example.com"},
+        {"t": 6, "kind": "fill", "value": "My cousin Priya referred me"},
     )) + "\n")
     profile = _profile(tmp_path)
+    # An Answer bank answer: no file holds it (W11), so only the process's bank, which has read it, can mask it.
+    AnswerBank().answer("Who referred you?", "My cousin Priya referred me")
 
     sent = report.build("answer", " The essay box stayed empty. ", profile, _row(str(record)), contact_ok=True,
                         traces=traces.parent)
@@ -43,7 +47,7 @@ def test_an_applications_report_holds_its_records_files_and_its_trace_with_priva
         "answer", "The essay box stayed empty.", True, "held")
     assert set(sent["files"]) == {"answers.json"} and sent["screenshots"] == {"form.png": base64.b64encode(PNG).decode()}
     assert "harvey/123" in sent["trace"]  # the start says which posting
-    for value in ("Person", "test.person@example.com"):
+    for value in ("Person", "test.person@example.com", "My cousin Priya referred me"):
         assert value not in sent["trace"]
     assert [line.split(" (")[0] for line in report.parts(sent)] == [
         "Your words, and WorkIt may email you about them", "Which application: Harvey, Software Engineer Intern",

@@ -20,7 +20,6 @@ from typing import Protocol
 from apply import masked
 from apply.model import Question, one_line
 
-FILE = "answer-bank.yaml"  # where the bank lived before W11, beside the Applicant profile: read once to move it
 # A bank that failed to read tries again after each of these waits, then every RETRY_AFTER seconds.
 RETRIES = (10.0,) * 6
 RETRY_AFTER = 60.0

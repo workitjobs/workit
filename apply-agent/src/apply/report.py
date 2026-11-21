@@ -107,6 +107,7 @@ def _masked_trace(application_id: str, profile: Path, traces: Path | None) -> st
         raise ValueError(f"no Applicant profile to mask the log with: {profile.name} is not a file")
     known = masked.Known()
     known.learn(profile)
+    known.take(masked.KNOWN)  # the Answer bank's answers, which no file holds (W11)
     lines = [known.scrub(line) for line in path.read_text(errors="replace").splitlines()]
     text = "".join(f"{line}\n" for line in lines)
     if len(text) <= TRACE_MAX:

@@ -220,7 +220,10 @@ into it and the window shows "Sample data".
   sign-in page: its challenge is no secret, and the mask hid it.
   Traces and Records are files on this Mac and keep the real values; `apply
   trace` prints through the same mask, which can't catch a value that no data
-  file holds.
+  file holds. The Answer bank's answers are on WorkIt, not in a file (W11):
+  a process learns them as its bank reads them, `apply trace` reads the bank
+  first (and says so when it can't), and a report's Trace takes the
+  window's own (`masked.Known.take`).
 - To stop raw reads in Claude Code, install
   `tools/block-apply-home-reads.sh` as a PreToolUse hook. Nothing installs it
   for you. In `~/.claude/settings.json`, with the path to your checkout:

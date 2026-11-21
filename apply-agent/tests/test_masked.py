@@ -183,3 +183,21 @@ def test_the_hook_lets_the_rest_through(command):
 
 def test_the_hook_ignores_the_folder_it_runs_in():
     assert hook("cat README.md").returncode == 0  # the fixture's cwd is under .config/apply
+
+
+def test_apply_trace_masks_the_answer_banks_answers_or_says_it_cant(monkeypatch, capsys):
+    """No file holds the bank's answers (W11): `apply trace` reads the bank first, and says so when it can't."""
+    from apply import cli
+    from apply.answer_bank import WorkItSource
+    from apply.workit import Unreachable
+
+    served = {"who referred you?": {"question": "Who referred you?", "answer": "Rosalind Featherstonehaugh", "own": True}}
+    monkeypatch.setattr(WorkItSource, "read", lambda self: (served, 3))
+    cli._mask_the_bank()
+    assert masked.scrub("typed Rosalind Featherstonehaugh") == "typed <answer>"
+
+    def down(self):
+        raise Unreachable("WorkIt didn't answer")
+    monkeypatch.setattr(WorkItSource, "read", down)
+    cli._mask_the_bank()
+    assert "aren't masked" in capsys.readouterr().err

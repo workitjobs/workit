@@ -353,6 +353,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         path = trace.latest(args.query)
         if path is None:
             sys.exit(f"No Trace{' matches ' + repr(args.query) if args.query else ''} in {trace.TRACES}.")
+        if not args.path:
+            _mask_the_bank()
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
@@ -853,6 +855,16 @@ def _window_context() -> dict:
     """What the Apply window links and says beyond the run: the student's Applications Tracker on WorkIt,
     and when the Daily sweep runs."""
     return {"tracker_url": f"{workit.site().web}/applications", "sweep_at": schedule.daily_sweep_at()}
+
+
+def _mask_the_bank() -> None:
+    """The Answer bank's answers into Apply's mask (apply.masked), for a command that prints a Trace: no file holds
+    them (W11), so a process that never read the bank doesn't know them. Signed out, or WorkIt down, the Trace
+    prints without them."""
+    try:
+        AnswerBank(WorkItSource()).load()  # its answers join masked.KNOWN as it reads them
+    except workit.WorkItError:
+        print("The Answer bank couldn't be read from WorkIt: its answers aren't masked in this Trace.", file=sys.stderr)
 
 
 def _answer_bank(profile: ApplicantProfile) -> AnswerBank:

@@ -38,6 +38,7 @@ from apply.profile import (
     load_policies as real_policies,  # before conftest's fixture strips the switches
 )
 from apply.worker import Result
+from apply.workit import Unreachable
 
 # In a new process, so nothing a test imported counts. It runs what the app runs first: its adapters, and a plain
 # Worker's first page call (which loaded Ask Claude and Gmail, KAN-723). As conftest does, it blocks the network and
@@ -296,3 +297,19 @@ def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_
     assert isinstance(first.tracker, WorkItTracker)
     first.tracker.add_employer_account(account)
     assert student.adapters(applicant, AnswerBank()).tracker.employer_accounts() == [account]  # the next launch's
+
+
+def test_a_run_waits_for_the_answer_bank_and_starts_nothing_without_it(monkeypatch):
+    """With no bank yet, a run would draft every one-off question again and send none of them (W11)."""
+    class Down:
+        def read(self):
+            raise Unreachable("WorkIt didn't answer")
+
+    monkeypatch.setattr(student, "BANK_WAIT", 0.01)
+    started = []
+    runs = student.Runs({}, AnswerBank(Down()), make=lambda profile, bank: started.append("made"),
+                        rehearse=lambda *args: started.append("rehearsed"))
+
+    with pytest.raises(SetupError, match="Answer bank"):
+        runs.run(["https://jobs.lever.co/acme/1"], show=lambda board: None)
+    assert started == []

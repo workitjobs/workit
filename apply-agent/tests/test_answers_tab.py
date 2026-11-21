@@ -14,11 +14,12 @@ from playwright.sync_api import sync_playwright
 
 from apply import home, stock
 from apply.answer_bank import AnswerBank
-from apply.answers_tab import AnswersTab
+from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard import Dashboard
 from apply.model import Question, Status
 from apply.profile import ApplicantProfile
 from apply.tracker import Row
+from apply.workit import Unreachable
 
 DAY = date(2026, 10, 16)
 SKILLS = Question("q1", "Skill Areas (Select all that apply)", "multi_select", True, ("Finance", "Software", "Robotics"))
@@ -337,7 +338,7 @@ def test_lisul_opens_the_answers_tab_and_edits_a_choice_and_a_text_answer(board,
     window.click("#tab-answers")
 
     skills = entry(window, SKILLS.label)
-    assert "Written by Claude" in skills.inner_text() and "Check this" in skills.inner_text()
+    assert "Drafted for you" in skills.inner_text() and "Needs review" in skills.inner_text()
     skills.click()
     # A choice is edited as text (W11): its picks between semicolons, which the Fill engine fits to each form.
     assert skills.locator("textarea").input_value() == "Software"
@@ -349,7 +350,7 @@ def test_lisul_opens_the_answers_tab_and_edits_a_choice_and_a_text_answer(board,
     assert "Written by you" in entry(window, SKILLS.label).inner_text()
     # Opened again, the two picks read as they were typed, and saving them unchanged keeps two picks.
     window.reload()
-    show(window, "All")  # it opens on what there is to check, and the student checked this one
+    show(window, "All")  # it opens on what there is to review, and the student reviewed this one
     entry(window, SKILLS.label).click()
     assert entry(window, SKILLS.label).locator("textarea").input_value() == "Software; Robotics"
 
@@ -365,8 +366,8 @@ def test_lisul_opens_the_answers_tab_and_edits_a_choice_and_a_text_answer(board,
 def test_lisul_marks_one_reviewed_deletes_another_and_adds_his_own(board, files, window):
     window.goto(board.url + "/#answers")
     entry(window, HEARD.label).click()
-    entry(window, HEARD.label).locator("button", has_text="Looks right").click()
-    window.wait_for_function("document.body.innerText.includes('Marked checked')")
+    entry(window, HEARD.label).locator("button", has_text="Reviewed").click()
+    window.wait_for_function("document.body.innerText.includes('Marked reviewed')")
     assert files[1].get(HEARD.label).own
 
     window.once("dialog", lambda dialog: dialog.accept())
@@ -514,3 +515,20 @@ def test_with_nothing_to_check_the_tab_opens_on_all(files, window):
         entry(window, HEARD.label).wait_for()
 
         assert window.is_checked("[name=answers-filter][value=all]")
+
+
+def test_an_edit_waits_for_the_bank_to_come_from_workit(files):
+    """An edit made before the bank lands would be lost when it does (W11): it is refused, and the tab says why."""
+    class Down:
+        def read(self):
+            raise Unreachable("WorkIt didn't answer")
+
+    bank = AnswerBank(Down())
+    bank.problem = "Can't reach WorkIt, trying again (Unreachable)."
+    tab = AnswersTab(bank, files[0])
+
+    for edit in (lambda: tab.add("Do you have a driver's license?", "Yes"), lambda: tab.delete(HEARD.label)):
+        with pytest.raises(Refused) as refused:
+            edit()
+        assert refused.value.status == 503 and "Can't reach WorkIt" in str(refused.value)
+    assert tab.view()["bank_note"] == "Can't reach WorkIt, trying again (Unreachable)."
