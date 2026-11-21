@@ -70,9 +70,17 @@ const content: FeatureContent = {
       visual: AttachVisual,
     },
     {
-      title: "You click Submit, every time",
+      title: "Submit it yourself, or let WorkIt",
+      // AHEAD OF THE APP (the user's call, 2026-11-21): letting WorkIt
+      // submit is being built by a teammate while this page is written, and
+      // the extension does not submit today (autofiller_extension/CLAUDE.md:
+      // the student always clicks the real Submit). Do not ship this line
+      // before that option is live; until then the true line is "Look each
+      // form over and click Submit yourself." It was "You click Submit,
+      // every time", with "Up to five applications fill at once" in its
+      // body: no count of forms on the site now.
       icon: CursorClickIcon,
-      body: "Up to five applications fill at once, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button. WorkIt never submits for you.",
+      body: "Review each form and click Submit yourself, or let WorkIt submit for you.",
       visual: SubmitVisual,
     },
   ],

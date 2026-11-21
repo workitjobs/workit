@@ -777,8 +777,18 @@ selling line that says what the product does** and "See how", a
     (buildings: the answer to the problems' scattered jobs). **A body
     starts from the student, not from how the feature works**: the user
     turned down every description that explained bands and reasons, and
-    took "Before you spend an evening on an application…". Auto Apply and
-    the Tracker are next. **It plays only while
+    took "Before you spend an evening on an application…". **Auto Apply's
+    review is under way**: its heading is "Type your details once. Apply
+    in parallel." (the user's words; no count of forms on the site, since
+    "five at a time" read as a limit). **One line is ahead of the app, on
+    purpose**: its last row says "Submit it yourself, or let WorkIt",
+    because a teammate is building a submit option while this page is
+    written, and the extension does not submit today. **Before this page
+    ships, either that option is live or the row goes back to the
+    student clicking Submit**, and if it is live the hero's "You click
+    Submit.", the "You stay in control" section, the FAQ and `/terms`
+    must be brought into line with it: today they all say WorkIt never
+    submits. The Tracker is next. **It plays only while
     someone can watch**: with the section well on screen, the tab shown, and
     no pointer or keyboard focus on the rows. **A click on a row opens it
     and stops the turns** for good, its line full: the reader has taken
