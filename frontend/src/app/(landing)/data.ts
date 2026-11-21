@@ -583,9 +583,17 @@ export const control = {
 
 /**
  * The home page's logo strip under the hero (logo-strip.tsx, KAN-923): real
- * employers whose company job boards the scraper reads (scraper/boards.csv),
- * the same ones the tour's stories and the old hero's cards name. Each is
- * drawn as its favicon and its name. "Thousands" is the number of boards
+ * employers whose company job boards the scraper reads (scraper/boards.csv).
+ * **Six fields, not tech alone** (the user's ask, 2026-11-21: all fourteen
+ * were tech companies, so a student in nursing or finance saw nothing for
+ * them): tech (the four the page's scenes name), finance, healthcare,
+ * consumer, media and engineering, in an order where no two from one
+ * field sit side by side. Every name is a row of boards.csv; before
+ * adding one, find it there (Disney is "The Walt Disney Company", NASA
+ * JPL "NASA Jet Propulsion Laboratory"). The user took Target and Toyota
+ * out of the first proposal. The problems' browser scene shows the first
+ * four as its tabs (problem-scenes.tsx). Each is drawn as its favicon and
+ * its name. "Thousands" is the number of boards
  * in boards.csv (about 5,000), as the hiring-systems copy says it. The line
  * says where the postings come from, not which roles (the user's call).
  * It says "careers pages", a student's own word for a company job board
@@ -598,19 +606,21 @@ export const logoStrip = {
   line: "Jobs straight from the careers pages of thousands of companies",
   employers: [
     { name: "Stripe", domain: "stripe.com" },
+    { name: "Goldman Sachs", domain: "goldmansachs.com" },
+    { name: "Mayo Clinic", domain: "mayoclinic.org" },
+    { name: "Nike", domain: "nike.com" },
     { name: "Figma", domain: "figma.com" },
-    { name: "Datadog", domain: "datadoghq.com" },
-    { name: "Notion", domain: "notion.so" },
+    { name: "Capital One", domain: "capitalone.com" },
+    { name: "Pfizer", domain: "pfizer.com" },
+    { name: "Disney", domain: "disney.com" },
     { name: "Spotify", domain: "spotify.com" },
-    { name: "Databricks", domain: "databricks.com" },
-    { name: "Cloudflare", domain: "cloudflare.com" },
-    { name: "Duolingo", domain: "duolingo.com" },
-    { name: "Ramp", domain: "ramp.com" },
-    { name: "Roblox", domain: "roblox.com" },
-    { name: "Plaid", domain: "plaid.com" },
-    { name: "Snowflake", domain: "snowflake.com" },
-    { name: "Robinhood", domain: "robinhood.com" },
-    { name: "Waymo", domain: "waymo.com" },
+    { name: "Visa", domain: "visa.com" },
+    { name: "Johnson & Johnson", domain: "jnj.com" },
+    { name: "SpaceX", domain: "spacex.com" },
+    { name: "Datadog", domain: "datadoghq.com" },
+    { name: "LEGO", domain: "lego.com" },
+    { name: "The New York Times", domain: "nytimes.com" },
+    { name: "NASA JPL", domain: "jpl.nasa.gov" },
   ],
 };
 
