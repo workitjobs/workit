@@ -18,8 +18,9 @@ import {
  * why before it says how: what a job seeker goes through day to day,
  * before WorkIt. A centred heading about the whole search ("Applying for
  * a job shouldn't feel like a full-time job") with its line, then the hub: six
- * problems, three on each side, one large visual in the middle for the open
- * one, and the section's one figure with its source (`ProblemHub`).
+ * problems, three on each side and one large visual in the middle for the
+ * open one (`ProblemHub`). The section's one figure with its source is
+ * archived (`ProblemStat`, problem-stat.tsx; the user's call, 2026-11-21).
  *
  * The user's calls (2026-11-20): the whole job application process, not
  * one problem (the heading was "Many applications stop before a person
@@ -42,7 +43,7 @@ const SCENES = {
 };
 
 export function Problems() {
-  const { title, subtitle, items, stat } = problems;
+  const { title, subtitle, items } = problems;
   return (
     <section aria-labelledby="problems-title" className={cn(PANEL_INSET, "py-2")}>
       {/* The zoom in: the band grows from 80% as it rises up the screen, a
@@ -51,7 +52,7 @@ export function Problems() {
           moved in. From lg up and without reduced motion only. */}
       <GrowIn
         from={0.8}
-        className={cn(PANEL, "problems-ground relative isolate overflow-hidden py-14 sm:py-20")}
+        className={cn(PANEL, "problems-ground relative isolate overflow-hidden py-14")}
       >
         <div className={CONTAINER}>
           <div className="mx-auto max-w-3xl text-center">
@@ -60,11 +61,7 @@ export function Problems() {
             </h2>
             <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
           </div>
-          <ProblemHub
-            problems={items}
-            scenes={items.map((item) => SCENES[item.scene])}
-            stat={stat}
-          />
+          <ProblemHub problems={items} scenes={items.map((item) => SCENES[item.scene])} />
         </div>
       </GrowIn>
     </section>

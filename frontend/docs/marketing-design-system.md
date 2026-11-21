@@ -319,10 +319,29 @@ across the window at the block's top and foot and two down its sides.
 One light grey band, the problems of a search: flat `--mk-mist`
 (#f0f0f0), a step below the white page, with no glow and no grain
 (`.problems-ground`), never a feature's colour. It has an ink heading and
-a grey line, the hub's cards white with the card shadow (the open one
-solid ink with white words, the band's colours turned over), the stage
-white at 60% under a slate dot grid, its one texture, and the figure as
-an outlined strip with no fill, its number in ink. **It was dark for a
+a grey line. The hub's closed cards are words on the band with no box;
+the open one is the single white, lifted card; the stage is a well a
+step darker than the band (`--mk-well`) under a slate dot grid, its one
+texture, so a picture's white window stands out. Contrast goes to the
+picture, not to a card at the side: the open card was solid ink until
+2026-11-21, which made it the strongest shape in the section. **The picture on the
+stage is the band's only colour** (2026-11-21): each of the six is drawn
+as the real kind of app it stands for, in that app's own kind of colour
+(a spreadsheet's green, a mail app's blue, a file list's selection, red
+PDF icons, amber for what has gone stale), never WorkIt's violet and
+never a real product's logo or name. In greys alone the band read as
+boring. One picture moves for good: the browser's four tabs take turns,
+each a company's job board on the hiring system that company is on
+(`frontend/CLAUDE.md`, the problems). **Mock UI in a picture follows
+four rules** (2026-11-21, after a review of all six): one type system for
+the whole set (`T` in problem-scenes.tsx: five roles, two weights, one
+case), so things that take turns in one place differ by layout and
+never by type; one hairline and one control edge; a semantic colour
+means one thing everywhere (amber is "this has sat too long"); and the
+story is told with what the real app shows, never with a caption laid
+over it. Its sourced figure,
+an outlined strip with no fill and its number in ink, is archived
+(2026-11-21, `problem-stat.tsx`). **It was dark for a
 day** (2026-11-20): the ink with a slate pool and dots read as the stock
 dark section of an AI-made site, and a flat near-black then read as out
 of nowhere, the one dark block between two white sections (the user's
@@ -395,7 +414,11 @@ scroll.
 `frontend/CLAUDE.md` holds the rules (reduced motion, scroll
 performance). In short: stories loop only on screen; reveals play once
 (`Arrive`); the product sections' rows turn on a timer that a click
-stops; no shine sweeps or glows. Nothing pins or follows the scroll frame
+stops (a line fills along a row's foot); the problems hub's cards turn
+on a timer that a pointer or keyboard focus on a card holds (a hairline
+draws round the open card, over a faint track that is always there, so
+the timer never vanishes); a panel runs one clock, never two; no shine
+sweeps or glows. Nothing pins or follows the scroll frame
 by frame but the entrances (`GrowIn`'s scale, What is WorkIt stepping
 back). A pinned tools collapse into the four product tiles was built and
 taken out the same day (2026-11-20): the user found its examples in the
@@ -426,7 +449,7 @@ translate inside a clipped track.
 | A sticky heading with the rows scrolling up beneath it | The whole section pinned at the screen's middle, the scroll opening one row at a time, a line filling under the open row | The section went to the top and then the list moved inside it, and a row's title was cut by the heading; the user found it broken |
 | Ruled white lines across framed boxes | Grain only | Looked odd over the gradients |
 | Generic glyphs on solid colour tiles (a file, a target, a bolt, a kanban) | Each feature's own mark: a piece of its screen on a squircle | Generic; the user pointed to Calendly's product icons |
-| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: on the page's one dark band, six problems, three on each side of one large visual on a stage under a fading dot grid, and one sourced figure as an outlined strip), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
+| The journey ("One application, start to finish"), the statement, the home page's closing section | Applying as it is (`problems.tsx`: on the page's one dark band, six problems, three on each side of one large visual on a stage under a fading dot grid; its one sourced figure is archived, `problem-stat.tsx`), You stay in control (`control.tsx`) | The four features three times over and no why; a page should say who it is for and what it fixes before how |
 | Blobs of a feature's colour and a second colour over its tint | A sky in one colour, light to deep, with a horizon band | Flat and muddy beside Calendly's boxes: no light, no direction |
 | A violet label (eyebrow) above every section heading | The heading alone | Read as a template; the user had them all removed |
 | 48px panel corners | Nested corners: 16px tiles, 28px cards and panels | Too round beside the tiles |

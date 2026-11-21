@@ -22,6 +22,9 @@
      AI-made dark section and then as out of nowhere on the white page
      (the user's catches, 2026-11-20). */
   --mk-mist: #f0f0f0;
+  /* A well in a mist panel, a step darker again and as neutral: the
+     problems hub's stage, so a white window stands out on it. */
+  --mk-well: #e4e4e4;
   /* A card resting on the page. */
   --mk-shadow-card:
     0 0 0 1px var(--mk-hairline), 0 1px 2px rgb(15 23 42 / 0.04),
@@ -2065,8 +2068,16 @@ html[data-tab-flight="flying"] .tour-tabs {
   transform: translate(-50%, -50%);
 }
 
-/* The problems hub's stage (problem-hub.tsx), on the dark band: a dot
-   grid in white at 16%,
+/* The stage is a well in the band: a step darker, with a soft inner
+   shadow at its top edge and a hairline, so it reads as set in. */
+.problem-well {
+  background: var(--mk-well);
+  box-shadow:
+    inset 0 1px 3px rgb(15 23 42 / 0.07),
+    inset 0 0 0 1px rgb(15 23 42 / 0.05);
+}
+/* The problems hub's stage (problem-hub.tsx), on the light grey band: a
+   dot grid in slate at 13%,
    strongest at the edges and fading to a fifth toward the middle, so the
    visual stands on the plain stage. Still, so it costs nothing per frame. */
 .problem-dots {
@@ -2074,6 +2085,123 @@ html[data-tab-flight="flying"] .tour-tabs {
   background-size: 16px 16px;
   background-position: center;
   mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);
+}
+/* The hub's visual (`Window` in problem-scenes.tsx, 20rem wide and up to
+   319px tall as drawn) grows where its stage has the room, with the
+   stage's 1.5rem of padding each side: at z times it needs a stage
+   20z + 3rem wide and 319z + 48px tall. Between md and lg the stage is
+   the container's width and 27rem tall, so 1.2 times. From xl up it is
+   27rem wide and `100svh - 23.5rem` tall (problem-hub.tsx), so the steps
+   follow the screen's height: 1.1 times from 776px, 1.15 from 792px, 1.2
+   from 808px; at 1280 × 720 a visual at 1.2 times was cut at the stage's
+   foot. Change the stage's height rule and these three together. Between
+   lg and xl the stage is too narrow to grow in. `zoom`, not a scale: the
+   layout grows with it, so the window's safe centring still holds. Media
+   queries, since a container query on the stage's height matched nothing
+   in the three-column layout, where the stage's height is auto (Chrome,
+   2026-11-21). */
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .problem-window {
+    zoom: 1.2;
+  }
+}
+@media (min-width: 80rem) and (min-height: 48.5rem) {
+  .problem-window {
+    zoom: 1.1;
+  }
+}
+@media (min-width: 80rem) and (min-height: 49.5rem) {
+  .problem-window {
+    zoom: 1.15;
+  }
+}
+@media (min-width: 80rem) and (min-height: 50.5rem) {
+  .problem-window {
+    zoom: 1.2;
+  }
+}
+/* The browser picture's tabs take turns (`BoardsScene` in
+   problem-scenes.tsx): four boards, 3.2 s each. A turn's three parts (the
+   lit tab, the address, the page) each fade in for their quarter of one
+   12.8 s loop and wait out the rest, set apart by a delay of whole turns,
+   so they change together and the next board comes in as the last goes
+   out. Opacity alone. Held while the stage waits to arrive, and while none
+   of the picture is on screen (`HoldOffscreen`). With reduced motion
+   nothing turns: the first board stays. **Where the hub's cards take
+   turns (lg up) the loop is the cards' turn** (`--board-loop`, set on the stage
+   by problem-hub.tsx): the four boards make one pass as the open card's
+   ring draws, and they are held when the ring is (`data-held`), so the
+   hub runs on one clock. */
+.board-turn {
+  opacity: 0;
+  animation: board-turn var(--board-loop, 12.8s) linear infinite both;
+  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 4);
+}
+[data-arrived="false"] .board-turn,
+[data-held] .board-turn,
+.board-tabs[data-paused] .board-turn {
+  animation-play-state: paused;
+}
+@keyframes board-turn {
+  0% {
+    opacity: 0;
+  }
+  2.5% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 1;
+  }
+  27.5% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-turn {
+    animation: none;
+  }
+  .board-turn[data-first] {
+    opacity: 1;
+  }
+}
+/* The open card's turn (problem-hub.tsx): a hairline drawn clockwise round
+   the card, from its top left corner, at one steady speed; the next card
+   opens when it closes. The line's length is 1 (`pathLength`), so the dash
+   is the whole edge and the offset is how much of it is still to draw.
+   A stroke cannot be moved as a layer, so the browser repaints this one
+   card's edge each frame: the one place on the page that does, and small
+   (measured in Chrome, 2026-11-21). With reduced motion there is no ring
+   and nothing turns (the svg is hidden; with no animation there is no end
+   to open the next card). */
+/* The ring's track: the whole edge, faint, there for as long as the card
+   is open, so the timer shows even when its line is empty or held (a card
+   just clicked, with the pointer still on it, showed no ring at all). */
+.card-track {
+  fill: none;
+  stroke: rgb(18 26 40 / 0.1);
+  stroke-width: 1.5px;
+}
+.card-ring {
+  fill: none;
+  stroke: rgb(18 26 40 / 0.5);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: card-ring linear both;
+}
+@keyframes card-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-ring {
+    animation: none;
+  }
 }
 @keyframes caret-blink {
   50% {
