@@ -589,9 +589,9 @@ export const control = {
  * them): tech (the four the page's scenes name), finance, healthcare,
  * consumer, media and engineering, in an order where no two from one
  * field sit side by side. Every name is a row of boards.csv; before
- * adding one, find it there (Disney is "The Walt Disney Company", NASA
- * JPL "NASA Jet Propulsion Laboratory"). The user took Target and Toyota
- * out of the first proposal. The problems' browser scene shows the first
+ * adding one, find it there (Disney is "The Walt Disney Company"). The
+ * user turned down Target, Toyota, LEGO and NASA JPL, so show the user a
+ * name before it goes in. The problems' browser scene shows the first
  * four as its tabs (problem-scenes.tsx). Each is drawn as its favicon and
  * its name. "Thousands" is the number of boards
  * in boards.csv (about 5,000), as the hiring-systems copy says it. The line
@@ -618,9 +618,7 @@ export const logoStrip = {
     { name: "Johnson & Johnson", domain: "jnj.com" },
     { name: "SpaceX", domain: "spacex.com" },
     { name: "Datadog", domain: "datadoghq.com" },
-    { name: "LEGO", domain: "lego.com" },
     { name: "The New York Times", domain: "nytimes.com" },
-    { name: "NASA JPL", domain: "jpl.nasa.gov" },
   ],
 };
 
