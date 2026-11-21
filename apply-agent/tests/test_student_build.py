@@ -294,3 +294,13 @@ def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_
     assert isinstance(first.tracker, WorkItTracker)
     first.tracker.add_employer_account(account)
     assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's
+
+
+def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
+    """Fault: a plain Worker's wrapper in the compiled app runs `-I host.py`, which the app has neither of (no Python,
+    no .py file), so Chrome never reaches Apply and no plain Worker says hello (W8). Its own program is the relay when
+    host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated Python on host.py."""
+    from apply.plain import host, launcher
+
+    assert launcher.host_command(compiled=True).split()[1:] == [host.APP_FLAG]
+    assert launcher.host_command(compiled=False).split()[1:] == ["-I", host.__file__]

@@ -95,6 +95,15 @@ CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Win
 OWNER = "apply-owner.json"
 
 
+def host_command(compiled: bool = "__compiled__" in globals()) -> str:
+    """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
+    The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
+    (scripts/app_entry.py)."""
+    if compiled:
+        return f"{shlex.quote(sys.executable)} {host.APP_FLAG}"
+    return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
+
+
 def developer_mode(profile: Path) -> bool:
     """Whether a Worker profile's Chrome has Developer mode on (the seed's first step). Only then
     does chrome.runtime.reload() bring an unpacked extension back; without it Chrome disables it
@@ -291,7 +300,7 @@ class PlainWorkers:
         hosts = self.profile(worker) / "NativeMessagingHosts"
         hosts.mkdir(parents=True, exist_ok=True)
         wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)} "
+        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} "
                            f"--socket {shlex.quote(str(self.bridge.path))} --worker {worker} \"$@\"\n")
         wrapper.chmod(0o700)
         manifest = hosts / f"{extension.HOST_NAME}.json"

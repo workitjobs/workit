@@ -6,7 +6,9 @@ through the wrapper in that Worker profile's NativeMessagingHosts folder, which 
 socket, says which Worker it is, then relays frames both ways unchanged: Chrome's framing
 (a 4-byte length in native byte order, then UTF-8 JSON) is also the socket's.
 
-Stdlib only, run with `python3 -I`, so it needs nothing from Apply's environment.
+Stdlib only, run with `python3 -I`, so it needs nothing from Apply's environment. The
+compiled app has no Python: its own program runs this relay when APP_FLAG comes first
+(scripts/app_entry.py, W8).
 """
 
 import json
@@ -17,6 +19,7 @@ import sys
 import threading
 
 PROTOCOL = 1
+APP_FLAG = "--worker-host"  # the compiled app's program, started with this first, is this relay
 TO_CHROME = 1024 * 1024  # Chrome's limit on a message from a host
 
 
