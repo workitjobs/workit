@@ -118,7 +118,9 @@ def _handle_links() -> None:
     class WorkItSignInLink(Foundation.NSObject):
         @objc.typedSelector(b"v@:@@")
         def handle_withReply_(self, event, reply):  # the handler's form: the event, then its (unused) reply
-            hand(str(event.paramDescriptorForKeyword_(DIRECT).stringValue()))
+            # Any program can send this event, with no link too: an error here would rise inside Cocoa's call.
+            if (url := event.paramDescriptorForKeyword_(DIRECT)) is not None and url.stringValue():
+                hand(str(url.stringValue()))
 
     _listener = WorkItSignInLink.alloc().init()
     Foundation.NSAppleEventManager.sharedAppleEventManager().setEventHandler_andSelector_forEventClass_andEventID_(

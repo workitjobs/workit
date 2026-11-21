@@ -85,7 +85,7 @@ def parse_modes(node: str, texts: list[str]) -> list[str | None]:
 def literals(source: str) -> list[tuple[int, int, str]]:
     """Each plain string literal that may hold a comment: its span in `source` and its value. No f-string, no bytes."""
     starts = [0]
-    for line in source.splitlines(keepends=True):
+    for line in io.StringIO(source):  # split on "\n" only, as tokenize reads it: splitlines also splits on a form feed
         starts.append(starts[-1] + len(line))
     found = []
     for token in tokenize.generate_tokens(io.StringIO(source).readline):

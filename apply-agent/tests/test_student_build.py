@@ -298,12 +298,18 @@ def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_
 
 def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
     """Fault: a plain Worker's wrapper in the compiled app runs `-I host.py`, which the app has neither of (no Python,
-    no .py file), so Chrome never reaches Apply and no plain Worker says hello (W8). Its own program is the relay when
-    host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated Python on host.py."""
+    no .py file), or names its program by sys.executable, which in a Nuitka program is a `python` beside it that
+    doesn't exist. Either way Chrome never reaches Apply and no plain Worker says hello (W8). Its own program, as the
+    OS names it, is the relay when host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated
+    Python on host.py."""
+    import shlex
+
+    import psutil
+
     from apply.plain import host, launcher
 
-    assert launcher.host_command(compiled=True).split()[1:] == [host.APP_FLAG]
-    assert launcher.host_command(compiled=False).split()[1:] == ["-I", host.__file__]
+    assert shlex.split(launcher.host_command(compiled=True)) == [psutil.Process().exe(), host.APP_FLAG]
+    assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
 
 
 def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):

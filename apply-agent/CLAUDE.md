@@ -586,7 +586,11 @@ notices strict (above).
   its default `~/.local/share/uv`: the app carries the Python's install
   path (its `sysconfig` settings and `libpython`'s own name), and from the
   default place every copy held the builder's user name (2026-11-21). The
-  build refuses an app that holds the builder's home folder path.
+  build refuses an app whose own files (the program, `libpython`, the
+  capture helper) hold the builder's home folder path. Only those: third-party
+  files carry their own builders' paths (`/Users/admin` in Node,
+  `/Users/runner` in cffi), and a check of every file refused a teammate
+  whose home folder matched one.
 - **It compiles with Apple's tools and nothing from the shell** (found
   2026-11-21). Homebrew's LLVM exports `CPPFLAGS` and `LDFLAGS`, and Nuitka
   passed them on: the first build linked Homebrew's `libunwind`, which a
@@ -618,10 +622,16 @@ notices strict (above).
   new file the Student path reads beside the code joins `INPUTS`. A plain
   Worker's wrapper starts the app's own program as the relay
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
-  host.py`. A new place that starts `sys.executable` needs the same.
+  host.py`. It names that program with `psutil.Process().exe()`, never
+  `sys.executable`: in a Nuitka program, `sys.executable` is a `python`
+  beside the program that doesn't exist, and the first wrapper named it
+  (found in review, 2026-11-21). A new place that starts the app's own
+  program needs the same.
 - **The build refuses an app** that compiled a module in `build.DEVELOPER`,
   holds a `.py` or `.pyc` file, or still holds docstrings or page code
-  comments. Nuitka's report
+  comments. The checks look for text read from the build's copy before the
+  compile (`PROBES`), never text typed into the script, which a reworded
+  docstring would turn into a check that always passes. Nuitka's report
   (`build/out/report.xml`) lists every module it compiled and why.
 - **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
   names the bundle after the entry file; the script renames it, adds

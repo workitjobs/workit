@@ -67,3 +67,12 @@ def test_the_worker_extensions_page_code_is_never_touched(tmp_path):
     path = module(tmp_path / "plain", "guards", PAGE)
     strip.main(tmp_path, NODE)
     assert page_of(path) == PAGE
+
+
+def test_a_form_feed_before_the_page_code_moves_nothing(tmp_path):
+    """Fault: the literal's place counted with splitlines, which splits on a form feed (or U+2028) where Python's
+    tokenizer doesn't, so the stripper writes its string over the wrong text and the module breaks."""
+    path = tmp_path / "dashboard_page.py"
+    path.write_text(f"# a page break \x0c here\nPAGE = {PAGE!r}\n")
+    assert strip.strip_module(path, NODE) == 3
+    assert page_of(path) == "const a = 1;\nfunction f() { return a; }\n"

@@ -25,6 +25,7 @@ opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle 
 """
 
 import argparse
+import json
 import os
 import plistlib
 import shutil
@@ -67,6 +68,22 @@ NOTICES = "dist/THIRD-PARTY-NOTICES.txt"  # first_run.NOTICES
 COMPILER_ENV = ("CC", "CXX", "CFLAGS", "CPPFLAGS", "CXXFLAGS", "LDFLAGS", "LIBRARY_PATH", "CPATH")
 # Apple's own tools only: with Anaconda first on the PATH, Nuitka ran its install_name_tool, which failed.
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+# Text the checks look for in the program, read from the build's copy before the compile (`probes`), so a reworded
+# docstring or comment can't make a check pass by finding nothing: a string constant that must be there
+# (student.NO_MODEL), a docstring's first line that must be gone (student.NoClaude's) and a page code comment that must
+# be gone (the first in dashboard_page.PAGE). Run on the build's Python: Apply's source is Python 3.12's.
+PROBES = r"""
+import ast, json, re, sys
+package = sys.argv[1]
+def body(module):
+    return ast.parse(open(f"{package}/{module}.py").read()).body
+def value(module, name):
+    return next(ast.literal_eval(n.value) for n in body(module) if isinstance(n, ast.Assign)
+                and getattr(n.targets[0], "id", None) == name)
+doc = next(ast.get_docstring(n) for n in body("student") if isinstance(n, ast.ClassDef) and n.name == "NoClaude")
+comment = re.search(r"^[ \t]*//[ \t]*(\S[^\n]{19,})$", value("dashboard_page", "PAGE"), re.MULTILINE).group(1)
+print(json.dumps({"constant": value("student", "NO_MODEL"), "docstring": doc.splitlines()[0], "comment": comment}))
+"""
 
 
 def run(command: list[str], **kwargs) -> None:
@@ -74,10 +91,10 @@ def run(command: list[str], **kwargs) -> None:
     subprocess.run(command, check=True, **kwargs)
 
 
-def venv_python(code: str, **kwargs) -> str:
-    """What `code` prints, run on the build's own Python."""
-    return subprocess.run([PYTHON, "-I", "-c", code], check=True, capture_output=True, text=True,
-                          **kwargs).stdout.strip()
+def venv_python(code: str, *args: object) -> str:
+    """What `code` prints, run on the build's own Python with `args`."""
+    return subprocess.run([PYTHON, "-I", "-c", code, *map(str, args)], check=True, capture_output=True,
+                          text=True).stdout.strip()
 
 
 def preflight() -> None:
@@ -184,7 +201,7 @@ def compile_app(developer: list[str], version: str, scheme: str, capture: str) -
     run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])
 
 
-def check(developer: list[str], capture: str) -> None:
+def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
     """Refuse an app that carries a developer part, Python source or bytecode, a docstring, a page code comment or
     the builder's home folder, or whose capture helper doesn't run."""
     compiled = {module.get("name") for module in ET.parse(REPORT).getroot().iter("module")}
@@ -197,20 +214,21 @@ def check(developer: list[str], capture: str) -> None:
     helper = APP / "Contents" / "MacOS" / capture
     if subprocess.run([helper, "--check"], capture_output=True, check=False).returncode not in (0, 3):
         sys.exit(f"The app's window capture helper ({capture}) doesn't run.")
-    program = (APP / "Contents" / "MacOS" / NAME).read_bytes()
-    control = b"WorkIt Auto Apply doesn't {what}"  # a string constant (student.NO_MODEL), which must be there
-    if control not in program:
+    folder = APP / "Contents" / "MacOS"
+    program = (folder / NAME).read_bytes()
+    if probes["constant"].encode() not in program:
         sys.exit("The docstring check can't read the program's constants: it found no known string in it.")
-    docstring = b"The Student build's stand-in for `claude -p`"  # student.NoClaude's, which must be gone
-    if docstring in program:
+    if probes["docstring"].encode() in program:
         sys.exit("The app still holds docstrings: Nuitka's no_docstrings flag didn't take.")
-    comment = b"Click a tile and it fills the window"  # one of dashboard_page.PAGE's comments, which must be gone
-    if comment in program:
+    if probes["comment"].encode() in program:
         sys.exit("The app still holds its page code's comments: scripts/strip_js_comments.py didn't take.")
-    home = str(Path.home()).encode()
-    if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.is_file() and home in p.read_bytes()):
+    # Only the files this build makes: third-party ones carry their own builders' paths (/Users/admin in Node,
+    # /Users/runner in cffi), which a teammate's home folder can match.
+    home = (str(Path.home()) + "/").encode()
+    ours = [folder / NAME, folder / capture, *folder.glob("libpython*.dylib")]
+    if found := [p.name for p in ours if home in p.read_bytes()]:
         sys.exit(f"The app names this Mac's home folder ({home.decode()}), and with it who built it: "
-                 f"{', '.join(found[:10])}")
+                 f"{', '.join(found)}")
     print(f"Checked: no developer module, no Python source or bytecode, no docstrings, no page code comments, "
           f"no home folder ({len(compiled)} modules).")
 
@@ -223,6 +241,7 @@ def main() -> None:
     preflight()
     package = make_venv()
     set_student(package)
+    probes = json.loads(venv_python(PROBES, package))
     strip_comments(package)
     developer = sorted(venv_python("import apply.build as b; print(*b.DEVELOPER)").split())
     version = venv_python("import importlib.metadata as m; print(m.version('apply'))")
@@ -230,7 +249,7 @@ def main() -> None:
     capture = venv_python("from apply.plain.window_capture import BUNDLED_NAME; print(BUNDLED_NAME)")
     stage_inputs(strict=args.release)
     compile_app(developer, version, scheme, capture)
-    check(developer, capture)
+    check(developer, capture, probes)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")
 

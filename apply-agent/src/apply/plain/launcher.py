@@ -98,9 +98,10 @@ OWNER = "apply-owner.json"
 def host_command(compiled: bool = "__compiled__" in globals()) -> str:
     """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
     The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
-    (scripts/app_entry.py)."""
+    (scripts/app_entry.py). The OS names that program: a Nuitka program's sys.executable is a `python` beside it,
+    which doesn't exist."""
     if compiled:
-        return f"{shlex.quote(sys.executable)} {host.APP_FLAG}"
+        return f"{shlex.quote(psutil.Process().exe())} {host.APP_FLAG}"
     return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
 
 
