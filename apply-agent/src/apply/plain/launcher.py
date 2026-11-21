@@ -451,11 +451,15 @@ class Chrome:
 
 
 def start_in_background(arguments: list[str], profile: Path, log: Path, system: str = sys.platform,
-                        popen: Callable[..., subprocess.Popen] = subprocess.Popen) -> "Chrome | subprocess.Popen":
+                        popen: Callable[..., subprocess.Popen] = subprocess.Popen,
+                        front: bool = False) -> "Chrome | subprocess.Popen":
     """Start Chrome (`arguments`, the binary first) so that it takes no one's focus, by each OS's own way.
+    `front`: the seed's Chrome, which the user works in, comes forward instead.
 
     - macOS: through `open -g -n`, a new instance that is never activated: running the binary itself
-      brings it forward. Its PID is then read from the profile's SingletonLock (a `Chrome`).
+      brings it forward. Its PID is then read from the profile's SingletonLock (a `Chrome`). Through
+      `open`, Chrome is never this process's child: as the built app's child, macOS blamed WorkIt Auto
+      Apply when Chrome's updater changed Google Chrome.app ("prevented from modifying apps", 2026-11-21).
     - Windows and Linux: the binary itself, as a plain background process, in a session (a process
       group on Windows) of its own, so a Ctrl-C in Apply's terminal never reaches it, as with `open`.
       The OS keeps it behind. The Popen is the process: it is stopped and reaped through it."""
@@ -464,7 +468,7 @@ def start_in_background(arguments: list[str], profile: Path, log: Path, system: 
         with log.open("ab") as out:
             return popen(arguments, stdin=subprocess.DEVNULL, stdout=out, stderr=out, **detached)
     app = Path(arguments[0]).parents[2]  # …/X.app/Contents/MacOS/X
-    subprocess.run([OPEN, "-g", "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
+    subprocess.run([OPEN, *([] if front else ["-g"]), "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
                     "--args", *arguments[1:]], check=True, stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + START_WAIT

@@ -579,7 +579,12 @@ differs from its Apply's crashed the page guard. So:
 Branded Chrome takes the worker extension only by the user's own clicks. `apply.plain.seed_setup.Wizard`
 helps with each click and confirms it. It refuses to start while a plain Worker of the folder runs.
 
-- **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
+- **What Apply does.** It opens branded Chrome on the seed, in front, through `open` on the Mac
+  (`launcher.start_in_background`), so Chrome is never the app's child: as one, macOS blamed WorkIt Auto
+  Apply when Chrome's updater changed Google Chrome.app ("prevented from modifying apps", 2026-11-21).
+  Chrome 157 opens no `chrome://` page named on its command line (a New Tab instead), so for Developer
+  mode Apply puts `chrome://extensions` on the clipboard and the step says to paste it in the address
+  bar; the "check the card" step does the same with the card's details page. At Load unpacked it
   puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
   `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
   can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the

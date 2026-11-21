@@ -84,7 +84,10 @@ has neither.
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
   Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
-  Worker's background start (`plain/launcher.start_in_background`), a link in
+  Chrome's start (`plain/launcher.start_in_background`: a Worker's in the
+  background, the seed's in front; on the Mac through `open`, never as
+  Apply's child, or macOS blames the built app for what Chrome's updater
+  does: "prevented from modifying apps"), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder
   (`plain/seed_setup.Desk.reveal`), and keeping the computer awake during a run
