@@ -51,3 +51,18 @@ def test_the_applet_writes_the_link_it_is_handed_to_the_inbox():
     script = sign_in_link.SCRIPT.format(inbox="/Users/x/Library/Application Support/WorkIt Auto Apply/sign-in-link")
     assert 'quoted form of "/Users/x/Library/Application Support/WorkIt Auto Apply/sign-in-link"' in script
     assert "on open location theURL" in script and "umask 077" in script
+
+
+def test_the_built_app_takes_the_link_macos_hands_it_once_with_no_helper(inbox, monkeypatch):
+    """Fault: the built app makes the checkout's helper (osacompile, a second bundle claiming the scheme), or takes
+    a link macOS handed it twice, or keeps one from an earlier sign-in. Its own Info.plist claims the scheme
+    (scripts/build_app.py), and the Apple event's link stays in memory (W8)."""
+    monkeypatch.setattr(sign_in_link, "BUNDLED", True)
+    monkeypatch.setattr(sign_in_link.subprocess, "run", lambda *a, **k: pytest.fail("made a helper"))
+    assert sign_in_link.ready() is True
+    sign_in_link.hand("workit-auto-apply://signed-in?code=old")
+    sign_in_link.clear()
+    assert sign_in_link.take() is None
+    sign_in_link.hand("workit-auto-apply://signed-in?code=abc")
+    assert sign_in_link.take() == "workit-auto-apply://signed-in?code=abc"
+    assert sign_in_link.take() is None and not inbox.exists()

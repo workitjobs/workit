@@ -140,7 +140,7 @@ def stage_inputs(strict: bool) -> None:
          "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=ROOT)
 
 
-def compile_app(developer: list[str], version: str) -> None:
+def compile_app(developer: list[str], version: str, scheme: str) -> None:
     def xcrun(*args: str) -> str:
         return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
 
@@ -168,6 +168,9 @@ def compile_app(developer: list[str], version: str) -> None:
     info = APP / "Contents" / "Info.plist"
     plist = plistlib.loads(info.read_bytes())
     plist["LSMinimumSystemVersion"] = MIN_MACOS  # Finder refuses to open it on an older macOS
+    # WorkIt's sign-in page sends the student back with a workit-auto-apply:// link: macOS opens this app for it
+    # and hands it the link (apply.sign_in_link.listen).
+    plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
     info.write_bytes(plistlib.dumps(plist))
     # The edit broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
     # Step 2 replaces this with the Developer ID signature, file by file.
@@ -211,8 +214,9 @@ def main() -> None:
     strip_comments(package)
     developer = sorted(venv_python("import apply.build as b; print(*b.DEVELOPER)").split())
     version = venv_python("import importlib.metadata as m; print(m.version('apply'))")
+    scheme = venv_python("from apply.sign_in_link import SCHEME; print(SCHEME)")
     stage_inputs(strict=args.release)
-    compile_app(developer, version)
+    compile_app(developer, version, scheme)
     check(developer)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")

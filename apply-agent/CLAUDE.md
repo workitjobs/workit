@@ -625,8 +625,9 @@ notices strict (above).
   (`build/out/report.xml`) lists every module it compiled and why.
 - **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
   names the bundle after the entry file; the script renames it, adds
-  `LSMinimumSystemVersion` and signs it ad hoc again, since the edit breaks
-  Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
+  `LSMinimumSystemVersion` and `CFBundleURLTypes` (the app claims
+  `workit-auto-apply://`, WorkIt's sign-in link, `sign_in_link.SCHEME`) and
+  signs it ad hoc again, since the edit breaks Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
   it.
 - **Not yet in the app:** `window_capture`'s Swift helper, which a Developer
   checkout builds with `swiftc` on first use. A student's Mac has no

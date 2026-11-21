@@ -521,7 +521,7 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
@@ -1344,11 +1344,14 @@ Left from W5:
   never sends a link into a run, so only the Developer checkout's window
   does.
 
-Left from sign-in: **the built app's link.** W8 registers
-`workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
-URL that macOS hands it. Until a bundle exists, a checkout's window has a
-helper applet claim the scheme for it (`apply-agent/src/apply/sign_in_link.py`,
-KAN-883); the built app must not make that helper.
+**The built app's link: built (KAN-833, 2026-11-21).** The build adds
+`workit-auto-apply://` to the bundle's `Info.plist` (`CFBundleURLTypes`),
+so macOS opens the app for the page's link and hands it the link as an
+Apple event; the app's handler (`sign_in_link.listen`, set up once the
+run loop runs) keeps it in memory for the window's sign-in poll, and no
+file holds it. A checkout's window still has a helper applet claim the
+scheme for it (`apply-agent/src/apply/sign_in_link.py`, KAN-883); the
+built app makes no helper.
 
 ### W6. The Worker extension on the store
 
@@ -1600,8 +1603,8 @@ itself (D17, D18, D20).
    3.12, with Apple's tools only, with no docstrings, and refuses an app
    that holds a developer module, Python source or a docstring
    (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
-   window and ran the relay. Left from step 1: the `workit-auto-apply://`
-   link in `Info.plist` and its handler (W5's sign-in link), and
+   window and ran the relay. It claims `workit-auto-apply://` and takes
+   the sign-in link itself (W5's last step). Left from step 1:
    `window_capture`'s Swift helper, built and shipped.
 2. Sign with Developer ID and notarize, after the Apple enrollment.
 3. Sparkle: the framework in the bundle, the key, the feed on R2.

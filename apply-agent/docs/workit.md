@@ -27,7 +27,9 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   folder (`sign_in_link.py`, `WorkIt Auto Apply Sign-In.app`) that claims
   the scheme and writes the link to `sign-in-link`, readable by this user
   alone, and the window trades it (`apply-window.md`). The built app (W8)
-  claims the scheme in its own `Info.plist`. The line with the page's
+  claims the scheme in its own `Info.plist` and makes no helper: macOS
+  hands it the link as an Apple event, which it keeps in memory
+  (`sign_in_link.listen`, KAN-833). The line with the page's
   link goes straight to the terminal, past the shell's mask
   (`apply.masked` hides the challenge, a long opaque value): a developer
   whose browser doesn't open needs it, and the challenge is no secret.
