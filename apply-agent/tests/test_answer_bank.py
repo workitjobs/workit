@@ -1,217 +1,147 @@
-"""The Answer bank: one answer per one-off question, kept in a YAML file Lisul edits."""
+"""The Answer bank: one answer per one-off question, kept on WorkIt and read once into memory (W11)."""
 
 import threading
-from datetime import date
 
-import yaml
+import pytest
 
-from apply import fill_engine
+from apply import masked
 from apply.answer_bank import AnswerBank
-from apply.model import Posting, Question
-from apply.profile import ApplicantProfile
+from apply.model import Question
+from apply.workit import Unreachable
 
 HEARD = Question("q1", "Tell us how you heard about Zipline", "text", required=True)
 SAMPLES = Question("q2", "Will you be including a link on your resume to samples of projects you've worked on?",
                    "select", required=True, options=("Yes", "No"))
-DAY = date(2026, 10, 16)
-POSTING = Posting("p1", "Roblox", "Software Engineer Intern", "https://job-boards.greenhouse.io/roblox/jobs/1")
-
-
-def test_a_drafted_answer_is_saved_with_where_it_was_first_seen(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-
-    AnswerBank(path).add(SAMPLES, "Yes", "Zipline", DAY)
-
-    saved = yaml.safe_load(path.read_text())
-    assert saved == {"will you be including a link on your resume to samples of projects you've worked on?": {
-        "question": SAMPLES.label, "answer": "Yes", "options": ["Yes", "No"], "source": "claude", "reviewed": False,
-        "first_seen": {"date": DAY, "company": "Zipline"},
-    }}
-    entry = AnswerBank(path).get(SAMPLES.label)
-    assert (entry.answer, entry.source, entry.reviewed, entry.company) == ("Yes", "claude", False, "Zipline")
-
-
-def test_the_same_question_in_other_spacing_or_case_finds_its_answer(tmp_path):
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(HEARD, "Through the Simplify internship list.", "Zipline", DAY)
-
-    assert bank.get("  TELL us how you heard\nabout Zipline *").answer == "Through the Simplify internship list."
-    assert bank.get("Tell us how you heard about Skydio") is None
-
-
-def test_an_answer_already_in_the_bank_is_never_replaced_by_a_new_draft(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    path.write_text(
-        "# Lisul's notes stay put\n"
-        "Tell us how you heard about Zipline:\n"
-        "  question: Tell us how you heard about Zipline\n"
-        "  answer: A friend on the avionics team.  # mine\n"
-        "  source: lisul\n"
-        "  reviewed: true\n"
-    )
-    bank = AnswerBank(path)
-
-    added = bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
-
-    assert not added
-    assert bank.get(HEARD.label).answer == "A friend on the avionics team."
-    bank.add(SAMPLES, "Yes", "Zipline", DAY)
-    text = path.read_text()
-    assert text.startswith("# Lisul's notes stay put") and "# mine" in text
-    assert AnswerBank(path).get(HEARD.label).source == "lisul"
-
-
-def test_workers_drafting_at_once_lose_no_answer(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    questions = [Question(f"q{n}", f"One-off question number {n}?", "text", required=True) for n in range(24)]
-
-    # A bank each, as separate runs have: only the file lock keeps them apart.
-    threads = [threading.Thread(target=AnswerBank(path).add, args=(q, f"Answer {q.name}", "Acme", DAY)) for q in questions]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    bank = AnswerBank(path)
-    assert [bank.get(q.label).answer for q in questions] == [f"Answer {q.name}" for q in questions]
-
-
-def test_a_bank_with_no_file_keeps_its_answers_in_memory():
-    bank = AnswerBank()
-
-    bank.add(SAMPLES, "Yes", "Zipline", DAY)
-
-    assert bank.get(SAMPLES.label).answer == "Yes"
-
-
-def test_the_notes_atop_a_bank_with_no_answers_yet_stay_put(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    path.write_text("# The Answer bank\n# Edit an answer, then set source: lisul.\n")
-
-    AnswerBank(path).add(SAMPLES, "Yes", "Zipline", DAY)
-
-    assert path.read_text().startswith("# The Answer bank\n# Edit an answer, then set source: lisul.\n")
-    assert AnswerBank(path).get(SAMPLES.label).answer == "Yes"
-
-
 SKILLS = Question("q3", "Skill Areas (Select all that apply)", "multi_select", True, ("Finance", "Software", "Robotics"))
 
 
-# Lisul's own edits, from the Answers tab of the Apply window.
+class Source:
+    """WorkIt's bank as `GET .../answer-bank` serves it, or a read that fails until `fails` reads have."""
 
-def test_lisuls_answer_in_the_window_replaces_the_draft_and_counts_as_reviewed(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    AnswerBank(path).add(SKILLS, ["Software"], "Zipline", DAY)
-    bank = AnswerBank(path)
+    def __init__(self, answers: dict | None = None, version: int = 7, fails: int = 0):
+        self.answers, self.version, self.fails, self.reads = answers or {}, version, fails, 0
 
-    bank.answer(SKILLS.label, ["Software", "Robotics"], DAY)
-
-    skills = AnswerBank(path).get(SKILLS.label)
-    assert (skills.answer, skills.source, skills.reviewed) == (["Software", "Robotics"], "lisul", True)
-    assert (skills.options, skills.company, skills.first_seen) == (SKILLS.options, "Zipline", DAY)  # kept
-
-
-def test_a_question_lisul_adds_himself_joins_the_bank_as_his(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-
-    AnswerBank(path).answer("Are you open to a hybrid schedule?", "Yes", DAY)
-
-    entry = AnswerBank(path).get("are you open to a HYBRID schedule?")
-    assert (entry.question, entry.answer, entry.source, entry.reviewed) == ("Are you open to a hybrid schedule?", "Yes", "lisul", True)
-    assert (entry.first_seen, entry.company, entry.options) == (DAY, "", ())
-    assert "answer: 'Yes'" in path.read_text()  # quoted: no YAML reader takes it for true
+    def read(self) -> tuple[dict, int]:
+        self.reads += 1
+        if self.reads <= self.fails:
+            raise Unreachable("WorkIt didn't answer")
+        return self.answers, self.version
 
 
-def test_marking_a_draft_reviewed_leaves_its_answer_and_source(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    AnswerBank(path).add(HEARD, "From the Simplify list.", "Zipline", DAY)
+def test_a_draft_is_found_again_under_its_question_in_any_case_or_spacing():
+    bank = AnswerBank()
+    assert bank.add(HEARD, "From the Simplify list.", "Zipline")
 
-    assert AnswerBank(path).review(HEARD.label)
-    assert not AnswerBank(path).review("Not in the bank?")
-
-    heard = AnswerBank(path).get(HEARD.label)
-    assert (heard.answer, heard.source, heard.reviewed) == ("From the Simplify list.", "claude", True)
+    assert bank.get("  tell us how you heard about zipline * ").answer == "From the Simplify list."
+    assert bank.get(HEARD.label).own is False  # the model's, until the student reviews it
 
 
-def test_a_deleted_answer_leaves_the_bank_so_claude_drafts_it_again(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    bank = AnswerBank(path)
-    bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
-    bank.add(SAMPLES, "Yes", "Zipline", DAY)
+def test_an_answer_in_the_bank_is_never_replaced_by_a_new_draft():
+    bank = AnswerBank()
+    bank.answer(SAMPLES.label, "No")
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
 
-    assert AnswerBank(path).delete(HEARD.label.upper())
-    assert not AnswerBank(path).delete(HEARD.label)
-
-    assert AnswerBank(path).get(HEARD.label) is None
-    assert AnswerBank(path).add(HEARD, "A new draft.", "Skydio", DAY)  # drafted again next time
-    assert AnswerBank(path).get(SAMPLES.label).answer == "Yes"
+    assert not bank.add(SAMPLES, "Yes", "Roblox")
+    assert not bank.add(HEARD, "From LinkedIn.", "Roblox")
+    assert (bank.get(SAMPLES.label).answer, bank.get(HEARD.label).answer) == ("No", "From the Simplify list.")
 
 
-def test_a_bank_read_again_sees_what_another_run_added(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    window = AnswerBank(path)
-    AnswerBank(path).add(HEARD, "From the Simplify list.", "Zipline", DAY)  # a Worker of another run
-
-    assert window.entries() == []
-    assert [e.question for e in window.read_again()] == [HEARD.label]
-
-
-def test_lisuls_edits_and_workers_drafts_at_once_lose_nothing(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    questions = [Question(f"q{n}", f"One-off question number {n}?", "text", required=True) for n in range(16)]
-    for q in questions[:8]:
-        AnswerBank(path).add(q, "Draft", "Acme", DAY)
-
-    edits = [threading.Thread(target=AnswerBank(path).answer, args=(q.label, f"Mine {q.name}", DAY)) for q in questions[:8]]
-    drafts = [threading.Thread(target=AnswerBank(path).add, args=(q, f"Draft {q.name}", "Acme", DAY)) for q in questions[8:]]
-    for thread in edits + drafts:
+def test_workers_drafting_at_once_lose_no_answer():
+    bank = AnswerBank()
+    questions = [Question(f"q{n}", f"Question {n}?", "text", True) for n in range(40)]
+    threads = [threading.Thread(target=bank.add, args=(q, f"Draft {q.name}", "Acme")) for q in questions]
+    for thread in threads:
         thread.start()
-    for thread in edits + drafts:
+    for thread in threads:
         thread.join()
 
-    bank = AnswerBank(path)
-    assert [bank.get(q.label).answer for q in questions] == \
-        [f"Mine q{n}" for n in range(8)] + [f"Draft q{n}" for n in range(8, 16)]
+    assert sorted(e.answer for e in bank.entries()) == sorted(f"Draft {q.name}" for q in questions)
 
 
-def test_a_draft_keeps_the_facts_it_drew_on_and_one_with_none_names_none(tmp_path):
-    path = tmp_path / "answer-bank.yaml"
-    bank = AnswerBank(path)
+def test_the_students_answer_replaces_a_draft_and_review_makes_a_draft_theirs():
+    bank = AnswerBank()
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+    bank.add(SAMPLES, "Yes", "Zipline")
 
-    bank.add(SAMPLES, "Yes", "Zipline", DAY, facts=["links.github_url"])
-    bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
+    bank.answer(HEARD.label, "A friend on the avionics team.")
+    assert bank.review(SAMPLES.label)
+    bank.answer("Do you have a driver's license?", "Yes")  # one they add themselves
 
-    saved = yaml.safe_load(path.read_text())
-    assert saved[SAMPLES.label.casefold()]["facts"] == ["links.github_url"]
-    assert "facts" not in saved[HEARD.label.casefold()]
-    assert AnswerBank(path).get(SAMPLES.label).facts == ("links.github_url",)
-    assert AnswerBank(path).get(HEARD.label).facts == ()
-
-
-def test_none_of_a_multi_selects_options_is_an_answer(tmp_path):
-    # Roblox's partner organizations (2026-11-02): Lisul is in none, and an empty answer read as no answer.
-    path = tmp_path / "answer-bank.yaml"
-    orgs = Question("q1", "Please select if you are a member of one or more of the following national organizations:",
-                    "multi_select", False, ("Women in Computer Science (WICS)", "Society of Women Engineers (SWE)"))
-    AnswerBank(path).answer(orgs.label, [], DAY)
-
-    entry = AnswerBank(path).get(orgs.label)
-    assert (entry.answer, entry.none, entry.source) == ([], True, "lisul")
-    planned = fill_engine.plan([orgs], POSTING, ApplicantProfile({}, tmp_path, {}), AnswerBank(path))
-    assert (planned.answers, planned.drafts, planned.missing) == ({}, [], [])
-    assert planned.blanks == {"q1": "None of its options holds for you: every box stays unticked"}
-
-    AnswerBank(path).answer(orgs.label, ["Society of Women Engineers (SWE)"], DAY)  # he joined one
-    assert AnswerBank(path).get(orgs.label).none is False
+    assert [(e.answer, e.own) for e in bank.entries()] == [
+        ("A friend on the avionics team.", True), ("Yes", True), ("Yes", True)]
+    assert bank.own_lines()[0] == "Tell us how you heard about Zipline: A friend on the avionics team."
+    assert not bank.review("Never asked?")
 
 
-def test_a_bare_date_is_filed_under_its_section_never_its_label_alone(tmp_path):
+def test_a_redraft_replaces_the_models_draft_but_never_the_students_answer():
+    bank = AnswerBank()
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+    bank.answer(SAMPLES.label, "No")
+
+    assert bank.redraft(HEARD, "From a friend.")
+    assert not bank.redraft(SAMPLES, "Yes")
+    assert (bank.get(HEARD.label).answer, bank.get(SAMPLES.label).answer) == ("From a friend.", "No")
+
+
+def test_a_deleted_answer_leaves_the_bank_so_the_model_drafts_it_again():
+    bank = AnswerBank()
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+
+    assert bank.delete(HEARD.label.upper())
+    assert bank.get(HEARD.label) is None and not bank.delete(HEARD.label)
+    assert bank.add(HEARD, "From LinkedIn.", "Roblox")
+
+
+def test_none_of_a_multi_selects_options_is_an_answer():
+    bank = AnswerBank()
+    bank.answer(SKILLS.label, [])
+
+    entry = bank.get(SKILLS.label)
+    assert (entry.answer, entry.none) == ([], True)
+
+
+def test_a_bare_date_is_filed_under_its_section_never_its_label_alone():
     # Arrowstreet (live, 2026-11-04): "from (mm/dd/yyyy)" held the internship's start, for every From on every form.
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    bank = AnswerBank()
     start = Question("q", "From (MM/DD/YYYY)", "text", True)
 
-    assert bank.add(start, "06/01/2026", "Acme", date(2026, 11, 4), wording="work experience / From (MM/DD/YYYY)")
+    assert bank.add(start, "06/01/2026", "Acme", wording="work experience / From (MM/DD/YYYY)")
 
     assert bank.get("From (MM/DD/YYYY)") is None
     assert bank.get("work experience / From (MM/DD/YYYY)").answer == "06/01/2026"
-    assert "work experience / from (mm/dd/yyyy):" in (tmp_path / "answer-bank.yaml").read_text()
+
+
+def test_test_persons_bank_keeps_no_drafts():
+    bank = AnswerBank(drafts=False)
+
+    assert not bank.add(HEARD, "From the Simplify list.", "Zipline")
+    assert not bank.redraft(HEARD, "From a friend.")
+    assert bank.entries() == []
+
+
+def test_the_bank_reads_workits_entries_and_masks_their_answers():
+    bank = AnswerBank(Source({
+        "tell us how you heard about zipline": {"question": HEARD.label, "answer": "A friend at Zipline HQ.", "own": True},
+        "skill areas (select all that apply)": {"question": SKILLS.label, "answer": [], "own": False, "none": True},
+    }))
+    assert not bank.ready
+
+    bank.load()
+
+    assert bank.ready
+    assert [(e.question, e.own, e.none) for e in bank.entries()] == [(HEARD.label, True, False), (SKILLS.label, False, True)]
+    assert "A friend at Zipline HQ." not in masked.KNOWN.scrub("They heard: A friend at Zipline HQ.")
+
+
+def test_a_bank_that_cant_read_tries_again_in_the_background_and_at_once_on_wake(monkeypatch):
+    monkeypatch.setattr("apply.answer_bank.RETRIES", (30.0,))
+    source = Source({"q": {"question": "Q?", "answer": "Yes", "own": True}}, fails=2)
+    bank = AnswerBank(source)
+    with pytest.raises(Unreachable):
+        bank.load()
+
+    bank.load_in_background()
+
+    assert bank.wake(5.0)  # the first try in the thread fails; the wake skips its 30 s wait
+    assert bank.get("Q?").answer == "Yes" and bank.problem == ""
+    assert source.reads == 3

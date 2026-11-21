@@ -297,7 +297,7 @@ def test_an_answer_typed_on_the_form_is_saved_as_a_cards_answer_and_a_bare_date_
     story = tmp_path / "story-bank.md"
     story.write_text("# Story bank\n")
     monkeypatch.setattr(essays.data_folder, "STORY_BANK", story)
-    tab = AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), profile_file)
+    tab = AnswersTab(AnswerBank(), profile_file)
     ask1, ask2 = "Essay fact: what did the robot do?", "Essay fact: what did you learn?"
     with Dashboard(1, FakeFrames({}), tab, answer=cli._answering(lambda: None, tab)) as board:
         board.update(0, company="Point72", posting_url="https://p.example/1", status=rehearsal.READY,

@@ -790,8 +790,7 @@ def test_a_one_off_question_is_drafted_by_claude_sent_with_the_form_and_banked(m
     assert sent_answer(form, HOUSING) == "Yes"
     [entry] = bank.entries()
     assert entry.question.startswith(HOUSING)
-    assert (entry.answer, entry.options, entry.source, entry.reviewed) == ("Yes", ("Yes", "No"), "claude", False)
-    assert (entry.company, entry.first_seen) == ("MetOx International", NOW.date())
+    assert (entry.answer, entry.own) == ("Yes", False)  # the model's, until the student reviews it
     assert f"Claude drafted: {entry.question} → Yes" in row.reason
 
 
@@ -843,7 +842,7 @@ def test_a_one_off_question_about_the_company_is_drafted_and_sent_but_never_bank
 
 def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted_again(monkeypatch):
     bank = AnswerBank()
-    bank.add(AsksAboutTheCompany().questions[-1], "Very", "Another Co", NOW.date())  # banked before they were kept out
+    bank.add(AsksAboutTheCompany().questions[-1], "Very", "Another Co")  # banked before they were kept out
     form, claude = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"})
 
     run(monkeypatch, form, claude, company="MetOx International", bank=bank)
@@ -855,7 +854,7 @@ def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted
 
 def test_lisuls_own_answer_to_a_company_question_is_still_used(monkeypatch):
     bank = AnswerBank()
-    bank.answer(FAMILIAR, "Very", NOW.date())
+    bank.answer(FAMILIAR, "Very")
     form, claude = AsksAboutTheCompany(), FakeClaude()
 
     run(monkeypatch, form, claude, company="MetOx International", bank=bank)
@@ -901,25 +900,12 @@ def test_an_answer_in_the_bank_is_sent_again_with_no_claude_call(monkeypatch):
     assert "Claude drafted" not in rows[0].reason
 
 
-def test_a_drafted_answer_is_banked_with_the_facts_it_drew_on(monkeypatch):
-    story = "- Applying for Summer 2027 software engineering and AI/ML internships."  # a Story bank line
-    claude = FakeClaude(drafts={HOUSING: "Yes"}, facts={HOUSING: [
-        "identity.summer_2027_location", story, "files.resume_pdf", "identity.no_such_fact", "A line no source has",
-    ]})
-    bank = AnswerBank()
+def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch):
+    form, bank = ResearchForm("MetOx International"), AnswerBank()
+    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
+    bank.answer(bank.entries()[0].question, "No")
 
-    run(monkeypatch, ResearchForm("MetOx International"), claude, company="MetOx International", bank=bank)
-
-    [entry] = bank.entries()
-    assert entry.facts == ("identity.summer_2027_location", story)  # what Claude named that a source holds
-
-
-def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch, tmp_path):
-    form, path = ResearchForm("MetOx International"), tmp_path / "answer-bank.yaml"
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=AnswerBank(path))
-    path.write_text(path.read_text().replace("answer: 'Yes'", "answer: 'No'").replace("source: claude", "source: lisul"))
-
-    run(monkeypatch, form, FakeClaude(), company="Another Co", bank=AnswerBank(path))
+    run(monkeypatch, form, FakeClaude(), company="Another Co", bank=bank)
 
     assert [s[label] for s in form.submitted for label in s if label.startswith(HOUSING)] == ["Yes", "No"]
 
@@ -1082,7 +1068,7 @@ def with_policies(tmp_path, policies: str) -> Path:
 def banked_housing(reviewed: bool = False) -> AnswerBank:
     bank = AnswerBank()
     housing = next(q for q in ResearchForm("MetOx International").questions if q.label.startswith(HOUSING))
-    bank.add(housing, "Yes", "MetOx International", NOW.date())
+    bank.add(housing, "Yes", "MetOx International")
     if reviewed:
         bank.review(housing.label)
     return bank
@@ -1172,7 +1158,7 @@ def test_an_essay_about_an_answer_given_above_sees_that_answer(monkeypatch):
         Question("listed", FIGMA_LISTED, "textarea", True, description="2-4 sentences."),
     ]
     bank = AnswerBank()
-    bank.answer(FIGMA_AREAS, "Infrastructure", NOW.date())
+    bank.answer(FIGMA_AREAS, "Infrastructure")
     claude = FakeClaude(essays={FIGMA_LISTED[:40]: MICROMOUSE})
 
     run(monkeypatch, form, claude, bank=bank)
@@ -1280,7 +1266,7 @@ def test_the_review_is_told_which_answers_are_lisuls_own_from_the_bank(monkeypat
     claude = FakeClaude()
 
     form, bank = ResearchForm("MetOx International"), AnswerBank()
-    bank.answer(next(q.label for q in form.questions if q.label.startswith(HOUSING)), "Yes", NOW.date())
+    bank.answer(next(q.label for q in form.questions if q.label.startswith(HOUSING)), "Yes")
 
     run_all(monkeypatch, form, claude, ["First Co"], profile, bank=bank)
 
@@ -1774,7 +1760,7 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._on_files = lambda files: None
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
-    planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
+    planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co")
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
 

@@ -13,7 +13,6 @@ from pathlib import Path
 
 from apply import (
     already_applied,
-    answer_sync,
     answering,
     app_window,
     captcha,
@@ -23,8 +22,8 @@ from apply import (
     worker_tiles,
 )
 from apply.accounts_tab import AccountsTab
-from apply.adapters import Adapters, ClaudeError, UsageReading
-from apply.answer_bank import FILE as ANSWER_BANK
+from apply.adapters import Adapters, ClaudeError, SetupError, UsageReading
+from apply.answer_bank import AnswerBank, WorkItSource
 from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
@@ -100,8 +99,9 @@ class NoRepairs:
         return False
 
 
-def adapters(profile: ApplicantProfile) -> Adapters:
-    """What a Student build's run touches. The policies are the Student build's own (apply.build.STUDENT_POLICIES)."""
+def adapters(profile: ApplicantProfile, bank: AnswerBank) -> Adapters:
+    """What a Student build's run touches, with the app's one Answer bank. The policies are the Student build's own
+    (apply.build.STUDENT_POLICIES)."""
     policies = profile.policies()
     site = live_site(policies)
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
@@ -123,7 +123,7 @@ def adapters(profile: ApplicantProfile) -> Adapters:
         phone=None,
         keychain=SystemKeychain(),
         repairs=NoRepairs(),
-        answer_bank=answer_sync.bank(profile.folder / ANSWER_BANK, policies),
+        answer_bank=bank,
         signed_in=site.signed_in(),
         tailored=tailored.from_workit(),
         everyday=captcha.to_everyday_chrome,
@@ -136,6 +136,9 @@ def tracker_url() -> str:
     application is there, not only this Mac's."""
     return f"{site().web}/applications"
 
+
+# How long Start waits for an Answer bank that hasn't read yet, as it tries again.
+BANK_WAIT = 5.0
 
 # A stopped run ends once its Workers' Chromes have let go of their profiles, so a Start right after Stop finds them
 # free (KAN-874): a fill under way when Stop came runs on to its own end. At most FREE_WAIT seconds, looked at each
@@ -162,19 +165,24 @@ class Runs:
     """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
 
-    def __init__(self, profile: ApplicantProfile, make: Callable[[ApplicantProfile], Adapters] = adapters,
+    def __init__(self, profile: ApplicantProfile, bank: AnswerBank,
+                 make: Callable[[ApplicantProfile, AnswerBank], Adapters] = adapters,
                  rehearse: Callable[..., object] = rehearsal.rehearse,
                  keep_awake: Callable[[], AbstractContextManager] = awake):
-        self._profile, self._make, self._rehearse, self._awake = profile, make, rehearse, keep_awake
+        self._profile, self._bank, self._make, self._rehearse, self._awake = profile, bank, make, rehearse, keep_awake
         self._site = None  # the run's Workers, to stop when the app quits
 
     def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
-        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed."""
+        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed. A run
+        waits for the Answer bank (W11): one that hasn't read yet is tried again, a few seconds at most."""
+        if not self._bank.wake(BANK_WAIT):
+            raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
+                             "Press Start again in a moment.")
         with self._awake():  # the Mac never sleeps mid-run (KAN-885)
             self._rehearse_shown(links, show)
 
     def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
-        made = self._make(self._profile)
+        made = self._make(self._profile, self._bank)
         self._site = site = made.site
         try:
             answers = AnswersTab(made.answer_bank, self._profile, held=made.tracker.rows)
@@ -208,8 +216,15 @@ def app() -> None:
     if home.fill_from_sample():
         print(f"No Applicant profile yet: WorkIt Auto Apply runs as Test Person from {HOME} till yours is there.")
     profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
-    answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
-    runs = Runs(profile)
+    # One Answer bank for the app (W11): Test Person's is memory only; a student's is read from WorkIt in the
+    # background, so the window opens at once while it reads.
+    if profile.get("sample_data") is True:
+        bank = AnswerBank(drafts=False)
+    else:
+        bank = AnswerBank(WorkItSource())
+        bank.load_in_background()
+    answers = AnswersTab(bank, profile)
+    runs = Runs(profile, bank)
     try:
         with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, tracker_url=tracker_url(),
                        serve=False) as board:

@@ -148,7 +148,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     redo = {q: (written.text, context)}
     if written.kind == ESSAY:
         [essay], _ = essays.answer(claude, form.posting, [q], [], profile, material, form.posting_text,
-                                   answered=answered, redo=redo)
+                                   answered=answered, redo=redo, mine=bank.own_lines())
         text, failed = essay.text, list(essay.failed)
         # The truth check's claims go on the note for Lisul to read; they never keep the old answer.
         claimed = [f"claims what no source backs: {'; '.join(essay.claims)}"] if essay.claims else []
@@ -156,7 +156,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
             return Redone(q, why="Claude needs more from you: " + "; ".join(essay.plan.asks), kept=kept)
     else:
         _, [draft] = essays.answer(claude, form.posting, [], [q], profile, material, form.posting_text,
-                                   answered=answered, redo=redo)
+                                   answered=answered, redo=redo, mine=bank.own_lines())
         text, failed, claimed = ("" if draft.needs_applicant else draft.shown), [], []
     if not text:
         return Redone(q, why="Claude couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
@@ -166,7 +166,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
     allowed = essays.sources(profile, material, facts=True)
     checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
-    banked = written.kind == DRAFT and _bank(bank, q, text, form.posting.company, today)
+    banked = written.kind == DRAFT and _bank(bank, q, text)
     written.text, written.why = text, "; ".join(checks)
     if written.kind == ESSAY:
         written.essay = replace(essay, failed=tuple(failed))
@@ -203,11 +203,11 @@ def _material(claude: Claude, form: Form, written: Written, site: JobSite | None
     return form.material
 
 
-def _bank(bank: AnswerBank, q: Question, text: str, company_name: str, today: date) -> bool:
+def _bank(bank: AnswerBank, q: Question, text: str) -> bool:
     """The new draft in the Answer bank, in place of the old; never under a bare label."""
     if len(re.sub(r"\([^)]*\)", "", q.label).split()) <= asking.BARE:
         return False
-    return bank.redraft(q, text, company_name, today)
+    return bank.redraft(q, text)
 
 
 # On a page held for Lisul: a small button beside each field that shows an answer Claude wrote. It is drawn over

@@ -20,7 +20,6 @@ import yaml
 
 from apply import (
     already_applied,
-    answer_sync,
     answering,
     ask,
     batch,
@@ -52,8 +51,7 @@ from apply import (
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
-from apply.answer_bank import FILE as ANSWER_BANK
-from apply.answer_bank import AnswerBank
+from apply.answer_bank import AnswerBank, WorkItSource
 from apply.answers_tab import AnswersTab
 from apply.answers_tab import saving_answers as _answering
 from apply.applicant import as_applicant
@@ -164,12 +162,6 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                     "Apply window with your answers")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
-    sync_answers = commands.add_parser(
-        "sync-answers", help="send every answer in the Answer bank to your WorkIt account, so the extension fills "
-                             "them: a one-time catch-up. With workit_sync.answers on in policies.yaml, each change "
-                             "goes by itself after; WorkIt keeps any answer of its own that is newer")
-    sync_answers.add_argument("--profile", type=Path, default=DEFAULT_PROFILE,
-                              help="the Applicant profile (YAML); its Answer bank is beside it")
     import_sheet = commands.add_parser(
         "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
                              "Tracker. It lists every add and skip first, and writes only when you type yes")
@@ -278,7 +270,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             _refuse_busy_worker_profiles(args.command)
             _refuse_stale_resume(profile, args.command)
             _send_waiting_writes()
-            adapters = live_adapters(profile, answer_bank=_answer_bank(args.profile.parent))
+            adapters = live_adapters(profile, answer_bank=_answer_bank(profile))
             WorkerBrowsers().seed(args.workers)
             try:
                 with _dashboard(adapters, args.workers, profile):
@@ -313,10 +305,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             # Employer accounts it makes (their passwords in Keychain).
             adapters = live_adapters(profile, tracker=InMemoryTracker(), records=FolderRecords(REHEARSALS),
                                      notifier=RecordingNotifier(), phone=RecordingNotifier(),
-                                     answer_bank=_answer_bank(args.profile.parent))
+                                     answer_bank=_answer_bank(profile))
             print(f"Rehearsing {len(args.urls)} links; Apply submits nothing, and each page is yours once it stops. "
-                  f"Records go to {REHEARSALS}/; "
-                  f"answers Claude drafts go to the Answer bank, {args.profile.parent / ANSWER_BANK}.")
+                  f"Records go to {REHEARSALS}/; answers the model drafts go to your Answer bank on WorkIt.")
             for seeded in WorkerBrowsers().seed(len(args.urls)):
                 print(f"Signed {seeded.name} in to Google as a copy of a signed-in Worker profile.")
             _send_waiting_writes()
@@ -378,8 +369,6 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(f"Logged in to WorkIt as {account.email}. Apply keeps the login in your keychain (apply-workit).")
         if account.account_type != "applicant":
             print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
-    elif args.command == "sync-answers":
-        sys.exit(_sync_answers(args.profile.parent / ANSWER_BANK))
     elif args.command == "import-sheet":
         client = workit.WorkIt()
         if not client.logged_in():
@@ -771,7 +760,7 @@ def _send_into(target: str, urls: list[str]) -> int:
 def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     """Ask Claude's offer, saved on Lisul's click: his own answer in the Answer bank, for later forms."""
     def remember(question: str, answer: str) -> str:
-        bank.answer(question, answer, date.today())
+        bank.answer(question, answer)
         return f"Saved to your answers: {question} → {answer}. Later forms that ask it get it."
     return remember
 
@@ -821,7 +810,7 @@ def _answers_window(profile: Path, window: Path) -> None:
         sheet[:] = sheet or [live_tracker()]
         return sheet[0]
 
-    tab = AnswersTab(_answer_bank(profile.parent), profile, held=lambda: tracker().rows())
+    tab = AnswersTab(_answer_bank(ApplicantProfile.load(profile)), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
@@ -866,26 +855,18 @@ def _window_context() -> dict:
     return {"tracker_url": f"{workit.site().web}/applications", "sweep_at": schedule.daily_sweep_at()}
 
 
-def _answer_bank(folder: Path) -> AnswerBank:
-    """The Answer bank in `folder`, which also sends each change to WorkIt once policies.yaml turns
-    workit_sync.answers on (answer_sync.py, KAN-746)."""
-    return answer_sync.bank(folder / ANSWER_BANK, load_policies())
-
-
-def _sync_answers(path: Path, client: workit.WorkIt | None = None, queue: Path = answer_sync.QUEUE) -> int:
-    """`apply sync-answers`: push the whole Answer bank to WorkIt. 1 when it could not all go."""
-    client = client or workit.WorkIt()
-    if not client.logged_in():
-        print("apply sync-answers: no WorkIt login. Run `uv run apply login` first.", file=sys.stderr)
-        return 1
-    if not path.is_file():
-        print(f"apply sync-answers: no Answer bank at {path}.", file=sys.stderr)
-        return 1
-    sent = answer_sync.AnswerSync(client, queue).push_all(AnswerBank(path))
-    print(answer_sync.report(sent))
-    if not answer_sync.enabled(load_policies()):
-        print(f"Later changes stay on this Mac: set workit_sync: {{answers: true}} in {OVERRIDE} to send each one.")
-    return 1 if sent.waiting or sent.problems else 0
+def _answer_bank(profile: ApplicantProfile) -> AnswerBank:
+    """The student's Answer bank, read from WorkIt now (W11): a Developer checkout's command needs it before it
+    starts, as WorkIt Auto Apply's run does. Test Person's (sample data) is memory only and keeps no drafts."""
+    if profile.get("sample_data") is True:
+        return AnswerBank(drafts=False)
+    bank = AnswerBank(WorkItSource())
+    try:
+        bank.load()
+    except workit.WorkItError as error:
+        sys.exit(f"The Answer bank is on WorkIt, which didn't answer ({error}). Run `uv run apply login` if you "
+                 "aren't signed in, then try again.")
+    return bank
 
 
 def live_tracker() -> WorkItTracker:
@@ -1041,7 +1022,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         phone=live_phone() if phone is None else phone,
         keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),
-        answer_bank=_answer_bank(profile.folder) if answer_bank is None else answer_bank,
+        answer_bank=_answer_bank(profile) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
         everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)

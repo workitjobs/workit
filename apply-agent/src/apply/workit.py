@@ -210,6 +210,10 @@ class WorkIt:
         """One API call as the signed-in student; its JSON answer. A refused token is refreshed one time.
         Raises NotLoggedIn, LoginExpired, Unreachable, or WorkItError for another refusal. `timeout` is
         longer for a model call (apply.ask_model.WorkItAsk), which waits on WorkIt's whole model chain."""
+        return self._call(method, path, body, timeout)[0]
+
+    def _call(self, method: str, path: str, body: Any = None, timeout: float = TIMEOUT) -> tuple[Any, Message]:
+        """`call`, with the answer's headers."""
         for attempt in range(2):
             status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0),
                                             timeout=timeout)
@@ -221,7 +225,7 @@ class WorkIt:
                 raise LoginExpired("WorkIt refused the login")
             if status >= 400:
                 raise WorkItError(f"{method} {path}: {status} {_detail(answer)}", status)
-            return answer
+            return answer, headers
 
     # The Applications Tracker's reads and writes (KAN-545), as the signed-in student.
 
@@ -308,12 +312,12 @@ class WorkIt:
         WorkIt's `POST /apply-app/reports`, which keeps it until the team fixes its problem. Its id on WorkIt."""
         return str(self.call("POST", "/apply-app/reports", report, timeout=REPORT_TIMEOUT)["id"])
 
-    def sync_answers(self, answers: list[dict], deleted: list[dict]) -> dict:
-        """Merge Answer bank entries (and deletes) into the student's answers on WorkIt, which the extension
-        fills from (KAN-746, `PATCH .../fill-answers`): at most 200 of each. WorkIt decides which are the
-        student's own and keeps its own newer entries. Answers {saved, deleted, kept}."""
-        return self.call("PATCH", f"/applicants/{self.applicant_id()}/fill-answers",
-                         {"answers": answers, "deleted": deleted})
+    def answer_bank(self) -> tuple[dict[str, dict], int]:
+        """The student's whole Answer bank on WorkIt (W11, `GET .../answer-bank`), by each question's folded
+        wording: {key: {question, answer, own, none?}}, and its version, from the ETag."""
+        answer, headers = self._call("GET", f"/applicants/{self.applicant_id()}/answer-bank")
+        version = re.fullmatch(r'\s*(?:W/)?"(\d+)"\s*', headers.get("ETag") or "")
+        return answer, int(version.group(1)) if version else 0
 
     def applicant_id(self) -> str:
         """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""

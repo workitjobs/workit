@@ -383,12 +383,14 @@ const answerOf = (entry, draft) => {
   if (draft.other.trim()) return draft.other.trim();
   if (entry.options.length && Array.isArray(entry.answer)) return entry.options.filter(o => draft.picked.includes(o));
   if (entry.options.length) return draft.picked[0] || '';
+  // A multi-select's answer is edited as text, its picks between semicolons; the Fill engine fits each to a form.
+  if (Array.isArray(entry.answer)) return draft.text.split(';').map(a => a.trim()).filter(Boolean);
   return draft.text;
 };
 const draftOf = (key, entry) => drafts.get(key) || (entry.options.length
   ? {picked: [].concat(entry.answer).filter(a => entry.options.includes(a)),
      other: [].concat(entry.answer).filter(a => !entry.options.includes(a)).join('; '), text: ''}
-  : {picked: [], other: '', text: entry.answer});
+  : {picked: [], other: '', text: Array.isArray(entry.answer) ? entry.answer.join('; ') : entry.answer});
 
 const bankEntry = (entry) => {
   const key = 'bank:' + entry.question, isOpen = opened === key;
@@ -400,10 +402,9 @@ const bankEntry = (entry) => {
       el('div', {className: 'a', textContent: shown(entry.answer)}),
       el('div', {className: 'meta'},
         entry.reviewed ? null : el('span', {className: 'badge unreviewed', textContent: 'Check this'}),
-        el('span', {textContent: entry.source === 'lisul' ? 'Written by you' : 'Written by Claude'}),
-        el('span', {textContent: [entry.company && 'first asked by ' + entry.company, entry.date].filter(Boolean).join(' · ')}))));
+        el('span', {textContent: entry.source === 'lisul' ? 'Written by you' : 'Written by Claude'}))));
   card.dataset.key = key;
-  card.dataset.text = [entry.question, shown(entry.answer), entry.company, ...entry.options].join('\n').toLowerCase();
+  card.dataset.text = [entry.question, shown(entry.answer), ...entry.options].join('\n').toLowerCase();
   card.dataset.review = entry.reviewed ? '' : '1';
   if (!isOpen) return card;
   const draft = draftOf(key, entry);

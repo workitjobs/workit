@@ -115,7 +115,7 @@ your shell runs macOS's own `apply`, an unrelated command that prints only
 6. Replace the Test Person files in `~/.config/apply/` with your own:
    `applicant-profile.yaml` (copy `applicant-profile.template.yaml` from
    this folder and fill it in),
-   `answer-bank.yaml`, `story-bank.md`, `voice.md`, your resume PDF and
+   `story-bank.md`, `voice.md`, your resume PDF and
    `company-briefs/`. A relative path under `files:` in the profile is read
    from the data folder. If you edit the sample profile instead, delete its
    `sample_data: true` line, or the window keeps saying "Sample data". Never

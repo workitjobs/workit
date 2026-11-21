@@ -58,7 +58,9 @@ class AnswersTab:
         """What the tab shows, read again from the bank and the profile."""
         facts = self._profile_now().facts()
         return {
-            "bank": [_shown(entry) for entry in self._bank.read_again()],
+            "bank": [_shown(entry) for entry in self._bank.entries()],
+            # While the bank hasn't come from WorkIt yet (W11), why: it is tried again by itself.
+            "bank_note": "" if self._bank.ready else self._bank.problem or "Reading your answers from WorkIt.",
             "answered": [{"question": q, "answer": _text(a)} for q, a in (facts.get(ANSWERED) or {}).items()
                          if not SECRET.search(str(q))],
             "stock": [{"key": k, "answer": _text(a)} for k, a in (facts.get(STOCK) or {}).items()
@@ -76,14 +78,14 @@ class AnswersTab:
         question, answer = _question(question), _answer(answer)
         if not self._has(question):
             raise Refused("That question is no longer in the Answer bank.", 404)
-        self._bank.answer(question, answer, self._today())
+        self._bank.answer(question, answer)
 
     def add(self, question: str, answer: str | list[str]) -> None:
         """A question Lisul adds to the bank himself, with his answer."""
         question, answer = _question(question), _answer(answer)
         if self._has(question):
             raise Refused("That question is already in the Answer bank: edit it there.", 409)
-        self._bank.answer(question, answer, self._today())
+        self._bank.answer(question, answer)
 
     def review(self, question: str) -> None:
         if not self._bank.review(_question(question)):
@@ -161,7 +163,6 @@ class AnswersTab:
         return offers
 
     def _has(self, question: str) -> bool:
-        self._bank.read_again()
         return self._bank.get(question) is not None
 
     def _profile_now(self) -> ApplicantProfile:
@@ -201,9 +202,10 @@ def _scalar(text: str) -> str:
 
 
 def _shown(entry: Entry) -> dict:
-    return {"question": entry.question, "answer": entry.answer, "options": list(entry.options), "source": entry.source,
-            "reviewed": entry.reviewed, "company": entry.company.strip(),
-            "date": entry.first_seen.isoformat() if entry.first_seen else ""}
+    """An entry as the Answers tab draws it: a choice's answer is edited as text, and the Fill engine maps it to
+    each form's options (W11), so no options come with it."""
+    return {"question": entry.question, "answer": entry.answer, "options": [],
+            "source": "lisul" if entry.own else "claude", "reviewed": entry.own}
 
 
 def _flat(value: Any, prefix: str = "", files: bool = False) -> list[list[str]]:

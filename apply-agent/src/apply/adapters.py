@@ -281,7 +281,7 @@ class Adapters:
     board: Board = field(default_factory=NoBoard)  # the dashboard's tile per Worker
     # What went wrong, for a Repair; the Student build passes its own (apply.student.NoRepairs).
     repairs: "RepairRequests" = field(default_factory=lambda: _developer("repair").RepairRequests())
-    answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
+    answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: the student's bank on WorkIt, read into memory
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
     # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.

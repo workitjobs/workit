@@ -68,16 +68,16 @@ HELD = Row("a1", "Acme", "SWE Intern", "https://jobs.example.com/1", "greenhouse
 def files(tmp_path):
     profile = tmp_path / "applicant-profile.yaml"
     profile.write_text(PROFILE)
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(SKILLS, ["Software"], "Zipline", DAY)
-    bank.add(HEARD, "From the Simplify list.", "Skydio", DAY)
-    return profile, tmp_path / "answer-bank.yaml"
+    bank = AnswerBank()
+    bank.add(SKILLS, ["Software"], "Zipline")
+    bank.add(HEARD, "From the Simplify list.", "Skydio")
+    return profile, bank
 
 
 @pytest.fixture
 def board(files):
     profile, bank = files
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile, today=lambda: DAY)) as board:
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile, today=lambda: DAY)) as board:
         yield board
 
 
@@ -90,10 +90,9 @@ def test_the_answers_tab_lists_the_bank_his_answers_his_stock_answers_and_his_pr
     view = get_json(board.url + "/answers")
 
     assert view["bank"] == [
-        {"question": SKILLS.label, "answer": ["Software"], "options": list(SKILLS.options), "source": "claude",
-         "reviewed": False, "company": "Zipline", "date": "2026-10-16"},
+        {"question": SKILLS.label, "answer": ["Software"], "options": [], "source": "claude", "reviewed": False},
         {"question": HEARD.label, "answer": "From the Simplify list.", "options": [], "source": "claude",
-         "reviewed": False, "company": "Skydio", "date": "2026-10-16"},
+         "reviewed": False},
     ]
     assert view["answered"] == [{"question": "Do you have a valid driver's license?", "answer": "Yes"}]
     assert view["stock"] == [
@@ -142,18 +141,18 @@ def test_lisuls_answer_saved_in_the_tab_becomes_the_banks_and_counts_as_reviewed
     status, view = post(board, "/answers/bank/save", {"question": SKILLS.label, "answer": ["Software", "Robotics"]})
 
     assert status == 200
-    skills = AnswerBank(files[1]).get(SKILLS.label)
-    assert (skills.answer, skills.source, skills.reviewed) == (["Software", "Robotics"], "lisul", True)
-    assert view["bank"][0] == {"question": SKILLS.label, "answer": ["Software", "Robotics"], "options": list(SKILLS.options),
-                               "source": "lisul", "reviewed": True, "company": "Zipline", "date": "2026-10-16"}
+    skills = files[1].get(SKILLS.label)
+    assert (skills.answer, skills.own) == (["Software", "Robotics"], True)
+    assert view["bank"][0] == {"question": SKILLS.label, "answer": ["Software", "Robotics"], "options": [],
+                               "source": "lisul", "reviewed": True}
 
 
 def test_marking_reviewed_in_the_tab_leaves_claudes_answer(board, files):
     status, view = post(board, "/answers/bank/review", {"question": HEARD.label})
 
     assert status == 200
-    heard = AnswerBank(files[1]).get(HEARD.label)
-    assert (heard.answer, heard.source, heard.reviewed) == ("From the Simplify list.", "claude", True)
+    heard = files[1].get(HEARD.label)
+    assert (heard.answer, heard.own) == ("From the Simplify list.", True)
     assert view["bank"][1]["reviewed"] is True
 
 
@@ -161,7 +160,7 @@ def test_deleting_in_the_tab_takes_the_answer_out_of_the_bank(board, files):
     status, view = post(board, "/answers/bank/delete", {"question": HEARD.label})
 
     assert status == 200
-    assert AnswerBank(files[1]).get(HEARD.label) is None
+    assert files[1].get(HEARD.label) is None
     assert [e["question"] for e in view["bank"]] == [SKILLS.label]
     assert post(board, "/answers/bank/delete", {"question": HEARD.label})[0] == 404
 
@@ -170,13 +169,13 @@ def test_a_question_added_in_the_tab_joins_the_bank_as_lisuls(board, files):
     status, view = post(board, "/answers/bank/add", {"question": "Are you open to a hybrid schedule?", "answer": "Yes"})
 
     assert status == 200
-    entry = AnswerBank(files[1]).get("Are you open to a hybrid schedule?")
-    assert (entry.answer, entry.source, entry.reviewed, entry.first_seen) == ("Yes", "lisul", True, DAY)
+    entry = files[1].get("Are you open to a hybrid schedule?")
+    assert (entry.answer, entry.own) == ("Yes", True)
     assert view["bank"][-1]["question"] == "Are you open to a hybrid schedule?"
     # A question already in the bank is edited where it is listed, never replaced by an add.
     status, reply = post(board, "/answers/bank/add", {"question": HEARD.label.upper(), "answer": "A friend."})
     assert status == 409 and "already" in reply["error"]
-    assert AnswerBank(files[1]).get(HEARD.label).answer == "From the Simplify list."
+    assert files[1].get(HEARD.label).answer == "From the Simplify list."
 
 
 @pytest.mark.parametrize("path, body", [
@@ -189,12 +188,12 @@ def test_a_question_added_in_the_tab_joins_the_bank_as_lisuls(board, files):
     ("/answers/bank/save", {"question": SKILLS.label, "answer": ["Software"] * 101}),
 ])
 def test_an_edit_that_is_empty_or_too_long_is_refused(board, files, path, body):
-    before = files[1].read_text()
+    before = files[1].entries()
 
     status, reply = post(board, path, body)
 
     assert status == 400 and reply["error"]
-    assert files[1].read_text() == before
+    assert files[1].entries() == before
 
 
 def test_a_body_too_big_for_any_answer_is_refused_unread(board):
@@ -231,7 +230,7 @@ def test_a_stock_answer_is_saved_into_the_profile_in_its_own_style(board, files)
 def test_a_held_essay_of_a_stock_type_offers_to_become_his_stock_answer(files):
     profile, bank = files
     sent = Row("a2", "Beta", "SWE Intern", "https://jobs.example.com/2", "greenhouse", Status.SUBMITTED, essay=ESSAYS)
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile, held=lambda: [HELD, sent])) as board:
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile, held=lambda: [HELD, sent])) as board:
         view = get_json(board.url + "/answers")
         # only the held one, and only the type that takes stock (not why-company); nothing saved yet
         assert view["stock_offers"] == [{"type": "why-field", "company": "Acme",
@@ -251,7 +250,7 @@ def test_a_held_essay_of_a_stock_type_offers_to_become_his_stock_answer(files):
 
 def test_only_an_offered_essay_can_be_kept_and_a_kept_one_is_editable(files):
     profile, bank = files
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile, held=lambda: [HELD])) as board:
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile, held=lambda: [HELD])) as board:
         assert post(board, "/answers/stock/keep", {"type": "why-company", "company": "Acme",
                                                    "question": "Why do you want to join Acme?", "answer": "x"})[0] == 404
         assert post(board, "/answers/stock/type/save", {"type": "why-field", "answer": "x"})[0] == 404
@@ -266,7 +265,7 @@ def test_only_an_offered_essay_can_be_kept_and_a_kept_one_is_editable(files):
 def test_the_tab_edits_the_profile_a_run_holds_so_the_runs_own_save_keeps_it(files):
     profile_path, bank = files
     profile = ApplicantProfile.load(profile_path)
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile)) as board:
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile)) as board:
         post(board, "/answers/stock/save", {"key": "why_this_major", "answer": "Robots."})
 
     profile.set_answered("Pronouns?", "he/him")  # a Worker's Missing fact, later in the run
@@ -281,12 +280,12 @@ def test_the_tab_edits_the_profile_a_run_holds_so_the_runs_own_save_keeps_it(fil
     {"Host": "evil.example"},  # DNS rebinding: another site's name on this port
 ])
 def test_an_edit_from_anywhere_but_the_page_itself_is_refused(board, files, headers):
-    before = files[1].read_text()
+    before = files[1].entries()
 
     status, _reply = post(board, "/answers/bank/delete", {"question": HEARD.label}, headers)
 
     assert status == 403
-    assert files[1].read_text() == before
+    assert files[1].entries() == before
 
 
 def test_another_sites_name_for_this_port_reads_nothing(board):
@@ -301,7 +300,7 @@ def test_edits_in_the_tab_and_a_runs_drafts_at_once_lose_nothing(board, files):
     added = [f"Lisul's question {n}?" for n in range(12)]
 
     def draft(q):  # a Worker of the run, with a bank of its own, as another process has
-        AnswerBank(files[1]).add(q, f"Draft {q.name}", "Acme", DAY)
+        files[1].add(q, f"Draft {q.name}", "Acme")
 
     threads = [threading.Thread(target=draft, args=(q,)) for q in drafts] + \
               [threading.Thread(target=post, args=(board, "/answers/bank/add", {"question": q, "answer": "Mine"})) for q in added]
@@ -310,7 +309,7 @@ def test_edits_in_the_tab_and_a_runs_drafts_at_once_lose_nothing(board, files):
     for thread in threads:
         thread.join()
 
-    bank = AnswerBank(files[1])
+    bank = files[1]
     assert [bank.get(q.label).answer for q in drafts] == [f"Draft d{n}" for n in range(12)]
     assert [bank.get(q).answer for q in added] == ["Mine"] * 12
     assert len(get_json(board.url + "/answers")["bank"]) == 2 + 24
@@ -338,26 +337,29 @@ def test_lisul_opens_the_answers_tab_and_edits_a_choice_and_a_text_answer(board,
     window.click("#tab-answers")
 
     skills = entry(window, SKILLS.label)
-    assert "Zipline" in skills.inner_text() and "2026-10-16" in skills.inner_text()
     assert "Written by Claude" in skills.inner_text() and "Check this" in skills.inner_text()
     skills.click()
-    # A choice question offers its own options, with Claude's ticked.
-    assert skills.locator("input[type=checkbox]").evaluate_all("bs => bs.map(b => [b.value, b.checked])") == \
-        [["Finance", False], ["Software", True], ["Robotics", False]]
-    skills.locator("input[value=Robotics]").check()
+    # A choice is edited as text (W11): its picks between semicolons, which the Fill engine fits to each form.
+    assert skills.locator("textarea").input_value() == "Software"
+    skills.locator("textarea").fill("Software; Robotics")
     assert skills.locator(".status").inner_text() == "Unsaved changes"
     skills.locator("button", has_text="Save").click()
     window.wait_for_function("document.querySelector('.bank-entry .status')?.textContent === 'Saved'")
-    assert AnswerBank(files[1]).get(SKILLS.label).answer == ["Software", "Robotics"]
+    assert files[1].get(SKILLS.label).answer == ["Software", "Robotics"]
     assert "Written by you" in entry(window, SKILLS.label).inner_text()
+    # Opened again, the two picks read as they were typed, and saving them unchanged keeps two picks.
+    window.reload()
+    show(window, "All")  # it opens on what there is to check, and the student checked this one
+    entry(window, SKILLS.label).click()
+    assert entry(window, SKILLS.label).locator("textarea").input_value() == "Software; Robotics"
 
     heard = entry(window, HEARD.label)
     heard.click()
     heard.locator("textarea").fill("A friend on the avionics team.")
     heard.locator("button", has_text="Save").click()
     window.wait_for_function("[...document.querySelectorAll('.bank-entry .status')].some(s => s.textContent === 'Saved')")
-    entry_now = AnswerBank(files[1]).get(HEARD.label)
-    assert (entry_now.answer, entry_now.source, entry_now.reviewed) == ("A friend on the avionics team.", "lisul", True)
+    entry_now = files[1].get(HEARD.label)
+    assert (entry_now.answer, entry_now.own) == ("A friend on the avionics team.", True)
 
 
 def test_lisul_marks_one_reviewed_deletes_another_and_adds_his_own(board, files, window):
@@ -365,20 +367,20 @@ def test_lisul_marks_one_reviewed_deletes_another_and_adds_his_own(board, files,
     entry(window, HEARD.label).click()
     entry(window, HEARD.label).locator("button", has_text="Looks right").click()
     window.wait_for_function("document.body.innerText.includes('Marked checked')")
-    assert AnswerBank(files[1]).get(HEARD.label).reviewed
+    assert files[1].get(HEARD.label).own
 
     window.once("dialog", lambda dialog: dialog.accept())
     entry(window, SKILLS.label).click()
     entry(window, SKILLS.label).locator("button", has_text="Delete").click()
     entry(window, SKILLS.label).wait_for(state="detached")
-    assert AnswerBank(files[1]).get(SKILLS.label) is None
+    assert files[1].get(SKILLS.label) is None
 
     window.click("#add-open")
     window.fill("#add-question", "Are you open to a hybrid schedule?")
     window.fill("#add-answer", "Yes")
     window.click("#add-button")
     entry(window, "Are you open to a hybrid schedule?").wait_for()
-    assert AnswerBank(files[1]).get("Are you open to a hybrid schedule?").answer == "Yes"
+    assert files[1].get("Are you open to a hybrid schedule?").answer == "Yes"
 
 
 def show(window, segment: str) -> None:
@@ -397,7 +399,7 @@ def test_a_refused_edit_says_why_in_the_tab(board, files, window):
 
 def test_lisul_clicks_save_as_stock_answer_on_a_held_essay(files, window):
     profile, bank = files
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile, held=lambda: [HELD])) as board:
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile, held=lambda: [HELD])) as board:
         window.goto(board.url + "/#answers")
         show(window, "Your facts")
         offer = window.locator(".stock-entry", has_text="Save as stock answer? why-field")
@@ -428,8 +430,8 @@ def test_the_search_box_narrows_every_section(board, window):
     window.goto(board.url + "/#answers")
     window.fill("#search", "zipline")
 
-    assert window.locator(".bank-entry:visible").count() == 2  # HEARD asks about Zipline; SKILLS was first seen there
-    window.fill("#search", "robotics")
+    assert window.locator(".bank-entry:visible").count() == 1  # HEARD asks about Zipline
+    window.fill("#search", "software")
     assert window.locator(".bank-entry:visible").count() == 1
     assert window.locator(".stock-entry:visible").count() == 0
 
@@ -461,8 +463,8 @@ def test_the_answers_tab_fits_a_small_window(board, window):
 
 def test_an_answer_with_markup_shows_as_text(files, window):
     profile, bank = files
-    AnswerBank(bank).answer("<img src=x onerror=\"document.title='pwned'\">", "<b>bold</b>", DAY)
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile)) as board:
+    bank.answer("<img src=x onerror=\"document.title='pwned'\">", "<b>bold</b>")
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile)) as board:
         window.goto(board.url + "/#answers")
         show(window, "All")
         entry(window, "<b>bold</b>").wait_for()
@@ -471,7 +473,7 @@ def test_an_answer_with_markup_shows_as_text(files, window):
 
 def test_while_a_run_goes_the_window_opens_on_its_inbox_with_workers_and_answers_a_tab_away(files, window):
     profile, bank = files
-    with Dashboard(2, NoFrames(), AnswersTab(AnswerBank(bank), profile)) as board:
+    with Dashboard(2, NoFrames(), AnswersTab(bank, profile)) as board:
         board.update(1, company="Rhombus", status="filling")
         window.goto(board.url)
         window.wait_for_function("document.getElementById('caption-1').textContent.includes('Rhombus')", timeout=10_000)
@@ -497,7 +499,7 @@ def test_the_tab_opens_on_what_there_is_to_check_and_says_what_its_filter_hides(
     show(window, "Your facts")
     assert window.is_visible("#profile-facts") and not window.is_visible("#sec-bank")
     show(window, "All")
-    window.fill("#search", "robotics")
+    window.fill("#search", "software")
     assert window.inner_text("#sec-bank .hidden-note").startswith("1 hidden by your search")
     window.click("#sec-bank .hidden-note button")
     assert window.input_value("#search") == "" and window.locator(".bank-entry:visible").count() == 2
@@ -506,8 +508,8 @@ def test_the_tab_opens_on_what_there_is_to_check_and_says_what_its_filter_hides(
 def test_with_nothing_to_check_the_tab_opens_on_all(files, window):
     profile, bank = files
     for question in [HEARD.label, SKILLS.label]:
-        AnswerBank(bank).review(question)
-    with Dashboard(0, NoFrames(), AnswersTab(AnswerBank(bank), profile)) as board:
+        bank.review(question)
+    with Dashboard(0, NoFrames(), AnswersTab(bank, profile)) as board:
         window.goto(board.url + "/#answers")
         entry(window, HEARD.label).wait_for()
 

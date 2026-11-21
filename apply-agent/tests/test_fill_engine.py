@@ -46,8 +46,8 @@ def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_pat
     # Only the how-heard plan is a try-list; any other answer that holds a "|" is meant as it is.
     posting = Posting("w", "Acme", "Intern", "https://acme.wd1.myworkdayjobs.com/en-US/careers/job/Intern_R1")
     shell = Question("q1", "Which shell do you use?", "text", True)
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(shell, "zsh|bash", "Acme", date(2026, 11, 2))
+    bank = AnswerBank()
+    bank.add(shell, "zsh|bash", "Acme")
     planned = fill_engine.plan([shell], posting, PROFILE, bank)
 
     assert planned.answers["q1"] == "zsh|bash"
@@ -238,7 +238,7 @@ def test_amds_icims_profile_dates_title_phone_type_and_graduation_are_planned_fr
                  Question("q30", "Start Date (Month / Day / Year): Day", "select", False, days),
                  Question("q31", "Start Date (Month / Day / Year): Year", "text")]
     bank = AnswerBank()
-    bank.answer("Title", "Mr.", date(2026, 11, 5))
+    bank.answer("Title", "Mr.")
     planned = fill_engine.plan(questions, POSTING, profile, bank, today=date(2026, 11, 6))
     assert [planned.answers.get(n) for n in ("q6", "q21", "q28", "q29", "q30", "q31")] == [
         "Mobile", "In Progress", "Software Engineer Intern", "Jun", None, "2026"]

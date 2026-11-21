@@ -12,7 +12,7 @@ from fakes import FakeClaude, RecordingBoard
 from test_run_answers import profile_with
 
 from apply import home, regenerate
-from apply.answer_bank import CLAUDE, AnswerBank
+from apply.answer_bank import AnswerBank
 from apply.dashboard import Dashboard, NoFrames
 from apply.essays import Essay
 from apply.model import Posting, Question
@@ -85,23 +85,22 @@ def test_an_answer_over_the_forms_cap_or_with_an_invented_name_stays_off_the_for
 
 def test_a_one_off_answer_is_drafted_again_and_replaces_its_draft_in_the_answer_bank(tmp_path):
     profile = ApplicantProfile.load(profile_with(tmp_path))
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(CLUB, "The coding club", "Harvey", TODAY)
+    bank = AnswerBank()
+    bank.add(CLUB, "The coding club", "Harvey")
     form = a_form(regenerate.Written(CLUB, "The coding club", regenerate.DRAFT))
 
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "The robotics club, which I led"}), form,
                                    "club", "I led the robotics club", profile, bank, TODAY)
 
     assert redone.text == "The robotics club, which I led" and redone.banked
-    entry = AnswerBank(tmp_path / "answer-bank.yaml").get(CLUB.label)
-    assert entry.answer == "The robotics club, which I led" and entry.source == CLAUDE and not entry.reviewed
-    assert entry.first_seen == TODAY and entry.company == "Harvey"
+    entry = bank.get(CLUB.label)
+    assert entry.answer == "The robotics club, which I led" and not entry.own
 
 
 def test_lisuls_own_answer_and_a_bare_label_are_never_replaced_in_the_answer_bank(tmp_path):
     profile = ApplicantProfile.load(profile_with(tmp_path))
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.answer(CLUB.label, "His own words", TODAY)
+    bank = AnswerBank()
+    bank.answer(CLUB.label, "His own words")
     form = a_form(regenerate.Written(CLUB, "His own words", regenerate.DRAFT))
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "Another club"}), form, "club", "say more",
                                    profile, bank, TODAY)

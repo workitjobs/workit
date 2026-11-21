@@ -436,7 +436,7 @@ def _steps(step) -> list:
 def test_a_workday_rehearsal_answers_a_bare_from_for_its_school_and_banks_nothing_by_its_label(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     world = experience_profile(graduation_day=21)
-    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"From": "05/26/2027"})
+    bank, claude = AnswerBank(), FakeClaude(drafts={"From": "05/26/2027"})
 
     with FakeWorkdayServer(XCEL_FORM, steps=_steps(SCHOOL_QUESTIONS)) as server:
         [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
@@ -454,7 +454,7 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     job = ("Application Questions 1 of 2", [WorkdayField("title", "Job Title", "text", True),
                                             WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
-    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
+    bank, claude = AnswerBank(), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
 
     world = experience_profile()  # kept: its folder holds the profile
     with FakeWorkdayServer(XCEL_FORM, steps=_steps(job)) as server:
@@ -474,7 +474,7 @@ def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(mon
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     bare = ("Application Questions 1 of 2", [WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
     problem = "'From (MM/DD/YYYY)': 05/24/2027 is the internship start date, not his school start"
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    bank = AnswerBank()
     claude = FakeClaude(drafts={"From": "05/24/2027"},  # a number the profile holds (its earliest start), so it is used
                         # A fix for an answer from the profile is never taken (General Motors' degree, live).
                         reviews=[{"problems": [problem, "First Name: not his name"],

@@ -35,7 +35,7 @@ from apply import (
     verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
-from apply.answer_bank import LISUL, AnswerBank
+from apply.answer_bank import AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
     attested_line,
@@ -714,7 +714,8 @@ class _Planned:
             if ask or to_draft:
                 stuck.doing(f"Writing answers for {where}")
             written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
-                                             answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+                                             answered=answered, sections=self.sections,
+                                             mine=self._bank.own_lines()) if ask or to_draft else ([], [])
         except stuck.Stopped:
             self._to_lisul(planned.answers, planned.missing, new + to_draft)
             raise
@@ -729,8 +730,7 @@ class _Planned:
             if company_specific(draft.question, posting) or self.filed.get(draft.question.name, "") is None:
                 self.unbanked.append(draft)
             else:
-                self._bank.add(draft.question, draft.answer, posting.company, self._today, list(draft.facts),
-                               wording=self.wording(draft.question))
+                self._bank.add(draft.question, draft.answer, posting.company, wording=self.wording(draft.question))
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
@@ -808,7 +808,7 @@ class _Planned:
 
     def own(self) -> set[str]:
         """The questions the form took Lisul's own Answer bank answer for."""
-        return {q.name for q in self.banked if (entry := self._bank.get(self.wording(q))) and entry.source == LISUL}
+        return {q.name for q in self.banked if (entry := self._bank.get(self.wording(q))) and entry.own}
 
     def wording(self, q: Question) -> str:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
@@ -837,7 +837,7 @@ class _Planned:
                 continue
             for draft in [d for d in self.drafted if d.question.name == q.name]:
                 entry = self._bank.get(self.wording(q))
-                if entry and entry.source != LISUL and not entry.reviewed:
+                if entry and not entry.own:
                     self._bank.delete(self.wording(q))
                 self.drafted.remove(draft)
             self.fixes[q.name] = answer
@@ -854,7 +854,7 @@ class _Planned:
         if self.profile.policy("unreviewed_answers") != "hold" or self._approved is not None:
             return []
         waiting = [entry for q in self.banked if q.name in self.answers
-                   if (entry := self._bank.get(self.wording(q))) and entry.source != LISUL and not entry.reviewed]
+                   if (entry := self._bank.get(self.wording(q))) and not entry.own]
         return [f"'{one_line(e.question)}': an answer that waits for your review: review it in the Answers tab"
                 for e in waiting]
 

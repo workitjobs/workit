@@ -29,6 +29,7 @@ from apply import (
     upload_origin,
 )
 from apply.adapters import ClaudeError, SetupError
+from apply.answer_bank import AnswerBank
 from apply.ask_model import live_claude
 from apply.fillers import FILLERS
 from apply.generic_fill import GenericFiller
@@ -53,9 +54,10 @@ network_block.install()
 network_block.begin()
 keyring.set_keyring(null.Keyring())
 from apply import student
+from apply.answer_bank import AnswerBank
 from apply.plain import fixed
 from apply.profile import ApplicantProfile
-run = student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
+run = student.adapters(ApplicantProfile.load(Path(sys.argv[1])), AnswerBank())
 fixed.functions()
 print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end(),
                   "usage": type(run.usage.reading.__self__).__name__}))"""
@@ -275,7 +277,7 @@ def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch)
                            tracker=SimpleNamespace(rows=list, employer_accounts=list))
     monkeypatch.setattr(student, "FREE_POLL", 0.0)
     monkeypatch.setattr(student, "workers", lambda: 1)
-    runs = student.Runs({}, make=lambda profile: made, rehearse=lambda *args: None)
+    runs = student.Runs({}, AnswerBank(), make=lambda profile, bank: made, rehearse=lambda *args: None)
 
     runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
 
@@ -290,7 +292,7 @@ def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_
 
     applicant = profile.ApplicantProfile.load(HOME / "applicant-profile.yaml")
     account = EmployerAccount("Acme", "acme.wd1.myworkdayjobs.com", "test.person@example.com", date(2026, 11, 15))
-    first = student.adapters(applicant)
+    first = student.adapters(applicant, AnswerBank())
     assert isinstance(first.tracker, WorkItTracker)
     first.tracker.add_employer_account(account)
-    assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's
+    assert student.adapters(applicant, AnswerBank()).tracker.employer_accounts() == [account]  # the next launch's

@@ -70,7 +70,8 @@ class Known:
             self._pattern = None
 
     def learn(self, profile: Path) -> None:
-        """Read the Applicant profile beside its Answer bank. A file that won't read adds nothing."""
+        """Read the Applicant profile. A file that won't read adds nothing. The Answer bank, which is on WorkIt
+        (W11), adds its own answers as it reads and writes them (apply.answer_bank)."""
         self._values.clear()
         self._pattern = None
         tree = _read(profile)
@@ -79,10 +80,6 @@ class Known:
                 self.add(value, key)
         for _, value in _leaves(tree.get("answered_questions"), ""):
             self.add(value, "answer", SHORTEST_ANSWER)
-        for entry in _read(profile.parent / "answer-bank.yaml").values():
-            if isinstance(entry, dict):
-                for _, value in _leaves(entry.get("answer"), ""):
-                    self.add(value, "answer", SHORTEST_ANSWER)
 
     def scrub(self, text: str) -> str:
         if self._values and self._pattern is None:

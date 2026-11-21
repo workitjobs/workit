@@ -20,15 +20,13 @@ PROFILE = {
     "education": {"gpa": 3.91, "graduated": False, "graduation": "2028-05"},
     "answered_questions": {"Who referred you?": "Marigold Thimblewick", "Are you 18?": "Yes"},
 }
-BANK = {"why us?": {"question": "Why us?", "answer": "Because your robots fold laundry."}}
 VALUES = ["Patience", "Leeward", "pat.lee", "mailhost", "555-0142", "631", "Birch", "patience-leeward", "3.91", "2028-05",
-          "Marigold", "laundry"]
+          "Marigold"]
 
 
 @pytest.fixture
 def folder(tmp_path) -> Path:
     (tmp_path / "applicant-profile.yaml").write_text(yaml.safe_dump(PROFILE))
-    (tmp_path / "answer-bank.yaml").write_text(yaml.safe_dump(BANK))
     (tmp_path / "tracker.json").write_text(json.dumps({"rows": [{"url": TOKEN_URL, "contact": EMAIL}]}))
     (tmp_path / "voice.md").write_text("Patience writes plainly.")
     (tmp_path / "profiles").mkdir()
@@ -50,7 +48,6 @@ def known(folder) -> Known:
     ("Hello Patience Leeward!", ["Patience", "Leeward"], "Hello <identity.legal_first_name> <identity.legal_last_name>!"),
     ("hello PATIENCE", ["PATIENCE"], "hello <identity.legal_first_name>"),
     ("from Marigold Thimblewick", ["Marigold"], "from <answer>"),
-    ("wrote: Because your robots fold laundry.", ["laundry"], "wrote: <answer>"),
     (TOKEN_URL, ["user-36", "xf-9a8b7c6d5e", "abc123"], "https://acme.tal.net/vx/lang-en-GB/<hidden>/<hidden>/candidate/<hidden>/pm/1/pl/3?token=<hidden>&page=2"),
     ("https://x.example/a?session=z&email=a%40b.example#frag", ["a%40b", "frag"], "https://x.example/a?session=<hidden>&email=<hidden>#<hidden>"),
     ("https://u:hunter2@x.example/a", ["hunter2"], "https://x.example/a"),

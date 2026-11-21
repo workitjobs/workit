@@ -8,6 +8,7 @@ import pytest
 from fake_workit import FakeWorkIt
 
 from apply import app_window, dashboard, workit
+from apply.answer_bank import AnswerBank
 from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
 from apply.first_run import READY, SHOWN
@@ -460,7 +461,7 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     def rehearse(links, adapters, profile, workers):
         rehearsed.append((links, workers, adapters.board is shown[0], awake == [True]))
 
-    runs = student.Runs(profile, make=lambda profile: made, rehearse=rehearse, keep_awake=keep_awake)
+    runs = student.Runs(profile, AnswerBank(), make=lambda profile, bank: made, rehearse=rehearse, keep_awake=keep_awake)
     runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
     assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True,
                           True)]
@@ -497,7 +498,7 @@ def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, t
         body = '{"id": "live-0", "question": "When can you start?", "answer": "June 2027"}'
         replies.append(Bridge(board, WorkIt(workit.LIVE)).request("POST", "/answer", {"X-Apply-Token": board.token}, body))
 
-    student.Runs(SimpleNamespace(get=lambda key: None), make=lambda profile: made, rehearse=rehearse) \
+    student.Runs(SimpleNamespace(get=lambda key: None), AnswerBank(), make=lambda profile, bank: made, rehearse=rehearse) \
         .run(["https://jobs.lever.co/acme/1"], lambda board: None)
     assert replies[0]["status"] == 200, replies[0]
     assert saved == [("When can you start?", "June 2027")]

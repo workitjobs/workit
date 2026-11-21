@@ -162,7 +162,7 @@ Read the file that matches your change. Update it in the same PR: it counts as
 this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
-- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, the Answer bank on WorkIt (W11), a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
 - `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
@@ -182,14 +182,14 @@ this folder's `CLAUDE.md` for its area.
 **Personal data is never in the repo.** WorkIt is a public repo. All of a
 person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 
-- the applicant profile, answer bank, story bank, voice and story map;
+- the applicant profile, story bank, voice and story map (the Answer bank
+  is the one exception: it lives on WorkIt, W11, `docs/workit.md`);
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login's lock (`workit-login.lock`); the login itself is in
   the system's keychain (`apply-workit`, `docs/workit.md`).
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
-  (`workit-queue.json`, and the Answer bank's changes in
-  `workit-answers-queue.json`, KAN-746).
+  (`workit-queue.json`).
 - the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
