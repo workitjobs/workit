@@ -46,27 +46,41 @@ const content: FeatureContent = {
   },
   animation: AutoApplyAnimation,
   sections: [
+    // The four points, reviewed with the user one choice at a time
+    // (2026-11-21): the details, the forms in parallel, the written
+    // answers, and who submits. They were Pick the jobs to fill, The
+    // basics from your profile, The right resume on each form, and You
+    // click Submit. The pictures are the old points' and wait for real
+    // recordings (frontend/CLAUDE.md).
     {
-      title: "Pick the jobs to fill",
-      icon: ListChecksIcon,
-      body: "Queue jobs straight from the Jobs page, or bring in every job you saved. Up Next holds them all, and one click starts filling the ones you pick.",
-      visual: QueueVisual,
-    },
-    {
-      title: "The basics, from your profile",
+      title: "Your details, filled in for you",
       icon: TextboxIcon,
-      body: "Your contact details, work history and saved answers go into each form for you, on hiring systems such as Greenhouse, Lever, Ashby and Workday. No more typing your resume again after you upload it.",
+      body: "Your contact details, work history, school and links go into every form. You type them once, in your profile.",
       points: [
         "Contact details, education and work history",
-        "Your saved answers to the questions forms ask",
+        "On Greenhouse, Lever, Ashby, Workday and more",
         "A new written question waits for your answer",
       ],
       visual: FillVisual,
     },
     {
-      title: "The right resume on each form",
+      title: "Many forms, filled at the same time",
+      // Its icon is the old first point's, until the user picks one for
+      // "several at once".
+      icon: ListChecksIcon,
+      body: "Pick the jobs you want from your list. WorkIt opens each application in its own tab and fills them all at once, while you do something else.",
+      visual: QueueVisual,
+    },
+    {
+      title: "Written answers, saved for next time",
+      // The answer to the problems' card on written questions. A student's
+      // own Claude drafts essay answers through the connector, or the
+      // student writes them on Written Answers; Check and Save runs
+      // WorkIt's checks on each; a saved answer fills later forms
+      // (frontend/docs/screens.md, Auto Apply). Its icon is the old resume
+      // point's, until the user picks one for a written answer.
       icon: PaperclipIcon,
-      body: "Each form gets your default resume, and the WorkIt panel lets you swap in the copy you tailored for that job before you submit.",
+      body: "Your answers to written questions are saved and used again on later forms. Your own Claude can draft them, and WorkIt checks each one before it goes in.",
       visual: AttachVisual,
     },
     {
