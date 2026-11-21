@@ -249,12 +249,13 @@ the middle, `.problem-dots`: they show the search as it is, not a WorkIt
 feature, so they take no feature's sky; the user's calls, 2026-11-20,
 the dots picked from six patterns over a flat stage that read as
 boring): 16px corners, a feature's
-`studioGround` (a grainy blend of neighbouring colours since 2026-11-21,
+`studioGround` (a blend of neighbouring colours since 2026-11-21,
 after the user's reference: the feature's colour, a neighbour hue pooled
 in the lower left, another in the upper right, a pale streak between;
 one colour fading to white read as AI-made; at pastel strength, 46% of
 each colour over white, the user's pick over full strength, which was
-louder than the headline) and a light grain
+louder than the headline) and no grain (the user had it removed once the
+grounds were pastel)
 (`.studio-box`, grey noise in overlay; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.

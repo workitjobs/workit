@@ -147,12 +147,12 @@ const MESH: Record<string, [ground: string, low: string, high: string, light: st
 const STRENGTH = 46;
 
 /**
- * A feature's ground for a `StudioBox`: a grainy blend of neighbouring
+ * A feature's ground for a `StudioBox`: a blend of neighbouring
  * colours (2026-11-21, after a reference the user gave: one image where
  * blue runs into cyan and periwinkle under a grain you can see). The
  * feature's colour fills the box; a neighbour hue pools in the lower left
  * and another in the upper right; a pale streak crosses between them, the
- * light. The grain is `.studio-box`'s (landing.css).
+ * light.
  *
  * What it replaced, each the user's call: a sky in one colour, pale at the
  * top to half strength at the foot, which read as AI-made and odd ("just
@@ -187,7 +187,7 @@ export function studioGround({ glow }: { glow: string }) {
 /**
  * The frame every moving or still picture on the home page sits in
  * (KAN-923): a box with the tiles' 16px corners on a feature's ground
- * (`studioGround`), with a fine grain (`.studio-box` in landing.css), so a
+ * (`studioGround`), with no texture over it (a grain was removed, landing.css), so a
  * picture is a small object on the page and never the page itself. After
  * Calendly, whose animations all sit in boxes of 290 to 424px; the old
  * home page pinned whole screens to its scenes, which the user found

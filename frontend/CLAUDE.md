@@ -333,14 +333,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground with a fine grain (`.studio-box` in
     landing.css; faint ruled lines across it went, the user found them odd
-    over the gradients). **The ground is a grainy blend of neighbouring colours**
+    over the gradients). **The ground is a blend of neighbouring colours**
     (`studioGround`, 2026-11-21, after a reference image the user gave):
     the feature's colour fills the box, one neighbour hue pools in the
     lower left and another in the upper right, and a pale streak of light
     crosses between them (`MESH` in layout-parts.tsx: blue with cyan and
     periwinkle, peach with yellow and coral, green with lime and teal,
     pink with coral and plum, and the brand's violet with blue and
-    magenta), under a grain the eye can see (grey noise in overlay). It
+    magenta). It
     replaced a sky in one colour, pale to half strength, which the user
     found AI-made and odd ("just blue and white"), that sky at full
     strength, too strong with four boxes side by side, and first blobs of
@@ -348,8 +348,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     gradient worth looking at. **At pastel strength** (`STRENGTH`, 46% of each colour
     over white; the user's pick over full strength, compared side by side
     in the page, 2026-11-21): the site is paper and ink, and four boxes at
-    full strength in the hero were louder than the headline. The grain
-    shows less on pastel, which the user accepted. **Nothing writes straight on a box's
+    full strength in the hero were louder than the headline. **No grain**:
+    the boxes had one until the same day, and on the pastel grounds the
+    user could still see it and had it removed. **Nothing writes straight on a box's
     ground**: a line outside a card sits on a white pill (`GroundNote` in
     `features/visuals/parts.tsx`); after a change to a scene, check what
     sits on the bare ground. **No scene fills the screen**, as on
