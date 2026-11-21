@@ -528,7 +528,7 @@ by hand (W8).
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 partly built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the Tracker's Answers tab removed. Left: the old YAML file's way to WorkIt and its removals, ADR 0006 (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed. Left: ADR 0006 and the rest of the docs (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -1948,10 +1948,12 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
      and the import (`import_apply_profile`) write each entry into it too.
    - **`answer-bank.yaml` goes in every build** (decided 2026-11-20). The
      bank on WorkIt is the only one, and a Developer checkout uses it
-     through the same code as the Student build. Apply sends the file's
-     entries once, at its first start after the change (an own, reviewed
-     entry as the student's, the rest flagged, each through rule 4), then
-     renames it `answer-bank.before-workit.yaml` and never reads it again.
+     through the same code as the Student build. A Developer command sends
+     the file's entries once as it starts (an own, reviewed entry as the
+     student's, the rest flagged, each through rule 4), then renames it
+     `answer-bank.before-workit.yaml` and never reads it again. WorkIt Auto
+     Apply never does: no student has the file, so the app shows nothing
+     for it (decided 2026-11-21).
      `sample/answer-bank.yaml` goes too. **Test Person's bank is in memory
      only and never sent**, so a sample run never puts a made-up person's
      drafts in a signed-in student's bank. Every Developer run needs
@@ -2000,11 +2002,12 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       and the next check tries again.
     - **`unreviewed_answers: hold`** makes an Application that takes a
       flagged answer a Hold, its reason naming those questions.
-    - **The one-time upload** runs at the app's startup (a Developer
-      command's, before its run), and says nothing: only the questions
-      WorkIt doesn't hold yet, in PATCHes of 100, then the file is renamed.
-      What WorkIt's rule keeps out is dropped with no word (decided
-      2026-11-21). A failed upload is tried again at the next start.
+    - **The one-time upload** runs as a Developer command starts, never
+      in WorkIt Auto Apply (decided and built 2026-11-21), and says
+      nothing: only the questions WorkIt doesn't hold yet, in PATCHes of
+      100, then the file is renamed. What WorkIt's rule keeps out is
+      dropped with no word. A failed upload is tried again at the next
+      start, which says so in one line.
     - **The Tracker's Answers tab goes** (`Tracker.add_answer`,
       `Tracker.answers`, `AnswerRow`, the Sheet's Answers code,
       `orchestrator.list_answers`, `take_edits`); the Answers view is the

@@ -333,3 +333,60 @@ def test_before_an_application_the_bank_is_read_again_only_when_workits_version_
     bank.follow(9)
     assert server.reads == 4
 
+
+OLD_FILE = """\
+'are you open to working in person?':
+  question: Are you open to working in person?
+  answer: Yes
+  options: [Yes, No]
+  source: lisul
+  reviewed: true
+  first_seen: {date: 2026-10-01, company: Example Robotics}
+'how did you hear about us?':
+  question: How did you hear about us?
+  answer: The Simplify list.
+  source: lisul
+  reviewed: false
+'tell us how you heard about zipline':
+  question: Tell us how you heard about Zipline
+  answer: From LinkedIn.
+  source: claude
+'fax number':
+  question: Fax number
+  answer: ''
+"""
+
+
+def test_a_developers_old_answer_bank_file_goes_to_workit_once_then_is_renamed(tmp_path):
+    """W11: no student has the file; a Developer checkout's goes once, with no word, only what WorkIt lacks."""
+    (tmp_path / "answer-bank.yaml").write_text(OLD_FILE)
+    server = Server({key(HEARD.label): {"question": HEARD.label, "answer": "A friend.", "own": True}})
+    bank = loaded(server)
+
+    bank.upload(tmp_path)
+
+    assert server.sent == [([  # a bare Yes stays the word, as Apply wrote it; an empty answer stays out
+        {"question": "Are you open to working in person?", "answer": "Yes", "review": False, "choice": True,
+         "company": "Example Robotics"},
+        {"question": "How did you hear about us?", "answer": "The Simplify list.", "review": True, "choice": False},
+    ], [])]
+    assert not (tmp_path / "answer-bank.yaml").exists() and (tmp_path / "answer-bank.before-workit.yaml").is_file()
+    assert bank.get("How did you hear about us?").own is False and bank.get(HEARD.label).answer == "A friend."
+    bank.upload(tmp_path)
+    assert len(server.sent) == 1  # once
+
+
+def test_the_upload_goes_in_patches_of_100_and_one_that_fails_keeps_the_file_for_the_next_start(tmp_path):
+    (tmp_path / "answer-bank.yaml").write_text(
+        "".join(f"q{n}:\n  question: Question {n}?\n  answer: Answer {n}\n  source: lisul\n" for n in range(150)))
+    AnswerBank(drafts=False).upload(tmp_path)  # Test Person's bank sends nothing anywhere
+    server = Server(unanswered=1)
+    bank = loaded(server)
+
+    with pytest.raises(Unreachable):
+        bank.upload(tmp_path)
+    assert (tmp_path / "answer-bank.yaml").is_file()
+    bank.upload(tmp_path)
+
+    assert [len(entries) for entries, _ in server.sent] == [100, 100, 50]
+    assert len(bank.entries()) == 150

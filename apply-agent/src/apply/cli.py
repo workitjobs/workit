@@ -52,7 +52,7 @@ from apply import (
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
-from apply.answer_bank import AnswerBank, NotSaved, WorkItSource
+from apply.answer_bank import OLD_FILE, AnswerBank, NotSaved, WorkItSource
 from apply.answers_tab import AnswersTab
 from apply.answers_tab import saving_answers as _answering
 from apply.applicant import as_applicant
@@ -245,7 +245,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
-    data_keys.add_argument("file", nargs="?", help="a file in the data folder, such as answer-bank.yaml")
+    data_keys.add_argument("file", nargs="?", help="a file in the data folder, such as story-bank.md")
     data_key = data_commands.add_parser("show-key", help="one key, masked, by its dotted name")
     data_key.add_argument("key", help="such as identity.email")
     data_key.add_argument("--file", help=f"a file in the data folder (default: {data_command.DEFAULT_FILE})")
@@ -882,6 +882,11 @@ def _answer_bank(profile: ApplicantProfile) -> AnswerBank:
     except workit.WorkItError as error:
         sys.exit(f"The Answer bank is on WorkIt, which didn't answer ({error}). Run `uv run apply login` if you "
                  "aren't signed in, then try again.")
+    try:
+        bank.upload(profile.folder)  # an answer-bank.yaml from before W11, sent once: a Developer checkout's alone
+    except Exception as error:  # WorkIt down or refusing: the command goes on, and the next start sends it
+        print(f"Your old {OLD_FILE} didn't reach WorkIt ({type(error).__name__}): the next command sends "
+              "it.", file=sys.stderr)
     atexit.register(bank.close)  # the drafts still on their way to WorkIt get a few seconds when the command ends
     return bank
 

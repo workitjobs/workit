@@ -25,7 +25,10 @@ import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
+
+from ruamel.yaml import YAML
 
 from apply import masked
 from apply.model import Question, one_line
@@ -40,6 +43,9 @@ SEND_RETRIES = (1.0, 5.0, 30.0)
 EDIT_WAIT = 10.0
 QUIT_WAIT = 5.0
 NO_ANSWER = "Not saved: WorkIt didn't answer."
+# A Developer checkout's bank before W11, in the profile's folder, and its name once it has gone to WorkIt (upload).
+OLD_FILE, UPLOADED = "answer-bank.yaml", "answer-bank.before-workit.yaml"
+UPLOAD_BATCH = 100  # PATCH .../answer-bank takes at most 100 entries
 
 
 def key(question: str) -> str:
@@ -295,6 +301,23 @@ class AnswerBank:
             if found is not None and not found.own:
                 self._go(_Change(filed, found.question, None))
 
+    def upload(self, folder: Path) -> None:
+        """A Developer checkout's answer-bank.yaml from before W11, in `folder`, sent to WorkIt once: only the
+        questions WorkIt doesn't hold yet, a `lisul` answer not marked unreviewed as the student's own and the rest
+        flagged, each through WorkIt's rule, which keeps out what it would at any save, with no word. The file is
+        then renamed UPLOADED and never read again. Raises what a send raises, the file kept, so the next start
+        tries again. WorkIt Auto Apply never calls it: no student has that file."""
+        path = folder / OLD_FILE
+        if self._source is None or not path.is_file():
+            return
+        held = self.answers()
+        entries = [e for e in _old_entries(path) if key(e["question"]) not in held]
+        for start in range(0, len(entries), UPLOAD_BATCH):
+            self._source.change(entries[start:start + UPLOAD_BATCH], [])
+        path.rename(path.with_name(UPLOADED))
+        if entries:
+            self.load()
+
     def close(self, wait: float = QUIT_WAIT) -> None:
         """At quit: the changes still waiting get up to `wait` seconds to reach WorkIt."""
         ending = time.monotonic() + wait
@@ -419,6 +442,26 @@ KEPT_OUT = "Not saved: WorkIt keeps it out of your Answer bank. "
 def _picked(answer: str | list[str]) -> str | list[str]:
     """An answer as the bank keeps it: stripped, a list of the options ticked with no empty one."""
     return [p for a in answer if (p := str(a).strip())] if isinstance(answer, list) else str(answer).strip()
+
+
+def _old_entries(path: Path) -> list[dict]:
+    """The old file's answered entries as PATCH takes them, read as Apply wrote it (YAML 1.2: a bare Yes stays a
+    word). `source: lisul` not marked `reviewed: false` is the student's own, as WorkIt's import reads it
+    (backend/app/services/apply_answers.py, `is_own`)."""
+    found = YAML(typ="safe", pure=True).load(path.read_text()) or {}
+    entries = []
+    for filed, entry in found.items() if isinstance(found, dict) else ():
+        if not isinstance(entry, dict) or entry.get("answer") is None:
+            continue
+        answer = _picked(entry["answer"])
+        if answer == "" or (answer == [] and entry.get("none") is not True):
+            continue
+        first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+        company = str(first.get("company") or "").strip()
+        entries.append(_set(str(entry.get("question") or filed), answer,
+                            own=entry.get("source") == "lisul" and entry.get("reviewed") is not False,
+                            choice=bool(entry.get("options")), form={"company": company} if company else None).entry)
+    return entries
 
 
 def _set(question: str, answer: str | list[str], own: bool, *, choice: bool = False, form: dict | None = None,

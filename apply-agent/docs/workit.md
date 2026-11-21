@@ -316,8 +316,16 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
   reading, so the bank asks the usage route itself. A read that fails
   keeps memory, and the next Application tries again. While no run goes,
   a change made elsewhere waits for the next run.
-- **Not built yet** (W11 step 4): a way for an `answer-bank.yaml` from
-  before to reach WorkIt.
+- **A Developer checkout's `answer-bank.yaml` from before** (in the
+  profile's folder) goes to WorkIt once, as a command starts
+  (`cli._answer_bank`, `AnswerBank.upload`): only the questions WorkIt
+  doesn't hold, a `lisul` answer not marked unreviewed as the student's
+  own and the rest flagged, in PATCHes of 100, each through WorkIt's
+  rule, with no word. Then the file becomes
+  `answer-bank.before-workit.yaml`. A failed upload says so in one line,
+  keeps the file, and the next command sends it. WorkIt Auto Apply never
+  uploads, and shows nothing for it: no student has the file.
+  `sample/answer-bank.yaml` went with it.
 
 **Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
 `tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,
