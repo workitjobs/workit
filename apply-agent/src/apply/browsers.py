@@ -29,6 +29,7 @@ from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+import psutil
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 from apply import chrome_finder, submit_guard, trace
@@ -101,10 +102,9 @@ def chrome_pid(profile: Path) -> int | None:
     """The pid of the Chrome that has the profile open, if one does."""
     try:
         pid = int(os.readlink(profile / "SingletonLock").rsplit("-", 1)[1])
-        os.kill(pid, 0)
     except (OSError, ValueError, IndexError):
         return None
-    return pid
+    return pid if psutil.pid_exists(pid) else None
 
 
 class WorkerBrowsers:

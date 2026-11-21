@@ -1094,7 +1094,8 @@ on Windows each one stops Apply:
   table).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
-  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
+  the Worker's Chrome. Built (KAN-929): every such check is
+  `psutil.pid_exists` (`windows_desktop.md`, P2).
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its

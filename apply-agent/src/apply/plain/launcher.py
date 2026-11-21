@@ -416,11 +416,7 @@ class Chrome:
         self.pid = pid
 
     def poll(self) -> int | None:
-        try:
-            os.kill(self.pid, 0)
-        except ProcessLookupError:
-            return 0
-        return None
+        return None if psutil.pid_exists(self.pid) else 0
 
     def send_signal(self, number: int) -> None:
         try:

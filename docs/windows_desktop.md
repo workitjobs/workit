@@ -1,6 +1,6 @@
 # WorkIt Auto Apply on Windows
 
-**Status (2026-11-21, KAN-929):** a plan. P1 is built; the rest is not. This note lists what
+**Status (2026-11-21, KAN-929):** a plan. P1 and P2 are built; the rest is not. This note lists what
 stops Apply on Windows, one problem per section, in the order to solve
 them. It expands F4 and W4's "Found on the way" list in
 `desktop_application_auto_apply.md`. Line numbers are at commit
@@ -241,15 +241,15 @@ for each fix, section 6 the tests, and section 7 the order.
     newer one on the same data folder still exclude each other on every
     lock file except the Answer bank's: the older one locks
     `answer-bank.yaml` and the newer one `answer-bank.lock`.
-- **Tests.** `tests/test_locks.py`, in the fast list. Each test went red
-  with its fault in.
-  - Another process holds the Tracker's lock between its read and its
-    save. This process's write waits, `tried` sees the lock, and then both
-    writes land. Fault: the lock does nothing.
-  - No module of Apply imports `fcntl`. Fault: a module imports it again.
-    The test reads the source. An import with `fcntl` blocked can't work
-    as a test, because portalocker itself imports `fcntl` on macOS and
-    Linux.
+- **Tests**, in the fast list. Each test went red with its fault in.
+  - `tests/test_locks.py`: another process holds the Tracker's lock
+    between its read and its save. This process's write waits, `tried`
+    sees the lock, and then both writes land. Fault: the lock does
+    nothing.
+  - `tests/test_each_os.py` (moved there with P2): no module of Apply
+    imports `fcntl`. Fault: a module imports it again. The test reads
+    the source. An import with `fcntl` blocked can't work as a test,
+    because portalocker itself imports `fcntl` on macOS and Linux.
 - **Where lock files live.** Apply makes each lock file the first time it
   locks that data file: `held` and `tried` make the folder, and opening
   the file to append makes an empty one. Every lock file is in the data
@@ -276,34 +276,72 @@ for each fix, section 6 the tests, and section 7 the order.
   - Not proven: nothing has run on Windows yet. The first Windows run, or
     the Windows CI job (section 6), proves it.
 - **Unix-only calls that are left.** These fail only when they run, not
-  at import, and each one belongs to another problem: `os.kill(pid, 0)`
-  (P2), `SingletonLock` (P3), the Unix sockets and their folders (P4), and
-  SIGTERM (P7). Two more are in developer-only modules (`build.DEVELOPER`),
+  at import, and each one belongs to another problem: `SingletonLock`
+  (P3), the Unix sockets and their folders (P4), and SIGTERM (P7). P2's
+  `os.kill(pid, 0)` is fixed. Two more are in developer-only modules (`build.DEVELOPER`),
   so they stop only a Windows developer's command that runs them:
   - `os.killpg` in `claude_cli.stream_claude` (`claude_cli.py:154`), used
     with `ask_model: claude`.
   - `os.getuid()` in `schedule.Launchctl` (`schedule.py:133`): the Mac's
     scheduled runs, which D10 drops.
 
-### P2. "Is it still running?" (`os.kill(pid, 0)`)
+### P2. "Is it still running?" (`os.kill(pid, 0)`): built
 
 - **What it is.** Apply asks whether a process still runs: a Worker's
   Chrome, or an Apply window. On macOS and Linux, signal 0 checks and sends
   nothing.
-- **Where.** `browsers.py:104` (in `chrome_pid`), `into.py:43` (`windows`),
-  `plain/launcher.py:420` (`Chrome.poll`), `cli.py:513`, and the
-  developer-only `dashboard.py:2318` and `dock_app.py:131`.
-- **What breaks.** On Windows, `os.kill` is not a check. Signal 0 is
+- **Where it was** (line numbers before the fix):
+  - `browsers.py:104`, in `chrome_pid`: is a profile's Chrome running?
+    Both kinds of Worker use it.
+  - `into.py:43`, in `windows`: which Apply windows are still open?
+  - `plain/launcher.py:420`, in `Chrome.poll`: the Mac's Chrome that `open`
+    started.
+  - `dashboard.py:2318`, in `_quit`: the Chrome app window's quit, on the
+    Mac.
+  - The developer-only `cli.py:513` (`apply ask`) and `dock_app.py:131`
+    (the Dock keeper).
+  - Also the tests' Chrome reaper (`tests/chrome_reaper.py`) and three
+    plain Worker tests.
+- **What broke.** On Windows, `os.kill` is not a check. Signal 0 is
   `CTRL_C_EVENT` there, which tries to send a Ctrl-C to a console process
   group. Any other signal ends the process at once. Neither tells whether
   a process runs.
 - **Who.** Both.
-- **Fix.** `psutil.pid_exists(pid)`. psutil is already a dependency. Where
-  a reused PID matters, also check that the process is the one Apply means,
-  as `orphan` (`plain/launcher.py:489-505`) and `Desk.chrome`
-  (`plain/seed_setup.py:153-163`) already do with its `--user-data-dir`.
-- **Done when.** No `os.kill(pid, 0)` is left, and `tests/test_each_os.py`
-  has a case for each OS.
+- **The fix (KAN-929).** Each place asks `psutil.pid_exists(pid)`. psutil
+  was already a dependency, and the code is the same on every OS.
+  - **On macOS and Linux, nothing changes.** psutil's `pid_exists` calls
+    `os.kill(pid, 0)` there itself (read in its `_psposix.py`). No such
+    process gives False. A process of another user (`PermissionError`)
+    gives True: it exists, but Apply may not signal it.
+  - **On Windows, it asks the OS** whether a process with that PID exists,
+    and it sends nothing.
+  - **One small change.** `chrome_pid` and `into.windows` counted another
+    user's process as gone, because they caught `PermissionError` with
+    every `OSError`. They count it as running now, as `cli` and the Dock
+    keeper already did. Only a reused PID can belong to another user, and
+    a reused PID of the user's own already counted as running. P3 makes
+    `chrome_pid` check that the process is the profile's own Chrome.
+    `Chrome.poll` raised on such a process; it now says "running".
+  - Where a reused PID matters, the check that the process is the one
+    Apply means stays where it was: `orphan`
+    (`plain/launcher.py:489-505`) and `Desk.chrome`
+    (`plain/seed_setup.py:153-163`) compare its `--user-data-dir`, and
+    `_owner_alive` compares its start time.
+- **Tests**, in the fast list:
+  - `tests/test_each_os.py`,
+    `test_no_module_of_apply_makes_a_call_that_stops_windows`: no module
+    checks a process with `os.kill(pid, 0)`. Fault: a module does again.
+    It went red with the fault in. It reads the source, because on macOS
+    and Linux the old call works. The same test also checks P1's `fcntl`
+    imports: that check moved there from `tests/test_locks.py`.
+  - A live process and a gone one: the tests that already held them pass.
+    `tests/test_into.py` holds a window that lists itself and a note with
+    a gone PID. The plain Worker tests stop a Worker and check that its
+    Chrome is gone, and `tests/test_reopen.py` waits for a Chrome to quit.
+    `tests/test_apply_window_on_the_mac.py`'s fake Mac now fakes
+    `psutil.pid_exists`.
+- **Still open.** Run it on Windows (the Windows CI job, section 6). The
+  tests' Chrome reaper still stops a Chrome with SIGTERM and SIGKILL (P7).
 
 ### P3. Which Chrome has a profile open (`SingletonLock`)
 
@@ -522,7 +560,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 | Problem | Kind of fix |
 |---|---|
 | P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
-| P2 "is it still running?" | A library (`psutil.pid_exists`): the same code on every OS |
+| P2 "is it still running?" | Built: a library (`psutil.pid_exists`), the same code on every OS |
 | P3 profile lock | A library (psutil finds the Chrome): the same code on every OS |
 | P4 channel | The standard library (`multiprocessing.connection`): one API, a socket on macOS and Linux and a named pipe on Windows |
 | P5 host file | A Windows entry: the registry key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
@@ -544,8 +582,8 @@ can break, on each OS. The goal is not a high count of tests.
 | Problem | Test, new or extended | The fault it turns red | Where it runs |
 |---|---|---|---|
 | P1 | Built, `tests/test_locks.py`: two processes write the Tracker at the same time, and both writes are there after | The lock does nothing | The fast list |
-| P1 | Built, `tests/test_locks.py`: no module of Apply imports `fcntl`, read from the source | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
-| P2 | `tests/test_each_os.py`, `tests/test_into.py`: a live PID and a dead PID; the check never stops the process | The check stops a live process, or misses it | The fast list |
+| P1 | Built, `tests/test_each_os.py`: no module of Apply imports `fcntl`, read from the source | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
+| P2 | Built: `tests/test_each_os.py` reads the source for `os.kill(pid, 0)`; `tests/test_into.py` holds a live PID and a gone one | A module checks a process with `os.kill(pid, 0)` again; the check misses a live process | The fast list |
 | P3 | `tests/test_plain_orphans.py`, `tests/test_each_os.py`: the profile's own Chrome is found; a helper process (`--type=`), another profile's Chrome and a reused PID never count | Another process is taken for the profile's Chrome | The fast list |
 | P4 | `tests/test_plain_bridge.py` on the new channel: a hello, a message over 512 KiB, and a client without the key, which is refused | A client that isn't Apply's host gets in | The fast list, on every OS |
 | P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, and the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker | The fast list |
@@ -573,17 +611,17 @@ can break, on each OS. The goal is not a high count of tests.
 
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
-| M1 | A developer runs CDP Workers | P1 (built), P2, P3 | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
+| M1 | A developer runs CDP Workers | P1 and P2 (built), P3 | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
 | M2 | A developer runs plain Workers, with no seed | P4, P5, P6, P9 | `plain_chrome: testing` | Every host fills; a developer never needs the seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 The store copy (W6) is not Windows work. When it ships, it changes P8's
 clicks on every OS.
 
-**Next: P2, then P3.** Both change `browsers.chrome_pid`
-(`browsers.py:100-107`): it reads the PID from `SingletonLock` (P3), then
-checks it with `os.kill(pid, 0)` (P2). Do P2 first, at all six of its
-places, and then P3 in the same function.
+**Next: P3.** `browsers.chrome_pid` (`browsers.py:100-107`) still reads
+the PID from `SingletonLock`, which Windows Chrome doesn't make. P2 left
+it checking that PID with `psutil.pid_exists`. With P3 built, a Windows
+developer can run CDP Workers (M1).
 
 ## 8. Open questions
 

@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import fakes
+import psutil
 import pytest
 from conftest import APPLY, ARC_FORM, ARC_URL, PURE_STORAGE_FORM, PURE_STORAGE_URL
 from fake_workday import FakeWorkdayServer
@@ -52,11 +53,7 @@ def _wait(until, seconds: float, why: str):
 
 
 def _gone(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return False
-    except ProcessLookupError:
-        return True
+    return not psutil.pid_exists(pid)
 
 
 class Held(RecordingBoard):

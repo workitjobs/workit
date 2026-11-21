@@ -1,12 +1,10 @@
 """File locks across processes, with no `fcntl`, which Windows lacks (apply.locks; KAN-929, P1 of
-docs/windows_desktop.md). Each test starts a second Python process: a lock that holds only inside one process
-passes neither."""
+docs/windows_desktop.md). The test starts a second Python process: a lock that holds only inside one process
+fails it. tests/test_each_os.py checks that no module imports `fcntl`."""
 
-import ast
 import subprocess
 import sys
 import threading
-from pathlib import Path
 
 from apply import locks
 from apply.tracker import FileTracker
@@ -55,21 +53,3 @@ def test_a_tracker_write_waits_for_another_process_and_both_writes_land(tmp_path
         holder.kill()
     assert FileTracker(path).requests() == ["https://holder.example/job", "https://mine.example/job"]
 
-
-def test_no_module_of_apply_imports_fcntl():
-    """Fault: a module imports `fcntl` again. Windows has none, so no command, window or seed setup would start
-    there: tracker.py's import stopped all three. It reads the source, since portalocker itself imports `fcntl` on
-    macOS and Linux, so an import with `fcntl` blocked fails there whatever Apply does."""
-    source = Path(locks.__file__).parent
-    found = []
-    for path in sorted(source.rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                names = [node.module or ""]
-            else:
-                continue
-            if any(name.split(".")[0] == "fcntl" for name in names):
-                found.append(f"{path.relative_to(source)}:{node.lineno}")
-    assert found == []

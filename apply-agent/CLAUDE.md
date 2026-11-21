@@ -77,7 +77,8 @@ has neither.
 - **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
   KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
   and Linux later (F4). A general library comes first: Python's standard
-  library, `psutil` (a process's arguments), `platformdirs` (each OS's data and
+  library, `psutil` (a process's arguments, and whether it still runs:
+  `psutil.pid_exists`), `platformdirs` (each OS's data and
   cache folders), `portalocker` (file locks, only through `apply.locks`),
   `pyperclip` (the seed guide's clipboard), the window's own
   `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
@@ -93,7 +94,8 @@ has neither.
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
-  `osascript`, `ps` or `fcntl` anywhere else. What W4 left for F4 is in its "Found on
+  `osascript`, `ps`, `fcntl` or `os.kill(pid, 0)` anywhere else
+  (`tests/test_each_os.py` reads the source for the last two). What W4 left for F4 is in its "Found on
   the way" list; `../docs/windows_desktop.md` takes each item in turn, with
   where it is and how to fix it (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2

@@ -3,6 +3,7 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 "darwin" or "win32", else Linux), so this Mac runs the Windows and Linux entries too, on paths of their own. Running
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
+import ast
 import json
 import os
 import plistlib
@@ -334,3 +335,30 @@ def test_on_windows_a_folder_with_a_space_in_its_path_is_shown_whole(monkeypatch
     seed_setup.Desk(Path("/seed")).reveal(Path("/Users/Jane Doe/profiles/worker-extension"), "win32")
     # Python would quote the whole "/select,<path>" argument, and Explorer would open its default folder.
     assert ran == ['explorer /select,"/Users/Jane Doe/profiles/worker-extension"']
+
+
+def _stops_windows(node: ast.AST) -> str | None:
+    """Why `node` is a call that works on macOS and Linux but stops Apply on Windows (docs/windows_desktop.md), or
+    None."""
+    if isinstance(node, ast.Import) and any(alias.name.split(".")[0] == "fcntl" for alias in node.names):
+        return "imports fcntl (P1: lock through apply.locks)"
+    if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "fcntl":
+        return "imports fcntl (P1: lock through apply.locks)"
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "kill"
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "os" and len(node.args) == 2
+            and isinstance(node.args[1], ast.Constant) and node.args[1].value == 0):
+        return "checks a process with os.kill(pid, 0) (P2: psutil.pid_exists)"
+    return None
+
+
+def test_no_module_of_apply_makes_a_call_that_stops_windows():
+    """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts), or
+    checks a process with `os.kill(pid, 0)` (P2: on Windows signal 0 is CTRL_C_EVENT, and any other number ends the
+    process). It reads the source: on this computer both calls work, and portalocker itself imports `fcntl` on
+    macOS and Linux, so only Windows would show either fault."""
+    source = Path(home.__file__).parent
+    found = [f"{path.relative_to(source)}:{node.lineno}: {why}"
+             for path in sorted(source.rglob("*.py"))
+             for node in ast.walk(ast.parse(path.read_text()))
+             if (why := _stops_windows(node))]
+    assert found == []

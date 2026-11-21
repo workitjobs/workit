@@ -3,7 +3,6 @@
 without Chrome for Testing, which CI installs. Nothing is ever submitted."""
 
 import json
-import os
 import shutil
 import tempfile
 import urllib.request
@@ -11,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import fakes
+import psutil
 import pytest
 from conftest import ARC_FORM, ARC_URL
 from fakes import FakeJobServer
@@ -183,4 +183,4 @@ def test_a_reused_plain_worker_rehearses_twice_with_its_guards_reset(monkeypatch
         assert sorted(status["scripts"]) == ["apply-init-drive", "apply-relay"]
         assert status["rules"] == 0 and status["lifted"] is False
     assert [t["url"] for t in connection.call("tabs.query")] == ["about:blank"]  # its window stays, blank
-    os.kill(pid, 0)  # still up until the site closes
+    assert psutil.pid_exists(pid)  # still up until the site closes

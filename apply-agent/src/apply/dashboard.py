@@ -53,6 +53,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
+import psutil
+
 from apply import bot_signals, captcha, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
@@ -2314,9 +2316,7 @@ def _quit(pid: int, timeout: float = 10.0) -> None:
         return
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
+        if not psutil.pid_exists(pid):
             return
         time.sleep(0.1)
 
