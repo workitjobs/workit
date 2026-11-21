@@ -1795,6 +1795,14 @@ selling line that says what the product does** and "See how", a
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
+- **On the marketing site, a company job board may be called a "careers
+  page"** (2026-11-21). The logo strip's line is "Jobs straight from the
+  careers pages of thousands of companies": to a student a "job board"
+  is Indeed or LinkedIn, so the repo's term (root `CLAUDE.md`,
+  Conventions) could read there as the opposite of what it means.
+  **Still open:** the hiring-systems section, the Job Matching rows and
+  the FAQ still say "company job boards"; the user has not said whether
+  they change too.
 - **No feature wears violet** (the user's call, 2026-11-21). The four
   feature colours are the usual pastel four: blue (Resume Builder), peach
   (Job Matching, `--color-matching` with its `-tint` and `-ink` in

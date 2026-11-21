@@ -587,11 +587,15 @@ export const control = {
  * the same ones the tour's stories and the old hero's cards name. Each is
  * drawn as its favicon and its name. "Thousands" is the number of boards
  * in boards.csv (about 5,000), as the hiring-systems copy says it. The line
- * says where the postings come from, not which roles (the user's call):
- * "fresh", never the scrape's schedule, as the hiring-systems copy says it.
+ * says where the postings come from, not which roles (the user's call).
+ * It says "careers pages", a student's own word for a company job board
+ * (2026-11-21): to most people a "job board" is Indeed or LinkedIn, so
+ * "from thousands of company job boards" could read as copied from those,
+ * the opposite of the point. "Straight from" is the gain (no middleman);
+ * "pulled fresh" was filler.
  */
 export const logoStrip = {
-  line: "Job postings pulled fresh from thousands of company job boards",
+  line: "Jobs straight from the careers pages of thousands of companies",
   employers: [
     { name: "Stripe", domain: "stripe.com" },
     { name: "Figma", domain: "figma.com" },
