@@ -77,7 +77,7 @@ look needs the whole page, and one section in it reads as a mistake.
 | Page | white | Every page's ground |
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
-| Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`) | Inside that feature's box and on its mark |
+| Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`): blue (Resume Builder), peach (Job Matching, `--color-matching`), green (Auto Apply), pink (Application Tracker) | Inside that feature's box and on its mark. No feature is violet: violet is the brand's (2026-11-21) |
 | Hero ground | `.hero-ground`: deeper violets in the corners, lighter along the edges, a pale pool behind the headline, grey noise in overlay | The home hero's panel; one hue family |
 | Empty tile | `.hero-tile`: frosted glass (a faint white, a 14px blur, a white hairline, a brighter top edge) | The hero's tiles that are not lit |
 | Headline tile | `.hero-copy`: solid white, a slate shadow | The hero's brightest surface and its one tile that is not glass; ink text, the Google pair on it |
@@ -394,6 +394,6 @@ translate inside a clipped track.
 | Pricing's gradient headline and violet capital pill | `TYPE.display`, `HERO_PILL` | One h1 and one pill on every page |
 | Violet shadows on mock UI | `--mk-shadow-float` | Principle 1 |
 
-Still violet on purpose: the hero's ground, checks, Job Matching's mark, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
+Still violet on purpose: the hero's ground, checks, Plus's limit pills, the billing toggle's selected tab, the "Save 20%" chip and the slop
 word. The unmounted scenes (city hero, bridge, pinned tour, 3D pipeline,
 applications route) keep their old styles; restyle one before it returns.

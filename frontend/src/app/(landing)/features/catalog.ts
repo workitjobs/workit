@@ -14,8 +14,9 @@ import { FEATURE_MARKS } from "./feature-marks";
  * Each page's copy lives in its own file under `content/`, never here.
  *
  * The colours are the home tour's (product-tour.tsx reads them from here):
- * the advanced blue for resumes, violet for matching, positive green for
- * auto apply, the match pink on the danger tint for the tracker (the
+ * the advanced blue for resumes, peach for matching (violet until
+ * 2026-11-21: violet is the brand's, so no product wears it), positive
+ * green for auto apply, the match pink on the danger tint for the tracker (the
  * tour's Updates stop). Scout had no stop, so it takes amber, the one app
  * colour the others leave free. A mark sits on `onGlow`, never on `glow`.
  */
@@ -58,9 +59,9 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     name: "Job Matching",
     icon: TargetIcon,
     mark: FEATURE_MARKS.matching,
-    tint: "var(--color-brand-tint)",
-    glow: "var(--color-brand)",
-    onGlow: { fill: "var(--color-brand)", ink: "white" },
+    tint: "var(--color-matching-tint)",
+    glow: "var(--color-matching)",
+    onGlow: { fill: "var(--color-matching-ink)", ink: "white" },
   }),
   "auto-apply": feature("auto-apply", {
     name: "Auto Apply",

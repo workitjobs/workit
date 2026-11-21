@@ -1750,6 +1750,18 @@ selling line that says what the product does** and "See how", a
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
+- **No feature wears violet** (the user's call, 2026-11-21). The four
+  feature colours are the usual pastel four: blue (Resume Builder), peach
+  (Job Matching, `--color-matching` with its `-tint` and `-ink` in
+  globals.css), green (Auto Apply) and pink (Application Tracker). Job
+  Matching was the brand violet, which read as WorkIt and not as one of
+  four products, and made three neighbours of blue, violet and pink.
+  Violet stays the brand's: the main button and the boxes that stand for
+  WorkIt as a whole ("That's why WorkIt exists", "You stay in control").
+  The hiring-systems box sits on Job Matching's sky, so it is peach too.
+  White text goes on `--color-matching-ink` (5.2:1), never on
+  `--color-matching` (2.6:1). The mock app screens inside Job Matching's
+  scenes keep the app's own violet, since that is how the app looks.
 - **A makeover of the home page narrowed to its hero** (2026-11-20 to
   21; `docs/home-page-makeover-brief.md`). After Loopsii the user lifted
   four of these rules for a day and picked, from five live directions, a

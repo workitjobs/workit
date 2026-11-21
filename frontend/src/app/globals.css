@@ -483,6 +483,19 @@
   --color-updates: #bd3a9b;
   --color-updates-ink: #a01f81;
 
+  /* Matching -------------------------------------------------------------
+   * The marketing pages' peach, Job Matching's own colour (2026-11-21). It
+   * was the brand violet, which read as WorkIt and not as one of four
+   * products, and sat between the blue and the pink as a third neighbour;
+   * the user asked for a set with no purple in it. The four are now the
+   * usual pastel four: blue, peach, green, pink. It is an orange, never
+   * the amber of a warning or of a Fair Match. --color-matching-ink is the
+   * step deep enough for a white glyph (5.2:1; white on --color-matching
+   * is 2.6:1, so nothing is printed on it). */
+  --color-matching: #f97b2f;
+  --color-matching-tint: #ffeedf;
+  --color-matching-ink: #b9480e;
+
   /* Activity streak ------------------------------------------------------
    * The four levels of the Dashboard's Activity streak, applications sent in
    * a day from light to heavy, which (seeker)/home/streak-canvas.ts

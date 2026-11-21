@@ -36,6 +36,7 @@ const SQUIRCLE = "M24 0C40 0 48 8 48 24S40 48 24 48 0 40 0 24 8 0 24 0Z";
 
 const BLUE = "var(--color-advanced)";
 const VIOLET = "var(--color-brand)";
+const PEACH = "var(--color-matching)";
 const GREEN = "var(--color-positive)";
 const PINK = "var(--color-updates)";
 const MATCH = "var(--color-match-excellent)";
@@ -76,7 +77,7 @@ const RING = 2 * Math.PI * 10.5;
 
 function MatchingMark({ className }: MarkProps) {
   return (
-    <Mark color={VIOLET} className={className}>
+    <Mark color={PEACH} className={className}>
       <circle cx="24" cy="24" r="15" fill="white" />
       <circle
         cx="24"
