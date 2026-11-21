@@ -559,8 +559,16 @@ app's build (W8) finds them.
   `pyproject.toml` joins it on the next run, and a dev dependency never
   does. Code that ships without a Python package (a macOS framework, a
   font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
-  text in `legal/licenses/`. The build runs the script with `--strict`,
-  which fails while a text is missing.
+  text in `legal/licenses/`. The build runs the script with `--strict`
+  (`build_app.py --release`), which fails while a text is missing.
+- **A text in `legal/licenses/` is the shipped version's own, unchanged**
+  but for LF line endings (KAN-833, 2026-11-21): the student page's
+  packages at `window/package-lock.json`'s versions (each package checked
+  against its `integrity`), Nuitka's from the wheel the `build` group
+  pins, the GUST Font License from the URL `src/apply/fonts/README.md`
+  names, and Sparkle's from release 2.10.1. A version change copies the
+  text again in the same PR; Sparkle's when W8 step 3 bundles a release
+  other than 2.10.1.
 - **A change to what the app sends off the Mac** (a model call's data, a
   new WorkIt route, a new outside service) updates the WorkIt Auto Apply
   section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
