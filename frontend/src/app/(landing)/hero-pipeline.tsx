@@ -27,7 +27,7 @@ import { StudioBox, studioGround } from "./layout-parts";
  * It plays in turn: a line in the product's colour fills along the cell's
  * top rule (the product rows' own fill line, `.row-fill`), its scene plays
  * once, and the next cell starts; after the fourth, one turn of rest, then
- * round again. All CSS on the server's HTML (`.pipe-anim` in landing.css),
+ * all four clear together and it goes round again. All CSS on the server's HTML (`.pipe-anim` in landing.css),
  * opacity and transform only, stopped off screen (`HoldOffscreen`) and
  * finished and still with reduced motion.
  *

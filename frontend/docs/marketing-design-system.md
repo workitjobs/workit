@@ -160,7 +160,9 @@ hero reads as the page's contents.
   in the tracker.
 - **It plays in turn**: a line in the product's colour fills along the
   cell's top rule (the product rows' fill line), the cell's scene plays
-  once, the next cell starts, and after the fourth one turn rests. CSS
+  once, the next cell starts, and after the fourth one turn rests; at
+  its end all four fade clear together, so a loop never starts beside
+  full cells. CSS
   only, opacity and transform, stopped off screen, finished and still
   with reduced motion.
 - **The grid is the page's**: the frame is `DraftLines` (`first`, so its

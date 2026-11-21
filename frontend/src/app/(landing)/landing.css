@@ -1917,23 +1917,33 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * The pipeline plays in turn. One loop is five slots (`--pipe-slot` each):
- * a cell's own slot (`--i` on it, 0 to 3), then the fifth, a rest with all
- * four done. Every moving piece shares the loop and starts at its cell's
- * slot, so a cell empties and plays again only as its turn comes round,
- * and the cells after it on the first loop wait unfilled. In a keyframe
- * a cell's slot is 0 to 20%: its line fills over the whole slot, and its
- * scene's pieces grow, pop or come in at set points inside it. Opacity
- * and transform only. Paused while the hero is off screen
- * (`HoldOffscreen`); with reduced motion nothing moves and every piece
- * shows finished.
+ * The pipeline plays in turn, on one clock. One loop is five slots
+ * (`--pipe-slot` each): a cell's own slot (`--i` on it, 0 to 3), then the
+ * fifth, a rest with all four done, at whose end every cell fades clear
+ * together, so each loop starts from four empty cells. (Each cell once ran
+ * the loop from its own slot, so on the second loop the first cell emptied
+ * alone beside three full ones: the user's catch, 2026-11-21.)
+ *
+ * Every moving piece runs the same loop with no delay of its own; its
+ * keyframes hold all four cells' windows, and the cell picks its own
+ * through `--p1` to `--p3`: `--pN` is 1 once N slots have ended for a cell
+ * at or before slot N, else 0 (a cell's piece is done from its own slot's
+ * end on). So in a keyframe, slot k is 20k% to 20k + 20%: a cell's line
+ * fills over its whole slot, and its scene's pieces grow, pop or come in
+ * at set points inside it; a stop between two slots reads `--pN`, which
+ * is 0 for cells still to come and 1 for cells done. Opacity and transform
+ * only. Paused while the hero is off screen (`HoldOffscreen`); with
+ * reduced motion nothing moves and every piece shows finished.
  */
 .pipe {
   --pipe-slot: 3.2s;
 }
 .pipe-anim {
+  --p1: clamp(0, 1 - var(--i), 1);
+  --p2: clamp(0, 2 - var(--i), 1);
+  --p3: clamp(0, 3 - var(--i), 1);
   animation-duration: calc(var(--pipe-slot) * 5);
-  animation-delay: calc(var(--i) * var(--pipe-slot) + 0.9s);
+  animation-delay: 0.9s;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: infinite;
   animation-fill-mode: both;
@@ -1970,30 +1980,81 @@ html[data-tab-flight="flying"] .tour-tabs {
 @keyframes pipe-fill {
   0% {
     transform: scaleX(0);
+    opacity: 1;
   }
-  20%,
+  20% {
+    transform: scaleX(var(--p1));
+  }
+  40% {
+    transform: scaleX(var(--p2));
+  }
+  60% {
+    transform: scaleX(var(--p3));
+  }
+  80%,
+  96% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
   100% {
     transform: scaleX(1);
+    opacity: 0;
   }
 }
 @keyframes pipe-grow-a {
   0%,
   3% {
     transform: scaleX(0);
+    opacity: 1;
   }
   9%,
+  23% {
+    transform: scaleX(var(--p1));
+  }
+  29%,
+  43% {
+    transform: scaleX(var(--p2));
+  }
+  49%,
+  63% {
+    transform: scaleX(var(--p3));
+  }
+  69%,
+  96% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
   100% {
     transform: scaleX(1);
+    opacity: 0;
   }
 }
 @keyframes pipe-grow-b {
   0%,
   8% {
     transform: scaleX(0);
+    opacity: 1;
   }
   14%,
+  28% {
+    transform: scaleX(var(--p1));
+  }
+  34%,
+  48% {
+    transform: scaleX(var(--p2));
+  }
+  54%,
+  68% {
+    transform: scaleX(var(--p3));
+  }
+  74%,
+  96% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
   100% {
     transform: scaleX(1);
+    opacity: 0;
   }
 }
 @keyframes pipe-pop-a {
@@ -2003,9 +2064,28 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: scale(0.6);
   }
   11%,
-  100% {
+  28% {
+    opacity: var(--p1);
+    transform: scale(calc(0.6 + 0.4 * var(--p1)));
+  }
+  31%,
+  48% {
+    opacity: var(--p2);
+    transform: scale(calc(0.6 + 0.4 * var(--p2)));
+  }
+  51%,
+  68% {
+    opacity: var(--p3);
+    transform: scale(calc(0.6 + 0.4 * var(--p3)));
+  }
+  71%,
+  96% {
     opacity: 1;
-    transform: none;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
   }
 }
 @keyframes pipe-pop-b {
@@ -2015,9 +2095,28 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: scale(0.6);
   }
   16%,
-  100% {
+  33% {
+    opacity: var(--p1);
+    transform: scale(calc(0.6 + 0.4 * var(--p1)));
+  }
+  36%,
+  53% {
+    opacity: var(--p2);
+    transform: scale(calc(0.6 + 0.4 * var(--p2)));
+  }
+  56%,
+  73% {
+    opacity: var(--p3);
+    transform: scale(calc(0.6 + 0.4 * var(--p3)));
+  }
+  76%,
+  96% {
     opacity: 1;
-    transform: none;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
   }
 }
 @keyframes pipe-in-a {
@@ -2027,9 +2126,28 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: translateY(-0.6em);
   }
   7%,
-  100% {
+  22% {
+    opacity: var(--p1);
+    transform: translateY(calc(-0.6em * (1 - var(--p1))));
+  }
+  27%,
+  42% {
+    opacity: var(--p2);
+    transform: translateY(calc(-0.6em * (1 - var(--p2))));
+  }
+  47%,
+  62% {
+    opacity: var(--p3);
+    transform: translateY(calc(-0.6em * (1 - var(--p3))));
+  }
+  67%,
+  96% {
     opacity: 1;
-    transform: none;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0);
   }
 }
 @keyframes pipe-in-c {
@@ -2039,9 +2157,28 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: translate(0.9em, 0.9em);
   }
   18%,
-  100% {
+  34% {
+    opacity: var(--p1);
+    transform: translate(calc(0.9em * (1 - var(--p1))), calc(0.9em * (1 - var(--p1))));
+  }
+  38%,
+  54% {
+    opacity: var(--p2);
+    transform: translate(calc(0.9em * (1 - var(--p2))), calc(0.9em * (1 - var(--p2))));
+  }
+  58%,
+  74% {
+    opacity: var(--p3);
+    transform: translate(calc(0.9em * (1 - var(--p3))), calc(0.9em * (1 - var(--p3))));
+  }
+  78%,
+  96% {
     opacity: 1;
-    transform: none;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {

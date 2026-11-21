@@ -364,8 +364,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     (`.pipe-anim` in landing.css): one loop is five slots of 3.2 s, a
     cell's own and a fifth of rest; a line in the product's colour fills
     along the cell's top rule (the product rows' `.row-fill` idea) while
-    its scene plays, and a cell empties only as its turn comes round
-    again. All CSS on the server's HTML, opacity and transform only,
+    its scene plays, and at the rest's end all four cells fade clear
+    together, so each loop starts from four empty cells (each cell once
+    ran the loop from its own slot, so on the second loop the first
+    emptied alone beside three full ones: the user's catch, 2026-11-21).
+    Every piece runs one clock with no delay of its own; its keyframes
+    hold all four slots and the cell picks its own through `--p1` to
+    `--p3` (landing.css). All CSS on the server's HTML, opacity and transform only,
     paused off screen (`HoldOffscreen`, `data-paused`), finished and still
     with reduced motion. **Scenes are in em**: drawn at 252 × 201px with
     every size in em and the box setting the em from its own width
