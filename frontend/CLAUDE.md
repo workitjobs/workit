@@ -400,19 +400,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     foot line grows from the centre and uncovers the header's content with
     it; the headline, its line and the sign-up pair rise from behind their
     own foot, as from a slot (`.hero-reveal`); the rails draw and the ink
-    squares pop as lines reach them; the four cells feed down out of the
-    pipeline's top rule, left to right; the loop starts at 1.3s (the
-    `load-*` rules at the foot of landing.css, with the timeline in their
-    comment). A piece is hidden by a clip and moved by a translate, paired
-    so the clip's edge stands still on the page; each rule fills backwards
-    only, so no clip or transform stays on an element (a clip left on the
-    nav would cut its menus). Never a loading screen, never an opacity
-    fade or a blur. The lines and the header's wipe from lg up; nothing
-    with reduced motion. **Still open:** a second entrance for the cells
-    is at `/?intro=b` for the user to compare (each cell dragged out from
-    its corner like a frame in a design tool, an ink square as its
-    handle); the loser, and page.tsx's inline script, go once one is
-    picked (marked TEMPORARY in both files). **The Browser pane holds CSS
+    squares pop as lines reach them; **the four cells are drawn, left to
+    right**: each is dragged out from its top left corner like a frame in
+    a design tool, with an ink square riding the corner as its handle,
+    which then rests as the grid's mark (`.pipe-handle`; the user's pick
+    over cells that fed down out of the top rule, the two compared in the
+    page); the loop starts as the last closes, at 1.7s (the `load-*` rules
+    at the foot of landing.css, with the timeline in their comment). A
+    piece is hidden by a clip, never by opacity or a blur; each rule fills
+    backwards only, so no clip or transform stays on an element (a clip
+    left on the nav would cut its menus). Never a loading screen. The
+    lines, the handles and the header's wipe from lg up; nothing with
+    reduced motion. The foot's five squares are the pipeline's
+    (`.pipe-lines`), so `DraftLines first` draws none. **The Browser pane holds CSS
     animations at their first frame**, so there the hero shows no words
     and unfilled scenes: before a screenshot run
     `document.getAnimations().forEach((a) => { try { a.finish() } catch {

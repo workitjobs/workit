@@ -23,8 +23,10 @@ export function DraftLines({
   /** The page's first frame (the home hero's), which hangs from the
    *  header: its top edge is the header's foot, and the header draws that
    *  line, its ink squares and the rails above it (`.header-line`,
-   *  `.header-marks`), so this frame draws no top line or top squares,
-   *  takes no gap above, and starts its side lines at its top. */
+   *  `.header-marks`), so this frame draws no top line, takes no gap
+   *  above, and starts its side lines at its top. It draws no squares
+   *  either: the hero's pipeline draws the two at its foot, where they
+   *  are the cells' handles on load (hero-pipeline.tsx). */
   first?: boolean;
 }) {
   return (
@@ -37,10 +39,14 @@ export function DraftLines({
       <span className="draft-h bottom-0" />
       <span className="draft-v left-0" />
       <span className="draft-v right-0" />
-      {!first && <i className="top-0 left-0" />}
-      {!first && <i className="top-0 left-full" />}
-      <i className="top-full left-0" />
-      <i className="top-full left-full" />
+      {!first && (
+        <>
+          <i className="top-0 left-0" />
+          <i className="top-0 left-full" />
+          <i className="top-full left-0" />
+          <i className="top-full left-full" />
+        </>
+      )}
     </span>
   );
 }

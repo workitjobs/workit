@@ -179,8 +179,9 @@ hero reads as the page's contents.
 - **The entrance draws the grid, with no fades** (the `load-*` rules in
   landing.css): the header's foot line grows from the centre and
   uncovers the header, the words rise from behind their own foot, the
-  rails draw, the ink squares pop as lines reach them, the cells feed
-  down out of the pipeline's rule, and the loop starts, about 1.3s. A
+  rails draw, the ink squares pop as lines reach them, each cell is
+  dragged out from its corner like a frame in a design tool with an ink
+  square as its handle, and the loop starts, about 1.7s. A
   clip and a translate, never opacity or a blur: a fade-in reads as
   AI-made. Never a loading screen.
 - **The grid is the page's**: the frame is `DraftLines` (`first`: it hangs

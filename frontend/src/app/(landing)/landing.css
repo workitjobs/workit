@@ -2026,7 +2026,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   --p2: clamp(0, 2 - var(--i), 1);
   --p3: clamp(0, 3 - var(--i), 1);
   animation-duration: calc(var(--pipe-slot) * 5);
-  animation-delay: 1.3s;
+  animation-delay: 1.7s;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: infinite;
   animation-fill-mode: both;
@@ -2274,7 +2274,7 @@ html[data-tab-flight="flying"] .tour-tabs {
  * The home page's entrance (2026-11-21, the user's asks: only the hero's
  * words came in on load, and the entrance should use the grid; then the
  * first version's fades read as AI-made, so nothing here fades). The grid
- * draws itself and the content comes out of its lines, in about 1.3s:
+ * draws itself and the content comes out of it, in about 1.7s:
  *
  *   0s     the header's foot line grows from the centre to both edges, and
  *          the header's content is uncovered from the centre with it
@@ -2283,33 +2283,46 @@ html[data-tab-flight="flying"] .tour-tabs {
  *   0.3s   the rails draw: up through the header, down the hero's sides
  *   0.4s   the header's two ink squares pop as the rails leave them
  *   0.55s  the pipeline's top rule grows from the centre
- *   0.6s   the four cells feed down out of that rule, left to right, 90ms
- *          apart, as paper from a plotter
- *   0.8s   the dividers between the cells draw down; the squares on the
- *          top rule pop
- *   0.9s   the frame's foot line grows; its squares pop at 1.1s
- *   1.3s   the pipeline's loop starts (`.pipe-anim`'s delay)
+ *   0.6s   the four cells are drawn, left to right, 160ms apart: each is
+ *          dragged out from its top left corner like a frame in a design
+ *          tool, and an ink square rides the corner as its handle, then
+ *          rests as the grid's mark at the cell's far corner; the square
+ *          at a cell's near corner pops as its frame starts, and the
+ *          divider at its far side draws down behind the handle
+ *   0.9s   the frame's foot line grows
+ *   1.7s   the last frame closes and the pipeline's loop starts
+ *          (`.pipe-anim`'s delay)
  *
- * No opacity anywhere: a piece is hidden by a clip and moves by a
- * translate, and the two are paired so the clip's edge stands still on the
- * page while the piece passes it (a piece shifted by its own height with
- * the same share clipped off shows nothing; as both run to zero its edge
- * stays where a slot would be). A line grows by a scale and a square pops
- * by a scale. Every rule fills backwards only, so no clip or transform is
- * left on an element once it has played (a clip left on the nav would cut
- * its menu panels). CSS on the server's HTML, so it plays before any
- * script. Never a loading screen: the content is in the HTML, and a
- * curtain would hide a finished page. The lines and the header's wipe run
- * from lg up, on a page that draws the grid; below lg the words and the
- * cells still come out of their slots. With reduced motion nothing here
- * runs and the page is simply there.
+ * The cells' move is the user's pick (2026-11-21) over one where each cell
+ * fed down out of the top rule like paper from a plotter, the two compared
+ * in the page.
+ *
+ * No opacity anywhere: a piece is hidden by a clip, and where it also
+ * moves, the clip and the translate are paired so the clip's edge stands
+ * still on the page while the piece passes it. A line grows by a scale and
+ * a square pops by a scale. Every rule fills backwards only, so no clip or
+ * transform is left on an element once it has played (a clip left on the
+ * nav would cut its menu panels). CSS on the server's HTML, so it plays
+ * before any script. Never a loading screen: the content is in the HTML,
+ * and a curtain would hide a finished page. The lines, the handles and the
+ * header's wipe run from lg up, on a page that draws the grid; below lg
+ * the words rise and the cells are drawn with no lines. With reduced
+ * motion nothing here runs and the page is simply there.
  */
 @media (prefers-reduced-motion: no-preference) {
   .hero-reveal {
     animation: load-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rd, 0s) backwards;
   }
   .pipe li {
-    animation: load-feed 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(0.6s + var(--i) * 0.09s) backwards;
+    animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
+      backwards;
+  }
+}
+/* The handles travel a cell's width and the pipeline's height, which only
+   container units can say in a transform. */
+@media (min-width: 64rem) {
+  .pipe-lines {
+    container-type: size;
   }
 }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
@@ -2333,19 +2346,27 @@ html[data-tab-flight="flying"] .tour-tabs {
   .pipe-lines > .draft-h {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.55s backwards;
   }
+  /* `--k` on a line or a square is the cell it belongs to (0 to 3; the
+     top rule's last square closes the row, so it waits a cell longer). */
+  .pipe-lines > i.top-0 {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) calc(0.55s + var(--k) * 0.16s)
+      backwards;
+  }
   .pipe-lines > .pipe-v {
     transform-origin: top;
-    animation: load-draw-y 0.4s ease-out 0.8s backwards;
+    animation: load-draw-y 0.4s ease-out calc(0.8s + var(--k) * 0.16s) backwards;
   }
-  .pipe-lines > i.top-0 {
-    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.85s backwards;
+  .pipe-lines > .pipe-handle {
+    animation: load-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--k) * 0.16s)
+      backwards;
   }
-  .draft-first > .draft-h {
+  .draft-first > .draft-h,
+  .pipe-lines > i.top-full:not(.pipe-handle) {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
   }
-  .pipe-lines > i.top-full,
-  .draft-first > i {
-    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 1.1s backwards;
+  .pipe-lines > i.top-full:not(.pipe-handle) {
+    animation-name: load-mark;
+    animation-duration: 0.3s;
   }
 }
 @keyframes load-draw-x {
@@ -2375,16 +2396,21 @@ html[data-tab-flight="flying"] .tour-tabs {
     clip-path: inset(0 0 -0.25em 0);
   }
 }
-/* Down out of the piece's own top edge: a cell out of the pipeline's rule.
-   Open at the sides and foot, so nothing beside the cell is cut. */
-@keyframes load-feed {
+/* A cell dragged out from its top left corner. Open past the right and
+   the foot at its end, so nothing beside the cell is cut as it lands. */
+@keyframes load-frame {
   from {
-    transform: translateY(-100%);
-    clip-path: inset(100% -1rem -1rem -1rem);
+    clip-path: inset(0 100% 100% 0);
   }
   to {
-    transform: translateY(0);
-    clip-path: inset(0 -1rem -1rem -1rem);
+    clip-path: inset(0 -1rem -1rem 0);
+  }
+}
+/* A cell's handle: from the cell's top left corner (a cell's width to the
+   left of its resting place and the pipeline's height above it) to rest. */
+@keyframes load-handle {
+  from {
+    transform: translate(calc(-50% - 25cqw), calc(-50% - 100cqh));
   }
 }
 /* Uncovered from the centre outward, open below for the bar's menus. */
@@ -2394,47 +2420,5 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
   to {
     clip-path: inset(0 0% -100vh 0%);
-  }
-}
-
-/*
- * TEMPORARY, for the user to compare (2026-11-21): a second entrance for
- * the cells, at `/?intro=b` (page.tsx's inline script sets `data-intro` on
- * <html>). Each cell is dragged out from its top left corner like a frame
- * drawn in a design tool, and an ink square rides the corner as its
- * handle, then rests as the grid's mark. Delete this block, or the block's
- * rival above, once one is picked.
- */
-@media (min-width: 64rem) {
-  .pipe-lines {
-    container-type: size;
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  html[data-intro="b"] .pipe li {
-    animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
-      backwards;
-  }
-}
-@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  html[data-intro="b"] .pipe-lines > i.top-full:not(:first-of-type) {
-    animation: load-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--k) * 0.16s)
-      backwards;
-  }
-  html[data-intro="b"] .pipe-lines > .pipe-v {
-    animation-delay: calc(0.6s + var(--k) * 0.16s);
-  }
-}
-@keyframes load-frame {
-  from {
-    clip-path: inset(0 100% 100% 0);
-  }
-  to {
-    clip-path: inset(0 -1rem -1rem 0);
-  }
-}
-@keyframes load-handle {
-  from {
-    transform: translate(calc(-50% - 25cqw), calc(-50% - 100cqh));
   }
 }

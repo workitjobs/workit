@@ -27,9 +27,10 @@ import { StudioBox, studioGround } from "./layout-parts";
  * It plays in turn: a line in the product's colour fills along the cell's
  * top rule (the product rows' own fill line, `.row-fill`), its scene plays
  * once, and the next cell starts; after the fourth, one turn of rest, then
- * all four clear together and it goes round again. On load the cells
- * rise left to right as the grid's lines draw, and the loop starts as
- * the last lands (the `load-*` rules in landing.css). All CSS on the server's HTML (`.pipe-anim` in landing.css),
+ * all four clear together and it goes round again. On load the cells are
+ * drawn left to right, each dragged out from its corner with an ink
+ * square as its handle, and the loop starts as the last closes (the
+ * `load-*` rules in landing.css). All CSS on the server's HTML (`.pipe-anim` in landing.css),
  * opacity and transform only, stopped off screen (`HoldOffscreen`) and
  * finished and still with reduced motion.
  *
@@ -95,16 +96,17 @@ export function HeroPipeline({ className }: { className?: string }) {
         {[25, 50, 75].map((x, k) => (
           <span key={x} className="pipe-v" style={{ left: `${x}%`, "--k": k } as CSSProperties} />
         ))}
-        {[0, 25, 50, 75, 100].map((x) => (
-          <i key={x} className="top-0" style={{ left: `${x}%` }} />
+        {[0, 25, 50, 75, 100].map((x, k) => (
+          <i key={x} className="top-0" style={{ left: `${x}%`, "--k": k } as CSSProperties} />
         ))}
-        {/* The foot's squares; the two at the ends sit on the frame's own
-            corners (`DraftLines`), drawn here too so each cell has one at
-            its far corner. `--k` is the cell it closes, for the entrance. */}
+        {/* The foot's squares, the frame's two corners among them
+            (`DraftLines first` draws none). Each but the first is a cell's
+            handle on load (`.pipe-handle`): it rides the cell's corner as
+            the cell is drawn, then rests here. `--k` is that cell. */}
         {[0, 25, 50, 75, 100].map((x, k) => (
           <i
             key={x}
-            className="top-full"
+            className={k === 0 ? "top-full" : "pipe-handle top-full"}
             style={{ left: `${x}%`, "--k": k - 1 } as CSSProperties}
           />
         ))}
