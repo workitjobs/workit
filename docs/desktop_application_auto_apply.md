@@ -528,7 +528,7 @@ by hand (W8).
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed. Left: ADR 0006 and the rest of the docs (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Left: removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -2014,9 +2014,10 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       `orchestrator.list_answers`, `take_edits`); the Answers view is the
       one place to edit, and `tracker.json`'s old list is dropped at its
       next save.
-    - **The bank leaves the data folder on purpose:** ADR 0006 in
-      `apply-agent/docs/adr/`, which Apply's rule that a person's data
-      stays in `APPLY_HOME` points to.
+    - **The bank leaves the data folder on purpose:**
+      `apply-agent/docs/adr/0006-the-answer-bank-lives-on-workit.md`
+      (written 2026-11-21), which Apply's rule that a person's data stays
+      in `APPLY_HOME` points to.
 11. **What changes for the student.**
     - A choice, or their words in a field the tab never sent, given in the
       extension fills the app's next Application. An answer from the app
@@ -2043,11 +2044,11 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    content checks, on every save and the first fill), `job_id` in place of
    `company`, the reply `{version, kept_out}`, and `bank_version` on the
    usage reply.
-4. Apply (rule 10), one commit each: the backend's `company` beside
-   `job_id`; the bank in memory (the startup read, its retry, the entry,
-   Test Person); the sender and every write; the version checks;
-   `unreviewed_answers` and the Answers view; the upload and the removals
-   in rule 9; ADR 0006, the glossary and the docs.
+4. Apply (rule 10), built (2026-11-21), one commit each: the backend's
+   `company` beside `job_id`; the bank in memory (the startup read, its
+   retry, the entry, Test Person); the sender and every write; the version
+   checks; `unreviewed_answers` and the Answers view; the upload and the
+   removals in rule 9; ADR 0006, the glossary and the docs.
 5. Removal: `fill_answers` and `PATCH .../fill-answers`; the old route
    once no Store extension calls it.
 
@@ -2489,3 +2490,10 @@ their value on their servers; WorkIt Auto Apply does the same.
   The bank's version rides on the usage reply, which the run already
   asks before each Application, not on the Model route's reply. Step 3
   built the backend's side.
+- **2026-11-21:** W11 step 4 built: Apply's side. The bank is read once
+  into memory; one sender sends each change as its own PATCH and memory
+  changes only from the reply; the bank is read again before an
+  Application when the usage reply's version moved; a Developer command
+  sends an old `answer-bank.yaml` once, and WorkIt Auto Apply never looks
+  for one. `/privacy` says the bank is on WorkIt. ADR 0006 records why the
+  bank left the data folder. Left: step 5, and applying the migration.

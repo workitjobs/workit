@@ -124,7 +124,7 @@ A fact a written answer's essay plan needs for a required slot that nothing in t
 _Avoid_: missing info, follow-up question, gap
 
 **Application answers**:
-The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. Profile shows them in a section of that name, with the class year WorkIt works out from education.
+The facts screening questions ask, which the student gives once and every form reuses: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. Profile shows them in a section of that name, with the class year WorkIt works out from education.
 _Avoid_: screening questions (for the answers), extra questions, eligibility
 
 **Batch apply**:
@@ -148,7 +148,7 @@ What a company builds and has shipped lately (its products, recent launches, eng
 _Avoid_: company research, company profile, company notes
 
 **Written answer**:
-A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or saved answer fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
+A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or the Answer bank fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
 
 **Question type**:
@@ -163,9 +163,9 @@ _Avoid_: outline, essay brief, strategy
 The company brief fact a written answer uses, which the student's Claude names when it saves the answer and WorkIt confirms is one of the brief's facts. The Written Answers page shows it with the answer, linked to its page, so the student can read up on it before an interview.
 _Avoid_: source, citation, highlight
 
-**Saved answer**:
-A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
-_Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)
+**Answer bank**:
+The student's one answer to each one-off question (one a form asks that no profile fact answers, such as how they heard about a company), filled on every later form that asks it, in the WorkIt extension and WorkIt Auto Apply alike. Only WorkIt decides what enters it: never an essay, a follow-up of another question, or an answer about one company or role; the student's own words win over a model's draft, which stays flagged until they review it.
+_Avoid_: saved answers, cached answers, template
 
 **Writing sample**:
 A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. Their Claude reads them to build the style card, and a written answer must copy no run of words from them.

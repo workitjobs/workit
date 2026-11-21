@@ -3,6 +3,7 @@
 # someone puts one in this folder by mistake. Anchored to apply-agent/.
 /applicant-profile.yaml
 /answer-bank.yaml
+/answer-bank.before-workit.yaml
 /story-bank.md
 /voice.md
 /policies.yaml

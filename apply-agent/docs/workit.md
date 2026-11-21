@@ -250,7 +250,8 @@ submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
 ## The Answer bank lives on WorkIt (W11)
 
-`src/apply/answer_bank.py`, W11 of `../../docs/desktop_application_auto_apply.md`.
+`src/apply/answer_bank.py`, W11 of `../../docs/desktop_application_auto_apply.md`;
+why it left the data folder is `adr/0006-the-answer-bank-lives-on-workit.md`.
 The bank is no file in the data folder: it is the student's on WorkIt,
 which the extension fills from too, so an answer given in one fills forms
 in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
