@@ -43,28 +43,39 @@ const content: FeatureContent = {
   // The home tour's Updates stop.
   animation: UpdatesAnimation,
   sections: [
+    // The four points, the user's picks (2026-11-21): it fills itself in,
+    // arrange it, the calendar, what you sent. They were Saved and applied
+    // side by side, It asks when you come back, Move it along as you hear
+    // back, and The resume you sent. Each title has its own shape and no
+    // two end on one word (the lesson of the Auto Apply review). The
+    // pictures are the old points' and wait for real recordings.
     {
-      title: "Saved and applied, side by side",
-      icon: ListBulletsIcon,
-      body: "Every job you save or apply to sits in one list, with its stage and your match score. Search it, filter it by status, and sort it by date, match or pay.",
-      visual: ListVisual,
-    },
-    {
-      title: "It asks when you come back",
+      title: "No more updating a spreadsheet",
       icon: QuestionIcon,
-      body: "Apply on the company’s site, and when you come back WorkIt asks if you applied and which resume you sent. One yes moves the job to Applied, with no spreadsheet to update.",
+      body: "Save a job and it is in your list. Come back from a company’s site and WorkIt asks if you applied. One yes, and it is marked.",
       visual: AskedVisual,
     },
     {
-      title: "Move it along as you hear back",
+      // The list arranged as a table: columns, Group By, Sort and filters
+      // (frontend/docs/screens.md, Applications).
+      title: "Sort it, group it, make it yours",
+      icon: ListBulletsIcon,
+      body: "Choose your columns, group by stage or company, and sort by date, match or pay. It works like the spreadsheet you know, without the upkeep.",
+      visual: ListVisual,
+    },
+    {
+      // Dated events added on an application's page fill the Calendar
+      // (KAN-413). WorkIt shows the dates; it sends no reminder, so "never
+      // miss" means they are all in one place, the user's pick knowing it.
+      title: "Never miss an interview",
       icon: FlagIcon,
-      body: "Set each application’s stage yourself: Applied, Interviewing, Offer or Rejected. Add an interview or an assessment to its page, so the date stays with the job.",
+      body: "Add an interview, an assessment or a deadline to any application. It shows on your calendar, next to the job it belongs to.",
       visual: StageVisual,
     },
     {
-      title: "The resume you sent, one click away",
+      title: "See exactly what you sent",
       icon: PaperPlaneTiltIcon,
-      body: "Each application keeps the resume it went out with, so you can read what the recruiter saw before your interview.",
+      body: "Each application keeps the resume it went out with. Read what the recruiter saw before you walk into the interview.",
       visual: SentResumeVisual,
     },
   ],
