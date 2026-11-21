@@ -1796,11 +1796,18 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
      letter too). Each essay is written for its posting, as Apply does
      today.
    - **Sent, and kept unless rule 4 keeps it out:** the student's answers,
-     with no flag (Needs you, the app's Answers view, their own words on a
-     form: the extension's `PUT .../answers` with `own: true`); and a
-     model's one-off draft, with `review: true` (the app's drafts, written
-     by WorkIt's model in the `essays.write` kind's `drafts`, and the
-     choices the student's Claude saves through the connector).
+     with no flag (the app's Answers view, their own words on a form: the
+     extension's `PUT .../answers` with `own: true`); and a model's one-off
+     draft, with `review: true` (the app's drafts, written by WorkIt's
+     model in the `essays.write` kind's `drafts`, and the choices the
+     student's Claude saves through the connector).
+   - **Not the bank: an answer in Needs you.** A Missing fact is a
+     question a Fill engine rule knows but the profile can't answer
+     ("Are you willing to relocate?"). The student's answer stays in the
+     profile's `answered_questions`, which the engine reads before its
+     rules; the bank is read only for questions no rule knows, so there it
+     would never be read. It moves to WorkIt with the profile facts, later
+     in this workstream.
    - **The extension's path.** W11 changes no extension code. The
      extension sends no essay marker, so the server can't tell a short
      question in words from an essay. On that path only a choice, and the
@@ -1885,14 +1892,15 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
 7. **Writes.** `PATCH /applicants/{id}/answer-bank` takes
    `{"set": [entry], "delete": [question]}`, at most 100 entries and 500
    deletes (100, so the content checks keep one save short: below).
-   - An entry is `{question, answer, review, choice, job_id}`. `choice`
-     and `job_id` are for rule 4 and are not kept. `job_id` names the
-     form's application, so the server reads the form's company from its
-     own database, not from the app (built; it replaced `company`). A
-     `job_id` the student has no application for refuses the whole PATCH
-     (404). An Answers view entry has no `job_id`. A form WorkIt holds no
-     job for (one of Apply's Requests, whose ids start `request-`) sends
-     no draft: its one-off questions are drafted again each time.
+   - An entry is `{question, answer, review, choice, job_id | company}`.
+     `choice`, `job_id` and `company` are for rule 4 and are not kept.
+     `job_id` names the form's application on WorkIt (a job from the
+     student's Auto Apply queue), so the server reads its company from its
+     own database; a `job_id` the student has no application for refuses
+     the whole PATCH (404). A form WorkIt has no job for (a pasted link, a
+     Request, a match WorkIt doesn't list) sends `company`, the name Apply
+     holds for the posting (the one it records the application under).
+     With both, `job_id` wins. An Answers view entry has neither.
    - One statement merges by key (`answers = (answers || set) - deleted`)
      and adds one to the version (built). Two writers on different keys
      both keep their change. On one key the last write wins, except that
@@ -1957,7 +1965,49 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
      `essays.write` version 2 says it, and Apply asks for version 2 (built
      2026-11-20). Version 1 still says `needs_lisul`, for an app copy older
      than the change, and goes once none asks for it.
-10. **What changes for the student.**
+10. **The app's side** (decided 2026-11-20, step 4).
+    - **One bank for each process,** read once at startup and shared by
+      the window and every Worker. When the read fails the app still
+      opens: the read is tried again in the background (every 10 seconds
+      for a minute, then every minute), the Answers view says "Can't reach
+      WorkIt, trying again", and Start waits for the bank. An entry is
+      only `question`, `answer`, `own` and `none`. The masker (`masked.py`)
+      takes the bank's values from memory after each read and write.
+    - **Test Person** (sample data) has an empty bank that sends nothing,
+      and keeps no drafts.
+    - **One sender thread** sends one PATCH at a time, in order, at most
+      100 entries. The model's drafts go to it (not an essay, a
+      `needs_applicant` draft or a bare date with no section), each with
+      the `job_id` the queue gave the run's Posting, else its `company`;
+      the app no longer decides itself which draft is about the company.
+      The pre-submit review's fix sends a delete, Regenerate a flagged
+      draft, Ask Claude's saved offer the student's own answer.
+    - **The Answers view's edits** go through the same sender, ahead of
+      the drafts, and drop a waiting draft to the same question. The view
+      waits up to 10 seconds, then says "Not saved: WorkIt didn't answer"
+      and keeps the text. Reviewed sends the same answer with no flag.
+    - **A send that fails:** a network error or a 5xx is tried again after
+      1, 5 and 30 seconds, then dropped; a 4xx is dropped at once. The log
+      names the question only, masked. At quit the sender has 5 seconds.
+    - **The version** is read from the usage reading before each
+      Application (`orchestrator.py`, `rehearsal.py`). A Developer
+      checkout off the Model route asks `GET /apply-app/usage` itself. A
+      failed read keeps the old memory, and the next check tries again.
+    - **`unreviewed_answers: hold`** makes an Application that takes a
+      flagged answer a Hold, its reason naming those questions.
+    - **The one-time upload** runs at the app's startup (a Developer
+      command's, before its run), with a progress line: only the questions
+      WorkIt doesn't hold yet, in PATCHes of 100, then the file is renamed.
+      A failed upload is tried again at the next start.
+    - **The Tracker's Answers tab goes** (`Tracker.add_answer`,
+      `Tracker.answers`, `AnswerRow`, the Sheet's Answers code,
+      `orchestrator.list_answers`, `take_edits`); the Answers view is the
+      one place to edit, and `tracker.json`'s old list is dropped at its
+      next save.
+    - **The bank leaves the data folder on purpose:** ADR 0006 in
+      `apply-agent/docs/adr/`, which Apply's rule that a person's data
+      stays in `APPLY_HOME` points to.
+11. **What changes for the student.**
     - A choice, or their words in a field the tab never sent, given in the
       extension fills the app's next Application. An answer from the app
       fills the next form in the extension.
@@ -1983,10 +2033,11 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    content checks, on every save and the first fill), `job_id` in place of
    `company`, the reply `{version, kept_out}`, and `bank_version` on the
    usage reply.
-4. Apply: the bank in memory, read once at startup and shared by the
-   window and the Workers; the sender thread; the version checks; the
-   first-start upload and the removals in rule 9; "Needs review" and
-   Reviewed in the Answers view; `unreviewed_answers`.
+4. Apply (rule 10), one commit each: the backend's `company` beside
+   `job_id`; the bank in memory (the startup read, its retry, the entry,
+   Test Person); the sender and every write; the version checks;
+   `unreviewed_answers` and the Answers view; the upload and the removals
+   in rule 9; ADR 0006, the glossary and the docs.
 5. Removal: `fill_answers` and `PATCH .../fill-answers`; the old route
    once no Store extension calls it.
 

@@ -118,13 +118,15 @@ GET  /applicants/{id}/applications/{job_id}/answer-bank
      this). 404 with no application.
 PATCH /applicants/{id}/answer-bank  {"set": [...], "delete": [...]}
      Saves and deletes entries (WorkIt Auto Apply's Answers view, its
-     model's drafts), at most 100 entries and 500 deletes: each entry {question, answer,
-     review, choice, job_id}, the last two read by the rule (job_id names the
-     application whose form it came from; the server reads its company) and
-     not kept. A model's answer (`review`) never replaces the student's own.
-     Answers {version, kept_out: {question: why}}: the writer keeps only
-     what wasn't kept out, and reads the bank again unless `version` is one
-     past its own. 404 with no profile or for a job_id the student has no
+     model's drafts), at most 100 entries and 500 deletes: each entry
+     {question, answer, review, choice, job_id | company}, the rest read by
+     the rule and not kept. The form's company is WorkIt's own for a
+     job_id (a job from the student's queue), else `company` as the app
+     holds it (a pasted link, a Request); job_id wins when both come. A
+     model's answer (`review`) never replaces the student's own. Answers
+     {version, kept_out: {question: why}}: the writer keeps only what
+     wasn't kept out, and reads the bank again unless `version` is one past
+     its own. 404 with no profile or for a job_id the student has no
      application for, 413 past 5,000 answers or 1 MB (nothing saved).
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →

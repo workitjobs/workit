@@ -321,10 +321,11 @@ async def change(
     db: AsyncSession, applicant_id: uuid.UUID, entries: Collection[BankEntry], deleted: Collection[str],
 ) -> Changed | None:
     """PATCH .../answer-bank: saves `entries` (each through the rule, with
-    the company of the form its `job_id` names, read from WorkIt's own
-    database) and deletes the questions `deleted`, and commits. None with
-    no profile. Raises NotFound when a `job_id` names no application of the
-    student's, and TooBig past the caps, with nothing saved either way."""
+    its form's company: the one WorkIt's own database holds for its
+    `job_id`, else its `company`) and deletes the questions `deleted`, and
+    commits. None with no profile. Raises NotFound when a `job_id` names no
+    application of the student's, and TooBig past the caps, with nothing
+    saved either way."""
     if not await _ensure(db, applicant_id):
         return None
     jobs = {e.job_id for e in entries if e.job_id is not None}
@@ -333,7 +334,7 @@ async def change(
         raise NotFound("No application for that job.")
     changed = await _merge(db, applicant_id, [
         Kept(question=e.question, answer=e.answer, review=e.review, choice=isinstance(e.answer, list) or e.choice,
-             company=companies.get(e.job_id) if e.job_id else None)
+             company=companies.get(e.job_id) if e.job_id else e.company)
         for e in entries
     ], deleted)
     await db.commit()

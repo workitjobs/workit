@@ -313,9 +313,12 @@ class BankEntry(BaseModel):
     question as the form words it, the answer (a list of the options picked
     for a multi-select; [] is "none of these"), `review` for a model's
     answer the student hasn't reviewed, `choice` for a pick from the form's
-    options, and `job_id`, the application whose form it came from: the
-    rule reads those two (the form's company from WorkIt's own database),
-    and nothing keeps them. An entry from the Answers view has no job."""
+    options, and the form it came from: `job_id` for a WorkIt job (the
+    rule reads its company from WorkIt's own database), else `company`,
+    the posting's company as WorkIt Auto Apply holds it (a pasted link, a
+    Request, a match WorkIt doesn't list); `job_id` wins when both come.
+    The rule reads them, and nothing keeps them. An entry from the Answers
+    view has neither."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -327,6 +330,7 @@ class BankEntry(BaseModel):
     # a pick from the form's options (a single choice's answer is a string): the rule reads its question alone
     choice: bool = False
     job_id: uuid.UUID | None = None
+    company: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
 
 
 class AnswerBankChange(BaseModel):

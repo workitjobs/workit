@@ -110,6 +110,11 @@ async def test_an_answer_about_one_company_is_kept_out_and_says_why(running, app
         {"question": "Will you need them to sponsor a visa?", "answer": "No, not at Initech.", "job_id": initech},
         {"question": "If yes, please explain.", "answer": "I interned there."},
         {"question": "How did you hear about us?", "answer": "Hooli's careers page", "choice": True},
+        # A form WorkIt has no job for (a pasted link): its company as the app holds it.
+        {"question": "Do you know anyone who works there?", "answer": "Yes, two engineers at Plaid.", "company": "Plaid"},
+        # Both: WorkIt's own record wins over the name sent.
+        {"question": "Have you worked there before?", "answer": "No, never at Initech.", "job_id": initech,
+         "company": "Globex"},
     ]})
 
     assert res.json()["kept_out"] == {
@@ -117,6 +122,8 @@ async def test_an_answer_about_one_company_is_kept_out_and_says_why(running, app
         "What do you want to work on?": "It names Hooli, so it stays on this form.",
         "Will you need them to sponsor a visa?": "It names Initech, so it stays on this form.",
         "If yes, please explain.": "It follows another question, so it stays on this form.",
+        "Do you know anyone who works there?": "It names Plaid, so it stays on this form.",
+        "Have you worked there before?": "It names Initech, so it stays on this form.",
     }
     # A choice is the form's own option: only its question is read.
     assert list((await _read(applicant)).json()) == ["how did you hear about us?"]

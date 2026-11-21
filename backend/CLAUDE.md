@@ -908,8 +908,9 @@ Find files with a directory listing; these are the rules for where code goes.
   (`answer_bank._unsupported`: `checks.problems` and the truth check,
   plain code), and names no company WorkIt knows
   (`answer_bank.companies_named`), flagged `review` for the student.
-  WorkIt Auto Apply's PATCH names its form by `job_id`, whose company the
-  server reads itself, and learns the bank's version from `GET
+  WorkIt Auto Apply's PATCH names its form by `job_id` (a WorkIt job, whose
+  company the server reads itself), else by the `company` it holds for the
+  posting, and learns the bank's version from `GET
   /apply-app/usage`, which it asks before each Application. The companies WorkIt knows (`queries.fetch_company_names`)
   never include an added job's company: one student typed it (KAN-515,
   KAN-542). So the whole bank fits every form: `GET .../answer-bank`
