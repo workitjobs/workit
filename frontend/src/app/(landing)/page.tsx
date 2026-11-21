@@ -59,6 +59,15 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
+      {/* TEMPORARY (2026-11-21): `/?intro=b` plays the second entrance, for
+          the user to compare (landing.css, "TEMPORARY"). It writes only to
+          <html>, whose attributes hydration does not check. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "try{var v=new URLSearchParams(location.search).get('intro');if(v)document.documentElement.dataset.intro=v}catch(e){}",
+        }}
+      />
       {/* Hero (redrawn 2026-11-21): the first screen, on the page's own
           white ground, in the drafting grid's frame, the page's first, so
           its side lines start the rail every section below continues. The
@@ -82,14 +91,14 @@ export default function LandingPage() {
               <h1
                 className={cn(
                   TYPE.display,
-                  "hero-rise text-ink lg:text-[clamp(3rem,7.4svh,4.5rem)]",
+                  "hero-reveal text-ink lg:text-[clamp(3rem,7.4svh,4.5rem)]",
                 )}
                 style={{ "--rd": ".15s" } as CSSProperties}
               >
                 {hero.title}
               </h1>
               <p
-                className={cn(TYPE.lead, "hero-rise text-ink-muted mx-auto mt-5 max-w-2xl")}
+                className={cn(TYPE.lead, "hero-reveal text-ink-muted mx-auto mt-5 max-w-2xl")}
                 style={{ "--rd": ".3s" } as CSSProperties}
               >
                 {hero.subtitle}
@@ -99,7 +108,7 @@ export default function LandingPage() {
                   while there is a build. The row wraps, so the third button
                   needs no other change. */}
               <div
-                className="hero-rise mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
+                className="hero-reveal mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
                 style={{ "--rd": ".4s" } as CSSProperties}
               >
                 <SocialSignUpButton provider="google" />

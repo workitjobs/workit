@@ -115,28 +115,61 @@ export function SectionHeading({
 }
 
 /**
- * A feature's ground for a `StudioBox` (KAN-923): a sky in the feature's own
- * colour, after Calendly's boxes. A pale wash at the top, near white
- * through the middle, where a bright band sits behind the scene's card like
- * a horizon, then the colour deepening to the foot, where it is about
- * half strength (54% over white), a pastel. The foot was the full colour
- * a step darker until 2026-11-21: with four boxes side by side in the
- * hero, the feet competed with the headline and the user found the
- * gradients too strong. One hue and one light, so the box reads as a
- * place the card sits in. It replaced blobs of the colour (and
- * of a second colour) over the tint: every blob sat at the same lightness,
- * with no light source and no direction, so the boxes read as flat and
- * muddy beside Calendly's (the user's comparison, 2026-11-19).
+ * A box's four colours, by the feature colour it is asked for: the ground,
+ * a neighbour hue for the lower left, a second neighbour for the upper
+ * right, and a pale tone for the streak of light between them. Neighbours
+ * on the colour wheel, a step either side of the feature's own colour, so
+ * a box blends as one family and still reads as blue, peach, green or
+ * pink at a glance. Brighter than the tokens they stand for: these are
+ * grounds, never text, and nothing is printed on them.
+ */
+const MESH: Record<string, [ground: string, low: string, high: string, light: string]> = {
+  // Resume Builder: blue, with cyan below and periwinkle above.
+  "var(--color-advanced)": ["#3f8cf0", "#2fd6dc", "#8d86f4", "#a8d6f8"],
+  // Job Matching: peach, with yellow below and coral above.
+  "var(--color-matching)": ["#fb8f45", "#ffcc55", "#f76f8e", "#ffdcb8"],
+  // Auto Apply: green, with lime below and teal above.
+  "var(--color-positive)": ["#27bd84", "#a3e065", "#22b4cc", "#baf1d2"],
+  // Application Tracker: pink, with coral below and plum above.
+  "var(--color-updates)": ["#d655b0", "#ff9274", "#9a6ff2", "#f8c8e8"],
+  // WorkIt itself: violet, with blue below and magenta above.
+  "var(--color-brand)": ["#7b58ec", "#4f93f6", "#c95fe2", "#cdbffa"],
+};
+
+/**
+ * A feature's ground for a `StudioBox`: a grainy blend of neighbouring
+ * colours (2026-11-21, after a reference the user gave: one image where
+ * blue runs into cyan and periwinkle under a grain you can see). The
+ * feature's colour fills the box; a neighbour hue pools in the lower left
+ * and another in the upper right; a pale streak crosses between them, the
+ * light. The grain is `.studio-box`'s (landing.css).
  *
- * No one text colour holds 4.5:1 on every foot (ink fails on the blue,
- * violet and pink; white on the green), so nothing writes straight on the
- * lower fifth of a box: text there sits on a card or a pill.
+ * What it replaced, each the user's call: a sky in one colour, pale at the
+ * top to half strength at the foot, which read as AI-made and odd ("just
+ * blue and white"); the same sky ending in the full colour, too strong
+ * with four boxes side by side; and, first, blobs of the colour over a
+ * pale tint, flat and muddy. The lesson across the three: one colour and
+ * white is not a gradient worth looking at; the interest is in the blend
+ * between neighbours.
+ *
+ * Nothing writes straight on a box: the ground is a mid tone that holds
+ * 4.5:1 with neither ink nor white everywhere, so text sits on a card or
+ * a pill. A colour with no entry in `MESH` gets the same shape from
+ * mixes of itself.
  */
 export function studioGround({ glow }: { glow: string }) {
-  const wash = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, white)`;
+  const mix = (amount: number, into: string) => `color-mix(in oklab, ${glow} ${amount}%, ${into})`;
+  const [ground, low, high, light] = MESH[glow] ?? [
+    mix(80, "white"),
+    mix(55, "white"),
+    mix(85, "var(--color-ink)"),
+    mix(30, "white"),
+  ];
   return [
-    `radial-gradient(70% 22% at 50% 46%, rgb(255 255 255 / 0.85), transparent 75%)`,
-    `linear-gradient(180deg, ${wash(20)} 0%, ${wash(6)} 42%, ${wash(26)} 72%, ${wash(54)} 100%)`,
+    `radial-gradient(62% 58% at 84% -6%, ${high}, transparent 72%)`,
+    `radial-gradient(78% 72% at -10% 70%, ${low}, transparent 68%)`,
+    `radial-gradient(58% 40% at 34% 34%, ${light}, transparent 74%)`,
+    ground,
   ].join(", ");
 }
 

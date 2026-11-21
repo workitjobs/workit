@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "../../favicon-logo";
 import { candidate, followedJob, matchingFeature } from "../../feature-data";
-import { Label, Vignette } from "./parts";
+import { GroundNote, Label, Vignette } from "./parts";
 
 /** The Resume Builder page's deep dives, with the tour's student and the
  *  Stripe posting every stop follows (feature-data.ts). */
@@ -382,9 +382,7 @@ export function SentResumeVisual() {
           ))}
         </div>
       </div>
-      <p className="text-ink-muted mt-3 text-center text-[11px] font-semibold">
-        Sent to {followedJob.company} on Oct 1
-      </p>
+      <GroundNote className="mt-3">Sent to {followedJob.company} on Oct 1</GroundNote>
     </Vignette>
   );
 }

@@ -7,7 +7,7 @@ import { matchTier } from "@/lib/match";
 import { hiringSystems } from "../../data";
 import { FaviconLogo } from "../../favicon-logo";
 import { candidate, matchingFeature, type MatchFactor } from "../../feature-data";
-import { Label, Score, Vignette } from "./parts";
+import { GroundNote, Score, Vignette } from "./parts";
 
 /** The Job Matching page's deep dives. The jobs and the factors are the
  *  tour's Matching stop's (feature-data.ts), so the two read as one story. */
@@ -124,10 +124,10 @@ export function BestMatchVisual() {
   return (
     <Vignette className="gap-2 px-6">
       <div className="mb-1 flex items-center justify-between">
-        <Label className="flex items-center gap-1.5">
+        <GroundNote className="mx-0">
           <SortDescendingIcon className="size-3.5" />
           {jobs.length} job postings
-        </Label>
+        </GroundNote>
         <span className="text-ink inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold shadow-[inset_0_0_0_1px_rgb(15_23_42/0.12)]">
           Best Match
           <CaretDownIcon className="size-3" />

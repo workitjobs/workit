@@ -92,14 +92,21 @@ export function HeroPipeline({ className }: { className?: string }) {
           square at every crossing, as the frame's corners have. */}
       <span aria-hidden="true" className="pipe-lines">
         <span className="draft-h top-0" />
-        {[25, 50, 75].map((x) => (
-          <span key={x} className="pipe-v" style={{ left: `${x}%` }} />
+        {[25, 50, 75].map((x, k) => (
+          <span key={x} className="pipe-v" style={{ left: `${x}%`, "--k": k } as CSSProperties} />
         ))}
         {[0, 25, 50, 75, 100].map((x) => (
           <i key={x} className="top-0" style={{ left: `${x}%` }} />
         ))}
-        {[25, 50, 75].map((x) => (
-          <i key={x} className="top-full" style={{ left: `${x}%` }} />
+        {/* The foot's squares; the two at the ends sit on the frame's own
+            corners (`DraftLines`), drawn here too so each cell has one at
+            its far corner. `--k` is the cell it closes, for the entrance. */}
+        {[0, 25, 50, 75, 100].map((x, k) => (
+          <i
+            key={x}
+            className="top-full"
+            style={{ left: `${x}%`, "--k": k - 1 } as CSSProperties}
+          />
         ))}
       </span>
     </HoldOffscreen>

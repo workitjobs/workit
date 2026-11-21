@@ -176,10 +176,13 @@ hero reads as the page's contents.
   full cells. CSS
   only, opacity and transform, stopped off screen, finished and still
   with reduced motion.
-- **The entrance draws the grid** (the `load-*` rules in landing.css):
-  the header's foot line grows from the centre, the rails draw, the ink
-  squares pop as lines reach them, the cells rise left to right, and the
-  loop starts as the last lands, about 1.3s. Never a loading screen.
+- **The entrance draws the grid, with no fades** (the `load-*` rules in
+  landing.css): the header's foot line grows from the centre and
+  uncovers the header, the words rise from behind their own foot, the
+  rails draw, the ink squares pop as lines reach them, the cells feed
+  down out of the pipeline's rule, and the loop starts, about 1.3s. A
+  clip and a translate, never opacity or a blur: a fade-in reads as
+  AI-made. Never a loading screen.
 - **The grid is the page's**: the frame is `DraftLines` (`first`: it hangs
   from the header's foot line, which the header draws), and the
   cells' rule and dividers are the same hairline with the same ink
@@ -246,10 +249,11 @@ the middle, `.problem-dots`: they show the search as it is, not a WorkIt
 feature, so they take no feature's sky; the user's calls, 2026-11-20,
 the dots picked from six patterns over a flat stage that read as
 boring): 16px corners, a feature's
-`studioGround` (a pale sky that ends at about half the feature's colour,
-a pastel, since 2026-11-21; the full colour at the foot was too strong
-with four boxes side by side) and a grain strong enough to see
-(`.studio-box`; ruled lines across it were
+`studioGround` (a grainy blend of neighbouring colours since 2026-11-21,
+after the user's reference: the feature's colour, a neighbour hue pooled
+in the lower left, another in the upper right, a pale streak between;
+one colour fading to white read as AI-made) and a grain the eye can see
+(`.studio-box`, grey noise in overlay; ruled lines across it were
 taken out, the user found them odd over the gradients). One picture
 per box; the UI inside floats on it.
 

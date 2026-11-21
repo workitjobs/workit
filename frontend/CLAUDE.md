@@ -333,20 +333,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
     rounded box on a feature's ground with a fine grain (`.studio-box` in
     landing.css; faint ruled lines across it went, the user found them odd
-    over the gradients). **The ground is a sky in one colour**
-    (`studioGround`, after Calendly's boxes): a pale wash of the feature's
-    colour at the top, near white through the middle with a bright band
-    behind the scene's card, then deepening to about half the feature's colour at
-    the foot, a pastel, under a stronger grain (2026-11-21: at the full
-    colour, with four boxes side by side in the hero, the user found the
-    gradients too strong, and asked for more grain). It replaced blobs of the colour and of a second colour over
-    the tint, all at one lightness with no light source, which the user
-    found flat beside Calendly's. **No text sits straight on the lower
-    fifth of a box**: no one colour holds 4.5:1 on every foot (ink fails
-    on the blue, violet and pink, white on the green), so text there goes
-    on a card or a pill; after a change to a scene, check what sits on the
-    bare ground. **No scene fills the screen**, as on Calendly, whose
-    animations sit in boxes of 290 to 424px. A new picture goes in a
+    over the gradients). **The ground is a grainy blend of neighbouring colours**
+    (`studioGround`, 2026-11-21, after a reference image the user gave):
+    the feature's colour fills the box, one neighbour hue pools in the
+    lower left and another in the upper right, and a pale streak of light
+    crosses between them (`MESH` in layout-parts.tsx: blue with cyan and
+    periwinkle, peach with yellow and coral, green with lime and teal,
+    pink with coral and plum, and the brand's violet with blue and
+    magenta), under a grain the eye can see (grey noise in overlay). It
+    replaced a sky in one colour, pale to half strength, which the user
+    found AI-made and odd ("just blue and white"), that sky at full
+    strength, too strong with four boxes side by side, and first blobs of
+    the colour over a tint, flat and muddy: one colour and white is not a
+    gradient worth looking at. **Nothing writes straight on a box's
+    ground**: it is a mid tone that holds 4.5:1 with no one text colour,
+    so a line outside a card sits on a white pill (`GroundNote` in
+    `features/visuals/parts.tsx`); after a change to a scene, check what
+    sits on the bare ground. **No scene fills the screen**, as on
+    Calendly, whose animations sit in boxes of 290 to 424px. A new
+    picture goes in a
     `StudioBox`, never a full-width panel of its own. Nothing on the home
     page pins: the product sections did, until 2026-11-20 (below), and so
     did the tools collapse for a day (below).
@@ -385,18 +390,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the headline is centred in the room above the pipeline, and the logo
     strip starts below the first screen. Checked at 1440 × 900 (the
     frame's foot at 884px), 1024 × 768 (752px) and 375 × 812, with no
-    sideways scroll. **The page's entrance draws the grid** (2026-11-21,
-    the user's ask: only the hero's words came in on load): the header's
-    foot line grows from the centre, the rails draw up through the header
-    and down the hero's sides, the ink squares pop as the lines reach
-    them, the header's content fades in, the four cells rise left to
-    right 80ms apart, and the pipeline's loop starts as the last lands,
-    about 1.3s in all (the `load-*` rules at the foot of landing.css,
-    with the timeline in their comment). CSS on the server's HTML, scale,
-    opacity and translate only, each rule filled backwards only so
-    nothing stays on an element after it plays; never a loading screen;
-    the lines from lg up, the fade and rise below it; nothing with
-    reduced motion. **The Browser pane holds CSS
+    sideways scroll. **The page's entrance draws the grid, and nothing in it
+    fades** (2026-11-21, the user's asks: only the hero's words came in on
+    load; then the first version's fades read as AI-made). The header's
+    foot line grows from the centre and uncovers the header's content with
+    it; the headline, its line and the sign-up pair rise from behind their
+    own foot, as from a slot (`.hero-reveal`); the rails draw and the ink
+    squares pop as lines reach them; the four cells feed down out of the
+    pipeline's top rule, left to right; the loop starts at 1.3s (the
+    `load-*` rules at the foot of landing.css, with the timeline in their
+    comment). A piece is hidden by a clip and moved by a translate, paired
+    so the clip's edge stands still on the page; each rule fills backwards
+    only, so no clip or transform stays on an element (a clip left on the
+    nav would cut its menus). Never a loading screen, never an opacity
+    fade or a blur. The lines and the header's wipe from lg up; nothing
+    with reduced motion. **Still open:** a second entrance for the cells
+    is at `/?intro=b` for the user to compare (each cell dragged out from
+    its corner like a frame in a design tool, an ink square as its
+    handle); the loser, and page.tsx's inline script, go once one is
+    picked (marked TEMPORARY in both files). **The Browser pane holds CSS
     animations at their first frame**, so there the hero shows no words
     and unfilled scenes: before a screenshot run
     `document.getAnimations().forEach((a) => { try { a.finish() } catch {

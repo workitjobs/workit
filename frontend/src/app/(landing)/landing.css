@@ -1153,14 +1153,16 @@ html[data-tab-flight="flying"] .tour-tabs {
 
 /*
  * The home page's framed box (StudioBox in layout-parts.tsx, KAN-923): a
- * fine grain over its ground, so a gradient reads as a printed surface and
- * not as a flat web gradient. Drawn under the content (z-index -1 in the
- * box's own stacking context), no pointer events. The grain is a 160px SVG
- * noise tile, about 600 bytes inline; a PNG would be a request. Stronger
- * since 2026-11-21 (55% from 22%), when the grounds went pastel: the user
- * found the gradients too strong and asked for more grain. Faint
- * ruled lines like resume paper ran across it too until the user found
- * them odd over the gradients; they are gone.
+ * grain over its ground that the eye can see, so the blend of colours
+ * reads as a printed surface and not as a flat web gradient (2026-11-21,
+ * after the user's reference; a fine grain at 22% and then 55% in soft
+ * light could not be told from none). Grey noise with its contrast raised,
+ * in overlay, so it lightens and darkens the colour under it without
+ * greying it. Drawn under the content (z-index -1 in the box's own
+ * stacking context), no pointer events. A 200px SVG noise tile, under 1KB
+ * inline; a PNG would be a request. Faint ruled lines like resume paper
+ * ran across it too until the user found them odd over the gradients;
+ * they are gone.
  */
 .studio-box::after {
   content: "";
@@ -1168,9 +1170,9 @@ html[data-tab-flight="flying"] .tour-tabs {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.55;
-  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='2' intercept='-.5'/%3E%3CfeFuncG type='linear' slope='2' intercept='-.5'/%3E%3CfeFuncB type='linear' slope='2' intercept='-.5'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.34;
+  mix-blend-mode: overlay;
 }
 
 /*
@@ -1208,7 +1210,7 @@ html[data-tab-flight="flying"] .tour-tabs {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   opacity: 0.3;
   mix-blend-mode: overlay;
 }
@@ -2284,47 +2286,53 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * The home page's entrance (2026-11-21, the user's ask: only the hero's
- * words came in on load, and the entrance should use the grid). The grid
- * draws itself, then the content sets into its cells, in about 1.3s:
+ * The home page's entrance (2026-11-21, the user's asks: only the hero's
+ * words came in on load, and the entrance should use the grid; then the
+ * first version's fades read as AI-made, so nothing here fades). The grid
+ * draws itself and the content comes out of its lines, in about 1.3s:
  *
- *   0s     the header's foot line grows from the centre to both edges
- *   0.2s   the header's logo, links and buttons fade in
+ *   0s     the header's foot line grows from the centre to both edges, and
+ *          the header's content is uncovered from the centre with it
+ *   0.1s   the headline rises from behind its own foot, as from a slot;
+ *          its line and the sign-up pair follow (`.hero-reveal`, `--rd`)
  *   0.3s   the rails draw: up through the header, down the hero's sides
  *   0.4s   the header's two ink squares pop as the rails leave them
  *   0.55s  the pipeline's top rule grows from the centre
- *   0.6s   the four cells rise, left to right, 80ms apart
+ *   0.6s   the four cells feed down out of that rule, left to right, 90ms
+ *          apart, as paper from a plotter
  *   0.8s   the dividers between the cells draw down; the squares on the
  *          top rule pop
  *   0.9s   the frame's foot line grows; its squares pop at 1.1s
- *   1.3s   the pipeline's loop starts (`.pipe-anim`'s delay), as the last
- *          cell lands
+ *   1.3s   the pipeline's loop starts (`.pipe-anim`'s delay)
  *
- * The headline keeps its own rise (`.hero-rise`, from 0.15s), so the
- * page's main words are never late. A line grows by a scale, a square pops
- * by a scale and a piece rises by opacity and a translate; every rule
- * fills backwards only, so nothing is left on an element once it has
- * played (a transform or opacity left on the header would make it the
- * menu panels' backdrop root). CSS on the server's HTML, so it plays
- * before any script. Never a loading screen: the content is in the HTML,
- * and a curtain would hide a finished page. The lines draw from lg up,
- * where the grid shows; below it the header fades and the cells rise.
- * With reduced motion nothing here runs and the page is simply there.
- *
- * The header's fade runs on every marketing page's hard load (the header
- * is shared); the lines only where the page draws the grid.
+ * No opacity anywhere: a piece is hidden by a clip and moves by a
+ * translate, and the two are paired so the clip's edge stands still on the
+ * page while the piece passes it (a piece shifted by its own height with
+ * the same share clipped off shows nothing; as both run to zero its edge
+ * stays where a slot would be). A line grows by a scale and a square pops
+ * by a scale. Every rule fills backwards only, so no clip or transform is
+ * left on an element once it has played (a clip left on the nav would cut
+ * its menu panels). CSS on the server's HTML, so it plays before any
+ * script. Never a loading screen: the content is in the HTML, and a
+ * curtain would hide a finished page. The lines and the header's wipe run
+ * from lg up, on a page that draws the grid; below lg the words and the
+ * cells still come out of their slots. With reduced motion nothing here
+ * runs and the page is simply there.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .site-header nav > :not(.header-marks) {
-    animation: load-fade 0.5s ease-out 0.2s backwards;
+  .hero-reveal {
+    animation: load-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rd, 0s) backwards;
   }
   .pipe li {
-    animation: load-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) calc(0.6s + var(--i) * 0.08s) backwards;
+    animation: load-feed 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(0.6s + var(--i) * 0.09s) backwards;
   }
 }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
   .landing:has(.draft) .header-line {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) backwards;
+  }
+  .landing:has(.draft) .site-header nav {
+    animation: load-open-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) backwards;
   }
   .header-marks > span {
     transform-origin: bottom;
@@ -2370,14 +2378,78 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform: translate(-50%, -50%) scale(0);
   }
 }
-@keyframes load-fade {
-  from {
-    opacity: 0;
-  }
-}
+/* Up from behind the piece's own foot. The clip ends a little below the
+   box, so a headline's descenders are whole as it lands. */
 @keyframes load-rise {
   from {
-    opacity: 0;
-    transform: translateY(0.75rem);
+    transform: translateY(100%);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    transform: translateY(0);
+    clip-path: inset(0 0 -0.25em 0);
+  }
+}
+/* Down out of the piece's own top edge: a cell out of the pipeline's rule.
+   Open at the sides and foot, so nothing beside the cell is cut. */
+@keyframes load-feed {
+  from {
+    transform: translateY(-100%);
+    clip-path: inset(100% -1rem -1rem -1rem);
+  }
+  to {
+    transform: translateY(0);
+    clip-path: inset(0 -1rem -1rem -1rem);
+  }
+}
+/* Uncovered from the centre outward, open below for the bar's menus. */
+@keyframes load-open-x {
+  from {
+    clip-path: inset(0 50% -100vh 50%);
+  }
+  to {
+    clip-path: inset(0 0% -100vh 0%);
+  }
+}
+
+/*
+ * TEMPORARY, for the user to compare (2026-11-21): a second entrance for
+ * the cells, at `/?intro=b` (page.tsx's inline script sets `data-intro` on
+ * <html>). Each cell is dragged out from its top left corner like a frame
+ * drawn in a design tool, and an ink square rides the corner as its
+ * handle, then rests as the grid's mark. Delete this block, or the block's
+ * rival above, once one is picked.
+ */
+@media (min-width: 64rem) {
+  .pipe-lines {
+    container-type: size;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-intro="b"] .pipe li {
+    animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
+      backwards;
+  }
+}
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  html[data-intro="b"] .pipe-lines > i.top-full:not(:first-of-type) {
+    animation: load-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--k) * 0.16s)
+      backwards;
+  }
+  html[data-intro="b"] .pipe-lines > .pipe-v {
+    animation-delay: calc(0.6s + var(--k) * 0.16s);
+  }
+}
+@keyframes load-frame {
+  from {
+    clip-path: inset(0 100% 100% 0);
+  }
+  to {
+    clip-path: inset(0 -1rem -1rem 0);
+  }
+}
+@keyframes load-handle {
+  from {
+    transform: translate(calc(-50% - 25cqw), calc(-50% - 100cqh));
   }
 }

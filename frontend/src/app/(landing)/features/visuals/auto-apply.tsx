@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "../../favicon-logo";
 import { autoApplyFeature, followedJob, matchingFeature } from "../../feature-data";
-import { Label, Score, Vignette } from "./parts";
+import { GroundNote, Label, Score, Vignette } from "./parts";
 
 /** The Auto Apply page's deep dives: Up Next's queue, then the tour's
  *  Greenhouse form (feature-data.ts) up close, then its foot, where the
@@ -181,10 +181,10 @@ export function AttachVisual() {
           </span>
         </div>
       </div>
-      <p className="text-ink-muted mt-4 flex items-center justify-center gap-1.5 text-[11px] font-semibold">
+      <GroundNote className="mt-4">
         <PaperclipIcon className="size-3.5" />
         {followedJob.company} · Resume/CV
-      </p>
+      </GroundNote>
     </Vignette>
   );
 }
@@ -213,9 +213,7 @@ export function SubmitVisual() {
           </span>
         </div>
       </Window>
-      <p className="text-ink-muted mt-5 text-center text-[11px] font-semibold">
-        You read it over. You click Submit.
-      </p>
+      <GroundNote className="mt-5">You read it over. You click Submit.</GroundNote>
     </Vignette>
   );
 }
