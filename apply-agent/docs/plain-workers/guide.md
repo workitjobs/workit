@@ -215,7 +215,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
 
 - **Frames: filmed (KAN-635).** With Screen Recording permission, Apply films
   each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
-  `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`,
+  `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`
+  (the built app ships it built, `window-capture`: `../../CLAUDE.md`, "Building the app"),
   finds the window of the Worker Chrome's PID (the native host's parent) nearest
   the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
   and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x

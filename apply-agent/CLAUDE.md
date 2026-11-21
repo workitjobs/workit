@@ -629,10 +629,16 @@ notices strict (above).
   `workit-auto-apply://`, WorkIt's sign-in link, `sign_in_link.SCHEME`) and
   signs it ad hoc again, since the edit breaks Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
   it.
-- **Not yet in the app:** `window_capture`'s Swift helper, which a Developer
-  checkout builds with `swiftc` on first use. A student's Mac has no
-  `swiftc`, so the tiles take the slower captureVisibleTab path until the
-  build compiles the helper and ships it.
+- **The app ships the window capture helper**, `window-capture` beside the
+  program (`window_capture.BUNDLED`), which the build compiles with `swiftc`
+  for macOS 13 and checks with `--check`. A Developer checkout builds it on
+  first use, but a student's Mac has no `swiftc`: without the shipped one,
+  every live tile took the slow captureVisibleTab path. The `.swift`
+  source stays out of the app. The helper is the app's child process, so
+  it has the app's own Screen Recording permission. macOS keys that
+  permission to the app's signature: with the ad-hoc signature, each new
+  build asks again; a Developer ID signature (step 2) keeps it across
+  updates.
 
 ## The privacy gate
 

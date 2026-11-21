@@ -16,8 +16,9 @@ build/out/WorkIt Auto Apply.app. In order:
    program (home.CODE): the EULA, the default policies, the Test Person sample and the Worker extension.
 4. Nuitka compiles scripts/app_entry.py and what it imports, with no module of build.DEVELOPER and no
    docstrings. Every docstring would be a plain sentence in the program about how Apply works.
-5. Checks: no DEVELOPER module, no Python source or bytecode, no docstring, no page code comment and no
-   home folder path left in the app.
+   swiftc builds the plain Workers' window capture helper into the app beside the program.
+5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
+   path left in the app, and a capture helper that runs.
 
 W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
 opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
@@ -40,6 +41,9 @@ DATA = BUILD / "data"  # the inputs the app reads beside its program, staged for
 OUT = BUILD / "out"
 REPORT = OUT / "report.xml"
 ENTRY = ROOT / "scripts" / "app_entry.py"
+# The plain Workers' live tiles film a Worker's window with this Swift program (apply.plain.window_capture). A
+# checkout builds it with swiftc on first use; a student's Mac has no swiftc, so the app ships it, built here.
+CAPTURE_SOURCE = ROOT / "src" / "apply" / "plain" / "window_capture.swift"
 # Where uv puts the build's Python. The app carries this path (Python's build settings, sysconfig, and libpython's
 # own name), so it names no one: in uv's default place, ~/.local/share/uv, every copy of the app held the user
 # name of whoever built it. It is also the same path on every Mac that builds.
@@ -140,7 +144,7 @@ def stage_inputs(strict: bool) -> None:
          "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=ROOT)
 
 
-def compile_app(developer: list[str], version: str, scheme: str) -> None:
+def compile_app(developer: list[str], version: str, scheme: str, capture: str) -> None:
     def xcrun(*args: str) -> str:
         return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
 
@@ -157,6 +161,7 @@ def compile_app(developer: list[str], version: str, scheme: str) -> None:
          f"--macos-app-icon={ROOT / 'src' / 'apply' / 'Apply.icns'}", "--macos-target-arch=arm64",
          # The engine download names the app's version from Apply's metadata (W7): without it no build fits.
          "--include-distribution-metadata=apply", "--include-package-data=apply",
+         f"--noinclude-data-files=apply/plain/{CAPTURE_SOURCE.name}",  # the app ships the program built from it
          "--playwright-include-browser=none",  # Workers run the student's Chrome
          # No docstrings: each one explains Apply in plain words. No asserts stays off: launcher's NEVER check
          # is an assert. Isolated: no PYTHON* variable or user site folder changes what the app runs.
@@ -172,19 +177,26 @@ def compile_app(developer: list[str], version: str, scheme: str) -> None:
     # and hands it the link (apply.sign_in_link.listen).
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
     info.write_bytes(plistlib.dumps(plist))
-    # The edit broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
+    run(["/usr/bin/xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}",
+         "-o", APP / "Contents" / "MacOS" / capture, CAPTURE_SOURCE], env=env)
+    # The edits broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
     # Step 2 replaces this with the Developer ID signature, file by file.
     run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])
 
 
-def check(developer: list[str]) -> None:
-    """Refuse an app that carries a developer part, Python source or bytecode, or a docstring."""
+def check(developer: list[str], capture: str) -> None:
+    """Refuse an app that carries a developer part, Python source or bytecode, a docstring, a page code comment or
+    the builder's home folder, or whose capture helper doesn't run."""
     compiled = {module.get("name") for module in ET.parse(REPORT).getroot().iter("module")}
     if found := sorted(compiled & set(developer)):
         sys.exit(f"The app compiled in developer modules: {', '.join(found)}. Import them only where "
                  "build.STUDENT never runs (apply-agent/CLAUDE.md).")
-    if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.suffix in (".py", ".pyc")):
-        sys.exit(f"The app holds Python source or bytecode, which reads back as code: {', '.join(found[:10])}")
+    if found := sorted(str(p.relative_to(APP)) for p in APP.rglob("*") if p.suffix in (".py", ".pyc", ".swift")):
+        sys.exit(f"The app holds source code or bytecode, which reads back as code: {', '.join(found[:10])}")
+    # --check answers 0 with Screen Recording permission and 3 without; anything else, it can't run here.
+    helper = APP / "Contents" / "MacOS" / capture
+    if subprocess.run([helper, "--check"], capture_output=True, check=False).returncode not in (0, 3):
+        sys.exit(f"The app's window capture helper ({capture}) doesn't run.")
     program = (APP / "Contents" / "MacOS" / NAME).read_bytes()
     control = b"WorkIt Auto Apply doesn't {what}"  # a string constant (student.NO_MODEL), which must be there
     if control not in program:
@@ -215,9 +227,10 @@ def main() -> None:
     developer = sorted(venv_python("import apply.build as b; print(*b.DEVELOPER)").split())
     version = venv_python("import importlib.metadata as m; print(m.version('apply'))")
     scheme = venv_python("from apply.sign_in_link import SCHEME; print(SCHEME)")
+    capture = venv_python("from apply.plain.window_capture import BUNDLED_NAME; print(BUNDLED_NAME)")
     stage_inputs(strict=args.release)
-    compile_app(developer, version, scheme)
-    check(developer)
+    compile_app(developer, version, scheme, capture)
+    check(developer, capture)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")
 

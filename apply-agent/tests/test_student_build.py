@@ -304,3 +304,23 @@ def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
 
     assert launcher.host_command(compiled=True).split()[1:] == [host.APP_FLAG]
     assert launcher.host_command(compiled=False).split()[1:] == ["-I", host.__file__]
+
+
+def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):
+    """Fault: the compiled app builds the window capture helper with swiftc, which a student's Mac lacks, so every
+    plain Worker's tile drops to the slow captureVisibleTab path; or it films with a helper left in a cache folder
+    instead of the one signed with the app (W8)."""
+    from apply.plain import window_capture
+
+    shipped = tmp_path / window_capture.BUNDLED_NAME
+    shipped.write_bytes(b"helper")
+    monkeypatch.setattr(window_capture, "BUNDLED", shipped)
+    monkeypatch.setattr(window_capture.shutil, "which", lambda name: pytest.fail(f"looked for {name}"))
+    window_capture.helper.cache_clear()
+    try:
+        assert window_capture.helper() == shipped
+        shipped.unlink()
+        window_capture.helper.cache_clear()
+        assert window_capture.helper() is None  # a missing helper: the tile's extension frames, never a build
+    finally:
+        window_capture.helper.cache_clear()

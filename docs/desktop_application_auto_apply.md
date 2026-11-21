@@ -1604,8 +1604,9 @@ itself (D17, D18, D20).
    that holds a developer module, Python source or a docstring
    (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
    window and ran the relay. It claims `workit-auto-apply://` and takes
-   the sign-in link itself (W5's last step). Left from step 1:
-   `window_capture`'s Swift helper, built and shipped.
+   the sign-in link itself (W5's last step), and ships the plain
+   Workers' window capture helper, built by `swiftc` in the build, since a
+   student's Mac has no `swiftc`. Step 1 is done.
 2. Sign with Developer ID and notarize, after the Apple enrollment.
 3. Sparkle: the framework in the bundle, the key, the feed on R2.
 4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7.

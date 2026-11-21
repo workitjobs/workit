@@ -12,6 +12,10 @@ It needs Screen Recording permission for the app Apply runs in (macOS gives it t
 the top of the process chain: Terminal, iTerm, Paradev, or Apply.app). Apply never asks for it
 or changes it: without it, `allowed()` is False, the tile keeps the captureVisibleTab path, and
 `PERMISSION` says where Lisul turns it on. `APPLY_TILE_CAPTURE=extension` forces that path.
+
+The built app (W8, KAN-833) builds nothing: a student's Mac has no swiftc, so scripts/build_app.py compiles the
+helper and ships it beside the app's program (BUNDLED), signed with the app. As the app's child process it has the
+app's own Screen Recording permission, which first run asks for.
 """
 
 import hashlib
@@ -26,7 +30,11 @@ from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
+from apply.home import CODE
+
 SOURCE = Path(__file__).with_name("window_capture.swift")
+BUNDLED_NAME = "window-capture"  # the built app's helper, beside its program (scripts/build_app.py)
+BUNDLED = CODE / BUNDLED_NAME if "__compiled__" in globals() else None
 CACHE = Path.home() / "Library" / "Caches" / "apply"
 FPS = 30
 QUALITY = 0.85
@@ -41,7 +49,10 @@ def mode() -> str:
 
 @cache
 def helper() -> Path | None:
-    """The built helper, built now if its source changed; None without swiftc or if it won't build."""
+    """The built helper, built now if its source changed; None without swiftc or if it won't build. The built app's
+    is the one it ships (None if that is missing)."""
+    if BUNDLED is not None:
+        return BUNDLED if BUNDLED.is_file() else None
     built = CACHE / f"window-capture-{hashlib.sha256(SOURCE.read_bytes()).hexdigest()[:12]}"
     if built.exists():
         return built
