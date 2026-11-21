@@ -24,8 +24,12 @@
  * stands behind it is the editor (click a line and type) and one-click
  * Tailor. "For every job" carries the tailoring.
  */
-import { CursorTextIcon, FilePlusIcon, ScissorsIcon } from "@phosphor-icons/react/ssr";
-import { SparkleIcon } from "@/components/sparkle-icon";
+import {
+  CursorTextIcon,
+  FilePlusIcon,
+  NotePencilIcon,
+  ScissorsIcon,
+} from "@phosphor-icons/react/ssr";
 
 import { ResumeAnimation } from "../animations";
 import type { FeatureContent } from "../types";
@@ -71,9 +75,13 @@ const content: FeatureContent = {
       visual: BuildVisual,
     },
     {
-      title: "Tailored to each job posting",
-      icon: SparkleIcon,
-      body: "See which of a job posting’s keywords your resume already has. Pick the missing ones you have really used, and one click rewords your bullets for that job, each change marked so you can undo it.",
+      title: "Reworded for the job, never invented",
+      // The app's own Tailor mark, a pencil on a page (`TailorIcon` in
+      // components/icons.tsx draws this glyph on a job card's Tailor My
+      // Resume button), so the site and the app match (the user's call,
+      // 2026-11-21). It was the sparkle, the mark for AI.
+      icon: NotePencilIcon,
+      body: "See the keywords a job asks for. Pick the ones you have really used. One click rewords your bullets, and every change is marked, so you can undo it.",
       points: [
         "A keyword you do not pick is never added",
         "Every change is marked on the resume",
