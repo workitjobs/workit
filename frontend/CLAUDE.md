@@ -1709,6 +1709,14 @@ selling line that says what the product does** and "See how", a
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
+- **The home page's makeover lifts four of these rules** (the user's
+  yes, 2026-11-20, after Loopsii): colour may fill whole sections, a
+  scene may pin and fill the screen, the page gets a brand shape
+  language, and an object may carry from one section into the next. The
+  brief is `docs/home-page-makeover-brief.md` and the lifted rules open
+  `docs/marketing-design-system.md`; read both before changing the page
+  at `/`. Until a section is redrawn, the notes on it here describe it
+  as built.
 - **The marketing design system is `docs/marketing-design-system.md`**
   (KAN-923, 2026-11-19): read it before styling anything in
   `app/(landing)/`. The user found the site still AI-made after the home

@@ -7,6 +7,40 @@ buttons, the bordered sign-up buttons, the lavender gradient on cards).
 `home-page-review.md` has the Calendly review behind it. The app's own
 screens follow `design.md`, not this file.
 
+## The makeover: four rules lifted (2026-11-20)
+
+The user found the page still short of a premium site (Loopsii was the
+reference) and asked what held it back. The answer was these rules taken
+together: each came from one thing the user disliked, and together they
+forbade colour outside two places, any scene that fills or holds the
+screen, and any object that moves between sections. The user lifted four
+of them for the home page's makeover. `home-page-makeover-brief.md` holds
+the brief; read it first.
+
+1. **Colour across the page.** Whole sections may sit on flat colour
+   fields from a palette built on violet and the four feature colours.
+   This replaces principle 1's "two places only" as each section is
+   redrawn. Still no dark bands.
+2. **Scenes that hold the screen.** A few sections may pin (hold the
+   screen while a scene plays or cards stack) and a scene may fill the
+   screen. This replaces principle 6's "no scene fills the screen". A
+   move still plays to its end in time and never rests half way.
+3. **A brand shape language.** Flat graphics from a small set of shapes,
+   drawn from WorkIt's own things (the logo's figure, the match ring, the
+   resume page, the form, the tracker row), not only mock app screens.
+4. **Objects that carry over.** An object may leave one section and land
+   in the next as the page scrolls, so some motion follows the scroll.
+
+Also agreed: hand-written side notes in a second face, product sections
+as large cards that stack, the hero showing the whole search in one app
+(the tile grid moves to the Job Matching page), and one big motion
+moment, the turn from the problems to "That's why WorkIt exists".
+
+What stays: the copy rules, violet as the brand colour, the flat solid
+main button, slate shadows, stillness with reduced motion, transforms
+and opacity only, and the speed budgets. The sections below describe
+the page as built; each changes in the commit that redraws its section.
+
 ## Principles
 
 1. **Colour lives in two places only**: the home hero (its grainy violet
