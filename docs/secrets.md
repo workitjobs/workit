@@ -285,23 +285,37 @@ everything for an Admin.
 
 ## Get your local `.env` files
 
-Once per computer:
+`npm run env` writes two files only: the root `.env` from
+`workit-dev/root_env` and `frontend/.env` from `/frontend_env`
+(`frontend/scripts/env.mjs`, which holds the project ID). It prints the
+names of the keys that are new or changed, never a value. Production
+values never reach a laptop: the syncs and the deploy carry them to GitHub
+and Cloudflare (Change a value).
 
-1. Install the CLI. On macOS, run `brew install infisical/get-cli/infisical`.
+**First time.** Steps 1 and 2 are once per person, steps 3 to 5 once per
+computer:
+
+1. Accept the email invite to the Infisical organization. Make your
+   account in the US region, and turn on two-factor sign-in.
+2. Ask an Admin to add you to `workit-dev` as Member (Access). Until then,
+   `npm run env` says you have no access.
+3. Install the CLI. On macOS, run `brew install infisical/get-cli/infisical`.
    On Windows, run `winget install infisical`.
-2. Run `infisical login` and pick "Infisical Cloud (US Region)". The browser
+4. Run `infisical login` and pick "Infisical Cloud (US Region)". The browser
    opens; sign in as yourself. `infisical login status` checks the login.
+5. From the repo root, run:
 
-Then, in any checkout, whenever someone says a value changed:
+   ```
+   npm run env
+   ```
 
-```
-npm run env
-```
+**After that, whenever someone says a value changed**, run `npm run env`
+again in each checkout you use.
 
-It writes the root `.env` from `workit-dev/root_env` and `frontend/.env`
-from `/frontend_env` (`frontend/scripts/env.mjs`, which holds the project
-ID), and prints the names of the keys that are new or changed, never a
-value.
+**To change or add a value, change it in Infisical, never only in your
+`.env`,** then tell the team the key's name (Change a value). A value you
+change only in your own `.env` is replaced on your next pull when
+Infisical has that key.
 
 - **It keeps the lines Infisical does not have** (`LOCAL_FILES_DIR`, or
   anything only your computer needs), under a comment at the file's end. A
@@ -321,6 +335,11 @@ value.
   line.
 
 ## Change a value
+
+**A developer only ever runs `npm run env`.** A dev value changes in
+Infisical and reaches each laptop on its owner's next pull. A production
+value never reaches a laptop: each row below says how it reaches GitHub,
+Cloudflare, the team computer or EC2.
 
 | Change | Steps |
 |---|---|

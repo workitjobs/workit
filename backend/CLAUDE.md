@@ -1806,9 +1806,9 @@ Find files with a directory listing; these are the rules for where code goes.
 | `SUPABASE_URL`         | Storage, Auth | Project URL; also where the JWKS lives              |
 | `SUPABASE_SERVICE_KEY` | Storage, Auth | Service-role key: bypasses RLS, creates users       |
 
-- **`.env` lives at the repo root, not in `backend/`.** Start it from the root
-  `.env.example`; to fill a fresh worktree's, see the root `CLAUDE.md`'s
-  Conventions.
+- **`.env` lives at the repo root, not in `backend/`.** `npm run env` writes
+  it from Infisical (`../docs/secrets.md`, "Get your local `.env` files");
+  the root `.env.example` lists its keys with no values.
 - **`ENV_FILE` in `app/config.py` resolves the root path from `__file__`**,
   not the working directory. pydantic's default `env_file=".env"` would find it
   from the root and silently miss it from `backend/`, where uvicorn and alembic

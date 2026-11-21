@@ -3643,8 +3643,8 @@ are in `docs/auth.md`.
   normal applicant with test data only, on the one shared Supabase project, so
   it signs in to the live site too. Never create an account for testing, never
   give this one admin or company rights, and never put real personal data on
-  it. If the variables are missing, run `npm run worktree -- --env-only`; if
-  they are still missing, ask the user. Never write the values into a
+  it. If the variables are missing, run `npm run env` (or `npm run worktree
+  -- --env-only`); if they are still missing, ask the user. Never write the values into a
   committed file, PR or comment: the repo is public.
 
 ## Admin pages

@@ -46,6 +46,21 @@ Databases:
 https://workitjobs.ai/jobs
 ```
 
+## Env files
+
+The `.env` files come from Infisical, never from Slack. Once: accept the
+Infisical invite, ask an Admin to add you to `workit-dev`, install the CLI
+(`brew install infisical/get-cli/infisical` on macOS, `winget install
+infisical` on Windows) and run `infisical login`. Then, from the repo root:
+
+```bash
+npm run env
+```
+
+Run it again whenever someone says a value changed. To change a value,
+change it in Infisical and tell the team its name. Details:
+[docs/secrets.md](docs/secrets.md).
+
 ## Local Development 
 ```bash
 cd frontend
