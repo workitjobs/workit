@@ -47,11 +47,14 @@ const content: FeatureContent = {
     // answers, and who submits. They were Pick the jobs to fill, The
     // basics from your profile, The right resume on each form, and You
     // click Submit. The pictures are the old points' and wait for real
-    // recordings (frontend/CLAUDE.md).
+    // recordings (frontend/CLAUDE.md). A second pass the same day gave
+    // each title its own shape and took out repeated words: the second and
+    // third both ran "noun, past verb ... time", "filled" stood in three
+    // places, and the first's body repeated the heading's "type once".
     {
-      title: "Your details, filled in for you",
+      title: "Skip the retyping",
       icon: TextboxIcon,
-      body: "Your contact details, work history, school and links go into every form. You type them once, in your profile.",
+      body: "Your contact details, work history, school and links go into every form, straight from your profile.",
       points: [
         "Contact details, education and work history",
         "On Greenhouse, Lever, Ashby, Workday and more",
@@ -64,11 +67,11 @@ const content: FeatureContent = {
       // Browser windows: each form opens in its own tab (the user's pick,
       // 2026-11-21).
       icon: BrowsersIcon,
-      body: "Pick the jobs you want from your list. WorkIt opens each application in its own tab and fills them all at once, while you do something else.",
+      body: "Pick jobs from your list. Each one opens in its own tab and gets completed in the background while you do something else.",
       visual: QueueVisual,
     },
     {
-      title: "Written answers, saved for next time",
+      title: "Answer a question only once",
       // The answer to the problems' card on written questions. A student's
       // own Claude drafts essay answers through the connector, or the
       // student writes them on Written Answers; Check and Save runs
@@ -77,7 +80,7 @@ const content: FeatureContent = {
       // article two deep (`ArticleStackIcon`): the user wanted the article
       // as a stack, and Phosphor has none.
       icon: ArticleStackIcon,
-      body: "Your answers to written questions are saved and used again on later forms. Your own Claude can draft them, and WorkIt checks each one before it goes in.",
+      body: "WorkIt keeps your written answers and reuses them on later forms. Your own Claude can draft them, and each one is checked first.",
       visual: AttachVisual,
     },
     {
