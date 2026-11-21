@@ -9,11 +9,13 @@
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
  *
- * "No resume yet? Add your experience piece by piece, and WorkIt builds
- * your first one." (2026-11-21, the user's point from the home page's
- * removed intro): a student with no resume starts on Experiences, whose
- * intake asks about their experience one thing at a time, and Generate
- * builds the first resume from it.
+ * The first point leads with making a resume (the user's picks,
+ * 2026-11-21): "Start from scratch, or from your resume", then "Add what
+ * you have done and WorkIt builds the resume. Already have one? Upload it
+ * and skip the typing." A student with no resume starts on Experiences,
+ * whose intake asks about their experience one thing at a time, and
+ * Generate builds the first resume from it; an upload is read into the
+ * bank. It led with the upload before.
  *
  * The headline is "The easiest way to make a resume for every job"
  * (2026-11-21, the user's pick from four rounds of options; it was "A
@@ -44,11 +46,11 @@ const content: FeatureContent = {
   animation: ResumeAnimation,
   sections: [
     {
-      title: "Everything you have done, in one place",
+      title: "Start from scratch, or from your resume",
       // A page with a plus: making a resume (the user's pick from eight
       // icons of creation, 2026-11-21). It was a database, a technical mark.
       icon: FilePlusIcon,
-      body: "Upload the resume you have and WorkIt reads it into your bank, from education and experience to projects and skills. Every resume you make starts from it, so you never type an entry twice. No resume yet? Add your experience piece by piece, and WorkIt builds your first one.",
+      body: "Add what you have done and WorkIt builds the resume. Already have one? Upload it and skip the typing.",
       points: [
         "Start from the resume you already have",
         "Edit every entry in one place",
