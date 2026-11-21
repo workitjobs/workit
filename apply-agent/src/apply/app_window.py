@@ -329,7 +329,7 @@ class Bridge:
 
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
-                 start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
+                 start: Callable[[list[str], Callable[[Dashboard], None], dict[str, str]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
                  forward: Callable[[], object] = lambda: bring_forward()):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
@@ -345,6 +345,7 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
+        self._jobs: dict[str, str] = {}  # each queued job's WorkIt id by its link (Posting.job_id), for the run
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
@@ -465,8 +466,11 @@ class Bridge:
             rows = self._applications("queued")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
-        queued = [_job(row["job"]) for row in reversed(rows) if row.get("open")]
+        rows = [row for row in reversed(rows) if row.get("open")]
+        queued = [_job(row["job"]) for row in rows]
         self._queued |= {job["url"]: {key: job[key] for key in QUEUED_JOB} for job in queued}
+        # Only a queued job has the application on WorkIt that an Answer bank draft may name (W11); a match has none.
+        self._jobs |= {job["url"]: str(row["job"]["id"]) for job, row in zip(queued, rows, strict=True)}
         return queued
 
     def applied(self) -> list[dict] | dict:
@@ -534,7 +538,7 @@ class Bridge:
 
     def _run(self, links: list[str]) -> None:
         try:
-            self._start(links, self.show_board)
+            self._start(links, self.show_board, {link: self._jobs[link] for link in links if link in self._jobs})
         except SetupError as error:  # no engine (W7), a Worker profile in use, no Chrome: one sentence
             self._said = str(error)
         except Exception as error:
@@ -709,7 +713,7 @@ def bring_forward() -> bool:
 
 
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
-        start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
+        start: Callable[[list[str], Callable[[Dashboard], None], dict[str, str]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 

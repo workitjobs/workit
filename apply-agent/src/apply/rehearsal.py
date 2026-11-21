@@ -775,6 +775,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     history: list[str] = [f"{adapters.clock.now().strftime('%H:%M')} {reopened}"] if reopened else []
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     posting, result = resolve(url, site)
+    posting = replace(posting, job_id=adapters.jobs.get(url, ""))
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
     applied = adapters.applied_before.of(posting, url)
     behind = greenhouse.board_behind(posting, site)
@@ -786,7 +787,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if behind != posting:
         fetched = None  # the form's own job system's text is read instead
         form = resolve(behind.url, site)[0]  # named by its job system now, where it names the job
-        posting = replace(form, id=posting.id, company=form.company or posting.company, title=form.title or posting.title)
+        posting = replace(form, id=posting.id, company=form.company or posting.company, title=form.title or posting.title,
+                          job_id=posting.job_id)
         applied = applied or adapters.applied_before.of(posting, url)
     if applied:
         trace.event("already applied", said=applied.said())

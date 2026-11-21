@@ -319,6 +319,14 @@ class WorkIt:
         version = re.fullmatch(r'\s*(?:W/)?"(\d+)"\s*', headers.get("ETag") or "")
         return answer, int(version.group(1)) if version else 0
 
+    def change_answer_bank(self, entries: list[dict], deleted: list[str]) -> tuple[int, dict[str, str]]:
+        """Save `entries` ({question, answer, review, choice, job_id | company}) to the student's Answer bank on
+        WorkIt and delete the questions `deleted` (W11, `PATCH .../answer-bank`): the bank's new version, and why
+        WorkIt's rule kept each entry it kept out, by question."""
+        answer = self.call("PATCH", f"/applicants/{self.applicant_id()}/answer-bank",
+                           {"set": entries, "delete": deleted})
+        return int(answer["version"]), {str(q): str(why) for q, why in (answer.get("kept_out") or {}).items()}
+
     def applicant_id(self) -> str:
         """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
         if self._account is None:

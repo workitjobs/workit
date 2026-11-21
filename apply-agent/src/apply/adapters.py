@@ -282,6 +282,8 @@ class Adapters:
     # What went wrong, for a Repair; the Student build passes its own (apply.student.NoRepairs).
     repairs: "RepairRequests" = field(default_factory=lambda: _developer("repair").RepairRequests())
     answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: the student's bank on WorkIt, read into memory
+    # WorkIt's job id of each link the run got from the student's Auto Apply queue (Posting.job_id).
+    jobs: dict[str, str] = field(default_factory=dict)
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
     # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.

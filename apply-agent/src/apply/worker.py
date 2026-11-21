@@ -39,7 +39,6 @@ from apply.answer_bank import AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
     attested_line,
-    company_specific,
     context_free,
     left_blank,
     not_called_for,
@@ -571,8 +570,8 @@ class _Planned:
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
-        self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted into the Answer bank
-        self.unbanked: list[essays.Draft] = []  # Claude's answers to one-off questions about this company
+        self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted, sent to the Answer bank
+        self.unbanked: list[essays.Draft] = []  # Claude's answers to bare dates no section places: never banked
         self.banked: list[Question] = []  # one-off questions the Answer bank answered
         self._asked: set[Question] = set()  # one-off questions sent to Claude to draft
         self.material: str | None = None  # the <company> block, read once the form has essays
@@ -726,11 +725,13 @@ class _Planned:
         for draft in drafted:
             if draft.needs_applicant:
                 continue
-            # True of this company only, or a bare date no section places: drafted again each time, never banked.
-            if company_specific(draft.question, posting) or self.filed.get(draft.question.name, "") is None:
+            # A bare date no section places: drafted again each time, never banked. Any other draft goes to WorkIt,
+            # whose rule alone decides whether it enters the bank (one about the company stays on this form, W11).
+            if self.filed.get(draft.question.name, "") is None:
                 self.unbanked.append(draft)
             else:
-                self._bank.add(draft.question, draft.answer, posting.company, wording=self.wording(draft.question))
+                self._bank.add(draft.question, draft.answer, posting.company, wording=self.wording(draft.question),
+                               job_id=posting.job_id or None)
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
@@ -836,9 +837,7 @@ class _Planned:
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
             for draft in [d for d in self.drafted if d.question.name == q.name]:
-                entry = self._bank.get(self.wording(q))
-                if entry and not entry.own:
-                    self._bank.delete(self.wording(q))
+                self._bank.drop_draft(self.wording(q))
                 self.drafted.remove(draft)
             self.fixes[q.name] = answer
             self.fixed.append((one_line(q.label), answer))

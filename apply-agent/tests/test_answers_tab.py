@@ -10,6 +10,7 @@ import urllib.request
 from datetime import date
 
 import pytest
+from fake_bank import Server
 from playwright.sync_api import sync_playwright
 
 from apply import home, stock
@@ -532,3 +533,18 @@ def test_an_edit_waits_for_the_bank_to_come_from_workit(files):
             edit()
         assert refused.value.status == 503 and "Can't reach WorkIt" in str(refused.value)
     assert tab.view()["bank_note"] == "Can't reach WorkIt, trying again (Unreachable)."
+
+
+def test_an_edit_workits_rule_keeps_out_is_refused_with_its_reason_and_the_bank_keeps_what_it_had(files):
+    """W11: WorkIt's rule decides what enters the bank, and the student reads why it kept their answer out."""
+    server = Server(keeps_out=("Why Zipline?",))
+    bank = AnswerBank(server)
+    bank.load()
+    tab = AnswersTab(bank, files[0])
+
+    with pytest.raises(Refused) as refused:
+        tab.add("Why Zipline?", "The drones.")
+    tab.add("Do you have a driver's license?", "Yes")
+
+    assert refused.value.status == 400 and "It names Zipline" in str(refused.value)
+    assert [e["question"] for e in tab.view()["bank"]] == ["Do you have a driver's license?"]

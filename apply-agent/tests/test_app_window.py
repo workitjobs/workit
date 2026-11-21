@@ -121,7 +121,7 @@ def test_the_shim_comes_before_the_pages_scripts(board):
 def test_the_apps_window_shows_the_student_page_with_the_shim_and_the_token_before_its_scripts(board):
     """Fault: the app's window still shows the developer page, or the student page's first fetch goes out before the
     shim replaces fetch, or without the window's token, so every edit is refused."""
-    bridge = Bridge(board, WorkIt(workit.LIVE), start=lambda links, show: None)
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=lambda links, show, jobs: None)
     page = bridge._page()
     assert page == app_window.student_page(board)
     assert "What should we apply to?" in page and "const workers" not in page
@@ -236,7 +236,7 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
 
     shown, go, runs = [], threading.Event(), []
 
-    def start(links, show):
+    def start(links, show, jobs):
         runs.append(links)
         with Dashboard(len(links), OneFrame(), serve=False) as run_board:
             show(run_board)
@@ -276,7 +276,7 @@ def test_stop_applying_through_the_bridge_returns_the_window_to_the_queue(board)
 
     shown, stopped = [], threading.Event()
 
-    def start(links, show):
+    def start(links, show, jobs):
         with Dashboard(len(links), OneFrame(), serve=False) as run_board:
             run_board.stopping(stopped.set)  # as rehearsal.rehearse hands it its stop
             show(run_board)
@@ -302,28 +302,43 @@ def test_stop_applying_through_the_bridge_returns_the_window_to_the_queue(board)
 
 
 def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path):
-    """Fault: a closed job in the queue, a job board's page where its employer's form was named, or a job without the
-    logo sources the website draws it with."""
+    """Fault: a closed job in the queue, a job board's page where its employer's form was named, a job without the
+    logo sources the website draws it with, or a Start of a queued job that doesn't name its WorkIt job (the Answer
+    bank's drafts name their form by it, W11), while a pasted link names one."""
+    import threading
+
     from fake_workit import Reply
 
     rows = [
-        {"job": {"apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
+        {"job": {"id": "j3", "apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
                  "company": "Acme", "title": "Intern", "logo_url": "https://www.google.com/s2/favicons?domain=acme.com",
                  "company_domain": "acme.com"}, "open": True},
-        {"job": {"apply_url": "https://boards.greenhouse.io/x/2", "company": "X", "title": "Gone"}, "open": False},
-        {"job": {"apply_url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"}, "open": True},
+        {"job": {"id": "j2", "apply_url": "https://boards.greenhouse.io/x/2", "company": "X", "title": "Gone"},
+         "open": False},
+        {"job": {"id": "j1", "apply_url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"},
+         "open": True},
     ]
+    started, ran = [], threading.Event()
+
+    def start(links, show, jobs):
+        started.append(jobs)
+        ran.set()
+
     with FakeWorkIt() as fake:
         fake.route("GET", f"/applicants/{fake.account['id']}/applications",
                    lambda seen, fake: Reply(200, rows) if seen.path.endswith("stage=queued") else Reply(400))
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
-        assert Bridge(board, client).queue() == [
+        bridge = Bridge(board, client, start=start)
+        assert bridge.queue() == [
             {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst", "logo_url": None,
              "company_domain": None},
             {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
              "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
         ]
+        bridge.start(["https://jobs.lever.co/acme/3", "https://jobs.lever.co/pasted/9"])
+        assert ran.wait(5)
+    assert started == [{"https://jobs.lever.co/acme/3": "j3"}]
 
 
 def test_find_jobs_lists_the_students_matches_with_their_filters_and_logos(board, tmp_path):
@@ -343,7 +358,7 @@ def test_find_jobs_lists_the_students_matches_with_their_filters_and_logos(board
                    lambda seen, fake: (asked.append(seen.path), Reply(200, rows))[1])
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
-        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge = Bridge(board, client, start=lambda links, show, jobs: None)
         jobs = bridge.matches({"job_type": ["internship"], "work_style": ["hybrid", "remote"], "q": "",
                                "min_pay": 1})
         assert asked[0].endswith("?size=30&job_type=internship&work_style=hybrid&work_style=remote")
@@ -385,14 +400,14 @@ def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board,
     """Fault: a job ticked in the queue lost its logo once its run started (KAN-871)."""
     from fake_workit import Reply
 
-    rows = [{"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+    rows = [{"job": {"id": "j3", "apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
                      "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
              "open": True}]
     with FakeWorkIt() as fake:
         fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(200, rows))
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
-        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge = Bridge(board, client, start=lambda links, show, jobs: None)
         bridge.queue()
     with Dashboard(1, OneFrame(), serve=False) as run_board:
         bridge.show_board(run_board)
@@ -405,14 +420,14 @@ def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, t
     """KAN-874. Fault: the jobs waiting to start show as bare links, so the student can't tell which to remove."""
     from fake_workit import Reply
 
-    rows = [{"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+    rows = [{"job": {"id": "j3", "apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
                      "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
              "open": True}]
     with FakeWorkIt() as fake:
         fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(200, rows))
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
-        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge = Bridge(board, client, start=lambda links, show, jobs: None)
         bridge.queue()
     with Dashboard(2, OneFrame(), serve=False) as run_board:
         bridge.show_board(run_board)

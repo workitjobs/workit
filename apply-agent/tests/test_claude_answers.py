@@ -8,10 +8,12 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 from conftest import FIXTURES, POLICIES, research_form
+from fake_bank import Server
 from fakes import (
     PLAN_STORIES,
     FakeClaude,
@@ -119,15 +121,18 @@ class ResearchForm:
 def run_all(monkeypatch, form: ResearchForm, claude: FakeClaude, companies: list[str], profile: Path = PROFILE,
             site: Browser | None = None, bank: AnswerBank | None = None, records: InMemoryRecords | None = None,
             tracker: InMemoryTracker | None = None, url: str = "",
-            notifier: RecordingNotifier | None = None, board: RecordingBoard | None = None) -> list[Row]:
+            notifier: RecordingNotifier | None = None, board: RecordingBoard | None = None, job_id: str = "") -> list[Row]:
     """One `apply run` over a Feed holding one Match at each of `companies`, all with the form `form`
-    (each at `url`, when given, as the Filler of its job system)."""
+    (each at `url`, when given, as the Filler of its job system; each WorkIt's job `job_id`, when given)."""
     feed = SimplifyFeed(lambda: json.dumps([{
         "id": f"posting-{n}", "company_name": company, "title": "Software Engineer Intern",
         "url": url or f"https://jobs.example.com/example/{n}", "category": "Software", "active": True, "is_visible": True,
         "terms": ["Summer 2027"], "locations": ["Torrance, CA"], "degrees": ["Bachelor's"],
         "date_posted": 1_790_000_000 - n, "date_updated": 1_790_000_000 - n,
     } for n, company in enumerate(companies, 1)]).encode())
+    if job_id:
+        simplify = feed
+        feed = SimpleNamespace(postings=lambda: [replace(p, job_id=job_id) for p in simplify.postings()])
     monkeypatch.setitem(FILLERS, "other", form)
     if url:
         monkeypatch.setitem(FILLERS, Posting("", "", "", url).job_system, form)
@@ -142,9 +147,9 @@ def run_all(monkeypatch, form: ResearchForm, claude: FakeClaude, companies: list
 
 
 def run(monkeypatch, form: ResearchForm, claude: FakeClaude, company: str = "Example Co", site: Browser | None = None,
-        bank: AnswerBank | None = None) -> Row:
+        bank: AnswerBank | None = None, job_id: str = "") -> Row:
     """One `apply run` over a Feed holding one Match at `company` whose form is `form`."""
-    [row] = run_all(monkeypatch, form, claude, [company], site=site, bank=bank)
+    [row] = run_all(monkeypatch, form, claude, [company], site=site, bank=bank, job_id=job_id)
     return row
 
 
@@ -830,14 +835,35 @@ class AsksAboutTheCompany(ResearchForm):
 
 
 def test_a_one_off_question_about_the_company_is_drafted_and_sent_but_never_banked(monkeypatch):
-    form, claude, bank = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"}), AnswerBank()
+    """WorkIt's rule alone keeps a draft about the company out of the bank (W11): Apply sends it with the form's
+    company, and fills the form with it all the same."""
+    server = Server(keeps_out=(FAMILIAR,))
+    bank = AnswerBank(server)
+    bank.load()
+    form, claude = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"})
 
     row = run(monkeypatch, form, claude, company="MetOx International", bank=bank)
+    bank.close()
 
     assert row.status == "submitted", row.reason
     assert sent_answer(form, FAMILIAR) == "Somewhat"
+    assert {e["question"]: e.get("company") for [e], _ in server.sent}[FAMILIAR] == "MetOx International"
     [entry] = bank.entries()
     assert entry.question.startswith(HOUSING)  # the generic one only
+
+
+def test_a_draft_names_its_form_by_the_workit_job_when_its_posting_has_one(monkeypatch):
+    """WorkIt's rule then reads the job's company from its own database (W11), not the name Apply holds."""
+    server = Server()
+    bank = AnswerBank(server)
+    bank.load()
+
+    run(monkeypatch, without_cover_letter(ResearchForm("MetOx International")), FakeClaude(drafts={HOUSING: "Yes"}),
+        company="MetOx International", bank=bank, job_id="j1")
+    bank.close()
+
+    [([entry], [])] = server.sent
+    assert entry["question"].startswith(HOUSING) and entry["job_id"] == "j1" and "company" not in entry
 
 
 def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted_again(monkeypatch):

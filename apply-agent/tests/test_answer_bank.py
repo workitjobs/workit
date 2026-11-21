@@ -3,29 +3,17 @@
 import threading
 
 import pytest
+from fake_bank import Server, Source
 
-from apply import masked
-from apply.answer_bank import AnswerBank
+from apply import answer_bank, masked
+from apply.answer_bank import AnswerBank, NotSaved, key
 from apply.model import Question
-from apply.workit import Unreachable
+from apply.workit import Unreachable, WorkItError
 
 HEARD = Question("q1", "Tell us how you heard about Zipline", "text", required=True)
 SAMPLES = Question("q2", "Will you be including a link on your resume to samples of projects you've worked on?",
                    "select", required=True, options=("Yes", "No"))
 SKILLS = Question("q3", "Skill Areas (Select all that apply)", "multi_select", True, ("Finance", "Software", "Robotics"))
-
-
-class Source:
-    """WorkIt's bank as `GET .../answer-bank` serves it, or a read that fails until `fails` reads have."""
-
-    def __init__(self, answers: dict | None = None, version: int = 7, fails: int = 0):
-        self.answers, self.version, self.fails, self.reads = answers or {}, version, fails, 0
-
-    def read(self) -> tuple[dict, int]:
-        self.reads += 1
-        if self.reads <= self.fails:
-            raise Unreachable("WorkIt didn't answer")
-        return self.answers, self.version
 
 
 def test_a_draft_is_found_again_under_its_question_in_any_case_or_spacing():
@@ -145,3 +133,127 @@ def test_a_bank_that_cant_read_tries_again_in_the_background_and_at_once_on_wake
     assert bank.wake(5.0)  # the first try in the thread fails; the wake skips its 30 s wait
     assert bank.get("Q?").answer == "Yes" and bank.problem == ""
     assert source.reads == 3
+
+
+def loaded(server: Server) -> AnswerBank:
+    bank = AnswerBank(server)
+    bank.load()
+    return bank
+
+
+def test_a_draft_goes_to_workit_flagged_with_its_job_and_enters_memory_only_from_the_reply():
+    """Fault: memory took a draft WorkIt's rule kept out, so a later form filled it; or a draft named no form."""
+    server = Server(keeps_out=(SAMPLES.label,))
+    bank = loaded(server)
+
+    assert bank.add(HEARD, "From the Simplify list.", "Zipline", job_id="j1")
+    assert bank.add(SAMPLES, "Yes", "Zipline")
+    assert not bank.add(HEARD, "From LinkedIn.", "Roblox")  # one on its way already
+    bank.close()
+
+    assert server.sent == [
+        ([{"question": HEARD.label, "answer": "From the Simplify list.", "review": True, "choice": False, "job_id": "j1"}], []),
+        ([{"question": SAMPLES.label, "answer": "Yes", "review": True, "choice": True, "company": "Zipline"}], []),
+    ]
+    assert bank.get(HEARD.label).answer == "From the Simplify list." and not bank.get(HEARD.label).own
+    assert bank.get(SAMPLES.label) is None
+    assert server.reads == 1  # each reply was the bank's own version plus one: nothing to read again
+
+
+def test_the_students_edit_waits_for_workit_and_says_why_its_rule_kept_it_out():
+    server = Server({key(HEARD.label): {"question": HEARD.label, "answer": "From the Simplify list.", "own": False}},
+                    keeps_out=("Why Zipline?",))
+    bank = loaded(server)
+
+    assert bank.review(HEARD.label)  # back from WorkIt before it returns
+    assert bank.get(HEARD.label).own
+    with pytest.raises(NotSaved, match="It names Zipline") as kept_out:
+        bank.answer("Why Zipline?", "The drones.")
+
+    assert kept_out.value.status == 400 and bank.get("Why Zipline?") is None
+    assert server.sent[0] == ([{"question": HEARD.label, "answer": "From the Simplify list.", "review": False,
+                                "choice": False}], [])
+
+
+def test_another_writers_save_meanwhile_reads_the_bank_again():
+    """Fault: a choice the student gave in the extension never reached the app's memory."""
+    server = Server(others=1)
+    bank = loaded(server)
+    server.answers[key(SKILLS.label)] = {"question": SKILLS.label, "answer": ["Software"], "own": True}
+
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+    bank.close()
+
+    assert server.reads == 2 and bank.get(SKILLS.label).answer == ["Software"]
+    assert bank.get(HEARD.label).answer == "From the Simplify list."
+
+
+def test_a_draft_workit_doesnt_answer_is_sent_again_then_dropped_and_a_refusal_at_once(monkeypatch, capsys):
+    monkeypatch.setattr(answer_bank, "SEND_RETRIES", (0.01, 0.01))
+    server = Server(unanswered=2)
+    bank = loaded(server)
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+    bank.close()
+    assert len(server.sent) == 3 and bank.get(HEARD.label).answer == "From the Simplify list."
+
+    server.unanswered = 3
+    bank.add(SAMPLES, "Yes", "Zipline")
+    bank.close()
+    assert len(server.sent) == 6 and bank.get(SAMPLES.label) is None  # drafted again the next time a form asks
+
+    server.refusal = WorkItError("PATCH: 422", 422)
+    bank.add(SKILLS, ["Software"], "Zipline")
+    bank.close()
+    assert len(server.sent) == 7 and bank.get(SKILLS.label) is None
+    said = capsys.readouterr().err
+    assert "Unreachable 502" in said and "WorkItError 422" in said and SAMPLES.label in said
+    assert "Software" not in said  # the log names the question only
+
+
+def test_an_edit_workit_doesnt_answer_says_not_saved_and_is_never_sent_after(monkeypatch):
+    monkeypatch.setattr(answer_bank, "EDIT_WAIT", 0.2)
+    monkeypatch.setattr(answer_bank, "SEND_RETRIES", (0.5,))
+    server = Server(unanswered=5)
+    bank = loaded(server)
+
+    with pytest.raises(NotSaved, match="WorkIt didn't answer") as unsaved:
+        bank.answer(HEARD.label, "A friend.")
+
+    bank.close()
+    assert unsaved.value.status == 503 and len(server.sent) == 1 and bank.get(HEARD.label) is None
+    server.unanswered, server.refusal = 0, WorkItError("PATCH: 413", 413)
+    with pytest.raises(NotSaved, match="refused it") as refused:
+        bank.answer(HEARD.label, "A friend.")
+    assert refused.value.status == 400
+
+
+def test_the_students_edit_goes_ahead_of_the_drafts_and_in_place_of_one_to_its_question():
+    """Fault: the Answers view waited behind every draft, or a draft sent after the student's edit replaced it."""
+    gate = threading.Event()
+    server = Server(gate=gate)
+    bank = loaded(server)
+    third = Question("q4", "Are you 18 or older?", "select", True, ("Yes", "No"))
+    bank.add(HEARD, "From the Simplify list.", "Zipline")  # in flight, held at the gate
+    bank.add(SAMPLES, "Yes", "Zipline")
+    bank.add(third, "Yes", "Zipline")
+    threading.Timer(0.3, gate.set).start()
+
+    bank.answer(third.label, "No")
+    bank.close()
+
+    assert [(e[0]["question"], e[0]["answer"]) for e, _ in server.sent] == [
+        (HEARD.label, "From the Simplify list."), (third.label, "No"), (SAMPLES.label, "Yes")]
+    assert bank.get(third.label).own
+
+
+def test_a_draft_the_pre_submit_review_found_wrong_leaves_the_bank_but_the_students_answer_stays():
+    server = Server({key(HEARD.label): {"question": HEARD.label, "answer": "From LinkedIn.", "own": False},
+                     key(SAMPLES.label): {"question": SAMPLES.label, "answer": "No", "own": True}})
+    bank = loaded(server)
+
+    bank.drop_draft(SAMPLES.label)
+    bank.drop_draft(HEARD.label)
+    bank.close()
+
+    assert server.sent == [([], [HEARD.label])]
+    assert bank.get(HEARD.label) is None and bank.get(SAMPLES.label).answer == "No"

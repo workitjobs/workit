@@ -277,12 +277,38 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
 - **Masking.** No file holds the bank's answers, so the bank gives each one
   to `masked.KNOWN` as it reads or writes it; `apply trace` reads the bank
   first, and a report's Trace takes the window's (`Known.take`).
-- **Not built yet** (W11 step 4): the sender that writes each change to
-  WorkIt (today a change stays in memory), the version checks, and the
-  one-time upload of an `answer-bank.yaml` from before.
+- **Every change goes to WorkIt through one sender thread**
+  (`PATCH /applicants/{id}/answer-bank`, `WorkIt.change_answer_bank`), one
+  PATCH for each change, in order, so a refusal drops that change alone.
+  Memory changes only from WorkIt's reply: an entry its rule keeps out
+  never fills a form. A reply whose version is not the bank's own plus
+  one means another writer saved meanwhile, and the bank is read again.
+  - The model's drafts never wait, since the form holds its draft. Each
+    names its form by `job_id` when the run's link came from the
+    student's Auto Apply queue (`Posting.job_id`, from the window's
+    `queue()` through `Adapters.jobs`), else by `company`. Apply no longer
+    decides itself that a draft is about the company: WorkIt's rule does.
+    A bare date no section places is never sent.
+  - The student's own changes (the Answers tab's Save, Add, Reviewed and
+    Delete, and Ask Claude's saved offer) go ahead of the drafts, take the
+    place of a waiting draft to the same question, and wait up to
+    `EDIT_WAIT` (10 s) for the reply. What WorkIt kept out, refused or
+    didn't answer is `NotSaved`, which the tab shows with the student's
+    text kept.
+  - The pre-submit review's fix sends a delete of the draft it found
+    wrong (`drop_draft`), never of the student's own; Regenerate sends a
+    new flagged draft (`redraft`).
+  - A change WorkIt doesn't answer (no reply, a 5xx) is sent again after
+    1, 5 and 30 seconds, then dropped; a refusal (a 4xx) is dropped at
+    once. The log names the question only, masked. At quit the sender has
+    5 seconds (`close`: the app's `finally`, a command's `atexit`).
+- **Not built yet** (W11 step 4): the version checks before each
+  Application, and a way for an `answer-bank.yaml` from before to reach
+  WorkIt.
 
-**Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against a
-fake source. The backend's `backend/tests/test_answer_bank.py` runs the
+**Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
+`tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,
+fails, refuses or holds a reply. The backend's `backend/tests/test_answer_bank.py` runs the
 routes and WorkIt's rule on Postgres.
 
 ## Already applied: no form is opened again (KAN-621)

@@ -468,6 +468,19 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
     assert server.submissions == []
 
 
+def test_a_draft_names_the_workit_job_the_queue_gave_its_link(monkeypatch, tmp_path):
+    """Fault: the draft named its company alone, which WorkIt's rule would have to trust (W11), not the job the
+    student's Auto Apply queue gave the link."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), jobs={ARC_URL: "j1"})
+
+    assert done.outcome == "ready to submit", done.why
+    assert done.posting.job_id == "j1"  # the Worker's drafts send it (test_claude_answers)
+    assert fake.submissions == []
+
+
 def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(monkeypatch, tmp_path):
     # A bare From nothing on the form places: Claude's draft is never banked, and when the review names the right
     # answer for a wrong one, that answer is filled and the form reviewed again, never left as a banner.

@@ -1,6 +1,7 @@
 """The `apply` command."""
 
 import argparse
+import atexit
 import imaplib
 import os
 import queue
@@ -51,7 +52,7 @@ from apply import (
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
-from apply.answer_bank import AnswerBank, WorkItSource
+from apply.answer_bank import AnswerBank, NotSaved, WorkItSource
 from apply.answers_tab import AnswersTab
 from apply.answers_tab import saving_answers as _answering
 from apply.applicant import as_applicant
@@ -762,7 +763,10 @@ def _send_into(target: str, urls: list[str]) -> int:
 def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     """Ask Claude's offer, saved on Lisul's click: his own answer in the Answer bank, for later forms."""
     def remember(question: str, answer: str) -> str:
-        bank.answer(question, answer)
+        try:
+            bank.answer(question, answer)
+        except NotSaved as unsaved:  # WorkIt's rule kept it out, or WorkIt didn't answer (W11)
+            return str(unsaved)
         return f"Saved to your answers: {question} → {answer}. Later forms that ask it get it."
     return remember
 
@@ -878,6 +882,7 @@ def _answer_bank(profile: ApplicantProfile) -> AnswerBank:
     except workit.WorkItError as error:
         sys.exit(f"The Answer bank is on WorkIt, which didn't answer ({error}). Run `uv run apply login` if you "
                  "aren't signed in, then try again.")
+    atexit.register(bank.close)  # the drafts still on their way to WorkIt get a few seconds when the command ends
     return bank
 
 

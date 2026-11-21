@@ -528,7 +528,7 @@ by hand (W8).
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Left: Apply (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 partly built (2026-11-21): the bank read into memory, the sender and every write, the Tracker's Answers tab removed. Left: the version checks, the old YAML file's way to WorkIt and its removals, ADR 0006 (step 4), removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -1977,10 +1977,12 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       takes the bank's values from memory after each read and write.
     - **Test Person** (sample data) has an empty bank that sends nothing,
       and keeps no drafts.
-    - **One sender thread** sends one PATCH at a time, in order, at most
-      100 entries. The model's drafts go to it (not an essay, a
+    - **One sender thread** sends one PATCH for each change, in order
+      (built 2026-11-21): one entry a PATCH, so a refusal drops that
+      change alone. The model's drafts go to it (not an essay, a
       `needs_applicant` draft or a bare date with no section), each with
-      the `job_id` the queue gave the run's Posting, else its `company`;
+      the `job_id` the queue gave the run's Posting (only a queued job
+      has the application the `job_id` must name), else its `company`;
       the app no longer decides itself which draft is about the company.
       The pre-submit review's fix sends a delete, Regenerate a flagged
       draft, Ask Claude's saved offer the student's own answer.

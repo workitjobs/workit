@@ -9,7 +9,9 @@ only his click keeps it (apply.stock), and kept ones are editable too. A key tha
 secret is never shown, and a file shows by its name alone.
 
 The bank is written only through AnswerBank, whose locks keep a run's
-Workers and the window from losing each other's answers; the profile only
+Workers and the window from losing each other's answers. Each edit waits
+for WorkIt's reply (W11): a refusal says why, and the window keeps the
+student's text. The profile is written only
 through ApplicantProfile. While a run goes, the tab edits the run's own
 profile, so the run's next save keeps his edit; with no run, it reads the
 profile file afresh for every view and edit."""
@@ -26,7 +28,7 @@ from ruamel.yaml.scalarstring import (
 )
 
 from apply import answering, stock
-from apply.answer_bank import AnswerBank, Entry
+from apply.answer_bank import AnswerBank, Entry, NotSaved
 from apply.model import Status
 from apply.profile import ANSWERED, SECRET, ApplicantProfile
 
@@ -79,7 +81,7 @@ class AnswersTab:
         question, answer = _question(question), _answer(answer)
         if not self._has(question):
             raise Refused("That question is no longer in the Answer bank.", 404)
-        self._bank.answer(question, answer)
+        _saved(self._bank.answer, question, answer)
 
     def add(self, question: str, answer: str | list[str]) -> None:
         """A question Lisul adds to the bank himself, with his answer."""
@@ -87,17 +89,17 @@ class AnswersTab:
         question, answer = _question(question), _answer(answer)
         if self._has(question):
             raise Refused("That question is already in the Answer bank: edit it there.", 409)
-        self._bank.answer(question, answer)
+        _saved(self._bank.answer, question, answer)
 
     def review(self, question: str) -> None:
         self._bank_ready()
-        if not self._bank.review(_question(question)):
+        if not _saved(self._bank.review, _question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
     def delete(self, question: str) -> None:
         """Take a question out of the bank: it is drafted again the next time a form asks."""
         self._bank_ready()
-        if not self._bank.delete(_question(question)):
+        if not _saved(self._bank.delete, _question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
     def save_answered(self, question: str, answer: str) -> None:
@@ -243,6 +245,14 @@ def _text(value: Any, files: bool = False) -> str:
     if isinstance(value, dict):
         return " · ".join(f"{k}: {_text(v, files)}" for k, v in value.items() if not SECRET.search(str(k)) and v not in (None, ""))
     return Path(str(value)).name if files else str(value)
+
+
+def _saved(change: Callable[..., Any], *args: Any) -> Any:
+    """One change to the bank; WorkIt's refusal, or its silence, as the tab's Refused."""
+    try:
+        return change(*args)
+    except NotSaved as unsaved:
+        raise Refused(str(unsaved), unsaved.status) from unsaved
 
 
 def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:

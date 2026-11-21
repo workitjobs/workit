@@ -172,17 +172,19 @@ class Runs:
         self._profile, self._bank, self._make, self._rehearse, self._awake = profile, bank, make, rehearse, keep_awake
         self._site = None  # the run's Workers, to stop when the app quits
 
-    def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
-        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed. A run
-        waits for the Answer bank (W11): one that hasn't read yet is tried again, a few seconds at most."""
+    def run(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str] | None = None) -> None:
+        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed. `jobs`
+        names the WorkIt job of each link from the student's Auto Apply queue. A run waits for the Answer bank
+        (W11): one that hasn't read yet is tried again, a few seconds at most."""
         if not self._bank.wake(BANK_WAIT):
             raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
                              "Press Start again in a moment.")
         with self._awake():  # the Mac never sleeps mid-run (KAN-885)
-            self._rehearse_shown(links, show)
+            self._rehearse_shown(links, show, jobs or {})
 
-    def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
+    def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str]) -> None:
         made = self._make(self._profile, self._bank)
+        made.jobs = jobs
         self._site = site = made.site
         try:
             answers = AnswersTab(made.answer_bank, self._profile, held=made.tracker.rows)
@@ -231,3 +233,4 @@ def app() -> None:
             app_window.run(board, start=runs.run)
     finally:
         runs.close()
+        bank.close()  # the changes still on their way to WorkIt get a few seconds
