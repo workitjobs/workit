@@ -63,7 +63,7 @@ const content: FeatureContent = {
       visual: FillVisual,
     },
     {
-      title: "Many forms, filled at the same time",
+      title: "Applications that run side by side",
       // Browser windows: each form opens in its own tab (the user's pick,
       // 2026-11-21).
       icon: BrowsersIcon,
