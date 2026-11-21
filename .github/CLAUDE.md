@@ -426,14 +426,17 @@ and the bank job), why every import embedded 0
 before, and a shorter PR run not yet taken up are in
 `../docs/scraper_gh_action/plan.md`.
 
-- **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
-  repo's Actions secrets. Without it the run fails at the import step and says so.
+- **Secret:** `API_DATABASE_URL`, the API's own pooler URL, which
+  Infisical's `workit-prod/api` sync writes (`../docs/secrets.md`); the step
+  passes it as `DATABASE_URL`. The scrape, the purge and the job alerts read
+  the API's `API_*` copies, never a second copy of the same value: one
+  change in `/api` reaches the API and every workflow. Without it the run
+  fails at the import step and says so.
 - **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
   `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
   own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
-  `SCOUT_ENDPOINTS` secret, the hosted default chain (in Infisical's
-  `workit-prod/github`, a reference to the API's chain;
-  `../docs/secrets.md`), is its fallback. The four single `SCOUT_*`
+  hosted default chain, the API's own `API_SCOUT_ENDPOINTS` secret passed
+  as `SCOUT_ENDPOINTS`, is its fallback. The four single `SCOUT_*`
   variables are not passed. These are the import's own: the deployed API
   reads its chains from its `API_*` secrets. The step unsets an empty
   one, because GitHub passes a missing secret as `""`, which Scout's
@@ -494,7 +497,7 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+- **Secret:** `API_DATABASE_URL` only, passed as `DATABASE_URL`. **It makes no embeddings** (KAN-726):
   the default provider `none` reads the bank vectors the team computer
   stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
   Gemini bank vectors beside the others; **the EC2 crontab's environment
@@ -529,7 +532,7 @@ skipped and logged as such.
   Only the schedule, on `main`, deletes. A manual run (Actions → Retention
   purge → Run workflow, or `gh workflow run retention-purge.yml`) is always
   a dry run: it logs what it would delete and deletes nothing.
-- **Secret:** `DATABASE_URL`, the one the scrape already uses.
+- **Secret:** `API_DATABASE_URL`, passed as `DATABASE_URL`, the one the scrape already uses.
 - **A failed scheduled run opens an issue** titled "Retention purge failed"
   (or comments on the open one) with the run's link, so the team is told.
   Close it once fixed. GitHub also emails whoever last edited the cron line.

@@ -4,17 +4,18 @@ KAN-899. Every secret the team shares lives in Infisical (Infisical Cloud,
 US region, Free plan). GitHub and Cloudflare hold copies that Infisical or a
 workflow writes. A copy can be lost; the value in Infisical cannot.
 
-**Status (2026-11-20): the `/api` sync is on and checked, and `deploy.yml`
-and `publish-engine.yml` read its `API_*` secrets.** The `/github`, `/web`
-and `/desktop-fill-engine` syncs and `npm run env` are still open (end of
-this file). Until a folder's sync is on, its GitHub secrets are still set
-with `gh secret set`.
+**Status (2026-11-21): the `/api` sync is on and checked, and `deploy.yml`
+and `publish-engine.yml` read its `API_*` secrets, as do the scrape, the
+purge and the job alerts. The `/github` sync is on and holds 3 of its 8
+keys** (Syncs). The `/web` and
+`/desktop-fill-engine` syncs and `npm run env` are still open (end of this
+file). A key that no folder holds yet is still set with `gh secret set`.
 
 ## Rules
 
-- **Infisical is the only place a person types a secret.** Once a folder's
-  sync is on, never set its GitHub secrets or Worker secrets by hand: the
-  next sync or deploy overwrites them.
+- **Infisical is the only place a person types a secret.** Once a key is in
+  a folder that syncs, never set its GitHub secret or Worker secret by hand:
+  the next sync or deploy overwrites it.
 - **"Every key, folder by folder" below is the list.** A key goes in the
   folder its table names and nowhere else. A new key joins a table in the
   same PR that first reads it.
@@ -50,8 +51,8 @@ Where each folder goes:
 | `workit-prod/web` | GitHub repo secrets named `WEB_*`, then the `workit-web` Worker (the website) | sync with key schema `WEB_{{secretKey}}`; `deploy.yml` sends them on |
 | `workit-prod/github` | GitHub repo secrets, same names | sync, scope Repository |
 | `workit-prod/desktop-fill-engine` | secrets of the GitHub environment `apply-engine` | sync, scope Repository Environment |
-| `workit-prod/team-computer` | `C:\workit-bank-job\.env` on the team computer (`ASGAMINGPC`) | an Admin copies it by hand |
-| `workit-prod/ec2-job-alerts` | the EC2 crontab's environment | an Admin copies it by hand |
+| `workit-prod/team-computer` | `C:\workit-bank-job\.env` on the team computer (`ASGAMINGPC`) | an Admin exports it with the CLI and copies the file there (References) |
+| `workit-prod/ec2-job-alerts` | the EC2 crontab's environment | an Admin exports it with the CLI and copies the values there |
 
 - **`/github` and `/desktop-fill-engine` are separate because a sync
   pushes a whole folder to one place.** `/desktop-fill-engine` holds every
@@ -123,12 +124,17 @@ Supabase, `frontend/docs/auth.md`).
 The names the API can read are the Worker's `FORWARDED` list
 (`backend/cloudflare/src`); a name outside it never reaches the Container.
 
+**A workflow that needs one of these values reads its `API_*` copy**
+(`secrets.API_DATABASE_URL`), never a second copy in `/github`. Then each
+value is in one folder, and one change reaches the API and every
+workflow.
+
 | Key | Read by | Needed | Value or source |
 |---|---|---|---|
-| `DATABASE_URL` | the API | Required | Same value as `workit-dev/root_env`. |
+| `DATABASE_URL` | the API, and `scrape.yml`, `retention-purge.yml` and `job-alerts.yml` | Required | Same value as `workit-dev/root_env`. |
 | `SUPABASE_URL` | the API, and `publish-engine.yml` | Required | Same value as `workit-dev/root_env`. |
 | `SUPABASE_SERVICE_KEY` | the API, and `publish-engine.yml` | Required | Same value as `workit-dev/root_env`. |
-| `SCOUT_ENDPOINTS` | the API's Scout | Required: without a chain, every Scout reply is "offline" | Production's chain, which can differ from a laptop's (`scout/CLAUDE.md`). Ask whoever set `CF_API_SECRETS_JSON` (2026-10-26) before you copy a laptop's. |
+| `SCOUT_ENDPOINTS` | the API's Scout, and `scrape.yml`'s keyword pass, as the fallback after the team computer's own Ollama | Required: without a chain, every Scout reply is "offline" | Production's chain, which can differ from a laptop's (`scout/CLAUDE.md`). Ask whoever set `CF_API_SECRETS_JSON` (2026-10-26) before you copy a laptop's. |
 | `SCOUT_ENDPOINTS_LARGE`, `SCOUT_ENDPOINTS_SMALL` | the API's Scout | Optional: unset, the default chain | Only if production sets them today. |
 | `WORKIT_ADMINS` | fix reports (`/admin` routes) | Optional: unset, nobody is an admin | The team writes it: WorkIt sign-in emails or account IDs, comma-separated. |
 | `MIN_EXTENSION_VERSION`, `CONNECTOR_CHAT_CAP`, `CONNECTOR_LOOPBACK_REDIRECTS`, `AI_DAILY_POOL`, the `AI_*_CAP` and `AI_*_SHARE` keys, `FILL_EVENT_DAILY_CAP`, `FILL_REPORT_DAILY_CAP`, `JOB_SYSTEM_REQUEST_DAILY_CAP` | the API | Optional: `backend/app/config.py` has the defaults | Settings, not secrets. Only those production sets today. |
@@ -157,15 +163,16 @@ Not in this folder: `DIRECT_URL` (**never**: migrations stay a local step),
 | `CLOUDFLARE_API_TOKEN` | `deploy.yml` | Required: every deploy | Cloudflare shows a token once. Make a new one from the "Edit Cloudflare Workers" template with the scopes in `.github/CLAUDE.md` (Deploy), then revoke the old one. |
 | `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml` | Required: every deploy | Cloudflare dashboard, the account's overview. Not a secret. |
 | `FILL_ENGINE_TOKEN` | `deploy.yml`, `publish-extension.yml`, `publish-engine.yml` (they fail without it); `ci.yml`, `extension-nightly.yml`, `apply-nightly.yml`, `live-canary.yml` (they skip the engine's jobs) | Required: every deploy | A fine-grained GitHub token, Contents read-only, on `workitjobs/fill-engine` only. GitHub shows it once. Note its owner and expiry date in Infisical: it stops on that date, and every deploy with it. |
-| `DATABASE_URL` | `scrape.yml`, `job-alerts.yml`, `retention-purge.yml` | Required | `${prod.api.DATABASE_URL}` |
-| `SCOUT_ENDPOINTS` | `scrape.yml`'s keyword pass, as the fallback after the team computer's own Ollama | Required | `${prod.api.SCOUT_ENDPOINTS}` |
 | `CHROME_CLIENT_ID` | `publish-extension.yml` | Required to publish the extension | Google Cloud Console, Credentials, the Chrome Web Store OAuth client. Not a secret. |
 | `CHROME_CLIENT_SECRET` | `publish-extension.yml` | Required to publish the extension | The same client. If Google does not show it, add a new secret and disable the old one after a publish works. |
 | `CHROME_REFRESH_TOKEN` | `publish-extension.yml` | Required to publish the extension | Mint a new one with that client (`.github/CLAUDE.md`, Publish extension). |
 | `CHROME_EXTENSION_ID` | `publish-extension.yml` | Required to publish the extension | `cpklhdkoafegnndlafmiceehfloodjgi`. Not a secret. |
 | `CHROME_PUBLISHER_ID` | `publish-extension.yml` | Required to publish the extension | Chrome Web Store Developer Dashboard, Publisher, Settings. Not a secret. |
 
-Not in this folder: `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL`
+Not in this folder: `DATABASE_URL` and `SCOUT_ENDPOINTS` (the workflows
+read `/api`'s, as `API_DATABASE_URL` and `API_SCOUT_ENDPOINTS`; delete
+both from this folder and from GitHub once this change is on `main`),
+`SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL`
 (no workflow reads them; `scrape.yml` writes its small chain itself, as the
 computer's Ollama; the repo copies were deleted on 2026-11-20),
 `CF_API_SECRETS_JSON` (no longer read: `/api` replaced it; delete it after
@@ -240,17 +247,26 @@ Worker lists `TURNSTILE_SECRET_KEY` today, delete it there.
 ## References
 
 A value of `${prod.api.DATABASE_URL}` means "the value of `DATABASE_URL` in
-folder `/api` of environment `prod`". Infisical fills it in when a value is
-read. The CLI fills references in by default. The tables above mark each
-reference.
+folder `/api` of environment `prod`". The CLI fills references in by
+default. The tables above mark each reference.
 
+- **Never use a reference in a folder that syncs.** The `/github` sync
+  wrote `${prod.api.DATABASE_URL}` to GitHub as that text, 24 characters,
+  not as the value (2026-11-21), and Infisical's docs do not say a sync
+  fills references in. Every workflow that reads the database would have
+  failed. A workflow that needs an `/api` value reads its `API_*` copy
+  instead (`workit-prod/api`).
+- **Copy `/team-computer` and `/ec2-job-alerts` with the CLI** (`infisical
+  sm secrets export --env prod --path /team-computer`), which fills in
+  their references. On the first export, check that `DATABASE_URL` is the
+  URL itself, not `${...}`.
 - **References work inside one project only** on the Free plan. A value in
   both projects is typed in each and changed in both: `DATABASE_URL`,
   `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (in `workit-dev/root_env` and
   `workit-prod/api`), and `DIRECT_URL` (in `workit-dev/root_env` and
   `workit-prod/team-computer`). Each prod copy has the comment "also in
   workit-dev/root_env".
-- **Use references, not secret imports, in a folder that syncs.** An import
+- **Never use a secret import in a folder that syncs** either. An import
   brings every key of the other folder, and the sync would push them all.
 - **A `$` in a value can be read as a reference.** Check a new password for
   `$` before you save it.
@@ -298,9 +314,9 @@ secret. Older CLI versions name the command `infisical export`;
 | Change | Steps |
 |---|---|
 | A dev value | Change it in `workit-dev`. Tell the team to pull. |
-| A GitHub secret | Change it in `workit-prod/github`. The sync pushes it, and the next run uses it. |
+| A GitHub secret | Change or add it in `workit-prod/github`. The sync pushes it, and the next run uses it. |
 | An API value | Change it in `workit-prod/api`. Run "Deploy to Cloudflare" from the Actions tab: a running Container keeps its old values until a deploy restarts it. |
-| A value in both projects | Change it in both (References). The references in `/github`, `/team-computer` and `/ec2-job-alerts` follow by themselves. Then copy the new value to the team computer's `.env` and the EC2 crontab by hand, and restart the bank job (`backend/CLAUDE.md`, Deployment). |
+| A value in more than one folder | Change it in each folder whose copy has the comment "also in ..." (References): `/api`'s `DATABASE_URL` is also in `workit-dev/root_env`. The references in `/team-computer` and `/ec2-job-alerts` follow by themselves. Then export those two folders with the CLI to the team computer's `.env` and the EC2 crontab, and restart the bank job (`backend/CLAUDE.md`, Deployment). |
 | A new key | Add it to its folder's table here, in the same PR that first reads it. A new API setting also joins the Worker's `FORWARDED` list in that PR: without it, the Container never sees the value. |
 | Delete an API value | Delete it in Infisical, then in the Cloudflare dashboard (Workers, `workit-api`, Settings, Variables and Secrets). `wrangler secret bulk` never deletes. |
 | Rotate a value | Issue a new value at the provider, change it as above, check that the app works, then revoke the old value. |
@@ -329,12 +345,19 @@ The repo connects through Infisical's GitHub App, installed on the
 `workitjobs` organization for the `workit` repo only. Each sync is one
 folder to one place:
 
-| Sync | Scope | Key schema | State (2026-11-20) |
+| Sync | Scope | Key schema | State (2026-11-21) |
 |---|---|---|---|
 | `workit-prod/api` | Repository | `API_{{secretKey}}` | on, checked |
-| `workit-prod/github` | Repository | none | off: the folder is empty |
-| `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off |
-| `workit-prod/desktop-fill-engine` | Repository Environment, `apply-engine` | none | off |
+| `workit-prod/github` | Repository | none | on, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a deploy passed with them) and `CHROME_EXTENSION_ID`; `DATABASE_URL` and `SCOUT_ENDPOINTS` only until this change is on `main` (Still open) |
+| `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off: the folder is empty until `GOOGLE_CLIENT_SECRET` is issued again |
+| `workit-prod/desktop-fill-engine` | Repository Environment, `apply-engine` | none | set up; GitHub's copy still dates from 2026-11-17 (Still open) |
+
+**Only GitHub holds these keys (2026-11-21):** `FILL_ENGINE_TOKEN`,
+`CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_PUBLISHER_ID` and
+`CHROME_REFRESH_TOKEN`. The `/github` sync leaves them alone. GitHub cannot
+show a secret, so a deleted one is lost and is issued again from its
+source (the `/github` table). Put each one in `/github` when it is issued
+again.
 
 - **Set the key schema before a sync first runs.** The `/api` sync first
   ran without one (2026-11-20): it wrote `/api`'s keys to GitHub under
@@ -350,22 +373,40 @@ folder to one place:
 - **Turn a sync on only once each value in its folder is right:** the sync
   overwrites the working GitHub copy. With deletion off, a secret the
   folder does not hold yet stays as it is.
+- **Never add a key without its real value.** The sync writes every key
+  in the folder, so an empty key or a placeholder ("TODO") replaces the
+  working GitHub copy. A placeholder `CLOUDFLARE_API_TOKEN` stops every
+  deploy. Leave a key out until you have its value.
+- **Never put a reference in a folder that syncs** (References): the
+  `/github` sync wrote `DATABASE_URL` and `SCOUT_ENDPOINTS` as their
+  reference text on 2026-11-21, and the check below caught it.
 - **Check a sync without seeing a value.** The run "Secrets check"
   (https://github.com/workitjobs/workit/actions/runs/44858092532, from
   commit `a5dcec4e`) prints each `API_*`, `WEB_*`, `DATABASE_URL` and
   `SCOUT_ENDPOINTS` secret's length, never its value, flags a value still
   written `${...}`, and lists the names the deploy would send. Re-run it
   from the Actions tab: a re-run uses its own commit, so it works after
-  the workflow file is gone. GitHub holds it for a person's approval.
-  Infisical's docs do not say whether a sync fills in references, so
-  re-run it once the `/github` sync is on.
+  the workflow file is gone. GitHub can hold it for a person's approval.
+  It does not check `CLOUDFLARE_*` or `CHROME_*`: a deploy checks the
+  Cloudflare pair, and the extension's next publish checks the Chrome
+  keys.
 
 ## Still open
 
-1. **The `/github` sync.** Put the keys in `workit-prod/github` (its
-   table above), start with the two references and the values you can
-   read, turn the sync on, and re-run the check: `DATABASE_URL` and
-   `SCOUT_ENDPOINTS` must show the same lengths as their `API_*` twins.
+1. **Finish the `/github` sync.**
+   - Done (2026-11-21): the check shows `DATABASE_URL` and
+     `SCOUT_ENDPOINTS` at their `API_*` twins' lengths, and "Deploy to
+     Cloudflare" on `main` passed with the new `CLOUDFLARE_API_TOKEN` and
+     `CLOUDFLARE_ACCOUNT_ID`. Revoke the old Cloudflare token.
+   - Once this change is on `main`, delete `DATABASE_URL` and
+     `SCOUT_ENDPOINTS` from `/github`, then from GitHub
+     (`gh secret delete DATABASE_URL`, `gh secret delete SCOUT_ENDPOINTS`):
+     the sync never deletes. Before then, the workflows on `main` still
+     read them.
+   - Put the five keys that only GitHub holds (Syncs) in `/github` as each
+     is issued again. `FILL_ENGINE_TOKEN` stops on an expiry date nobody
+     noted. Find its owner and date before it stops every deploy, then
+     note both in Infisical.
 2. **The first deploy from the `API_*` secrets**, when this change merges:
    the health check (`/health/db`) passes, Scout answers a message on
    workitjobs.ai, and an admin opens a fill report. If it fails,
@@ -374,6 +415,14 @@ folder to one place:
    `CF_API_SECRETS_JSON`.
 3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
 4. **The `/desktop-fill-engine` sync,** before the next engine publish.
+   First check that the PEM file is the key the apps hold. From
+   `backend/`, run
+   `uv run python -c "import sys; from pathlib import Path; from app.scripts.publish_engine import load_key, public_key; print(public_key(load_key(Path(sys.argv[1]))))" <PEM file>`.
+   It prints only the public half, which must be `PUBLIC_KEY` in
+   `apply-agent/src/apply/engine_download.py`. Then paste the whole file
+   into `APPLY_ENGINE_SIGNING_KEY` and turn the sync on. The sync has run
+   once `gh secret list --env apply-engine` shows the day you turned it
+   on.
 5. **`npm run env`.** A Node script under `frontend/scripts/`, with its
    forwarder in the root `package.json`. It runs the two exports and keeps
    any line Infisical does not have.
