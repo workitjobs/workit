@@ -7,6 +7,9 @@ together do (the Sheet takes the Tracker's, sheet.locked).
 - A lock file is made at first use, in the data folder beside its data file: never in the app's package, which is
   read-only. The OS releases a lock when its process ends, so a crash leaves only an empty file.
 - A lock file is opened to append, so taking a lock never empties a file, even one named by mistake.
+- Never take a lock that this process already holds: a second open of the same lock file waits for good. Two
+  jobs in one folder need two names: the Repair's one-at-a-time lock and its requests' lock were both
+  repairs/.lock, and the first save inside a Repair never returned (repairer.RUNNING).
 - Never lock the data file itself: on Windows a lock also stops every other handle from reading the locked bytes,
   Apply's own too.
 - portalocker does the locking: `fcntl.flock` on macOS and Linux, as Apply did before, so an older Apply on the same

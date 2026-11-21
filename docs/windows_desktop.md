@@ -263,8 +263,20 @@ for each fix, section 6 the tests, and section 7 the order.
     dependency, and its license is BSD-3-Clause.
   - **After a pull, restart every Apply process.** An older process and a
     newer one on the same data folder still exclude each other on every
-    lock file except the Answer bank's: the older one locks
-    `answer-bank.yaml` and the newer one `answer-bank.lock`.
+    lock file except two: the Answer bank's (the older one locks
+    `answer-bank.yaml`, the newer one `answer-bank.lock`) and the
+    Repair's one-at-a-time lock (below).
+  - **Two jobs in one folder need two lock files** (found in review,
+    2026-11-21). A second lock on a file that the same process already
+    holds waits for good. The one-at-a-time Repair lock and the Repair
+    requests' lock were both `HOME/repairs/.lock`, since `repair.FOLDER`
+    and `repairer.WORKTREES` are one folder. So the first save inside a
+    Repair never returned, after Claude had done the work. This bug was
+    older than P1: the `fcntl` code used the same paths. The
+    one-at-a-time lock is `repairs/.running.lock` now
+    (`repairer.RUNNING`). Test: `tests/test_repairer.py`,
+    `test_a_repair_saves_its_request_in_the_folder_it_runs_in`, the only
+    repair test with the real layout (fault: one lock file for both).
 - **Tests**, in the fast list. Each test went red with its fault in.
   - `tests/test_locks.py`: another process holds the Tracker's lock
     between its read and its save. This process's write waits, `tried`
