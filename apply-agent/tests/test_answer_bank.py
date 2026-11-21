@@ -1,6 +1,7 @@
 """The Answer bank: one answer per one-off question, kept on WorkIt and read once into memory (W11)."""
 
 import threading
+import time
 
 import pytest
 from fake_bank import Server, Source
@@ -171,8 +172,10 @@ def test_the_students_edit_waits_for_workit_and_says_why_its_rule_kept_it_out():
         bank.answer("Why Zipline?", "The drones.")
 
     assert kept_out.value.status == 400 and bank.get("Why Zipline?") is None
+    # Reviewed sends a pick: the answer WorkIt's rule let in, read by its question alone again (a pick "Google"
+    # read as text names a company the student applied to, and could never be reviewed).
     assert server.sent[0] == ([{"question": HEARD.label, "answer": "From the Simplify list.", "review": False,
-                                "choice": False}], [])
+                                "choice": True}], [])
 
 
 def test_another_writers_save_meanwhile_reads_the_bank_again():
@@ -257,3 +260,53 @@ def test_a_draft_the_pre_submit_review_found_wrong_leaves_the_bank_but_the_stude
 
     assert server.sent == [([], [HEARD.label])]
     assert bank.get(HEARD.label) is None and bank.get(SAMPLES.label).answer == "No"
+
+
+def test_a_draft_the_review_found_wrong_while_it_was_on_its_way_never_stays_in_the_bank(monkeypatch):
+    """Fault: the review looked in memory alone, so a draft waiting to be sent again (or being sent) landed later,
+    an answer known wrong for every later form."""
+    monkeypatch.setattr(answer_bank, "SEND_RETRIES", (0.3,))
+    server = Server(unanswered=1)
+    bank = loaded(server)
+    bank.add(HEARD, "From LinkedIn.", "Zipline")  # WorkIt didn't answer: waiting to be sent again
+    for _ in range(100):
+        if server.sent:
+            break
+        threading.Event().wait(0.01)
+
+    bank.drop_draft(HEARD.label)
+    bank.close()
+    assert len(server.sent) == 1 and bank.get(HEARD.label) is None
+
+    gate = threading.Event()
+    server.gate = gate
+    bank.add(SAMPLES, "Yes", "Zipline")  # being sent, held at the gate
+    for _ in range(100):
+        if len(server.sent) == 2:
+            break
+        threading.Event().wait(0.01)
+    bank.drop_draft(SAMPLES.label)
+    gate.set()
+    bank.close()
+    assert server.sent[2] == ([], [SAMPLES.label]) and key(SAMPLES.label) not in server.answers
+    assert bank.get(SAMPLES.label) is None
+
+
+def test_a_change_waiting_behind_one_to_the_same_question_waits_without_spinning(monkeypatch):
+    """Fault: the sender's wait took the due time of the change behind, already past, and looped at full speed till
+    the one ahead was due."""
+    monkeypatch.setattr(answer_bank, "SEND_RETRIES", (0.6,))
+    server = Server(unanswered=1)
+    bank = loaded(server)
+    bank.add(HEARD, "From LinkedIn.", "Zipline")  # not answered: sent again in 0.6 s
+    for _ in range(100):
+        if server.sent:
+            break
+        threading.Event().wait(0.01)
+    bank.redraft(HEARD, "From a friend.")  # due now, but behind the first
+
+    used = time.process_time()
+    threading.Event().wait(0.4)
+    assert time.process_time() - used < 0.2
+    bank.close()
+    assert [e[0]["answer"] for e, _ in server.sent] == ["From LinkedIn.", "From LinkedIn.", "From a friend."]

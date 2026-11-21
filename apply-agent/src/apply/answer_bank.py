@@ -111,6 +111,7 @@ class _Change:
     tries: int = 0
     due: float = 0.0  # when it may go (time.monotonic): later while it waits to be sent again
     given_up: bool = False  # the student's view stopped waiting: never sent again
+    wrong: bool = False  # the review found this draft wrong while it was on its way: deleted once WorkIt saves it
     said: str = ""  # once done: "" saved, else why not ("Not saved: ...")
     done: threading.Event = field(default_factory=threading.Event)
 
@@ -244,7 +245,9 @@ class AnswerBank:
             found = self._entries.get(key(question))
         if found is None:
             return False
-        self._wait(_set(found.question, found.answer, own=True, student=True))
+        # Sent as a pick: the answer is the one WorkIt's rule let in, so the rule reads its question alone again. As
+        # text, a pick naming a company the student applied to ("Google") could never be reviewed.
+        self._wait(_set(found.question, found.answer, own=True, choice=True, student=True))
         return True
 
     def delete(self, question: str) -> bool:
@@ -258,11 +261,16 @@ class AnswerBank:
 
     def drop_draft(self, question: str) -> None:
         """The pre-submit review found the model's draft to `question` wrong: out of the bank, so it never fills
-        another form. The student's own answer stays."""
+        another form. A draft still on its way goes too: one waiting is taken out, and one being sent is deleted once
+        WorkIt saves it. The student's own answer stays."""
+        filed = key(question)
         with self._lock:
-            found = self._entries.get(key(question))
+            self._waiting = [c for c in self._waiting if c.student or c.filed != filed or c.entry is None]
+            if (sending := self._sending) and not sending.student and sending.filed == filed and sending.entry:
+                sending.wrong = True
+            found = self._entries.get(filed)
             if found is not None and not found.own:
-                self._go(_Change(key(question), found.question, None))
+                self._go(_Change(filed, found.question, None))
 
     def close(self, wait: float = QUIT_WAIT) -> None:
         """At quit: the changes still waiting get up to `wait` seconds to reach WorkIt."""
@@ -338,17 +346,19 @@ class AnswerBank:
                 self._waiting.remove(gone)
                 gone.done.set()
             now = time.monotonic()
-            for n, change in enumerate(self._waiting):
-                if change.due <= now and all(c.filed != change.filed for c in self._waiting[:n]):
-                    return self._waiting.pop(n)
+            # Only the first change to each question may go; a later one waits for it, and so does this wait.
+            heads = [c for n, c in enumerate(self._waiting) if all(o.filed != c.filed for o in self._waiting[:n])]
+            if ready := next((c for c in heads if c.due <= now), None):
+                self._waiting.remove(ready)
+                return ready
             self._lock.notify_all()  # close() waits for this: nothing to send now
-            due = min((c.due for c in self._waiting), default=None)
+            due = min((c.due for c in heads), default=None)
             self._lock.wait(None if due is None else due - now)
 
     def _again(self, change: _Change) -> None:
         """Under the lock: `change` back at the head of its kind, to be sent again; a draft the student changed
         meanwhile goes, since theirs takes its place."""
-        if not change.student and any(c.student and c.filed == change.filed for c in self._waiting):
+        if change.wrong or not change.student and any(c.student and c.filed == change.filed for c in self._waiting):
             change.done.set()
             return
         self._waiting.insert(0 if change.student else sum(c.student for c in self._waiting), change)
@@ -367,6 +377,8 @@ class AnswerBank:
             change.said = f"{KEPT_OUT}{next(iter(kept_out.values()))}"
         elif change.entry is None:
             self._entries.pop(change.filed, None)
+        elif change.wrong:  # WorkIt holds a draft the review found wrong meanwhile: deleted now
+            self._go(_Change(change.filed, change.question, None))
         else:
             self._entries[change.filed] = entry = _new(change.question, change.entry["answer"],
                                                         own=not change.entry["review"])

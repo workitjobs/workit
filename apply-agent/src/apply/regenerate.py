@@ -128,7 +128,6 @@ class Redone:
     why: str = ""  # why it is not on the form
     checks: tuple[str, ...] = ()  # gate and verifier flags it still has, for the note beside it
     kept: str = ""  # the Story bank line his context became
-    banked: bool = False  # the Answer bank has the new draft
 
 
 def regenerate(claude: Claude, form: Form, name: str, context: str, profile: ApplicantProfile, bank: AnswerBank,
@@ -166,12 +165,13 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
     allowed = essays.sources(profile, material, facts=True)
     checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
-    banked = written.kind == DRAFT and _bank(bank, q, text)
+    if written.kind == DRAFT:
+        _bank(bank, q, text)  # sent to WorkIt, whose rule decides whether the bank keeps it
     written.text, written.why = text, "; ".join(checks)
     if written.kind == ESSAY:
         written.essay = replace(essay, failed=tuple(failed))
     form.answers[name] = text
-    return Redone(q, text, checks=checks, kept=kept, banked=banked)
+    return Redone(q, text, checks=checks, kept=kept)
 
 
 def keep_context(q: Question, questions: list[Question], context: str, company_name: str, today: date) -> str:
@@ -203,11 +203,10 @@ def _material(claude: Claude, form: Form, written: Written, site: JobSite | None
     return form.material
 
 
-def _bank(bank: AnswerBank, q: Question, text: str) -> bool:
-    """The new draft in the Answer bank, in place of the old; never under a bare label."""
-    if len(re.sub(r"\([^)]*\)", "", q.label).split()) <= asking.BARE:
-        return False
-    return bank.redraft(q, text)
+def _bank(bank: AnswerBank, q: Question, text: str) -> None:
+    """The new draft to the Answer bank, in place of the old; never under a bare label."""
+    if len(re.sub(r"\([^)]*\)", "", q.label).split()) > asking.BARE:
+        bank.redraft(q, text)
 
 
 # On a page held for Lisul: a small button beside each field that shows an answer Claude wrote. It is drawn over

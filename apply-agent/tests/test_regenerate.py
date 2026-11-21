@@ -92,7 +92,7 @@ def test_a_one_off_answer_is_drafted_again_and_replaces_its_draft_in_the_answer_
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "The robotics club, which I led"}), form,
                                    "club", "I led the robotics club", profile, bank, TODAY)
 
-    assert redone.text == "The robotics club, which I led" and redone.banked
+    assert redone.text == "The robotics club, which I led"
     entry = bank.get(CLUB.label)
     assert entry.answer == "The robotics club, which I led" and not entry.own
 
@@ -104,13 +104,13 @@ def test_lisuls_own_answer_and_a_bare_label_are_never_replaced_in_the_answer_ban
     form = a_form(regenerate.Written(CLUB, "His own words", regenerate.DRAFT))
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "Another club"}), form, "club", "say more",
                                    profile, bank, TODAY)
-    assert redone.text == "Another club" and not redone.banked
+    assert redone.text == "Another club"
     assert bank.get(CLUB.label).answer == "His own words"
 
     form = a_form(regenerate.Written(FROM, "May 2027", regenerate.DRAFT))
     redone = regenerate.regenerate(FakeClaude(drafts={"From": "June 2027"}), form, "from", "I start in June", profile,
                                    bank, TODAY)
-    assert redone.text == "June 2027" and not redone.banked and bank.get("From") is None
+    assert redone.text == "June 2027" and bank.get("From") is None
 
 
 def test_no_context_asks_for_some_and_changes_nothing(tmp_path):

@@ -296,8 +296,14 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
     didn't answer is `NotSaved`, which the tab shows with the student's
     text kept.
   - The pre-submit review's fix sends a delete of the draft it found
-    wrong (`drop_draft`), never of the student's own; Regenerate sends a
-    new flagged draft (`redraft`).
+    wrong (`drop_draft`), never of the student's own. A draft still on
+    its way goes too: one waiting is taken out, and one being sent is
+    deleted once WorkIt saves it. Regenerate sends a new flagged draft
+    (`redraft`) and claims no save: WorkIt's rule may keep it out.
+  - Reviewed sends the answer as a pick (`choice`), so WorkIt's rule reads
+    its question alone, as when the answer entered: read as text, a pick
+    such as "Google" names a company the student applied to, and could
+    never be reviewed.
   - A change WorkIt doesn't answer (no reply, a 5xx) is sent again after
     1, 5 and 30 seconds, then dropped; a refusal (a 4xx) is dropped at
     once. The log names the question only, masked. At quit the sender has

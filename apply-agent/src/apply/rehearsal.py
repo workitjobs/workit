@@ -1157,8 +1157,7 @@ class _Redo:
                           essays=done.form.essay_cell() if kind == regenerate.ESSAY else done.saved.essays if done.saved else "",
                           drafted=tuple((q, redone.text if q == label else a) for q, a in done.saved.drafted)
                           if done.saved else ())
-            self._out(f"{company} | regenerated '{label}' with your context"
-                      + (" (in the Answer bank too)" if redone.banked else ""))
+            self._out(f"{company} | regenerated '{label}' with your context")
         else:
             written.state, written.why = "failed", redone.why
             regenerate.done(page, name, "", f"Not regenerated: {redone.why}", False)
