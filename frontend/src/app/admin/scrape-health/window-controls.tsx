@@ -3,26 +3,50 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SegmentedLinks } from "@/components/ui/segmented-control";
-import { moved, SPANS, type Window, windowHref } from "@/lib/scrape-status";
+import {
+  datesOf,
+  moved,
+  rangeOf,
+  resized,
+  SPANS,
+  type Window,
+  windowHref,
+} from "@/lib/scrape-status";
 
 const ARROW =
-  "border-border-surface bg-panel text-ink inline-flex size-8 items-center justify-center rounded-full border";
+  "border-border-surface bg-panel inline-flex size-8 shrink-0 items-center justify-center rounded-full border";
 
-/** An arrow that moves the window, or its faded shape where the window cannot move. */
-function Arrow({ to, label, children }: { to: Window | null; label: string; children: ReactNode }) {
+/**
+ * An arrow that moves the window one period, named by the days it shows
+ * ("Show Oct 26 to Nov 8"), so its name is true where the last step is a
+ * short one. Where the window cannot move, its faded shape, named as off.
+ * No tooltip: a Previous or Next arrow is read on sight (`ui/tip.tsx`), and
+ * the days between the two arrows say what they move.
+ */
+function Arrow({
+  to,
+  today,
+  off,
+  children,
+}: {
+  to: Window | null;
+  today: string;
+  /** The arrow's name where the window cannot move: "No Earlier Days". */
+  off: string;
+  children: ReactNode;
+}) {
   if (!to) {
     return (
-      <span aria-disabled className={`${ARROW} text-ink-subtle`} title={label}>
+      <a role="link" aria-disabled="true" aria-label={off} className={`${ARROW} text-ink-subtle`}>
         {children}
-      </span>
+      </a>
     );
   }
   return (
     <Link
       href={windowHref(to)}
-      aria-label={label}
-      title={label}
-      className={`${ARROW} hover:bg-hover focus-visible:ring-brand-ring focus-visible:ring-2 focus-visible:outline-none`}
+      aria-label={`Show ${rangeOf(datesOf(to, today))}`}
+      className={`${ARROW} text-ink hover:bg-hover focus-visible:ring-brand-ring focus-visible:ring-2 focus-visible:outline-none`}
     >
       {children}
     </Link>
@@ -30,31 +54,40 @@ function Arrow({ to, label, children }: { to: Window | null; label: string; chil
 }
 
 /**
- * The page's one set of time controls (KAN-879): the period (how many days
- * the whole page shows), and two arrows that move that window older or
- * newer by a week or a month, as Move By says. All are links, so the
- * address holds the window: a reload, Back and a shared link keep it. The
- * tiles, the chart and the table all read the same window. The chart had
- * its own zoom and arrows beside the page's day pills; a design review
- * found two time controls on one page.
+ * The page's one time control (KAN-879): the period, which is how many days
+ * the whole page shows, and two arrows that move those days one period
+ * earlier or later, around the days in view ("Nov 9 to Nov 22"). All are
+ * links, so the address holds the window: a reload, Back and a shared link
+ * keep it. The tiles, the chart and the table all read the same window.
+ *
+ * ONE VOCABULARY, DAYS. The arrows had a switch of their own between them,
+ * Move By (Week or Month), beside the periods (7, 14, 30 and 90 Days): two
+ * rows of lengths of time in two sets of words, and the user could not tell
+ * what each did (2026-11-22). The period is now also the step, so 7 Days
+ * moves week by week and 30 Days month by month, and the days in view sit
+ * where that switch was. Before that the chart had its own zoom and arrows
+ * beside the page's day pills, which a design review found was two time
+ * controls on one page.
  */
-export function WindowControls({ window }: { window: Window }) {
-  const unit = window.step === "week" ? "Week" : "Month";
+export function WindowControls({
+  window,
+  today,
+}: {
+  window: Window;
+  /** The newest day, YYYY-MM-DD (UTC): the day the API's answer was read. */
+  today: string;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex items-center gap-1.5">
-        <Arrow to={moved(window, -1)} label={`Back One ${unit}`}>
+        <Arrow to={moved(window, -1)} today={today} off="No Earlier Days">
           <CaretLeftIcon size={16} aria-hidden />
         </Arrow>
-        <SegmentedLinks
-          label="Move By"
-          value={window.step}
-          options={[
-            { value: "week", label: "Week", href: windowHref({ ...window, step: "week" }) },
-            { value: "month", label: "Month", href: windowHref({ ...window, step: "month" }) },
-          ]}
-        />
-        <Arrow to={moved(window, 1)} label={`Forward One ${unit}`}>
+        {/* A fixed room for the longest range, so the arrows hold still as the days change. */}
+        <p className="text-label text-ink min-w-36 text-center tabular-nums" aria-live="polite">
+          {rangeOf(datesOf(window, today))}
+        </p>
+        <Arrow to={moved(window, 1)} today={today} off="No Later Days">
           <CaretRightIcon size={16} aria-hidden />
         </Arrow>
       </div>
@@ -64,8 +97,7 @@ export function WindowControls({ window }: { window: Window }) {
         options={SPANS.map((days) => ({
           value: String(days),
           label: `${days} Days`,
-          // A longer period may not fit as far back: windowOf cuts `back` on arrival.
-          href: windowHref({ ...window, days }),
+          href: windowHref(resized(window, days)),
         }))}
       />
     </div>

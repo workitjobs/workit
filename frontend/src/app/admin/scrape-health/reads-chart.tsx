@@ -1,5 +1,6 @@
 import { Tip } from "@/components/ui/tip";
 import type { ScrapeHealth } from "@/lib/fill-health";
+import { dayLabel as label, rangeOf } from "@/lib/scrape-status";
 
 import { SCRAPE_SECTIONS } from "../pages";
 import { Panel } from "../panel";
@@ -7,12 +8,6 @@ import { Panel } from "../panel";
 const count = (n: number) => n.toLocaleString("en-US");
 /** An axis number, short once it is large: 1.5K, 20K. */
 const short = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const dayName = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-const label = (date: string) => dayName.format(Date.parse(`${date}T00:00:00Z`));
 
 /** The axis top for `max`: the next 1, 2 or 5 times a power of ten, so the half line is a round number. */
 function niceTop(max: number): number {
@@ -62,7 +57,7 @@ export function ReadsChart({
   const failed = totals.reduce((sum, t) => sum + t.failed, 0);
   const top = niceTop(Math.max(...totals.map((t) => t.done + t.failed)));
   const share = (n: number) => `${(n / top) * 100}%`;
-  const range = `${label(dates[0])} to ${label(dates[dates.length - 1])}`;
+  const range = rangeOf(dates);
 
   return (
     <Panel

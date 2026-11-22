@@ -38,7 +38,9 @@ export default async function ScrapeHealthPage({
   if (!all) notFound();
 
   const readAt = Date.parse(all.read_at);
-  const dates = datesOf(window, all.read_at.slice(0, 10));
+  /** The newest day the page can show: the day (UTC) the API's answer was read. */
+  const today = all.read_at.slice(0, 10);
+  const dates = datesOf(window, today);
   /** The answer cut to the page's window, for the tiles, the chart and the table. */
   const rows = all.days.filter((r) => r.day >= dates[0] && r.day <= dates[dates.length - 1]);
   const data = { ...all, days: rows };
@@ -53,7 +55,7 @@ export default async function ScrapeHealthPage({
             minutes.
           </p>
         </div>
-        <WindowControls window={window} />
+        <WindowControls window={window} today={today} />
       </div>
 
       <div className="mt-6 flex flex-col gap-4">

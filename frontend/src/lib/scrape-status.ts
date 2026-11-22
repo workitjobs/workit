@@ -12,48 +12,67 @@ const DAY = 86_400_000;
 export const HISTORY = 90;
 /** The periods the page offers, in days. */
 export const SPANS = [7, 14, 30, 90] as const;
-export const STEPS = { week: 7, month: 30 } as const;
-export type Step = keyof typeof STEPS;
 
 type Param = string | string[] | undefined;
 const first = (value: Param) => (Array.isArray(value) ? value[0] : value);
 const whole = (value: Param) => Number.parseInt(first(value) ?? "", 10);
 
+/**
+ * The days the page shows: a period, and how far back from today it ends.
+ * The period is also the arrows' step, so the page has one time control.
+ * It had a second one, Move By (week or month), for the arrows alone: beside
+ * the periods it read as a second way to pick a length of time, and the user
+ * found the two made no sense together (2026-11-22).
+ */
 export type Window = {
-  /** How many days show. */
+  /** How many days show: the period. */
   days: number;
   /** Days between the window's last day and today. */
   back: number;
-  step: Step;
 };
 
 /**
- * The window a page address asks for. `days` is one of SPANS (else 14),
- * `back` is cut to what HISTORY leaves, and `step` is week or month (else a
- * week for the two short periods and a month for the two long ones).
+ * The window a page address asks for. `days` is one of SPANS (else 14), and
+ * `back` is cut to what HISTORY leaves. Any other key is ignored.
  */
-export function windowOf(params: { days?: Param; back?: Param; step?: Param }): Window {
+export function windowOf(params: { days?: Param; back?: Param }): Window {
   const asked = whole(params.days);
   const days = (SPANS as readonly number[]).includes(asked) ? asked : 14;
   const back = Math.max(0, Math.min(HISTORY - days, whole(params.back) || 0));
-  const named = first(params.step);
-  const step: Step = named === "week" || named === "month" ? named : days <= 14 ? "week" : "month";
-  return { days, back, step };
+  return { days, back };
 }
 
-/** The page's address for a window, leaving out what is the default. */
+/** The page's address for a window, leaving out a zero `back`. */
 export function windowHref(window: Window): string {
   const query = new URLSearchParams({ days: String(window.days) });
   if (window.back) query.set("back", String(window.back));
-  if (window.step !== (window.days <= 14 ? "week" : "month")) query.set("step", window.step);
   return `/admin/scrape-health?${query}`;
 }
 
-/** The window moved by its step: `by` is -1 for older, 1 for newer. Null where it cannot move. */
+/**
+ * The window moved one period: `by` is -1 for the period before (older), 1
+ * for the period after (newer). Null where it cannot move.
+ *
+ * HISTORY is rarely a whole number of periods (90 days hold six periods of
+ * 14 and 6 days more), so the last step back is cut to the days that are
+ * left, and shows them with part of the period before. A step forward first
+ * returns to a whole number of periods, so the way forward shows the same
+ * windows as the way back did.
+ */
 export function moved(window: Window, by: -1 | 1): Window | null {
-  const back = window.back - by * STEPS[window.step];
-  const cut = Math.max(0, Math.min(HISTORY - window.days, back));
-  return cut === window.back ? null : { ...window, back: cut };
+  const { days, back } = window;
+  const cut = back % days;
+  const to = by === -1 ? Math.min(HISTORY - days, back + days) : back - (cut || days);
+  return to === back || to < 0 ? null : { days, back: to };
+}
+
+/**
+ * The window with another period. Its last day stays where it was, so a
+ * longer period shows more days before the ones in view, cut to what
+ * HISTORY holds: the address then says the window as it will open.
+ */
+export function resized(window: Window, days: number): Window {
+  return { days, back: Math.min(window.back, HISTORY - days) };
 }
 
 /** The window's days as ISO dates (UTC), oldest first. `today` is YYYY-MM-DD. */
@@ -62,6 +81,22 @@ export function datesOf(window: Window, today: string): string[] {
   return Array.from({ length: window.days }, (_, i) =>
     new Date(end - (window.days - 1 - i) * DAY).toISOString().slice(0, 10),
   );
+}
+
+const dayName = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+/** A day in words, "Nov 9", from its ISO date (UTC). */
+export function dayLabel(date: string): string {
+  return dayName.format(Date.parse(`${date}T00:00:00Z`));
+}
+
+/** The days a list of dates spans, in words: "Nov 9 to Nov 22". */
+export function rangeOf(dates: string[]): string {
+  return `${dayLabel(dates[0])} to ${dayLabel(dates[dates.length - 1])}`;
 }
 
 /** A board is not being read once the newest read is this old. */
