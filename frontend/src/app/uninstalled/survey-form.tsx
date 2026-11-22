@@ -20,7 +20,7 @@ export function SurveyForm({ version }: { version: string | null }) {
 
   if (state.sent) {
     return (
-      <div className="mt-6 text-center" role="status">
+      <div className="mt-6" role="status">
         <p className="text-body text-ink">Thanks. We read every answer.</p>
         <ButtonLink href="/" size="lg" className="mt-6">
           Back to WorkIt

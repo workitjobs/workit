@@ -3,9 +3,8 @@
 import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useEffect } from "react";
 
-import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
+import { AuthSubmit } from "@/components/auth-submit";
 import { Turnstile } from "@/components/turnstile";
-import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 import { clearLocalDrafts } from "@/lib/local-drafts";
@@ -32,13 +31,12 @@ export function LoginForm({ formId, next }: { formId: string; next?: string }) {
   return (
     <form id={formId} action={formAction} className="mt-5 flex flex-col">
       {next && <input type="hidden" name="next" value={next} />}
-      <div className="flex flex-col gap-2.5">
+      <div className="auth-rows flex flex-col gap-2.5">
         <TextField
           id="email"
           name="email"
           type="email"
           label="Email Address"
-          icon={MailIcon}
           autoComplete="email"
           required
           defaultValue={state.email}
@@ -52,7 +50,6 @@ export function LoginForm({ formId, next }: { formId: string; next?: string }) {
             name="password"
             type="password"
             label="Password"
-            icon={LockIcon}
             autoComplete="current-password"
             required
             aria-invalid={invalid}
@@ -81,10 +78,9 @@ export function LoginForm({ formId, next }: { formId: string; next?: string }) {
         </p>
       )}
 
-      <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
+      <AuthSubmit pending={pending} className="mt-4">
         {pending ? "Signing In…" : "Sign In"}
-        <ArrowRightIcon className="size-4" />
-      </Button>
+      </AuthSubmit>
     </form>
   );
 }

@@ -19,9 +19,8 @@ export const metadata: Metadata = {
 const FORM_ID = "sign-in";
 
 /**
- * The card alone at every width (components/auth-card.tsx), the screen KAN-43
- * signed off. Until KAN-259 a violet pitch filled the left of the window from
- * `lg` up. No mockup ever drew that half, and it pulled the eye off the form.
+ * Sign In, in the auth screens' frame (layout.tsx, components/auth-frame.tsx):
+ * Google and LinkedIn first, then the email form.
  */
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   // Request time, not build time: the session check needs the Supabase keys,
@@ -69,13 +68,16 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </p>
       )}
 
+      <AuthAlternatives
+        next={typeof next === "string" ? next : undefined}
+        label="Or sign in with email"
+      />
+
       {/* It sits above the form rather than inside it, so its value
           reaches the submission through its hidden input's `form`. */}
       <AccountTypeSwitcher form={FORM_ID} />
 
       <LoginForm formId={FORM_ID} next={typeof next === "string" ? next : undefined} />
-
-      <AuthAlternatives next={typeof next === "string" ? next : undefined} />
     </AuthCard>
   );
 }

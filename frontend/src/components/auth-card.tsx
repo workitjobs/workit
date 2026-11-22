@@ -1,26 +1,28 @@
 import type { ReactNode } from "react";
 
-import { Logo } from "@/components/logo";
-import { SkylineBackdrop } from "@/components/skyline";
-
 /**
- * The one card every auth screen draws (/login, /signup, the two reset pages,
- * /signup/check-email and /signup/choose-account-type): the logo, the h1, a
- * subtitle, the page's own body, and an optional line of links under it.
+ * One screen's own content, in the frame round it (auth-frame.tsx for a
+ * sign-in step, grid-frame.tsx for /uninstalled and /coming-soon): the h1, a subtitle, the page's body, and an optional
+ * line of links under it.
  *
- * Until KAN-573 each page copied the `<main>` and card strings, and the copies
- * drifted: /signup was 576px wide and /login 360px, so the card jumped between
- * the two doors, and the title sat 10px or 16px under the logo. A new auth page
- * imports this; it never copies the strings.
+ * No card: the frame's cell is the card (it was a grey card with a border
+ * and a shadow over a violet skyline until 2026-11-22). The h1 is the
+ * marketing pages' `TYPE.card` in Plus Jakarta Sans, left aligned with
+ * the fields. The column is `max-w-auth` (360px) on every screen and
+ * hangs from the top rather than centring: centred, it moved every time
+ * its height changed, and the control just clicked slid out from under
+ * the pointer. Until KAN-573 each page copied these strings and the
+ * copies drifted; a new auth page imports this and never copies them.
  *
- * The card is `max-w-auth` (360px) on every screen, over the skyline
- * (components/skyline.tsx). It hangs from the top (12vh down from `lg` up)
- * rather than centring: centred, it moved every time its height changed, and
- * the control just clicked slid out from under the pointer.
+ * **Every row rises on its own** as the screen arrives, in the auth frame
+ * only (`.auth-enter .auth-col` in auth-frame.css): the heading, its line, then each direct child of the
+ * body and of a form in it, top to bottom. A wrapper whose children are
+ * the rows (a form's stack of fields, the sign-in pair) takes `auth-rows`,
+ * so its children rise and it does not.
  *
- * A form in `children` starts with `mt-5`, the gap under the subtitle. No
- * "use client": a client page (the reset forms) renders it as well as a server
- * one.
+ * A form in `children` starts with `mt-5`, the gap under what is above it.
+ * No "use client": a client page (the reset forms) renders it as well as a
+ * server one.
  */
 export function AuthCard({
   title,
@@ -30,24 +32,23 @@ export function AuthCard({
 }: {
   title: string;
   subtitle: ReactNode;
-  /** The line under the card's body, such as "Back to Sign In". */
+  /** The line under the body, such as "Back to Sign In". */
   footer?: ReactNode;
   children?: ReactNode;
 }) {
   return (
-    <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
-      <SkylineBackdrop />
+    <div className="auth-col max-w-auth mx-auto w-full pt-10 pb-10 lg:pt-[clamp(2.5rem,10vh,6.5rem)]">
+      {/* The marketing pages' `TYPE.card` (layout-parts.tsx), written out:
+          that file brings a client component into a client page that
+          renders this (the reset forms). The 404 copies this line. */}
+      <h1 className="font-display text-ink text-2xl leading-tight font-medium tracking-[-0.015em] text-balance sm:text-[1.75rem]">
+        {title}
+      </h1>
+      <p className="text-ink-meta mt-2 text-base text-pretty">{subtitle}</p>
 
-      <div className="max-w-auth rounded-card border-border-surface bg-surface shadow-card w-full border p-6">
-        <Logo size="card" className="mx-auto" />
+      <div className="auth-body">{children}</div>
 
-        <h1 className="text-title text-ink mt-2.5 text-center">{title}</h1>
-        <p className="text-body text-ink-muted mt-1 text-center">{subtitle}</p>
-
-        {children}
-
-        {footer && <p className="text-body text-ink-muted mt-6 text-center">{footer}</p>}
-      </div>
-    </main>
+      {footer && <p className="auth-links text-body text-ink-muted mt-6">{footer}</p>}
+    </div>
   );
 }

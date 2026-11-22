@@ -3,9 +3,8 @@
 import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState } from "react";
 
+import { AuthSubmit } from "@/components/auth-submit";
 import { AuthCard } from "@/components/auth-card";
-import { ArrowRightIcon, MailIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 
@@ -45,7 +44,6 @@ export function ResetPasswordForm() {
           name="email"
           type="email"
           label="Email Address"
-          icon={MailIcon}
           autoComplete="email"
           required
         />
@@ -60,10 +58,9 @@ export function ResetPasswordForm() {
           </p>
         )}
 
-        <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
+        <AuthSubmit pending={pending} className="mt-4">
           {pending ? "Sending…" : "Send Reset Link"}
-          <ArrowRightIcon className="size-4" />
-        </Button>
+        </AuthSubmit>
       </form>
     </AuthCard>
   );

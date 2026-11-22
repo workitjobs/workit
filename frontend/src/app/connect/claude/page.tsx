@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
+import { AuthCard } from "@/components/auth-card";
 import { CheckIcon, SparkleIcon } from "@/components/icons";
-import { Logo } from "@/components/logo";
-import { SkylineBackdrop } from "@/components/skyline";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import { getAccessToken } from "@/lib/session";
 
@@ -25,8 +24,9 @@ const CLAUDE_HOSTS = new Set(["claude.ai", "claude.com"]);
  * API's /authorize with `?request=<id>`. Signed out, the student signs in
  * first and comes back (/login's `next`). Allow or Deny answers the API,
  * which says where the browser goes: back to Claude, whose host the page
- * shows (the MCP authorization spec). The auth screens' card, outside both
- * shells.
+ * shows (the MCP authorization spec). A sign-in step, so it stands in the
+ * auth screens' frame (layout.tsx, components/auth-frame.tsx), outside both
+ * shells: a student sent here from /login stays in one frame.
  */
 export default async function ConnectClaudePage({
   searchParams,
@@ -59,55 +59,41 @@ export default async function ConnectClaudePage({
     problem = "Could not reach the server.";
   }
 
+  if (!clientName) {
+    return <AuthCard title="Connect Claude" subtitle={<span role="alert">{problem}</span>} />;
+  }
+
   return (
-    <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
-      <SkylineBackdrop />
-
-      <div className="max-w-auth rounded-card border-border-surface bg-surface shadow-card w-full border p-6">
-        <Logo size="card" className="mx-auto" />
-
-        <h1 className="text-title text-ink mt-2.5 text-center">Connect Claude</h1>
-        {clientName ? (
-          <>
-            <p className="text-body text-ink-muted mt-1 text-center">
-              {clientName} wants to use your WorkIt account
-            </p>
-            <p className="text-note text-ink-meta mt-1 text-center">
-              Allow sends you back to <span className="text-ink font-semibold">{redirectHost}</span>
-            </p>
-            {!CLAUDE_HOSTS.has(redirectHost) && (
-              <p role="alert" className="text-note text-warning mt-2 text-center">
-                This is a program on your own computer, not Claude&apos;s website. Allow only if you
-                just connected WorkIt from Claude Code.
-              </p>
-            )}
-            <ul className="text-body text-ink mt-5 flex flex-col gap-2.5">
-              <li className="flex items-start gap-2">
-                <SparkleIcon className="text-brand mt-0.5 size-4 shrink-0" />
-                Read your next application&apos;s questions, its job posting and your experience
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
-                Save answers, which WorkIt fills into your open application tabs
-              </li>
-            </ul>
-            <p className="text-note text-ink-meta mt-4">
-              Back in Claude, when it first asks to use each of WorkIt&apos;s tools, choose{" "}
-              <span className="text-ink font-semibold">Always allow</span>, so it doesn&apos;t stop
-              to ask at every answer.
-            </p>
-            <p className="text-note text-ink-meta mt-2">
-              Claude writes with your own Claude plan. WorkIt never submits an application: you
-              review each one and submit it yourself.
-            </p>
-            <ConsentForm requestId={requestId} />
-          </>
-        ) : (
-          <p role="alert" className="text-body text-ink-muted mt-1 text-center">
-            {problem}
-          </p>
-        )}
-      </div>
-    </main>
+    <AuthCard title="Connect Claude" subtitle={`${clientName} wants to use your WorkIt account`}>
+      <p className="text-note text-ink-meta mt-4">
+        Allow sends you back to <span className="text-ink font-semibold">{redirectHost}</span>
+      </p>
+      {!CLAUDE_HOSTS.has(redirectHost) && (
+        <p role="alert" className="text-note text-warning mt-2">
+          This is a program on your own computer, not Claude&apos;s website. Allow only if you just
+          connected WorkIt from Claude Code.
+        </p>
+      )}
+      <ul className="text-body text-ink mt-5 flex flex-col gap-2.5">
+        <li className="flex items-start gap-2">
+          <SparkleIcon className="text-brand mt-0.5 size-4 shrink-0" />
+          Read your next application&apos;s questions, its job posting and your experience
+        </li>
+        <li className="flex items-start gap-2">
+          <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
+          Save answers, which WorkIt fills into your open application tabs
+        </li>
+      </ul>
+      <p className="text-note text-ink-meta mt-4">
+        Back in Claude, when it first asks to use each of WorkIt&apos;s tools, choose{" "}
+        <span className="text-ink font-semibold">Always allow</span>, so it doesn&apos;t stop to ask
+        at every answer.
+      </p>
+      <p className="text-note text-ink-meta mt-2">
+        Claude writes with your own Claude plan. WorkIt never submits an application: you review
+        each one and submit it yourself.
+      </p>
+      <ConsentForm requestId={requestId} />
+    </AuthCard>
   );
 }

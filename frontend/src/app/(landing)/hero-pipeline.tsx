@@ -134,6 +134,53 @@ export function HeroPipeline({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The same four cells two by two, for the auth screens' scene half
+ * (components/auth-frame.tsx, the user's pick of two directions,
+ * 2026-11-22): the right half of that frame is two of the hero's columns
+ * wide, so each cell keeps the width it has on the home page, and the
+ * frame's own lines rule the half in four. The rows share the frame's
+ * height and each cell's content is centred in its own. The cells are no
+ * links here and the whole block is decoration: beside a form, a picture
+ * that takes a click would take it from the form. It plays the hero's
+ * loop on the hero's clock, and each cell is drawn out from its corner on
+ * load by the same rule (`.pipe li` in landing.css), with the frame's
+ * handles (auth-frame.css).
+ */
+export function PipelineQuad() {
+  return (
+    <HoldOffscreen className="pipe h-full">
+      <ul className="grid h-full grid-cols-2 grid-rows-2">
+        {STAGES.map(({ slug, scene }, i) => {
+          const feature = FEATURES[slug];
+          return (
+            <li
+              key={slug}
+              className="relative flex flex-col justify-center p-4"
+              style={{ "--i": i } as CSSProperties}
+            >
+              <span
+                className="pipe-anim pipe-fill absolute inset-x-0 top-0 h-0.5 origin-left"
+                style={{ background: feature.glow }}
+              />
+              <p className="text-ink flex items-center gap-2 text-sm font-medium">
+                <FeatureIcon feature={feature} />
+                {feature.name}
+              </p>
+              <StudioBox
+                ground={studioGround({ glow: feature.glow })}
+                className="pipe-scene mt-3 aspect-[5/4]"
+              >
+                <div className="pipe-stage">{scene}</div>
+              </StudioBox>
+            </li>
+          );
+        })}
+      </ul>
+    </HoldOffscreen>
+  );
+}
+
 /** A white piece of mock UI on a scene's sky, its corner and place in em. */
 function Card({ className, children }: { className?: string; children?: ReactNode }) {
   return (

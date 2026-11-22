@@ -46,16 +46,30 @@ export function EmailSignUpLink() {
  * Google's rules set a least height, not a most.
  * https://developers.google.com/identity/branding-guidelines
  */
-export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
+export function SocialSignUpButton({
+  provider,
+  verb = "Sign up",
+  next = null,
+  wide,
+}: {
+  provider: OAuthProvider;
+  /** "Continue" on the auth screens, where the same button signs a
+   *  returning student in (components/auth-alternatives.tsx). */
+  verb?: string;
+  /** /login's page to go back to (lib/sign-in-next.ts). */
+  next?: string | null;
+  /** The button fills its column: the auth screens stack the pair. */
+  wide?: boolean;
+}) {
   const google = provider === "google";
   const name = google ? "Google" : "LinkedIn";
   return (
     <OAuthForm
-      action={signInWithOAuth.bind(null, provider, null)}
-      className="w-full max-w-72 sm:w-auto"
+      action={signInWithOAuth.bind(null, provider, next)}
+      className={wide ? "w-full" : "w-full max-w-72 sm:w-auto"}
     >
       <OAuthSubmit
-        label={`Sign up with ${name}`}
+        label={`${verb} with ${name}`}
         pendingLabel={`Opening ${name}…`}
         className={cn(
           BUTTON_SHAPE,

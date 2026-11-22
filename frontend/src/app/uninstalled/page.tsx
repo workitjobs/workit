@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { Logo } from "@/components/logo";
+import { jakartaSans } from "@/app/fonts";
+import { AuthCard } from "@/components/auth-card";
+import { GridFrame } from "@/components/grid-frame";
 
 import { SurveyForm } from "./survey-form";
 
@@ -17,20 +19,20 @@ export const metadata: Metadata = {
  * and an optional line; the answer goes to `POST /uninstall-answers` with
  * no account (./actions). Public and outside both shells, like /login: the
  * student may be signed out, and the page asks no sign-in. `?v=` is the
- * extension version removed, kept with the answer.
+ * extension version removed, kept with the answer. In the grid frame with
+ * no scene (components/grid-frame.tsx, KAN-935): the product's pictures
+ * beside "why did you remove WorkIt?" would be noise.
  */
 export default async function UninstalledPage({ searchParams }: PageProps<"/uninstalled">) {
   const { v } = await searchParams;
   return (
-    <main className="flex flex-1 items-start justify-center px-6 py-10 lg:pt-[12vh]">
-      <div className="max-w-auth rounded-card border-border-surface bg-panel shadow-card w-full border p-6">
-        <Logo size="card" className="mx-auto" />
-        <h1 className="text-title text-ink mt-2.5 text-center">Why Did You Remove WorkIt?</h1>
-        <p className="text-body text-ink-muted mt-1 text-center">
-          One question. We don&apos;t ask who you are.
-        </p>
+    <GridFrame className={jakartaSans.variable}>
+      <AuthCard
+        title="Why Did You Remove WorkIt?"
+        subtitle="One question. We don't ask who you are."
+      >
         <SurveyForm version={typeof v === "string" ? v : null} />
-      </div>
-    </main>
+      </AuthCard>
+    </GridFrame>
   );
 }

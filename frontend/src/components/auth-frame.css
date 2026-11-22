@@ -1,0 +1,224 @@
+/*
+ * The auth screens' frame (auth-frame.tsx, auth-card.tsx): the scene
+ * half's lines, the entrance and the submit button's wait. The frame's
+ * own lines are grid-frame.css's. Loaded after landing.css, whose `load-*`
+ * keyframes, `.pipe` rules and `.primary-btn` it uses.
+ */
+.auth-scene-lines {
+  display: none;
+}
+@media (min-width: 64rem) {
+  .auth-scene-lines {
+    display: block;
+    position: absolute;
+    pointer-events: none;
+  }
+  .auth-scene-lines span,
+  .auth-scene-lines i {
+    position: absolute;
+  }
+  .auth-scene-lines > span {
+    background: rgb(15 23 42 / 0.08);
+  }
+  .auth-scene-lines i {
+    width: 6px;
+    height: 6px;
+    background: var(--color-ink);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The scene half's: a size container, so a handle's travel (half the
+     half's width and height, one cell) can be said in a transform. */
+  .auth-scene-lines {
+    inset: 0;
+    container-type: size;
+  }
+  .auth-scene-lines > .v-left {
+    inset: 0 auto 0 0;
+    width: 1px;
+  }
+  .auth-scene-lines > .h-mid {
+    inset: 50% 0 auto;
+    height: 1px;
+  }
+  .auth-scene-lines > .v-mid {
+    inset: 0 auto 50% 50%;
+    width: 1px;
+  }
+  .auth-scene-lines > .v-mid.low {
+    inset: 50% auto 0 50%;
+  }
+}
+
+/*
+ * The entrance: the home hero's, move for move (the `load-*` rules at the
+ * foot of landing.css, whose keyframes and curves these are), in about
+ * 1.7s:
+ *
+ *   0s     the top row drops down from above the window, as one bar: the
+ *          logo, its foot line and its rails together
+ *   0.1s   the heading rises from behind its own foot, as from a slot,
+ *          and every row under it follows, 60ms apart, top to bottom
+ *   0.3s   the rails draw down the window, from the top row's line
+ *   0.45s  the divider between the form and the scene draws down
+ *   0.6s   the four cells are drawn, 160ms apart: each is dragged out
+ *          from its top left corner (`.pipe li`, landing.css) and an ink
+ *          square rides the corner as its handle, then rests as the
+ *          grid's mark; the square at a cell's near corner pops as its
+ *          frame starts, and the divider at its far side draws down
+ *          behind the handle
+ *   0.7s   the scene's middle rule grows from its centre, ahead of the
+ *          second row of cells
+ *   0.9s   the foot row's line grows
+ *   1.7s   the last frame closes and the pipeline's loop starts
+ *
+ * **Every piece moves itself**: a bar drops, a row rises, a frame is
+ * dragged, a line grows. The first version uncovered the whole form with
+ * one clip from its top and popped the squares on a clock of their own;
+ * the clip's edge crossed the gaps between the rows, so they appeared in
+ * steps with no motion of their own. A wipe over a stack of separate
+ * things shows them one by one, like a list loading; give each thing its
+ * own move and stagger the starts.
+ *
+ * **That was not the stutter the user saw** (2026-11-22): the user's
+ * Chrome was in Energy Saver on a low battery, which holds a page to 30
+ * frames a second. Before judging or chasing a stutter, read the gaps
+ * between `requestAnimationFrame` calls: a steady 33ms is that cap, on
+ * every page, and says nothing about this one.
+ *
+ * No opacity anywhere. Each rule fills backwards only, so no clip is left
+ * on a row (it would cut a field's focus ring). An alert takes no part:
+ * it mounts after a failed submit, and a delay would hold the error back.
+ * The lines and handles run from lg up; below it the bar drops and the
+ * rows rise. With reduced motion nothing here runs. **Only a frame marked
+ * `auth-enter` plays it** (auth-frame.tsx): the grid frame alone, round
+ * the uninstall survey, stands still, and has no landing.css to take the
+ * keyframes from.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .auth-enter .grid-bar {
+    animation: load-drop 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  /* `--b` is a body child's place and `--k` a row's place in its form or
+     wrapper (set below); a form and an `.auth-rows` wrapper pass theirs
+     on to their rows by inheritance and take no animation themselves. */
+  .auth-enter .auth-col > h1,
+  .auth-enter .auth-col > h1 + p,
+  .auth-enter .auth-col > .auth-links,
+  .auth-enter .auth-body > :not(form, .auth-rows, [role="alert"]),
+  .auth-enter .auth-body form > :not(.auth-rows, [role="alert"]),
+  .auth-enter .auth-rows > :not([role="alert"]) {
+    animation: load-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(0.1s + (var(--b, 0) + var(--k, 0) + var(--j, 0) * 0.5) * 0.06s) backwards;
+  }
+  .auth-col > h1 + p {
+    --b: 1;
+  }
+  .auth-col > .auth-links {
+    --b: 9;
+  }
+  .auth-body > :nth-child(1) {
+    --b: 2;
+  }
+  .auth-body > :nth-child(2) {
+    --b: 3;
+  }
+  .auth-body > :nth-child(3) {
+    --b: 4;
+  }
+  .auth-body > :nth-child(4) {
+    --b: 5;
+  }
+  .auth-body > :nth-child(n + 5) {
+    --b: 6;
+  }
+  .auth-body form > :nth-child(2) {
+    --k: 1;
+  }
+  .auth-body form > :nth-child(3) {
+    --k: 2;
+  }
+  .auth-body form > :nth-child(n + 4) {
+    --k: 3;
+  }
+  .auth-rows > :nth-child(2) {
+    --j: 1;
+  }
+  .auth-rows > :nth-child(3) {
+    --j: 2;
+  }
+  .auth-rows > :nth-child(n + 4) {
+    --j: 3;
+  }
+}
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .auth-enter .grid-rails > span {
+    transform-origin: top;
+    animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
+  }
+  .auth-scene-lines > .v-left {
+    transform-origin: top;
+    animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.45s backwards;
+  }
+  .auth-scene-lines > .h-mid {
+    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.7s backwards;
+  }
+  .auth-scene-lines > .v-mid {
+    transform-origin: top;
+    animation: load-draw-y 0.4s ease-out calc(0.8s + var(--k) * 0.16s) backwards;
+  }
+  .auth-scene-lines > i {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) calc(0.6s + var(--k) * 0.16s) backwards;
+  }
+  /* Hidden until its cell starts (`auth-wait`, as long as its delay): a
+     handle waits at its cell's near corner, and there it showed as a
+     stray square on the empty half before any cell was drawn. */
+  .auth-scene-lines > .handle {
+    --d: calc(0.6s + var(--k) * 0.16s);
+    animation:
+      auth-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) var(--d) backwards,
+      auth-wait var(--d) linear;
+  }
+  .auth-enter .grid-foot {
+    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
+  }
+  .auth-enter .grid-rails > i {
+    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.9s backwards;
+  }
+}
+/* A cell's handle: from the cell's top left corner (a cell's width to the
+   left of its resting place and a cell's height above it) to rest. */
+@keyframes auth-handle {
+  from {
+    transform: translate(calc(-50% - 50cqw), calc(-50% - 50cqh));
+  }
+}
+@keyframes auth-wait {
+  from,
+  to {
+    visibility: hidden;
+  }
+}
+
+/*
+ * The submit button while its form's action runs (auth-submit.tsx): the
+ * tile's two arrows keep passing through it, left to right, half a turn
+ * apart. Transform only.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .primary-btn[data-pending] .primary-btn-arrow > svg {
+    transition: none;
+    animation: auth-arrow 0.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  .primary-btn[data-pending] .primary-btn-arrow > svg:last-child {
+    animation-delay: -0.45s;
+  }
+}
+@keyframes auth-arrow {
+  from {
+    transform: translateX(-200%);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}

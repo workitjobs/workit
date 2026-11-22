@@ -7,12 +7,11 @@ different form for applicant, company, and company_membership sign up
 import { BuildingOfficeIcon, UserPlusIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useState } from "react";
 
+import { AuthSubmit } from "@/components/auth-submit";
 import { AccountTypeSwitcher, type AccountTypeValue } from "@/components/account-type-switcher";
 import { CompanyFields } from "@/components/company-fields";
 import { SoonBadge } from "@/components/auth-alternatives";
-import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
-import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
@@ -147,7 +146,7 @@ export function SignupForm({ formId }: { formId: string }) {
           }}
           className="mt-5 flex flex-col"
         >
-          <div className="flex flex-col gap-2.5">
+          <div className="auth-rows flex flex-col gap-2.5">
             {isCompany && (
               <>
                 <CompanyFields
@@ -208,7 +207,6 @@ export function SignupForm({ formId }: { formId: string }) {
               /* On the company path this is the owner's own sign-in, which is
                * not necessarily the company's public contact address above. */
               label={isCompany ? "Sign-In Email" : "Email Address"}
-              icon={MailIcon}
               autoComplete="email"
               maxLength={100}
               required
@@ -223,7 +221,6 @@ export function SignupForm({ formId }: { formId: string }) {
                 name="password"
                 type="password"
                 label="Password"
-                icon={LockIcon}
                 autoComplete="new-password"
                 required
                 minLength={PASSWORD_MIN_LENGTH}
@@ -252,7 +249,7 @@ export function SignupForm({ formId }: { formId: string }) {
             </p>
           )}
 
-          <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
+          <AuthSubmit pending={pending} className="mt-4">
             {pending
               ? isCompany
                 ? "Creating Company…"
@@ -260,8 +257,7 @@ export function SignupForm({ formId }: { formId: string }) {
               : isCompany
                 ? "Create Company"
                 : "Create Account"}
-            <ArrowRightIcon className="size-4" />
-          </Button>
+          </AuthSubmit>
         </form>
       )}
     </>

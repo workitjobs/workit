@@ -853,17 +853,100 @@ page's docblock says what goes where.
 
 The auth screens (/login, /signup, the two reset pages under /login,
 /signup/check-email and /signup/choose-account-type) sit outside both shells.
-Each is one card, `components/auth-card.tsx` (KAN-573): the logo, the h1, a
-subtitle, the page's body and a line of links under it, 360px wide
+Each is an `AuthCard` (`components/auth-card.tsx`, KAN-573): the h1, a
+subtitle, the page's body and a line of links under it, in a 360px column
 (`max-w-auth`) on every screen, and each page exports its own `metadata`. A
 new auth page imports it and never copies its strings: six copies drifted
-until KAN-573, /signup 576px wide and /login 360px. The card sits alone over
-a skyline (`components/skyline.tsx`):
-a white sky thinning to lavender, a low sun on the left, and four rows of flat
-violet towers along the window's floor, each row paler and hazier than the one
-before it, the near ones shaded on their right faces. It is fixed, so the card
-scrolls over it. The card hangs from
-the top (12vh down from lg) so it holds still when the Company fields open. A
+until KAN-573, /signup 576px wide and /login 360px. The frame round it is
+`AuthFrame` (`components/auth-frame.tsx`), drawn by the two layouts,
+`app/login/layout.tsx` and `app/signup/layout.tsx`: a new auth screen goes
+under one of those folders, or its folder gets the same one-line layout.
+
+**Every page outside both shells and the marketing site takes this look**
+(KAN-935), in one of three shapes:
+
+| Page | Shape | Why |
+| --- | --- | --- |
+| A sign-in step: the six auth screens and the Claude connector's consent page (`/connect/claude`, its own layout) | `AuthFrame`: the grid, the scene and the entrance | A student sent from /login to the consent page stays in one frame |
+| `/uninstalled`, `/coming-soon` | `GridFrame` alone (`components/grid-frame.tsx`): the same rows and rails with no scene and no entrance, the page in the middle two columns between two dividers | The product's pictures beside "why did you remove WorkIt?" would be noise. It loads no marketing stylesheet, so its button is the app's `Button` |
+| The 404 (`app/not-found.tsx`) | One cell: a white box edged by a hairline, an ink square at each corner | Next draws it inside the layout the 404 happened under, so a page frame put a second logo row inside the marketing page. Its imports load with every route, so it is plain utilities |
+
+`AuthFrame` is `GridFrame` with a scene and `auth-enter`. Still on the old
+card and skyline: `/app-sign-in`, which KAN-934 rewrites and moves itself;
+`components/skyline.tsx`, its `body:has([data-skyline])` rule and its
+design kit sample go in that change.
+
+**The frame is the marketing pages' drafting grid, with a scene**
+(2026-11-22, the user's ask after the marketing site was redrawn: "I don't
+like the city background anymore and the components we have"). The auth
+screens are the door between the marketing pages and the app, and they take
+the marketing side's look (`docs/marketing-design-system.md`), not this
+file's:
+
+- **A white page and the grid, no card.** The two rails stand where the
+  home page's do, a hairline runs under the top row and over the foot row,
+  and an ink square marks each crossing (`auth-frame.css`). From lg up the
+  frame is two halves: the form in the left one (the grid's cell is its
+  card), and in the right one the home hero's four cells two by two
+  (`PipelineQuad` in `(landing)/hero-pipeline.tsx`), each at its width on
+  the home page, playing the hero's loop. Below lg there are no lines and
+  no scene. It replaced a grey card with a border and a shadow over a
+  violet skyline (`components/skyline.tsx`, which KAN-934 deletes once
+  `/app-sign-in` has moved too).
+- **Two directions were built in the page and the user picked the scene**
+  over the form alone in the frame. The scene is decoration (`aria-hidden`,
+  no links): the form says all the page needs. The scene reuses the hero's
+  cells because product pictures wait for real recordings; nothing new was
+  drawn for it.
+- **The top row** is the marketing header's box: the logo alone, a link to
+  the home page. The foot row has the year, Privacy and Terms. A screen's
+  line of links ("Don't have an account? Create Account") is under its
+  form, in the form's half.
+- **Type**: the h1 is Plus Jakarta Sans 500 at `TYPE.card` (28px), left
+  aligned with the fields, its line in meta grey.
+- **Buttons are the marketing pages'.** The submit is `AuthSubmit`
+  (`components/auth-submit.tsx`): `.primary-btn` with the arrow on its
+  square tile, and while the form's action runs the tile's arrows keep
+  passing through it. A second action beside it is the marketing
+  secondary, a soft grey fill with no border (the consent page's Deny).
+  Google and LinkedIn are the marketing sign-up pair
+  (`SocialSignUpButton`, "Continue with ..."), stacked, **above** the email
+  form, over a hairline with "Or sign in with email"
+  (`components/auth-alternatives.tsx`). They were two white bordered
+  buttons under the form.
+- **Fields stay the app's `TextField`**, with no leading icon: the mail and
+  lock glyphs read as a template.
+- **The entrance is the home hero's, move for move** (the timeline is in
+  `auth-frame.css`; the user's pick over the first, shorter version,
+  2026-11-22), about 1.7s: the top row drops down as one bar, every
+  row of the form rises from behind its own foot, 60ms apart, the rails
+  draw, and each of the four cells is dragged out from its corner with an
+  ink square as its handle. No fades; nothing with reduced motion. A
+  wrapper whose children are the rows takes `auth-rows`. **Every piece
+  moves itself**: the first version uncovered the whole form with one clip
+  from its top and popped the squares on a clock of their own, so the rows
+  appeared in steps as the clip's edge passed them. A wipe over a stack of
+  separate things shows them one by one, like a list loading. **The
+  stutter the user saw that day was Chrome's Energy Saver**, on a low
+  battery, which holds every page to 30 frames a second, and was first
+  read as this page's fault. Before judging motion, check the gaps between
+  `requestAnimationFrame` calls: a steady 33ms is that cap.
+- **The frame is a layout**, so the entrance plays once on the way in:
+  from Sign In to Forgot Password the frame and the scene stay and only
+  the new rows rise. /login and /signup have a layout each, so going
+  between those two plays it again.
+- **It loads the marketing stylesheet** (`landing.css`, for the button, the
+  pair's face, the pipeline and the entrance's keyframes). **Still open:**
+  move those shared rules to a file of their own, so an auth screen does
+  not load the whole marketing sheet.
+- **Still open:** Title Case ("Welcome Back", the app's rule) or sentence
+  case (the marketing pages'). /signup is taller than a 1024 × 768 window
+  and scrolls there (about 80px), the frame's lines growing with it. With
+  Turnstile on (production), its box loads into the form after the rows
+  have risen and moves the button down, as it did in the card; not seen
+  locally, where the site key is unset.
+
+The body hangs from the top so it holds still when the Company fields open. A
 violet pitch filled the left of the window from lg until KAN-259: no mockup
 drew it, and it pulled the eye off the form.
 

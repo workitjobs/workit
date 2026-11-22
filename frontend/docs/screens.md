@@ -5083,8 +5083,10 @@ of imports.
 ## Connect Claude (`/connect/claude`, KAN-377)
 
 The connector's consent page: Claude's sign-in to WorkIt opens it with
-`?request=<id>` (`docs/auth.md`, "Claude's sign-in to WorkIt"). The auth
-screens' card over the skyline, outside both shells. It names the client
+`?request=<id>` (`docs/auth.md`, "Claude's sign-in to WorkIt"). In the auth
+screens' frame (`docs/design.md`, the auth screens; KAN-935), outside both
+shells, with Allow as the frame's main button and Deny as its soft grey
+secondary. It names the client
 ("Claude wants to use your WorkIt account"), says in two lines what it may
 do (read the next application's questions, posting and experience; save
 answers that fill into open tabs), that it writes on the student's own

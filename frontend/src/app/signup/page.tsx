@@ -27,11 +27,10 @@ const FORM_ID = "create-account";
  * Create Company sends the company's fields along with the owner's, and the
  * API creates the company and its owner's membership. Join has no form yet.
  *
- * The card is AuthCard, /login's 360px card (KAN-573; it was 576px here, so
- * the card jumped in width between the two doors). It hangs from the top, so
- * it does not re-centre when the Company fields open below it. The skyline
- * behind it is fixed, so the card scrolls over it once those fields make the
- * page taller than the window.
+ * The frame is AuthCard, /login's 360px column (KAN-573; it was 576px here,
+ * so the card jumped in width between the two doors). It hangs from the top,
+ * so it does not re-centre when the Company fields open below it; the frame's
+ * lines grow with the page once those fields make it taller than the window.
  */
 export default async function SignUpPage() {
   // Request time, not build time: the session check needs the Supabase keys,
@@ -49,9 +48,9 @@ export default async function SignUpPage() {
         </>
       }
     >
-      <SignupForm formId={FORM_ID} />
+      <AuthAlternatives label="Or sign up with email" />
 
-      <AuthAlternatives />
+      <SignupForm formId={FORM_ID} />
     </AuthCard>
   );
 }

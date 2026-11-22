@@ -160,6 +160,10 @@ guidelines' only theme with no border: the light theme (white with a
 heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 (KAN-922) sits in the same row as a `SecondaryButton`.
 
+The auth screens draw the same pair as "Continue with Google / LinkedIn"
+(`verb`, `wide`), stacked above the email form (2026-11-22,
+`docs/design.md`, the auth screens).
+
 ### The home hero's pipeline (`hero-pipeline.tsx`)
 
 The first screen: the headline, its line and the sign-up pair centred on

@@ -1,4 +1,4 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Google_Sans, Plus_Jakarta_Sans } from "next/font/google";
 
 /**
  * Plus Jakarta Sans, the marketing pages' headline face (2026-11-10). The
@@ -16,5 +16,17 @@ import { Plus_Jakarta_Sans } from "next/font/google";
  */
 export const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta-sans",
+  subsets: ["latin"],
+});
+
+/**
+ * Google Sans Medium, only for the Google and LinkedIn sign-in buttons:
+ * Google's branding guidelines require it on the Google button. The
+ * marketing layout and the auth screens' frame (components/auth-card.tsx)
+ * set its variable, and `.font-google` (landing.css) reads it.
+ */
+export const googleSans = Google_Sans({
+  variable: "--font-google-sans",
+  weight: "500",
   subsets: ["latin"],
 });

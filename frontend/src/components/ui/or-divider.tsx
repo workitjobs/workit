@@ -1,11 +1,11 @@
 import { cn } from "@/lib/cn";
 
 /**
- * A rule with a word in its middle, between two ways to do one thing: "Or
- * continue with" over the login and signup cards' Google and LinkedIn row
- * (components/auth-alternatives.tsx), and "Or" between Generate Resume's
- * two ways to start and its list of resumes to copy
- * (resumes/new-resume-dialog.tsx). One component, so the two cannot drift.
+ * A rule with a word in its middle, between two ways to do one thing: "Or"
+ * between Generate Resume's two ways to start and its list of resumes to
+ * copy (resumes/new-resume-dialog.tsx). The auth screens had it too, until
+ * they took the marketing pages' look and a hairline of their own
+ * (components/auth-alternatives.tsx).
  */
 export function OrDivider({ label = "Or", className }: { label?: string; className?: string }) {
   return (

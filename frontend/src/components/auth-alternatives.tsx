@@ -1,8 +1,5 @@
-import { GoogleIcon, LinkedInIcon } from "@/components/icons";
+import { SocialSignUpButton } from "@/app/(landing)/social-sign-up";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { signInWithOAuth } from "@/lib/oauth-actions";
-import { OrDivider } from "@/components/ui/or-divider";
 
 /**
  * "Soon", on a control that is shown but not built yet: Join a Company on the
@@ -21,9 +18,16 @@ export function SoonBadge() {
 }
 
 /**
- * The "Or continue with" divider and the Google and LinkedIn row under the
- * login and signup forms. One component so the two cards cannot drift apart:
- * they used to space it 20/22px and 16/16px.
+ * The Google and LinkedIn pair above the login and signup forms, and the
+ * line that leads on to the email form under it. One component so the two
+ * screens cannot drift apart.
+ *
+ * The pair is the marketing pages' own (`SocialSignUpButton`: Google's
+ * neutral theme, soft grey with no stroke, the marketing design system's
+ * sign-up pair), stacked at the column's width, and it comes first, as on
+ * the marketing pages: most students sign in with one of the two. Until
+ * the auth screens took the marketing look it was two white bordered
+ * buttons under the form, below an "OR CONTINUE WITH" rule in capitals.
  *
  * Each button is its own form posting to `signInWithOAuth` (#58,
  * src/lib/oauth-actions.ts), which sends the browser to the provider and back
@@ -31,27 +35,21 @@ export function SoonBadge() {
  * and starts on onboarding; see that route. `next` is /login's: a returning
  * sign-in goes back there too (lib/sign-in-next.ts).
  *
- * The divider's 20px and the row's 20px below it match the gap between the
- * account-type switcher and the form above.
+ * The pair is `auth-rows`: each button rises on its own as the screen
+ * arrives (components/auth-card.tsx).
  */
-export function AuthAlternatives({ next }: { next?: string }) {
+export function AuthAlternatives({ next, label }: { next?: string; label: string }) {
   return (
     <>
-      <OrDivider label="Or continue with" className="mt-5" />
+      <div className="auth-rows mt-7 grid gap-2">
+        <SocialSignUpButton provider="google" verb="Continue" next={next ?? null} wide />
+        <SocialSignUpButton provider="linkedin_oidc" verb="Continue" next={next ?? null} wide />
+      </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <form action={signInWithOAuth.bind(null, "google", next ?? null)}>
-          <Button type="submit" variant="secondary" className="w-full">
-            <GoogleIcon className="size-4" />
-            Google
-          </Button>
-        </form>
-        <form action={signInWithOAuth.bind(null, "linkedin_oidc", next ?? null)}>
-          <Button type="submit" variant="secondary" className="w-full">
-            <LinkedInIcon className="size-4" />
-            LinkedIn
-          </Button>
-        </form>
+      <div className="mt-5 flex items-center gap-3">
+        <span aria-hidden className="h-px flex-1 bg-slate-900/[0.08]" />
+        <span className="text-ink-meta text-sm">{label}</span>
+        <span aria-hidden className="h-px flex-1 bg-slate-900/[0.08]" />
       </div>
     </>
   );

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { Logo } from "@/components/logo";
+import { jakartaSans } from "@/app/fonts";
+import { AuthCard } from "@/components/auth-card";
+import { GridFrame } from "@/components/grid-frame";
 import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -13,20 +15,19 @@ export const metadata: Metadata = {
  * (KAN-239). src/proxy.ts sends /company and /onboarding/company here, so the
  * root page's hiring card still shows and a click on it ends on this screen.
  * Delete this page together with that redirect when the business side ships.
+ * In the grid frame with no scene (components/grid-frame.tsx, KAN-935).
  */
 export default function ComingSoonPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md text-center">
-        <Logo size="card" className="mx-auto" />
-        <h1 className="text-title text-ink mt-4">Waiting for Deployment</h1>
-        <p className="text-body text-ink-muted mt-1">
-          Business accounts are not available yet. Check back soon.
-        </p>
-        <ButtonLink href="/" size="lg" className="mt-6">
+    <GridFrame className={jakartaSans.variable}>
+      <AuthCard
+        title="Waiting for Deployment"
+        subtitle="Business accounts are not available yet. Check back soon."
+      >
+        <ButtonLink href="/" size="lg" className="mt-6 w-full">
           Back to Home
         </ButtonLink>
-      </div>
-    </main>
+      </AuthCard>
+    </GridFrame>
   );
 }

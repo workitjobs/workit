@@ -2,10 +2,9 @@
 
 import { useActionState, useState } from "react";
 
+import { AuthSubmit } from "@/components/auth-submit";
 import { AccountTypeSwitcher, type AccountTypeValue } from "@/components/account-type-switcher";
 import { CompanyFields } from "@/components/company-fields";
-import { ArrowRightIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 
 import { chooseAccountType, type ChooseAccountTypeState } from "./actions";
 
@@ -72,10 +71,9 @@ export function ChooseAccountTypeForm() {
 
         {state.error && <p className="text-note text-danger mt-2.5">{state.error}</p>}
 
-        <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
+        <AuthSubmit pending={pending} className="mt-4">
           {pending ? "Continuing…" : "Continue"}
-          <ArrowRightIcon className="size-4" />
-        </Button>
+        </AuthSubmit>
       </form>
     </>
   );

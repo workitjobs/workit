@@ -3,9 +3,8 @@
 import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useState } from "react";
 
+import { AuthSubmit } from "@/components/auth-submit";
 import { AuthCard } from "@/components/auth-card";
-import { ArrowRightIcon, LockIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
@@ -45,14 +44,13 @@ export function NewPasswordForm() {
         }}
         className="mt-5 flex flex-col"
       >
-        <div className="flex flex-col gap-2.5">
+        <div className="auth-rows flex flex-col gap-2.5">
           <div className="flex flex-col gap-1">
             <TextField
               id="password"
               name="password"
               type="password"
               label="New Password"
-              icon={LockIcon}
               autoComplete="new-password"
               required
               minLength={PASSWORD_MIN_LENGTH}
@@ -71,7 +69,6 @@ export function NewPasswordForm() {
               name="confirmPassword"
               type="password"
               label="Confirm New Password"
-              icon={LockIcon}
               autoComplete="new-password"
               required
               value={confirm}
@@ -97,10 +94,9 @@ export function NewPasswordForm() {
           </p>
         )}
 
-        <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
+        <AuthSubmit pending={pending} className="mt-4">
           {pending ? "Updating…" : "Update Password"}
-          <ArrowRightIcon className="size-4" />
-        </Button>
+        </AuthSubmit>
       </form>
     </AuthCard>
   );

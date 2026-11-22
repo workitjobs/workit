@@ -1,0 +1,92 @@
+/*
+ * The grid frame's lines (grid-frame.tsx): the marketing pages' drafting
+ * grid round one page, from lg up. Still: the auth screens' entrance is
+ * auth-frame.css's.
+ *
+ * `--top` is the top row's height and `--foot` the foot row's (the header
+ * and footer in grid-frame.tsx): change them together. The rails stand
+ * where the home page's do, 0.5rem inside a 72rem bar, so the grid holds
+ * its place from that page to this one.
+ */
+.grid-bar-line,
+.grid-bar-marks,
+.grid-lines {
+  display: none;
+}
+@media (min-width: 64rem) {
+  .grid-bar-line,
+  .grid-bar-marks,
+  .grid-lines {
+    display: block;
+    position: absolute;
+    pointer-events: none;
+  }
+  .grid-bar-marks span,
+  .grid-lines span,
+  .grid-bar-marks i,
+  .grid-lines i {
+    position: absolute;
+  }
+  .grid-bar-line,
+  .grid-bar-marks > span,
+  .grid-foot,
+  .grid-rails > span {
+    background: rgb(15 23 42 / 0.08);
+  }
+  .grid-bar-marks i,
+  .grid-lines i {
+    width: 6px;
+    height: 6px;
+    background: var(--color-ink);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The top row's own: its foot line across the window, the rails through
+     the bar and a square where each meets the line. */
+  .grid-bar-line {
+    inset: 100% 0 auto;
+    height: 1px;
+  }
+  .grid-bar-marks {
+    inset: 0 0.5rem;
+  }
+  .grid-bar-marks > span {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+  }
+  .grid-bar-marks > i {
+    top: 100%;
+  }
+
+  /* The window's: the rails from the top row's line to the window's foot,
+     the foot row's line and its squares. A page with no scene also has a
+     divider (`.cut`) at each side of its middle cell, from the top row's
+     line to the foot row's, with a square (`.top`) at its head. */
+  .grid-lines {
+    --top: 4.75rem;
+    --foot: 3.5rem;
+    inset: 0;
+  }
+  .grid-foot {
+    inset: auto 0 var(--foot);
+    height: 1px;
+  }
+  .grid-rails {
+    inset: var(--top) max(0.5rem, calc((100% - 72rem) / 2 + 0.5rem)) 0;
+  }
+  .grid-rails > span {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+  }
+  .grid-rails > .cut {
+    bottom: var(--foot);
+  }
+  .grid-rails > i {
+    top: calc(100% - var(--foot));
+  }
+  .grid-rails > i.top {
+    top: 0;
+  }
+}
