@@ -941,12 +941,16 @@ file's:
   not load the whole marketing sheet.
 - **Still open:** Title Case ("Welcome Back", the app's rule) or sentence
   case (the marketing pages'). /signup is taller than a 1024 × 768 window
-  and scrolls there (about 80px), the frame's lines growing with it. With
+  and scrolls there (about 60px), the frame's lines growing with it. With
   Turnstile on (production), its box loads into the form after the rows
   have risen and moves the button down, as it did in the card; not seen
   locally, where the site key is unset.
 
-The body hangs from the top so it holds still when the Company fields open. A
+From lg up the column is centred in the frame's height (the user's call,
+2026-11-22: hung from the top it read as stuck there), and starts at the top
+once it is taller than the frame. So a line that appears (a failed sign-in's
+error) moves the rows by half its height, and /signup's Company fields,
+hidden today, will move the column up when they open. A
 violet pitch filled the left of the window from lg until KAN-259: no mockup
 drew it, and it pulled the eye off the form.
 

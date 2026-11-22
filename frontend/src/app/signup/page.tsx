@@ -28,9 +28,10 @@ const FORM_ID = "create-account";
  * API creates the company and its owner's membership. Join has no form yet.
  *
  * The frame is AuthCard, /login's 360px column (KAN-573; it was 576px here,
- * so the card jumped in width between the two doors). It hangs from the top,
- * so it does not re-centre when the Company fields open below it; the frame's
- * lines grow with the page once those fields make it taller than the window.
+ * so the card jumped in width between the two doors). It is centred in the
+ * frame's height like every auth screen, so it will move up when the Company
+ * fields open (hidden today, KAN-239) until it is taller than the frame; the
+ * frame's lines grow with the page from there.
  */
 export default async function SignUpPage() {
   // Request time, not build time: the session check needs the Supabase keys,

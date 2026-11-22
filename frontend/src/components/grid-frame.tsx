@@ -68,7 +68,18 @@ export function GridFrame({
       </header>
 
       <div className="relative mx-auto w-full max-w-6xl flex-1 px-6 lg:grid lg:grid-cols-4 lg:px-2">
-        <main className={cn("lg:col-span-2", !scene && "lg:col-start-2")}>{children}</main>
+        {/* The page is centred in its cell's height (the user's call,
+            2026-11-22: hung from the top, it read as stuck there). `safe`:
+            a column taller than the cell starts at its top instead of
+            spilling above it. */}
+        <main
+          className={cn(
+            "lg:col-span-2 lg:flex lg:flex-col lg:justify-center-safe",
+            !scene && "lg:col-start-2",
+          )}
+        >
+          {children}
+        </main>
 
         {/* `.landing` gives a scene the marketing tokens it is drawn with
             (the frame that passes one loads landing.css). */}

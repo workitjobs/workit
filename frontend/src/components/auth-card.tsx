@@ -8,10 +8,12 @@ import type { ReactNode } from "react";
  * No card: the frame's cell is the card (it was a grey card with a border
  * and a shadow over a violet skyline until 2026-11-22). The h1 is the
  * marketing pages' `TYPE.card` in Plus Jakarta Sans, left aligned with
- * the fields. The column is `max-w-auth` (360px) on every screen and
- * hangs from the top rather than centring: centred, it moved every time
- * its height changed, and the control just clicked slid out from under
- * the pointer. Until KAN-573 each page copied these strings and the
+ * the fields. The column is `max-w-auth` (360px) on every screen. From lg
+ * up its frame centres it in the cell's height (grid-frame.tsx; the
+ * user's call, 2026-11-22, for looks). It hung from the top before, so
+ * that it held still when its height changed; now a line that appears
+ * (a failed sign-in's error) moves the rows by half its height, which
+ * the user accepted. Until KAN-573 each page copied these strings and the
  * copies drifted; a new auth page imports this and never copies them.
  *
  * **Every row rises on its own** as the screen arrives, in the auth frame
@@ -37,7 +39,7 @@ export function AuthCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="auth-col max-w-auth mx-auto w-full pt-10 pb-10 lg:pt-[clamp(2.5rem,10vh,6.5rem)]">
+    <div className="auth-col max-w-auth mx-auto w-full py-10">
       {/* The marketing pages' `TYPE.card` (layout-parts.tsx), written out:
           that file brings a client component into a client page that
           renders this (the reset forms). The 404 copies this line. */}
