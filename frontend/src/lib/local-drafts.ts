@@ -33,6 +33,10 @@ export const QUEUE_GROUP_KEY = `${PREFIX}auto-apply-group`;
 /** How Documents' resume table groups its rows ((seeker)/resumes/resume-filters.tsx). */
 export const RESUMES_GROUP_KEY = `${PREFIX}resumes-group`;
 
+/** Whether the student closed Up Next's offer of the Mac app
+ *  ((seeker)/auto-apply/desktop-offer.tsx, KAN-922). */
+export const DESKTOP_OFFER_KEY = `${PREFIX}desktop-offer`;
+
 /** The resume editor's zoom, a percent of the page's printed size. */
 export const EDITOR_ZOOM_KEY = `${PREFIX}editor-zoom`;
 

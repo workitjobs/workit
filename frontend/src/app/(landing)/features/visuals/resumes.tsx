@@ -7,6 +7,8 @@ import {
   FileArrowDownIcon,
   GraduationCapIcon,
   PlusIcon,
+  ScissorsIcon,
+  WarningIcon,
   WrenchIcon,
 } from "@phosphor-icons/react/ssr";
 
@@ -15,7 +17,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "../../favicon-logo";
 import { candidate, followedJob, matchingFeature } from "../../feature-data";
-import { Label, Vignette } from "./parts";
+import { GroundNote, Label, Vignette } from "./parts";
 
 /** The Resume Builder page's deep dives, with the tour's student and the
  *  Stripe posting every stop follows (feature-data.ts). */
@@ -46,7 +48,7 @@ const BANK: { section: string; icon: PhosphorIcon; title: string; detail: string
 export function BankVisual() {
   return (
     <Vignette className="px-6">
-      <div className="gloss-card rounded-2xl p-4">
+      <div className="surface-card rounded-2xl p-4">
         <div className="flex items-center justify-between">
           <p className="text-ink text-[13px] font-semibold">Experience Bank</p>
           <span className="bg-positive-tint text-positive-ink inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold">
@@ -96,20 +98,29 @@ function Line({ width }: { width: string }) {
   return <span className="block h-[5px] rounded-full bg-slate-300/70" style={{ width }} />;
 }
 
-function PageSection({ name, entries }: { name: string; entries: [string, string][] }) {
+function PageSection({
+  name,
+  entries,
+  typed,
+}: {
+  name: string;
+  entries: [string, string][];
+  /** The first entry's first bullet, being typed on the page. */
+  typed?: string;
+}) {
   return (
     <div className="mt-2.5">
       <p className="text-ink border-b border-slate-400 pb-0.5 text-[9px] font-bold tracking-wide uppercase">
         {name}
       </p>
-      {entries.map(([title, place]) => (
+      {entries.map(([title, place], i) => (
         <div key={title} className="mt-1.5">
-          <p className="text-ink flex justify-between text-[9px] font-bold">
+          <p className="text-ink flex justify-between gap-2 text-[9px] font-bold">
             {title}
             <span className="font-normal italic">{place}</span>
           </p>
           <div className="mt-1 grid gap-1 pl-2">
-            <Line width="92%" />
+            {i === 0 && typed ? <TypedLine text={typed} /> : <Line width="92%" />}
             <Line width="78%" />
           </div>
         </div>
@@ -118,20 +129,41 @@ function PageSection({ name, entries }: { name: string; entries: [string, string
   );
 }
 
-/** A resume generated from the bank, in Jake's Resume, and the Download
- *  menu's three formats. */
+/** A bullet open in the editor: the field over the line, in the page's own
+ *  face, with the editor's 1.5px ring and a caret (frontend/docs/screens.md,
+ *  Resume editor, "Click a line and type"). */
+function TypedLine({ text }: { text: string }) {
+  return (
+    <span className="ring-advanced text-ink relative -mx-1 block rounded-[3px] bg-white px-1 py-0.5 text-[8px] leading-tight ring-[1.5px]">
+      • {text}
+      <span
+        aria-hidden="true"
+        className="caret-blink bg-ink ml-px inline-block h-[9px] w-px align-[-1px]"
+      />
+    </span>
+  );
+}
+
+/** A resume generated from the bank, in Jake's Resume, edited on the page
+ *  (a bullet being typed), and the Download menu's three formats. */
 export function BuildVisual() {
   return (
     <Vignette className="items-center">
       <div
-        className="w-[230px] bg-white px-5 py-4 shadow-[0_24px_48px_-24px_rgb(40_20_90/0.45)] ring-1 ring-slate-900/8"
+        className="w-[230px] bg-white px-5 py-4 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.3)] ring-1 ring-slate-900/8"
         style={{ fontFamily: JAKES_FACE }}
       >
         <p className="text-ink text-center text-[15px] font-bold">{candidate.name}</p>
         <p className="text-ink-meta text-center text-[8px]">
           alex@example.com · linkedin.com/in/alexmorgan
         </p>
-        <PageSection name="Education" entries={[["Northview University", "May 2027"]]} />
+        {/* The typed line sits in Education, above the Download menu: in
+            Experience the menu covered it. */}
+        <PageSection
+          name="Education"
+          typed="Coursework: Data Structures, Algorithms"
+          entries={[["Northview University", "May 2027"]]}
+        />
         <PageSection
           name="Experience"
           entries={[
@@ -140,7 +172,7 @@ export function BuildVisual() {
           ]}
         />
       </div>
-      <div className="gloss-card absolute right-6 bottom-8 w-28 rounded-xl p-1.5">
+      <div className="surface-card absolute right-6 bottom-8 w-28 rounded-xl p-1.5">
         <p className="text-ink flex items-center gap-1 px-1.5 pt-0.5 pb-1 text-[11px] font-semibold">
           <FileArrowDownIcon className="size-3.5" />
           Download
@@ -156,6 +188,56 @@ export function BuildVisual() {
             {format}
           </p>
         ))}
+      </div>
+    </Vignette>
+  );
+}
+
+/** A resume over one page in the editor: the Projects section runs past the
+ *  page break, and the editor's own Over One Page notice offers Fit to One
+ *  Page (`FitToast` in resumes/[resumeId]/fit-notice.tsx, its words and
+ *  button). Projects is the section Fit gives way first of those shown
+ *  (docs/cut_to_one_page.md). */
+export function FitVisual() {
+  return (
+    <Vignette className="items-start pl-5">
+      <div
+        className="w-[192px] bg-white px-4 py-3.5 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.3)] ring-1 ring-slate-900/8"
+        style={{ fontFamily: JAKES_FACE }}
+      >
+        <p className="text-ink text-center text-[14px] font-bold">{candidate.name}</p>
+        <PageSection name="Education" entries={[["Northview University", "May 2027"]]} />
+        <PageSection
+          name="Experience"
+          entries={[
+            ["Teaching Assistant", "Data Structures"],
+            // Short, so title and place share a line on the narrower page.
+            ["IT Support Intern", "Help Desk"],
+          ]}
+        />
+        {/* The page break, as the editor's pages meet: what is under it
+            runs onto page 2. */}
+        <div className="relative -mx-4 mt-3 border-t border-dashed border-slate-400">
+          <span className="text-ink-muted absolute -top-[7px] left-2 bg-white px-1 font-sans text-[8px] font-semibold">
+            Page 2
+          </span>
+        </div>
+        <PageSection name="Projects" entries={[["Budget Tracker", "React · Node.js"]]} />
+      </div>
+      <div className="surface-card absolute right-3 bottom-8 flex w-[164px] items-start gap-2 rounded-xl p-3">
+        <span className="bg-warning-tint text-warning grid size-6 shrink-0 place-items-center rounded-full">
+          <WarningIcon className="size-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-ink text-[11px] font-semibold">Over One Page</p>
+          <p className="text-ink-meta mt-0.5 text-[9.5px] leading-snug">
+            About 4 lines run onto page 2.
+          </p>
+          <span className="bg-ink mt-2 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold whitespace-nowrap text-white">
+            <ScissorsIcon className="size-3" />
+            Fit to One Page
+          </span>
+        </div>
       </div>
     </Vignette>
   );
@@ -177,7 +259,7 @@ export function TailorVisual() {
   ] as const;
   return (
     <Vignette className="gap-3 px-4">
-      <div className="gloss-card flex gap-4 rounded-2xl p-4">
+      <div className="surface-card flex gap-4 rounded-2xl p-4">
         <div className="flex w-[84px] shrink-0 flex-col items-center gap-1">
           <svg viewBox="0 0 64 64" className="size-16 -rotate-90">
             <circle
@@ -266,7 +348,7 @@ export function SentResumeVisual() {
   ];
   return (
     <Vignette className="px-3">
-      <div className="gloss-card rounded-2xl p-3">
+      <div className="surface-card rounded-2xl p-3">
         <div className="text-ink-muted flex px-2 pb-1.5 text-[10px] font-semibold">
           <span className="flex-1">Role</span>
           <span className="w-[132px]">Resume</span>
@@ -300,9 +382,7 @@ export function SentResumeVisual() {
           ))}
         </div>
       </div>
-      <p className="text-ink-muted mt-3 text-center text-[11px] font-semibold">
-        Sent to {followedJob.company} on Oct 1
-      </p>
+      <GroundNote className="mt-3">Sent to {followedJob.company} on Oct 1</GroundNote>
     </Vignette>
   );
 }

@@ -9,11 +9,11 @@
  * then Plus" and leads to the free sign-up. Set it to true only once billing
  * ships and the limits below are enforced.
  *
- * Every limit is a claim. Free's Tailor and Scout limits are the caps the
- * API enforces today (`ai_tailor_cap`, `ai_scout_cap` in
- * `backend/app/config.py`); change them together. The API has no Auto Apply
- * limit and no paid caps yet. A Scout use is one message the student sends
- * (`backend/app/routers/scout.py`), a Tailor use one Tailor run, or the
+ * Every limit is a claim. Free's Tailor limit is the cap the API enforces
+ * today (`ai_tailor_cap` in `backend/app/config.py`); change them together.
+ * The API has no Auto Apply limit and no paid caps yet. Scout has no row
+ * while it is off in the app (catalog.ts, `HIDDEN`). A Tailor use is one
+ * Tailor run, or the
  * first keyword check against a job posting WorkIt has not read before
  * (`backend/app/routers/built_resumes.py`); neither counts when it fails.
  */
@@ -35,7 +35,6 @@ export const billing: { id: BillingId; label: string; note?: string }[] = [
 const limits = {
   autoApply: { free: 5, plus: 15, pro: 40 },
   tailor: { free: 2, plus: 15, pro: 40 },
-  scout: { free: 3, plus: 50, pro: 150 },
 } satisfies Record<string, Record<PlanId, number>>;
 
 export type Plan = {
@@ -93,11 +92,6 @@ export const features: { feature: string; detail: string; cells: Record<PlanId, 
     cells: limits.tailor,
   },
   {
-    feature: "Scout",
-    detail: "Messages to your job assistant. Ask what a role needs and how you fit.",
-    cells: limits.scout,
-  },
-  {
     feature: "Job Matching",
     detail: "A match score on every job posting, best fits first.",
     cells: every("included"),
@@ -135,7 +129,7 @@ export const billingFaqs = [
   {
     question: "What counts as one use?",
     answer:
-      "For Auto Apply, one application filled for you. For Tailor, one Tailor run on a job posting; checking a resume's keywords against a new job posting can count as one too. For Scout, one message you send. A Tailor run or a Scout message that fails does not count.",
+      "For Auto Apply, one application filled for you. For Tailor, one Tailor run on a job posting; checking a resume's keywords against a new job posting can count as one too. A Tailor run that fails does not count.",
   },
   {
     question: "Does WorkIt submit applications for me?",

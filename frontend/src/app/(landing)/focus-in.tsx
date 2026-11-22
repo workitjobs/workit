@@ -3,9 +3,10 @@
 import * as React from "react";
 
 /**
- * A section heading that comes into focus as it arrives: wrapped around
- * `SectionHeading`, its eyebrow, title and subtitle each rise out of a blur,
- * a little apart (`.focus-in` in landing.css). An observer marks it
+ * A block whose pieces rise as it arrives, each from behind its own foot,
+ * a little apart (`.focus-in` in landing.css): Pricing's FAQ rows and
+ * closing band. A `SectionHeading` rises on its own now and needs no
+ * wrapper. It was a rise out of a blur until 2026-11-21. An observer marks it
  * `data-focus="wait"` while it is below the screen and `"in"` once it is
  * well inside, so it plays again after the visitor scrolls back above it.
  * The server's HTML has no mark, so the heading shows before the script

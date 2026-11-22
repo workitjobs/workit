@@ -89,7 +89,7 @@ function Heading() {
       {/* Centred over the card: the sections before it open with a heading
           on the left (KAN-368). */}
       <div className="[@media(max-height:40rem)]:lg:[&_h2+p]:hidden">
-        <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
+        <SectionHeading title={copy.title} subtitle={copy.subtitle} />
       </div>
     </FocusIn>
   );

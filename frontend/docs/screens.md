@@ -1691,8 +1691,9 @@ opened the page sees every own answer New.
 **Jobs lead the page** (KAN-359): the heading, with no button since
 2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
-**setup row**; then **Up Next**. It opened
-with a "Resume List" table of every resume until KAN-359, then a line
+**setup row**; then, on a Mac with three or more jobs queued once the
+Mac app has a build, **the Mac app's offer** (below); then **Up Next**.
+It opened with a "Resume List" table of every resume until KAN-359, then a line
 naming the default resume, which the user removed: each queued job now
 shows and changes its own resume. Manage Resumes and Add to Claude sat
 beside Start until KAN-424, three bordered buttons of one weight for a
@@ -2022,58 +2023,63 @@ are the runner's live states, kept for when the extension reports them;
 the statuses and the routes are in `auto-apply/architecture.md`, "The run"
 and "API routes".
 
-## Auto Apply Desktop (`/auto-apply-desktop`, KAN-835)
+## Auto Apply Desktop (`/auto-apply-desktop`, KAN-835, KAN-922)
 
-The page that promotes WorkIt Auto Apply, the desktop app (KAN-723), and
-where a student downloads it: W8's download page in
-`docs/desktop_application_auto_apply.md`. Its rail row sits right under
-Auto Apply, at its own address: the Auto Apply row owns every path under
-`/auto-apply`, so `/auto-apply/desktop` would light that row instead. Its
-name, "Auto Apply Desktop", is the one rail name on two lines, so a rail
-tile lets its name wrap (`RAIL_BUTTON` in `components/app-sidebar.tsx`).
+Where a signed-in student downloads WorkIt Auto Apply, the Mac app
+(KAN-723), and does what the app needs on WorkIt first. It has no rail
+row (KAN-922 took out KAN-835's): the top bar's **Download App** and Up
+Next's offer (below) open it, on a Mac once there is a build. Its own
+address, not `/auto-apply/desktop`: the Auto Apply row owns every path
+under `/auto-apply` and would light there. It is a Back link's target
+("Back to Auto Apply Desktop", `back-link.tsx`).
 
-It is mostly drawings (`auto-apply-desktop/graphics.tsx`), each copied from
-the app's own window (`apply-agent/window/src`) with its words: a hero with
-the app's window in front of a Chrome window it fills, Download for Mac and
-what the app needs (an Apple Silicon Mac on macOS 13 or later, Google
-Chrome, free in the beta with a daily limit), then one tile for each moment
-of a run, two by two from lg so each drawing stays big: it fills each
-form, it writes the essay answers ("Why do you want to work here?") from
-the student's own experiences and in their voice, it asks when it needs
-you, and you press Submit. Below lg a tile's grey stage grows with its
-drawing; from lg it is 320px, so the titles under the drawings line up.
-The copy follows what the app does: it never says WorkIt applies or
-submits, and the essay names nothing about the company beyond its posting,
-since company facts wait on W9. The drawings are `aria-hidden` with no headings. Their one motion
-is each progress bar drawing out once on load.
+**The hero**: the WorkIt mark, the headline, **Download for Mac**, what the
+app needs (`components/auto-apply-desktop/needs.tsx`: an Apple Silicon Mac
+on macOS 13 or later, Google Chrome, free in the beta with a daily limit),
+a line to the Chrome extension for Windows and Intel Macs, and **See what
+the app does**, to the public `/download` page. Beside it, on a violet
+stage, the app's window in front of a Chrome window it fills
+(`components/auto-apply-desktop/graphics.tsx`, drawn from the app's own
+window, `apply-agent/window/src`, with its words; `aria-hidden`, no
+headings, one motion: each progress bar draws out once on load).
 
-**Set Up WorkIt Auto Apply** closes the page: a violet Before You Start
-band (fill in Application Info and add jobs to the Auto Apply queue on
-WorkIt, with a link to each), then six numbered cards, each with a drawing
-of that step's screen on a violet stage (`setup-graphics.tsx`: the disk
-image's window, the app's sign-in, What Leaves Your Mac, Allow Screen
-Recording, the Worker extension's store page, the Start screen). Plain
-text cards were drawn first, and the user asked for drawings and more of
-the violet theme. The cards are the Student build's first run in the app's
-own button names (`SETUP` in `page.tsx`, from
-`apply-agent/src/apply/first_run.py` and `app_window.py`): download and
-open the app, sign in with WorkIt, read what leaves the Mac, Screen
-Recording (marked Optional), add the Worker extension, start applying.
-Only what a student does: no terminal, developer checkout or admin's
-pasted code. The Worker extension step is the Chrome Web Store's Add to
-Chrome, since the store copy (W6) is a v1 requirement; the current build
-still asks for Developer mode and a folder, so the page's step is ahead of
-the app until the store copy is live. The Chrome check is a line under the
-steps, since only a Mac without Chrome sees it. Each stage is 240px from
-xl, where three share a row, so the titles line up, and grows with its
-drawing below that; the drawings are 256px wide at most, which keeps them
-clear of the step's number on the stage's corner. A change to the app's
-first run changes these cards too.
+**Set Up WorkIt Auto Apply** closes the page: the violet **Before You
+Start** band (fill in Application Info and add jobs to the Auto Apply
+queue, with a link to each), then one line: download the app and open it,
+and it walks the student through signing in, what it sends and the Chrome
+extension the first time. **The page does not copy the app's screens.**
+KAN-835 drew six cards of the app's first run; a copy on the website
+drifts from the app (its What Leaves Your Mac step left out Brandfetch),
+so KAN-922 kept only the steps that happen on WorkIt. What a run does,
+tile by tile, is the public page's.
 
-**Download for Mac is off until there is a build.** `DOWNLOAD_URL` in
-`page.tsx` is null until W8 puts the signed DMG on Cloudflare R2; until
-then the button cannot be pressed and the line under it says the download
-is coming. Set it there when the DMG is published.
+**Download for Mac is off until there is a build.** `DESKTOP_DOWNLOAD_URL`
+in `lib/auto-apply-desktop.ts` is null until W8 puts the signed DMG on
+Cloudflare R2; until then the button cannot be pressed and the line under
+it says the download is coming, and every other way to the app stays
+hidden (frontend/CLAUDE.md, "The Mac app's offers wait for its build").
+
+### The Mac app's offers (KAN-922)
+
+Kept in sight, as claude.ai and chatgpt.com keep their desktop apps, and
+all shown only once `DESKTOP_DOWNLOAD_URL` is set:
+
+- **Download App** in the seeker top bar (`(seeker)/desktop-app-button.tsx`),
+  left of the bell, on a Mac (`lib/use-mac.ts`) and from sm.
+- **Up Next's offer** (`auto-apply/desktop-offer.tsx`), between the setup
+  row and Up Next: the queue's notice in its violet `offer` tone ("5 jobs
+  in your queue. WorkIt Auto Apply for Mac fills several at once in the
+  background, and you press Submit on each."), with **Get the Mac App**
+  and a Dismiss. On a Mac, from three queued jobs (`OFFER_FROM`), since
+  the app's gain is filling several at once. Dismiss is kept in this
+  browser under `DESKTOP_OFFER_KEY` (`lib/local-drafts.ts`), so Sign Out
+  forgets it. WorkIt does not yet know whether a student has the app (its
+  sign-in record lasts an hour), so a student who has it closes the offer
+  once.
+- On the public site: **Download** in the header and `/download` itself,
+  public before the build and saying Coming soon until then, and
+  **Download for Mac** in the home hero beside the sign-up once there is a
+  build (frontend/CLAUDE.md, the marketing site).
 
 ## Calendar
 
