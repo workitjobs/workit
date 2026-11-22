@@ -42,7 +42,15 @@ function Fact({ label, value }: { label: string; value: string }) {
  * scrape is running, with the reason in a sentence and the counts now
  * under it. An admin reads this card and may stop there.
  */
-export function StatusLine({ status, data }: { status: Status; data: ScrapeHealth }) {
+export function StatusLine({
+  status,
+  data,
+  className,
+}: {
+  status: Status;
+  data: ScrapeHealth;
+  className?: string;
+}) {
   const { Icon, chip, edge } = LEVELS[status.level];
   const { boards } = data;
   return (
@@ -51,7 +59,7 @@ export function StatusLine({ status, data }: { status: Status; data: ScrapeHealt
       tone="tile"
       padding="lg"
       id={SCRAPE_SECTIONS.status.id}
-      className={cn(FIRST_SECTION_TARGET, edge)}
+      className={cn(FIRST_SECTION_TARGET, edge, className)}
       aria-labelledby="scrape-status"
     >
       <div className="flex items-start gap-4">
@@ -70,7 +78,9 @@ export function StatusLine({ status, data }: { status: Status; data: ScrapeHealt
           </p>
         </div>
       </div>
-      <dl className="border-border-subtle mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 @2xl/main:grid-cols-3 @5xl/main:grid-cols-6">
+      {/* Three a row at most: the card shares its row with the numbers box, and six a row
+          there broke the longest value over three lines. */}
+      <dl className="border-border-subtle mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 @2xl/main:grid-cols-3">
         <Fact label="Stale Boards" value={`${count(boards.stale)} of ${count(boards.boards)}`} />
         <Fact label="Failing Boards" value={count(boards.failing)} />
         <Fact label="Resting Boards" value={count(boards.resting)} />
