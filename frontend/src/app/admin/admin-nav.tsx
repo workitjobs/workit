@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, SidebarSimpleIcon } from "@phosphor-icons/react/ssr";
+import { ArrowLeftIcon, CaretDownIcon, SidebarSimpleIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, useState } from "react";
@@ -54,6 +54,12 @@ function goTo(id: string, event: MouseEvent<HTMLAnchorElement>) {
  * lg up on the open sidebar only: the rail has icons alone, and the bar
  * below lg is one row. A page with one part (Fill Health) has none.
  *
+ * THE SECTION LINKS ARE CLOSED UNTIL THEIR ARROW OPENS THEM. Each page with
+ * sections has a small arrow at the end of its row, a button of its own
+ * that shows or hides that page's links and goes nowhere. The links were
+ * always open at first, seven lines under three pages, and the user asked
+ * for the arrow so they show only when wanted (2026-11-22).
+ *
  * It wears WorkIt's rail tokens (`rail`, `rail-hover`, `rail-border`), the
  * pale violet the company shell's sidebar has, so violet stays the colour
  * of what is on or acts. It was dark ink first, then a violet gradient
@@ -65,11 +71,15 @@ function goTo(id: string, event: MouseEvent<HTMLAnchorElement>) {
  * scrolled every icon out of view. Only the links' own box scrolls, down
  * the page and never across it.
  */
-// ponytail: the collapse is not kept across a reload; localStorage if the team asks.
+// ponytail: the collapse and the open section lists are not kept across a reload; localStorage if the team asks.
 // ponytail: no section is marked as the one in view; a scroll observer if the team asks.
 export function AdminSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  /** The pages whose section links show, by address. None at first: the arrow opens them. */
+  const [open, setOpen] = useState<readonly string[]>([]);
+  const toggle = (href: string) =>
+    setOpen(open.includes(href) ? open.filter((other) => other !== href) : [...open, href]);
   /** Hides a row's words on the collapsed rail only; below lg the bar always shows them. */
   const words = collapsed ? "lg:sr-only" : undefined;
 
@@ -109,22 +119,59 @@ export function AdminSidebar() {
         <ul className="flex gap-1 lg:flex-col">
           {ADMIN_PAGES.map(({ href, label, icon: Icon, sections }) => {
             const current = pathname === href || pathname.startsWith(`${href}/`);
+            const hasSections = sections.length > 0;
+            const shown = open.includes(href);
+            const listId = `admin-sections-${href.slice(href.lastIndexOf("/") + 1)}`;
             return (
               <li key={href}>
-                <Link
-                  href={href}
-                  aria-current={current ? "page" : undefined}
-                  title={collapsed ? label : undefined}
-                  className={cn(ROW, current ? CURRENT : QUIET, collapsed && "lg:justify-center")}
-                >
-                  <Icon size={18} weight={current ? "fill" : "regular"} aria-hidden />
-                  <span className={words}>{label}</span>
-                </Link>
-                {sections.length > 0 && (
+                <div className="relative">
+                  <Link
+                    href={href}
+                    aria-current={current ? "page" : undefined}
+                    title={collapsed ? label : undefined}
+                    className={cn(
+                      ROW,
+                      current ? CURRENT : QUIET,
+                      collapsed ? "lg:justify-center" : hasSections && "lg:pr-9",
+                    )}
+                  >
+                    <Icon size={18} weight={current ? "fill" : "regular"} aria-hidden />
+                    <span className={words}>{label}</span>
+                  </Link>
+                  {hasSections && (
+                    // Beside the page's link, never inside it: a press on the arrow opens the
+                    // list and goes nowhere. It sits in the room the link's padding leaves.
+                    <button
+                      type="button"
+                      onClick={() => toggle(href)}
+                      aria-expanded={shown}
+                      aria-controls={listId}
+                      aria-label={`${shown ? "Hide" : "Show"} ${label} Sections`}
+                      className={cn(
+                        "text-ink-meta hover:bg-rail-hover hover:text-ink rounded-control absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center transition-colors duration-150 max-lg:hidden",
+                        FOCUS,
+                        collapsed && "lg:hidden",
+                      )}
+                    >
+                      <CaretDownIcon
+                        size={14}
+                        weight="bold"
+                        aria-hidden
+                        className={cn(
+                          "transition-transform duration-150 motion-reduce:transition-none",
+                          shown && "rotate-180",
+                        )}
+                      />
+                    </button>
+                  )}
+                </div>
+                {hasSections && (
                   <ul
+                    id={listId}
                     aria-label={`${label} Sections`}
                     className={cn(
-                      "border-rail-border mt-1 ml-5 flex flex-col border-l pl-2 max-lg:hidden",
+                      "border-rail-border mt-1 ml-5 flex-col border-l pl-2 max-lg:hidden",
+                      shown ? "flex" : "hidden",
                       collapsed && "lg:hidden",
                     )}
                   >
