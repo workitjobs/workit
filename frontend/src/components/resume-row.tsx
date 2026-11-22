@@ -49,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextInput } from "@/components/ui/text-field";
+import { TEXT } from "@/components/ui/text-roles";
 import { cn } from "@/lib/cn";
 import { jobLogo } from "@/lib/job-logo";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -79,10 +80,10 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
 
-/** The Resumes table's heading and cell type: the Tracker table's
- *  (`applications/list.tsx`'s TH and TD), so the two read as one app. */
-export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
-export const RESUME_TD = "px-4 text-note text-ink";
+/** The Resumes table's heading and cell type: the table roles every seeker
+ *  table takes (`ui/text-roles.ts`, KAN-927), so they read as one app. */
+export const RESUME_TH = `px-4 ${TEXT.columnHeader}`;
+export const RESUME_TD = `px-4 ${TEXT.tableCell}`;
 
 /** The Name column: two fifths of the table from `@4xl`, where Target Job
  *  shows, and the room the other columns leave below that. Name took all
