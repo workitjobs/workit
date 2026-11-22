@@ -63,7 +63,7 @@ export default async function ScrapeHealthPage({
         {/* Two rows of a wide card beside a narrow one, from 896px of page. */}
         <div className="grid gap-4 @4xl/main:grid-cols-3">
           <StatusLine status={statusOf(all, readAt)} data={all} className="@4xl/main:col-span-2" />
-          <ScrapeNumbers data={data} open={all.boards.open_jobs} />
+          <ScrapeNumbers data={data} />
           <ReadsChart rows={rows} dates={dates} className="@4xl/main:col-span-2" />
           <NeedsAttention failing={all.failing} />
         </div>
