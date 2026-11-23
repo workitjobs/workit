@@ -3930,20 +3930,22 @@ student who opened a resume from Experiences landed on another view.
     user found made no sense (2026-11-18). A Lines section has no + yet.
     Each button is 24px, WCAG 2.2's smallest target.
   - **Each skill line is a block too** (2026-11-23, `group` in
-    `page-outline.ts`): "Design: Figma, Prototyping" has the six dots and
-    a + like a bullet. The dots drag the whole line up or down among the
-    lines (`arrangeSkills`), and its menu holds Add Skill, Rename Group,
-    Move Up, Move Down and Remove From Resume. Its + adds a skill to the
-    line, and Technical Skills' heading's + adds a new line with its first
-    skill. Each asks in a short form hung from the line's tint
-    (`SkillPopover`, `PICKED_BLOCK`): the page takes no free typing
-    between its words, and the form holds the usual shape, a group name at
-    most 40 characters, a skill at most 60, and no name another line
-    already prints. A rename or a move is this resume's only, as the
-    outline's always was; the Experiences page's Skills dialog sets the
-    bank's order. Moving one skill sideways within its line is not built:
-    it needs a drop place across the line, where every move so far reads
-    only the pointer's height.
+    `page-outline.ts`): "Design: Figma, Prototyping" has the six dots, and
+    no +. The dots drag the whole line up or down among the lines
+    (`arrangeSkills`), and its menu holds Edit Skill Group, Move Up, Move
+    Down and Remove From Resume. **Edit Skill Group is the one place a
+    line's skills change** (`SkillGroupDialog`): its name, its skills as
+    chips in print order, each chip a handle (drag, or the arrow keys)
+    with its ×, and Add a Skill, in the Experiences page's Skills dialog's
+    frame and chips. A + on each line, with a small form beside it, came
+    first; the user chose the dialog. Every change there is this resume's,
+    at once, with Undo; a × takes the skill off this resume, never out of
+    the bank. Technical Skills' heading's + adds a new line with its first
+    skill, from a short form hung from the section's tint
+    (`SkillPopover`, `PICKED_BLOCK`). Both hold the usual shape: a group
+    name at most 40 characters, a skill at most 60, and no name another
+    line already prints. Moving one skill sideways on the page itself is
+    not built: every move there reads only the pointer's height.
   - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the

@@ -129,7 +129,8 @@ import {
 } from "./page-format";
 import { PHONE_FIELD, PhoneEditor, usePhone } from "./phone";
 import { HeaderPanel } from "./header-panel";
-import { SkillPopover, type SkillAsk } from "./skill-popover";
+import { SkillGroupDialog } from "./skill-group-dialog";
+import { SkillPopover } from "./skill-popover";
 import { SectionsOutline } from "./sections-panel";
 import { SLIM_BAR } from "./slim-bar";
 import {
@@ -2663,18 +2664,26 @@ export function Editor({
     reload(null);
     return null;
   };
-  // A skill line's question, hung from the line it asks about: the line is
-  // picked first, so its tint stays put under the form while the pointer
-  // moves and the shared handle follows it (`PICKED_BLOCK`)
-  const [skillAsk, setSkillAsk] = useState<{ ask: SkillAsk; anchor: HTMLElement } | null>(null);
-  const askSkill = (ask: SkillAsk, anchor: HTMLElement) => {
-    pick(
-      ask.kind === "group" ? { kind: "section", id: "skills" } : { kind: "group", id: ask.label },
-    );
+  // The skill lines as they print, a group each
+  const skillGroups = printedSkills(bank, choices);
+  // Technical Skills' heading's + asks for a new line, hung from the
+  // section: the section is picked first, so its tint stays put under the
+  // form while the pointer moves and the shared handle follows it
+  // (`PICKED_BLOCK`)
+  const [newGroupFrom, setNewGroupFrom] = useState<HTMLElement | null>(null);
+  const askNewGroup = (anchor: HTMLElement) => {
+    pick({ kind: "section", id: "skills" });
     // A frame later, once the new tint is drawn: the form measures where to
     // hang as it opens, and in the same commit it found the last pick's tint
-    requestAnimationFrame(() => setSkillAsk({ ask, anchor }));
+    requestAnimationFrame(() => setNewGroupFrom(anchor));
   };
+  // Edit Skill Group, from a line's six dots: the line it edits, by its key
+  // (its name, which a rename changes), and where the focus goes back
+  const [editGroup, setEditGroup] = useState<string | null>(null);
+  const editGroupFrom = useRef<() => HTMLElement | null>(() => null);
+  const editedGroup = skillGroups.find((g) => g.key === editGroup);
+  const lineNamed = (name: string, except?: string) =>
+    skillGroups.some((g) => g.key !== except && groupKey(g.label) === groupKey(name));
   const sectionsOutline = (
     <SectionsOutline
       bank={bank}
@@ -2711,24 +2720,43 @@ export function Editor({
   // nothing with the panel closed, on Format, or on Tailor's review
   const entryDialog = (
     <>
-      {skillAsk && (
+      {newGroupFrom && (
         <SkillPopover
-          ask={skillAsk.ask}
-          anchor={skillAsk.anchor}
-          onClose={() => setSkillAsk(null)}
+          anchor={newGroupFrom}
+          onClose={() => setNewGroupFrom(null)}
           onAdd={addSkillTo}
-          onRename={(group, name) =>
+          taken={(name) => lineNamed(name)}
+        />
+      )}
+      {editedGroup && (
+        <SkillGroupDialog
+          group={editedGroup}
+          returnTo={editGroupFrom}
+          onClose={() => setEditGroup(null)}
+          onRename={(name) => {
+            if (lineNamed(name, editedGroup.key))
+              return `${name} is already on this resume. Pick another name.`;
             void apply(
               arrangeSkills(
                 bank,
                 choices,
-                skillGroups.map((g) => (g.key === group ? { ...g, key: name } : g)),
+                skillGroups.map((g) => (g.key === editedGroup.key ? { ...g, key: name } : g)),
+              ),
+            );
+            setEditGroup(name);
+            return null;
+          }}
+          onReorder={(skills) =>
+            void apply(
+              arrangeSkills(
+                bank,
+                choices,
+                skillGroups.map((g) => (g.key === editedGroup.key ? { ...g, skills } : g)),
               ),
             )
           }
-          taken={(name, except) =>
-            skillGroups.some((g) => g.label !== except && groupKey(g.label) === groupKey(name))
-          }
+          onRemove={(skillId) => void apply({ skills: [{ skill_id: skillId, shown: false }] })}
+          onAdd={(name) => addSkillTo(editedGroup.key, name)}
         />
       )}
       {entryForm && (
@@ -2827,8 +2855,6 @@ export function Editor({
   // The page as its outline (KAN-920): the sections that print, in order,
   // for the breadcrumb, the picked block's moves and the page's handles
   const printed = printedSections(bank, choices, page.section_order);
-  // The skill lines as they print, a group each
-  const skillGroups = printedSkills(bank, choices);
   const sectionHolding = (entryId: string) =>
     printed.find((s) => s.entries.some((e) => e.id === entryId));
   const pick = (block: Picked | null) => {
@@ -2980,20 +3006,15 @@ export function Editor({
       if (!entry) return null;
       return { noun: "Bullet", add: () => openNew(entry.id, block.id) };
     }
-    // A skill line's + adds a skill to it, and Technical Skills' heading a
-    // new line, each from a short form at the + (`SkillPopover`)
-    if (block.kind === "group") {
-      const group = skillGroups.find((g) => g.label === block.id);
-      if (!group) return null;
-      return {
-        noun: "Skill",
-        add: (anchor) => askSkill({ kind: "add", group: group.key, label: group.label }, anchor),
-      };
-    }
+    // Technical Skills' heading's + adds a new line, from a short form at
+    // the + (`SkillPopover`)
+    // A skill line takes no +: its six dots open Edit Skill Group, the one
+    // place a line's skills change (the user's call, 2026-11-23)
+    if (block.kind === "group") return null;
     if (block.kind === "section" && block.id === "skills")
       return {
         noun: "Skill Group",
-        add: (anchor) => askSkill({ kind: "group" }, anchor),
+        add: askNewGroup,
       };
     // An entry's own rows (its title, organization, dates) take no +: one
     // there read as either another entry or another bullet. A section's
@@ -3082,20 +3103,14 @@ export function Editor({
       if (!group) return moves;
       return [
         {
-          key: "add",
-          text: "Add Skill",
-          group: "change",
-          icon: <PlusIcon />,
-          onClick: (anchor) =>
-            askSkill({ kind: "add", group: group.key, label: group.label }, anchor),
-        },
-        {
-          key: "rename",
-          text: "Rename Group",
+          key: "edit",
+          text: "Edit Skill Group",
           group: "change",
           icon: <PencilIcon />,
-          onClick: (anchor) =>
-            askSkill({ kind: "rename", group: group.key, label: group.label }, anchor),
+          onClick: (opener) => {
+            editGroupFrom.current = () => opener;
+            setEditGroup(group.key);
+          },
         },
         ...moves,
         remove({ skills: group.skills.map((k) => ({ skill_id: k.id, shown: false })) }),
