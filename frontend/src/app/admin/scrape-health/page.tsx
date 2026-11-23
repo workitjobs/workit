@@ -65,7 +65,11 @@ export default async function ScrapeHealthPage({
           <StatusLine status={statusOf(all, readAt)} data={all} className="@4xl/main:col-span-2" />
           <ScrapeNumbers data={data} />
           <ReadsChart rows={rows} dates={dates} className="@4xl/main:col-span-2" />
-          <NeedsAttention failing={all.failing} />
+          <NeedsAttention
+            failing={all.failing}
+            failingTotal={all.boards.failing}
+            errors={all.errors}
+          />
         </div>
         <ReadsExplorer systems={all.systems} rows={rows} />
       </div>

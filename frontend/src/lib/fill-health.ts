@@ -84,4 +84,18 @@ export type ScrapeHealth = {
     rest_until: string | null;
     last_error: string | null;
   }[];
+  /**
+   * The failed reads by reason (the error's text before its first ": "),
+   * most boards first, with the newest read's board and whole error.
+   */
+  errors: {
+    reason: string;
+    boards: number;
+    reads: number;
+    last_at: string;
+    ats: string;
+    token: string;
+    company: string;
+    error: string | null;
+  }[];
 };

@@ -3714,9 +3714,21 @@ file in `admin/scrape-health/`:
   in view. A day with no reads is a gap. A day with reads is a button, so
   its numbers show in a `Tip` on hover and on keyboard focus; a `title`
   never reaches a keyboard.
-- **Needs Attention** (`needs-attention.tsx`): the failing boards with
-  their last error. It was a card in a rail the admin could close, beside
-  counts the page already showed; the rail is gone.
+- **Needs Attention** (`needs-attention.tsx`): Failed Reads by Reason,
+  then the failing boards with their last error. A reason line (the
+  API's `errors`) shows its boards, its reads and its newest day, with
+  the newest read's whole error behind a native `<details>`. It comes
+  first because it holds boards the second list lacks (a failed publish
+  is no board failure: 2 failing boards beside 90 failed reads on
+  2026-11-15). **It covers all `HISTORY` days and says so, not the page's
+  window**: the page cuts days itself, and a group cannot be cut that
+  way. The header's count is the API's total ("25 of 161 failing
+  boards"), since the list stops at 25; it printed the list's length.
+  The lists scroll inside the box. Tabs in this box (Needs Attention,
+  Runs) were planned and dropped in review (2026-11-22): they hide a list
+  behind a click, and no admin page uses tabs. It was a card in a rail the
+  admin could close, beside counts the page already showed; the rail is
+  gone.
 - **Boards by Hiring System and Board Reads** (`reads-explorer.tsx`, one
   client component, since they share a pick): a bar per system, the five
   largest until Show All, each row a button that filters the table to its
