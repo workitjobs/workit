@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { versionOf } from "@/lib/fill-health";
@@ -7,6 +6,7 @@ import { getFillHealth } from "@/lib/fill-report-queries";
 import { datesOf, HISTORY, windowOf } from "@/lib/scrape-status";
 
 import { ADMIN_FRAME } from "../panel";
+import { refuse } from "../refuse";
 import { WindowControls } from "../scrape-health/window-controls";
 import { FillsTable } from "./fills-table";
 import { FillMetrics } from "./metrics";
@@ -35,8 +35,7 @@ export default async function FillHealthPage({ searchParams }: PageProps<"/admin
   const query = new URLSearchParams({ days: String(HISTORY) });
   if (version) query.set("engine_version", version);
   const { data, status } = await getFillHealth(`?${query}`);
-  if (status === 401) redirect("/login");
-  if (!data) notFound();
+  if (!data) refuse(status);
 
   // The API has no read time, so the newest day is today (UTC).
   const today = new Date().toISOString().slice(0, 10);

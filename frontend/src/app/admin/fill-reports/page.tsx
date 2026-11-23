@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
 
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,14 +15,15 @@ import {
 } from "@/lib/fill-reports";
 import { systemName } from "@/lib/scrape-status";
 
+import { count, when } from "../format";
 import { FIRST_SECTION_TARGET, REPORT_SECTIONS } from "../pages";
 import { ADMIN_FRAME, Panel, TD, TH } from "../panel";
-import { FIELD, FIELD_LABEL, StatusPill, when } from "./parts";
+import { refuse } from "../refuse";
+import { FIELD, FIELD_LABEL, StatusPill } from "./parts";
 
 export const metadata: Metadata = { title: "Fill Reports" };
 
 const LINK = "text-brand-ink font-medium underline-offset-2 hover:underline";
-const count = (n: number) => n.toLocaleString("en-US");
 
 /**
  * Fix reports (KAN-369), the admins' list: the reports students sent from
@@ -44,8 +44,7 @@ export default async function FillReportsPage({ searchParams }: PageProps<"/admi
     listFillReports(reportsQuery(params)),
     listFillReportGroups(groupsQuery(params)),
   ]);
-  if (status === 401) redirect("/login");
-  if (!data) notFound();
+  if (!data) refuse(status);
   const system = typeof params.job_system === "string" ? params.job_system : "";
   const engine = typeof params.engine_version === "string" ? params.engine_version : "";
   const signature = signatureOf(params.signature);
@@ -137,9 +136,11 @@ export default async function FillReportsPage({ searchParams }: PageProps<"/admi
         >
           {groups.length === 0 ? (
             <p className="text-body text-ink-muted p-5">
-              {filtered
-                ? "No groups for these filters."
-                : "No reports yet. A group shows here when students report the same problem: one job system, field kind and error."}
+              {!grouped.data
+                ? "The groups couldn't be loaded. The reports below are not affected."
+                : filtered
+                  ? "No groups for these filters."
+                  : "No reports yet. A group shows here when students report the same problem: one job system, field kind and error."}
             </p>
           ) : (
             <div className="overflow-x-auto">

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { getScrapeHealth } from "@/lib/fill-report-queries";
 import { datesOf, HISTORY, statusOf, windowOf } from "@/lib/scrape-status";
 
+import { when } from "../format";
 import { ADMIN_FRAME } from "../panel";
+import { refuse } from "../refuse";
 import { NeedsAttention } from "./needs-attention";
 import { ScrapeNumbers } from "./numbers";
 import { ReadsChart } from "./reads-chart";
@@ -35,8 +36,7 @@ export default async function ScrapeHealthPage({
 }: PageProps<"/admin/scrape-health">) {
   const window = windowOf(await searchParams);
   const { data: all, status } = await getScrapeHealth(HISTORY);
-  if (status === 401) redirect("/login");
-  if (!all) notFound();
+  if (!all) refuse(status);
 
   const readAt = Date.parse(all.read_at);
   /** The newest day the page can show: the day (UTC) the API's answer was read. */
@@ -52,8 +52,7 @@ export default async function ScrapeHealthPage({
         <div>
           <h1 className="text-heading text-ink">Scrape Health</h1>
           <p className="text-note text-ink-meta mt-1">
-            Read at {all.read_at.slice(0, 16).replace("T", " ")} UTC. The numbers are kept for 10
-            minutes.
+            Read at {when(all.read_at)} UTC. The numbers are kept for 10 minutes.
           </p>
         </div>
         <WindowControls window={window} today={today} />

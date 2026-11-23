@@ -1,7 +1,6 @@
 import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
 
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,8 +10,10 @@ import { getFillBrief, getFillReport } from "@/lib/fill-report-queries";
 import { STATUSES } from "@/lib/fill-reports";
 import { systemName } from "@/lib/scrape-status";
 
+import { when } from "../../format";
 import { ADMIN_FRAME, Panel, TD, TH } from "../../panel";
-import { FIELD, FIELD_LABEL, StatusPill, when } from "../parts";
+import { refuse } from "../../refuse";
+import { FIELD, FIELD_LABEL, StatusPill } from "../parts";
 import { CopyBrief } from "./copy-brief";
 
 export const metadata: Metadata = { title: "Fill Report" };
@@ -53,8 +54,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 export default async function FillReportPage({ params }: PageProps<"/admin/fill-reports/[id]">) {
   const { id } = await params;
   const [report, brief] = await Promise.all([getFillReport(id), getFillBrief(id)]);
-  if (report.status === 401) redirect("/login");
-  if (!report.data) notFound();
+  if (!report.data) refuse(report.status);
   const r = report.data;
 
   return (
