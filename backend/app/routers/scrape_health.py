@@ -18,6 +18,11 @@ GET /admin/scrape-health  ?days=1..90 (default 14)
     their mean seconds, and the jobs first seen on its boards.
     `failing`: up to 25 failing boards, most failures first, each with its
     last error (credentials already stripped by scraper/tasks.py).
+    `errors`: the failed reads of those `days` by reason (the error's text
+    before its first ": "), most boards first: the boards and reads that
+    failed for it, its newest time, and the newest read's board and whole
+    error as an example. It holds boards `failing` lacks: a failed publish
+    does not count as a board failure.
     Admins only (WORKIT_ADMINS, 403 to anyone else), as /admin/fill-health.
 """
 
@@ -72,6 +77,17 @@ class FailingBoard(BaseModel):
     last_error: str | None
 
 
+class ErrorGroup(BaseModel):
+    reason: str
+    boards: int
+    reads: int
+    last_at: datetime.datetime
+    ats: str
+    token: str
+    company: str
+    error: str | None
+
+
 class ScrapeHealth(BaseModel):
     read_at: datetime.datetime
     last_import_at: datetime.datetime | None
@@ -79,6 +95,7 @@ class ScrapeHealth(BaseModel):
     systems: list[SystemBoards]
     days: list[ScrapeDay]
     failing: list[FailingBoard]
+    errors: list[ErrorGroup]
 
 
 @router.get("/admin/scrape-health", response_model=ScrapeHealth)

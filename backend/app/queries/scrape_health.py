@@ -117,6 +117,37 @@ async def failing_boards(db: AsyncSession) -> list[dict]:
     return [r._asdict() for r in rows]
 
 
+async def error_groups(db: AsyncSession, *, days: int) -> list[dict]:
+    '''the last `days` days' failed reads by reason, most boards first: the boards and reads each
+    reason failed, its newest time, and the newest read's board and whole error as the example.
+    A failed publish raises no board's consecutive_failures (worker._checkpoint_board), so this is
+    the only list that holds those boards.'''
+    since = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)
+    # The worker writes "reason: detail", and the detail holds one board's values ("oversized: 5123
+    # listings"), so the whole text would make a group per board.
+    # ponytail: two causes behind one reason ("publish failed") share a line and show only the newest
+    # example; add the exception's class to the key when that hides a second cause.
+    reason = func.left(func.split_part(func.coalesce(T.error, ""), ": ", 1), 80).label("reason")
+    failed = (T.status == "failed", T.finished_at >= since)
+    counts = (await db.execute(
+        select(
+            reason, func.count(T.schedule_id.distinct()).label("boards"), func.count().label("reads"),
+            func.max(T.finished_at).label("last_at"),
+        ).where(*failed).group_by(reason)
+    )).all()
+    examples = (await db.execute(
+        select(reason, S.ats, S.token, S.company, T.error)
+        .join(S, S.id == T.schedule_id).where(*failed)
+        .distinct(reason).order_by(reason, T.finished_at.desc(), T.id.desc())
+    )).all()
+    example = {e.reason: e for e in examples}
+    return [
+        {**c._asdict(), "ats": example[c.reason].ats, "token": example[c.reason].token,
+         "company": example[c.reason].company, "error": example[c.reason].error}
+        for c in sorted(counts, key=lambda c: (-c.boards, -c.reads, c.reason))
+    ]
+
+
 # ponytail: kept per process, so each API instance reads once per KEEP_SECONDS; a shared store if that is too many.
 _kept: dict[int, tuple[float, dict]] = {}
 
@@ -139,6 +170,7 @@ async def scrape_health(db: AsyncSession, *, days: int) -> dict:
         "systems": await systems(db),
         "days": await daily_reads(db, days=days),
         "failing": await failing_boards(db),
+        "errors": await error_groups(db, days=days),
     }
     _kept[days] = (time.monotonic(), answer)
     return answer

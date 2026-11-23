@@ -92,3 +92,33 @@ async def test_scrape_health_counts_boards_reads_and_failures_for_admins_only(da
     assert [(b["token"], b["consecutive_failures"], b["last_error"]) for b in answer["failing"]] == [
         ("broken", 3, "HTTP 500")
     ]
+
+
+async def test_scrape_health_groups_failed_reads_by_reason(database, monkeypatch):
+    monkeypatch.setattr(get_settings(), "workit_admins", ADMIN)
+    scrape_health.forget()
+    minute = datetime.timedelta(minutes=1)
+    async with database() as s:
+        acme = await _board(s, "ashby", "acme")
+        globex = await _board(s, "workday", "globex")
+        # One cause, two boards, three reads: the text after the reason differs per board.
+        await _task(s, acme, "failed", error="publish failed: boom on acme", at=NOW - 5 * minute)
+        await _task(s, acme, "failed", error="publish failed: boom on acme", at=NOW - 4 * minute)
+        await _task(s, globex, "failed", error="publish failed: boom on globex", at=NOW - 3 * minute)
+        await _task(s, globex, "failed", error="robots.txt", at=NOW - minute)
+        await _task(s, globex, "failed", error="timeout: old", at=NOW - datetime.timedelta(days=30))  # outside
+        await _task(s, acme, "done", at=NOW)  # a good read is in no group
+        await s.commit()
+
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as api:
+            _as(ADMIN)
+            answer = (await api.get("/admin/scrape-health?days=7")).json()
+    finally:
+        app.dependency_overrides.pop(get_current_account, None)
+
+    assert [(e["reason"], e["boards"], e["reads"], e["token"], e["error"]) for e in answer["errors"]] == [
+        ("publish failed", 2, 3, "globex", "publish failed: boom on globex"),
+        ("robots.txt", 1, 1, "globex", "robots.txt"),
+    ]
+    assert datetime.datetime.fromisoformat(answer["errors"][0]["last_at"]) == NOW - 3 * minute

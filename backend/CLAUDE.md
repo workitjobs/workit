@@ -634,8 +634,17 @@ Find files with a directory listing; these are the rules for where code goes.
   read shows), the enabled boards per hiring system with how many were
   ever read,
   per day (UTC) per hiring system the board reads done and failed with
-  their mean seconds and the jobs first seen, and up to 25 failing boards
-  with their last error. **It reads only the worker's own tables**
+  their mean seconds and the jobs first seen, up to 25 failing boards
+  with their last error, and the window's failed reads by reason
+  (`error_groups`: the error's text before its first ": ", with the
+  boards and reads that failed for it and the newest read as an example).
+  **Group failed reads by the reason, never the whole error**: the text
+  after it holds one board's values ("oversized: 5123 listings"), so each
+  board would be its own group. **The reasons list holds boards the
+  failing list lacks**: a failed publish marks its task failed but never
+  calls `record_failure` (`worker._checkpoint_board`), so on 2026-11-15 the
+  page showed 2 failing boards while 90 reads had failed, 88 for one
+  cause. **It reads only the worker's own tables**
   (`scraper_schedules`, `scraper_tasks`, `job_sources`) and
   `job_postings`: no new table, no migration, and the worker writes
   nothing for it. A board is failing when `consecutive_failures` is above
