@@ -174,3 +174,16 @@ test("a bullet typed in on the page lands after its bullet, shown, its entry ren
     ["b1", "b2", "b9"],
   );
 });
+
+test("the Skills heading's handle sits where its lines start, not after their labels", () => {
+  // One skill line, "Design: Figma", whose only box is the skill after the
+  // bold label; the line itself starts at 51, 0.15in in
+  const withSkills = { ...bank, skills: [{ id: "k1", name: "Figma", group: "Design" }] } as Bank;
+  const shown = { ...choices, skills: [{ skill_id: "k1", shown: true, position: 0 }] } as Choices;
+  const figma = { ...box("k1", "skill", 260), x0: 95, x1: 120 };
+  const skills = (rows?: number[]) =>
+    outlineOf([...boxes, figma], withSkills, shown, ORDER, rows).find((b) => b.id === "skills")!;
+  assert.equal(skills([51]).x0, 51 - 11);
+  // With no line starts (an older render), the skills' own boxes still place it
+  assert.equal(skills().x0, 95 - 11);
+});

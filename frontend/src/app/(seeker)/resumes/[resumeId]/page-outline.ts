@@ -90,12 +90,17 @@ function extent(
 /** Every block the page prints, in page order: each section, then its
  *  entries, each followed by its bullets. A section, entry or bullet with no
  *  box on the PDF on screen (a hidden one, or one the PDF does not print
- *  yet) is left out. */
+ *  yet) is left out. `skillRows` is where each skill line starts, before
+ *  its label (the render's `skillrow` points, x in PDF points): only the
+ *  skills have boxes, and they start after the label ("Design: "), so the
+ *  Skills heading's handle, placed from them, sat inside the heading's
+ *  words. A line starts 0.15in in, as an entry does. */
 export function outlineOf(
   boxes: RenderBox[],
   bank: Bank,
   choices: Choices,
   order: string[],
+  skillRows: number[] = [],
 ): OutlineBlock[] {
   const byItem = new Map<string, RenderBox[]>();
   for (const box of boxes) {
@@ -146,6 +151,7 @@ export function outlineOf(
     }
     const at = extent(own);
     if (!at) continue;
+    if (section.id === "skills" && skillRows.length) at.x0 = Math.min(at.x0, ...skillRows);
     // The heading sits over the first line: from where the block above
     // ends, on the same page, else a heading's height over it
     const start: Spot =

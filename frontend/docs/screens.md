@@ -3899,7 +3899,11 @@ student who opened a resume from Experiences landed on another view.
     line boxes (`page-outline.ts`, tested): an entry is its fields' and
     bullets' boxes, and a section, whose heading has no box, starts where
     the block above it ends. A section's handle clears its heading (Jake's
-    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`).
+    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`). The
+    Skills section's left edge is where its lines start (the render's
+    `skillrow` points), not its first skill's box: only skills have boxes,
+    and they start after each line's bold label, so its handle sat inside
+    the heading's words until 2026-11-23.
   - **Drag the handle** (pointer events, not HTML drag and drop): a brand
     drop line shows where it lands, among its siblings only (a bullet in
     its entry, an entry in its section, a section between sections). The

@@ -3078,7 +3078,14 @@ export function Editor({
   // to move and add there as on the editor's own page. A move or an edit of
   // a changed line drops its suggestion, as any edit there does
   const pageOutline: PageOutline = {
-    blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
+    blocksOf: (boxes) =>
+      outlineOf(
+        boxes,
+        bank,
+        choices,
+        page.section_order,
+        (rendered?.points ?? []).filter((p) => p.name === "skillrow").map((p) => p.x),
+      ),
     picked: pickedNow,
     onPick: (block) => pick({ kind: block.kind, id: block.id }),
     onMove: (block, to) => moveBlock(block, to),
