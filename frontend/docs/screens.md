@@ -3883,7 +3883,16 @@ student who opened a resume from Experiences landed on another view.
 - **The page is its own outline** (KAN-920): teammates and students found
   the editor too like Jobright's, a preview beside a side list of sections,
   entries and bullets, so the page itself moves and adds, and the Sections
-  panel is optional.
+  panel is optional. **Both pages have it**: the editor's own page and
+  Tailor's review (2026-11-23). The review had none at first, as a page
+  for reading its changes; the user wanted to move and add there too. A
+  move or an edit of a changed line drops its suggestion, as any edit
+  there does.
+  - **The entry form opens from anywhere** (2026-11-23): the page's Edit
+    and Add and the Sections outline share one form, drawn beside both
+    layouts (`entryDialog` in the editor). It was drawn inside the
+    outline, so the page's Edit and Add did nothing while the Sections tab
+    was not showing: the panel closed, the Format tab, or Tailor's review.
   - **Hover a section heading, an entry or a bullet**, and a + and a drag
     handle (the Sections panel's six dots) show in the margin beside its
     first line (`page-handles.tsx`). Where each block sits is read from the

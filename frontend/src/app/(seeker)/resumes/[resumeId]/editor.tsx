@@ -2640,51 +2640,57 @@ export function Editor({
     },
   };
   const sectionsOutline = (
-    <>
-      <SectionsOutline
-        bank={bank}
-        choices={choices}
-        order={page.section_order}
-        onOrder={(section_order) => void applyPage({ ...page, section_order })}
-        onApply={apply}
-        header={headerPanel}
-        lit={walkChapter ? [walkChapter] : []}
-        reveal={walkChapter}
-        headerOpen={headerOpen}
-        onHeaderOpen={setHeaderOpen}
-        onEditEntry={(entryId, opener) => {
-          const target = bank.entries.find((e) => e.id === entryId);
-          if (target)
-            openEntryForm(
-              {
-                target,
-                section: target.section,
-                customSectionId: target.custom_section_id ?? null,
-              },
-              opener,
-            );
-        }}
-        onAddEntry={(sectionId, opener) =>
-          openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
-        }
-        onAddSkill={async (group, name) => {
-          // A skill the bank already has (any case) goes on this resume in
-          // this group, at its end, with Undo: the API refuses a second copy
-          const key = name.trim().toLowerCase();
-          const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
-          if (held) {
-            if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
-              return `${held.name} is already on this resume.`;
-            const last = Math.max(-1, ...choices.skills.map((c) => c.position));
-            apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
-            return null;
-          }
-          const { error } = await addSkill(name, group || null, resumeId);
-          if (error) return error;
-          reload(null);
+    <SectionsOutline
+      bank={bank}
+      choices={choices}
+      order={page.section_order}
+      onOrder={(section_order) => void applyPage({ ...page, section_order })}
+      onApply={apply}
+      header={headerPanel}
+      lit={walkChapter ? [walkChapter] : []}
+      reveal={walkChapter}
+      headerOpen={headerOpen}
+      onHeaderOpen={setHeaderOpen}
+      onEditEntry={(entryId, opener) => {
+        const target = bank.entries.find((e) => e.id === entryId);
+        if (target)
+          openEntryForm(
+            {
+              target,
+              section: target.section,
+              customSectionId: target.custom_section_id ?? null,
+            },
+            opener,
+          );
+      }}
+      onAddEntry={(sectionId, opener) =>
+        openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
+      }
+      onAddSkill={async (group, name) => {
+        // A skill the bank already has (any case) goes on this resume in
+        // this group, at its end, with Undo: the API refuses a second copy
+        const key = name.trim().toLowerCase();
+        const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
+        if (held) {
+          if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
+            return `${held.name} is already on this resume.`;
+          const last = Math.max(-1, ...choices.skills.map((c) => c.position));
+          apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
           return null;
-        }}
-      />
+        }
+        const { error } = await addSkill(name, group || null, resumeId);
+        if (error) return error;
+        reload(null);
+        return null;
+      }}
+    />
+  );
+  // The entry form (KAN-586), opened by the page's menu and + (KAN-920) and
+  // by the outline. Drawn once, beside both layouts: inside the outline it
+  // drew only while the Sections tab showed, so the page's Edit and Add did
+  // nothing with the panel closed, on Format, or on Tailor's review
+  const entryDialog = (
+    <>
       {entryForm && (
         <OutlineEntryDialog
           bank={bank}
@@ -3067,18 +3073,18 @@ export function Editor({
       ),
     ];
   };
-  // The page's own handles, on the editor's own page (not Tailor's review,
-  // whose page is for reading its changes)
-  const pageOutline: PageOutline | undefined = suggestions
-    ? undefined
-    : {
-        blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
-        picked: pickedNow,
-        onPick: (block) => pick({ kind: block.kind, id: block.id }),
-        onMove: (block, to) => moveBlock(block, to),
-        addOf: addAfter,
-        actionsOf,
-      };
+  // The page's own handles, on both pages: Tailor's review had none until
+  // 2026-11-23 ("its page is for reading its changes"), and the user wanted
+  // to move and add there as on the editor's own page. A move or an edit of
+  // a changed line drops its suggestion, as any edit there does
+  const pageOutline: PageOutline = {
+    blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
+    picked: pickedNow,
+    onPick: (block) => pick({ kind: block.kind, id: block.id }),
+    onMove: (block, to) => moveBlock(block, to),
+    addOf: addAfter,
+    actionsOf,
+  };
   if (phone) {
     const start = line && box && startText(line, box);
     // A bullet's field is a rich one, as on the desktop, so the sheet's bold
@@ -3161,6 +3167,7 @@ export function Editor({
           history={history}
           cuts={cuts}
         />
+        {entryDialog}
       </>
     );
   }
@@ -3528,6 +3535,7 @@ export function Editor({
         />
       )}
       {grid}
+      {entryDialog}
     </div>
   );
 }
