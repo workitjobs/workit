@@ -69,6 +69,14 @@ The Vercel project (Root Directory `frontend`) is retired: it still builds each
 PR until KAN-296 deletes it, and nothing is set or checked there (root
 `CLAUDE.md`).
 
+- **A branch can be shown at https://preview.workitjobs.ai** before it
+  merges (`../.github/workflows/deploy-preview.yml`; how to run it is in
+  `../.github/CLAUDE.md`, "Deploy preview"). It is a second Worker,
+  `workit-web-preview`, configured in `wrangler.preview.jsonc`: keep that
+  file in step with `wrangler.jsonc` (the same settings but the name, the
+  self-reference and the address). It reads the production API, so it is
+  for the marketing pages; to sign in there, its `/auth/callback` and
+  `/auth/google/callback` must first be allow-listed (below).
 - **Scripts**: `cf:build` runs `next build` and turns `.next/` into
   `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
