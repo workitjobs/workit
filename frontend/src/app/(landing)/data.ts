@@ -101,11 +101,32 @@ export const hero = {
     "Tailor your resume, find the jobs that fit you and fill in applications, all in one app. WorkIt handles the busywork, so your time goes into making each application better.",
 };
 
+/**
+ * The home page's get started section, just above the footer (closing-cta.tsx;
+ * the user's ask, 2026-11-23). Short on purpose: a headline, one line and
+ * the buttons. The headline is the page's own pitch, quality and never
+ * volume (the rule on `site.tagline`), as the hero's line ends: time goes
+ * into making each application better. The line is two claims: an account
+ * is free (every account is on Free: pricing/data.ts), and the experience
+ * a student adds is read by the resumes, the matches and the filled forms.
+ * "Retyping" is the problems section's own word; never "busywork" again.
+ */
+export const getStarted = {
+  title: "Make your next application your best one",
+  subtitle:
+    "Create a free account and add your experience once. WorkIt takes the retyping from there.",
+};
+
 /** "That's why WorkIt exists" over the four pipeline cells (why-exists.tsx).
  *  The product demo's placeholder line went with the placeholder
- *  (2026-11-23). */
+ *  (2026-11-23). The subtitle is the user's pick of three (2026-11-23): why
+ *  one app and not four. It is a claim: the resumes, the matches and the
+ *  filled forms all read the one experience bank and profile (What is
+ *  WorkIt said "connected" for it, until that section went). */
 export const whyExists = {
   title: "That’s why WorkIt exists",
+  subtitle:
+    "Tell WorkIt about yourself once. Every step after that uses it, so nothing gets typed twice.",
 };
 
 /**

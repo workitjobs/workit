@@ -338,22 +338,19 @@ html:has(.landing) {
 }
 
 /*
- * The hero city (hero-city.tsx, city-model.ts). A 1600x560 strip (100px of
- * it above the ground's origin, for the tallest side towers) pinned to
- * the hero panel's bottom: at its 1600px design scale from lg up, so its
- * per-column height caps keep it clear of the text, cropped at the sides on
- * narrower panels; scaled to the panel's width below lg, where page.tsx's
- * spacer drops it under the text. Below sm it is the phone build, twice the
- * panel's width so only its middle half shows, at about 1.7 times the
- * scale (KAN-368); the spacer grows with it. Violet belongs to the
- * wireframes alone.
+ * The hero city (hero-city.tsx, city-model.ts), redrawn 2026-11-23 for the
+ * page's paper and ink. A 1600x560 strip (100px of it above the ground's
+ * origin, for the tallest side towers) pinned to the foot of the hero's
+ * clip (page.tsx), which ends on the hero frame's foot line, so that line
+ * is the city's ground: at its 1600px design scale from lg up, so its
+ * per-column height caps keep it clear of the text, cropped by the window
+ * at the sides; scaled to the panel's width below lg, where page.tsx's
+ * spacer drops it under the text. Below sm it is the phone build, twice
+ * the panel's width so only its middle half shows, at about 1.7 times the
+ * scale (KAN-368); the spacer grows with it. Its buildings' colours and
+ * line weights are `LOOK` in hero-city.tsx, written into the still images,
+ * which this file cannot reach. No side fade: a drawing runs off the page.
  */
-.hero-panel {
-  background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f6f5f8 100%);
-}
-
-/* Its colours and the buildings' line weights are `LOOK` in hero-city.tsx,
- * shared with the still images, which this file cannot reach. */
 .hero-city {
   position: absolute;
   left: 50%;
@@ -363,17 +360,12 @@ html:has(.landing) {
   aspect-ratio: 1600 / 560;
   transform: translateX(-50%);
   pointer-events: none;
-  mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
 }
 
-/* Hidden until its still images have loaded, then faded in: shown at
- * once, the live towers stood on bare ground for a moment. */
+/* Hidden until its still images have loaded: shown at once, the coloured
+ * towers stood on bare ground for a moment. */
 .hero-city:not([data-ready]) {
   visibility: hidden;
-}
-
-.hero-city[data-ready] {
-  animation: hero-city-in 1.2s ease-out both;
 }
 
 @media (width < 40rem) {
@@ -382,10 +374,142 @@ html:has(.landing) {
   }
 }
 
+/* From lg up, never narrower than 1400px (87% of the design scale): at the
+ * full 1600px a 1024px window cropped the strip at the towers' columns, so
+ * the coloured towers stood half off the window's edges. A smaller city
+ * only gains room under the text. */
 @media (width >= 64rem) {
   .hero-city {
-    width: max(1600px, 115cqw);
+    width: max(1400px, 115cqw);
   }
+}
+
+.hero-city .city-ground,
+.hero-city .city-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-city .city-ground {
+  overflow: visible;
+}
+/* The ground plane: the drafting grid's own hairline. */
+.hero-city .grid {
+  fill: none;
+  stroke: rgb(15 23 42 / 0.09);
+  stroke-width: 1;
+}
+
+/*
+ * The city arrives in the page's own vocabulary, with no fade: the ground
+ * plane opens from the centre, as the hero's rules grow, and the buildings
+ * rise from behind the hero's foot line, the back rows first and the front
+ * rows last (`--layer`, 0 to 1 down the layers; the job cards ride the
+ * last). Each rule fills backwards only, so no transform stays on a layer.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-city[data-ready] .city-ground {
+    animation: city-ground 1s cubic-bezier(0.65, 0, 0.35, 1) backwards;
+  }
+  .hero-city[data-ready] .city-layer {
+    animation: city-rise 1.2s cubic-bezier(0.16, 1, 0.3, 1) calc(0.15s + var(--layer) * 0.55s)
+      backwards;
+  }
+}
+@keyframes city-ground {
+  from {
+    clip-path: inset(0 50% 0 50%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes city-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/*
+ * A tower in one of the four feature colours (hero-city.tsx gives each its
+ * fills): an SVG of its own, the size of its box, so its rise is a
+ * transform on an HTML box and runs off the main thread. A job's tower
+ * grows out of its low building, holds while its card shows, and sinks
+ * back: one 16s loop, set off per tower by `--md` (city-model.ts), so
+ * two or three are up at a time. With reduced motion every tower stands.
+ */
+.hero-city .city-tower {
+  position: absolute;
+  overflow: visible;
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-city .city-tower {
+    animation: city-tower 16s cubic-bezier(0.2, 0.8, 0.2, 1) var(--md) infinite;
+  }
+}
+@keyframes city-tower {
+  0%,
+  22% {
+    transform: scaleY(0);
+  }
+  30%,
+  56% {
+    transform: scaleY(1);
+  }
+  66%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+/*
+ * A job's card pops from its tower's tip as the tower lands, as the grid's
+ * ink squares pop, and goes back in before the tower sinks: a scale about
+ * the tip, never a fade. It shows from 27% to 54.5% of the loop, 4.4s:
+ * under the 5.4s between two cards on one side (city-model.ts), so two
+ * never show together. With reduced motion the first card on each side
+ * shows, still (`data-still`).
+ */
+.hero-city .city-tag {
+  position: absolute;
+  transform: translate(-50%, -100%) scale(0);
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-city .city-tag {
+    animation: city-tag 16s linear var(--md) infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-city .city-tag[data-still] {
+    transform: translate(-50%, -100%);
+  }
+}
+@keyframes city-tag {
+  0%,
+  27% {
+    transform: translate(-50%, -100%) scale(0);
+    animation-timing-function: cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  30.5%,
+  52% {
+    transform: translate(-50%, -100%) scale(1);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  54.5%,
+  100% {
+    transform: translate(-50%, -100%) scale(0);
+  }
+}
+
+/* Off screen the city's loops stop (hero-city.tsx sets the attribute).
+ * !important: each piece's `animation` shorthand, as specific, sets the
+ * play state back to running. */
+.hero-city[data-paused],
+.hero-city[data-paused] * {
+  animation-play-state: paused !important;
 }
 
 /*
@@ -422,130 +546,6 @@ html:has(.landing) {
   .bridge-float {
     animation: none;
   }
-}
-
-/* Off screen the city's loops stop (hero-city.tsx sets the attribute):
- * they repainted its thousands of paths on every frame of the scroll.
- * !important: each piece's `animation` shorthand below, as specific and
- * later, sets the play state back to running. */
-.hero-city[data-paused],
-.hero-city[data-paused] * {
-  animation-play-state: paused !important;
-}
-
-@keyframes hero-city-in {
-  from {
-    opacity: 0;
-  }
-}
-
-.hero-city svg,
-.hero-city > img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.hero-city .grid {
-  fill: none;
-  stroke: rgb(76 39 163 / 0.14);
-  stroke-width: 1;
-}
-.hero-city .streak {
-  fill: none;
-  stroke: #8a6ee6;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-dasharray: 70 930;
-  stroke-dashoffset: 1000;
-  animation: hero-city-streak 9s linear infinite;
-  animation-delay: var(--sd);
-}
-
-@keyframes hero-city-streak {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* The violet towers' glass faces, lit like the buildings': solid, so nothing
- * behind shows through (city-model.ts, wireTower). */
-.hero-city .gl {
-  fill: #7d5ce8;
-}
-.hero-city .gr {
-  fill: #9b80f2;
-}
-.hero-city .gt {
-  fill: #cdbefb;
-}
-.hero-city .wl {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 0.8;
-  opacity: 0.28;
-}
-.hero-city .we {
-  fill: none;
-  stroke: #5a2fd0;
-  stroke-width: 1.2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
-}
-
-/* A job tower: the solid setback fades, a much taller wireframe grows out of
-   its base as its outline traces in, the ground glows and the tag pops, all
-   at once; then it sinks back. One 16s cycle, offset per tower by --md. */
-.hero-city .msolid {
-  animation: hero-city-solid 16s ease-in-out infinite;
-  animation-delay: var(--md);
-}
-
-.hero-city .mwire .wire {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  transform: scaleY(0);
-  animation: hero-city-grow 16s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-  animation-delay: var(--md);
-}
-
-.hero-city .mwire .we {
-  animation: hero-city-draw 16s ease-out infinite;
-  animation-delay: var(--md);
-}
-
-.hero-city .swire {
-  animation: hero-city-pulse 6s ease-in-out infinite;
-  animation-delay: var(--md);
-}
-
-.hero-city .pool {
-  opacity: 0;
-  animation: hero-city-pool 16s ease-in-out infinite;
-  animation-delay: var(--md);
-}
-
-/*
- * A job tag rises and fades on the city's loop. The fade runs on the tag's
- * children, never the tag: an ancestor below full opacity is a backdrop
- * root, so the glass card's backdrop-filter would see nothing behind it and
- * snap to blurred only once the fade ended.
- */
-.hero-city .tag {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  animation: hero-city-tag 16s ease-out infinite;
-  animation-delay: var(--md);
-}
-
-.hero-city .tag > * > * {
-  opacity: 0;
-  animation: hero-city-tag-fade 16s ease-out infinite;
-  animation-delay: var(--md);
 }
 
 /*
@@ -585,110 +585,6 @@ html:has(.landing) {
     inset 0 1px 0 rgb(255 255 255 / 0.9),
     0 0 0 1px rgb(15 23 42 / 0.06),
     0 12px 28px -14px rgb(15 23 42 / 0.3);
-}
-
-@keyframes hero-city-solid {
-  0%,
-  22% {
-    opacity: 1;
-  }
-  28%,
-  58% {
-    opacity: 0;
-  }
-  68%,
-  100% {
-    opacity: 1;
-  }
-}
-
-@keyframes hero-city-grow {
-  0%,
-  22% {
-    transform: scaleY(0);
-  }
-  30%,
-  56% {
-    transform: scaleY(1);
-  }
-  68%,
-  100% {
-    transform: scaleY(0);
-  }
-}
-
-@keyframes hero-city-draw {
-  0%,
-  22% {
-    stroke-dashoffset: 1;
-  }
-  32%,
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes hero-city-pulse {
-  0%,
-  100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes hero-city-pool {
-  0%,
-  22% {
-    opacity: 0;
-  }
-  28%,
-  54% {
-    opacity: 1;
-  }
-  66%,
-  100% {
-    opacity: 0;
-  }
-}
-
-/*
- * A card shows from 26% to 56% of the 16s loop, 4.8s: under the 5.4s
- * between two tags on one side (city-model.ts), so they never show
- * together. At 26% to 72% they overlapped and stacked on top of each other.
- */
-@keyframes hero-city-tag {
-  0%,
-  26% {
-    transform: translate(-50%, calc(-100% + 16px)) scale(0.9);
-  }
-  30% {
-    transform: translate(-50%, -100%) scale(1.05);
-  }
-  33%,
-  51% {
-    transform: translate(-50%, -100%) scale(1);
-  }
-  56%,
-  100% {
-    transform: translate(-50%, calc(-100% - 8px)) scale(0.98);
-  }
-}
-
-@keyframes hero-city-tag-fade {
-  0%,
-  26% {
-    opacity: 0;
-  }
-  30%,
-  51% {
-    opacity: 1;
-  }
-  56%,
-  100% {
-    opacity: 0;
-  }
 }
 
 /* The hero's text fades up in sequence on load. */
@@ -770,11 +666,6 @@ html:has(.landing) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-city,
-  .hero-city * {
-    animation-play-state: paused;
-  }
-
   /* Shown at their end, not paused: paused at the first frame, the rise
    * left the subtitle and buttons invisible (their "from" is opacity 0). */
   .hero-rise,

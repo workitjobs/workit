@@ -278,8 +278,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   into the problems), and That's why WorkIt exists
   (`why-exists.tsx`, the four pipeline cells, below), then one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
-  (`product-sections.tsx`) and what stays the student's call
-  (`control.tsx`), which runs into the footer.
+  (`product-sections.tsx`) and get started (`closing-cta.tsx`, below),
+  which runs into the footer.
   **The team cut two repeats on 2026-11-23**, after the redesign went to
   the preview for review:
   - **What is WorkIt became the hero.** The section after the logo strip
@@ -365,8 +365,47 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `StudioBox`, never a full-width panel of its own. Nothing on the home
     page pins: the product sections did, until 2026-11-20 (below), and so
     did the tools collapse for a day (below).
-  - **The hero is words alone for now, and the pipeline stands under
-    That's why WorkIt exists** (2026-11-23, the team's call). That
+  - **The hero is the city again, redrawn for this page** (2026-11-23,
+    `hero-city.tsx`, `city-model.ts`; the user's pick of four ideas). A
+    teammate found the redesign less impressive than the old page, and
+    what the old page had was one large thing on its first screen, the
+    skyline. It is back in this page's look: buildings in white and cool
+    grey with slate hairlines, the drafting grid's own line (`LOOK`), on
+    the grid's ground plane, standing on the hero frame's foot line and
+    running off both sides of the window. **Its only colour is six
+    towers in the four feature colours** (`MESH`'s blends, at 72%, each
+    by its turn in the loop, `TURN_HUES`, so towers standing together
+    differ): each grows out of a low building for a job that fits, sends
+    up the posting as a white card (logo, role, company, the app's match
+    ring, share and band), and sinks back, one 16s loop, two or three up
+    at a time. Every tower is a job: two that stood for good with no card
+    went, since a card beside one read as its own. Every score is
+    Excellent or Good, and every employer is on the logo strip. **What
+    the old city had and this one has not**: violet, glows, streaks of
+    light, see-through buildings (the haze is a white wash over a solid
+    building now, or towers tinted the buildings in front) and fades.
+    **It arrives with no fade**: the ground opens from the centre and
+    the layers rise from behind the foot line, back rows first
+    (`--layer`). **The towers show**: a tower stops 110px under its
+    column's cap, its card's room, and a building in front of one stays
+    under its middle (`underTowers`), or the front rows hid all but its
+    roof. **Each tower is its own small SVG**, so its rise is a transform
+    on an HTML box, off the main thread (120 frames a second in Chrome
+    with none over 10ms, 2026-11-23); as a group inside one strip-sized
+    SVG it repainted that SVG for the whole loop. **The height caps are
+    set for this hero's text** (`step` in city-model.ts): a one-line
+    headline sized by the window's width (4.6vw, so it stays inside the
+    rails), three lines of subtitle, the sign-up pair and the email link,
+    96px below the header. A change to that text, its sizes or its
+    padding means measuring them again, signed out, where the text is
+    tallest. From lg up the section is the first screen (45rem to 54rem)
+    and the strip is never under 1400px wide, or a 1024px window cropped
+    it at the towers. Checked at 1024 × 768, 1440 × 800, 1920 × 1080,
+    768 × 1024 and 375 × 812, with no sideways scroll. With reduced
+    motion every tower stands and one card shows on each side. The
+    older notes on the city below describe the violet one.
+  - **The pipeline stands under That's why WorkIt exists**
+    (2026-11-23, the team's call). That
     section held a placeholder for the product demo, a white screen with
     a play mark and "Product demo, coming soon": the largest picture on
     the page was empty, and a teammate found the new page less impressive
@@ -377,15 +416,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     picture**: a page is judged by its biggest thing. The hero keeps its
     frame (`DraftLines first`, which now draws its own two foot squares),
     the headline, its line and the sign-up pair, as tall as its words,
-    so the logo strip shows on the first screen; **it waits for a visual
-    of its own**. In why-exists.tsx the frame holds the heading and the
+    for a day, until the city came back (above). In why-exists.tsx the frame holds the heading and the
     cells, as the hero's held its words and the cells, with the 1.5rem
     gap the cells' own lines expect, and the cells are drawn as the
     section arrives (`Arrive`, `.pipe-arrive[data-arrived]` in
     landing.css), no longer on load, when they would play below the
     screen. The notes below describe the cells as they were in the hero;
     all hold where they stand now but the first screen's height and the
-    entrance on load.
+    entrance on load. **The section fills the screen under the header**
+    (54rem at most), its heading, a second line and the cells centred in
+    it (the user's asks, 2026-11-23): at half a screen the problems'
+    foot showed above it and Resume Builder below, and nothing held the
+    eye on the page's turn. The line, "Tell WorkIt about yourself once.
+    Every step after that uses it, so nothing gets typed twice.", is the
+    user's pick of three: why one app and not four.
+  - **Get started closes the page, and "You stay in control" is
+    archived** (the user's calls, 2026-11-23). Above the footer stands
+    `ClosingCta` (closing-cta.tsx), the feature pages' own, with nothing
+    added: "Make your next application your best one", one line and the
+    sign-up pair, on WorkIt's violet blend, now the page's one violet box
+    (`getStarted` in data.ts, with its claims). A signed-in student sees
+    one Open WorkIt there, on every page that draws it. `control.tsx`
+    and `control` in data.ts stay, unmounted. The page's first closing
+    call to action, over drifting status chips, was deleted on
+    2026-11-19; this one is short on purpose.
   - **The pipeline in the drafting grid** (2026-11-21, the hero then,
     `hero-pipeline.tsx`; the user's ask: "a new hero that matches the grid
     feel of our website and captures the whole pipeline"). On the white
@@ -1045,8 +1099,9 @@ selling line that says what the product does** and "See how", a
   - **Drifting rows** (`.drift-row`: the logo strip)
     draw their items twice and move by half their width, still with
     reduced motion.
-  - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
-    (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
+  - **Unmounted, kept** (the user's choice, 2026-11-19): the old hero's
+    rolling headline (`hero-title.tsx`; its city is back, redrawn,
+    above), "You stay in control" (`control.tsx`, 2026-11-23), the bridge, the pinned tour
     (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),
     the applications route (`applications.tsx`) and the statement
     (`statement.tsx`, archived the same day). Their notes below stay for
@@ -2025,7 +2080,7 @@ selling line that says what the product does** and "See how", a
   its state (`motion-toggle.tsx`, `motion-pause.ts`) and landing.css's
   rule that held each CSS loop are deleted, and nothing reads the key, so
   a visitor who had paused is not left paused with no way back. **This
-  leaves WCAG 2.2.2 open on the home page**: the hero's lights, the
+  leaves WCAG 2.2.2 open on the home page**: the hero city's towers, the
   logo strip's drift and the problems hub's browser tabs loop with no
   pause on the page (the product rows turn too, but a click stops those;
   the hub's cards turn and are held only by a pointer or keyboard focus

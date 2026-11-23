@@ -19,6 +19,11 @@ import { CONTAINER, SectionHeading } from "./layout-parts";
  * problems they answer and the sections they open. A recording of the app
  * can join them once one exists.
  *
+ * The section fills the screen under the header (54rem at most), its
+ * heading, line and cells centred in it (the user's ask, 2026-11-23): at
+ * its own height, about half a screen, the problems' foot showed above it
+ * and Resume Builder below, and nothing held the eye on the page's turn.
+ *
  * The frame holds the heading and the cells, as the hero's frame held its
  * words and the cells: the cells draw their own rule across the window at
  * their top, their dividers and the foot's squares (`.pipe-lines`), so the
@@ -28,11 +33,18 @@ import { CONTAINER, SectionHeading } from "./layout-parts";
  */
 export function WhyExists() {
   return (
-    <section aria-labelledby="why-exists-title" className="py-16 sm:py-24">
+    <section
+      aria-labelledby="why-exists-title"
+      className="flex min-h-[min(calc(100svh-4.5rem),54rem)] flex-col justify-center py-16 sm:min-h-[min(calc(100svh-4.75rem),54rem)] sm:py-24"
+    >
       <div className={CONTAINER}>
         <div className="relative">
           <DraftLines gap="1.5rem" />
-          <SectionHeading id="why-exists-title" title={whyExists.title} />
+          <SectionHeading
+            id="why-exists-title"
+            title={whyExists.title}
+            subtitle={whyExists.subtitle}
+          />
           <Arrive className="pipe-arrive mt-10 sm:mt-14">
             <HeroPipeline />
           </Arrive>

@@ -7,11 +7,12 @@ import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { PrimaryButton, SecondaryButton } from "./buttons";
-import { Control } from "./control";
-import { hero, homeDescription, site, testimonial } from "./data";
+import { ClosingCta } from "./closing-cta";
+import { getStarted, hero, homeDescription, site, testimonial } from "./data";
 import { DraftLines } from "./draft-lines";
 import { GrowIn } from "./grow-in";
-import { CONTAINER, PANEL, PANEL_INSET, TYPE } from "./layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, studioGround, TYPE } from "./layout-parts";
+import { HeroCity } from "./hero-city";
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
 import { ProductSections } from "./product-sections";
@@ -43,8 +44,8 @@ export const metadata: Metadata = {
  * the hero says what WorkIt is, then each section leads into the next:
  * proof the jobs are real (the logo strip), where applications get lost
  * (the problems), why WorkIt exists over the whole pipeline as four cells
- * of the drafting grid, each product in depth, and what stays the
- * student's call (control), which runs into the footer. The FAQ went on 2026-11-19 (the
+ * of the drafting grid, each product in depth, and get started
+ * (closing-cta.tsx), which runs into the footer. The FAQ went on 2026-11-19 (the
  * user's call); its questions are on the Help Center's page. Every
  * animation sits in a `StudioBox`; only the product sections pin. The
  * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
@@ -66,24 +67,39 @@ export default function LandingPage() {
           the four pipeline cells under them moved to That's why WorkIt
           exists, beside the product sections they link to (the team's
           call), and the hero waits for a visual of its own. */}
-      <section className="pb-10">
-        <div className={CONTAINER}>
-          <div className="relative">
+      <section
+        data-hero-panel
+        className="@container relative flex flex-col pb-10 lg:min-h-[max(45rem,min(calc(100svh-4.75rem),54rem))]"
+      >
+        {/* The city (hero-city.tsx), clipped at the frame's foot line, 1rem
+            above the section's foot, so that line is its ground and the
+            buildings rise from behind it. A clip of its own: on the
+            section it would cut the rails, which run on below. */}
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 bottom-4 overflow-hidden">
+          <HeroCity />
+        </div>
+        <div className={cn(CONTAINER, "flex flex-1 flex-col")}>
+          <div className="relative flex flex-1 flex-col">
             <DraftLines gap="1.5rem" first />
-            <div className="relative mx-auto flex w-full max-w-4xl flex-col justify-center py-16 text-center sm:py-24">
-              {/* From lg up the headline takes the screen's height into
-                  account (7.4svh, 48 to 72px), so its lines fit a short
-                  laptop (1024 × 768). */}
+            <div className="relative mx-auto w-full max-w-5xl pt-14 text-center sm:pt-20 lg:pt-24">
+              {/* One line from lg up, sized by the window's width (4.6vw,
+                  48 to 72px: the line is about 15.4em wide, so 71% of the
+                  window), so it stays inside the rails. The city's height
+                  caps are set for it (city-model.ts, `step`). The
+                  text is marked for the city's job cards, which keep clear
+                  of it (`data-hero-text`, `data-hero-box`: hero-city.tsx). */}
               <h1
+                data-hero-text
                 className={cn(
                   TYPE.display,
-                  "hero-reveal text-ink lg:text-[clamp(3rem,7.4svh,4.5rem)]",
+                  "hero-reveal text-ink lg:text-[clamp(3rem,4.6vw,4.5rem)] lg:whitespace-nowrap",
                 )}
                 style={{ "--rd": ".15s" } as CSSProperties}
               >
                 {hero.title}
               </h1>
               <p
+                data-hero-text
                 className={cn(TYPE.lead, "hero-reveal text-ink-muted mx-auto mt-5 max-w-2xl")}
                 style={{ "--rd": ".3s" } as CSSProperties}
               >
@@ -99,6 +115,7 @@ export default function LandingPage() {
                   build. The row wraps, so a third button needs no other
                   change. */}
               <div
+                data-hero-box
                 className="hero-reveal mt-7 flex w-full flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
                 style={{ "--rd": ".4s" } as CSSProperties}
               >
@@ -131,6 +148,13 @@ export default function LandingPage() {
                 />
               </div>
             </div>
+            {/* The city's room under the text: it is scaled to the panel's
+                width below lg (70% of it on a phone's larger build, 40% from
+                sm), and from lg up the section's own height leaves it. */}
+            <div
+              aria-hidden="true"
+              className="h-[70cqw] shrink-0 sm:h-[40cqw] lg:h-auto lg:flex-1"
+            />
           </div>
         </div>
       </section>
@@ -157,8 +181,17 @@ export default function LandingPage() {
           said it twice (the user's call). */}
       <ProductSections />
 
-      {/* What WorkIt will never do without you: control.tsx. */}
-      <Control />
+      {/* Get started, the page's last word before the footer
+          (closing-cta.tsx), on WorkIt's violet blend. "You stay in control"
+          (control.tsx) stood here until the user archived it (2026-11-23):
+          its file and copy stay, unmounted. */}
+      <div className="mt-8 sm:mt-12">
+        <ClosingCta
+          title={getStarted.title}
+          subtitle={getStarted.subtitle}
+          background={studioGround({ glow: "var(--color-brand)" })}
+        />
+      </div>
 
       {/* Testimonial, read word by word: testimonial.tsx. Hidden until a
           real quote replaces the placeholder (`testimonial.show`). */}

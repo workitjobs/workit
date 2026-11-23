@@ -137,7 +137,7 @@ export function SectionHeading({
  * pink at a glance. Written at full strength; `studioGround` mixes each
  * toward white (`STRENGTH`).
  */
-const MESH: Record<string, [ground: string, low: string, high: string, light: string]> = {
+export const MESH: Record<string, [ground: string, low: string, high: string, light: string]> = {
   // Resume Builder: blue, with cyan below and periwinkle above.
   "var(--color-advanced)": ["#3f8cf0", "#2fd6dc", "#8d86f4", "#a8d6f8"],
   // Job Matching: peach, with yellow below and coral above.

@@ -3,13 +3,15 @@
  * York-style towers in a 1600x460 strip. Deterministic (a fixed seed), so
  * every visit draws the same city. Ported from the "Hiring City" design.
  *
- * Six towers take turns turning into a taller solid violet tower that sends up
- * a job tag; two stay violet. Heights are capped per column so no
- * building reaches the hero's text at the 1600px design scale.
+ * Six low buildings take turns growing a tall tower in a feature's colour
+ * that sends up a job tag. Heights are capped per column so no building
+ * reaches the hero's text at the 1600px design scale.
  */
 
 export type Tone = "base" | "stone" | "glass" | "deep" | "peri";
-export type Mode = "" | "msolid" | "mwire" | "swire";
+/** "" is a still building; "mwire" a tower that rises for a job and sinks
+ *  again. */
+export type Mode = "" | "mwire";
 
 export type Piece = {
   tone: Tone;
@@ -40,7 +42,7 @@ export type JobTag = {
   delay: string;
   title: string;
   company: string;
-  /** Match score in percent; its colour band is in hero-city.tsx. */
+  /** Match score in percent; its band is the app's own (lib/match.ts). */
   score: number;
   /** The company's site, for its favicon (hero-city.tsx). */
   domain: string;
@@ -48,8 +50,6 @@ export type JobTag = {
 
 export type City = {
   grid: string;
-  streaks: string[];
-  glows: { x: number; y: number; delay: string }[];
   pieces: Piece[];
   tags: JobTag[];
 };
@@ -110,7 +110,6 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   const pick = <T>(list: readonly T[]): T => list[Math.floor(rand() * list.length)];
 
   const pieces: Piece[] = [];
-  const glows: City["glows"] = [];
   const tags: JobTag[] = [];
   // Applied to every piece drawn while set.
   let cellOp = 1;
@@ -637,11 +636,18 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
 
   // The text above the city as a ceiling per column, in hero-panel px at the
   // design scale (a 720px panel whose strip starts at y 260): a building's
-  // top stays below it.
+  // top stays below it, with about 24px to spare. Set for the hero of
+  // 2026-11-23 (page.tsx), whose text starts 112px down that panel: one
+  // line of headline, at most 13 columns either side at its widest (a
+  // column is 39.8px, and the line is 71% of the window from 1024 to
+  // 1565px), its foot at 188px; three lines of subtitle to 336px either
+  // side, ending at 297px; and the sign-up pair with its email link, ending
+  // at 405px. A change to the hero's text, its sizes or its top padding
+  // means measuring these again.
   const step = (a: number) => {
-    if (a <= 5) return 500; // behind the buttons, which span about ±194px
-    if (a <= 9) return 425; // under the subtitle
-    if (a <= 11) return 318; // under the headline's ends
+    if (a <= 5) return 440; // under the buttons and the email link
+    if (a <= 9) return 326; // under the subtitle
+    if (a <= 13) return 216; // under the headline's ends
     return 120; // clear of the text
   };
   // The steps above as a slope: the room may grow by only SLOPE px per
@@ -672,15 +678,19 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   const maxHeight = (d: number, s: number) =>
     Math.max(6, Math.floor((260 + OY + (s + 1) * P * S - ceiling(d)) / K));
 
-  // Towers that rise as a taller wireframe and send up a job, and two that
-  // stay wireframe. Keyed by "d,s": column across, row deep. Placed so each
-  // tag clears the panel's sides and the text. The delays alternate sides,
-  // so two tags on one side are 5.4s apart, longer than a card shows
-  // (hero-city-tag-fade in landing.css): they never show together. Each
-  // company is a real employer on scraper/boards.csv, each from a
-  // different field, and every title is intern or new-grad, the only
-  // roles the scraper keeps. The scores run green, amber, red in the order
-  // the tags rise, so no two cards in a row share a colour.
+  // Towers that rise and send up a job. Every coloured tower is a job that
+  // fits: two more stood at the sides for good, with no job, until
+  // 2026-11-23, and a card beside one read as that tower's. Keyed by
+  // "d,s": column across, row deep. `rise` is the height it wants; it
+  // stops 110px under its column's cap, the room its card takes above it. Placed so each tag clears the panel's
+  // sides and the text. The delays alternate sides, so two tags on one side
+  // are 5.4s apart, longer than a card shows (city-tag in landing.css):
+  // they never show together. Each company is on the home page's logo
+  // strip (`logoStrip` in data.ts, each a row of scraper/boards.csv), from
+  // five fields, and every title is intern-level, the only roles the
+  // scraper keeps. Every score is a fit, Excellent or Good in the app's
+  // bands: a tower rises for a job that fits, and a weak match in the hero
+  // was the wrong first impression.
   const special: Record<
     string,
     {
@@ -691,12 +701,12 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
     }
   > = {
     "-13,5": {
-      rise: 190,
+      rise: 240,
       shape: "box",
       delay: "0s",
       job: {
-        // The job the page follows into the tour (followedJob in
-        // feature-data.ts), so its score matches Matching's.
+        // The job the page follows (followedJob in feature-data.ts), so
+        // its score matches Job Matching's.
         title: "Software Engineer Intern",
         company: "Stripe",
         score: 91,
@@ -704,62 +714,60 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       },
     },
     "13,7": {
-      rise: 200,
+      rise: 250,
       shape: "round",
       delay: "-2.7s",
       job: {
-        title: "Product Design Intern",
-        company: "Figma",
-        score: 81,
-        domain: "figma.com",
+        title: "Summer Analyst",
+        company: "Goldman Sachs",
+        score: 88,
+        domain: "goldmansachs.com",
       },
     },
     "-12,10": {
-      rise: 180,
+      rise: 250,
       shape: "taper",
       delay: "-5.4s",
       job: {
         title: "Data Science Intern",
         company: "Spotify",
-        score: 67,
+        score: 84,
         domain: "spotify.com",
       },
     },
     "12,12": {
-      rise: 190,
+      rise: 260,
       shape: "box",
       delay: "-8.1s",
       job: {
-        title: "New Grad Software Engineer",
-        company: "Databricks",
-        score: 89,
-        domain: "databricks.com",
+        title: "Marketing Intern",
+        company: "Nike",
+        score: 78,
+        domain: "nike.com",
       },
     },
     "-11,15": {
-      rise: 170,
+      rise: 240,
       shape: "taper",
       delay: "-10.8s",
       job: {
-        title: "Machine Learning Intern",
-        company: "Duolingo",
-        score: 76,
-        domain: "duolingo.com",
+        title: "Research Intern",
+        company: "Pfizer",
+        score: 86,
+        domain: "pfizer.com",
       },
     },
     "11,13": {
-      rise: 160,
+      rise: 250,
       shape: "round",
       delay: "-13.5s",
       job: {
-        title: "Game Engineer Intern",
-        company: "Roblox",
-        score: 58,
-        domain: "roblox.com",
+        title: "Product Design Intern",
+        company: "Disney",
+        score: 82,
+        domain: "disney.com",
       },
     },
-    "-15,5": { rise: 215, shape: "box", delay: "0s" },
-    "15,3": { rise: 200, shape: "round", delay: "-3s" },
   };
   // On a phone the wireframes come in from the cropped sides to about half
   // their distance from the middle, on a column of the row's parity (a
@@ -780,7 +788,8 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   /** The columns either side of the middle a phone's crop shows. */
   const PHONE_REACH = 10;
 
-  // A tower of violet glass: solid faces lit like the buildings', with only
+  // A tower in a feature's colour (hero-city.tsx gives it one): solid faces
+  // lit like the buildings', with only
   // the edges and floor lines a viewer can see. Drawn see-through with every
   // edge, the buildings behind showed through it and their lines crossed its
   // own, which read as an X-ray, not a tower. Returns its tip.
@@ -862,6 +871,26 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
     return proj(cx, cy, z1 + 22);
   };
 
+  // A tower's height: what it wants, less the room its card takes above it
+  // under the column's cap.
+  const towerHeight = (d: number, s: number, rise: number) =>
+    Math.max(60, Math.min(rise, maxHeight(d, s) - 110));
+  // A building in front of a tower stays below the tower's middle, so the
+  // upper half of every tower shows: at full height the front rows, the
+  // tallest at the sides, hid all but a tower's roof. In front means the
+  // tower's own column or one beside it, in a nearer row.
+  const standing = Object.entries(towers).map(([key, tower]) => {
+    const [d, s] = key.split(",").map(Number);
+    return { d, s, height: towerHeight(d, s, tower.rise) };
+  });
+  const underTowers = (d: number, s: number) =>
+    Math.min(
+      Infinity,
+      ...standing
+        .filter((tower) => s > tower.s && Math.abs(d - tower.d) <= 1)
+        .map((tower) => ((s - tower.s) * P * S) / K + tower.height * 0.45),
+    );
+
   const IN = 6;
   // Rows past 17 sit below the panel, and column 18 under the side fade.
   // Back rows first, so nearer buildings paint over farther ones.
@@ -884,22 +913,12 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       const sp = towers[`${d},${s}`];
       if (sp) {
         cellOp = 1;
-        const top = Math.min(sp.rise, cap - 30);
-        if (!sp.job) {
-          prism(c.x0 - 2, c.y0 - 2, c.x1 + 2, c.y1 + 2, 0, 3, "stone", "");
-          curMode = "swire";
-          curDelay = sp.delay;
-          wireTower(c, sp.shape, top);
-        } else {
-          const base = proj(...mid(c), 0);
-          glows.push({ x: f(base[0]), y: f(base[1]), delay: sp.delay });
-          curMode = "msolid";
-          curDelay = sp.delay;
-          kinds.setback(c, 56);
-          curMode = "mwire";
-          const tip = wireTower(c, sp.shape, top);
-          tags.push({ x: f(tip[0]), y: f(tip[1] - 2), delay: sp.delay, ...sp.job });
-        }
+        // The low building the tower grows out of: still, as the rest.
+        kinds.setback(c, 56);
+        curMode = "mwire";
+        curDelay = sp.delay;
+        const tip = wireTower(c, sp.shape, towerHeight(d, s, sp.rise));
+        if (sp.job) tags.push({ x: f(tip[0]), y: f(tip[1] - 2), delay: sp.delay, ...sp.job });
         curMode = "";
         curDelay = "0s";
         continue;
@@ -910,7 +929,7 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       const e = phone ? Math.min(1, Math.abs(d) / (PHONE_REACH - 1)) : Math.abs(d) / 18;
       let want = 40 + rand() * 50 + Math.pow(e, 1.2) * (70 + rand() * 160);
       if (s < 6) want *= 1.15;
-      const H = soft(want, cap, d, s);
+      const H = Math.min(soft(want, cap, d, s), Math.floor(underTowers(d, s)));
       // Towers wherever the height allows, landmarks where it is tallest.
       const pool = H >= 120 ? TALL : H >= 50 ? MID : LOW;
       let kind = pick(pool);
@@ -924,7 +943,7 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
     }
   }
 
-  // The ground grid, and four lines a streak of light runs along. The grid
+  // The ground grid. It
   // runs ten rows behind the back row of buildings (s < 0), so it shows as a
   // plane behind the low centre of the skyline, fading out towards the text.
   const gseg = (a: [number, number], b: [number, number]) => {
@@ -942,10 +961,5 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
         gseg([i * P, j * P], [(i + 1) * P, j * P]) + gseg([i * P, j * P], [i * P, (j + 1) * P]);
     }
   }
-  const alongJ = (j: number) =>
-    gseg([Math.max(-j, j - 18) * P, j * P], [(Math.min(18 - j, j + 18) + 1) * P, j * P]);
-  const alongI = (i: number) =>
-    gseg([i * P, Math.max(-i, i - 18) * P], [i * P, (Math.min(18 - i, i + 18) + 1) * P]);
-
-  return { grid, streaks: [alongJ(3), alongI(6), alongJ(8), alongI(11)], glows, pieces, tags };
+  return { grid, pieces, tags };
 }

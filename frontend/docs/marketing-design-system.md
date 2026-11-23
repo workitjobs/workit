@@ -21,9 +21,11 @@ look needs the whole page, and one section in it reads as a mistake.
 
 ## Principles
 
-1. **Colour lives in the framed boxes** (`StudioBox`), the home hero's
-   four included (it was two places: the old hero had a grainy violet
-   ground under glass tiles, off the page since 2026-11-21). The page and its cards are white,
+1. **Colour lives in the framed boxes** (`StudioBox`), the pipeline's
+   four included, and in the hero city's six towers, which are the four
+   feature colours on a city drawn in ink and grey (2026-11-23; the old
+   hero had a grainy violet ground under glass tiles, off the page since
+   2026-11-21). The page and its cards are white,
    ink and grey, and so are its buttons but the main one, which is solid
    WorkIt violet, flat (the user's pick, 2026-11-20). A violet card, a violet shadow or a violet-tinted white
    anywhere else reads as AI-made. **One exception until 2026-11-21, when their
@@ -158,7 +160,7 @@ guidelines' only theme with no border: the light theme (white with a
 heavy. The soft grey matches `SecondaryButton`, so Download for Mac
 (KAN-922) sits in the same row as a `SecondaryButton`.
 
-### The home hero's pipeline (`hero-pipeline.tsx`)
+### The pipeline (`hero-pipeline.tsx`, under That's why WorkIt exists since 2026-11-23)
 
 The first screen: the headline, its line and the sign-up pair centred on
 the white page, in the drafting grid's frame, and under them the whole
@@ -201,6 +203,26 @@ hero reads as the page's contents.
 Why it has this shape: it replaced a tile grid that told Job Matching's
 story alone, and then a mosaic in another look (above). A hero built
 from this system's own parts needed no new rule.
+
+### The hero city (`hero-city.tsx`, `city-model.ts`)
+
+The home hero's picture since 2026-11-23, the old page's skyline redrawn
+for this system. Rules:
+
+- **Ink and paper.** Buildings are white with two cool greys and slate
+  hairlines (`LOOK`), one temperature, solid, with distance as a white
+  wash. No violet, no glow, no streak of light.
+- **Colour is a job that fits.** Only the towers are coloured, in the
+  four feature colours (`MESH`, at 72% over white), and every one sends
+  up a job card. A coloured tower with no card is not drawn.
+- **The card is the app's.** White, the float shadow, the posting's
+  logo, role and company, and the match as ring, share and band. Its lead
+  ends on an ink square, the grid's mark.
+- **Motion.** The ground opens from the centre and the layers rise from
+  behind the hero's foot line; a tower grows by a scale and its card
+  pops by one. No fade. Transforms on HTML boxes only.
+- **It stands on the frame's foot line** and runs off the window's sides,
+  with no side fade.
 
 ### The old home hero's grid (`hero-board.tsx`, unmounted)
 
@@ -350,12 +372,12 @@ zooms in as it rises (`GrowIn`, from 80%), a scroll-linked transform;
 never a blur, which would rest half on. Its frame breaks the drafting
 grid's rail: the band is the rail's pause.
 
-### The demo's glass frame (`.demo-glass`, `why-exists.tsx`)
+### The demo's glass frame (removed 2026-11-23)
 
-The product demo stands in a frosted white bezel with a bright top edge
-and a white rim, inside a `StudioBox` on WorkIt's violet sky, so the blur
-has colour to show and the page's colour stays inside a box. The screen
-is a placeholder until a recording exists, named as coming soon.
+The product demo's placeholder and its frosted bezel (`.demo-glass`) went:
+the page's largest picture was empty. The four pipeline cells stand under
+"That's why WorkIt exists" now. **Never a placeholder in a page's largest
+picture.**
 
 ### Pills and chips
 
