@@ -60,7 +60,7 @@ const has = (keyword: string) => profile.skills.includes(keyword);
 
 export default function MatchingVisual() {
   return (
-    <Story scenes={SCENES} rest="rank" accent="bg-brand" stageHeight={STAGE_H}>
+    <Story scenes={SCENES} rest="rank" accent="bg-positive-ink" stageHeight={STAGE_H}>
       {(scene) => <Board phase={scene} />}
     </Story>
   );

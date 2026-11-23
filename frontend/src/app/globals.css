@@ -483,18 +483,21 @@
   --color-updates: #bd3a9b;
   --color-updates-ink: #a01f81;
 
-  /* Matching -------------------------------------------------------------
-   * The marketing pages' peach, Job Matching's own colour (2026-11-21). It
-   * was the brand violet, which read as WorkIt and not as one of four
-   * products, and sat between the blue and the pink as a third neighbour;
-   * the user asked for a set with no purple in it. The four are now the
-   * usual pastel four: blue, peach, green, pink. It is an orange, never
-   * the amber of a warning or of a Fair Match. --color-matching-ink is the
-   * step deep enough for a white glyph (5.2:1; white on --color-matching
-   * is 2.6:1, so nothing is printed on it). */
-  --color-matching: #f97b2f;
-  --color-matching-tint: #ffeedf;
-  --color-matching-ink: #b9480e;
+  /* Gold -----------------------------------------------------------------
+   * The marketing pages' warm gold, Auto Apply's colour (2026-11-23). The
+   * four feature colours are blue (Resume Builder), green (Job Matching),
+   * gold (Auto Apply) and pink (Application Tracker). It replaced a peach
+   * orange that was Job Matching's (2026-11-21): in a box the orange
+   * blended toward coral, as the Tracker's pink does, so the two read
+   * alike, and the four sat in two close pairs on the colour wheel (the
+   * user's catch). Matching took the green, the app's own colour for a
+   * fit, and Auto Apply took this gold. It is a deep gold, since a pale
+   * yellow vanishes on a white page. --color-gold-ink is the step deep
+   * enough for a white glyph (5.9:1; white on --color-gold is 2.2:1, so
+   * nothing is printed on it). */
+  --color-gold: #e2a50a;
+  --color-gold-tint: #fff5d6;
+  --color-gold-ink: #8a5a00;
 
   /* Activity streak ------------------------------------------------------
    * The four levels of the Dashboard's Activity streak, applications sent in

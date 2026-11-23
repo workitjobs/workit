@@ -344,7 +344,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     the feature's colour fills the box, one neighbour hue pools in the
     lower left and another in the upper right, and a pale streak of light
     crosses between them (`MESH` in layout-parts.tsx: blue with cyan and
-    periwinkle, peach with yellow and coral, green with lime and teal,
+    periwinkle, green with lime and teal, gold with yellow and amber,
     pink with coral and plum, and the brand's violet with blue and
     magenta). It
     replaced a sky in one colour, pale to half strength, which the user
@@ -2207,18 +2207,28 @@ selling line that says what the product does** and "See how", a
   inside the scenes (`.journey-in`: Control's cards, the problems'
   pictures) still come in on a short fade; the problems section's own
   heading is the Problem session's.
-- **No feature wears violet** (the user's call, 2026-11-21). The four
-  feature colours are the usual pastel four: blue (Resume Builder), peach
-  (Job Matching, `--color-matching` with its `-tint` and `-ink` in
-  globals.css), green (Auto Apply) and pink (Application Tracker). Job
-  Matching was the brand violet, which read as WorkIt and not as one of
-  four products, and made three neighbours of blue, violet and pink.
-  Violet stays the brand's: the main button and the boxes that stand for
-  WorkIt as a whole ("That's why WorkIt exists", "You stay in control").
-  The hiring-systems box sits on Job Matching's sky, so it is peach too.
-  White text goes on `--color-matching-ink` (5.2:1), never on
-  `--color-matching` (2.6:1). The mock app screens inside Job Matching's
-  scenes keep the app's own violet, since that is how the app looks.
+- **No feature wears violet, and the four feature colours are blue,
+  green, gold and pink** (the user's calls, 2026-11-21 and 2026-11-23):
+  blue for Resume Builder, green for Job Matching, warm gold for Auto
+  Apply (`--color-gold` with its `-tint` and `-ink` in globals.css) and
+  pink for the Application Tracker. `features/catalog.ts` sets them, and
+  the marks, the boxes, the fill lines and the hero city's towers read it.
+  **Job Matching was a peach orange for two days**, with Auto Apply in
+  green, and the user found the orange off: in a box it blended toward
+  coral, as the Tracker's pink does, so the two boxes read alike; the
+  four sat in two close pairs on the colour wheel (blue with green,
+  orange with pink); and violet and green on orange was the page's
+  busiest picture. So Matching took the green, the app's own colour for
+  a fit, and Auto Apply took a gold in the orange's place, deep enough
+  to hold on white and blended with yellow and amber, never coral.
+  **Two boxes never share a blend neighbour** (`MESH` in
+  layout-parts.tsx). Before the peach, Job Matching was the brand
+  violet, which read as WorkIt and not as one of four products. Violet
+  stays the brand's: the main button and the get started panel. White
+  text goes on `--color-gold-ink` (5.9:1), never on `--color-gold`
+  (2.2:1). The mock app screens inside Job Matching's scenes keep the
+  app's own violet, since that is how the app looks, and Auto Apply's
+  keep the app's green for a filled field and its amber for "Needs You".
 - **A makeover of the home page narrowed to its hero** (2026-11-20 to
   21; `docs/home-page-makeover-brief.md`). After Loopsii the user lifted
   four of these rules for a day and picked, from five live directions, a

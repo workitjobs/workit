@@ -78,7 +78,7 @@ look needs the whole page, and one section in it reads as a mistake.
 | Page | white | Every page's ground |
 | Hairline | `--mk-hairline` (slate at 8%) | A card's edge, drawn as a shadow |
 | Accent | `--color-landing-brand-*`, `--color-brand` | Small marks only (principle 2) |
-| Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`): blue (Resume Builder), peach (Job Matching, `--color-matching`), green (Auto Apply), pink (Application Tracker) | Inside that feature's box and on its mark. No feature is violet: violet is the brand's (2026-11-21) |
+| Feature colours | `features/catalog.ts` (`tint`, `glow`, `onGlow`): blue (Resume Builder), green (Job Matching), warm gold (Auto Apply, `--color-gold`), pink (Application Tracker) | Inside that feature's box and on its mark. No feature is violet: violet is the brand's (2026-11-21). Evenly spread on the colour wheel, and no two boxes share a blend neighbour (2026-11-23: a peach orange for Job Matching drifted into the Tracker's pink) |
 | Hero ground | `.hero-ground`: deeper violets in the corners, lighter along the edges, a pale pool behind the headline, grey noise in overlay | The home hero's panel; one hue family |
 | Empty tile | `.hero-tile`: frosted glass (a faint white, a 14px blur, a white hairline, a brighter top edge) | The hero's tiles that are not lit |
 | Headline tile | `.hero-copy`: solid white, a slate shadow | The hero's brightest surface and its one tile that is not glass; ink text, the Google pair on it |

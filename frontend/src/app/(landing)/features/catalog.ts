@@ -14,10 +14,11 @@ import { FEATURE_MARKS } from "./feature-marks";
  * Each page's copy lives in its own file under `content/`, never here.
  *
  * The colours are the home tour's (product-tour.tsx reads them from here):
- * the advanced blue for resumes, peach for matching (violet until
- * 2026-11-21: violet is the brand's, so no product wears it), positive
- * green for auto apply, the match pink on the danger tint for the tracker (the
- * tour's Updates stop). Scout had no stop, so it takes amber, the one app
+ * the advanced blue for resumes, positive green for matching (the app's
+ * own colour for a fit; violet until 2026-11-21, since violet is the
+ * brand's, then a peach orange until 2026-11-23, which drifted into the
+ * tracker's pink), warm gold for auto apply (green until then), the match
+ * pink on the danger tint for the tracker (the tour's Updates stop). Scout had no stop, so it takes amber, the one app
  * colour the others leave free. A mark sits on `onGlow`, never on `glow`.
  */
 export type FeatureSlug = "resumes" | "matching" | "auto-apply" | "tracker" | "scout";
@@ -59,18 +60,18 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     name: "Job Matching",
     icon: TargetIcon,
     mark: FEATURE_MARKS.matching,
-    tint: "var(--color-matching-tint)",
-    glow: "var(--color-matching)",
-    onGlow: { fill: "var(--color-matching-ink)", ink: "white" },
+    tint: "var(--color-positive-tint)",
+    glow: "var(--color-positive)",
+    onGlow: { fill: "var(--color-positive-ink)", ink: "white" },
   }),
   "auto-apply": feature("auto-apply", {
     name: "Auto Apply",
     // The app's own Auto Apply glyph (the sidebar, the Jobs page's filters).
     icon: LightningRoundedIcon,
     mark: FEATURE_MARKS["auto-apply"],
-    tint: "var(--color-positive-tint)",
-    glow: "var(--color-positive)",
-    onGlow: { fill: "var(--color-positive-ink)", ink: "white" },
+    tint: "var(--color-gold-tint)",
+    glow: "var(--color-gold)",
+    onGlow: { fill: "var(--color-gold-ink)", ink: "white" },
   }),
   tracker: feature("tracker", {
     name: "Application Tracker",

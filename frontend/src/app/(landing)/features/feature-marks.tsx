@@ -36,7 +36,7 @@ const SQUIRCLE = "M24 0C40 0 48 8 48 24S40 48 24 48 0 40 0 24 8 0 24 0Z";
 
 const BLUE = "var(--color-advanced)";
 const VIOLET = "var(--color-brand)";
-const PEACH = "var(--color-matching)";
+const GOLD = "var(--color-gold)";
 const GREEN = "var(--color-positive)";
 const PINK = "var(--color-updates)";
 const MATCH = "var(--color-match-excellent)";
@@ -77,7 +77,7 @@ const RING = 2 * Math.PI * 10.5;
 
 function MatchingMark({ className }: MarkProps) {
   return (
-    <Mark color={PEACH} className={className}>
+    <Mark color={GREEN} className={className}>
       <circle cx="24" cy="24" r="15" fill="white" />
       <circle
         cx="24"
@@ -121,7 +121,7 @@ const FORMS = [
 
 function AutoApplyMark({ className }: MarkProps) {
   return (
-    <Mark color={GREEN} className={className}>
+    <Mark color={GOLD} className={className}>
       {FORMS.map(({ x, y, done }) => (
         <g key={`${x}-${y}`}>
           <rect x={x} y={y} width="14" height="14" rx="2.5" fill="white" />
@@ -131,7 +131,7 @@ function AutoApplyMark({ className }: MarkProps) {
             width="9"
             height="1.8"
             rx="0.9"
-            style={{ fill: deep(GREEN) }}
+            style={{ fill: deep(GOLD) }}
           />
           <rect
             x={x + 2.5}
@@ -139,10 +139,10 @@ function AutoApplyMark({ className }: MarkProps) {
             width={done ? 6 : 4}
             height="1.8"
             rx="0.9"
-            style={{ fill: done ? deep(GREEN) : light(GREEN, 45) }}
+            style={{ fill: done ? deep(GOLD) : light(GOLD, 45) }}
           />
           {done ? (
-            <circle cx={x + 10.5} cy={y + 10.5} r="2" style={{ fill: GREEN }} />
+            <circle cx={x + 10.5} cy={y + 10.5} r="2" style={{ fill: GOLD }} />
           ) : (
             <circle
               cx={x + 10.5}
@@ -150,7 +150,7 @@ function AutoApplyMark({ className }: MarkProps) {
               r="2"
               fill="none"
               strokeWidth="1"
-              style={{ stroke: light(GREEN, 45) }}
+              style={{ stroke: light(GOLD, 45) }}
             />
           )}
         </g>

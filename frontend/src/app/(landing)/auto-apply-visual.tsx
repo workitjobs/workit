@@ -110,7 +110,7 @@ const LEVEL: Record<SceneId, number> = { one: 0, nine: 1, twentyFive: 2, fortyNi
 export default function AutoApplyVisual() {
   // The darker green: white on the brand green is 2.8:1.
   return (
-    <Story scenes={SCENES} rest="fortyNine" accent="bg-positive-ink" stageHeight={H}>
+    <Story scenes={SCENES} rest="fortyNine" accent="bg-gold-ink" stageHeight={H}>
       {(scene) => <Stage level={LEVEL[scene]} />}
     </Story>
   );

@@ -105,7 +105,7 @@ function stillSvg(pieces: Piece[]) {
 const STRENGTH = 0.72;
 const HUES = [
   "var(--color-advanced)",
-  "var(--color-matching)",
+  "var(--color-gold)",
   "var(--color-positive)",
   "var(--color-updates)",
 ] as const;

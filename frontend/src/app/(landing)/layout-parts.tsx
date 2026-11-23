@@ -133,17 +133,19 @@ export function SectionHeading({
  * a neighbour hue for the lower left, a second neighbour for the upper
  * right, and a pale tone for the streak of light between them. Neighbours
  * on the colour wheel, a step either side of the feature's own colour, so
- * a box blends as one family and still reads as blue, peach, green or
+ * a box blends as one family and still reads as blue, green, gold or
  * pink at a glance. Written at full strength; `studioGround` mixes each
  * toward white (`STRENGTH`).
  */
 export const MESH: Record<string, [ground: string, low: string, high: string, light: string]> = {
   // Resume Builder: blue, with cyan below and periwinkle above.
   "var(--color-advanced)": ["#3f8cf0", "#2fd6dc", "#8d86f4", "#a8d6f8"],
-  // Job Matching: peach, with yellow below and coral above.
-  "var(--color-matching)": ["#fb8f45", "#ffcc55", "#f76f8e", "#ffdcb8"],
-  // Auto Apply: green, with lime below and teal above.
+  // Job Matching: green, with lime below and teal above.
   "var(--color-positive)": ["#27bd84", "#a3e065", "#22b4cc", "#baf1d2"],
+  // Auto Apply: warm gold, with yellow below and amber above. Never coral:
+  // the Tracker's pink blends toward it, and two boxes that share a
+  // neighbour read alike (the peach this replaced did).
+  "var(--color-gold)": ["#f4bc2f", "#ffe469", "#f7ae33", "#ffefc4"],
   // Application Tracker: pink, with coral below and plum above.
   "var(--color-updates)": ["#d655b0", "#ff9274", "#9a6ff2", "#f8c8e8"],
   // WorkIt itself: violet, with blue below and magenta above.
