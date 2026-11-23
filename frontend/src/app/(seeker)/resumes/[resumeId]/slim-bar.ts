@@ -54,3 +54,18 @@ export const DESK_BAR = cn(
 
 /** Room around the paper on the desk, wider where the column is wide. */
 export const DESK_PAGES = "px-3 py-4 @2xl/main:px-6 @2xl/main:py-6";
+
+/**
+ * From @4xl the desk is a window of its own, as a Google Doc's is
+ * (2026-11-23): it ends at the window's foot (`DESK_FIT`, its height from
+ * `useFitToWindow`, level with the review's panel) and the pages scroll
+ * inside it (`DESK_SCROLL`, marked `data-page-scroll`), under a bar that
+ * stays. So a zoom or a pinch scrolls the pages alone and never the
+ * website: the website scrolled with every zoom until then (the user),
+ * since keeping the line being read in place meant scrolling all of it,
+ * the title and Tailor's step bar with it. Below @4xl the website scrolls
+ * the pages, as before.
+ */
+export const DESK_FIT = "@4xl/main:h-(--fit-height)";
+export const DESK_SCROLL =
+  "@4xl/main:min-h-0 @4xl/main:flex-1 @4xl/main:overflow-x-hidden @4xl/main:overflow-y-auto";

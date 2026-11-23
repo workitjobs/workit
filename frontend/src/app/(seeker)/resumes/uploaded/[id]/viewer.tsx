@@ -14,7 +14,8 @@ import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
-import { DESK, DESK_BAR, DESK_PAGES } from "../../[resumeId]/slim-bar";
+import { useFitToWindow } from "../../[resumeId]/fit-to-window";
+import { DESK, DESK_BAR, DESK_FIT, DESK_PAGES, DESK_SCROLL } from "../../[resumeId]/slim-bar";
 import {
   FIT,
   usePageZoom,
@@ -55,6 +56,8 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const [shownZoom, fullZoom] = usePageZoom(pages, zoom);
   const zoomTo = useZoomTo(pages, setZoom);
   usePinchZoom(pages, shownZoom, zoomTo);
+  // The desk ends at the window's foot, and the page scrolls inside it
+  const fitDesk = useFitToWindow();
 
   async function download() {
     setError(null);
@@ -105,13 +108,13 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           // zoom, so no desk; nor a bar under @md, where even the 50% step
           // (408px) is wider than the page. The page's skeleton shows until
           // pdf.js draws, as ./loading.tsx shows it
-          <div className={DESK}>
+          <div ref={fitDesk} className={cn(DESK, DESK_FIT)}>
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <div className="ml-auto">
                 <Zoom zoom={zoom} shown={shownZoom} full={fullZoom} onZoom={(to) => zoomTo(to)} />
               </div>
             </div>
-            <div className={cn(zoom !== FIT && DESK_PAGES)}>
+            <div data-page-scroll className={cn(DESK_SCROLL, zoom !== FIT && DESK_PAGES)}>
               <div ref={pages} className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
                 <PdfPages
                   pdf={pdf}

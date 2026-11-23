@@ -134,7 +134,8 @@ import { HeaderPanel } from "./header-panel";
 import { SkillGroupDialog } from "./skill-group-dialog";
 import { SkillPopover } from "./skill-popover";
 import { SectionsOutline } from "./sections-panel";
-import { DESK, DESK_BAR, DESK_PAGES } from "./slim-bar";
+import { useFitToWindow } from "./fit-to-window";
+import { DESK, DESK_BAR, DESK_FIT, DESK_PAGES, DESK_SCROLL } from "./slim-bar";
 import {
   Bar,
   ReviewButtons,
@@ -920,6 +921,8 @@ export function Editor({
   const fitPanel = useFitToWindow();
   // The rail, down to the window's foot
   const fitRail = useFitToWindow(0);
+  // The desk, down to the panel's foot: the pages scroll inside it
+  const fitDesk = useFitToWindow();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -3424,9 +3427,10 @@ export function Editor({
       {/* One surface, the desk (./slim-bar.ts): the bar on top, the pages on
           its grey. The comparison only reads, so it draws the page alone */}
       <div
+        ref={comparing ? undefined : fitDesk}
         className={cn(
           "flex min-w-0 flex-col @4xl/main:col-start-1 @4xl/main:row-start-1",
-          comparing ? "gap-2" : DESK,
+          comparing ? "gap-2" : cn(DESK, DESK_FIT),
         )}
       >
         {comparing ? (
@@ -3445,7 +3449,10 @@ export function Editor({
             keeps its zoom's width */}
         {/* Fit Width lies flush with the desk, no grey round it (the user,
             2026-11-23): its margin read as the gaps Fit was meant to close */}
-        <div className={cn(!comparing && zoom !== FIT && DESK_PAGES)}>
+        <div
+          data-page-scroll={comparing ? undefined : true}
+          className={cn(!comparing && DESK_SCROLL, !comparing && zoom !== FIT && DESK_PAGES)}
+        >
           <div
             ref={pages}
             data-keeps-selection
@@ -3762,45 +3769,6 @@ export function Editor({
       {entryDialog}
     </div>
   );
-}
-
-/**
- * A sticky column's height cap, as `--fit-height` on it: the window below
- * its top, less a 24px foot. Read again on any scroll (the page scrolls in
- * `main`, not the window, so the listener captures) and on resize, once a
- * frame. Before the page scrolls the column's top sits under the title
- * row; stuck, at its `top`; a fixed cap fitted one and not the other.
- * Its top is read no higher than where it sticks: at the page's end the
- * grid pushes a sticky column up past that, and reading that top grew the
- * cap, so the panel kept growing as the page scrolled. Never under 240px,
- * so a short window still shows the panel's top.
- */
-function useFitToWindow(foot = 24) {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    if (!el) return;
-    let frame = 0;
-    const fit = () => {
-      frame = 0;
-      const stuck =
-        (el.closest("main")?.getBoundingClientRect().top ?? 0) +
-        (parseFloat(getComputedStyle(el).top) || 0);
-      const room = window.innerHeight - Math.max(el.getBoundingClientRect().top, stuck) - foot;
-      el.style.setProperty("--fit-height", `${Math.max(240, Math.round(room))}px`);
-    };
-    const queue = () => {
-      if (!frame) frame = requestAnimationFrame(fit);
-    };
-    fit();
-    document.addEventListener("scroll", queue, { capture: true, passive: true });
-    window.addEventListener("resize", queue);
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener("scroll", queue, { capture: true });
-      window.removeEventListener("resize", queue);
-    };
-  }, [el, foot]);
-  return setEl;
 }
 
 /** Where the browser keeps whether the review's rail is folded away. */

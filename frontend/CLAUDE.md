@@ -2895,7 +2895,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   parted them, the edges met only at 125%, and a strip of the page showed
   over the bar once it stuck. The desk clips its corners with
   `overflow-clip`, never `overflow-hidden`, which would make it a scroll
-  box and stop the bar sticking. The phone keeps `SLIM_BAR`.
+  box and stop the bar sticking. The phone keeps `SLIM_BAR`. **From @4xl
+  the desk is a window of its own**, as a Google Doc's is (2026-11-23):
+  it ends at the window's foot, level with the review's panel
+  (`DESK_FIT`, its height from `useFitToWindow` in
+  `[resumeId]/fit-to-window.ts`), and the pages scroll inside it
+  (`DESK_SCROLL`, marked `data-page-scroll`) under a bar that stays. So a
+  zoom or a pinch scrolls the pages alone and never the website (the
+  title, Tailor's step bar): keeping the line being read in place
+  scrolled the whole website on every zoom, and the user saw it as the
+  website's scroll changing. What measures room on screen reads that box
+  where it scrolls, never `main` alone: an open line's card
+  (`LinePopup`) and a drag's scroll at the edges (`page-handles.tsx`).
+  Below @4xl the website scrolls the pages, as before.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
   Primary badge and Download (a "Saving…" and "Saved" status stood
@@ -2983,7 +2995,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   with no grey round it (the desk's margin read as the gaps Fit was meant
   to close); every other zoom keeps the margin.
   **Every zoom change keeps the line being read where it is**
-  (`useZoomTo`). From the bar or its menu: while the page's top shows,
+  (`useZoomTo`), by scrolling the desk's own box (the desk, above), so
+  the website stays where it is. From the bar or its menu: while the page's top shows,
   the window does not move at all; once scrolled into the page, the first
   line in view stays first, placed by its page and its share of that
   page's height (each frame carries `data-page-frame`), so the fixed gaps

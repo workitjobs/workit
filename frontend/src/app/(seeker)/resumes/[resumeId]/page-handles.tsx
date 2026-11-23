@@ -115,7 +115,7 @@ type Ghost = { src: string; x0: number; x1: number; top: number; height: number 
 
 /** Pixels a press may wander before it is a drag. */
 const DRAG_AFTER = 4;
-/** Pixels from the window's top or foot where a drag scrolls the page. */
+/** Pixels from the top or foot of what shows where a drag scrolls the page. */
 const EDGE = 56;
 
 function scrollerOf(element: HTMLElement | null): HTMLElement | null {
@@ -252,9 +252,17 @@ export function usePageOutline({
       if (!now) return;
       const moved = now.moved || Math.abs(event.clientY - now.from) > DRAG_AFTER;
       if (!moved) return;
-      // Near the window's top or foot the page scrolls under the drag
-      const edge = event.clientY < EDGE ? -12 : event.clientY > window.innerHeight - EDGE ? 12 : 0;
-      if (edge) scrollerOf(event.currentTarget)?.scrollBy({ top: edge });
+      // Near the top or foot of what shows the page scrolls under the drag:
+      // the desk's own scroll box (`DESK_SCROLL`), or the window
+      const box = scrollerOf(event.currentTarget);
+      const shown =
+        box && box !== document.scrollingElement
+          ? box.getBoundingClientRect()
+          : { top: 0, bottom: window.innerHeight };
+      const top = Math.max(0, shown.top);
+      const foot = Math.min(window.innerHeight, shown.bottom);
+      const edge = event.clientY < top + EDGE ? -12 : event.clientY > foot - EDGE ? 12 : 0;
+      if (edge) box?.scrollBy({ top: edge });
       const spot = spotOf(event.clientY);
       const next = {
         ...now,
