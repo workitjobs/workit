@@ -1856,32 +1856,109 @@ html[data-tab-flight="flying"] .tour-tabs {
    end: a card opened with the pointer still on it is held at that first
    frame, and with the fade-in at the start the picture stood empty until
    the pointer left (found 2026-11-23). So no fill before a turn's delay:
-   a later board waits unseen on its own `opacity: 0`. */
+   a later board waits unseen on its own `opacity: 0`. Only the address
+   bar's text takes turns this way now (below). */
 .board-turn {
   opacity: 0;
   animation: board-turn var(--board-loop, 12.8s) linear infinite;
   animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 4);
 }
-[data-arrived="false"] .board-turn,
-[data-held] .board-turn,
-.board-tabs[data-paused] .board-turn {
-  animation-play-state: paused;
-}
+/* It switches at once, half way through the slide: two addresses fading
+   through each other in one place read as a smear. */
 @keyframes board-turn {
   0%,
-  25% {
+  23% {
     opacity: 1;
   }
-  27.5%,
-  97.5% {
+  23.01%,
+  97.99% {
     opacity: 0;
   }
+  98%,
   100% {
     opacity: 1;
   }
 }
+/* The pages slide, as a browser's tabs do under a swipe (the user's ask,
+   2026-11-23; they crossfaded). The four pages stand side by side in one
+   strip with the first page again at its end, and the strip steps a page
+   to the left each quarter; from the fifth place the loop starts again on
+   the first, which is the same picture, so the pages go round with no
+   jump back. The lit tab is one white tab (`.tab-lit`; `.board-lit` is
+   the old hero board's) that slides under the four
+   names in the same steps, and slides back to the first at the loop's
+   end. Transforms only. */
+.board-strip {
+  display: flex;
+  width: 500%;
+  height: 100%;
+  animation: board-slide var(--board-loop, 12.8s) infinite;
+}
+.board-strip > * {
+  width: 20%;
+  flex: none;
+}
+.tab-lit {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 25%;
+  animation: tab-lit var(--board-loop, 12.8s) infinite;
+}
+@keyframes board-slide {
+  0%,
+  21% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  25%,
+  46% {
+    transform: translateX(-20%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  50%,
+  71% {
+    transform: translateX(-40%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  75%,
+  96% {
+    transform: translateX(-60%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  100% {
+    transform: translateX(-80%);
+  }
+}
+@keyframes tab-lit {
+  0%,
+  21% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  25%,
+  46% {
+    transform: translateX(100%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  50%,
+  71% {
+    transform: translateX(200%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  75%,
+  96% {
+    transform: translateX(300%);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .board-turn {
+  .board-turn,
+  .board-strip,
+  .tab-lit {
     animation: none;
   }
   .board-turn[data-first] {
@@ -1891,21 +1968,25 @@ html[data-tab-flight="flying"] .tour-tabs {
 /*
  * The forms picture's forms take turns (`FormsScene` in problem-scenes.tsx,
  * 2026-11-23): three companies' application forms, a third of the loop
- * each, and each one is typed into while it is up, the same details every
+ * each, and each one is filled in while it is up, the same things every
  * time. The card says "typed into a new form for every company", and the
  * picture was one still form with half an email in it (the user's catch:
  * it read as broken, and showed one form where the point is many).
  *
  * One loop (`--board-loop`, the hub's clock, as the browser's tabs), and
  * every piece of a form runs it with the form's own delay (`--i`), so a
- * form and its typing cannot drift. In a form's third: it comes in, its
- * four fields are typed one after another, its button lights, it goes.
+ * form and its filling cannot drift. In a form's third, in percent of the
+ * loop: the resume is uploaded again (the button to 2.5%, then a bar that
+ * fills, then the file at 6.5%), five fields are typed one after another
+ * (7.5 to 21%), three questions are answered (22.5, 24.5 and 26.5%), the
+ * button lights (28.5%), and the form goes (33.3%).
  *
  * Typing is a cover over the field's text that steps aside a letter at a
  * time (`.form-type`, `--n` letters): a transform, so it runs off the main
  * thread, where a width or a clip that grows would repaint every frame.
  * The field in use shows the form's blue ring (`.form-focus`, opacity).
- * `--k` (0 to 3) is the field's place in the form.
+ * `data-k` (0 to 4) is the field's place in the form, and a question's
+ * (0 to 2) on `.form-pick`.
  *
  * Held as the tabs are: while the stage waits to arrive, while the cards'
  * ring is held, and off screen. With reduced motion the first form shows,
@@ -1918,7 +1999,9 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 .form-type,
 .form-focus,
-.form-done {
+.form-done,
+.form-up,
+.form-pick {
   animation: var(--form-anim) var(--board-loop, 12.8s) linear infinite both;
   animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 3);
 }
@@ -1937,6 +2020,9 @@ html[data-tab-flight="flying"] .tour-tabs {
 .form-type[data-k="3"] {
   --form-anim: form-type-3;
 }
+.form-type[data-k="4"] {
+  --form-anim: form-type-4;
+}
 .form-focus {
   --form-anim: form-focus-0;
   position: absolute;
@@ -1954,14 +2040,41 @@ html[data-tab-flight="flying"] .tour-tabs {
 .form-focus[data-k="3"] {
   --form-anim: form-focus-3;
 }
+.form-focus[data-k="4"] {
+  --form-anim: form-focus-4;
+}
 .form-done {
   --form-anim: form-done;
   opacity: 0;
 }
-[data-arrived="false"] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type),
-[data-held] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type),
-[data-paused] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type) {
-  animation-play-state: paused;
+/* The resume's three states in one place: the button to upload it, the
+   file going up under a bar that fills, and the file, uploaded. */
+.form-up {
+  --form-anim: form-up-ask;
+}
+.form-up[data-k="1"] {
+  --form-anim: form-up-going;
+  opacity: 0;
+}
+.form-up[data-k="2"] {
+  --form-anim: form-up-there;
+  opacity: 0;
+}
+.form-up-bar {
+  transform-origin: left;
+  animation: form-up-bar var(--board-loop, 12.8s) linear infinite both;
+  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 3);
+}
+/* A question's answer, picked. */
+.form-pick {
+  --form-anim: form-pick-0;
+  opacity: 0;
+}
+.form-pick[data-k="1"] {
+  --form-anim: form-pick-1;
+}
+.form-pick[data-k="2"] {
+  --form-anim: form-pick-2;
 }
 /* Shown from its first frame, as a board's turn is (`board-turn`). */
 @keyframes form-turn {
@@ -1977,153 +2090,360 @@ html[data-tab-flight="flying"] .tour-tabs {
     opacity: 1;
   }
 }
-/* A field's letters, each field in its own stretch of the form's third:
-   3 to 6%, 7 to 10%, 11 to 19% (the email, the long one) and 20 to 27%. */
+@keyframes form-up-ask {
+  0%,
+  2.5% {
+    opacity: 1;
+  }
+  2.6%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes form-up-going {
+  0%,
+  2.5%,
+  6.6%,
+  100% {
+    opacity: 0;
+  }
+  2.6%,
+  6.5% {
+    opacity: 1;
+  }
+}
+@keyframes form-up-there {
+  0%,
+  6.5% {
+    opacity: 0;
+  }
+  6.6%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes form-up-bar {
+  0%,
+  2.7% {
+    transform: scaleX(0);
+  }
+  6.3%,
+  100% {
+    transform: scaleX(1);
+  }
+}
 @keyframes form-type-0 {
   0%,
-  3% {
+  7.5% {
     transform: translateX(0);
-    animation-timing-function: steps(var(--n, 6), end);
+    animation-timing-function: steps(var(--n, 8), end);
   }
-  6%,
+  9%,
   100% {
     transform: translateX(101%);
   }
 }
 @keyframes form-type-1 {
   0%,
-  7% {
+  9.5% {
     transform: translateX(0);
-    animation-timing-function: steps(var(--n, 6), end);
+    animation-timing-function: steps(var(--n, 8), end);
   }
-  10%,
+  11%,
   100% {
     transform: translateX(101%);
   }
 }
 @keyframes form-type-2 {
   0%,
-  11% {
+  11.5% {
     transform: translateX(0);
-    animation-timing-function: steps(var(--n, 16), end);
+    animation-timing-function: steps(var(--n, 8), end);
   }
-  19%,
+  15%,
   100% {
     transform: translateX(101%);
   }
 }
 @keyframes form-type-3 {
   0%,
+  15.5% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 8), end);
+  }
+  19.5%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+@keyframes form-type-4 {
+  0%,
   20% {
     transform: translateX(0);
-    animation-timing-function: steps(var(--n, 16), end);
+    animation-timing-function: steps(var(--n, 8), end);
   }
-  27%,
+  21%,
   100% {
     transform: translateX(101%);
   }
 }
 @keyframes form-focus-0 {
   0%,
-  2.4%,
-  6.6%,
+  7.1%,
+  9.4%,
   100% {
     opacity: 0;
   }
-  3%,
-  6% {
+  7.5%,
+  9% {
     opacity: 1;
   }
 }
 @keyframes form-focus-1 {
   0%,
-  6.6%,
-  10.6%,
+  9.1%,
+  11.4%,
   100% {
     opacity: 0;
   }
-  7%,
-  10% {
+  9.5%,
+  11% {
     opacity: 1;
   }
 }
 @keyframes form-focus-2 {
   0%,
-  10.6%,
-  19.6%,
+  11.1%,
+  15.4%,
   100% {
     opacity: 0;
   }
-  11%,
-  19% {
+  11.5%,
+  15% {
     opacity: 1;
   }
 }
 @keyframes form-focus-3 {
   0%,
+  15.1%,
+  19.9%,
+  100% {
+    opacity: 0;
+  }
+  15.5%,
+  19.5% {
+    opacity: 1;
+  }
+}
+@keyframes form-focus-4 {
+  0%,
   19.6%,
-  27.6%,
+  21.4%,
   100% {
     opacity: 0;
   }
   20%,
-  27% {
+  21% {
     opacity: 1;
   }
 }
-/* The form's main button lights once the last field is in. */
-@keyframes form-done {
+@keyframes form-pick-0 {
   0%,
-  28% {
+  22.5% {
     opacity: 0;
   }
-  29.5%,
+  22.6%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes form-pick-1 {
+  0%,
+  24.5% {
+    opacity: 0;
+  }
+  24.6%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes form-pick-2 {
+  0%,
+  26.5% {
+    opacity: 0;
+  }
+  26.6%,
+  100% {
+    opacity: 1;
+  }
+}
+/* The form's main button lights once the last answer is in. */
+@keyframes form-done {
+  0%,
+  28.5% {
+    opacity: 0;
+  }
+  28.6%,
   100% {
     opacity: 1;
   }
 }
 /*
- * The question picture's answer (`QuestionScene`, 2026-11-23): a stock
- * opening line is typed into the box, sits there, and is deleted again,
- * once a loop. The card says rushed answers sound like everyone else's;
- * an empty box with a cursor said only that nothing was written. The same
- * cover as the forms', and its left edge is the cursor.
+ * The resume picture's rewrites (`ResumesScene`, 2026-11-23): one resume,
+ * and for each of three jobs its skills line and one bullet are typed
+ * again in that job's words. Each job has a third of the loop
+ * (`.form-turn` shows its posting and its two lines), and the lines are
+ * typed with the forms' cover: the skills from 3 to 10% and the bullet
+ * from 12 to 24%, then both stand until the next job.
  */
-.question-type {
+.resume-type {
   position: absolute;
   inset: 0;
   background: white;
-  border-left: 1px solid var(--color-ink);
-  animation: question-type var(--board-loop, 12.8s) linear infinite both;
+  animation: resume-type-0 var(--board-loop, 12.8s) linear infinite both;
+  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 3);
 }
-@keyframes question-type {
+.resume-type[data-k="1"] {
+  animation-name: resume-type-1;
+}
+@keyframes resume-type-0 {
   0%,
-  10% {
+  3% {
     transform: translateX(0);
     animation-timing-function: steps(var(--n, 30), end);
   }
-  44%,
-  68% {
-    transform: translateX(calc(100% - 2px));
-    animation-timing-function: steps(10, end);
-  }
-  76%,
+  10%,
   100% {
-    transform: translateX(0);
+    transform: translateX(101%);
   }
+}
+@keyframes resume-type-1 {
+  0%,
+  12% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 40), end);
+  }
+  24%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+/*
+ * The question picture's answer (`QuestionScene`, 2026-11-23): a whole
+ * stock answer comes into the box a word at a time, as a chatbot writes
+ * one, its stock phrases in the slop gradient (`.slop-word`, above). The
+ * card says rushed answers sound like everyone else's; an empty box said
+ * only that nothing was written. Once, as the picture shows (the hub
+ * mounts a picture afresh each turn), not a loop: each word waits its
+ * turn (`--w`) and then is there. Opacity alone.
+ */
+.stream-word {
+  animation: stream-word 0.01s linear both;
+  animation-delay: calc(0.5s + var(--w, 0) * 0.07s);
+}
+@keyframes stream-word {
+  from {
+    opacity: 0;
+  }
+}
+/*
+ * The inbox picture's letters arrive one at a time (`RepliesScene`,
+ * 2026-11-23, the user's ask): the oldest first, and each new one opens at
+ * the top of the list and pushes the others down, as mail comes in. All
+ * four came in together but the newest, which came last into a gap left
+ * for it, so the list stood with its first row missing (the user's
+ * catch). A row opens from no height (a grid row from 0fr to 1fr), which
+ * is layout, on four rows, once. `--order` is its turn, 0 for the oldest.
+ */
+.mail-in {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: mail-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(0.3s + var(--order, 0) * 0.85s);
+}
+.mail-in > * {
+  min-height: 0;
+  overflow: hidden;
+}
+@keyframes mail-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+/* Everything above is held as the tabs are. */
+[data-arrived="false"]
+  :is(
+    .board-turn,
+    .board-strip,
+    .tab-lit,
+    .form-turn,
+    .form-type,
+    .form-focus,
+    .form-done,
+    .form-up,
+    .form-up-bar,
+    .form-pick,
+    .resume-type,
+    .stream-word,
+    .mail-in
+  ),
+[data-held]
+  :is(
+    .board-turn,
+    .board-strip,
+    .tab-lit,
+    .form-turn,
+    .form-type,
+    .form-focus,
+    .form-done,
+    .form-up,
+    .form-up-bar,
+    .form-pick,
+    .resume-type,
+    .stream-word,
+    .mail-in
+  ),
+[data-paused]
+  :is(
+    .board-turn,
+    .board-strip,
+    .tab-lit,
+    .form-turn,
+    .form-type,
+    .form-focus,
+    .form-done,
+    .form-up,
+    .form-up-bar,
+    .form-pick,
+    .resume-type,
+    .stream-word,
+    .mail-in
+  ) {
+  animation-play-state: paused;
 }
 @media (prefers-reduced-motion: reduce) {
   .form-turn,
-  .form-done {
+  .form-done,
+  .form-up,
+  .form-pick,
+  .form-up-bar,
+  .stream-word,
+  .mail-in {
     animation: none;
   }
   .form-turn[data-first],
-  .form-done {
+  .form-done,
+  .form-up[data-k="2"],
+  .form-pick {
     opacity: 1;
+  }
+  .form-up:not([data-k="2"]) {
+    opacity: 0;
   }
   .form-type,
   .form-focus,
-  .question-type {
+  .resume-type {
     display: none;
   }
 }
@@ -2609,14 +2929,18 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 /* Up from behind the piece's own foot. The clip ends a little below the
    box, so a headline's descenders are whole as it lands. */
+/* Open 2em past each side: the clip is the piece's own box, and a line
+   wider than its box (a headline that does not wrap) was cut at the
+   box's right edge until the rise ended, so its last words popped in
+   (the user's catch, 2026-11-23). */
 @keyframes load-rise {
   from {
     transform: translateY(100%);
-    clip-path: inset(0 0 100% 0);
+    clip-path: inset(0 -2em 100% -2em);
   }
   to {
     transform: translateY(0);
-    clip-path: inset(0 0 -0.25em 0);
+    clip-path: inset(0 -2em -0.25em -2em);
   }
 }
 /* A cell dragged out from its top left corner. Open past the right and

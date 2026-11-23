@@ -46,10 +46,21 @@ const ICONS = {
   replies: ChatSlashIcon,
 };
 
-/** How long each card stays open before the next one opens, in ms. The
- *  browser picture's four tabs make one pass in the same time, so the hub
- *  has one clock (`--board-loop`, landing.css). */
-const TURN = 8000;
+/** How long each card stays open before the next one opens, in ms: as long
+ *  as its picture takes to say its piece. A picture that loops (the
+ *  browser's four tabs, the three forms, the resume's three rewrites)
+ *  makes one pass in its card's turn, so the hub has one clock
+ *  (`--board-loop`, landing.css). The forms take longest: each of three is
+ *  uploaded to, typed into and answered, four seconds a form. All six were
+ *  8 s until 2026-11-23. */
+const TURNS: Record<Scene, number> = {
+  boards: 8000,
+  resumes: 9000,
+  forms: 12000,
+  question: 8500,
+  tracker: 6500,
+  replies: 8000,
+};
 
 /** The three-column layout, where the cards take turns. */
 const WIDE = "(min-width: 64rem)";
@@ -69,7 +80,7 @@ const watchWide = (onChange: () => void) => {
  *
  * **The cards take turns** (the user's idea, 2026-11-21, so a reader
  * learns the cards switch the picture: nothing said they could be
- * clicked). A hairline draws clockwise round the open card over `TURN`
+ * clicked). A hairline draws clockwise round the open card over its turn (`TURNS`)
  * (`.card-ring` in landing.css), and when it closes the next card opens,
  * in the order of a search, round again after the sixth. It follows the
  * product rows' rules (product-accordion.tsx): it plays only while the
@@ -206,6 +217,7 @@ export function ProblemHub({
   }, []);
 
   const turning = wide;
+  const turn = TURNS[problems[at].scene];
   const resting = hovering || focused;
   const playing = turning && inView && arrived && !hold && !hidden && !resting;
   const turnKey = `${at}:${picks}`;
@@ -291,7 +303,7 @@ export function ProblemHub({
                   pathLength="1"
                   className="card-ring"
                   style={{
-                    animationDuration: `${TURN}ms`,
+                    animationDuration: `${turn}ms`,
                     animationPlayState: playing ? "running" : "paused",
                   }}
                   onAnimationEnd={() => openCard((at + 1) % problems.length)}
@@ -314,7 +326,7 @@ export function ProblemHub({
           // Where the cards turn, the browser picture's tabs keep the cards'
           // clock: one pass a turn, and held whenever the ring is.
           data-held={(turning && !playing) || undefined}
-          style={turning ? ({ "--board-loop": `${TURN}ms` } as CSSProperties) : undefined}
+          style={turning ? ({ "--board-loop": `${turn}ms` } as CSSProperties) : undefined}
           className="problem-well relative order-first h-[22rem] overflow-hidden rounded-2xl md:col-span-2 md:h-[27rem] lg:order-2 lg:col-span-1 lg:h-auto lg:min-h-[clamp(23rem,calc(100svh-23.5rem),30rem)]"
         >
           {/* A dot grid on the stage, fading toward the middle where the

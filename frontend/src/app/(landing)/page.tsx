@@ -85,10 +85,14 @@ export default function LandingPage() {
         <div className={cn(CONTAINER, "flex flex-1 flex-col")}>
           <div className="relative flex flex-1 flex-col">
             <DraftLines gap="1.5rem" first />
-            <div className="relative z-[2] mx-auto w-full max-w-5xl pt-14 text-center sm:pt-20 lg:pt-24">
+            <div className="relative z-[2] mx-auto w-full pt-14 text-center sm:pt-20 lg:pt-24">
               {/* One line from lg up, sized by the window's width (4.6vw,
-                  48 to 72px: the line is about 15.4em wide, so 71% of the
-                  window), so it stays inside the rails. The city's height
+                  48 to 68px: the line is about 15.4em wide, so 71% of the
+                  window, and 1047px at most in a column of 1088px), so it
+                  stays inside the rails and its own box. At 72px in a box
+                  held to 64rem it ran 86px past the box's right edge on a
+                  wide screen: off centre, and its last words cut off until
+                  the entrance ended (the user's catch, 2026-11-23). The city's height
                   caps are set for it (city-model.ts, `step`). The
                   text is marked for the city's job cards, which keep clear
                   of it (`data-hero-text`, `data-hero-box`: hero-city.tsx). */}
@@ -96,7 +100,7 @@ export default function LandingPage() {
                 data-hero-text
                 className={cn(
                   TYPE.display,
-                  "hero-reveal text-ink lg:text-[clamp(3rem,4.6vw,4.5rem)] lg:whitespace-nowrap",
+                  "hero-reveal text-ink lg:text-[clamp(3rem,4.6vw,4.25rem)] lg:whitespace-nowrap",
                 )}
                 style={{ "--rd": ".15s" } as CSSProperties}
               >

@@ -4,10 +4,7 @@ import {
   ArrowRightIcon,
   CaretDownIcon,
   CheckCircleIcon,
-  DesktopIcon,
-  DownloadSimpleIcon,
   FileTextIcon,
-  FolderSimpleIcon,
   ListIcon,
   LockSimpleIcon,
   MagnifyingGlassIcon,
@@ -15,6 +12,7 @@ import {
   PlusIcon,
   TableIcon,
   TrayIcon,
+  UploadSimpleIcon,
 } from "@phosphor-icons/react/ssr";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -188,11 +186,19 @@ function Dots({ lights, className }: { lights?: boolean; className?: string }) {
 }
 
 /**
- * Four company job boards, each on the hiring system that company is on in
- * scraper/boards.csv (Stripe on Greenhouse, Nike on Workday, Spotify on
- * Lever, Goldman Sachs on Oracle), with that board's own address. All four
- * are in the logo strip. The roles, places and dates are made up; `stale`
- * marks a posting that has sat open for months.
+ * The four places a search really has open: two companies' own careers
+ * pages, each on the hiring system that company is on in scraper/boards.csv
+ * (Stripe on Greenhouse, Nike on Workday), with that board's own address,
+ * and two job sites, LinkedIn and Indeed, between them (the user's ask,
+ * 2026-11-23: a search is spread over job sites too, not only companies'
+ * pages; all four were careers pages). **The two job sites are named, by
+ * a tab's favicon and name alone**: the pictures name no other product (a
+ * green sheet is a spreadsheet without Google's mark), but "a job site"
+ * means nothing without the two every student has open. This is the
+ * search before WorkIt: WorkIt reads neither site (docs/job-pipeline.md),
+ * and no line says it does. The roles, places and dates are made up, on
+ * employers from the logo strip; `stale` marks a posting that has sat
+ * open, or been posted again, for weeks.
  */
 const BOARDS = [
   {
@@ -200,21 +206,41 @@ const BOARDS = [
     domain: followedJob.domain,
     url: "job-boards.greenhouse.io/stripe",
   },
+  { company: "LinkedIn", domain: "linkedin.com", url: "linkedin.com/jobs/search" },
   { company: "Nike", domain: "nike.com", url: "nike.wd1.myworkdayjobs.com/nke" },
-  { company: "Spotify", domain: "spotify.com", url: "jobs.lever.co/spotify" },
-  {
-    company: "Goldman Sachs",
-    domain: "goldmansachs.com",
-    url: "hdpc.fa.us2.oraclecloud.com/LateralHiring",
-  },
+  { company: "Indeed", domain: "indeed.com", url: "indeed.com/jobs?q=software+intern" },
 ];
 
-type Role = { title: string; place: string; age: string; stale?: boolean };
+type Role = { title: string; place: string; age: string; stale?: boolean; domain?: string };
 
 const GREENHOUSE_ROLES: Role[] = [
   { title: followedJob.title, place: "San Francisco, CA · Hybrid", age: "3 weeks ago" },
   { title: "Staff Engineer, Payments", place: "Seattle, WA", age: "4 months ago", stale: true },
   { title: "Backend Engineer, Billing", place: "Remote, US", age: "6 months ago", stale: true },
+];
+/** A job site's results: each with its employer's logo, and its age as the
+ *  site words it. */
+const LINKEDIN_ROLES: Role[] = [
+  {
+    title: "Software Engineer Intern",
+    place: "Figma · New York, NY",
+    age: "Promoted",
+    domain: "figma.com",
+  },
+  {
+    title: "Technology Intern",
+    place: "Capital One · McLean, VA",
+    age: "Reposted 5 weeks ago",
+    stale: true,
+    domain: "capitalone.com",
+  },
+  {
+    title: "Software Engineer, New Grad",
+    place: "Datadog · Boston, MA",
+    age: "2 months ago",
+    stale: true,
+    domain: "datadoghq.com",
+  },
 ];
 const WORKDAY_ROLES: Role[] = [
   {
@@ -226,34 +252,19 @@ const WORKDAY_ROLES: Role[] = [
   { title: "Data Analyst, Supply Chain", place: "Beaverton, OR", age: "Posted 6 days ago" },
   { title: "Product Manager, Nike App", place: "Remote", age: "Posted 30+ days ago", stale: true },
 ];
-const LEVER_ROLES: Role[] = [
+const INDEED_ROLES: Role[] = [
+  { title: "Software Engineer Intern", place: "Visa · Austin, TX", age: "Sponsored" },
   {
-    title: "Backend Engineer, Playlists",
-    place: "New York · Full-time",
-    age: "5 months ago",
+    title: "Technology Analyst, Entry Level",
+    place: "Accenture · Chicago, IL",
+    age: "Posted 30+ days ago",
     stale: true,
   },
-  { title: "Data Scientist, Podcasts", place: "London · Full-time", age: "2 days ago" },
+  { title: "Data Science Intern", place: "Pfizer · New York, NY", age: "Just posted" },
   {
-    title: "Engineering Manager, Ads",
-    place: "Remote · Full-time",
-    age: "1 year ago",
-    stale: true,
-  },
-];
-const ORACLE_ROLES: Role[] = [
-  { title: "Analyst, Global Markets", place: "New York, NY", age: "Posted Jun 12", stale: true },
-  { title: "Associate, Software Engineering", place: "Dallas, TX", age: "Posted Nov 18" },
-  {
-    title: "Analyst, Asset Management",
-    place: "Salt Lake City, UT",
-    age: "Posted Jul 3",
-    stale: true,
-  },
-  {
-    title: "Associate, Risk Engineering",
-    place: "Jersey City, NJ",
-    age: "Posted Aug 27",
+    title: "Junior Software Developer",
+    place: "Spotify · Remote",
+    age: "Posted 30+ days ago",
     stale: true,
   },
 ];
@@ -271,26 +282,18 @@ function Age({ role, className }: { role: Role; className?: string }) {
 }
 
 /**
- * One tab's page: shown in its tab's turn (`.board-turn` in landing.css).
- * **All four keep one rhythm**: 12px of room, a 24px head (`BoardHead`),
- * then a body that ends about 20px above the window's foot. Drawn to
- * their own heights, two pages ended 40px short and read as unfinished
- * beside the two that filled the window.
+ * One tab's page, a fifth of the strip that slides (`.board-strip` in
+ * landing.css). **All four keep one rhythm**: 12px of room, a 24px head
+ * (`BoardHead`), then a body that ends about 20px above the window's foot.
+ * Drawn to their own heights, two pages ended 40px short and read as
+ * unfinished beside the two that filled the window.
  */
-function BoardPage({ turn, children }: { turn: number; children: ReactNode }) {
-  return (
-    <div
-      className="board-turn absolute inset-0 bg-white px-4 pt-3"
-      data-first={turn === 0 || undefined}
-      style={{ "--i": turn } as CSSProperties}
-    >
-      {children}
-    </div>
-  );
+function BoardPage({ children }: { children: ReactNode }) {
+  return <div className="px-4 pt-3">{children}</div>;
 }
 
-/** A board's head: the company's logo, then what that system puts beside
- *  it (its name, a search, filters), in one 24px row. */
+/** A board's head: its own logo, then what that site puts beside it (its
+ *  name, a search, filters), in one 24px row. */
 function BoardHead({ board, children }: { board: number; children: ReactNode }) {
   return (
     <div className="flex h-6 items-center gap-2">
@@ -315,52 +318,77 @@ function Field({ children, className }: { children: ReactNode; className?: strin
 }
 
 /**
- * Jobs scattered everywhere: one browser, four company job boards, each on a
- * different hiring system and each laid out its own way. The tabs take
- * turns: the lit tab, the address and the page under it change together,
- * every 3.2 s, round and round (the user's ask, 2026-11-21: "switching
- * through tabs like a company website or a job board"). Each page shows
- * three or four postings as that system lays them out (a department's
- * list, a search with results, filters over postings, a grid of tiles),
- * where six bare text rows read as a table and not a job page (the user's
- * catch). Some postings on every page are months old, in amber.
+ * Jobs scattered everywhere: one browser, four tabs, two companies' careers
+ * pages and two job sites, each laid out its own way. The tabs take turns:
+ * the lit tab slides to the next name and the page slides in from the
+ * right, as tabs do under a swipe, a quarter of the loop each (the user's
+ * asks: tabs that switch, 2026-11-21, and a slide, not a fade,
+ * 2026-11-23); the address changes with them. Each page shows three or
+ * four postings as that site lays them out (a department's list, results
+ * with their employers' logos, a search over result cards, a grid of
+ * tiles), where six bare text rows read as a table and not a job page (the
+ * user's catch). Some postings on every page are weeks or months old, in
+ * amber.
  *
  * The four differ in layout alone: the type is `T`'s on every one (the
  * comment there).
  *
- * The turns are CSS on opacity alone, on one clock, so the three parts of
- * a turn cannot drift; held while the stage waits to arrive and while none
+ * The slide is CSS on transforms, on one clock, so the three parts of a
+ * turn cannot drift; held while the stage waits to arrive and while none
  * of the picture is on screen (`HoldOffscreen`), and still on the first
- * board with reduced motion.
+ * page with reduced motion.
  */
 export function BoardsScene() {
+  // The company's name, then each department's roles, a hairline between
+  // them and the age at the row's end. Drawn twice: the strip ends on its
+  // first page, so the loop goes round without a jump back.
+  const greenhouse = (
+    <BoardPage>
+      <BoardHead board={0}>
+        <span className={T.title}>{BOARDS[0].company}</span>
+        <span className={T.meta}>Current openings</span>
+      </BoardHead>
+      <BoardLabel>Engineering</BoardLabel>
+      {GREENHOUSE_ROLES.map((role) => (
+        <div
+          key={role.title}
+          className={cn(RULE, "flex h-[46px] items-center gap-3 border-b last:border-b-0")}
+        >
+          <span className="min-w-0 flex-1">
+            <span className={cn(T.title, "block truncate")}>{role.title}</span>
+            <span className={cn(T.meta, "block truncate")}>{role.place}</span>
+          </span>
+          <Age role={role} />
+        </div>
+      ))}
+    </BoardPage>
+  );
   return (
     <Window>
       <HoldOffscreen className="board-tabs">
-        <div className="flex items-end gap-0.5 bg-slate-900/[0.07] pt-2 pr-2 pl-3">
+        <div className="flex items-end bg-slate-900/[0.07] pt-2 pr-2 pl-3">
           <Dots lights className="mr-2 mb-2.5" />
-          {BOARDS.map((board, i) => (
-            <span
-              key={board.domain}
-              className="journey-in relative flex min-w-0 flex-1 items-center gap-1 px-1 py-1.5"
-              style={delay(0.15 + i * 0.12)}
-            >
+          <div className="relative grid min-w-0 flex-1 grid-cols-4">
+            {/* The lit tab: one white tab that slides under the names. */}
+            <span className="tab-lit rounded-t-lg bg-white" />
+            {BOARDS.map((board, i) => (
               <span
-                className="board-turn absolute inset-0 rounded-t-lg bg-white"
-                data-first={i === 0 || undefined}
-                style={{ "--i": i } as CSSProperties}
-              />
-              {/* A bare favicon, as a tab shows one: on a white tile the
-                  unlit tabs each read as a button. */}
-              <FaviconLogo
-                domain={board.domain}
-                className="relative size-3.5 rounded-[3px] bg-transparent shadow-none"
-              />
-              <span className={cn(T.meta, "text-ink-muted relative truncate")}>
-                {board.company}
+                key={board.domain}
+                className="journey-in relative flex min-w-0 items-center gap-1 px-1.5 py-1.5"
+                style={delay(0.15 + i * 0.12)}
+              >
+                {/* A bare favicon, as a tab shows one: on a white tile the
+                    unlit tabs each read as a button. */}
+                <FaviconLogo
+                  domain={board.domain}
+                  className="relative size-3.5 rounded-[3px] bg-transparent shadow-none"
+                />
+                <span className={cn(T.meta, "text-ink-muted relative truncate")}>
+                  {board.company}
+                </span>
               </span>
-            </span>
-          ))}
+            ))}
+          </div>
         </div>
         <div className={cn(RULE, "text-ink-meta flex items-center gap-2 border-b px-3 py-1.5")}>
           <ArrowLeftIcon className="size-3 shrink-0" />
@@ -382,225 +410,312 @@ export function BoardsScene() {
             </span>
           </span>
         </div>
-        <div className="relative h-[14rem]">
-          {/* Greenhouse: the company's name, then each department's roles,
-              a hairline between them and the age at the row's end. */}
-          <BoardPage turn={0}>
-            <BoardHead board={0}>
-              <span className={T.title}>{BOARDS[0].company}</span>
-              <span className={T.meta}>Current openings</span>
-            </BoardHead>
-            <BoardLabel>Engineering</BoardLabel>
-            {GREENHOUSE_ROLES.map((role) => (
-              <div
-                key={role.title}
-                className={cn(RULE, "flex h-[46px] items-center gap-3 border-b last:border-b-0")}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className={cn(T.title, "block truncate")}>{role.title}</span>
-                  <span className={cn(T.meta, "block truncate")}>{role.place}</span>
-                </span>
-                <Age role={role} />
-              </div>
-            ))}
-          </BoardPage>
-          {/* Workday: a search, a count of results, then each result as a
-              card, a pin by its place and its posted date on the same line. */}
-          <BoardPage turn={1}>
-            <BoardHead board={1}>
-              <Field className="flex-1">
-                <MagnifyingGlassIcon className="size-3 shrink-0" />
-                <span className="truncate">Search for jobs or keywords</span>
-              </Field>
-            </BoardHead>
-            <p className={cn(T.label, "mt-2.5")}>214 jobs found</p>
-            {WORKDAY_ROLES.map((role) => (
-              <div
-                key={role.title}
-                className="mt-1.5 flex h-[42px] flex-col justify-center rounded-lg px-2.5 ring-1 ring-slate-900/[0.08]"
-              >
-                <span className={cn(T.title, "block truncate")}>{role.title}</span>
-                <span className="flex items-center gap-1">
-                  <MapPinIcon weight="fill" className="text-ink-meta size-3 shrink-0 opacity-70" />
-                  <span className={cn(T.meta, "truncate")}>{role.place}</span>
-                  <Age role={role} className="ml-auto" />
-                </span>
-              </div>
-            ))}
-          </BoardPage>
-          {/* Lever: filters beside the name, then a team's postings, each
-              with its place, its age and an Apply at the row's end. */}
-          <BoardPage turn={2}>
-            <BoardHead board={2}>
-              <span className={T.title}>{BOARDS[2].company}</span>
-              <span className="ml-auto flex gap-1">
-                {["Location", "Team"].map((filter) => (
-                  <Field key={filter} className="gap-0.5">
-                    {filter}
-                    <CaretDownIcon weight="fill" className="size-2 shrink-0 opacity-70" />
-                  </Field>
-                ))}
-              </span>
-            </BoardHead>
-            <BoardLabel>Engineering</BoardLabel>
-            {LEVER_ROLES.map((role) => (
-              <div
-                key={role.title}
-                className={cn(RULE, "flex h-[46px] items-center gap-3 border-b last:border-b-0")}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className={cn(T.title, "block truncate")}>{role.title}</span>
-                  <span className="flex gap-1">
-                    <span className={cn(T.meta, "truncate")}>{role.place} ·</span>
-                    <Age role={role} />
-                  </span>
-                </span>
-                <span className={cn(T.button, FIELD, "text-ink-muted shrink-0 px-2 py-1")}>
-                  Apply
-                </span>
-              </div>
-            ))}
-          </BoardPage>
-          {/* Oracle: a keyword and a place to search by, then a grid of
-              tiles, each a posting. */}
-          <BoardPage turn={3}>
-            <BoardHead board={3}>
-              <Field className="flex-1">
-                <MagnifyingGlassIcon className="size-3 shrink-0" />
-                <span className="truncate">Keyword</span>
-              </Field>
-              <Field className="w-[5.25rem]">
-                <MapPinIcon className="size-3 shrink-0" />
-                <span className="truncate">Location</span>
-              </Field>
-            </BoardHead>
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
-              {ORACLE_ROLES.map((role) => (
+        <div className="h-[14rem] overflow-hidden">
+          <div className="board-strip">
+            {greenhouse}
+            {/* A job site: a search and its count, then results, each with
+                its employer's logo and how long it has been up. */}
+            <BoardPage>
+              <BoardHead board={1}>
+                <Field className="flex-1">
+                  <MagnifyingGlassIcon className="size-3 shrink-0" />
+                  <span className="text-ink truncate">Software engineer intern</span>
+                </Field>
+              </BoardHead>
+              <BoardLabel>1,204 results</BoardLabel>
+              {LINKEDIN_ROLES.map((role) => (
                 <div
                   key={role.title}
-                  className="flex h-[76px] min-w-0 flex-col rounded-lg p-2 ring-1 ring-slate-900/[0.08]"
+                  className={cn(
+                    RULE,
+                    "flex h-[46px] items-center gap-2.5 border-b last:border-b-0",
+                  )}
                 >
-                  <span className={cn(T.title, "line-clamp-2 h-8")}>{role.title}</span>
-                  <span className={cn(T.meta, "truncate")}>{role.place}</span>
+                  <FaviconLogo domain={role.domain ?? ""} className="size-7 rounded-md" />
+                  <span className="min-w-0 flex-1">
+                    <span className={cn(T.title, "block truncate")}>{role.title}</span>
+                    <span className={cn(T.meta, "block truncate")}>{role.place}</span>
+                  </span>
                   <Age role={role} />
                 </div>
               ))}
-            </div>
-          </BoardPage>
+            </BoardPage>
+            {/* Workday: a search, a count of results, then each result as a
+                card, a pin by its place and its posted date on the same line. */}
+            <BoardPage>
+              <BoardHead board={2}>
+                <Field className="flex-1">
+                  <MagnifyingGlassIcon className="size-3 shrink-0" />
+                  <span className="truncate">Search for jobs or keywords</span>
+                </Field>
+              </BoardHead>
+              <p className={cn(T.label, "mt-2.5")}>214 jobs found</p>
+              {WORKDAY_ROLES.map((role) => (
+                <div
+                  key={role.title}
+                  className="mt-1.5 flex h-[42px] flex-col justify-center rounded-lg px-2.5 ring-1 ring-slate-900/[0.08]"
+                >
+                  <span className={cn(T.title, "block truncate")}>{role.title}</span>
+                  <span className="flex items-center gap-1">
+                    <MapPinIcon
+                      weight="fill"
+                      className="text-ink-meta size-3 shrink-0 opacity-70"
+                    />
+                    <span className={cn(T.meta, "truncate")}>{role.place}</span>
+                    <Age role={role} className="ml-auto" />
+                  </span>
+                </div>
+              ))}
+            </BoardPage>
+            {/* The other job site: what and where to search by, then a grid
+                of tiles, each a posting. */}
+            <BoardPage>
+              <BoardHead board={3}>
+                <Field className="flex-1">
+                  <MagnifyingGlassIcon className="size-3 shrink-0" />
+                  <span className="text-ink truncate">software intern</span>
+                </Field>
+                <Field className="w-[5.25rem]">
+                  <MapPinIcon className="size-3 shrink-0" />
+                  <span className="truncate">Where</span>
+                </Field>
+              </BoardHead>
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                {INDEED_ROLES.map((role) => (
+                  <div
+                    key={role.title}
+                    className="flex h-[76px] min-w-0 flex-col rounded-lg p-2 ring-1 ring-slate-900/[0.08]"
+                  >
+                    <span className={cn(T.title, "line-clamp-2 h-8")}>{role.title}</span>
+                    <span className={cn(T.meta, "truncate")}>{role.place}</span>
+                    <Age role={role} />
+                  </div>
+                ))}
+              </div>
+            </BoardPage>
+            {greenhouse}
+          </div>
         </div>
       </HoldOffscreen>
     </Window>
   );
 }
 
-/** The newest copy of the resume: the file window's last row, and the
- *  file every form says is uploaded. */
+/** The newest copy of the resume: the file every form asks for again, and
+ *  the one the sheet's Resume column loses track of. */
 const RESUME_FILE = "Resume_FINAL (1).pdf";
 
-/** The resume, saved again for each job. */
-const FILES = [
-  { name: "Resume.pdf", date: "Aug 2", size: "84 KB" },
-  { name: "Resume_final.pdf", date: "Sep 14", size: "86 KB" },
-  { name: "Resume_final_v2.pdf", date: "Sep 15", size: "86 KB" },
-  { name: "Resume_Stripe.pdf", date: "Oct 3", size: "91 KB" },
-  { name: "Resume_Figma_NEW.pdf", date: "Oct 9", size: "88 KB" },
-  { name: RESUME_FILE, date: "Today", size: "92 KB" },
+/** The student's details, the same on every form and at the head of the
+ *  resume. The email and the school are the ones Auto Apply's scenes fill
+ *  in (features/visuals). */
+const [FIRST_NAME, ...LAST_NAMES] = candidate.name.split(" ");
+const DETAILS = {
+  first: FIRST_NAME,
+  last: LAST_NAMES.join(" "),
+  email: "alex@example.com",
+  school: "Northview University",
+  gpa: "3.7",
+};
+
+/**
+ * The three jobs the resume and the forms pictures go through: the
+ * followed job, then a role from Nike's page in the browser picture, then
+ * one at Spotify. For each, what its posting asks for, and the resume's
+ * skills line and one project bullet as the student rewrites them for it:
+ * the same project, told three ways.
+ */
+const APPLICATIONS = [
+  {
+    company: followedJob.company,
+    domain: followedJob.domain,
+    role: followedJob.title,
+    file: "Resume_Stripe.docx",
+    wants: ["REST APIs", "TypeScript", "Payments"],
+    skills: "TypeScript, Node.js, REST APIs, SQL",
+    bullet: "Built a budget tracker on a Node.js REST API",
+  },
+  {
+    company: "Nike",
+    domain: "nike.com",
+    role: WORKDAY_ROLES[0].title,
+    file: "Resume_Nike.docx",
+    wants: ["React", "E-commerce", "A/B testing"],
+    skills: "React, JavaScript, HTML, CSS, Figma",
+    bullet: "Built a responsive budget app in React",
+  },
+  {
+    company: "Spotify",
+    domain: "spotify.com",
+    role: "Backend Engineer, Playlists",
+    file: "Resume_Spotify.docx",
+    wants: ["Python", "Data pipelines", "SQL"],
+    skills: "Python, SQL, pandas, Airflow, Docker",
+    bullet: "Wrote a Python pipeline for spending data",
+  },
 ];
 
-/** A file window's sidebar: the usual places, and the folder that is open. */
-const PLACES = [
-  { name: "Desktop", icon: DesktopIcon },
-  { name: "Documents", icon: FileTextIcon },
-  { name: "Downloads", icon: DownloadSimpleIcon },
-  { name: "Resumes", icon: FolderSimpleIcon },
-];
-
-/** A file's row: its name and when it changed, and its size where the
- *  window is wide enough for a third column. */
-const FILE_ROW =
-  "grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-x-2 @[25rem]:grid-cols-[minmax(0,1fr)_3.5rem_3rem]";
-const FILE_SIZE = "hidden text-right tabular-nums @[25rem]:block";
-
-/** The resume you keep rewriting: a file window open on the folder of
- *  resume versions, one more saved each time, the newest selected. The
- *  count of items is in the bar at the window's foot, where a file window
- *  keeps it, not beside the title. */
-export function ResumesScene() {
+/** One of the three jobs' versions of a thing, shown in that job's third
+ *  of the loop (`.form-turn` in landing.css); `--i` sets off what is typed
+ *  into it. Stacked in one grid cell by the caller. */
+function Version({
+  turn,
+  className,
+  children,
+}: {
+  turn: number;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <Window>
-      <div className={cn(RULE, "flex items-center gap-2 border-b bg-slate-900/[0.03] px-3 py-2")}>
-        <Dots lights />
-        <FolderSimpleIcon weight="fill" className="ml-1.5 size-4 shrink-0 text-[#3b9cf5]" />
-        <span className={T.title}>Resumes</span>
-      </div>
-      {/* On a window narrower than its drawn 20rem (a phone, a small
-          laptop) the sidebar goes, so the file names still show whole. */}
-      <div className="grid @[19.5rem]:grid-cols-[6rem_minmax(0,1fr)]">
-        <div className={cn(RULE, "hidden border-r bg-slate-900/[0.03] px-1 py-2 @[19.5rem]:block")}>
-          {/* Sentence case, as a file window sets its sidebar's heading. */}
-          <p className={cn(T.meta, "px-1.5 pb-1 font-semibold")}>Favorites</p>
-          {PLACES.map(({ name, icon: Icon }) => (
-            <p
-              key={name}
-              className={cn(
-                T.meta,
-                "text-ink-muted flex items-center gap-1 rounded-md px-1.5 py-1",
-                name === "Resumes" && "bg-slate-900/[0.08]",
-              )}
-            >
-              <Icon weight="fill" className="size-3 shrink-0 text-[#3b9cf5]" />
-              <span className="truncate">{name}</span>
-            </p>
-          ))}
-        </div>
-        <div>
-          <div className={cn(FILE_ROW, T.meta, RULE, "border-b px-3 py-1")}>
-            <span>Name</span>
-            <span>Modified</span>
-            <span className={FILE_SIZE}>Size</span>
-          </div>
-          <ul className="px-1.5 py-1">
-            {FILES.map((file, i) => {
-              const last = i === FILES.length - 1;
-              return (
-                <li
-                  key={file.name}
-                  className={cn(
-                    "journey-in rounded-md px-1.5 py-1.5",
-                    FILE_ROW,
-                    last && "bg-[#2563eb]",
-                  )}
-                  style={delay(0.2 + i * 0.16)}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <FileTextIcon
-                      weight="fill"
-                      className={cn("size-4 shrink-0", last ? "text-white" : "text-danger")}
-                    />
-                    <span className={cn(T.text, "truncate", last && "text-white")}>
-                      {file.name}
-                    </span>
-                  </span>
-                  <span className={cn(T.meta, last && "text-white/85")}>{file.date}</span>
-                  <span className={cn(T.meta, FILE_SIZE, last && "text-white/85")}>
-                    {file.size}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
-      <p className={cn(T.meta, RULE, "flex border-t px-3 py-1")}>
-        <span className="truncate">Documents › Job search › Resumes</span>
-        <span className="ml-auto shrink-0">{FILES.length} items</span>
-      </p>
-    </Window>
+    <span
+      className={cn("form-turn col-start-1 row-start-1 min-w-0", className)}
+      data-first={turn === 0 || undefined}
+      style={{ "--i": turn } as CSSProperties}
+    >
+      {children}
+    </span>
   );
 }
 
-/** A hiring system's steps to apply, the second open. */
-const STEPS = ["Account", "My information", "Experience", "Questions"];
+/** The highlight on a line the student is rewriting, as a marker's. */
+const MARKED = "#fff3bf";
+
+/** A resume line as each job needs it: three versions in one place, each
+ *  typed in its job's turn (`.resume-type`, `k` 0 for the first line typed
+ *  and 1 for the second), on the marker's yellow. */
+function Rewritten({
+  pick,
+  k,
+}: {
+  pick: (job: (typeof APPLICATIONS)[number]) => string;
+  k: number;
+}) {
+  return (
+    <span className="grid">
+      {APPLICATIONS.map((job, i) => {
+        const text = pick(job);
+        return (
+          <Version key={job.company} turn={i} className="bg-white">
+            <span
+              className={cn(
+                T.text,
+                "relative block w-fit max-w-full overflow-hidden rounded-[3px] px-1 whitespace-nowrap",
+              )}
+              style={{ background: MARKED }}
+            >
+              {text}
+              <span
+                className="resume-type"
+                data-k={k}
+                style={{ "--n": text.length, background: "white" } as CSSProperties}
+              />
+            </span>
+          </Version>
+        );
+      })}
+    </span>
+  );
+}
+
+/** A line of the resume that stays as it is: a grey bar. */
+const Line = ({ className }: { className?: string }) => (
+  <span className={cn("block h-1.5 rounded-full bg-slate-900/10", className)} />
+);
+
+/**
+ * The resume you keep rewriting: one resume, open in a word processor
+ * beside the job posting, and for each of three jobs its skills line and a
+ * project's bullet are typed again in that posting's words; the file's
+ * name changes with the job (the user's catch, 2026-11-23: the card is
+ * about rewriting one resume for every job's keywords, and the picture was
+ * a folder of six saved copies, which is about files). The posting is its
+ * own column where the window has the room and one line above the page
+ * where it has not. The motion is `.form-turn` and `.resume-type` in
+ * landing.css: the three jobs take the loop's thirds.
+ */
+export function ResumesScene() {
+  return (
+    <Window>
+      <HoldOffscreen>
+        <div className={cn(RULE, "flex items-center gap-2 border-b bg-slate-900/[0.03] px-3 py-2")}>
+          <Dots lights />
+          <FileTextIcon weight="fill" className="ml-1.5 size-4 shrink-0 text-[#3b82f6]" />
+          <span className="grid min-w-0 flex-1">
+            {APPLICATIONS.map((job, i) => (
+              <Version key={job.company} turn={i} className={cn(T.title, "truncate")}>
+                {job.file}
+              </Version>
+            ))}
+          </span>
+          <span className={cn(T.meta, "shrink-0")}>Edited just now</span>
+        </div>
+        <div className="grid bg-slate-900/[0.05] @[25rem]:grid-cols-[9.75rem_minmax(0,1fr)]">
+          {/* The posting the student is working from, beside the page. */}
+          <div className={cn(RULE, "grid border-b bg-white @[25rem]:border-r @[25rem]:border-b-0")}>
+            {APPLICATIONS.map((job, i) => (
+              <Version
+                key={job.company}
+                turn={i}
+                className="flex items-center gap-2 bg-white px-3 py-2 @[25rem]:block @[25rem]:py-3"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <FaviconLogo domain={job.domain} className="size-5 rounded-md" />
+                  <span className={cn(T.title, "truncate")}>{job.company}</span>
+                </span>
+                <span
+                  className={cn(
+                    T.meta,
+                    "block truncate @[25rem]:mt-1 @[25rem]:line-clamp-2 @[25rem]:whitespace-normal",
+                  )}
+                >
+                  {job.role}
+                </span>
+                <span className={cn(T.label, "mt-3 hidden @[25rem]:block")}>Looking for</span>
+                <ul className="mt-1 hidden gap-1 @[25rem]:grid">
+                  {job.wants.map((want) => (
+                    <li key={want} className={cn(T.text, "flex items-center gap-1.5")}>
+                      <span className="bg-ink-meta size-1 shrink-0 rounded-full" />
+                      <span className="truncate">{want}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Version>
+            ))}
+          </div>
+          {/* The page: the student's details, then the two lines that
+              change for each job among the lines that stay. */}
+          <div className="p-3">
+            <div className="rounded-[3px] bg-white px-4 py-3 shadow-[0_1px_3px_rgb(15_23_42/0.12)]">
+              <p className={cn(T.title, "text-center")}>{candidate.name}</p>
+              <p className={cn(T.meta, RULE, "truncate border-b pb-1.5 text-center")}>
+                {DETAILS.email} · {DETAILS.school}
+              </p>
+              <p className={cn(T.label, "mt-2")}>Skills</p>
+              <div className="mt-1">
+                <Rewritten pick={(job) => job.skills} k={0} />
+              </div>
+              <p className={cn(T.label, "mt-2.5")}>Projects</p>
+              <p className={cn(T.text, "mt-0.5 font-semibold")}>Budget Tracker</p>
+              <div className="mt-1">
+                <Rewritten pick={(job) => job.bullet} k={1} />
+              </div>
+              <Line className="mt-1.5 w-4/5" />
+              {/* Where the posting is a row above the page (a narrow
+                  window), the page ends on its projects, or the window
+                  ran past the stage's foot. */}
+              <div className="hidden @[25rem]:block">
+                <p className={cn(T.label, "mt-2.5")}>Experience</p>
+                <p className={cn(T.text, "mt-0.5 font-semibold")}>Teaching Assistant</p>
+                <Line className="mt-1.5" />
+                <Line className="mt-1.5 w-2/3" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </HoldOffscreen>
+    </Window>
+  );
+}
 
 /** A required field's mark. */
 const Star = () => <span className="text-danger"> *</span>;
@@ -608,27 +723,8 @@ const Star = () => <span className="text-danger"> *</span>;
 /** A form's own blue edge and soft halo on the field in use. */
 const FOCUS = { boxShadow: `0 0 0 2px ${LINK_BLUE}, 0 0 0 5px ${LINK_BLUE}26` };
 
-/** The student's details, the same on every form. The email and the school
- *  are the ones Auto Apply's scenes fill in (features/visuals). */
-const [FIRST_NAME, ...LAST_NAMES] = candidate.name.split(" ");
-const DETAILS = {
-  first: FIRST_NAME,
-  last: LAST_NAMES.join(" "),
-  email: "alex@example.com",
-  school: "Northview University",
-};
-
-/** The three applications the forms picture goes through: the followed
- *  job, then two roles from the browser picture's boards, each on its own
- *  hiring system's kind of form. */
-const APPLICATIONS = [
-  { company: followedJob.company, domain: followedJob.domain, role: followedJob.title },
-  { company: "Nike", domain: "nike.com", role: WORKDAY_ROLES[0].title },
-  { company: "Spotify", domain: "spotify.com", role: LEVER_ROLES[0].title },
-];
-
 /** One company's form: shown in its turn (`.form-turn` in landing.css),
- *  and `--i` sets off everything typed into it. */
+ *  and `--i` sets off everything done in it. */
 function FormPage({ turn, children }: { turn: number; children: ReactNode }) {
   return (
     <div
@@ -642,7 +738,7 @@ function FormPage({ turn, children }: { turn: number; children: ReactNode }) {
 }
 
 /** A field's box with its value typed in, a letter at a time, in the
- *  field's own stretch of the form's turn (`k`, 0 to 3), under the form's
+ *  field's own stretch of the form's turn (`k`, 0 to 4), under the form's
  *  blue ring while it is typed (`.form-type`, `.form-focus`). */
 function Entry({ value, k, className }: { value: string; k: number; className?: string }) {
   return (
@@ -669,33 +765,92 @@ function Labelled({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <p className={cn(T.meta, "truncate")}>
         {label}
         <Star />
       </p>
-      <Entry value={value} k={k} className="mt-1" />
+      <Entry value={value} k={k} className="mt-0.5" />
     </div>
   );
 }
 
-/** The resume, already uploaded: the form asks for what is on it anyway. */
-function Uploaded({ className }: { className?: string }) {
+/**
+ * The resume, uploaded again on this form: the button to upload it, then
+ * the file going up under a bar that fills, then the file, uploaded
+ * (`.form-up` in landing.css), all in one place. Every form asks for it,
+ * and then for what is on it (the user's ask, 2026-11-23: it was shown as
+ * uploaded already, which left out the doing it again).
+ */
+function Upload({ className }: { className?: string }) {
+  const state = "form-up col-start-1 row-start-1 flex min-w-0 items-center gap-1.5 rounded-md px-2";
   return (
-    <p
-      className={cn(
-        T.meta,
-        "flex min-w-0 items-center gap-1.5 rounded-md bg-[#e8f5ee] px-2 py-1 text-[#14663c]",
-        className,
-      )}
-    >
-      <CheckCircleIcon weight="fill" className="size-3.5 shrink-0" />
-      <span className="truncate">{RESUME_FILE} uploaded</span>
-    </p>
+    <span className={cn("grid h-6 min-w-0", className)}>
+      <span className={cn(T.button, state, "text-ink-muted ring-1 ring-slate-900/15 ring-inset")}>
+        <UploadSimpleIcon className="size-3.5 shrink-0" />
+        <span className="truncate">Upload resume</span>
+      </span>
+      <span className={cn(T.meta, state, "bg-slate-900/[0.05]")} data-k={1}>
+        <span className="truncate">{RESUME_FILE}</span>
+        <span className="ml-auto h-1 w-14 shrink-0 overflow-hidden rounded-full bg-slate-900/10">
+          <span
+            className="form-up-bar block h-full rounded-full"
+            style={{ background: LINK_BLUE }}
+          />
+        </span>
+      </span>
+      <span className={cn(T.meta, state, "bg-[#e8f5ee] text-[#14663c]")} data-k={2}>
+        <CheckCircleIcon weight="fill" className="size-3.5 shrink-0" />
+        <span className="truncate">{RESUME_FILE} uploaded</span>
+      </span>
+    </span>
   );
 }
 
-/** A form's main button: waiting, then lit once its last field is typed
+/** One of the questions every form asks again, with its answer picked in
+ *  its turn (`.form-pick`, `k` 0 to 2). */
+function Asked({
+  question,
+  answer,
+  k,
+  className,
+}: {
+  question: string;
+  answer: "Yes" | "No";
+  k: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <span className={cn(T.meta, "min-w-0 flex-1 truncate")}>
+        {question}
+        <Star />
+      </span>
+      {(["Yes", "No"] as const).map((option) => (
+        <span
+          key={option}
+          className={cn(
+            T.meta,
+            "text-ink-muted relative grid h-5 w-9 shrink-0 place-items-center rounded-full ring-1 ring-slate-900/15 ring-inset",
+          )}
+        >
+          {option}
+          {option === answer && (
+            <span
+              className="form-pick absolute inset-0 grid place-items-center rounded-full font-semibold text-white"
+              data-k={k}
+              style={{ background: LINK_BLUE }}
+            >
+              {option}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** A form's main button: waiting, then lit once its last answer is in
  *  (`.form-done`). `fill` is the form's own colour. */
 function Submit({ label, fill = LINK_BLUE }: { label: string; fill?: string }) {
   return (
@@ -716,82 +871,115 @@ function Submit({ label, fill = LINK_BLUE }: { label: string; fill?: string }) {
   );
 }
 
-/** The foot of a written question's step: a quiet Back and the step's main
- *  button, waiting. */
-function FormFoot({ next }: { next: string }) {
-  return (
-    <div className="mt-3 flex items-center justify-between">
-      <span className={cn(T.button, "text-ink-meta font-normal")}>Back</span>
-      <span className={cn(T.button, "text-ink-meta/60 rounded-md bg-slate-900/[0.07] px-3 py-1")}>
-        {next}
-      </span>
-    </div>
-  );
-}
+/** A form's five fields: two names, then the email, the school and the
+ *  GPA, in three columns where the window has the room and two where it
+ *  has not. */
+const FIELDS = "grid grid-cols-2 gap-x-2.5 gap-y-1.5 @[25rem]:grid-cols-[1fr_1fr_3.5rem]";
 
 /**
  * Forms that ask it all again: three companies' application forms take
- * turns, and each is typed into while it is up, the same name, email and
- * school every time, with the resume already uploaded on each (the user's
- * ask, 2026-11-23). Three forms in three layouts, as three hiring systems
+ * turns, and each is filled in while it is up, the same things every
+ * time: the resume uploaded again, then the name, the email, the school
+ * and the GPA typed in, then the questions every form asks (may you work
+ * here, will you need a visa, will you move), answered again (the user's
+ * asks, 2026-11-23). Three forms in three layouts, as three hiring systems
  * set them (labels above the fields; a stepped form; labels beside the
  * fields), since the card's point is a new form for every company; the
- * type is `T`'s on all three, as on the four job boards. The forms before
- * are stacked behind.
+ * type is `T`'s on all three, as on the browser's four pages. The forms
+ * before are stacked behind.
  *
  * It was one still form with the email half typed ("alex.m"), which read
  * as a broken picture and showed one form where the point is many.
- * The motion is `.form-*` in landing.css.
+ * The motion is `.form-*` in landing.css. The third question shows only
+ * where the window is wide: a narrow one sets the fields in more rows.
  */
 export function FormsScene() {
   const [stripe, nike, spotify] = APPLICATIONS;
   return (
     <Window className="p-4" stacked={2}>
-      <HoldOffscreen className="relative h-[15.5rem]">
+      <HoldOffscreen className="relative h-[17.5rem]">
         {/* Labels above the fields, one button at the foot. */}
         <FormPage turn={0}>
           <div className="flex items-center gap-2">
             <FaviconLogo domain={stripe.domain} className="size-5 rounded-md" />
             <span className={cn(T.title, "truncate")}>Apply for {stripe.role}</span>
           </div>
-          <Uploaded className="mt-2.5" />
-          <div className="mt-2.5 grid grid-cols-2 gap-x-2.5 gap-y-2">
+          <Upload className="mt-2" />
+          <div className={cn(FIELDS, "mt-2")}>
             <Labelled label="First name" value={DETAILS.first} k={0} />
-            <Labelled label="Last name" value={DETAILS.last} k={1} />
-            <Labelled label="Email" value={DETAILS.email} k={2} className="col-span-2" />
-            <Labelled label="School" value={DETAILS.school} k={3} className="col-span-2" />
+            <Labelled
+              label="Last name"
+              value={DETAILS.last}
+              k={1}
+              className="@[25rem]:col-span-2"
+            />
+            <Labelled
+              label="Email"
+              value={DETAILS.email}
+              k={2}
+              className="col-span-2 @[25rem]:col-span-1"
+            />
+            <Labelled label="School" value={DETAILS.school} k={3} />
+            <Labelled label="GPA" value={DETAILS.gpa} k={4} />
+          </div>
+          <div className="mt-2 grid gap-1">
+            <Asked question="Authorized to work in the US?" answer="Yes" k={0} />
+            <Asked question="Will you need visa sponsorship?" answer="No" k={1} />
+            <Asked
+              question="Willing to relocate?"
+              answer="Yes"
+              k={2}
+              className="hidden @[25rem]:flex"
+            />
           </div>
           <div className="mt-auto flex justify-end">
             <Submit label="Submit application" />
           </div>
         </FormPage>
-        {/* A stepped form: the same details under other labels. */}
+        {/* A stepped form: the same things under other labels. */}
         <FormPage turn={1}>
           <div className="flex items-center gap-2">
             <FaviconLogo domain={nike.domain} className="size-5 rounded-md" />
             <span className={cn(T.title, "truncate")}>{nike.role}</span>
+            <span className={cn(T.meta, "ml-auto shrink-0")}>Step 2 of 4</span>
           </div>
-          {/* The open step's column is wider, so "My information" shows whole. */}
-          <ol className="mt-2.5 grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-1">
-            {STEPS.map((step, i) => (
-              <li key={step} className="grid gap-1">
-                <span
-                  className="block h-1 rounded-full bg-slate-900/10"
-                  style={
-                    i <= 1 ? { background: LINK_BLUE, opacity: i === 1 ? 0.45 : 1 } : undefined
-                  }
-                />
-                <span className={cn(T.meta, "truncate", i === 1 && "text-ink font-semibold")}>
-                  {step}
-                </span>
-              </li>
+          <span className="mt-2 grid grid-cols-4 gap-1">
+            {[0, 1, 2, 3].map((step) => (
+              <span
+                key={step}
+                className="block h-1 rounded-full bg-slate-900/10"
+                style={
+                  step <= 1 ? { background: LINK_BLUE, opacity: step === 1 ? 0.45 : 1 } : undefined
+                }
+              />
             ))}
-          </ol>
-          <div className="mt-2.5 grid grid-cols-2 gap-x-2.5 gap-y-2">
+          </span>
+          <Upload className="mt-2" />
+          <div className={cn(FIELDS, "mt-2")}>
             <Labelled label="Legal first name" value={DETAILS.first} k={0} />
-            <Labelled label="Legal last name" value={DETAILS.last} k={1} />
-            <Labelled label="Email address" value={DETAILS.email} k={2} className="col-span-2" />
-            <Labelled label="University" value={DETAILS.school} k={3} className="col-span-2" />
+            <Labelled
+              label="Legal last name"
+              value={DETAILS.last}
+              k={1}
+              className="@[25rem]:col-span-2"
+            />
+            <Labelled
+              label="Email address"
+              value={DETAILS.email}
+              k={2}
+              className="col-span-2 @[25rem]:col-span-1"
+            />
+            <Labelled label="University" value={DETAILS.school} k={3} />
+            <Labelled label="GPA" value={DETAILS.gpa} k={4} />
+          </div>
+          <div className="mt-2 grid gap-1">
+            <Asked question="Are you legally able to work in the US?" answer="Yes" k={0} />
+            <Asked
+              question="Will you require sponsorship?"
+              answer="No"
+              k={1}
+              className="hidden @[25rem]:flex"
+            />
           </div>
           <div className="mt-auto flex items-center justify-between">
             <span className={cn(T.button, "text-ink-meta font-normal")}>Back</span>
@@ -805,13 +993,12 @@ export function FormsScene() {
             <span className={cn(T.title, "truncate")}>{spotify.role}</span>
             <span className={cn(T.meta, "ml-auto shrink-0")}>{spotify.company}</span>
           </div>
-          <p className={cn(T.label, RULE, "mt-2.5 border-b pb-1")}>Submit your application</p>
-          <div className="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 whitespace-nowrap">
+          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 whitespace-nowrap">
             <span className={T.meta}>
               Resume
               <Star />
             </span>
-            <Uploaded />
+            <Upload />
             <span className={T.meta}>
               Full name
               <Star />
@@ -827,9 +1014,15 @@ export function FormsScene() {
               <Star />
             </span>
             <Entry value={DETAILS.school} k={3} />
-            {/* One more thing to find and paste, left for later. */}
-            <span className={T.meta}>LinkedIn URL</span>
-            <span className={cn(FIELD, "h-6")} />
+            <span className={T.meta}>
+              GPA
+              <Star />
+            </span>
+            <Entry value={DETAILS.gpa} k={4} className="w-14" />
+          </div>
+          <div className="mt-2 grid gap-1">
+            <Asked question="Do you need a visa to work here?" answer="No" k={0} />
+            <Asked question="Open to relocating?" answer="Yes" k={1} />
           </div>
           <div className="mt-auto flex justify-end">
             <Submit label="Submit" fill="var(--color-ink)" />
@@ -840,19 +1033,48 @@ export function FormsScene() {
   );
 }
 
-/** The stock opening line the question picture types and deletes. */
-const STOCK_ANSWER = "I am a hard-working team player who";
+/**
+ * The stock answer the question picture writes: the kind a chatbot gives
+ * to any company's "why us", in pieces, the stock phrases marked `slop`.
+ * Nothing in it is about Notion but its name, which is the point.
+ */
+const STOCK_ANSWER: { text: string; slop?: boolean }[] = [
+  { text: "I am" },
+  { text: "thrilled", slop: true },
+  { text: "to apply for this" },
+  { text: "exciting opportunity", slop: true },
+  { text: "at Notion. As a" },
+  { text: "highly motivated", slop: true },
+  { text: "and" },
+  { text: "detail-oriented team player", slop: true },
+  { text: "with a" },
+  { text: "passion for innovation,", slop: true },
+  { text: "I am confident that my" },
+  { text: "unique blend of skills", slop: true },
+  { text: "aligns perfectly with your mission. I" },
+  { text: "thrive in fast-paced environments", slop: true },
+  { text: "and am eager to" },
+  { text: "leverage my expertise", slop: true },
+  { text: "to" },
+  { text: "drive impactful results.", slop: true },
+];
+/** The answer word by word, each with its place in the order it comes in. */
+const STOCK_WORDS = STOCK_ANSWER.flatMap((piece) =>
+  piece.text.split(" ").map((word) => ({ word, slop: piece.slop })),
+);
+const STOCK_LENGTH = STOCK_ANSWER.map((piece) => piece.text).join(" ").length;
 
 /**
- * The questions you dread: one more written question on one more form. A
- * stock opening line is typed into the box, sits there, and is deleted
- * again, once a loop (`.question-type` in landing.css; the user's ask for
- * motion that makes the card's point, 2026-11-23): the card says a rushed
- * answer sounds like everyone else's, and an empty box with a cursor said
- * only that nothing was written. The character count went with the empty
- * box, since CSS cannot count the letters as they come; a "Session expires
- * in 12:48" line went before it (the user's ask, 2026-11-21). The question
- * is the one line set a size up (13px): it is what the picture is about.
+ * The questions you dread: one more written question on one more form, and
+ * in its box a whole stock answer, coming in a word at a time as a chatbot
+ * writes one, its stock phrases in the slop gradient (`.stream-word` and
+ * `.slop-word` in landing.css; the user's ask, 2026-11-23: a full answer
+ * that sounds generic, and looks it). The card says a rushed answer sounds
+ * like everyone else's; an empty box with a cursor said only that nothing
+ * was written, and one typed line said little more. The count under the
+ * box is the finished answer's. A "Session expires in 12:48" line went
+ * earlier (the user's ask, 2026-11-21). The question is the one line set a
+ * size up (13px): it is what the picture is about.
  */
 export function QuestionScene() {
   return (
@@ -866,28 +1088,45 @@ export function QuestionScene() {
         <span className="mt-2.5 block h-1 rounded-full bg-slate-900/10">
           <span className="block h-full w-3/5 rounded-full" style={{ background: LINK_BLUE }} />
         </span>
-        <p className="text-ink mt-3.5 text-[13px] leading-[18px] font-semibold">
+        <p className="text-ink mt-3 text-[13px] leading-[18px] font-semibold">
           Why do you want to work at Notion?
           <Star />
         </p>
         <p className={cn(T.meta, "mt-0.5")}>In your own words. 500 characters at most.</p>
-        <div className="journey-in mt-2 h-24 rounded-lg p-2.5" style={{ ...delay(0.3), ...FOCUS }}>
-          {/* 2px of room at the line's end, where the cursor stands once
-              the line is typed. */}
+        {/* A narrow window's box cuts the answer's foot, as a text box
+            does once it is full. */}
+        <div
+          className="journey-in mt-2 h-[6.5rem] overflow-hidden rounded-lg px-2.5 py-2"
+          style={{ ...delay(0.3), ...FOCUS }}
+        >
+          <p className={T.text}>
+            {STOCK_WORDS.map(({ word, slop }, i) => (
+              <span
+                // The answer is fixed, so a word's place is a stable key.
+                key={i}
+                className={cn("stream-word", slop && "slop-word font-semibold")}
+                style={{ "--w": i } as CSSProperties}
+              >
+                {word}{" "}
+              </span>
+            ))}
+          </p>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <span className={cn(T.button, "text-ink-meta font-normal")}>Back</span>
+          {/* The count comes in with the answer's last word. */}
           <span
-            className={cn(
-              T.text,
-              "relative inline-block max-w-full overflow-hidden pr-0.5 align-top whitespace-nowrap",
-            )}
+            className={cn(T.meta, "stream-word mr-3 ml-auto tabular-nums")}
+            style={{ "--w": STOCK_WORDS.length + 2 } as CSSProperties}
           >
-            {STOCK_ANSWER}
-            <span
-              className="question-type"
-              style={{ "--n": STOCK_ANSWER.length } as CSSProperties}
-            />
+            {STOCK_LENGTH} / 500
+          </span>
+          <span
+            className={cn(T.button, "text-ink-meta/60 rounded-md bg-slate-900/[0.07] px-3 py-1")}
+          >
+            Next
           </span>
         </div>
-        <FormFoot next="Next" />
       </HoldOffscreen>
     </Window>
   );
@@ -1084,6 +1323,11 @@ export function TrackerScene() {
  * puts on a letter nobody answered. Two pills, "Minutes after you applied"
  * and "No reply in weeks", said this before; no mail app has such labels,
  * so they read as notes stuck on the picture and broke it (2026-11-21).
+ * **The letters arrive one at a time, oldest first**, each opening at the
+ * top and pushing the rest down (`.mail-in` in landing.css; the user's
+ * ask, 2026-11-23), so the story plays in order: the follow-up nobody
+ * answered, a no, an application received, and its no a quarter of an
+ * hour later.
  */
 const MAIL = [
   {
@@ -1146,38 +1390,38 @@ export function RepliesScene() {
           Search mail
         </span>
       </div>
-      <ul>
+      {/* Room for all four from the start, so the window stands still as
+          they come in. */}
+      <ul className="min-h-[15.75rem]">
         {MAIL.map((mail, i) => (
           <li
             key={mail.subject}
-            className={cn(
-              RULE,
-              "journey-in flex gap-2 border-b py-2 pr-3 pl-2 last:border-b-0",
-              mail.unread && "bg-slate-900/[0.02]",
-            )}
-            // The newest comes in last, on top of the others.
-            style={delay(i === 0 ? 1.1 : 0.15 + i * 0.15)}
+            // The oldest comes in first; each newer one opens above it.
+            className={cn(RULE, "mail-in border-b last:border-b-0")}
+            style={{ "--order": MAIL.length - 1 - i } as CSSProperties}
           >
-            <span
-              className="mt-2.5 size-1.5 shrink-0 rounded-full"
-              style={mail.unread ? { background: LINK_BLUE } : undefined}
-            />
-            <FaviconLogo domain={mail.domain} className="mt-0.5 size-6 rounded-full" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className={cn(T.title, "truncate", !mail.unread && "font-normal")}>
-                  {mail.from}
-                </span>
-                <span className={cn(T.meta, "ml-auto shrink-0")}>{mail.when}</span>
+            <div className={cn("flex gap-2 pr-3 pl-2", mail.unread && "bg-slate-900/[0.02]")}>
+              <span
+                className="mt-[1.125rem] size-1.5 shrink-0 rounded-full"
+                style={mail.unread ? { background: LINK_BLUE } : undefined}
+              />
+              <FaviconLogo domain={mail.domain} className="mt-2.5 size-6 rounded-full" />
+              <div className="min-w-0 flex-1 py-2">
+                <div className="flex items-baseline gap-2">
+                  <span className={cn(T.title, "truncate", !mail.unread && "font-normal")}>
+                    {mail.from}
+                  </span>
+                  <span className={cn(T.meta, "ml-auto shrink-0")}>{mail.when}</span>
+                </div>
+                <p className={cn(T.text, "truncate")}>{mail.subject}</p>
+                {mail.nudge ? (
+                  <p className={T.meta} style={{ color: STALE }}>
+                    {mail.nudge}
+                  </p>
+                ) : (
+                  <p className={cn(T.meta, "truncate")}>{mail.preview}</p>
+                )}
               </div>
-              <p className={cn(T.text, "truncate")}>{mail.subject}</p>
-              {mail.nudge ? (
-                <p className={T.meta} style={{ color: STALE }}>
-                  {mail.nudge}
-                </p>
-              ) : (
-                <p className={cn(T.meta, "truncate")}>{mail.preview}</p>
-              )}
             </div>
           </li>
         ))}

@@ -406,8 +406,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     with none over 10ms, 2026-11-23); as a group inside one strip-sized
     SVG it repainted that SVG for the whole loop. **The height caps are
     set for this hero's text** (`step` in city-model.ts): a one-line
-    headline sized by the window's width (4.6vw, so it stays inside the
-    rails), three lines of subtitle, the sign-up pair and the email link,
+    headline sized by the window's width (4.6vw, 68px at most, so it
+    stays inside the rails and its own box: at 72px in a 64rem box its
+    last words ran past the box and were cut off until the entrance
+    ended, the user's catch; `load-rise`'s clip is open 2em each side
+    now), three lines of subtitle, the sign-up pair and the email link,
     96px below the header. A change to that text, its sizes or its
     padding means measuring them again, signed out, where the text is
     tallest. From lg up the section is the first screen (45rem to 54rem)
@@ -873,34 +876,55 @@ selling line that says what the product does** and "See how", a
     the reasons are in the comment there). The band's height did not
     change (682px on a 723px screen).
     **A picture's motion says what its card says, or it has none**
-    (2026-11-23, the user's ask: "proper animations if it helps reinforce
-    the points"). Three keep moving, each because its card is about doing
-    a thing again and again, all on the hub's one clock (`--board-loop`)
-    and held when it is: the browser's four tabs take turns; **the forms
-    picture goes through three companies' forms** (Stripe, Nike, Spotify,
-    each in its own layout), and each is typed into while it is up, the
-    same name, email and school, with the resume already uploaded on
-    each; **the question's box has a stock opening line typed into it and
-    deleted** ("I am a hard-working team player who"), the card's "rushed
-    ones sound like everyone else's". The forms picture was one still
-    form with the email half typed ("alex.m"), which read as a broken
-    picture and showed one form where the point is many (the user's
-    catch). Typing is a cover that steps aside a letter at a time, a
-    transform, so it runs off the main thread (`.form-type`,
-    `.question-type`). **A turn's first frame is shown, never empty**: a
-    card opened with the pointer still on it is held at that frame, and
-    while a turn began with a fade-in, the forms and the browser's page
-    stood empty until the pointer left (found the same day; `board-turn`
-    and `form-turn` now start shown and fade back in at the loop's end).
-    Where a window has the room (`@[25rem]`) the file list gains a Size
-    column and the sheet a Notes column ("follow up!!", "call when??").
+    (2026-11-23, the user's asks: "proper animations if it helps
+    reinforce the points", then each picture's own fault). All run the
+    hub's one clock (`--board-loop`) and are held when it is, and each
+    card's turn is as long as its picture needs (`TURNS` in
+    problem-hub.tsx, 6.5 to 12 s; all six were 8 s):
+    - **Jobs scattered everywhere**: a browser with four tabs, two
+      companies' careers pages (Stripe, Nike) and two job sites
+      (LinkedIn, Indeed), since a search is spread over job sites too.
+      **The two job sites are the only products a picture names**, by a
+      tab's favicon and name; this is the search before WorkIt, which
+      reads neither site, and no line says it does. The tabs slide: the
+      pages are one strip that steps left, and one white tab slides
+      under the names (`.board-strip`, `.tab-lit`; they crossfaded).
+    - **The resume you keep rewriting**: one resume in a word processor
+      beside the job posting, and for each of three jobs its skills line
+      and a project's bullet are typed again in that posting's words,
+      under a file name that changes with the job. It was a folder of
+      six saved copies, which is about files; the card is about
+      rewriting one resume for every job's keywords (the user's catch).
+    - **Forms that ask it all again**: three companies' forms (Stripe,
+      Nike, Spotify, each in its own layout), and on each the resume is
+      uploaded again, the name, email, school and GPA are typed in, and
+      the questions every form asks are answered again (may you work
+      here, will you need a visa, will you move). It was one still form
+      with the email half typed ("alex.m"), which read as broken.
+    - **The questions you dread**: a whole stock answer comes into the
+      box a word at a time, as a chatbot writes one, its stock phrases
+      in the slop gradient (`.stream-word`, `.slop-word`), "sounds like
+      everyone else's" made visible. It was an empty box.
+    - **Silence, or an instant no**: the letters arrive one at a time,
+      oldest first, each opening at the top and pushing the rest down
+      (`.mail-in`), so the story plays in order. They came in together
+      but the newest, which left the list with its first row missing.
+    Typing is a cover that steps aside a letter at a time, a transform,
+    so it runs off the main thread (`.form-type`, `.resume-type`).
+    **A turn's first frame is shown, never empty**: a card opened with
+    the pointer still on it is held at that frame, and while a turn
+    began with a fade-in the picture stood empty until the pointer left.
+    **Check a new class name against landing.css first**: the lit tab was
+    `.board-lit`, the old hero board's class, and drew as nothing.
+    Where a window has the room (`@[25rem]`) the sheet gains a Notes
+    column ("follow up!!", "call when??").
     **The visuals are moments everybody has**
-    (`problem-scenes.tsx`): a browser of company job board tabs with roles
-    posted months ago, a folder of resume versions ending in
-    "Resume_FINAL (1).pdf", three companies' forms asking for the same
-    name, email and school over a stack of the forms before them
-    (`Window`'s `stacked`), a "Why do you want to work at Notion?" box
-    with a stock line typed and deleted, the student's spreadsheet with "??" in it, and an
+    (`problem-scenes.tsx`): a browser of careers pages and job sites
+    with roles posted months ago, one resume retyped for each job,
+    three companies' forms asking for the same things over a stack of
+    the forms before them (`Window`'s `stacked`), a "Why do you want to
+    work at Notion?" box filling with a stock answer, the student's
+    spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
     application with "No reply in weeks". **Each is the real kind of app
     it stands for** (the user's ask, 2026-11-21, "Google Sheets or Excel
