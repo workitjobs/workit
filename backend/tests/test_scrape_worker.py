@@ -608,3 +608,22 @@ def test_one_robots_instance_per_cycle(monkeypatch):
     shared = Robots()
     _result, _kept, _ = worker.read_board_listing(Board("ashby", "y", "Y"), robots=shared)
     assert seen_ids[-1] == id(shared)
+
+
+async def test_the_catalog_sync_takes_more_boards_than_one_statement_holds(database, tmp_path):
+    # asyncpg takes 32,767 bind parameters a statement, and a board is 8 of them, so one INSERT
+    # of the whole catalog failed past 4,095 boards: the real catalog has 5,047 (2026-11-23).
+    path = tmp_path / "boards.csv"
+    path.write_text(
+        "ats,token,company\n" + "".join(f"greenhouse,board{n},Company {n}\n" for n in range(4200)),
+        encoding="utf-8",
+    )
+    async with get_engine().begin() as conn:
+        assert await schedules.sync_catalog(conn, path) == 4200
+        # A second sync adds none, and still renames a board the catalog renamed.
+        path.write_text(path.read_text(encoding="utf-8").replace("Company 4199\n", "Renamed\n"), encoding="utf-8")
+        assert await schedules.sync_catalog(conn, path) == 0
+        count, renamed = (await conn.execute(text(
+            "SELECT count(*), max(company) FILTER (WHERE token = 'board4199') FROM scraper_schedules"
+        ))).one()
+    assert (count, renamed) == (4200, "Renamed")

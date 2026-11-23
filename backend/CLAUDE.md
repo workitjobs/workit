@@ -45,6 +45,14 @@ salary columns are non-null, so clearing either aborts the entire batch.
 Description is pure enrichment: it never filters
 a posting out.
 
+**The catalog sync upserts in batches of `SYNC_BATCH` (1,000) boards**
+(`app/scraper/schedules.py`), in the cycle's one transaction. asyncpg takes
+32,767 bind parameters a statement and a board is 8, so one INSERT of the
+whole catalog failed past 4,095 boards: with 5,047 in `boards.csv`, every
+cycle stopped at its first step, a dry run too (2026-11-23). A new column
+on `scraper_schedules` with a Python-side default adds one parameter a
+board. Tests: `tests/test_scrape_worker.py` syncs 4,200 boards.
+
 ### Board publishing and concurrent workers
 
 Each board publishes independently right after it is scraped
