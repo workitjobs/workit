@@ -33,10 +33,10 @@ export default function UploadedResumeLoading() {
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <Skeleton className="ml-auto h-7 w-28" />
             </div>
-            {/* At the pages' opening zoom, 125% (1020px, ../../[resumeId]/zoom.tsx,
-                which a server file cannot read) */}
+            {/* At the pages' opening zoom, Fit Width up to 150% (1224px,
+                ../../[resumeId]/zoom.tsx, which a server file cannot read) */}
             <div className={DESK_PAGES}>
-              <div className="mx-auto w-full max-w-[1020px]">
+              <div className="mx-auto w-full max-w-[1224px]">
                 <PageSkeleton />
               </div>
             </div>

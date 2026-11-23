@@ -3844,7 +3844,7 @@ it the editor's desk (`DESK`, `[resumeId]/slim-bar.ts`, 2026-11-23), its
 sticky bar (a lavender bar with a ring and a shadow until KAN-576, then the
 editor's white card until the desk) holding the page's one
 tool, the zoom, at its end: the editor's control and its kept step
-(`useZoom`, opening at 125%), so both resume pages open at one zoom
+(`useZoom`, opening on Fit Width, with pinch to zoom), so both resume pages open at one zoom
 (KAN-825; it opened at 100% and kept nothing until then); then the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The buttons and the date sat in

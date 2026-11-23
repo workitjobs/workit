@@ -1,7 +1,7 @@
 "use client";
 
 import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { FileIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
 import { DESK, DESK_BAR, DESK_PAGES } from "../../[resumeId]/slim-bar";
-import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
+import { usePageZoom, usePinchZoom, useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
 
 /**
  * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
@@ -43,6 +43,9 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const name = resume.original_filename ?? "Resume";
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useZoom();
+  const pages = useRef<HTMLDivElement>(null);
+  const shownZoom = usePageZoom(pages, zoom);
+  usePinchZoom(pages, shownZoom, setZoom);
 
   async function download() {
     setError(null);
@@ -96,11 +99,11 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           <div className={DESK}>
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <div className="ml-auto">
-                <Zoom zoom={zoom} onZoom={setZoom} />
+                <Zoom zoom={zoom} shown={shownZoom} onZoom={setZoom} />
               </div>
             </div>
             <div className={DESK_PAGES}>
-              <div className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
+              <div ref={pages} className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
                 <PdfPages
                   pdf={pdf}
                   boxes={[]}

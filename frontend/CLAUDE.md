@@ -2976,9 +2976,21 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   same kept step for a PDF, `useZoom`, so both resume pages open at one zoom:
   it opened at 100% and kept nothing until KAN-825):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
-  inch), opening at 125% (1020px), capped by its column, kept per browser through
+  inch), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
-  survives). The page filled its column
+  survives). **It opens on Fit Width** (`FIT`, 2026-11-23): the page as
+  wide as its column, up to 150%; a fixed 125% left about 350px of grey
+  either side of the page on a wide screen with the panel closed, and
+  filling 1730px would print the text at about 21pt. The bar shows what a
+  zoom comes to (`usePageZoom`), and Zoom In and Out go to the next step
+  from there. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
+  pinch (Ctrl and the wheel; Safari's gesture events), Ctrl or Cmd with a
+  mouse wheel (each event held to a tenth, or one notch jumped 60%), two
+  fingers on a touch screen, any percent from 50 to 200, only over the
+  pages. While it moves the pages are only stretched; once it rests they
+  draw again at their new width and the line under the pointer stays
+  there. A browser that kept a step before this keeps it until Fit Width
+  is picked. The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
   list, in the system's blue, in the middle of the app's menus.

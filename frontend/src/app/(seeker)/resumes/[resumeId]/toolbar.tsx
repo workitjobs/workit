@@ -74,7 +74,7 @@ export type ExperiencesTools = {
 
 /** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
  *  More's `ZoomSubmenu`. */
-export type ZoomTools = { zoom: number; onZoom: (zoom: number) => void };
+export type ZoomTools = { zoom: number; shown: number; onZoom: (zoom: number) => void };
 
 /** The bar's page settings (./page-format.tsx). */
 export type FormatTools = {
@@ -444,7 +444,11 @@ export function Bar({
           className={cn("flex shrink-0 items-center", FOLD.away)}
         >
           <Divider />
-          {rendered ? <Zoom zoom={zoom.zoom} onZoom={zoom.onZoom} /> : <ZoomSkeleton />}
+          {rendered ? (
+            <Zoom zoom={zoom.zoom} shown={zoom.shown} onZoom={zoom.onZoom} />
+          ) : (
+            <ZoomSkeleton />
+          )}
         </span>
         {rendered && (
           <MoreMenu
@@ -746,7 +750,9 @@ function MoreMenu({
               <ScissorsIcon aria-hidden /> Cut From Resume
             </DropdownMenuCheckboxItem>
           )}
-          {away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}
+          {away.has("zoom") && (
+            <ZoomSubmenu zoom={zoom.zoom} shown={zoom.shown} onZoom={zoom.onZoom} />
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </span>

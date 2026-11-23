@@ -65,7 +65,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
-import { useZoom, zoomWidth } from "./zoom";
+import { usePageZoom, usePinchZoom, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
@@ -912,6 +912,9 @@ export function Editor({
     setCuts(cutsNow.current);
   }, [resumeId]);
   const [zoom, setZoom] = useZoom();
+  // What the zoom comes to (Fit's percent), and a pinch on the pages
+  const shownZoom = usePageZoom(pages, zoom);
+  usePinchZoom(pages, shownZoom, setZoom);
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
   // The rail, down to the window's foot
@@ -3354,7 +3357,7 @@ export function Editor({
             }
           : null
       }
-      zoom={{ zoom, onZoom: setZoom }}
+      zoom={{ zoom, shown: shownZoom, onZoom: setZoom }}
       history={history}
       format={{
         page,
