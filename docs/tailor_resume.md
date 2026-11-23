@@ -265,6 +265,22 @@ icons; and tiles with names under the icons as the left sidebar's, which
 the user found heavy. The rest of this section says "the toolbar's
 Suggestions" or "the title row's icons" where the rail now does it.
 
+**The Suggestions panel was redrawn calmer** (2026-11-23, the user found
+it messy). Its top is two rows: "Suggestions" with a grey count and its
+close, then the type filter and a ⋯ holding Show or Hide Marks on the Page
+and Undo All Suggestions, in words, Undo All last and red. Six controls on
+one row, four bare icons, and Undo All drawn as each card's Undo arrow
+came first. Entries are sections under hairlines with no box, and a change
+has no box either: each row's badge sits on its entry title's edge, and
+its name and change on one edge after it. A rewording shows its new words
+with only the changed ones highlighted (`markNew`, a longest common run of
+words), and Show Before opens the old words in grey; its whole old line
+struck in red over its whole new line in green was hard to read and
+marked nothing. An added skill is a chip. Three frames deep (panel, entry,
+change) and the entries' outlines, cut off by the scrolling list, went
+with this. A card's Undo is "Undo This Change" in its tooltip. The rest of
+this section describes the cards and boxes as they were.
+
 The review step (`/jobs/[jobId]/tailor?resumeId=`) shows one resume, the
 tailored one in the editor, and a Suggestions panel on its right, as a
 document's suggestions sit in its margin

@@ -14,12 +14,14 @@ import {
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { facetClasses } from "@/components/field-facet";
-import { ChevronDownIcon, CloseIcon, FilterIcon } from "@/components/icons";
+import { ChevronDownIcon, CloseIcon, EllipsisIcon, FilterIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { IconButton } from "@/components/ui/icon-button";
@@ -143,10 +145,12 @@ export function TailorReview({
   );
 }
 
-/** The number of suggestions left, as a filled brand pill. */
+/** The number of suggestions left, as the entries' grey pill: a filled
+ *  brand pill beside the rail's own brand count said it twice in two
+ *  looks (2026-11-23). */
 function Count({ n }: { n: number }) {
   return (
-    <span className="bg-brand text-on-brand text-note flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
+    <span className="bg-ink/5 text-ink-muted text-note flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
       {n}
     </span>
   );
@@ -269,46 +273,23 @@ function SuggestionsPanel({
     // white. Bare in the phone's sheet, which is its own panel
     <section
       aria-labelledby="suggestions-heading"
-      className="sm:bg-panel sm:ring-border-surface sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
+      className="sm:bg-panel sm:ring-border-surface sm:rounded-card flex min-h-0 flex-col sm:ring-1"
     >
-      {/* The top stays put and only the sections under it scroll, so the
-          scroll bar starts under it and the panel keeps its rounded corners */}
-      <div className="flex shrink-0 flex-col gap-2.5 pb-1">
-        <div className="flex min-h-8 items-center gap-1.5">
+      {/* The top stays put and only the entries under it scroll, so the
+          scroll bar starts under it and the panel keeps its rounded corners.
+          Two rows (2026-11-23): the title and its close, then what acts on
+          the list, the filter and a ⋯ with words. Six controls on one row,
+          four of them bare icons and Undo All drawn as each card's Undo,
+          read as clutter, and the one that undoes everything looked like
+          the one that undoes one */}
+      <div className="border-border-subtle flex shrink-0 flex-col gap-2 border-b px-3 pt-3 pb-2.5 max-sm:px-0 max-sm:pt-0">
+        <div className="flex min-h-8 items-center gap-2">
           <h2
             id="suggestions-heading"
             className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
           >
             Suggestions <Count n={changes.length} />
           </h2>
-          {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
-          {/* The marks on the page, here with the changes they mark: a Show
-              and Hide Suggestions toggle sat in the toolbar beside the title
-              row's Suggestions until KAN-799, two controls for one thing */}
-          {changes.length > 0 && (
-            <IconButton
-              place="row"
-              label={marks.shown ? "Hide Marks on the Page" : "Show Marks on the Page"}
-              variant="quiet"
-              className="shrink-0"
-              onClick={marks.onToggle}
-            >
-              {marks.shown ? <EyeSlashIcon aria-hidden /> : <EyeIcon aria-hidden />}
-            </IconButton>
-          )}
-          {/* Every change at once, an icon beside the filter so it stays in
-              sight: a full-width button under the list took a row from it */}
-          {changes.length > 0 && (
-            <IconButton
-              place="row"
-              label="Undo All"
-              variant="quiet"
-              className="shrink-0"
-              onClick={undoAll}
-            >
-              <ArrowUUpLeftIcon aria-hidden />
-            </IconButton>
-          )}
           {/* A phone's sheet has its own X */}
           <IconButton
             place="row"
@@ -320,34 +301,42 @@ function SuggestionsPanel({
             <CloseIcon />
           </IconButton>
         </div>
+        {changes.length > 0 && (
+          <div className="flex items-center gap-2">
+            <TypeFilter only={only} counts={counts} onChange={setOnly} />
+            <ListMenu marks={marks} undoAll={undoAll} />
+          </div>
+        )}
       </div>
       {changes.length > 0 ? (
-        // relative: each card's sr-only label is absolute, and with no
+        // relative: each row's sr-only label is absolute, and with no
         // positioned box here the list did not clip it, so the labels of
-        // cards past its fold stretched the page's scroll (KAN-499)
+        // rows past its fold stretched the page's scroll (KAN-499)
         <div
           ref={list}
-          className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5"
+          className="divide-border-subtle relative flex min-h-0 flex-col divide-y overflow-y-auto overscroll-none"
         >
           {groups.map((group) => {
             const isOpen = !closed.has(group.where);
             return (
-              // One white section per resume entry, as the page lists them:
-              // its heading names the entry and counts its changes, and each
-              // change is a row under a hairline that opens in place
+              // One section per resume entry, as the page lists them, under
+              // a hairline, with no box of its own (2026-11-23): a white box
+              // per entry, a box per change inside it and the panel round
+              // them were three frames deep, and the entries' outlines, drawn
+              // outside their boxes, were cut off by the list's edge
               <section
                 key={group.where}
                 aria-label={group.title}
                 // shrink-0: in the scrolling list a clipped section would
                 // otherwise squeeze to fit rather than scroll
-                className="bg-panel max-sm:bg-app sm:ring-border-subtle rounded-card shrink-0 overflow-hidden sm:ring-1"
+                className="shrink-0 px-1.5 py-1.5 max-sm:px-0"
               >
                 <h3>
                   <button
                     type="button"
                     aria-expanded={isOpen}
                     onClick={() => toggle(group.where)}
-                    className="hover:bg-ink/[0.03] focus-visible:outline-brand flex w-full items-center gap-2 px-3 py-2.5 text-left -outline-offset-2 transition-colors focus-visible:outline-2"
+                    className="hover:bg-ink/[0.03] focus-visible:outline-brand rounded-control flex w-full items-center gap-2 px-1.5 py-2 text-left -outline-offset-2 transition-colors focus-visible:outline-2"
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="text-label text-ink truncate font-semibold">
@@ -364,10 +353,7 @@ function SuggestionsPanel({
                   </button>
                 </h3>
                 {isOpen && (
-                  <ul
-                    role="list"
-                    className="border-border-subtle divide-border-subtle divide-y border-t"
-                  >
+                  <ul role="list" className="flex flex-col gap-0.5">
                     {group.changes.map((change) => (
                       <li key={change.key}>
                         <Suggestion
@@ -389,11 +375,47 @@ function SuggestionsPanel({
           })}
         </div>
       ) : (
-        <p className="text-note text-ink-meta">
+        <p className="text-note text-ink-meta px-3 py-3 max-sm:px-0">
           No suggestions left. Edit anything else on the resume.
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * What acts on the whole list, in a ⋯ at the filter's row, each in words:
+ * the marks on the page, and Undo All Suggestions, last and red, as every
+ * menu's delete is. They were two bare icons in the title's row, and Undo
+ * All wore each card's Undo arrow (2026-11-23).
+ */
+function ListMenu({ marks, undoAll }: { marks: SuggestionsApi["marks"]; undoAll: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <IconButton
+            place="row"
+            label="More for Suggestions"
+            tooltip={false}
+            className="ml-auto shrink-0"
+          >
+            <EllipsisIcon />
+          </IconButton>
+        }
+      />
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuItem onClick={marks.onToggle}>
+          {marks.shown ? <EyeSlashIcon aria-hidden /> : <EyeIcon aria-hidden />}
+          {marks.shown ? "Hide Marks on the Page" : "Show Marks on the Page"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={undoAll}>
+          <ArrowUUpLeftIcon aria-hidden />
+          Undo All Suggestions
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -532,38 +554,36 @@ function Suggestion({
       // Grey while pointed at or shown on the page, never brand: a row in
       // purple read as selected for something else. The one shown on the page
       // is also outlined as its lines are, so a click on a line lands on a
-      // card that is plain to see among the others
+      // row that is plain to see among the others. Its badge sits on the
+      // entry title's edge, and its name and change on one edge after it
+      // (2026-11-23): three left edges made the column ragged
       className={cn(
-        "rounded-control scroll-mt-2 pb-3 transition-[background-color,box-shadow]",
+        "rounded-control flex scroll-mt-2 items-start gap-2.5 px-1.5 py-2 transition-[background-color,box-shadow]",
         (lit || current) && "bg-ink/[0.03]",
         current && "ring-ink/25 ring-1 ring-inset",
       )}
     >
-      <div className="flex items-start gap-1 pr-2">
-        <button
-          type="button"
-          onClick={onShow}
-          className="focus-visible:outline-brand flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left -outline-offset-2 focus-visible:outline-2"
-        >
-          <KindBadge kind={change.kind} />
-          <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
+      <KindBadge kind={change.kind} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-start gap-1">
+          <button
+            type="button"
+            onClick={onShow}
+            className="text-note text-ink focus-visible:outline-brand flex min-h-6 min-w-0 flex-1 items-center rounded-xs text-left font-semibold focus-visible:outline-2"
+          >
             {title(change)}
-          </span>
-          <span className="sr-only">, show on the resume</span>
-        </button>
-        <span className="shrink-0 pt-2">
+            <span className="sr-only">, show on the resume</span>
+          </button>
           <IconButton
             place="row"
-            label={`Undo: ${title(change)}`}
-            tooltip={false}
-
+            label="Undo This Change"
+            tooltip="Undo This Change"
+            className="-my-1.5 shrink-0"
             onClick={onUndo}
           >
             <ArrowUUpLeftIcon aria-hidden />
           </IconButton>
-        </span>
-      </div>
-      <div className="pr-3 pl-[2.875rem]">
+        </div>
         <ChangeBody change={change} bank={bank} choices={choices} />
       </div>
     </div>
@@ -611,32 +631,36 @@ function title(change: Change) {
 }
 
 /**
- * A change as a white card with an outline, one row for each thing
- * that changed, under a hairline: each moved bullet with its place before
- * and after as an amber tag; a rewording's old and new lines, or one line
- * with the changed words marked; an added or removed line. It was one grey
- * box of all of it, which read as a chat message and ran three moves
- * together as one.
+ * A change under its row's name, with no box (2026-11-23): an added skill
+ * as a chip, as the Edit Skill Group dialog draws one; an added or removed
+ * line in plain type; each moved bullet with its place before and after as
+ * an amber tag; a rewording as its new words, only the changed ones
+ * highlighted (`markNew`), with Show Before for the old words in grey. A
+ * white card with an outline held each change until then, a third frame
+ * inside the panel and its entry, and a rewording showed its whole old line
+ * struck in red over its whole new line in green: struck paragraphs are
+ * hard to read, and a line all marked marks nothing.
  */
 function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
-  // An added or removed line in plain type: its badge and its row's name
-  // already say which, and a highlight or a strike over the whole line
-  // only made it harder to read. A rewording keeps its marks, which show
-  // the words that changed
-  if (change.kind === "added") return <ChangeCard rows={[{ key: "line", body: change.after }]} />;
-  if (change.kind === "removed")
-    return <ChangeCard rows={[{ key: "line", body: change.before }]} />;
+  const [before, setBefore] = useState(false);
+  if (change.kind === "added" && change.where === "skills")
+    return (
+      <span className="bg-positive-tint text-positive-ink text-note rounded-control self-start px-2 py-0.5 font-medium">
+        {change.after}
+      </span>
+    );
+  if (change.kind === "added") return <p className="text-note text-ink">{change.after}</p>;
+  if (change.kind === "removed") return <p className="text-note text-ink-meta">{change.before}</p>;
   if (change.kind === "moved" && change.edit) {
     const entryId = change.edit.entry_id;
     const bullets = bank.entries.find((e) => e.id === entryId)?.bullets ?? [];
     return (
-      <ChangeCard
-        rows={movesOf(change.edit, choices).map(({ bulletId, from, to }) => {
+      <ul role="list" className="flex flex-col gap-1.5">
+        {movesOf(change.edit, choices).map(({ bulletId, from, to }) => {
           const bullet = bullets.find((b) => b.id === bulletId);
-          return {
-            key: bulletId,
-            tag: (
-              <span className="bg-warning-tint text-warning text-note rounded-md px-1.5 py-0.5 font-semibold whitespace-nowrap tabular-nums">
+          return (
+            <li key={bulletId} className="text-note text-ink flex items-start gap-2">
+              <span className="bg-warning-tint text-warning rounded-md px-1.5 py-px font-semibold whitespace-nowrap tabular-nums">
                 <span className="sr-only">
                   From {ordinal(from)} to {ordinal(to)}:{" "}
                 </span>
@@ -644,66 +668,40 @@ function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; cho
                   {from} → {to}
                 </span>
               </span>
-            ),
-            body: <span className="line-clamp-2">{bullet ? wording(choices, bullet) : ""}</span>,
-          };
+              <span className="line-clamp-2 min-w-0 flex-1">
+                {bullet ? wording(choices, bullet) : ""}
+              </span>
+            </li>
+          );
         })}
-      />
+      </ul>
     );
   }
   const after = change.after ?? "";
-  const before = change.before;
-  if (!before) return <ChangeCard rows={[{ key: "line", body: after }]} />;
-  const diff = wordDiff(before, after);
-  if (diff) {
-    return (
-      <ChangeCard
-        rows={[
-          {
-            key: "line",
-            body: (
-              <>
-                {diff.head} {diff.removed && <Removed>{diff.removed}</Removed>}{" "}
-                {diff.added && <Added>{diff.added}</Added>} {diff.tail}
-              </>
-            ),
-          },
-        ]}
-      />
-    );
-  }
+  const old = change.before;
+  if (!old) return <p className="text-note text-ink">{after}</p>;
   return (
-    <ChangeCard
-      rows={[
-        { key: "before", tag: <RowLabel>Before</RowLabel>, body: <Removed>{before}</Removed> },
-        { key: "after", tag: <RowLabel>After</RowLabel>, body: <Added>{after}</Added> },
-      ]}
-    />
+    <div className="flex flex-col gap-1">
+      <p className="text-note text-ink">
+        {markNew(old, after).map((run, i) =>
+          run.added ? <Added key={i}>{run.text}</Added> : <span key={i}>{run.text}</span>,
+        )}
+      </p>
+      <button
+        type="button"
+        aria-expanded={before}
+        onClick={() => setBefore(!before)}
+        className="text-note text-ink-meta hover:text-ink focus-visible:outline-brand flex items-center gap-1 self-start rounded-xs font-medium focus-visible:outline-2"
+      >
+        {before ? "Hide Before" : "Show Before"}
+        <CaretDownIcon
+          aria-hidden
+          className={cn("size-3 transition-transform duration-150", before && "rotate-180")}
+        />
+      </button>
+      {before && <p className="text-note text-ink-meta">{old}</p>}
+    </div>
   );
-}
-
-function ChangeCard({ rows }: { rows: { key: string; tag?: ReactNode; body: ReactNode }[] }) {
-  return (
-    <ul
-      role="list"
-      className="bg-panel border-border-subtle divide-border-subtle text-note text-ink rounded-control divide-y border"
-    >
-      {rows.map(({ key, tag, body }) => (
-        <li key={key} className="flex items-start gap-2.5 px-2.5 py-2">
-          {tag && <span className="mt-px flex shrink-0">{tag}</span>}
-          <span className="min-w-0 flex-1">{body}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function RowLabel({ children }: { children: ReactNode }) {
-  return <span className="text-ink-meta text-note w-11 font-semibold">{children}</span>;
-}
-
-function Removed({ children }: { children: ReactNode }) {
-  return <del className="text-ink-meta decoration-danger/70 line-through">{children}</del>;
 }
 
 function Added({ children }: { children: ReactNode }) {
@@ -720,30 +718,54 @@ function ordinal(n: number) {
   return `${n}${suffix}`;
 }
 
+/** A word as two lines compare it: its letters, numbers and the symbols
+ *  that change what it says ("C++", "50%"), in any case. */
+const keyOf = (word: string) => word.toLowerCase().replace(/[^\p{L}\p{N}+#%$]/gu, "");
+
 /**
- * A word diff where only a run in the middle changed: the shared words at
- * each end, and what was taken out and put in between. Null when less than
- * 40% of the words are shared, where a struck line over its new one reads
- * better than a patchwork.
+ * The new line as runs of words, each marked when the old line does not
+ * have it in that order (a longest common run of words, compared by
+ * `keyOf`), with the spaces kept, so only what the rewording brought in is
+ * highlighted. A head-and-tail match came first: it marked a whole line
+ * whenever a word near its start changed.
  */
-function wordDiff(before: string, after: string) {
-  const a = before.trim().split(/\s+/);
-  const b = after.trim().split(/\s+/);
-  let head = 0;
-  while (head < a.length && head < b.length && a[head] === b[head]) head++;
-  let tail = 0;
-  while (
-    tail < a.length - head &&
-    tail < b.length - head &&
-    a[a.length - 1 - tail] === b[b.length - 1 - tail]
-  ) {
-    tail++;
+export function markNew(before: string, after: string): { text: string; added: boolean }[] {
+  const a = before.trim().split(/\s+/).map(keyOf);
+  const words = after.trim().split(/(\s+)/);
+  const b = words.filter((_, i) => i % 2 === 0);
+  const keys = b.map(keyOf);
+  // lcs[i][j]: the longest common run of a[i..] and keys[j..]
+  const lcs = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(keys.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = keys.length - 1; j >= 0; j--)
+      lcs[i][j] =
+        a[i] && a[i] === keys[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const added = new Array<boolean>(b.length).fill(true);
+  for (let i = 0, j = 0; i < a.length && j < keys.length;) {
+    if (a[i] && a[i] === keys[j]) {
+      added[j] = false;
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) i++;
+    else j++;
   }
-  if (head + tail < Math.max(a.length, b.length) * 0.4) return null;
-  return {
-    head: a.slice(0, head).join(" "),
-    removed: a.slice(head, a.length - tail).join(" "),
-    added: b.slice(head, b.length - tail).join(" "),
-    tail: a.slice(a.length - tail).join(" "),
-  };
+  // A word with no letters or numbers (a dash) follows its neighbour
+  b.forEach((word, j) => {
+    if (!keyOf(word) && j > 0) added[j] = added[j - 1];
+  });
+  const runs: { text: string; added: boolean }[] = [];
+  b.forEach((word, j) => {
+    const space = j > 0 ? words[2 * j - 1] : "";
+    const last = runs.at(-1);
+    if (last && last.added === added[j]) last.text += space + word;
+    // The space between two runs goes with the unmarked one, so a
+    // highlight ends at its word: it ran on over the next space
+    else if (last && !last.added) {
+      last.text += space;
+      runs.push({ text: word, added: added[j] });
+    } else runs.push({ text: space + word, added: added[j] });
+  });
+  return runs;
 }
