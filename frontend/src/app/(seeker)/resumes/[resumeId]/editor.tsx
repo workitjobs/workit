@@ -913,7 +913,7 @@ export function Editor({
   }, [resumeId]);
   const [zoom, setZoom] = useZoom();
   // What the zoom comes to (Fit's percent), and a pinch on the pages
-  const shownZoom = usePageZoom(pages, zoom);
+  const [shownZoom, fullZoom] = usePageZoom(pages, zoom);
   const zoomTo = useZoomTo(pages, setZoom);
   usePinchZoom(pages, shownZoom, zoomTo);
   // The Suggestions panel, sized to the window from wherever its top is
@@ -3358,7 +3358,7 @@ export function Editor({
             }
           : null
       }
-      zoom={{ zoom, shown: shownZoom, onZoom: (to) => zoomTo(to) }}
+      zoom={{ zoom, shown: shownZoom, full: fullZoom, onZoom: (to) => zoomTo(to) }}
       history={history}
       format={{
         page,

@@ -74,7 +74,12 @@ export type ExperiencesTools = {
 
 /** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
  *  More's `ZoomSubmenu`. */
-export type ZoomTools = { zoom: number; shown: number; onZoom: (zoom: number) => void };
+export type ZoomTools = {
+  zoom: number;
+  shown: number;
+  full: boolean;
+  onZoom: (zoom: number) => void;
+};
 
 /** The bar's page settings (./page-format.tsx). */
 export type FormatTools = {
@@ -445,7 +450,7 @@ export function Bar({
         >
           <Divider />
           {rendered ? (
-            <Zoom zoom={zoom.zoom} shown={zoom.shown} onZoom={zoom.onZoom} />
+            <Zoom zoom={zoom.zoom} shown={zoom.shown} full={zoom.full} onZoom={zoom.onZoom} />
           ) : (
             <ZoomSkeleton />
           )}

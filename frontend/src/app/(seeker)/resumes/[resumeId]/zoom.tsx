@@ -78,16 +78,19 @@ export function useZoom() {
 export function Zoom({
   zoom,
   shown,
+  full,
   onZoom,
 }: {
   zoom: number;
   /** The page's width now, in percent (`usePageZoom`): what Fit came to, or
    *  a step a narrow column holds back. */
   shown: number;
+  /** The column stops the page (`usePageZoom`): no bigger step shows. */
+  full?: boolean;
   onZoom: (zoom: number) => void;
 }) {
   const below = [...ZOOMS].reverse().find((step) => step < shown - 0.5);
-  const above = ZOOMS.find((step) => step > shown + 0.5);
+  const above = full ? undefined : ZOOMS.find((step) => step > shown + 0.5);
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
@@ -138,13 +141,10 @@ function ZoomItems({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => v
   );
 }
 
-/** A place on the pages: a share of their height, and where on the
- *  screen it is. */
-type Place = { frac: number; y: number };
-
-/** Sets the zoom and keeps a line in place (`useZoomTo`); `after` runs
- *  once the pages have drawn at the new zoom, before the scroll. */
-export type ZoomTo = (zoom: number, at?: Place, after?: () => void) => void;
+/** Sets the zoom and keeps the line at `y` (a screen position) where it
+ *  is (`useZoomTo`); `after` runs once the pages have drawn at the new
+ *  zoom, before the scroll. */
+export type ZoomTo = (zoom: number, y?: number, after?: () => void) => void;
 
 function scrollerOf(el: HTMLElement): HTMLElement {
   for (let at = el.parentElement; at; at = at.parentElement)
@@ -152,42 +152,50 @@ function scrollerOf(el: HTMLElement): HTMLElement {
   return document.scrollingElement as HTMLElement;
 }
 
+/** The line at `y` as one page's share of its height (`data-page-frame`,
+ *  ./pdf-pages.tsx): the gaps between pages keep their size at every
+ *  zoom, so a share of all the pages together drifted 16px a page. */
+function placeAt(el: HTMLElement, y: number) {
+  const frames = [...el.querySelectorAll<HTMLElement>("[data-page-frame]")];
+  let page = frames.findIndex((frame) => frame.getBoundingClientRect().bottom > y);
+  if (page < 0) page = frames.length - 1;
+  const box = (frames[page] ?? el).getBoundingClientRect();
+  return { page, frac: (y - box.top) / box.height };
+}
+
+function yOf(el: HTMLElement, place: ReturnType<typeof placeAt>) {
+  const frame = el.querySelectorAll<HTMLElement>("[data-page-frame]")[place.page];
+  const box = (frame ?? el).getBoundingClientRect();
+  return box.top + place.frac * box.height;
+}
+
 /**
  * Every zoom change, from the bar, its menu or a pinch, keeps the line the
- * student is reading where it is on the screen (2026-11-23): the middle of
- * what shows of the pages, or the line under a pinch's fingers. A zoom
- * changes the pages' height, so without it the page jumped on every change
- * (the user): the scroll stayed at the same pixel while the text under it
- * moved, and the pages are out of the browser's scroll anchoring
- * (`usePinchZoom`), which used to soften it.
+ * student is reading where it is on the screen (2026-11-23). From the bar
+ * or the menu: while the page's top shows the window does not move at all,
+ * and once scrolled into the page the first line in view stays first. From
+ * a pinch: the line under the fingers. A zoom changes the pages' height, so
+ * without it the page jumped on every change (the user): the scroll stayed
+ * at its pixel while the text under it moved, and the pages are out of the
+ * browser's scroll anchoring (`usePinchZoom`). Keeping the middle of what
+ * showed came first: from a page shown whole at 50% it scrolled the window
+ * half a page at 150%.
  */
 export function useZoomTo(pages: RefObject<HTMLElement | null>, setZoom: (zoom: number) => void) {
   const zoomTo: ZoomTo = (zoom, at, after) => {
     const el = pages.current;
-    if (!el) {
-      setZoom(zoom);
-      return after?.();
+    const scroller = el && scrollerOf(el);
+    let y = at;
+    if (el && scroller && y == null) {
+      const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+      if (el.getBoundingClientRect().top < top) y = top;
     }
-    const scroller = scrollerOf(el);
-    let place = at;
-    if (!place) {
-      const box = el.getBoundingClientRect();
-      const view =
-        scroller === document.scrollingElement
-          ? { top: 0, bottom: window.innerHeight }
-          : scroller.getBoundingClientRect();
-      const top = Math.max(box.top, view.top);
-      const bottom = Math.min(box.bottom, view.bottom);
-      const y = bottom > top ? (top + bottom) / 2 : box.top;
-      place = { frac: (y - box.top) / box.height, y };
-    }
-    const kept = place;
+    const place = el && y != null ? placeAt(el, y) : null;
     setZoom(zoom);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         after?.();
-        const box = el.getBoundingClientRect();
-        scroller.scrollBy({ top: box.top + kept.frac * box.height - kept.y });
+        if (el && scroller && place && y != null) scroller.scrollBy({ top: yOf(el, place) - y });
       }),
     );
   };
@@ -195,20 +203,28 @@ export function useZoomTo(pages: RefObject<HTMLElement | null>, setZoom: (zoom: 
 }
 
 /** The page's width in percent of its printed size, read as it changes:
- *  what the bar shows, since Fit's percent depends on the column. */
+ *  what the bar shows, since Fit's percent depends on the column; and
+ *  whether the column is what stops it, where Zoom In has nothing to do.
+ *  With the side panel open the column stops the page at about 105%, and
+ *  Zoom In stayed pressable there and did nothing (2026-11-23). */
 export function usePageZoom(pages: RefObject<HTMLElement | null>, zoom: number) {
   const [shown, setShown] = useState(zoom === FIT ? 125 : zoom);
+  // Whether the column holds the page back: then no step is bigger
+  const [full, setFull] = useState(false);
   useEffect(() => {
     const el = pages.current;
     if (!el) return;
-    // offsetWidth, which a pinch's stretch leaves alone
-    const read = () => setShown(Math.round((el.offsetWidth / 816) * 100));
+    const read = () => {
+      // offsetWidth, which a pinch's stretch leaves alone
+      setShown(Math.round((el.offsetWidth / 816) * 100));
+      setFull(el.offsetWidth < parseFloat(el.style.maxWidth) - 1);
+    };
     read();
     const observer = new ResizeObserver(read);
     observer.observe(el);
     return () => observer.disconnect();
   }, [pages, zoom]);
-  return shown;
+  return [shown, full] as const;
 }
 
 /**
@@ -248,6 +264,7 @@ export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number
     el.style.setProperty("overflow-anchor", "none");
     let scale = 1;
     let anchor = 0;
+    let startY = 0;
     let timer = 0;
     let moving = false;
     let touch: { distance: number } | null = null;
@@ -267,6 +284,7 @@ export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number
     const begin = (clientY: number) => {
       if (moving) return;
       moving = true;
+      startY = clientY;
       anchor = Math.max(0, clientY - el.getBoundingClientRect().top);
     };
     const commit = () => {
@@ -276,17 +294,12 @@ export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number
       moving = false;
       const { shown: from, onZoom: set } = latest.current;
       const to = Math.round(from * scale);
-      // The line under the fingers: `anchor` down the unstretched page,
-      // which the stretch holds still on the screen
-      const place = {
-        frac: anchor / el.offsetHeight,
-        y: el.getBoundingClientRect().top + anchor * scale,
-      };
       scale = 1;
       if (to === from) return show();
       // The stretch stays until the page has drawn at its new width, so
-      // nothing shows at the old size in between
-      set(to, place, show);
+      // nothing shows at the old size in between. The line under the
+      // fingers is where the gesture began: the stretch holds it still
+      set(to, startY, show);
     };
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;

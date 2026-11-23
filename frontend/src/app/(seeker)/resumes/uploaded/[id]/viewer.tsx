@@ -52,7 +52,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useZoom();
   const pages = useRef<HTMLDivElement>(null);
-  const shownZoom = usePageZoom(pages, zoom);
+  const [shownZoom, fullZoom] = usePageZoom(pages, zoom);
   const zoomTo = useZoomTo(pages, setZoom);
   usePinchZoom(pages, shownZoom, zoomTo);
 
@@ -108,7 +108,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           <div className={DESK}>
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <div className="ml-auto">
-                <Zoom zoom={zoom} shown={shownZoom} onZoom={(to) => zoomTo(to)} />
+                <Zoom zoom={zoom} shown={shownZoom} full={fullZoom} onZoom={(to) => zoomTo(to)} />
               </div>
             </div>
             <div className={cn(zoom !== FIT && DESK_PAGES)}>

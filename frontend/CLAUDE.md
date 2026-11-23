@@ -2983,13 +2983,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   with no grey round it (the desk's margin read as the gaps Fit was meant
   to close); every other zoom keeps the margin.
   **Every zoom change keeps the line being read where it is**
-  (`useZoomTo`): the middle of what shows of the pages, or the line under
-  a pinch's fingers. The page jumped on every change until then, since the
-  scroll stayed at its pixel while the pages' height changed; a fixed 125% left about 350px of grey
+  (`useZoomTo`). From the bar or its menu: while the page's top shows,
+  the window does not move at all; once scrolled into the page, the first
+  line in view stays first, placed by its page and its share of that
+  page's height (each frame carries `data-page-frame`), so the fixed gaps
+  between pages add no drift. From a pinch: the line under the fingers.
+  The page jumped on every change until then, since the scroll stayed at
+  its pixel while the pages' height changed. Keeping the middle of what
+  showed came first, and from a page shown whole at 50% it scrolled the
+  window half a page at 150% (the user). Near the page's foot a zoom out
+  can still move the line, since the scroll cannot pass its new end. A
+  fixed 125% left about 350px of grey
   either side of the page on a wide screen with the panel closed, and
   filling 1730px would print the text at about 21pt. The bar shows what a
   zoom comes to (`usePageZoom`), and Zoom In and Out go to the next step
-  from there. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
+  from there; Zoom In is off once the column stops the page (about 105%
+  with the side panel open), where it stayed pressable and did nothing. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
   pinch (Ctrl and the wheel; Safari's gesture events), Ctrl or Cmd with a
   mouse wheel (each event held to a tenth, or one notch jumped 60%), two
   fingers on a touch screen, any percent from 50 to 200, over the desk

@@ -368,6 +368,8 @@ export function PdfPages({
             // A popup at a page's foot runs over the next page, not under it
             popupBox?.page === i + 1 && "z-10",
           )}
+          // The zoom keeps a line in place by its page (`useZoomTo`)
+          data-page-frame
           style={{ aspectRatio: `${size.width} / ${size.height}` }}
         >
           <PageCanvas
