@@ -372,7 +372,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     skyline. It is back in this page's look: buildings in white and cool
     grey with slate hairlines, the drafting grid's own line (`LOOK`), on
     the grid's ground plane, standing on the hero frame's foot line and
-    running off both sides of the window. **Its only colour is six
+    running off both sides of the window. **The hero's frame has no side
+    lines** (the user's pick of three, 2026-11-23: `DraftLines first`
+    draws its foot line and that line's two squares, and the header its
+    own line and squares, with no rails through the bar): two lines down
+    the hero drew a frame the full-width city did not sit in, and crossed
+    its buildings. A frame says its content is inside it; a scene that
+    runs off the window takes none. The rail starts at the next framed
+    section. **No tower is up while the city comes in**: the loops start
+    with the city's arrival (`data-ready`), the first tower 2.2s after
+    it, 0.3s after the front row lands, and its card at 3s. **Its only colour is six
     towers in the four feature colours** (`MESH`'s blends, at 72%, each
     by its turn in the loop, `TURN_HUES`, so towers standing together
     differ): each grows out of a low building for a job that fits, sends
@@ -423,8 +432,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     landing.css), no longer on load, when they would play below the
     screen. The notes below describe the cells as they were in the hero;
     all hold where they stand now but the first screen's height and the
-    entrance on load. **The section fills the screen under the header**
-    (54rem at most), its heading, a second line and the cells centred in
+    entrance on load. **The section is a whole screen tall, with no cap**
+    (it was the screen less the header, 54rem at most, which on a tall
+    screen left its neighbours in view), its heading, a second line and the cells centred in
     it (the user's asks, 2026-11-23): at half a screen the problems'
     foot showed above it and Resume Builder below, and nothing held the
     eye on the page's turn. The line, "Tell WorkIt about yourself once.
