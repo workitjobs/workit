@@ -636,9 +636,9 @@ function title(change: Change) {
 }
 
 /**
- * A change under its row's name, with no box (2026-11-23): an added skill
- * as a chip, as the Edit Skill Group dialog draws one; an added or removed
- * line in plain type; each moved bullet with its place before and after as
+ * A change under its row's name, with no box (2026-11-23): a skill as a
+ * chip, green added or grey struck removed; an added or removed line beside
+ * a green or red bar; each moved bullet with its place before and after as
  * an amber tag; a rewording as Was over Now (`wordChanges`). A white card
  * with an outline held each change until then, a third frame inside the
  * panel and its entry, and a rewording showed its whole old line struck in
@@ -648,14 +648,27 @@ function title(change: Change) {
  * for a day.
  */
 function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
-  if (change.kind === "added" && change.where === "skills")
-    return (
-      <span className="bg-positive-tint text-positive-ink text-note rounded-control self-start px-2 py-0.5 font-medium">
-        {change.after}
-      </span>
+  // Added and removed as a pair (2026-11-23): a skill as a chip either
+  // way, green added and grey struck removed; a line beside a bar in its
+  // type's colour, green added and red removed, its words plain, since a
+  // strike or a fill over a whole line is hard to read. A removed skill in
+  // plain grey beside a green chip, and an added line in plain type, read
+  // as different kinds of thing, and a removed line in grey read as half a
+  // rewording
+  if (change.where === "skills" && (change.kind === "added" || change.kind === "removed"))
+    return change.kind === "added" ? (
+      <span className={cn(CHIP, "bg-positive-tint text-positive-ink")}>{change.after}</span>
+    ) : (
+      <del className={cn(CHIP, "bg-ink/5 text-ink-meta decoration-ink-meta/70 line-through")}>
+        {change.before}
+      </del>
     );
-  if (change.kind === "added") return <p className="text-note text-ink">{change.after}</p>;
-  if (change.kind === "removed") return <p className="text-note text-ink-meta">{change.before}</p>;
+  if (change.kind === "added")
+    return <p className="text-note text-ink border-positive border-l-2 pl-2.5">{change.after}</p>;
+  if (change.kind === "removed")
+    return (
+      <p className="text-note text-ink-meta border-danger border-l-2 pl-2.5">{change.before}</p>
+    );
   if (change.kind === "moved" && change.edit) {
     const entryId = change.edit.entry_id;
     const bullets = bank.entries.find((e) => e.id === entryId)?.bullets ?? [];
@@ -725,6 +738,9 @@ function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; cho
     </dl>
   );
 }
+
+/** A skill named in a change, as the Edit Skill Group dialog draws one. */
+const CHIP = "text-note rounded-control self-start px-2 py-0.5 font-medium";
 
 /** "Was" and "Now" before a rewording's two lines: small, quiet labels on
  *  the lines' first baselines. */

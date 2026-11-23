@@ -282,7 +282,10 @@ changed, as an AI rewording mostly does, neither line is marked, since a
 line all marked marks nothing. Its whole old line struck in red over its
 whole new line in green came first, then for a day its new words alone in
 green with Show Before: green is the added colour, and hiding the old
-words hid what the choice needs. An added skill is a green chip. **`?sample=1` on the dev server** adds a made-up
+words hid what the choice needs. Added and removed show as pairs: a skill as a chip, green added or grey
+struck removed; a line beside a bar, green added or red removed, its words
+plain. A removed skill in plain grey beside a green chip, and an added
+line in plain type, read as different kinds of thing. **`?sample=1` on the dev server** adds a made-up
 change of each type the run does not make yet (an added and a removed
 bullet, a rewording of most of a line, a removed and an added skill),
 drawn from the resume's own entries, to compare every type at once
