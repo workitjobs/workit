@@ -368,6 +368,37 @@ one's code and the API on the other's.
   instances in steps; a red API job with a green deploy step usually means
   the rollout is not finished.
 
+## Deploy preview (`workflows/deploy-preview.yml`)
+
+Shows one branch's website at https://preview.workitjobs.ai (the Worker
+`workit-web-preview`), so the team can compare it with production before
+it merges. Actions → Deploy preview → Run workflow, "Use workflow from:
+main", and the branch's name; or `gh workflow run deploy-preview.yml --ref
+main -f branch=<branch>`. **Never use `deploy.yml` for this**: run by hand
+on a branch, it deploys that branch to production.
+
+- **The website only.** The preview talks to the production API and
+  database, like `workitjobs.ai`, so it is for pages that need no sign-in
+  (the marketing site). It gets no runtime secrets, and Google sign-in is
+  not set up for its address (`../frontend/CLAUDE.md`, Deployment).
+- **One preview at a time.** The last run wins; a newer run cancels an
+  older one still going (group `deploy-preview`).
+- **Any branch deploys, even one older than this workflow.** The workflow
+  checks out the branch, then copies `frontend/wrangler.preview.jsonc` and
+  `scripts/ensure-worker.sh` from its own commit on `main` over it. So a
+  branch whose own `wrangler.jsonc` adds a binding deploys without it until
+  `wrangler.preview.jsonc` gets it too.
+- **Search engines are kept out** by a `robots.txt` that disallows every
+  path, written into the branch's `public/` before the build. The app has
+  no robots file of its own, so nothing is overwritten.
+- **The first run creates the Worker and the address** (`ensure-worker.sh`,
+  then the custom domain from the config). If it fails with "No access",
+  the token's Workers Routes permission must cover the `workitjobs.ai` zone
+  (above); an Admin fixes it in the dashboard.
+- **Cost:** none beyond Workers Paid, whose requests and CPU time the
+  Workers on the account share (`../docs/adr/0004-host-on-cloudflare.md`).
+  It needs no second API container.
+
 ## Scheduled scrape and import (KAN-160)
 
 `workflows/scrape.yml` runs the scraper and then

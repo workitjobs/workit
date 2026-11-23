@@ -1,0 +1,32 @@
+// The preview Worker: any branch's website at preview.workitjobs.ai, so the
+// team can see it beside production before it merges. deploy-preview.yml
+// copies this file over the branch's wrangler.jsonc before the build, so a
+// branch made before this file existed deploys too. Keep it in step with
+// wrangler.jsonc: the same settings but the name, the self-reference and the
+// address. It talks to the production API, like workitjobs.ai does.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workit-web-preview",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "minify": true,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [
+    {
+      // OpenNext's self-reference binding; the service must match "name".
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "workit-web-preview",
+    },
+  ],
+  "routes": [{ "pattern": "preview.workitjobs.ai", "custom_domain": true }],
+  "workers_dev": false,
+  "vars": {
+    "API_URL": "https://api.workitjobs.ai",
+    "GOOGLE_CLIENT_ID": "1030955690819-dva3oj360k372qmk3g4kvpmo9ooslcks.apps.googleusercontent.com",
+  },
+}
