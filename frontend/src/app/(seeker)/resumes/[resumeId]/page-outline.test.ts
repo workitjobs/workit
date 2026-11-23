@@ -175,15 +175,44 @@ test("a bullet typed in on the page lands after its bullet, shown, its entry ren
   );
 });
 
-test("the Skills heading's handle sits where its lines start, not after their labels", () => {
-  // One skill line, "Design: Figma", whose only box is the skill after the
-  // bold label; the line itself starts at 51, 0.15in in
-  const withSkills = { ...bank, skills: [{ id: "k1", name: "Figma", group: "Design" }] } as Bank;
-  const shown = { ...choices, skills: [{ skill_id: "k1", shown: true, position: 0 }] } as Choices;
+test("each skill line is a block, its handle where the line starts, not after its label", () => {
+  // Two lines, "Design: Figma" and "Tools: Git", whose only boxes are the
+  // skills after the bold labels; each line starts at 51, 0.15in in
+  const withSkills = {
+    ...bank,
+    skills: [
+      { id: "k1", name: "Figma", group: "Design" },
+      { id: "k2", name: "Git", group: "Tools" },
+    ],
+  } as Bank;
+  const shown = {
+    ...choices,
+    skills: [
+      { skill_id: "k1", shown: true, position: 0 },
+      { skill_id: "k2", shown: true, position: 1 },
+    ],
+  } as Choices;
   const figma = { ...box("k1", "skill", 260), x0: 95, x1: 120 };
-  const skills = (rows?: number[]) =>
-    outlineOf([...boxes, figma], withSkills, shown, ORDER, rows).find((b) => b.id === "skills")!;
-  assert.equal(skills([51]).x0, 51 - 11);
-  // With no line starts (an older render), the skills' own boxes still place it
-  assert.equal(skills().x0, 95 - 11);
+  const git = { ...box("k2", "skill", 273), x0: 85, x1: 100 };
+  const rows = [
+    { page: 1, x: 51, y: 269 },
+    { page: 1, x: 51, y: 282 },
+  ];
+  const blocks = (r?: typeof rows) =>
+    outlineOf([...boxes, figma, git], withSkills, shown, ORDER, r);
+  const lines = blocks(rows).filter((b) => b.kind === "group");
+  assert.deepEqual(
+    lines.map((b) => [b.id, b.parent, b.x0, b.start.y]),
+    [
+      ["Design", "skills", 51, 260],
+      ["Tools", "skills", 51, 273],
+    ],
+  );
+  assert.equal(blocks(rows).find((b) => b.id === "skills")!.x0, 51 - 11);
+  // A press on a line finds the line, not the section
+  assert.equal(blockAt(blocks(rows), { page: 1, y: 275 }, 792)?.id, "Tools");
+  // A line dragged above the first lands first among the lines
+  assert.equal(dropAt(blocks(rows), lines[1], { page: 1, y: 255 }).to, 0);
+  // With no line starts (an older render), the skills' own boxes place them
+  assert.equal(blocks().find((b) => b.id === "skills")!.x0, 85 - 11);
 });

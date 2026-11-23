@@ -92,6 +92,10 @@ export type BlockAction = {
 
 const GROUPS: BlockAction["group"][] = ["change", "move", "remove"];
 
+/** On the picked block's tint, on its first page: a form about the block
+ *  hangs from it (`SkillPopover`), since the handle follows the pointer. */
+export const PICKED_BLOCK = "data-picked-block";
+
 type Drag = {
   block: OutlineBlock;
   /** The pointer's start, to tell a press from a drag. */
@@ -332,13 +336,14 @@ export function OutlineLayer({
   // A block's mark, drawn over its ink: from its first line (a section's
   // capitals, `top`) to its last, 4 points out at the sides and 2 over and
   // under, rounded as Notion's selection is
-  const ring = (block: OutlineBlock, className: string) => {
+  const ring = (block: OutlineBlock, className: string, mark = false) => {
     const band = bandOn(block, page, size.height);
     if (!band) return null;
     if (page === block.start.page) band.top = block.top;
     return (
       <div
         aria-hidden
+        {...(mark && page === block.start.page && { [PICKED_BLOCK]: "" })}
         className={cn("pointer-events-none absolute rounded-xs", className)}
         style={{
           left: pct(block.x0 - 4, size.width),
@@ -361,6 +366,7 @@ export function OutlineLayer({
         ring(
           picked,
           "bg-brand/12 mix-blend-multiply animate-in fade-in-0 duration-150 rounded-[3px]",
+          true,
         )}
       {menuBlock && menuBlock.start.page === page && (
         <BlockMenu

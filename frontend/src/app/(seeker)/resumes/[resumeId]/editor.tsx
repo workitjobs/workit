@@ -76,6 +76,7 @@ import {
 import { Notice } from "@/components/ui/notice";
 import {
   addCuts,
+  arrangeSkills,
   bulletsWithNew,
   customKey,
   shownBullets,
@@ -86,9 +87,12 @@ import {
   NO_CUTS,
   mergeChoices,
   move,
+  moveItem,
   moveTo,
+  groupKey,
   orderSwaps,
   printedSections,
+  printedSkills,
   sectionOrderAfter,
   withWording,
   swapsOf,
@@ -125,6 +129,7 @@ import {
 } from "./page-format";
 import { PHONE_FIELD, PhoneEditor, usePhone } from "./phone";
 import { HeaderPanel } from "./header-panel";
+import { SkillPopover, type SkillAsk } from "./skill-popover";
 import { SectionsOutline } from "./sections-panel";
 import { SLIM_BAR } from "./slim-bar";
 import {
@@ -2639,6 +2644,37 @@ export function Editor({
       openPanel("sections");
     },
   };
+  /** Puts a skill in a group on this resume, from the outline or a skill
+   *  line's +: one the bank already has (any case) shows, at its group's
+   *  end, with Undo, since the API refuses a second copy; a new one is saved
+   *  into the bank for this resume. An error, or null. */
+  const addSkillTo = async (group: string, name: string): Promise<string | null> => {
+    const key = name.trim().toLowerCase();
+    const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
+    if (held) {
+      if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
+        return `${held.name} is already on this resume.`;
+      const last = Math.max(-1, ...choices.skills.map((c) => c.position));
+      apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
+      return null;
+    }
+    const { error } = await addSkill(name, group || null, resumeId);
+    if (error) return error;
+    reload(null);
+    return null;
+  };
+  // A skill line's question, hung from the line it asks about: the line is
+  // picked first, so its tint stays put under the form while the pointer
+  // moves and the shared handle follows it (`PICKED_BLOCK`)
+  const [skillAsk, setSkillAsk] = useState<{ ask: SkillAsk; anchor: HTMLElement } | null>(null);
+  const askSkill = (ask: SkillAsk, anchor: HTMLElement) => {
+    pick(
+      ask.kind === "group" ? { kind: "section", id: "skills" } : { kind: "group", id: ask.label },
+    );
+    // A frame later, once the new tint is drawn: the form measures where to
+    // hang as it opens, and in the same commit it found the last pick's tint
+    requestAnimationFrame(() => setSkillAsk({ ask, anchor }));
+  };
   const sectionsOutline = (
     <SectionsOutline
       bank={bank}
@@ -2666,23 +2702,7 @@ export function Editor({
       onAddEntry={(sectionId, opener) =>
         openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
       }
-      onAddSkill={async (group, name) => {
-        // A skill the bank already has (any case) goes on this resume in
-        // this group, at its end, with Undo: the API refuses a second copy
-        const key = name.trim().toLowerCase();
-        const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
-        if (held) {
-          if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
-            return `${held.name} is already on this resume.`;
-          const last = Math.max(-1, ...choices.skills.map((c) => c.position));
-          apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
-          return null;
-        }
-        const { error } = await addSkill(name, group || null, resumeId);
-        if (error) return error;
-        reload(null);
-        return null;
-      }}
+      onAddSkill={addSkillTo}
     />
   );
   // The entry form (KAN-586), opened by the page's menu and + (KAN-920) and
@@ -2691,6 +2711,26 @@ export function Editor({
   // nothing with the panel closed, on Format, or on Tailor's review
   const entryDialog = (
     <>
+      {skillAsk && (
+        <SkillPopover
+          ask={skillAsk.ask}
+          anchor={skillAsk.anchor}
+          onClose={() => setSkillAsk(null)}
+          onAdd={addSkillTo}
+          onRename={(group, name) =>
+            void apply(
+              arrangeSkills(
+                bank,
+                choices,
+                skillGroups.map((g) => (g.key === group ? { ...g, key: name } : g)),
+              ),
+            )
+          }
+          taken={(name, except) =>
+            skillGroups.some((g) => g.label !== except && groupKey(g.label) === groupKey(name))
+          }
+        />
+      )}
       {entryForm && (
         <OutlineEntryDialog
           bank={bank}
@@ -2787,6 +2827,8 @@ export function Editor({
   // The page as its outline (KAN-920): the sections that print, in order,
   // for the breadcrumb, the picked block's moves and the page's handles
   const printed = printedSections(bank, choices, page.section_order);
+  // The skill lines as they print, a group each
+  const skillGroups = printedSkills(bank, choices);
   const sectionHolding = (entryId: string) =>
     printed.find((s) => s.entries.some((e) => e.id === entryId));
   const pick = (block: Picked | null) => {
@@ -2811,12 +2853,22 @@ export function Editor({
       });
       return;
     }
+    if (block.kind === "group") {
+      const groups = printedSkills(held.current.bank, held.current.choices);
+      const from = groups.findIndex((g) => g.label === block.id);
+      if (from < 0 || to < 0 || to >= groups.length || to === from) return;
+      void apply(
+        arrangeSkills(held.current.bank, held.current.choices, moveItem(groups, from, to)),
+      );
+      return;
+    }
     const changes = moveTo(held.current.bank, held.current.choices, block.kind, block.id, to);
     if (changes) void apply(changes);
   };
   /** A block's place among its siblings, for a move by one. */
   const indexOf = (block: Picked): number => {
     if (block.kind === "section") return printed.findIndex((s) => s.id === block.id);
+    if (block.kind === "group") return skillGroups.findIndex((g) => g.label === block.id);
     if (block.kind === "entry")
       return sectionHolding(block.id)?.entries.findIndex((e) => e.id === block.id) ?? -1;
     for (const section of printed)
@@ -2828,6 +2880,7 @@ export function Editor({
   };
   const siblingCount = (block: Picked): number => {
     if (block.kind === "section") return printed.length;
+    if (block.kind === "group") return skillGroups.length;
     if (block.kind === "entry") return sectionHolding(block.id)?.entries.length ?? 0;
     const entry = printed
       .flatMap((s) => s.entries)
@@ -2869,6 +2922,7 @@ export function Editor({
     };
     if (pickedNow?.kind === "section") return [sectionStep(pickedNow.id, true)];
     if (pickedNow?.kind === "entry") return entryStep(pickedNow.id, true);
+    if (pickedNow?.kind === "group") return [sectionStep("skills", false), { label: pickedNow.id }];
     if (pickedNow?.kind === "bullet") {
       const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
       return entry ? bulletStep(entry.id, pickedNow.id) : [];
@@ -2895,6 +2949,7 @@ export function Editor({
       const section = sectionHolding(pickedNow.id);
       return section ? { kind: "section", id: section.id } : null;
     }
+    if (pickedNow?.kind === "group") return { kind: "section", id: "skills" };
     return null;
   };
   const keysNow: typeof keys.current = {
@@ -2925,6 +2980,21 @@ export function Editor({
       if (!entry) return null;
       return { noun: "Bullet", add: () => openNew(entry.id, block.id) };
     }
+    // A skill line's + adds a skill to it, and Technical Skills' heading a
+    // new line, each from a short form at the + (`SkillPopover`)
+    if (block.kind === "group") {
+      const group = skillGroups.find((g) => g.label === block.id);
+      if (!group) return null;
+      return {
+        noun: "Skill",
+        add: (anchor) => askSkill({ kind: "add", group: group.key, label: group.label }, anchor),
+      };
+    }
+    if (block.kind === "section" && block.id === "skills")
+      return {
+        noun: "Skill Group",
+        add: (anchor) => askSkill({ kind: "group" }, anchor),
+      };
     // An entry's own rows (its title, organization, dates) take no +: one
     // there read as either another entry or another bullet. A section's
     // heading adds an entry, first in it; a bullet adds a bullet
@@ -3007,6 +3077,30 @@ export function Editor({
         remove({ bullets: [{ bullet_id: block.id, shown: false }] }),
       ];
     }
+    if (block.kind === "group") {
+      const group = skillGroups.find((g) => g.label === block.id);
+      if (!group) return moves;
+      return [
+        {
+          key: "add",
+          text: "Add Skill",
+          group: "change",
+          icon: <PlusIcon />,
+          onClick: (anchor) =>
+            askSkill({ kind: "add", group: group.key, label: group.label }, anchor),
+        },
+        {
+          key: "rename",
+          text: "Rename Group",
+          group: "change",
+          icon: <PencilIcon />,
+          onClick: (anchor) =>
+            askSkill({ kind: "rename", group: group.key, label: group.label }, anchor),
+        },
+        ...moves,
+        remove({ skills: group.skills.map((k) => ({ skill_id: k.id, shown: false })) }),
+      ];
+    }
     if (block.kind === "entry") {
       const entry = bank.entries.find((e) => e.id === block.id);
       if (!entry) return moves;
@@ -3084,7 +3178,7 @@ export function Editor({
         bank,
         choices,
         page.section_order,
-        (rendered?.points ?? []).filter((p) => p.name === "skillrow").map((p) => p.x),
+        (rendered?.points ?? []).filter((p) => p.name === "skillrow"),
       ),
     picked: pickedNow,
     onPick: (block) => pick({ kind: block.kind, id: block.id }),
