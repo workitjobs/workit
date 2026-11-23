@@ -132,7 +132,7 @@ import { HeaderPanel } from "./header-panel";
 import { SkillGroupDialog } from "./skill-group-dialog";
 import { SkillPopover } from "./skill-popover";
 import { SectionsOutline } from "./sections-panel";
-import { SLIM_BAR } from "./slim-bar";
+import { DESK, DESK_BAR, DESK_PAGES } from "./slim-bar";
 import {
   Bar,
   ReviewButtons,
@@ -3360,7 +3360,14 @@ export function Editor({
       )}
     >
       {/* Placed, so a column floating in the same cell never pushes it down */}
-      <div className="flex min-w-0 flex-col gap-2 @4xl/main:col-start-1 @4xl/main:row-start-1">
+      {/* One surface, the desk (./slim-bar.ts): the bar on top, the pages on
+          its grey. The comparison only reads, so it draws the page alone */}
+      <div
+        className={cn(
+          "flex min-w-0 flex-col @4xl/main:col-start-1 @4xl/main:row-start-1",
+          comparing ? "gap-2" : DESK,
+        )}
+      >
         {comparing ? (
           <div className="flex min-h-9 items-center">
             <h2 className={compareHeading}>Tailored Resume</h2>
@@ -3369,59 +3376,63 @@ export function Editor({
           bar
         )}
         {error && (
-          <p role="alert" className="text-note text-danger">
+          <p role="alert" className={cn("text-note text-danger", !comparing && "px-4 pt-3")}>
             {error}
           </p>
         )}
-        <div
-          ref={pages}
-          data-keeps-selection
-          className="mx-auto w-full"
-          style={{ maxWidth: zoomWidth(zoom) }}
-          onPointerDownCapture={(e) => {
-            const origin = e.currentTarget.getBoundingClientRect();
-            pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
-          }}
-          // A press on the paper off every line saves the open line and
-          // closes it, as a press off the page does: the page keeps the
-          // selection for its lines, so until then only Enter or Escape
-          // left a line once it was open. A line's own target opens that
-          // line, and the field and the margin dots keep it. So does a
-          // block's menu (KAN-920): React passes a press in its portal up
-          // through the page, and it let go of the block it acts on
-          onPointerDown={(e) => {
-            if (
-              !(e.target as Element).closest(
-                "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
-              )
-            ) {
-              select(null);
-              setPicked(null);
-            }
-          }}
-        >
-          {pdfPane((pdf) => (
-            <PdfPages
-              pdf={pdf.pdf}
-              boxes={pdf.boxes}
-              readOnly={comparing}
-              popup={selected && popupNode ? { line: selected, node: popupNode } : undefined}
-              selected={selected}
-              onSelect={onLine}
-              overlay={overlay}
-              overlaid={overlaid}
-              shiftOf={shiftOf}
-              inserts={insertsOn}
-              swaps={swapsOn}
-              gaps={gapsOn}
-              onDrawn={drawn}
-              placeholder={<PageSkeleton />}
-              outline={pageOutline}
-              marks={showMarks ? allMarks : undefined}
-              lit={lit}
-              focus={showMarks ? focus : undefined}
-            />
-          ))}
+        {/* The paper on the desk: the margin is the desk's, so the page
+            keeps its zoom's width */}
+        <div className={cn(!comparing && DESK_PAGES)}>
+          <div
+            ref={pages}
+            data-keeps-selection
+            className="mx-auto w-full"
+            style={{ maxWidth: zoomWidth(zoom) }}
+            onPointerDownCapture={(e) => {
+              const origin = e.currentTarget.getBoundingClientRect();
+              pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
+            }}
+            // A press on the paper off every line saves the open line and
+            // closes it, as a press off the page does: the page keeps the
+            // selection for its lines, so until then only Enter or Escape
+            // left a line once it was open. A line's own target opens that
+            // line, and the field and the margin dots keep it. So does a
+            // block's menu (KAN-920): React passes a press in its portal up
+            // through the page, and it let go of the block it acts on
+            onPointerDown={(e) => {
+              if (
+                !(e.target as Element).closest(
+                  "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
+                )
+              ) {
+                select(null);
+                setPicked(null);
+              }
+            }}
+          >
+            {pdfPane((pdf) => (
+              <PdfPages
+                pdf={pdf.pdf}
+                boxes={pdf.boxes}
+                readOnly={comparing}
+                popup={selected && popupNode ? { line: selected, node: popupNode } : undefined}
+                selected={selected}
+                onSelect={onLine}
+                overlay={overlay}
+                overlaid={overlaid}
+                shiftOf={shiftOf}
+                inserts={insertsOn}
+                swaps={swapsOn}
+                gaps={gapsOn}
+                onDrawn={drawn}
+                placeholder={<PageSkeleton />}
+                outline={pageOutline}
+                marks={showMarks ? allMarks : undefined}
+                lit={lit}
+                focus={showMarks ? focus : undefined}
+              />
+            ))}
+          </div>
         </div>
       </div>
       {/* The assistant lives in Scout's panel, opened from the top bar's
@@ -3696,11 +3707,12 @@ function useFitToWindow(foot = 24) {
 }
 
 /** The review's column from @4xl to @6xl: in the page's cell, at its right,
- *  over the page, below the 44px bar (`SLIM_BAR`) at rest and when stuck.
- *  From @6xl it docks in the grid's second column, level with the bar. */
+ *  over the desk, 12px under its 44px bar (`DESK_BAR`) at rest and when
+ *  stuck, and 12px in from its edge. From @6xl it docks in the grid's
+ *  second column, level with the bar. */
 const FLOATING = cn(
-  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
-  "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
+  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-14 @4xl/main:mr-3 @4xl/main:top-14 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
+  "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:mr-0 @6xl/main:top-0 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
 );
 
 /**
@@ -3760,12 +3772,14 @@ export function EditorSkeleton() {
         <Skeleton className="ml-auto h-9 w-28" />
         <Skeleton className="size-8 rounded-full" />
       </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className={SLIM_BAR}>
+      <div className={cn("min-w-0", DESK)}>
+        <div className={DESK_BAR}>
           <Skeleton className="h-6 w-14" />
           <Skeleton className="ml-auto h-7 w-40" />
         </div>
-        <PageSkeleton />
+        <div className={DESK_PAGES}>
+          <PageSkeleton />
+        </div>
       </div>
     </div>
   );

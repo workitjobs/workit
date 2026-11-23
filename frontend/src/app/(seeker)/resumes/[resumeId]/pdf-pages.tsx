@@ -146,7 +146,7 @@ export function PageSkeleton() {
   return (
     <div
       role="status"
-      className="bg-panel border-border-subtle flex w-full flex-col items-center gap-2 overflow-hidden border px-[8%] pt-[7%] shadow-sm"
+      className="bg-panel ring-border-subtle shadow-panel flex w-full flex-col items-center gap-2 overflow-hidden px-[8%] pt-[7%] ring-1"
       style={{ aspectRatio: LETTER }}
     >
       <span className="sr-only">Drawing the PDF</span>
@@ -364,7 +364,7 @@ export function PdfPages({
             pageFrames.current[i] = node;
           }}
           className={cn(
-            "bg-panel border-border-subtle @container relative w-full border shadow-sm",
+            "bg-panel ring-border-subtle shadow-panel @container relative w-full ring-1",
             // A popup at a page's foot runs over the next page, not under it
             popupBox?.page === i + 1 && "z-10",
           )}

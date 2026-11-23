@@ -3840,8 +3840,9 @@ editor's h1 at the same size, renamed in place) with the star after it
 trash (`ResumeDelete`, which asks first; a ⋯ with Rename, Make Primary and
 Delete until 2026-11-19). Until KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
-it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
-a lavender bar with a ring and a shadow until KAN-576) holds the page's one
+it the editor's desk (`DESK`, `[resumeId]/slim-bar.ts`, 2026-11-23), its
+sticky bar (a lavender bar with a ring and a shadow until KAN-576, then the
+editor's white card until the desk) holding the page's one
 tool, the zoom, at its end: the editor's control and its kept step
 (`useZoom`, opening at 125%), so both resume pages open at one zoom
 (KAN-825; it opened at 100% and kept nothing until then); then the PDF, drawn page by page with the

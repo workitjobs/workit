@@ -45,7 +45,7 @@ import { cn } from "@/lib/cn";
 import { FOLD, FoldButton } from "./bar-fold";
 import { overText } from "./fit-notice";
 import type { Line } from "./model";
-import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
+import { DESK_BAR, PRESSED_GLYPH } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar and the
@@ -347,7 +347,7 @@ export function Bar({
       data-keeps-selection
       data-page-bar
       data-tour="toolbar"
-      className={cn(SLIM_BAR, "@container/bar")}
+      className={cn(DESK_BAR, "@container/bar")}
       // A press on a button keeps focus in the open line's field, so it does
       // not blur and save first
       onMouseDown={(e) => {

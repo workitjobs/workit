@@ -2883,9 +2883,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. **One bar
   shape** (KAN-799): the editor's own page, Tailor's review and an upload's
-  page draw the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
+  page draw the same box (`DESK_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
   was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
-  review's icons in the title row were 40px.
+  review's icons in the title row were 40px. **The bar and the pages are
+  one surface, the desk** (`DESK`, 2026-11-23, the user's pick of three):
+  the bar is the desk's top row with a hairline under it, sticking at the
+  very top, and the pages lie as paper on its grey (`--color-well`),
+  centred at every zoom. It was a rounded white card 8px over a
+  square-cornered page on the near-white ground, which read as two
+  objects with a seam: the corners differed, the gap neither joined nor
+  parted them, the edges met only at 125%, and a strip of the page showed
+  over the bar once it stuck. The desk clips its corners with
+  `overflow-clip`, never `overflow-hidden`, which would make it a scroll
+  box and stop the bar sticking. The phone keeps `SLIM_BAR`.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
   Primary badge and Download (a "Saving…" and "Saved" status stood

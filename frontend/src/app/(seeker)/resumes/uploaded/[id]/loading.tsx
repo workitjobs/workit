@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
 import { PageSkeleton } from "../../[resumeId]/pdf-pages";
-import { SLIM_BAR } from "../../[resumeId]/slim-bar";
+import { DESK, DESK_BAR, DESK_PAGES } from "../../[resumeId]/slim-bar";
 
 /**
  * An uploaded resume's page while it loads (KAN-368): the page reads the
@@ -29,13 +29,17 @@ export default function UploadedResumeLoading() {
           <Skeleton className="size-8 rounded-full" />
         </div>
         <div aria-hidden="true" className="mt-3 flex flex-col gap-4">
-          <div className={cn(SLIM_BAR, "@max-md/main:hidden")}>
-            <Skeleton className="ml-auto h-7 w-28" />
-          </div>
-          {/* At the pages' opening zoom, 125% (1020px, ../../[resumeId]/zoom.tsx,
-              which a server file cannot read) */}
-          <div className="mx-auto w-full max-w-[1020px]">
-            <PageSkeleton />
+          <div className={DESK}>
+            <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
+              <Skeleton className="ml-auto h-7 w-28" />
+            </div>
+            {/* At the pages' opening zoom, 125% (1020px, ../../[resumeId]/zoom.tsx,
+                which a server file cannot read) */}
+            <div className={DESK_PAGES}>
+              <div className="mx-auto w-full max-w-[1020px]">
+                <PageSkeleton />
+              </div>
+            </div>
           </div>
         </div>
       </div>
