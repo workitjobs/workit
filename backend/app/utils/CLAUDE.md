@@ -458,7 +458,15 @@ Rules:
 - **This parser always runs, and stays free.** Its reading is saved when the
   student has no AI reading left today (cap 1, 10% of the pool), the model
   fails, is slower than `MODEL_WAIT_SECONDS`, answers in the wrong shape, or
-  keeps no entry the text backs. A resume that parses wrong still becomes a
+  keeps no entry the text backs. **Each model in the chain gets
+  `MODEL_TRY_SECONDS` (10), the whole reading `MODEL_WAIT_SECONDS` (20)**
+  (2026-11-19): a stalled Gemini gives way to gpt-oss-20b, not to the
+  parser. KAN-900's scoring runs set the numbers: a reading took 3.9 s on
+  Gemini (8.3 s at the slowest), 1.3 s on gpt-oss-20b (4.2 s), and Gemini's
+  503 came back within 4 s; time grows with the reply, so a two-page resume
+  on Gemini is near 10 s. The 45 s before it was set with no measurement,
+  and covered the whole chain, so a stalled Gemini held the student for
+  45 s and then gave them the parser's reading. A resume that parses wrong still becomes a
   fixture here before the parser changes: the model is not a reason to stop
   fixing it, since the parser reads whenever the model does not.
 - **The model's reading is checked, never trusted.** `ModelReading` is loose so

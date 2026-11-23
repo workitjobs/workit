@@ -8,6 +8,8 @@
  * (scout/ identity.py). Bring the job questions back here when the flag
  * turns on.
  */
+import { ChatCircleDotsIcon, LockSimpleIcon, NotePencilIcon } from "@phosphor-icons/react/ssr";
+
 import { ScoutAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { DraftVisual, PrivacyVisual, WalkVisual } from "../visuals/scout";
@@ -27,14 +29,14 @@ const content: FeatureContent = {
   animation: ScoutAnimation,
   sections: [
     {
-      eyebrow: "One section at a time",
       title: "It asks the right questions",
+      icon: ChatCircleDotsIcon,
       body: "Press Fill With Scout on your Experience Bank. Scout walks your sections in order and asks about each entry. Upload a resume first, and it starts on what the resume left out.",
       visual: WalkVisual,
     },
     {
-      eyebrow: "Drafts",
       title: "Every answer becomes an entry",
+      icon: NotePencilIcon,
       body: "As you answer, Scout writes the entry: its title, place, dates and bullets. It tells you what is still missing. Save it, edit it, or skip the section.",
       points: [
         "Type, or speak where your browser supports it",
@@ -43,8 +45,8 @@ const content: FeatureContent = {
       visual: DraftVisual,
     },
     {
-      eyebrow: "Privacy",
       title: "Your identity stays out of it",
+      icon: LockSimpleIcon,
       body: "WorkIt swaps your name, email, phone number and links for placeholders before anything reaches the model that answers.",
       visual: PrivacyVisual,
     },

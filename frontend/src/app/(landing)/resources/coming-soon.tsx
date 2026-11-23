@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 
-import { GlassButton, OutlineButton } from "../buttons";
+import { PrimaryButton, SecondaryButton } from "../buttons";
 import { site } from "../data";
+import { FaqList } from "../faq-list";
 import { backdrop } from "../features/catalog";
 import { FeatureIcon } from "../features/feature-icon";
-import { CONTAINER, PANEL, PANEL_INSET } from "../layout-parts";
+import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "../layout-parts";
 import type { Resource } from "./catalog";
 
 /** The brand violet over its tint, like the Pricing page's panels. */
@@ -29,8 +30,10 @@ export function comingSoonMetadata(resource: Resource): Metadata {
 /**
  * The page a Resources item shows while it has none of its own: its name,
  * a plain "Coming soon", what the page will hold (the item's `soon` copy in
- * catalog.ts), a page that exists now, and the sign-up. It promises nothing
- * that is not built.
+ * catalog.ts), a page that exists now, and the sign-up, then any questions
+ * it answers meanwhile (`soon.questions`: the Help Center holds the
+ * questions the home page's FAQ did). It promises nothing that is not
+ * built.
  */
 export function ComingSoonPage({ resource }: { resource: Resource }) {
   const { soon } = resource;
@@ -41,27 +44,33 @@ export function ComingSoonPage({ resource }: { resource: Resource }) {
       <section className={cn(PANEL_INSET, "mb-2 sm:mb-6")}>
         <div className={cn(PANEL, "py-20 sm:py-28 lg:py-32")} style={{ background: GROUND }}>
           <div className={cn(CONTAINER, "text-center")}>
-            <p className="glass-card text-ink inline-flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm font-medium">
+            <p className={cn(HERO_PILL, "py-1 pl-1")}>
               <FeatureIcon feature={resource} className="rounded-full" />
               {resource.name}
             </p>
-            <h1 className="text-ink mx-auto mt-6 max-w-3xl text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance sm:text-6xl">
-              Coming soon.
-            </h1>
+            <h1 className={cn(TYPE.display, "text-ink mx-auto mt-6 max-w-4xl")}>Coming soon.</h1>
             <p className="text-ink-muted mx-auto mt-5 max-w-2xl text-lg leading-[1.55] text-pretty">
               {soon.summary}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <GlassButton href={site.primaryCta.href} size="lg">
+              <PrimaryButton href={site.primaryCta.href} size="lg">
                 {site.primaryCta.label}
-              </GlassButton>
-              <OutlineButton href={soon.meanwhile.href} size="lg">
+              </PrimaryButton>
+              <SecondaryButton href={soon.meanwhile.href} size="lg">
                 {soon.meanwhile.label}
-              </OutlineButton>
+              </SecondaryButton>
             </div>
           </div>
         </div>
       </section>
+      {soon.questions && (
+        <section id="questions" aria-labelledby="questions-title" className="py-20 sm:py-28">
+          <div className={cn(CONTAINER, "max-w-3xl")}>
+            <SectionHeading id="questions-title" title="Questions, answered" />
+            <FaqList items={soon.questions} className="mt-12" />
+          </div>
+        </section>
+      )}
     </main>
   );
 }

@@ -26,7 +26,7 @@ export function FaviconLogo({
   return (
     <span
       className={cn(
-        "grid size-9 shrink-0 place-items-center rounded-[10px] bg-white shadow-[inset_0_0_0_1px_rgba(76,39,163,0.12)]",
+        "grid size-9 shrink-0 place-items-center rounded-[10px] bg-white shadow-[inset_0_0_0_1px_rgb(15_23_42/0.08)]",
         className,
       )}
     >

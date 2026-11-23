@@ -1,26 +1,24 @@
 "use client";
 
+import { TrashIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { createContext, use, useRef, useState, type ReactNode } from "react";
 
-import { RowMoreMenu } from "@/components/resume-row";
-import { deleteBuiltResume, setDefaultBuiltResume } from "@/lib/built-resume-actions";
-import { deleteResume, setPrimaryResume } from "@/lib/resume-actions";
+import { IconButton } from "@/components/ui/icon-button";
+import { deleteResume } from "@/lib/resume-actions";
+import { cn } from "@/lib/cn";
+
+import { DeleteResumeConfirm } from "../delete-confirm";
 
 /** A resume WorkIt built (the editor's) or an upload (its own page). */
 export type ResumeKind = "built" | "uploaded";
 
 /**
- * A resume page's title row, as its two ends reach each other (KAN-825):
- * the title (`ResumeTitle`, ./resume-title.tsx) at the left and the ⋯ menu
- * (`ResumeMenu`) at the right, with the save status and Download between
- * them. The title hands over how to open its rename field (`attach`), so
- * the menu's Rename opens it, and a failed Make Primary or Delete shows
- * under the title, where a failed rename does.
+ * A resume page's title row, as its parts reach the line under the title
+ * (KAN-825): a failed rename, Make Primary (the star, `ResumeTitle`) or
+ * Delete (`ResumeDelete`) shows there.
  */
 type TitleRow = {
-  attach: (open: (() => void) | null) => void;
-  rename: () => void;
   error: string | null;
   setError: (error: string | null) => void;
 };
@@ -28,78 +26,57 @@ type TitleRow = {
 export const TitleRowContext = createContext<TitleRow | null>(null);
 
 /** Round a resume page's title row: the editor's page (./page.tsx) and an
- *  upload's (../uploaded/[id]/viewer.tsx). Tailor's review has none, so
- *  its title renames from its own click alone. */
+ *  upload's (../uploaded/[id]/viewer.tsx). Tailor's review has none, so its
+ *  title shows its own failures. */
 export function TitleRowProvider({ children }: { children: ReactNode }) {
-  const opener = useRef<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actions] = useState(() => ({
-    attach: (open: (() => void) | null) => {
-      opener.current = open;
-    },
-    rename: () => opener.current?.(),
-  }));
-  return <TitleRowContext value={{ ...actions, error, setError }}>{children}</TitleRowContext>;
+  return <TitleRowContext value={{ error, setError }}>{children}</TitleRowContext>;
 }
 
 /**
- * A resume page's ⋯ (More actions), at its title row's end (KAN-825): the
- * Resumes list's own menu (`RowMoreMenu`) with Rename, Make Primary (while
- * it is not the primary) and Delete, which asks first. Open and Download
- * stay out: the page is open, and Download is the row's filled button. The
- * two resume pages differed until then: an upload's had Make Primary,
- * Rename and Delete as bordered buttons, and the editor had none of them,
- * nor any sign of which resume is the primary.
+ * An upload's Delete, at its title row's end (2026-11-19): the trash, which
+ * asks first, as the Resumes list's does, and returns to Resumes.
  *
- * Make Primary and Rename clear the router's copies, which renders the page
- * again in their answer (`lib/resume-revalidate.ts`), so the title's badge
- * and this menu follow the API. Delete passes `leaving`: rendered again,
- * the page would read a resume that is gone before the push to Resumes.
+ * The two resume pages had a ⋯ (KAN-825) with Rename, Make Primary, Take the
+ * Tour and Delete. After Google Docs and Drive, the editor is the document
+ * and the Resumes list the drive: the title renames in place and the star
+ * beside it makes the resume the primary (`ResumeTitle`), the toolbar's ?
+ * takes the tour, and a resume is deleted from the list, never mid edit. An
+ * upload's page is a file's preview, as Drive's is, so it keeps Delete, and
+ * with nothing else left in the menu, the menu went.
+ *
+ * Delete passes `leaving`: rendered again, the page would read a resume
+ * that is gone before the push to Resumes.
  */
-export function ResumeMenu({
-  kind,
-  resumeId,
-  name,
-  primary,
-}: {
-  kind: ResumeKind;
-  resumeId: string;
-  name: string;
-  primary: boolean;
-}) {
+export function ResumeDelete({ resumeId, name }: { resumeId: string; name: string }) {
   const row = use(TitleRowContext);
   const router = useRouter();
   // A second press of Delete Resume while the first is on its way
   const deleting = useRef(false);
-  const setError = (error: string | null) => row?.setError(error);
-
-  async function makePrimary() {
-    setError(null);
-    const { error } =
-      kind === "built" ? await setDefaultBuiltResume(resumeId) : await setPrimaryResume(resumeId);
-    if (error) setError(error);
-  }
 
   async function remove() {
     if (deleting.current) return;
     deleting.current = true;
-    setError(null);
-    const { error } =
-      kind === "built"
-        ? await deleteBuiltResume(resumeId, { leaving: true })
-        : await deleteResume(resumeId, { leaving: true });
+    row?.setError(null);
+    const { error } = await deleteResume(resumeId, { leaving: true });
     if (!error) return router.push("/resumes");
     deleting.current = false;
-    setError(error);
+    row?.setError(error);
   }
 
   return (
-    <RowMoreMenu
-      always
-      name={name}
-      onRename={row?.rename}
-      onMakePrimary={primary ? undefined : makePrimary}
+    <DeleteResumeConfirm
       onDelete={remove}
+      trigger={
+        <IconButton
+          place="row"
+          label={`Delete ${name}`}
+          tooltip="Delete"
+          className={cn("hover:text-danger")}
+        >
+          <TrashIcon />
+        </IconButton>
+      }
     />
   );
 }

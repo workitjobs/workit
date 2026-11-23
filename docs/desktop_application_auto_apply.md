@@ -524,7 +524,7 @@ by hand (W8).
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the website's side is built (KAN-835, KAN-922): the public `/download` page, the header's Download link and the home hero's Download for Mac, and in the app the signed-in `/auto-apply-desktop`, the top bar's Download App and Up Next's offer on a Mac. The public `/download` page and the header's Download link show now and say Coming soon; the rest stay hidden until `DESKTOP_DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -584,8 +584,9 @@ shapes and status codes.
     on the server"). Each kind runs on the size of the API's model chain
     it names: Apply's Haiku calls on the small one, its Sonnet and Opus
     calls on the large one (`app/services/models.py`). So the models and
-    their keys are the `SCOUT_ENDPOINTS*` settings already in
-    `CF_API_SECRETS_JSON`, and a model change is an env change. It answers
+    their keys are the `SCOUT_ENDPOINTS*` settings already in the API's
+    production secrets (Infisical's `workit-prod/api`, `secrets.md`), and a
+    model change is an env change. It answers
     `{answer, tokens, usage}`, with `usage` as below, so the window's cap
     line updates with each call. The free-form `POST /apply-app/model`,
     which took the app's own prompt and schema, went once every kind was
@@ -1584,8 +1585,14 @@ itself (D17, D18, D20).
   installs at the next restart.
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
-  (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
-  Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+  (KAN-835, KAN-922): the public `/download`, offered from the site's
+  header and home hero, and the signed-in `/auto-apply-desktop`, offered
+  from the app's top bar and the Auto Apply queue
+  (`frontend/docs/screens.md`, Auto Apply Desktop). Publishing the DMG sets
+  `DESKTOP_DOWNLOAD_URL` in `frontend/src/lib/auto-apply-desktop.ts`, which
+  shows the rest and turns `/download`'s Coming soon into the download
+  (the page and the header's link are public before it). Neither page limits who downloads; a tester list for the
+  beta, if one is needed, belongs at the app's sign-in (W5).
 - **Build by hand:** one script (for example `scripts/build_app.py`) that
   compiles, signs, notarizes, makes the DMG and uploads it. No builds in
   CI (D32).

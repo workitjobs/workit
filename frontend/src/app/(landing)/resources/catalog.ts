@@ -1,6 +1,8 @@
 import { LifebuoyIcon, NewspaperIcon, PlugIcon } from "@phosphor-icons/react/ssr";
 import type { ComponentType } from "react";
 
+import { faqs } from "../data";
+
 /**
  * The Resources menu's items, in menu order: each one's name, link, icon and
  * the line under its name. The header's Resources menu, the phone menu and
@@ -31,6 +33,8 @@ export type Resource = {
     summary: string;
     /** A page that exists now and covers some of the same ground. */
     meanwhile: { label: string; href: string };
+    /** Questions the page answers meanwhile, under its panel. */
+    questions?: readonly { question: string; answer: string }[];
   };
 };
 
@@ -52,8 +56,11 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
     line: "Guides and answers for WorkIt",
     soon: {
       summary:
-        "Step-by-step guides for each part of WorkIt are on the way. Until then, the FAQ on the home page answers the common questions.",
-      meanwhile: { label: "Read the FAQ", href: "/#faq" },
+        "Step-by-step guides for each part of WorkIt are on the way. Until then, the common questions are answered below.",
+      // The home page's FAQ, which moved here when the user took it off
+      // the home page (KAN-923, 2026-11-19).
+      meanwhile: { label: "Read the common questions", href: "#questions" },
+      questions: faqs,
     },
   }),
   blog: resource("blog", {
@@ -71,3 +78,11 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
 
 /** The three items in menu order. */
 export const resourcePages = Object.values(RESOURCES);
+
+/**
+ * Whether the header shows Resources ▾, in the bar and the phone menu.
+ * Archived (the user's call, 2026-11-20): none of the three pages exists
+ * yet, so the menu offered only "Soon". The pages, their routes and the
+ * footer's Resources column stay; set this to true to bring the menu back.
+ */
+export const RESOURCES_IN_NAV = false;

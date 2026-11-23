@@ -47,7 +47,9 @@ export type BuiltResume = {
  *  duplicate check, `saving` before the writes, then `done` with the new
  *  resume or `error` with the JSON route's status and message (409 and the
  *  resume it matches on a duplicate). The body's `allow_duplicate` skips
- *  the check (the student confirmed a copy), and with it `checking`. Mirrors `GenerateStep`,
+ *  the check (the student confirmed a copy), and with it `checking`; its
+ *  `blank` starts the resume with its header alone and skips it too
+ *  (onboarding's build, `onboarding/applicant/make-resume.ts`). Mirrors `GenerateStep`,
  *  `GenerateDone` and `GenerateFailed` in backend/app/schemas/built_resume.py;
  *  change both or neither. */
 export type GenerateStreamEvent =
@@ -121,6 +123,12 @@ export type PageSettings = {
   date_format: "short" | "long" | "year" | "numeric";
   /** Which of an Education entry's two rows goes on top. */
   education_first: "school" | "degree";
+  /** Which of a job's (and a club role's) two rows goes on top: the role,
+   *  as Jake's does, or the company (2026-11-17). */
+  experience_first: "role" | "company";
+  /** Where a project's tools print: on a line under its name, or after it
+   *  ("Gitlytics | Python, Flask"), as Jake's own sample does (2026-11-17). */
+  project_tools: "below" | "after_name";
   /** The header fields this resume leaves out (KAN-436): the Header
    *  panel's check boxes. The values stay on the profile. */
   hidden_header: HideableField[];

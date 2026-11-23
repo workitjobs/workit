@@ -34,7 +34,7 @@ export function FollowedCard({ className, style, ...rest }: React.HTMLAttributes
   return (
     <div
       aria-hidden="true"
-      className={cn("gloss-card text-ink rounded-2xl p-5", className)}
+      className={cn("surface-card text-ink rounded-2xl p-5", className)}
       style={{ width: CARD_WIDTH, ...style }}
       {...rest}
     >

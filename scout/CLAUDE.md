@@ -85,7 +85,7 @@ are now ignored; a deploy that still sets them has no fallback until
 | Where | Chain |
 | --- | --- |
 | Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine; nothing to set |
-| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` in the API's production secrets (`CF_API_SECRETS_JSON`, `.github/CLAUDE.md`) |
+| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` in the API's production secrets (Infisical's `workit-prod/api`, `../docs/secrets.md`) |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
 | Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
 
@@ -104,8 +104,9 @@ env change. Which feature uses which size is the API's choice
 Vercel project, since retired): it set no `SCOUT_ENDPOINTS`, only
 `SCOUT_BASE_URL`, `SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini
 `gemini-3.5-flash-lite` alone, with no fallback. The Cloudflare API's secrets
-were first copied from those values (`CF_API_SECRETS_JSON`), so read that JSON
-before assuming the spec's chain. A laptop needs its own key from AI Studio.
+were first copied from those values (the retired `CF_API_SECRETS_JSON`);
+since KAN-899 they are the chains in Infisical's `workit-prod/api`, so read
+those before assuming the spec's chain. A laptop needs its own key from AI Studio.
 Training on prompts is acceptable to the team (2026-10-14), since identity
 data is removed on every call, so Gemini's and Z.ai's free tiers are open
 choices.
@@ -147,7 +148,11 @@ the student before it returns, so a 429, 5xx or dead endpoint moves down the
 whole chain. `max_tokens=` caps the reply, reasoning included, and is sent
 only when given (as `max_tokens`, which Ollama, Groq and Gemini all accept);
 a reply the provider stops at its cap (`finish_reason` "length") raises
-`ReplyCutOff`, an `InvalidReply`, since its JSON is cut off.
+`ReplyCutOff`, an `InvalidReply`, since its JSON is cut off. `wait=` gives
+each endpoint that many seconds: one that has not answered by then is
+given up and the next is asked, as at a 503 (resume reading passes 10, so a
+stalled Gemini gives way to gpt-oss-20b). Unset, an endpoint is waited for
+as long as the client allows, ten minutes.
 
 `LLM.complete_schema(messages, schema, identity=...)` is the same call for
 a schema given as JSON data, not a Pydantic class: WorkIt Auto Apply's
@@ -290,8 +295,8 @@ per endpoint in the chain (`ScriptedLLM(rate_limited(), ["reply"])`), records
 every prompt as the model received it, and joins a script's pieces as the
 answer to a structured call. It covers: moving down the chain on 429, 5xx,
 a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
-(checked object, chain, rejected replies, no identity data, a reply cut off
-at its cap), `complete_schema` (an answer outside the schema moves on and
+(checked object, chain, an endpoint slower than its `wait`, rejected
+replies, no identity data, a reply cut off at its cap), `complete_schema` (an answer outside the schema moves on and
 still costs, a 400 moves on, its tokens, no remote `$ref` fetched, an
 answer too deep to read, a failure log without the error's body;
 ScriptedLLM costs a token a character), the request body (a JSON schema, never `tool_choice`,

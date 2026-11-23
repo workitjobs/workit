@@ -130,6 +130,7 @@ uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync cata
 uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
+uv run python scripts/build_education.py       data/schools.tsv and data/fields_of_study.tsv from IPEDS, Hipo and CIP (yearly; --src DIR builds from files)
 ```
 
 The container image builds from the repo root, not here (Deployment):
@@ -692,7 +693,7 @@ Find files with a directory listing; these are the rules for where code goes.
   fills none of them, with no Store release. The list lives in the database,
   not in config: the backend's small settings are env vars
   (`app/config.py`), but changing one needs a redeploy
-  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  (Infisical's `workit-prod/api`), and an admin must flip this in minutes. The queue
   reads the same list: the matches (`JobFilters.disabled_job_systems`, by
   `FORM_URL`, so a job board's posting naming a Workday form counts as
   Workday's) and `queue_applications` leave those postings out, and an Auto
@@ -1163,7 +1164,8 @@ Find files with a directory listing; these are the rules for where code goes.
   entry by entry (`with_parsers_reading`: what the model left out comes
   from the parser, and the model's value wins where both have one); the merge rules are
   in `app/utils/CLAUDE.md`, "The model reads first". It saves the parser's reading when no use is
-  left, the model fails or runs past `MODEL_WAIT_SECONDS` (45), its reply
+  left, the model fails or runs past `MODEL_WAIT_SECONDS` (20; each model
+  in the chain gets `MODEL_TRY_SECONDS`, 10, then the next is asked), its reply
   fails the schema, or the text backs none of its entries. Only a model
   reading counts a use, committed with the bank writes (the preview
   commits it alone). No 429 and no 503: the limit and a failure both mean
@@ -1363,7 +1365,10 @@ Find files with a directory listing; these are the rules for where code goes.
   a resume's content changes with every edit, so no hash is stored. The
   409 names the match (`name`), and **a student who confirms the copy
   gets it**: the Resumes page asks "You Already Have This Resume" and
-  sends `allow_duplicate`, which skips the check (KAN-444). Uploads stay
+  sends `allow_duplicate`, which skips the check (KAN-444). A `blank`
+  Generate (onboarding's build, 2026-11-18) skips it too: it starts the
+  resume with its header alone, every bank entry and skill hidden on it
+  (`blank_choices`), so the editor's tour has something to add. Uploads stay
   refused: `resumes_text_hash_key` keeps one upload per text. A
   test that needs two resumes from one bank adds a skill between them
   (`tests/test_built_resumes.py`'s `_another`).
@@ -1777,6 +1782,20 @@ Find files with a directory listing; these are the rules for where code goes.
   `uv run python -m app.scripts.<name>`.
 - **`data/places.tsv`** is the location resolver's gazetteer, generated from
   GeoNames by `scripts/build_geonames.py` (CC BY 4.0). Never edit it by hand.
+- **`data/schools.tsv` and `data/fields_of_study.tsv`** are the Education
+  form's suggestions (2026-11-17), built by `scripts/build_education.py`: US
+  schools that grant degrees from IPEDS's yearly directory (public domain,
+  with their aliases, so "SBU" and "UCLA" find theirs), schools elsewhere
+  from Hipo's university-domains-list (MIT license), and fields of study
+  from CIP 2020 (", General" dropped, ", Other" rows left out). Re-run it
+  yearly, raising `IPEDS_YEAR`; never edit them by hand.
+  `services/education_lists.py` searches them for `GET /education/schools`
+  and `/education/fields` (`routers/education.py`, sign-in only, eight
+  suggestions best first). They only suggest: the form saves whatever the
+  student types, and nothing checks a saved school or field against them.
+  College Scorecard, the plan's first source, is built from the same IPEDS
+  directory and needs an api.data.gov key; the directory's file needs none.
+  Tests: `tests/test_education_lists.py`.
 - **`data/feed.json`** is the import's default input when no local scraper run
   has written one (`config.default_scraper_feed()`; `SCRAPER_FEED` overrides).
   It must validate against `app/schemas/jobs.py`: refresh it in the same
@@ -1822,9 +1841,9 @@ Find files with a directory listing; these are the rules for where code goes.
 | `SUPABASE_URL`         | Storage, Auth | Project URL; also where the JWKS lives              |
 | `SUPABASE_SERVICE_KEY` | Storage, Auth | Service-role key: bypasses RLS, creates users       |
 
-- **`.env` lives at the repo root, not in `backend/`.** Start it from the root
-  `.env.example`; to fill a fresh worktree's, see the root `CLAUDE.md`'s
-  Conventions.
+- **`.env` lives at the repo root, not in `backend/`.** `npm run env` writes
+  it from Infisical (`../docs/secrets.md`, "Get your local `.env` files");
+  the root `.env.example` lists its keys with no values.
 - **`ENV_FILE` in `app/config.py` resolves the root path from `__file__`**,
   not the working directory. pydantic's default `env_file=".env"` would find it
   from the root and silently miss it from `backend/`, where uvicorn and alembic
@@ -1909,7 +1928,9 @@ go then. A change needs to work on Cloudflare only.
   container stays short; a hint places an object only when it is first
   made, so changing it needs new names (now `enam-N`).
 - **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
-  `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
+  `CLOUDFLARE_API_TOKEN`, from the `API_*` repo secrets that Infisical's
+  `workit-prod/api` sync writes; `../docs/secrets.md` lists every key),
+  never `wrangler.jsonc`, which is committed. The
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
@@ -1917,7 +1938,7 @@ go then. A change needs to work on Cloudflare only.
   so production's OAuth issuer and MCP address read `http://localhost:8000`
   and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
   value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
-  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  forwarded the same way; never also put its name in `workit-prod/api`,
   since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
@@ -1950,7 +1971,7 @@ go then. A change needs to work on Cloudflare only.
   business holding that connection. **The deployed API makes no
   embeddings** (KAN-726): its provider is the default `none`, and it reads
   the vectors the team computer stores (`app/services/matching/CLAUDE.md`).
-  `CF_API_SECRETS_JSON` must not set `EMBEDDING_PROVIDER`: the Worker
+  `workit-prod/api` must not hold `EMBEDDING_PROVIDER`: the Worker
   forwards it when set, and `gemini` there would write Gemini vectors beside
   the Qwen3 ones.
 - **The bank job does not deploy on merge** (KAN-726). It runs all the

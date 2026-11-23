@@ -82,6 +82,7 @@ import { applicationHref, applicationsHref, SORT_DESC, SORT_VALUE, type Sort } f
 import { useApplicationsQuery } from "./view-switcher";
 import { ViewResumeButton } from "./view-resume";
 import { Missing } from "@/components/ui/missing";
+import { TEXT } from "@/components/ui/text-roles";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
@@ -332,10 +333,10 @@ function groupRows<R extends { original: Application }>(
  *  frontend/docs/design.md (2026-11-10). Text columns stay left-aligned. */
 const CENTRED: ColumnId[] = ["match", "resume"];
 
-const TH = "px-4 text-note text-ink-meta font-medium";
+const TH = `px-4 ${TEXT.columnHeader}`;
 /** A plain fact cell: one line of note text in ink, as easy to read as the
  *  role; it was grey, which read as disabled (KAN-256). */
-const TD = "px-4 text-note text-ink";
+const TD = `px-4 ${TEXT.tableCell}`;
 /** A frozen cell paints the row's own background (white, the hover tint
  *  with the row) so scrolled cells don't show through. FROZEN AT EVERY
  *  WIDTH (2026-11-10). Job starts at 320px, about a phone's whole table,

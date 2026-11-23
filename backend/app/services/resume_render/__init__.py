@@ -190,6 +190,13 @@ HEADER_ALIGNMENTS = ("left", "center", "right")
 DATE_FORMATS = ("short", "long", "year", "numeric")
 # Which of an Education entry's two rows goes on top
 EDUCATION_FIRST = ("school", "degree")
+# Which of a job's (and a club role's) two rows goes on top (2026-11-17):
+# the role, as Jake's does, or the company, as many career-center
+# templates and finance and consulting resumes do
+EXPERIENCE_FIRST = ("role", "company")
+# Where a project's tools print (2026-11-17): on a line under its name, or
+# after it ("Gitlytics | Python, Flask"), as Jake's own sample does
+PROJECT_TOOLS = ("below", "after_name")
 # Every section, as the page prints them unless the student drags them; the
 # bank's sections (resume_view.SECTIONS), then the skills
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
@@ -266,6 +273,8 @@ class PageSettings:
     body_size: float | None = None
     date_format: str = "short"
     education_first: str = "school"
+    experience_first: str = "role"
+    project_tools: str = "below"
     # The header fields this resume leaves out (KAN-436), in HEADER_FIELDS'
     # order: the values stay on the profile, for every other resume
     hidden_header: tuple[str, ...] = ()
@@ -284,7 +293,8 @@ class PageSettings:
             (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
             (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
             (self.font_family, ("latin_modern", *FONT_FAMILIES)), (self.date_format, DATE_FORMATS),
-            (self.education_first, EDUCATION_FIRST),
+            (self.education_first, EDUCATION_FIRST), (self.experience_first, EXPERIENCE_FIRST),
+            (self.project_tools, PROJECT_TOOLS),
         )
         sizes = (
             (self.name_size, NAME_SIZES), (self.heading_size, HEADING_SIZES),

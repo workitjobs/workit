@@ -10,7 +10,8 @@ Import Updated Resume and Import Again, all through
 file. The heuristic parser reads every upload too, at no cost, and its
 reading is saved whenever the model's is not: when the student has no AI
 reading left today, when the model is down, out of quota or slower than 45
-seconds, when its reply fails the schema, and when the resume's text backs
+seconds (since 2026-11-19, 10 seconds for each model in the chain and 20 in
+all: `backend/app/utils/CLAUDE.md`), when its reply fails the schema, and when the resume's text backs
 none of its entries. When the model's reading is saved, the parser's fills
 what it left out (below). An upload never fails because of the AI.
 

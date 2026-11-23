@@ -3,6 +3,10 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* A window under 760px tall (a 1366 x 768 laptop, less the browser's bars):
+ * onboarding's one-question pages tighten there so none scrolls
+ * (2026-11-17). For a page made to fit one window, never for content. */
+@custom-variant short (@media (max-height: 47.5rem));
 
 /* ---------------------------------------------------------------------------
  * WorkIt design kit
@@ -293,8 +297,8 @@
   --text-figure--line-height: 2.5rem;
   --text-figure--font-weight: 500;
   --text-figure--letter-spacing: -0.02em;
-  /* Onboarding's question from lg (onboarding/applicant/story-panel.tsx): the
-   * one line on the screen, set large and regular with its key words bold. */
+  /* Onboarding's question from lg (onboarding/applicant/onboarding-form.tsx):
+   * the one line on the screen, set large; the page sets it semibold. */
   --text-hero: 2.5rem; /* 40px */
   --text-hero--line-height: 3rem;
   --text-hero--font-weight: var(--font-weight-normal);
@@ -483,6 +487,19 @@
   --color-updates: #bd3a9b;
   --color-updates-ink: #a01f81;
 
+  /* Matching -------------------------------------------------------------
+   * The marketing pages' peach, Job Matching's own colour (2026-11-21). It
+   * was the brand violet, which read as WorkIt and not as one of four
+   * products, and sat between the blue and the pink as a third neighbour;
+   * the user asked for a set with no purple in it. The four are now the
+   * usual pastel four: blue, peach, green, pink. It is an orange, never
+   * the amber of a warning or of a Fair Match. --color-matching-ink is the
+   * step deep enough for a white glyph (5.2:1; white on --color-matching
+   * is 2.6:1, so nothing is printed on it). */
+  --color-matching: #f97b2f;
+  --color-matching-tint: #ffeedf;
+  --color-matching-ink: #b9480e;
+
   /* Activity streak ------------------------------------------------------
    * The four levels of the Dashboard's Activity streak, applications sent in
    * a day from light to heavy, which (seeker)/home/streak-canvas.ts
@@ -619,6 +636,41 @@
   --animate-rise: rise 260ms var(--ease-glide) both;
   /* Something appearing where it stands: a chip's cross, a Next badge. */
   --animate-pop: pop 220ms var(--ease-spring) both;
+  /* A picked answer's glyph giving one bounce where it stands: the pick
+   * landing (onboarding's "Do you have a resume?" cards). */
+  --animate-pick: pick 420ms var(--ease-glide);
+  /* The walkthrough's "click here" (components/tour.tsx, 2026-11-18): a
+   * pointing hand glides onto the control and taps it, and a thin ring
+   * spreads from the fingertip past the control's edge at the tap, on one
+   * 1.6s beat (the tap at 40%, where the ring starts). A ring 2x the control
+   * (Tailwind's ping) read as far too big. Reduced motion holds the hand
+   * still on the control, with no ring. */
+  --animate-coach-hand: coach-hand 1.6s var(--ease-glide) infinite;
+  --animate-coach-wave: coach-wave 1.6s ease-out infinite;
+  /* Onboarding's resume sketches (onboarding/applicant/resume-sketch.tsx).
+   * Reading an upload, loops on one 3.2s beat, because they mean "still
+   * reading": a scan crosses the page (below), each line flashes violet as
+   * it passes (read, delayed by the line's height), and the corners that
+   * frame the page breathe (focus). Generating one, each line is written in violet and
+   * settles to its grey (ink), once. Reduced motion ends each at once. */
+  --animate-read: read 3.2s linear infinite;
+  --animate-focus: focus 3.2s ease-in-out infinite;
+  /* The upload's scan takes turns between two looks, one beat each (so a
+   * 6.4s cycle): a dot matrix that shimmers as a bright wave of dots runs
+   * down it (dots-wave, twinkle), and a laser plane drawing a grid behind
+   * it (plane, grid-wave). Each crosses the page in the beat's middle
+   * quarter, 37.5% to 62.5%, the window the lines' `read` flashes fall
+   * in, so both read the lines they pass. `scan-phase` shows one look for
+   * its half. A diagonal band of light was a third look until the user
+   * found it out of place (2026-11-17). */
+  --animate-scan-phase: scan-phase 6.4s linear infinite both;
+  --animate-dots-wave: dots-wave 3.2s linear infinite;
+  --animate-grid-wave: grid-wave 3.2s linear infinite;
+  --animate-plane: plane 3.2s linear infinite;
+  --animate-twinkle: twinkle 1.6s ease-in-out infinite alternate;
+  --animate-ink: ink 900ms var(--ease-glide) both;
+  /* The generated page's name typing itself, letter by letter. */
+  --animate-type: type 700ms steps(14) both;
   /* A fade alone, for what cannot move: a table row, whose transform
    * browsers do not reliably paint. */
   --animate-fade: fade 220ms var(--ease-glide) both;
@@ -693,6 +745,168 @@
   @keyframes fade {
     from {
       opacity: 0;
+    }
+  }
+
+  /* A picked answer's glyph (ui/choice-card.tsx): it dips, tilts and springs
+   * back, never fading, since a pop's fade from nothing read as the tile
+   * blinking out on the click. */
+  @keyframes scan-phase {
+    from,
+    50.1%,
+    to {
+      opacity: 0;
+    }
+    4%,
+    46% {
+      opacity: 1;
+    }
+  }
+
+  /* A mask 40% of the page tall: -67% sits above the page, 167% below,
+   * and its middle crosses 0 to 1 between 37.5% and 62.5%. */
+  @keyframes dots-wave {
+    from {
+      mask-position: 0 -67%;
+    }
+    37.5% {
+      mask-position: 0 -33%;
+    }
+    62.5% {
+      mask-position: 0 133%;
+    }
+    to {
+      mask-position: 0 167%;
+    }
+  }
+
+  /* A mask half the page tall whose lower edge is the plane: -100% puts
+   * that edge at the top, 100% at the foot, 300% drains it off below. */
+  @keyframes grid-wave {
+    from,
+    37.5% {
+      mask-position: 0 -100%;
+    }
+    62.5% {
+      mask-position: 0 100%;
+    }
+    75%,
+    to {
+      mask-position: 0 300%;
+    }
+  }
+
+  @keyframes plane {
+    from,
+    35% {
+      opacity: 0;
+      transform: translateY(0);
+    }
+    37.5% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    62.5% {
+      opacity: 1;
+      transform: translateY(100%);
+    }
+    68%,
+    to {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes twinkle {
+    to {
+      opacity: 0.1;
+    }
+  }
+
+  @keyframes read {
+    8% {
+      background-color: color-mix(in oklab, var(--color-brand) 80%, transparent);
+    }
+    30% {
+      background-color: color-mix(in oklab, var(--color-brand) 25%, transparent);
+    }
+  }
+
+  @keyframes focus {
+    50% {
+      transform: scale(1.03);
+      opacity: 1;
+    }
+  }
+
+  @keyframes type {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes ink {
+    from {
+      transform: scaleX(0);
+      background-color: var(--color-brand);
+    }
+    55% {
+      transform: scaleX(1);
+      background-color: var(--color-brand);
+    }
+  }
+
+  @keyframes coach-hand {
+    0% {
+      opacity: 0;
+      transform: translate(12px, 14px);
+    }
+    15% {
+      opacity: 1;
+    }
+    32% {
+      transform: translate(0, 0) scale(1);
+    }
+    40% {
+      transform: translate(0, 0) scale(0.85);
+    }
+    50%,
+    80% {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(0, 0) scale(1);
+    }
+  }
+
+  @keyframes coach-wave {
+    0%,
+    38% {
+      opacity: 0;
+      transform: scale(0.35);
+    }
+    42% {
+      opacity: 0.9;
+      transform: scale(0.45);
+    }
+    85%,
+    100% {
+      opacity: 0;
+      transform: scale(1.3);
+    }
+  }
+
+  @keyframes pick {
+    35% {
+      transform: scale(0.86) rotate(-8deg);
+    }
+    70% {
+      transform: scale(1.1) rotate(4deg);
     }
   }
 

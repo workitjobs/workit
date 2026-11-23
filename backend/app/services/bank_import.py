@@ -370,7 +370,7 @@ async def read_with_model(raw_text: str, llm: LLM, *, identity: Identity) -> Mod
         {"role": "system", "content": MODEL_PROMPT},
         {"role": "user", "content": raw_text[:MAX_RESUME_CHARS]},
     ]
-    return await llm.complete_json(prompt, ModelReading, identity=identity)
+    return await llm.complete_json(prompt, ModelReading, identity=identity, wait=MODEL_TRY_SECONDS)
 
 
 def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEntry]:
@@ -471,10 +471,15 @@ def model_skills(reading: ModelReading, text: str | None = None) -> list[tuple[s
 
 # --- Every upload read by the model, the parser behind it (KAN-732, ADR 0007) ---
 
-# A reading the model has not finished by then is not waited for: the
+# Each model in the chain gets MODEL_TRY_SECONDS, then the next is asked; a
+# reading not finished in MODEL_WAIT_SECONDS is not waited for, and the
 # parser's is saved, so an upload never hangs on a provider (the client's own
-# timeout is ten minutes).
-MODEL_WAIT_SECONDS = 45
+# timeout is ten minutes). Measured on KAN-900's scoring set (2026-11-18): a
+# reading took 3.9 s on Gemini (8.3 s at the slowest) and 1.3 s on
+# gpt-oss-20b (4.2 s), and Gemini's 503 came back within 4 s. A reading's
+# time grows with its reply, so a two-page resume on Gemini is near 10 s.
+MODEL_TRY_SECONDS = 10
+MODEL_WAIT_SECONDS = 20
 # The contact block sits above the first section heading. When that heading
 # is this near the top, the model gets the text from it on, so a name the
 # resume spells unlike the profile never reaches it: the seam removes only

@@ -693,6 +693,40 @@ def test_role_keeps_jobs_tagged_with_any_of_the_roles_asked_for():
     assert "job_role_tags.role_slug IN ('quantitative_analyst', 'data_scientist')" in sql
 
 
+def test_a_custom_role_is_found_in_titles_beside_the_picked_roles():
+    # One Role filter, any of: the picked roles' tags or a custom role's words
+    # in the title, in order (2026-11-16). No job_roles row names a custom
+    # role, so it has no tag to match.
+    (clause,) = matching(JobFilters(
+        roles=["software_engineer"], custom_roles=[("ux", "researcher")]
+    ))
+    sql = str(clause.compile(dialect=postgresql.dialect()))
+    assert sql.startswith("(EXISTS (SELECT *")
+    assert ") OR job_postings.title ~* %(title_1)s" in sql
+
+
+def test_a_custom_role_alone_is_a_title_match():
+    (clause,) = matching(JobFilters(custom_roles=[("game", "designer"), ("quant",)]))
+    sql = str(clause.compile(dialect=postgresql.dialect()))
+    assert "job_role_tags" not in sql
+    assert sql.count("job_postings.title ~*") == 2
+
+
+def test_route_reads_custom_roles_as_title_words(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    res = client.get("/jobs", params=[("custom_role", "UX Researcher"), ("custom_role", "C++ Dev")])
+    assert res.status_code == 200
+    assert seen[0].custom_roles == (("ux", "researcher"), ("c", "dev"))
+    assert client.get("/jobs", params=[("custom_role", "--")]).status_code == 422
+
+
 def test_route_reads_roles(no_database, monkeypatch):
     seen = []
 

@@ -9,11 +9,22 @@ import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SelectField } from "@/components/ui/select-field";
+import { SuggestField } from "@/components/ui/suggest-field";
 import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-field";
 import type { BankEntry, EndKind, EntrySection } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
+import { suggestDegrees } from "@/lib/degrees";
+import { suggestFields, suggestSchools } from "@/lib/education-actions";
 
-import { holdsTools, savable, sectionOf, splitList, TOOL_COMMA, type EntryDraft } from "./sections";
+import {
+  graduationEnd,
+  holdsTools,
+  savable,
+  sectionOf,
+  splitList,
+  TOOL_COMMA,
+  type EntryDraft,
+} from "./sections";
 
 /**
  * The one entry editor (spec: one screen for forms, intake and import). It
@@ -48,6 +59,12 @@ import { holdsTools, savable, sectionOf, splitList, TOOL_COMMA, type EntryDraft 
  * of it.
  */
 
+/** This month, "yyyy-MM", in the student's own time zone. */
+function thisMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 const END_OPTIONS = [
   { value: "none", label: "No End Date" },
   { value: "month", label: "Ended" },
@@ -78,6 +95,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   foot,
   resumeMode = false,
   resumeSwitches,
+  focusBullet,
 }: {
   initial: EntryDraft<S>;
   onSave: (draft: EntryDraft<S>) => void;
@@ -130,8 +148,24 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     coursework: boolean;
     onChange: (next: { gpa: boolean; coursework: boolean }) => void;
   };
+  /** The bullet box that takes the cursor as the form opens: the empty row
+   *  a page's + opened (KAN-920). The form's dialog reads it
+   *  (`data-initial-focus`); without it the School field took the cursor,
+   *  and the student had to find the new row to type. */
+  focusBullet?: number;
 }) {
-  const [draft, setDraft] = useState(initial);
+  // AN ENTRY WITH NO BULLETS OPENS ON ONE EMPTY BOX (2026-11-17), ready to
+  // type into as every other field is. A dashed Add Bullet Point alone sat
+  // indented by the handles' column with no handle beside it, and asked for
+  // a click before the student could write. The empty box is never saved
+  // (`savable` drops it) and is not an edit, so it marks nothing changed.
+  const [draft, setDraft] = useState(() =>
+    initial.bullets.length > 0 ? initial : { ...initial, bullets: [{ text: "" }] },
+  );
+  /** The bullet the student just added, which takes the cursor. Only that
+   *  one: the empty first box must not take it from the form's first field
+   *  as the form opens. */
+  const [added, setAdded] = useState<number | null>(null);
   const uid = useId();
   const section = sectionOf(draft.section);
   const set = (changes: Partial<EntryDraft<S>>) => {
@@ -156,6 +190,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     if (last >= 0 && draft.bullets[last].text.trim() === "") {
       document.getElementById(field(`bullet-${last}`))?.focus();
     } else {
+      setAdded(draft.bullets.length);
       set({ bullets: [...draft.bullets, { text: "" }] });
     }
   }
@@ -168,22 +203,32 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   const education = draft.section === "education";
   // A custom section's entries print no location (as a project's)
   const custom = draft.section === "custom";
+  // A project's heading prints its name, its context, link, dates and tools
+  // (resume_render/fields.py), never a place, so a project has no Location
+  // (2026-11-17), as a custom section's entry has none: a box whose text
+  // never reaches the resume only read as a job's form.
+  const located = !custom && draft.section !== "projects";
+  // A project's name and context share a row where the form is wide
+  // (2026-11-17), as a job's company and location do: each is short, and on
+  // a row of their own the project form ran past onboarding's window.
+  const pairs = draft.section === "projects";
   const noun = lines ? "Line" : "Bullet";
 
   // Stacked where the form is narrow (Scout's panel), side by side where it
   // is wide (the bank page).
   const place = (
     <>
-      <div className="col-span-2 @lg/main:col-span-1">
+      <div className={cn("col-span-2", (located || pairs) && "@lg/main:col-span-1")}>
         <TextField
           id={field("organization")}
           label={section.organization}
+          placeholder={"organizationHint" in section ? section.organizationHint : undefined}
           maxLength={200}
           value={draft.organization ?? ""}
           onChange={(e) => set({ organization: text(e.target.value) })}
         />
       </div>
-      {!custom && (
+      {located && (
         <div className="col-span-2 @lg/main:col-span-1">
           <TextField
             id={field("location")}
@@ -199,7 +244,29 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   );
 
   const dates =
-    draft.section === "awards" ? (
+    draft.section === "education" ? (
+      // A school's end is its Graduation Date, one month and year
+      // (2026-11-17): End's four kinds (No End Date, Ended, Present,
+      // Expected) asked a student what a date already says.
+      <>
+        <MonthField
+          id={field("start")}
+          label="Start Month"
+          clearable
+          value={draft.start_month ?? ""}
+          onValueChange={(start_month) => set({ start_month: text(start_month) })}
+        />
+        <MonthField
+          id={field("graduation")}
+          label="Graduation Date"
+          clearable
+          value={draft.end_kind === "present" ? "" : (draft.end_month ?? "")}
+          onValueChange={(month) =>
+            set(graduationEnd(month, thisMonth()) as Partial<EntryDraft<S>>)
+          }
+        />
+      </>
+    ) : draft.section === "awards" ? (
       <MonthField
         id={field("award-date")}
         label="Award Date"
@@ -245,33 +312,58 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
         hidden={lines}
         className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]"
       >
-        <div className="col-span-2">
-          <TextField
-            id={field("title")}
-            label={section.title}
-            required
-            maxLength={200}
-            value={draft.title}
-            onChange={(e) => set({ title: e.target.value })}
-          />
+        <div className={cn("col-span-2", pairs && "@lg/main:col-span-1")}>
+          {/* A school, a degree and a field of study are suggested from
+              lists as the student types (2026-11-17): the schools and
+              fields from the API (the US Department of Education's lists
+              and Hipo's world list), the degrees from lib/degrees.ts. Each
+              still saves whatever is typed. */}
+          {education ? (
+            <SuggestField
+              id={field("title")}
+              label={section.title}
+              required
+              maxLength={200}
+              placeholder="Search for your school"
+              value={draft.title}
+              onValueChange={(title) => set({ title } as Partial<EntryDraft<S>>)}
+              suggest={suggestSchools}
+            />
+          ) : (
+            <TextField
+              id={field("title")}
+              label={section.title}
+              required
+              maxLength={200}
+              value={draft.title}
+              onChange={(e) => set({ title: e.target.value })}
+            />
+          )}
         </div>
 
         {education && (
           <>
-            <TextField
+            <SuggestField
               id={field("degree")}
               label="Degree"
-              placeholder="B.S."
+              placeholder="Bachelor of Science"
               maxLength={200}
+              openOnFocus
+              browse
               value={draft.degree ?? ""}
-              onChange={(e) => set({ degree: text(e.target.value) })}
+              onValueChange={(degree) => set({ degree: text(degree) } as Partial<EntryDraft<S>>)}
+              suggest={(typed) => suggestDegrees(typed).map((name) => ({ name }))}
             />
-            <TextField
+            <SuggestField
               id={field("field-of-study")}
               label="Field of Study"
+              placeholder="Computer Science"
               maxLength={200}
               value={draft.field_of_study ?? ""}
-              onChange={(e) => set({ field_of_study: text(e.target.value) })}
+              onValueChange={(field_of_study) =>
+                set({ field_of_study: text(field_of_study) } as Partial<EntryDraft<S>>)
+              }
+              suggest={suggestFields}
             />
           </>
         )}
@@ -280,27 +372,31 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
 
         {education && (
           <>
-            <TextField
-              id={field("gpa")}
-              label="GPA"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              value={draft.gpa ?? ""}
-              onChange={(e) => set({ gpa: number(e.target.value) })}
-            />
-            <TextField
-              id={field("gpa-scale")}
-              label="GPA Scale"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              placeholder="4.0"
-              value={draft.gpa_scale ?? ""}
-              onChange={(e) => set({ gpa_scale: number(e.target.value) })}
-            />
+            {
+              <>
+                <TextField
+                  id={field("gpa")}
+                  label="GPA"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  value={draft.gpa ?? ""}
+                  onChange={(e) => set({ gpa: number(e.target.value) })}
+                />
+                <TextField
+                  id={field("gpa-scale")}
+                  label="GPA Scale"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="4.0"
+                  value={draft.gpa_scale ?? ""}
+                  onChange={(e) => set({ gpa_scale: number(e.target.value) })}
+                />
+              </>
+            }
             {place}
             <div className="col-span-2">
               <ListField
@@ -407,7 +503,12 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
           line. A bullet is one line on the resume, so it never holds a line
           break: Enter goes to the next box, as Add Bullet Point does from
           the last, and a pasted break becomes a space. */}
-      <div role="group" aria-labelledby={field("bullets")} className="flex flex-col gap-1">
+      <div
+        role="group"
+        aria-labelledby={field("bullets")}
+
+        className="flex flex-col gap-1"
+      >
         <span id={field("bullets")} className={FIELD_LABEL}>
           {noun}s
         </span>
@@ -489,7 +590,8 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                   rows={1}
                   maxLength={500}
                   placeholder={lines ? "One line" : "One thing you did"}
-                  autoFocus={!bullet.id && bullet.text === ""}
+                  autoFocus={i === added}
+                  data-initial-focus={i === focusBullet ? "" : undefined}
                   className={cn(
                     FIELD_CONTROL,
                     "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5",
@@ -534,7 +636,12 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                   tooltip={false}
                   // Centred on the box's first line, beside the mark.
                   className="mt-1.25"
-                  onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
+                  onClick={() => {
+                    // The rows after it move up a place and remount, and
+                    // none of them was just added.
+                    setAdded(null);
+                    set({ bullets: draft.bullets.filter((_, j) => j !== i) });
+                  }}
                 >
                   <XIcon aria-hidden />
                 </IconButton>

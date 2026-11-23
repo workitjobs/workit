@@ -1,3 +1,4 @@
+import { cn } from "@/lib/cn";
 import { matchColor, matchTier } from "@/lib/match";
 
 /**
@@ -28,31 +29,42 @@ import { matchColor, matchTier } from "@/lib/match";
 const RADIUS = 5.4;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+/**
+ * The badge's ring on its own: a 14px circle whose arc fills to the score
+ * in the band's colour, from twelve o'clock; the home hero's lit tiles
+ * draw it too (KAN-923). Decorative: the caller spells out the band.
+ */
+export function MatchGlyph({ score, className }: { score: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 14 14" aria-hidden="true" className={cn("size-3.5 shrink-0", className)}>
+      <circle
+        cx="7"
+        cy="7"
+        r={RADIUS}
+        fill="none"
+        strokeWidth="1.7"
+        className="stroke-border-strong"
+      />
+      <circle
+        cx="7"
+        cy="7"
+        r={RADIUS}
+        fill="none"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeDasharray={CIRCUMFERENCE}
+        strokeDashoffset={CIRCUMFERENCE * (1 - score / 100)}
+        transform="rotate(-90 7 7)"
+        style={{ stroke: matchColor(score) }}
+      />
+    </svg>
+  );
+}
+
 export function MatchBadge({ score }: { score: number }) {
   return (
     <span className="border-border-surface text-note text-ink inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-medium tabular-nums">
-      <svg viewBox="0 0 14 14" aria-hidden="true" className="size-3.5">
-        <circle
-          cx="7"
-          cy="7"
-          r={RADIUS}
-          fill="none"
-          strokeWidth="1.7"
-          className="stroke-border-strong"
-        />
-        <circle
-          cx="7"
-          cy="7"
-          r={RADIUS}
-          fill="none"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={CIRCUMFERENCE * (1 - score / 100)}
-          transform="rotate(-90 7 7)"
-          style={{ stroke: matchColor(score) }}
-        />
-      </svg>
+      <MatchGlyph score={score} />
       {score}%<span className="sr-only">, {matchTier(score)}</span>
     </span>
   );

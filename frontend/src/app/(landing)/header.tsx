@@ -10,23 +10,33 @@ import { featurePages, type Feature } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
 import { FloatingHeader } from "./floating-header";
-import { GlassButton, OutlineButton } from "./buttons";
+import { PrimaryButton, SecondaryButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
+import { GlideList } from "./menu-glide";
 import { MobileMenu } from "./mobile-menu";
-import { MotionToggle } from "./motion-toggle";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
-import { resourcePages, type Resource } from "./resources/catalog";
+import { RESOURCES_IN_NAV, resourcePages, type Resource } from "./resources/catalog";
 import { SessionSwap } from "./session-swap";
 
 /** The Features menu's foot row: the first few hiring systems by name. */
 const WORKS_WITH = hiringSystems.slice(0, 3);
 
 /**
- * The header sits above the hero's rounded panel. Once the page scrolls it
- * floats: the bar becomes a white rounded panel with a shadow, inset from
- * the window's edges like the panels below it (FloatingHeader sets the
- * state). The links: Features ▾ (the feature pages, features/catalog.ts),
- * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started,
+ * The header is the drafting grid's top row (2026-11-21, the user's ask:
+ * the bar floated above the grid and matched none of it). It spans the
+ * window with no fill at the page's top; once the page scrolls it takes a
+ * white, blurred fill and a hairline along its foot (FloatingHeader sets
+ * the state). On a page that draws the grid (the home page), from lg up,
+ * the hairline shows at the top too and the grid's side rails run up
+ * through the bar with an ink square where they meet its foot
+ * (`.header-line`, `.header-marks` in landing.css), so the hero's frame
+ * hangs from the header. It was a rounded white panel with a shadow, inset
+ * from the window's edges, which read as a different site's bar. The
+ * links: Features ▾ (the feature pages, features/catalog.ts),
+ * Resources ▾ (resources/catalog.ts; archived behind `RESOURCES_IN_NAV`
+ * since 2026-11-20), Pricing, Download (the Mac app's
+ * page, KAN-922, public before the build too: it says Coming soon until
+ * then), then Log in and Get started,
  * or one "Open WorkIt" for a signed-in visitor (KAN-581), from the first
  * paint (session-swap.tsx, KAN-743).
  *
@@ -42,14 +52,25 @@ export function Header() {
             root, and a panel's own blur would see nothing behind it. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-10 rounded-2xl transition-[background-color,box-shadow] duration-300 group-data-scrolled:bg-white/90 group-data-scrolled:shadow-lg group-data-scrolled:ring-1 group-data-scrolled:shadow-slate-900/5 group-data-scrolled:ring-slate-900/5 group-data-scrolled:backdrop-blur-md"
+          className="absolute inset-0 -z-10 transition-[background-color] duration-300 group-data-scrolled:bg-white/85 group-data-scrolled:backdrop-blur-md"
         />
+        <span aria-hidden="true" className="header-line" />
         {/* From lg up: 1fr | auto | 1fr grid, so the links are centered on the
           page regardless of how wide the groups on either side are. */}
         <nav
-          className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4 max-[359px]:gap-1 max-[359px]:px-2 sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
+          className="relative mx-auto flex h-[4.5rem] w-full max-w-6xl items-center justify-between gap-2 px-4 max-[359px]:gap-1 max-[359px]:px-2 sm:h-[4.75rem] sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
           aria-label="Main"
         >
+          {/* The grid's rails through the bar, and an ink square where each
+              meets the bar's foot: 0.5rem inside the nav's edge, where
+              `DraftLines` puts every section's (1.5rem outside the
+              container's content). */}
+          <span aria-hidden="true" className="header-marks">
+            <span className="left-0" />
+            <span className="right-0" />
+            <i className="left-0" />
+            <i className="left-full" />
+          </span>
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 lg:justify-self-start">
             {/* h-11: a 44px tap; the logo alone was 32px tall. */}
             <Link href="/" aria-label={`${site.name} home`} className="flex h-11 items-center">
@@ -64,14 +85,21 @@ export function Header() {
                   <FeaturesPanel />
                 </NavMenu>
               </li>
-              <li>
-                <NavMenu label="Resources">
-                  <ResourcesPanel />
-                </NavMenu>
-              </li>
+              {RESOURCES_IN_NAV && (
+                <li>
+                  <NavMenu label="Resources">
+                    <ResourcesPanel />
+                  </NavMenu>
+                </li>
+              )}
               <li>
                 <Link href={site.pricing.href} className={NAV_ITEM}>
                   {site.pricing.label}
+                </Link>
+              </li>
+              <li>
+                <Link href={site.download.href} className={NAV_ITEM}>
+                  {site.download.label}
                 </Link>
               </li>
             </ul>
@@ -83,23 +111,25 @@ export function Header() {
               signedOut={
                 <>
                   <div className="hidden md:block">
-                    <OutlineButton href={site.login.href}>{site.login.label}</OutlineButton>
+                    <SecondaryButton href={site.login.href}>{site.login.label}</SecondaryButton>
                   </div>
                   <div className="hidden sm:block">
-                    <GlassButton href={site.primaryCta.href}>{site.primaryCta.label}</GlassButton>
+                    <PrimaryButton href={site.primaryCta.href}>
+                      {site.primaryCta.label}
+                    </PrimaryButton>
                   </div>
                   {/* On a phone too, shortened to fit beside the logo and the menu:
                       with only the menu there, the sign-up was two taps away
                       (KAN-368). 44px tall, like the menu button, for a thumb
                       (KAN-580). */}
                   <div className="sm:hidden">
-                    <GlassButton href={site.primaryCta.href} className="h-11 px-3">
+                    <PrimaryButton href={site.primaryCta.href} arrow={false} className="h-11 px-3">
                       Get started
-                    </GlassButton>
+                    </PrimaryButton>
                   </div>
                 </>
               }
-              signedIn={<OpenWorkIt className="px-3 sm:px-4" />}
+              signedIn={<OpenWorkIt className="pl-3 sm:pl-4" />}
             />
             <button
               type="button"
@@ -132,7 +162,7 @@ export function Header() {
         <ul className="mt-4 grid gap-1">
           {/* The two header menus as expandable lists. */}
           <MobileGroup label="Features" items={featurePages} />
-          <MobileGroup label="Resources" items={resourcePages} />
+          {RESOURCES_IN_NAV && <MobileGroup label="Resources" items={resourcePages} />}
           <li>
             <Link
               href={site.pricing.href}
@@ -141,21 +171,28 @@ export function Header() {
               {site.pricing.label}
             </Link>
           </li>
+          <li>
+            <Link
+              href={site.download.href}
+              className="text-ink hover:bg-surface block rounded-lg px-3 py-2.5 font-medium"
+            >
+              {site.download.label}
+            </Link>
+          </li>
         </ul>
         <SessionSwap
           signedOut={
             <>
-              <GlassButton href={site.primaryCta.href} size="lg" className="mt-4 w-full">
+              <PrimaryButton href={site.primaryCta.href} size="lg" className="mt-4 w-full">
                 {site.primaryCta.label}
-              </GlassButton>
-              <OutlineButton href={site.login.href} size="lg" className="mt-2 w-full">
+              </PrimaryButton>
+              <SecondaryButton href={site.login.href} size="lg" className="mt-2 w-full">
                 {site.login.label}
-              </OutlineButton>
+              </SecondaryButton>
             </>
           }
           signedIn={<OpenWorkIt size="lg" className="mt-4 w-full" />}
         />
-        <MotionToggle className="text-ink-meta hover:bg-surface hover:text-ink mt-2 h-11 w-full justify-center rounded-lg text-sm font-medium transition-colors" />
       </MobileMenu>
     </FloatingHeader>
   );
@@ -174,15 +211,22 @@ type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> &
  */
 function OpenWorkIt({ size, className }: { size?: "lg"; className: string }) {
   return (
-    <GlassButton href="/go-home" prefetch={false} size={size} className={className}>
+    <PrimaryButton href="/go-home" prefetch={false} size={size} className={className}>
       Open WorkIt
-    </GlassButton>
+    </PrimaryButton>
   );
 }
 
-/** The surface both menu panels share, the floating bar's. */
+/**
+ * The surface both menu panels share: solid white with a hairline edge and
+ * a deep, close shadow, so it stands off the white page. It was white at
+ * 90% with a blur, a 5% ring and a 5% shadow, made for the old hero's
+ * violet ground: over the white hero it was white on white, its edge hard
+ * to find, with the headline showing through as a smear (the user's
+ * catch, 2026-11-21).
+ */
 const MENU_PANEL =
-  "rounded-2xl bg-white/90 p-2 shadow-lg ring-1 shadow-slate-900/5 ring-slate-900/5 backdrop-blur-md";
+  "rounded-2xl bg-white p-2 shadow-[0_0_0_1px_rgb(15_23_42/0.1),0_4px_12px_-2px_rgb(15_23_42/0.08),0_28px_56px_-16px_rgb(15_23_42/0.24)]";
 
 /**
  * The Features menu's panel: the feature pages in two columns, each with its
@@ -193,17 +237,17 @@ const MENU_PANEL =
 function FeaturesPanel() {
   return (
     <div className={cn(MENU_PANEL, "w-[36rem]")}>
-      <ul className="grid grid-cols-2 gap-1">
+      <GlideList className="grid grid-cols-2 gap-1">
         {featurePages.map((page) => (
           <li key={page.slug}>
             <MenuLink item={page} line={featureContent[page.slug].line} />
           </li>
         ))}
-      </ul>
+      </GlideList>
       {/* The home page's hiring-systems section, which has no page of its own. */}
       <Link
         href="/#hiring-systems"
-        className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.03] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
+        className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.045] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
       >
         <span className="flex -space-x-1.5" aria-hidden="true">
           {WORKS_WITH.map((system) => (
@@ -232,13 +276,13 @@ function FeaturesPanel() {
 function ResourcesPanel() {
   return (
     <div className={cn(MENU_PANEL, "w-[21rem]")}>
-      <ul className="grid gap-1">
+      <GlideList className="grid gap-1">
         {resourcePages.map((resource) => (
           <li key={resource.slug}>
             <MenuLink item={resource} line={resource.line} />
           </li>
         ))}
-      </ul>
+      </GlideList>
     </div>
   );
 }

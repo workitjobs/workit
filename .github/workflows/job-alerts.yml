@@ -56,7 +56,7 @@ jobs:
       - name: Send today's digests
         working-directory: backend
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
           # No EMBEDDING_PROVIDER: the default `none` reads the bank vectors
           # the team computer stores and makes none (KAN-726). Gemini's would
           # sit beside Qwen3's and score wrong.
@@ -64,7 +64,7 @@ jobs:
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            echo "::error::The API_DATABASE_URL secret is not set: Infisical's workit-prod/api sync writes it (docs/secrets.md)."
             exit 1
           fi
           uv run python -m app.scripts.send_job_alerts ${DRY_RUN:+"$DRY_RUN"}

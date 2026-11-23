@@ -25,6 +25,7 @@ const PAGES: [RegExp, string][] = [
   [/^\/search$/, "Search"],
   [/^\/auto-apply$/, "Auto Apply"],
   [/^\/auto-apply\/info(\/[^/]+)?$/, "Application Info"],
+  [/^\/auto-apply-desktop$/, "Auto Apply Desktop"],
   [/^\/applications$/, "Tracker"],
   [/^\/applications\/[^/]+$/, "Application"],
   [/^\/inbox$/, "Inbox"],

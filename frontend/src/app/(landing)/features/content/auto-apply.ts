@@ -6,7 +6,28 @@
  * answers; it attaches the default resume, which the student can change in
  * its panel; WorkIt writes no answer to a new written question; and it never
  * submits. Never say WorkIt submits, sends or applies.
+ *
+ * The profile row is "The basics, from your profile" (2026-11-21): it was
+ * "Every field", more than Auto Apply does, since a new written question
+ * waits for the student.
+ *
+ * The headline is "Type your details once. Apply in parallel."
+ * (2026-11-21, the user's own words; it was "Applications filled in. You
+ * click Submit."). Two ideas: the details are filled for the student, and
+ * several forms fill at the same time. "Apply" is the student applying;
+ * the user chose it knowing the rule that no line says WorkIt applies or
+ * submits, so the row "You click Submit, every time" must stay under it.
+ * No count of forms on the site (the user's call): "five" read as a limit.
  */
+import {
+  BrowsersIcon,
+  CursorClickIcon,
+  PencilLineIcon,
+  TextboxIcon,
+} from "@phosphor-icons/react/ssr";
+
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/auto-apply-desktop";
+
 import { AutoApplyAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { AttachVisual, FillVisual, QueueVisual, SubmitVisual } from "../visuals/auto-apply";
@@ -19,39 +40,66 @@ const content: FeatureContent = {
       "Queue the jobs you want and the WorkIt Chrome extension fills in each application. You check every one and click Submit.",
   },
   hero: {
-    title: "Applications filled in. You click Submit.",
+    title: "Type your details once. Apply in parallel.",
     subtitle:
       "Queue the jobs you want. The WorkIt Chrome extension opens each application on the company’s site and fills it in from your profile, and you check every one before you submit it.",
   },
   animation: AutoApplyAnimation,
   sections: [
+    // The four points, reviewed with the user one choice at a time
+    // (2026-11-21): the details, the forms in parallel, the written
+    // answers, and who submits. They were Pick the jobs to fill, The
+    // basics from your profile, The right resume on each form, and You
+    // click Submit. The pictures are the old points' and wait for real
+    // recordings (frontend/CLAUDE.md). A second pass the same day gave
+    // each title its own shape and took out repeated words: the second and
+    // third both ran "noun, past verb ... time", "filled" stood in three
+    // places, and the first's body repeated the heading's "type once".
     {
-      eyebrow: "Queue",
-      title: "Pick the jobs to fill",
-      body: "Press Auto Apply on a job, or add your saved jobs from the Auto Apply page. Up Next lists them all: pick the ones to fill and press Auto Apply.",
-      visual: QueueVisual,
-    },
-    {
-      eyebrow: "Fill",
-      title: "Every field, from your profile",
-      body: "The extension fills each form from your profile, your experience bank and the answers you saved in Application Info, on hiring systems such as Greenhouse, Lever, Ashby and Workday.",
+      title: "Skip the retyping",
+      icon: TextboxIcon,
+      body: "Your contact details, work history, school and links go into every form, straight from your profile.",
       points: [
         "Contact details, education and work history",
-        "Your saved answers to the questions forms ask",
+        "On Greenhouse, Lever, Ashby, Workday and more",
         "A new written question waits for your answer",
       ],
       visual: FillVisual,
     },
     {
-      eyebrow: "Resume",
-      title: "Your resume, attached",
-      body: "Each form gets your default resume. To send the one you tailored for the job, press Change in the WorkIt panel before you submit.",
+      title: "Applications that run side by side",
+      // Browser windows: each form opens in its own tab (the user's pick,
+      // 2026-11-21).
+      icon: BrowsersIcon,
+      body: "Pick jobs from your list. Each one opens in its own tab and gets completed in the background while you do something else.",
+      visual: QueueVisual,
+    },
+    {
+      title: "Answer a question only once",
+      // The answer to the problems' card on written questions. A student's
+      // own Claude drafts essay answers through the connector, or the
+      // student writes them on Written Answers; Check and Save runs
+      // WorkIt's checks on each; a saved answer fills later forms
+      // (frontend/docs/screens.md, Auto Apply). Its icon is a pencil on a line, for
+      // writing (the user's pick, 2026-11-21). An article two deep was
+      // drawn for it first and went the same day: beside the browser
+      // windows of the point above, both read as a box behind a box.
+      icon: PencilLineIcon,
+      body: "WorkIt keeps your written answers and reuses them on later forms. Your own Claude can draft them, and each one is checked first.",
       visual: AttachVisual,
     },
     {
-      eyebrow: "Submit",
-      title: "You click Submit, every time",
-      body: "WorkIt never submits for you. It fills up to five applications at a time, each in its own tab. Look each one over, fix anything, and click the company’s own Submit button.",
+      title: "Submit it yourself, or let WorkIt",
+      // AHEAD OF THE APP (the user's call, 2026-11-21): letting WorkIt
+      // submit is being built by a teammate while this page is written, and
+      // the extension does not submit today (autofiller_extension/CLAUDE.md:
+      // the student always clicks the real Submit). Do not ship this line
+      // before that option is live; until then the true line is "Look each
+      // form over and click Submit yourself." It was "You click Submit,
+      // every time", with "Up to five applications fill at once" in its
+      // body: no count of forms on the site now.
+      icon: CursorClickIcon,
+      body: "Review each form and click Submit yourself, or let WorkIt submit for you.",
       visual: SubmitVisual,
     },
   ],
@@ -81,8 +129,11 @@ const content: FeatureContent = {
     },
     {
       question: "Do I need the Chrome extension?",
-      answer:
-        "Yes. Auto Apply fills applications in your own Chrome, through the WorkIt extension.",
+      // The Mac app's answer only once there is a build to download
+      // (lib/auto-apply-desktop.ts, KAN-922).
+      answer: DESKTOP_DOWNLOAD_URL
+        ? "Not on a Mac. The WorkIt extension fills applications in your own Chrome. WorkIt Auto Apply for Mac, on the Download page, fills several at once in its own Chrome windows."
+        : "Yes. Auto Apply fills applications in your own Chrome, through the WorkIt extension.",
     },
   ],
   cta: {

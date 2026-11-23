@@ -120,7 +120,7 @@ jobs:
       - name: Import into Supabase
         working-directory: backend
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
           # The computer's Ollama embeds the jobs (KAN-726, Decision 3), with
           # the code's default model, qwen3-embedding:4b: the one model every
           # vector in the database comes from, banks included (its bank job).
@@ -131,11 +131,11 @@ jobs:
           # computer's own Ollama, so it is a plain value, not a secret; the
           # hosted default chain stays as its fallback.
           SCOUT_ENDPOINTS_SMALL: '[{"base_url": "http://localhost:11434/v1", "model": "qwen3.5:9b", "reasoning_effort": "none"}]'
-          SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
+          SCOUT_ENDPOINTS: ${{ secrets.API_SCOUT_ENDPOINTS }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            echo "::error::The API_DATABASE_URL secret is not set: Infisical's workit-prod/api sync writes it (docs/secrets.md)."
             exit 1
           fi
           # A missing secret arrives as "", which is not unset: Scout's

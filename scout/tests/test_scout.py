@@ -183,6 +183,29 @@ def test_a_structured_call_falls_down_the_chain():
     assert ask_json(fake).title == "T"
 
 
+class StalledFirst(ScriptedLLM):
+    """The chain's first endpoint never answers; the rest follow their scripts."""
+
+    async def _complete_schema(self, client, endpoint, messages, *args, **kwargs):
+        if endpoint == self._endpoints[0][0]:
+            await asyncio.sleep(60)
+        return await super()._complete_schema(client, endpoint, messages, *args, **kwargs)
+
+
+def test_a_structured_call_moves_on_from_an_endpoint_slower_than_its_wait():
+    fake = StalledFirst(["never"], ['{"title": "T", "bullets": []}'])
+    messages = [{"role": "user", "content": "draft it"}]
+    answer = asyncio.run(fake.complete_json(messages, Entry, identity=Identity(), wait=0.05))
+    assert answer.title == "T"
+
+
+def test_a_structured_call_with_every_endpoint_stalled_is_offline():
+    fake = StalledFirst(["never"])
+    messages = [{"role": "user", "content": "draft it"}]
+    with pytest.raises(llm_module.ScoutUnavailable, match="offline"):
+        asyncio.run(fake.complete_json(messages, Entry, identity=Identity(), wait=0.05))
+
+
 @pytest.mark.parametrize("bad", ['{"title": "T"}', "Sure! Here it is: {", ""])
 def test_a_reply_that_fails_the_check_is_rejected(bad):
     with pytest.raises(llm_module.InvalidReply):

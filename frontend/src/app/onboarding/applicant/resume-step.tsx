@@ -109,17 +109,13 @@ export function ResumeStep({
           Saved {savedName}. Its entries are in your Experiences.
         </p>
       )}
-      <Field
-        Icon={FileIcon}
-        label="Resume"
-        hint={
-          savedName
-            ? "Have a newer version? Read it the same way."
-            : "Nothing is saved until you check what WorkIt found."
-        }
-      >
-        <ResumeUpload file={file} onFileChange={onFileChange} onRemove={onRemove} busy={reading} />
-      </Field>
+      {/* No heading of its own: the page's h1 asks for the resume
+          (./onboarding-form), and a "Resume" heading under it said it twice. */}
+      <ResumeUpload file={file} onFileChange={onFileChange} onRemove={onRemove} busy={reading} />
+      {/* "Nothing is saved until…" is the page's own line now. */}
+      {savedName && (
+        <p className="text-body text-ink-meta mt-3">Have a newer version? Read it the same way.</p>
+      )}
     </>
   );
 }

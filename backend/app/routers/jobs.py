@@ -51,6 +51,9 @@ The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
 ?work_style=, ?role= (job_roles slugs, "software_engineer"; repeated, any
 of: a job tagged in job_role_tags with any of them, KAN-155),
+?custom_role= (a role the student typed that job_roles lacks, "UX
+Researcher"; repeated, at most 5: a job whose title says its words, in
+order; one Role filter with ?role=, so a job matching either is kept),
 ?job_type= (internship among them, KAN-233) and ?experience= (new_grad,
 experienced; repeated, any of: new_grad takes in the internships, whose
 level is student, KAN-284), ?posted_within=
@@ -105,6 +108,8 @@ from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
+    MAX_CUSTOM_ROLES,
+    CustomRole,
     HomeMatches,
     JobCompany,
     JobCount,
@@ -123,6 +128,7 @@ from app.schemas.jobs import (
 from app.schemas.requirements import JobRequirement
 from app.services import postings, requirements
 from app.services.bank import load_bank
+from app.services.role_resolver import raw_words
 from app.services.search_facts import without_words
 
 logger = logging.getLogger(__name__)
@@ -138,6 +144,8 @@ async def read_filters(
     work_style: list[dto.work_style] = Query([], max_length=3),
     # job_roles slugs: "software_engineer" (KAN-155). Capped like ?location=.
     role: list[RoleSlug] = Query([], max_length=60),
+    # Typed roles job_roles lacks, found in titles (JobFilters.custom_roles).
+    custom_role: list[CustomRole] = Query([], max_length=MAX_CUSTOM_ROLES),
     experience: list[Literal["student", "new_grad", "experienced"]] = Query([], max_length=3),
     job_type: list[JobTypeKey] = Query([], max_length=4),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
@@ -170,6 +178,8 @@ async def read_filters(
         places=location,
         work_styles=work_style,
         roles=role,
+        # Their words, as a title is read; one with none matches nothing.
+        custom_roles=tuple(tuple(raw_words(typed)) for typed in custom_role),
         levels=experience,
         job_types=job_type,
         posted_since=(

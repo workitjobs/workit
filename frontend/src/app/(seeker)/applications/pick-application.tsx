@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { SearchField } from "@/components/ui/search-field";
 import { NoMatches } from "@/components/ui/no-matches";
+import { TEXT } from "@/components/ui/text-roles";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import type { Application } from "../tracker";
@@ -36,8 +37,8 @@ export type PickableApplication = Pick<
 const APPLIED = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
 /** The Applications list's head and fact cells (../applications/list.tsx). */
-const TH = "px-4 text-note text-ink-meta font-medium";
-const TD = "px-4 text-note text-ink";
+const TH = `px-4 ${TEXT.columnHeader}`;
+const TD = `px-4 ${TEXT.tableCell}`;
 
 /**
  * CHOOSE APPLICATION, THE ONE WAY TO PICK AN APPLICATION (KAN-427,
