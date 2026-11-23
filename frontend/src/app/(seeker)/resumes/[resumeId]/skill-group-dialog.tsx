@@ -147,7 +147,6 @@ export function SkillGroupDialog({
             Edit Skill Group
           </>
         }
-        description={`${skills.length} ${skills.length === 1 ? "skill" : "skills"} on this resume. Changes here stay on this resume.`}
       />
       <div
         data-slot="dialog-scroller"
