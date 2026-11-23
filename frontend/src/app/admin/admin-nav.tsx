@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 
 import { Logo } from "@/components/logo";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 import { ADMIN_PAGES } from "./pages";
@@ -139,20 +140,21 @@ export function AdminSidebar() {
                   </Link>
                   {/* Beside the page's link, never inside it: a press on the arrow opens the
                     list and goes nowhere. It sits in the room the link's padding leaves. */}
-                  <button
-                    type="button"
+                  <IconButton
+                    label={`${shown ? "Hide" : "Show"} ${label} Sections`}
+                    tooltip={false}
+                    place="row"
                     onClick={() => toggle(href)}
                     aria-expanded={shown}
                     aria-controls={listId}
-                    aria-label={`${shown ? "Hide" : "Show"} ${label} Sections`}
                     className={cn(
-                      "text-ink-meta hover:bg-rail-hover hover:text-ink rounded-control absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center transition-colors duration-150 max-lg:hidden",
-                      FOCUS,
+                      // The rail's own colours over the part's, and no reach past its box
+                      // with a mouse: 8px more would take presses meant for the page's link.
+                      "text-ink-meta hover:bg-rail-hover hover:text-ink absolute top-1/2 right-1 -translate-y-1/2 [--hit-grow:0px] max-lg:hidden",
                       collapsed && "lg:hidden",
                     )}
                   >
                     <CaretDownIcon
-                      size={14}
                       weight="bold"
                       aria-hidden
                       className={cn(
@@ -160,7 +162,7 @@ export function AdminSidebar() {
                         shown && "rotate-180",
                       )}
                     />
-                  </button>
+                  </IconButton>
                 </div>
                 <ul
                   id={listId}

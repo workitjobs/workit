@@ -1,5 +1,4 @@
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SegmentedLinks } from "@/components/ui/segmented-control";
@@ -13,46 +12,42 @@ import {
   windowHref,
 } from "@/lib/scrape-status";
 
-const ARROW =
-  "border-border-surface bg-panel inline-flex size-8 shrink-0 items-center justify-center rounded-full border";
+import { WindowArrow } from "./window-arrow";
 
 /**
  * An arrow that moves the window one period, named by the days it shows
  * ("Show Oct 26 to Nov 8"), so its name is true where the last step is a
- * short one. Where the window cannot move, its faded shape, named as off.
- * No tooltip: a Previous or Next arrow is read on sight (`ui/tip.tsx`), and
- * the days between the two arrows say what they move.
+ * short one. Where the window cannot move it is named as off and stays in
+ * place (`./window-arrow.tsx`). No tooltip: a Previous or Next arrow is
+ * read on sight (`ui/tip.tsx`), and the days between the two arrows say
+ * what they move.
  */
 function Arrow({
   to,
+  here,
   href,
   today,
   off,
   children,
 }: {
   to: Window | null;
-  /** The page's address for `to`. */
+  /** The window in view: where the arrow points when it cannot move. */
+  here: Window;
+  /** The page's address for a window. */
   href: (window: Window) => string;
   today: string;
   /** The arrow's name where the window cannot move: "No Earlier Days". */
   off: string;
   children: ReactNode;
 }) {
-  if (!to) {
-    return (
-      <a role="link" aria-disabled="true" aria-label={off} className={`${ARROW} text-ink-subtle`}>
-        {children}
-      </a>
-    );
-  }
   return (
-    <Link
-      href={href(to)}
-      aria-label={`Show ${rangeOf(datesOf(to, today))}`}
-      className={`${ARROW} text-ink hover:bg-hover focus-visible:ring-brand-ring focus-visible:ring-2 focus-visible:outline-none`}
+    <WindowArrow
+      href={href(to ?? here)}
+      label={to ? `Show ${rangeOf(datesOf(to, today))}` : off}
+      off={!to}
     >
       {children}
-    </Link>
+    </WindowArrow>
   );
 }
 
@@ -93,14 +88,14 @@ export function WindowControls({
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex items-center gap-1.5">
-        <Arrow to={moved(window, -1)} href={href} today={today} off="No Earlier Days">
+        <Arrow to={moved(window, -1)} here={window} href={href} today={today} off="No Earlier Days">
           <CaretLeftIcon size={16} aria-hidden />
         </Arrow>
         {/* A fixed room for the longest range, so the arrows hold still as the days change. */}
         <p className="text-label text-ink min-w-36 text-center tabular-nums" aria-live="polite">
           {rangeOf(datesOf(window, today))}
         </p>
-        <Arrow to={moved(window, 1)} href={href} today={today} off="No Later Days">
+        <Arrow to={moved(window, 1)} here={window} href={href} today={today} off="No Later Days">
           <CaretRightIcon size={16} aria-hidden />
         </Arrow>
       </div>

@@ -4724,6 +4724,15 @@ link goes to its section (the user's request, 2026-11-19):
   window moves under the table. A pick the rows no longer hold counts as
   no pick, or the table says nothing matches while rows exist. Board
   Reads lists every hiring system whatever the window, so it needs none.
+- **A time arrow is one `Link` in both states** (`window-arrow.tsx`): off, it is
+  `aria-disabled`, points at the window in view and stops its own click.
+  It was a plain `<a>` when off and a `Link` otherwise, so React removed
+  the node as an arrow reached its limit and a keyboard lost its focus
+  (WCAG 2.4.3). A control that can switch off keeps one element type.
+- **The sidebar's section arrow is `IconButton`** (`place="row"`, no
+  tooltip, `[--hit-grow:0px]` so a mouse press beside it still reaches the
+  page's link): it gets the 44px touch target from the part. It was a
+  hand-built 28px button.
 - **A chart column has a 2px floor** (`min-h-0.5`, `reads-chart.tsx`): 3
   failed reads on a 5,000 axis drew 0.13px, so a day with failures showed
   no red.
