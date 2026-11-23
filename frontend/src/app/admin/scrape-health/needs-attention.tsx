@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { dayLabel, HISTORY, systemName } from "@/lib/scrape-status";
 
@@ -7,6 +9,8 @@ import { Panel } from "../panel";
 const count = (n: number) => n.toLocaleString("en-US");
 const SUBHEAD = "text-label text-ink-meta bg-well border-border-subtle border-b px-5 py-2";
 const ROW = "border-border-subtle border-b px-5 py-3 last:border-b-0";
+/** The rows a list shows before See More. */
+const SHOWN = 5;
 const PILL = "bg-danger-tint text-danger text-note rounded-full px-2 py-0.5 whitespace-nowrap";
 
 /**
@@ -25,8 +29,9 @@ const PILL = "bg-danger-tint text-danger text-note rounded-full px-2 py-0.5 whit
  * FAILING BOARDS is each board with failed reads in a row, most first, with
  * its last error. Its count is the API's total, since the list stops at 25.
  *
- * The lists scroll inside the box, so a long one does not push the page's
- * tables down.
+ * Each list shows its first `SHOWN` rows, with the rest behind See More: a
+ * list in a tile on a page never scrolls inside it (docs/design.md,
+ * KAN-828), since a scroll box takes the mouse wheel from the page.
  */
 export function NeedsAttention({
   failing,
@@ -42,7 +47,7 @@ export function NeedsAttention({
   return (
     <Panel
       section={SCRAPE_SECTIONS.attention}
-      bodyClassName="p-0 max-h-[34rem] overflow-y-auto"
+      bodyClassName="p-0"
       action={
         failingTotal > 0 && (
           <span className="text-note text-ink-meta">
@@ -62,7 +67,7 @@ export function NeedsAttention({
       {errors.length > 0 && (
         <>
           <h3 className={SUBHEAD}>Failed Reads by Reason · Last {HISTORY} Days</h3>
-          <ul>
+          <Rows>
             {errors.map((e) => (
               <li key={e.reason} className={ROW}>
                 <div className="flex items-start gap-3">
@@ -79,24 +84,29 @@ export function NeedsAttention({
                     {count(e.boards)} {e.boards === 1 ? "board" : "boards"}
                   </span>
                 </div>
-                {e.error && (
+                {/* An error with no detail ("robots.txt") is its reason: nothing to open. */}
+                {e.error && e.error !== e.reason ? (
                   <details className="mt-1">
                     <summary className="text-note text-ink-muted cursor-pointer [overflow-wrap:anywhere]">
                       Newest: {e.company} ({systemName(e.ats)})
                     </summary>
                     <p className="text-note text-danger mt-1 [overflow-wrap:anywhere]">{e.error}</p>
                   </details>
+                ) : (
+                  <p className="text-note text-ink-muted mt-1 [overflow-wrap:anywhere]">
+                    Newest: {e.company} ({systemName(e.ats)})
+                  </p>
                 )}
               </li>
             ))}
-          </ul>
+          </Rows>
         </>
       )}
 
       {failing.length > 0 && (
         <>
           <h3 className={`${SUBHEAD} ${errors.length > 0 ? "border-t" : ""}`}>Failing Boards</h3>
-          <ul>
+          <Rows>
             {failing.map((b) => (
               <li key={`${b.ats}:${b.token}`} className={`${ROW} flex items-start gap-3`}>
                 <div className="min-w-0 flex-1">
@@ -113,9 +123,29 @@ export function NeedsAttention({
                 <span className={PILL}>{b.consecutive_failures} failed</span>
               </li>
             ))}
-          </ul>
+          </Rows>
         </>
       )}
     </Panel>
+  );
+}
+
+/** A list's first rows, then the rest behind a native disclosure, so it needs no script. */
+function Rows({ children }: { children: ReactNode[] }) {
+  const rest = children.slice(SHOWN);
+  return (
+    <>
+      <ul>{children.slice(0, SHOWN)}</ul>
+      {rest.length > 0 && (
+        <details className="border-border-subtle group border-t">
+          <summary className="text-label text-brand-ink hover:bg-hover cursor-pointer px-5 py-3">
+            {/* The summary stays when open, so the keyboard keeps its place and can close the list. */}
+            <span className="group-open:hidden">See {count(rest.length)} More</span>
+            <span className="hidden group-open:inline">See Fewer</span>
+          </summary>
+          <ul>{rest}</ul>
+        </details>
+      )}
+    </>
   );
 }

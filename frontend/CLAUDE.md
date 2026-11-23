@@ -3724,7 +3724,9 @@ file in `admin/scrape-health/`:
   window**: the page cuts days itself, and a group cannot be cut that
   way. The header's count is the API's total ("25 of 161 failing
   boards"), since the list stops at 25; it printed the list's length.
-  The lists scroll inside the box. Tabs in this box (Needs Attention,
+  Each list shows 5 rows, then See More (a native `<details>`): a list in
+  a tile never scrolls inside it (KAN-828). A scroll box was built first
+  and a review caught it. Tabs in this box (Needs Attention,
   Runs) were planned and dropped in review (2026-11-22): they hide a list
   behind a click, and no admin page uses tabs. It was a card in a rail the
   admin could close, beside counts the page already showed; the rail is
