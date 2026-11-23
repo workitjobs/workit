@@ -436,17 +436,27 @@ html:has(.landing) {
  * fills): an SVG of its own, the size of its box, so its rise is a
  * transform on an HTML box and runs off the main thread. A job's tower
  * grows out of its low building, holds while its card shows, and sinks
- * back: one 16s loop, set off per tower by `--md` (city-model.ts), so
- * two or three are up at a time. With reduced motion every tower stands.
+ * back: one 16s loop, a turn apart per tower, so two or three are up at
+ * a time. With reduced motion every tower stands.
  */
 .hero-city .city-tower {
   position: absolute;
   overflow: visible;
   transform-origin: 50% 100%;
 }
+/* The loops start once the city is in (`data-ready`), each tower a turn
+ * after the last (`--turn`, 2.7s; hero-city.tsx): the first tower rises
+ * 2.2s after the city starts to arrive, 0.3s after its front row lands
+ * (a tower's rise is 22% into its loop, 3.5s, so its loop starts 1.3s
+ * early). Started with the page (until 2026-11-23), two towers and a card
+ * were already up while the city rose round them (the user's catch). */
 @media (prefers-reduced-motion: no-preference) {
   .hero-city .city-tower {
-    animation: city-tower 16s cubic-bezier(0.2, 0.8, 0.2, 1) var(--md) infinite;
+    transform: scaleY(0);
+  }
+  .hero-city[data-ready] .city-tower {
+    animation: city-tower 16s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--turn) * 2.7s - 1.3s)
+      infinite backwards;
   }
 }
 @keyframes city-tower {
@@ -478,8 +488,8 @@ html:has(.landing) {
   transform-origin: 50% 100%;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .hero-city .city-tag {
-    animation: city-tag 16s linear var(--md) infinite;
+  .hero-city[data-ready] .city-tag {
+    animation: city-tag 16s linear calc(var(--turn) * 2.7s - 1.3s) infinite backwards;
   }
 }
 @media (prefers-reduced-motion: reduce) {

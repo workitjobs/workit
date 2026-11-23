@@ -19,10 +19,13 @@ import { CONTAINER, SectionHeading } from "./layout-parts";
  * problems they answer and the sections they open. A recording of the app
  * can join them once one exists.
  *
- * The section fills the screen under the header (54rem at most), its
- * heading, line and cells centred in it (the user's ask, 2026-11-23): at
- * its own height, about half a screen, the problems' foot showed above it
- * and Resume Builder below, and nothing held the eye on the page's turn.
+ * The section is a whole screen tall, with no cap, its heading, line and
+ * cells centred in it (the user's asks, 2026-11-23): at its own height,
+ * about half a screen, the problems' foot showed above it and Resume
+ * Builder below, and nothing held the eye on the page's turn. It was the
+ * screen less the header, 54rem at most, for a few hours: on a tall screen
+ * the cap left its neighbours in view, and the header slides away on the
+ * way down in any case.
  *
  * The frame holds the heading and the cells, as the hero's frame held its
  * words and the cells: the cells draw their own rule across the window at
@@ -35,7 +38,7 @@ export function WhyExists() {
   return (
     <section
       aria-labelledby="why-exists-title"
-      className="flex min-h-[min(calc(100svh-4.5rem),54rem)] flex-col justify-center py-16 sm:min-h-[min(calc(100svh-4.75rem),54rem)] sm:py-24"
+      className="flex min-h-svh flex-col justify-center py-20 sm:py-28"
     >
       <div className={CONTAINER}>
         <div className="relative">

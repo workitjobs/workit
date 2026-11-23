@@ -114,6 +114,10 @@ const HUES = [
  *  a row share a colour, round the loop's end too. In draw order two blue
  *  towers stood at once, either side of the headline. */
 const TURN_HUES = [0, 1, 2, 3, 1, 2];
+/** A tower's turn in the loop, 0 to 5, from the model's `delay` (2.7s a
+ *  turn). landing.css starts each tower's loop by it (`--turn`), counted
+ *  from the city's arrival, so no tower is up while the city comes in. */
+const turnOf = (delay: string) => Math.round(-parseFloat(delay) / 2.7);
 const INK = "#121a28";
 const mix = (hex: string, into: string, share: number) => {
   const channel = (color: string, i: number) => parseInt(color.slice(1 + i * 2, 3 + i * 2), 16);
@@ -193,9 +197,8 @@ function getLayers(phone: boolean) {
   getCity(phone).pieces.forEach((piece, index) => {
     if (piece.mode) {
       if (still.length) flush();
-      // Its colour, by its turn in the loop (`delay`, 2.7s a turn).
-      const turn = Math.round(-parseFloat(piece.delay) / 2.7);
-      towers.push({ piece, index, hue: TURN_HUES[turn % TURN_HUES.length] });
+      // Its colour, by its turn in the loop.
+      towers.push({ piece, index, hue: TURN_HUES[turnOf(piece.delay) % TURN_HUES.length] });
     } else {
       if (towers.length) flush();
       still.push(piece);
@@ -418,7 +421,7 @@ export function HeroCity() {
                     top: `${((box.y - STRIP_TOP) / STRIP_HEIGHT) * 100}%`,
                     width: `${(box.w / STRIP_WIDTH) * 100}%`,
                     height: `${(box.h / STRIP_HEIGHT) * 100}%`,
-                    "--md": piece.delay,
+                    "--turn": turnOf(piece.delay),
                   })}
                 >
                   <defs>
@@ -471,7 +474,7 @@ export function HeroCity() {
             style={vars({
               left: `${(tag.x / STRIP_WIDTH) * 100}%`,
               top: `${((tag.y - STRIP_TOP) / STRIP_HEIGHT) * 100}%`,
-              "--md": tag.delay,
+              "--turn": turnOf(tag.delay),
             })}
           >
             <div className="flex flex-col items-center">
