@@ -32,22 +32,19 @@ export const site = {
   // the build too: the page says Coming soon until there is a file
   // (lib/auto-apply-desktop.ts).
   download: { label: "Download", href: DESKTOP_PAGE },
-  // The header's menus and the footer's Features and Resources columns list
-  // features/catalog.ts and resources/catalog.ts; these are the footer's
-  // other columns.
+  // The footer's columns after Features, which lists features/catalog.ts
+  // (footer.tsx). Three columns in all since 2026-11-23 (the user's call):
+  // Resources went (none of its pages exists yet; its routes stay), and so
+  // did Account (Log in and Sign up are in the header and the get started
+  // section just above) and Product's "Overview", a second link to the
+  // home page beside the logo. Pricing keeps a footer link, with Download,
+  // the two pages that are neither a feature nor legal.
   footer: [
     {
       title: "Product",
       links: [
-        { label: "Overview", href: "/" },
         { label: "Pricing", href: "/pricing" },
-      ],
-    },
-    {
-      title: "Account",
-      links: [
-        { label: "Log in", href: "/login" },
-        { label: "Sign up", href: "/signup" },
+        { label: "Download", href: DESKTOP_PAGE },
       ],
     },
     {

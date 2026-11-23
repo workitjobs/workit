@@ -182,14 +182,16 @@ export default function LandingPage() {
       <ProductSections />
 
       {/* Get started, the page's last word before the footer
-          (closing-cta.tsx), on WorkIt's violet blend. "You stay in control"
+          (closing-cta.tsx), on WorkIt's violet blend at half a box's
+          strength, since its words sit straight on it (the user's catch,
+          2026-11-23: at full strength the ink text was hard to look at). "You stay in control"
           (control.tsx) stood here until the user archived it (2026-11-23):
           its file and copy stay, unmounted. */}
       <div className="mt-8 sm:mt-12">
         <ClosingCta
           title={getStarted.title}
           subtitle={getStarted.subtitle}
-          background={studioGround({ glow: "var(--color-brand)" })}
+          background={studioGround({ glow: "var(--color-brand)", strength: 22 })}
         />
       </div>
 

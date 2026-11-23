@@ -444,7 +444,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     archived** (the user's calls, 2026-11-23). Above the footer stands
     `ClosingCta` (closing-cta.tsx), the feature pages' own, with nothing
     added: "Make your next application your best one", one line and the
-    sign-up pair, on WorkIt's violet blend, now the page's one violet box
+    sign-up pair, on WorkIt's violet blend at 22% (`studioGround`'s
+    `strength`; a box's own 46% was too dark under words written
+    straight on it, the user's catch), now the page's one violet box
     (`getStarted` in data.ts, with its claims). A signed-in student sees
     one Open WorkIt there, on every page that draws it. `control.tsx`
     and `control` in data.ts stay, unmounted. The page's first closing
@@ -1651,12 +1653,12 @@ selling line that says what the product does** and "See how", a
   Help Center, Blog). **Resources ▾ is archived from the header** (the
   user's call, 2026-11-20: `RESOURCES_IN_NAV` in `resources/catalog.ts`,
   false), in the bar and the phone menu, since none of its pages exists;
-  the routes and the footer's Resources column stay. Still turned down:
+  the routes stay (the footer's Resources column went on 2026-11-23). Still turned down:
   Integrations (too small for a page), a public job list (no postings
   shown signed out), What's New and For Career Centers.
   **The Resources list is `resources/catalog.ts`**: each item's name, link,
-  icon and menu line, in menu order. The Resources menu, the phone menu and
-  the footer's Resources column read it. None of the three has a page yet,
+  icon and menu line, in menu order. The Resources menu and the phone menu
+  read it. None of the three has a page yet,
   so each item carries `soon`: the menus mark it Soon, and its route
   (`docs/mcp/`, `help-center/`, `blog/`) renders `ComingSoonPage`
   (`resources/coming-soon.tsx`) with the item's copy, kept out of search
@@ -1778,8 +1780,12 @@ selling line that says what the product does** and "See how", a
   links is followed: the header stays mounted from page to page, so an
   open popover would sit over the next page. Each header menu is one
   expandable group in it (`MobileGroup`, a native `<details>`). The
-  footer's link columns are Features and Resources, from the two
-  catalogs, then `site.footer`'s.
+  footer has three link columns (the user's call, 2026-11-23): Features,
+  from the catalog, then `site.footer`'s Product (Pricing, Download) and
+  Legal. Resources went (no page exists), and so did Account (Log in and
+  Sign up are in the header and the get started section) and Product's
+  Overview, a second link home beside the logo. A footer link is a page
+  the visitor cannot reach from where they stand, never a repeat.
 - **The Mac app's offers wait for its build** (KAN-922).
   `DESKTOP_DOWNLOAD_URL` in `lib/auto-apply-desktop.ts` is the DMG's
   address, null until W8 of `../docs/desktop_application_auto_apply.md`
@@ -2024,8 +2030,7 @@ selling line that says what the product does** and "See how", a
   `site.tagline`, which is also the home page's title, so it speaks to
   students ("Your job search, without the busywork."): the site's
   two-sided pitch to recruiters went while the business side is hidden.
-  The footer marks the Resources pages Soon, as the header's menu does: none has a
-  page yet. **Below lg
+  **Below lg
   and with reduced motion every one of these is still**: no pin, no
   flight, no heading blur, the finished frame. Exceptions below lg: the
   bridge plays on a short pin, cued by the scroll; the statement loops in

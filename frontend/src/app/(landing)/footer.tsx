@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { site } from "./data";
 import { featurePages } from "./features/catalog";
 import { PANEL } from "./layout-parts";
-import { resourcePages } from "./resources/catalog";
 
 /**
  * How much of the word's height shows above the panel's foot, in the
@@ -16,20 +15,11 @@ import { resourcePages } from "./resources/catalog";
  */
 const WORD_SHOWN = 62;
 
-/** The header's two menus, then the footer's own columns. */
+/** The feature pages, then the footer's own columns (`site.footer`). */
 const COLUMNS = [
   {
     title: "Features",
     links: featurePages.map((page) => ({ label: page.name, href: page.href })),
-  },
-  {
-    title: "Resources",
-    // Marked Soon, as the header's menu marks them: none has a page yet.
-    links: resourcePages.map((resource) => ({
-      label: resource.name,
-      href: resource.href,
-      soon: Boolean(resource.soon),
-    })),
   },
   ...site.footer,
 ];
@@ -51,11 +41,10 @@ export function Footer() {
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
       <div className={cn(PANEL, "text-ink overflow-hidden bg-(--mk-mist)")}>
-        {/* Five link columns: two a row on a phone, three at md, one row of
-            five under the tagline at lg, beside it from xl, where a column
-            is still wide enough for "Application Tracker" on one line. */}
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-3 lg:grid-cols-5 lg:px-8 xl:grid-cols-[2fr_repeat(5,1fr)]">
-          <div className="col-span-2 max-w-sm md:col-span-3 lg:col-span-5 xl:col-span-1">
+        {/* Three link columns: two a row on a phone, one row of three
+            under the tagline at md, beside it from lg. */}
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-3 lg:grid-cols-[2fr_repeat(3,1fr)] lg:px-8">
+          <div className="col-span-2 max-w-sm md:col-span-3 lg:col-span-1">
             <p className="font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>
@@ -75,11 +64,6 @@ export function Footer() {
                       className="text-ink-meta hover:text-ink relative inline-block text-sm transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']"
                     >
                       {link.label}
-                      {"soon" in link && link.soon === true && (
-                        <span className="text-ink-muted ml-2 rounded-full bg-slate-900/[0.06] px-1.5 py-px text-[11px] leading-4 font-medium">
-                          Soon
-                        </span>
-                      )}
                     </Link>
                   </li>
                 ))}

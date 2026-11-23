@@ -181,7 +181,16 @@ const STRENGTH = 46;
  * strength. A colour with no entry in `MESH` gets the same shape from
  * mixes of itself.
  */
-export function studioGround({ glow }: { glow: string }) {
+export function studioGround({
+  glow,
+  strength = STRENGTH,
+}: {
+  glow: string;
+  /** How much of each colour the ground keeps, in percent. Lower it for a
+   *  ground that text is written on (the home page's get started panel,
+   *  22): at a box's own strength a heading on it read as dark on dark. */
+  strength?: number;
+}) {
   const mix = (amount: number, into: string) => `color-mix(in oklab, ${glow} ${amount}%, ${into})`;
   const [ground, low, high, light] = MESH[glow] ?? [
     mix(80, "white"),
@@ -189,7 +198,7 @@ export function studioGround({ glow }: { glow: string }) {
     mix(85, "var(--color-ink)"),
     mix(30, "white"),
   ];
-  const tone = (color: string) => `color-mix(in oklab, ${color} ${STRENGTH}%, white)`;
+  const tone = (color: string) => `color-mix(in oklab, ${color} ${strength}%, white)`;
   return [
     `radial-gradient(62% 58% at 84% -6%, ${tone(high)}, transparent 72%)`,
     `radial-gradient(78% 72% at -10% 70%, ${tone(low)}, transparent 68%)`,
