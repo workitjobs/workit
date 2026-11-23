@@ -2986,10 +2986,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   from there. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
   pinch (Ctrl and the wheel; Safari's gesture events), Ctrl or Cmd with a
   mouse wheel (each event held to a tenth, or one notch jumped 60%), two
-  fingers on a touch screen, any percent from 50 to 200, only over the
-  pages. While it moves the pages are only stretched; once it rests they
-  draw again at their new width and the line under the pointer stays
-  there. A browser that kept a step before this keeps it until Fit Width
+  fingers on a touch screen, any percent from 50 to 200, over the desk
+  round the pages (a pinch begun on its grey zoomed the whole browser).
+  While it moves the pages are only stretched; once it ends they draw
+  again at their new width and the line under the fingers stays there.
+  **The first version jumped** (the user, 2026-11-23), for four reasons
+  the hook's comment lists: it drew again at any short pause mid-pinch, it
+  stretched about the pointer while the centred page grows about its
+  middle, it stretched past the column, and the browser's scroll
+  anchoring moved the page too. A Ctrl and wheel gesture now ends after
+  400ms with no step, the stretch is about the page's middle across, it
+  stops at the column's width, and the pages are out of scroll anchoring
+  (`overflow-anchor: none`). Measured: the line under the pointer stayed
+  within a pixel from 65% to 90%; at the page's top a zoom out cannot
+  keep it, since there is nothing above to scroll to. A browser that kept a step before this keeps it until Fit Width
   is picked. The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own

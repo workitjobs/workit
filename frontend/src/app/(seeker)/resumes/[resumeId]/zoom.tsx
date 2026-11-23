@@ -159,13 +159,26 @@ export function usePageZoom(pages: RefObject<HTMLElement | null>, zoom: number) 
  * Pinch to zoom on the pages (2026-11-23): a trackpad's pinch (Ctrl and
  * the wheel in Chrome and Firefox, gesture events in Safari), Ctrl or Cmd
  * with a mouse wheel, and two fingers on a touch screen, any percent from
- * `PINCH_MIN` to `PINCH_MAX`, kept as the zoom. Only over the pages:
- * anywhere else the browser zooms as it always does. While the fingers
- * move the pages are only stretched (`transform`), which costs nothing;
- * once they rest for a moment the zoom is set and the pages draw again,
- * sharp, at their new width, and the page scrolls so the line under the
- * pointer stays under it. Drawing again on every frame of a pinch would
- * redraw every page's text many times a second.
+ * `PINCH_MIN` to `PINCH_MAX`, kept as the zoom. It listens on the desk
+ * round the pages (`area`), so a pinch that starts on the grey beside the
+ * page zooms the page, not the whole browser. While the fingers move the
+ * pages are only stretched (`transform`), which costs nothing; once the
+ * gesture ends the zoom is set and the pages draw again, sharp, at their new
+ * width, and the page scrolls so the line under the fingers stays under
+ * them. Drawing again on every frame would redraw every page's text many
+ * times a second.
+ *
+ * **Four things made the first version jump** (the user, 2026-11-23): it
+ * set the zoom after any 160ms pause, so a pinch that slowed mid-way drew
+ * the page again under the fingers and went on from a new size; it
+ * stretched the page about the pointer while the page, centred in its
+ * column, grows about its middle, so the page slid sideways as it drew; it
+ * stretched past the column, where the page stops growing, so it shrank
+ * back as it drew; and the browser's scroll anchoring moved the page as
+ * well as this hook did. So a Ctrl and wheel gesture ends after 400ms
+ * with no step (Safari's and a touch's end with their own end events), the
+ * stretch is about the page's middle across and the fingers down, it stops
+ * at the column's width, and the pages are left out of scroll anchoring.
  */
 export function usePinchZoom(
   pages: RefObject<HTMLElement | null>,
@@ -178,33 +191,48 @@ export function usePinchZoom(
   });
   useEffect(() => {
     const el = pages.current;
-    if (!el) return;
+    const area = el?.parentElement;
+    if (!el || !area) return;
+    el.style.setProperty("overflow-anchor", "none");
     let scale = 1;
-    let origin = { x: 0, y: 0 };
+    let anchor = 0;
     let timer = 0;
+    let moving = false;
     let touch: { distance: number } | null = null;
+    // The widest the page can draw: its column, at most PINCH_MAX
+    const room = () => {
+      const pad = parseFloat(getComputedStyle(area).paddingLeft) || 0;
+      return Math.min(PINCH_MAX, ((area.clientWidth - 2 * pad) / 816) * 100);
+    };
     const clamp = (s: number) => {
       const from = latest.current.shown;
-      return Math.min(PINCH_MAX / from, Math.max(PINCH_MIN / from, s));
+      return Math.min(room() / from, Math.max(PINCH_MIN / from, s));
     };
     const show = () => {
-      el.style.transformOrigin = `${origin.x}px ${origin.y}px`;
+      el.style.transformOrigin = `50% ${anchor}px`;
       el.style.transform = scale === 1 ? "" : `scale(${scale})`;
     };
+    const begin = (clientY: number) => {
+      if (moving) return;
+      moving = true;
+      anchor = Math.max(0, clientY - el.getBoundingClientRect().top);
+    };
     const commit = () => {
+      window.clearTimeout(timer);
       timer = 0;
+      if (!moving) return;
+      moving = false;
       const { shown: from, onZoom: set } = latest.current;
       const to = Math.round(from * scale);
       const ratio = to / from;
-      const anchor = origin.y;
       scale = 1;
-      show();
-      if (to === from) return;
+      if (to === from) return show();
+      // The stretch stays until the page has drawn at its new width, so
+      // nothing shows at the old size in between
       set(to);
-      // Once the pages have their new height, the line that was under the
-      // pointer goes back under it
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
+          show();
           let scroller = el.parentElement;
           while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
             scroller = scroller.parentElement;
@@ -212,51 +240,40 @@ export function usePinchZoom(
         }),
       );
     };
-    const settle = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(commit, 160);
-    };
-    const at = (clientX: number, clientY: number) => {
-      const box = el.getBoundingClientRect();
-      // The box is stretched already while a pinch runs
-      origin = { x: (clientX - box.left) / scale, y: (clientY - box.top) / scale };
-    };
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
-      if (!timer) at(event.clientX, event.clientY);
+      begin(event.clientY);
       // A trackpad's pinch sends small steps, a mouse wheel's notch about
       // 100: each is held to 10, about a tenth a notch, or one notch
       // jumped by 60%
       const step = Math.max(-10, Math.min(10, event.deltaY));
       scale = clamp(scale * Math.exp(-step / 100));
       show();
-      settle();
+      window.clearTimeout(timer);
+      timer = window.setTimeout(commit, 400);
     };
     // Safari's own pinch events
-    type Gesture = Event & { scale: number; clientX: number; clientY: number };
-    let gestureFrom = 1;
+    type Gesture = Event & { scale: number; clientY: number };
     const onGestureStart = (event: Event) => {
       event.preventDefault();
-      const g = event as Gesture;
-      at(g.clientX, g.clientY);
-      gestureFrom = scale;
+      begin((event as Gesture).clientY);
     };
     const onGestureChange = (event: Event) => {
       event.preventDefault();
-      scale = clamp(gestureFrom * (event as Gesture).scale);
+      scale = clamp((event as Gesture).scale);
       show();
-      settle();
+    };
+    const onGestureEnd = (event: Event) => {
+      event.preventDefault();
+      commit();
     };
     const distance = (t: TouchList) =>
       Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
-      touch = { distance: distance(event.touches) / scale };
-      at(
-        (event.touches[0].clientX + event.touches[1].clientX) / 2,
-        (event.touches[0].clientY + event.touches[1].clientY) / 2,
-      );
+      touch = { distance: distance(event.touches) };
+      begin((event.touches[0].clientY + event.touches[1].clientY) / 2);
     };
     const onTouchMove = (event: TouchEvent) => {
       if (!touch || event.touches.length !== 2) return;
@@ -264,26 +281,28 @@ export function usePinchZoom(
       scale = clamp(distance(event.touches) / touch.distance);
       show();
     };
-    const onTouchEnd = () => {
-      if (!touch) return;
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!touch || event.touches.length > 1) return;
       touch = null;
-      settle();
+      commit();
     };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("gesturestart", onGestureStart);
-    el.addEventListener("gesturechange", onGestureChange);
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
+    area.addEventListener("wheel", onWheel, { passive: false });
+    area.addEventListener("gesturestart", onGestureStart);
+    area.addEventListener("gesturechange", onGestureChange);
+    area.addEventListener("gestureend", onGestureEnd);
+    area.addEventListener("touchstart", onTouchStart, { passive: true });
+    area.addEventListener("touchmove", onTouchMove, { passive: false });
+    area.addEventListener("touchend", onTouchEnd);
     return () => {
       window.clearTimeout(timer);
       el.style.transform = "";
-      el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("gesturestart", onGestureStart);
-      el.removeEventListener("gesturechange", onGestureChange);
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
+      area.removeEventListener("wheel", onWheel);
+      area.removeEventListener("gesturestart", onGestureStart);
+      area.removeEventListener("gesturechange", onGestureChange);
+      area.removeEventListener("gestureend", onGestureEnd);
+      area.removeEventListener("touchstart", onTouchStart);
+      area.removeEventListener("touchmove", onTouchMove);
+      area.removeEventListener("touchend", onTouchEnd);
     };
   }, [pages]);
 }
