@@ -218,6 +218,7 @@ function SuggestionsPanel({
   show,
   active,
   marks,
+  bare = false,
 }: SuggestionsApi) {
   const list = useRef<HTMLDivElement>(null);
   const changes = changesOf(record.edits, bank);
@@ -263,24 +264,33 @@ function SuggestionsPanel({
   };
 
   return (
-    // In the brand tint with its ring, as the editor's bar above the page,
-    // so the two read as one review and the white sections stand out; bare
-    // in the phone's sheet, which is its own panel. The toolbar's switch
-    // shows and hides it.
+    // White with the desk's outline (2026-11-23): it was the brand tint,
+    // the colour every picked control wears, so the whole panel read as
+    // picked and a third material beside the desk's grey and the page's
+    // white. Bare in the phone's sheet, which is its own panel, and inside
+    // the side panel's tabs, which frame it
     <section
-      aria-labelledby="suggestions-heading"
-      className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
+      aria-labelledby={bare ? undefined : "suggestions-heading"}
+      aria-label={bare ? "Suggestions" : undefined}
+      className={cn(
+        "flex min-h-0 flex-col gap-2",
+        !bare && "sm:bg-panel sm:ring-border-surface sm:rounded-card sm:p-3 sm:ring-1",
+      )}
     >
       {/* The top stays put and only the sections under it scroll, so the
           scroll bar starts under it and the panel keeps its rounded corners */}
       <div className="flex shrink-0 flex-col gap-2.5 pb-1">
         <div className="flex min-h-8 items-center gap-1.5">
-          <h2
-            id="suggestions-heading"
-            className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
-          >
-            Suggestions <Count n={changes.length} />
-          </h2>
+          {bare ? (
+            <span className="mr-auto" />
+          ) : (
+            <h2
+              id="suggestions-heading"
+              className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
+            >
+              Suggestions <Count n={changes.length} />
+            </h2>
+          )}
           {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
           {/* The marks on the page, here with the changes they mark: a Show
               and Hide Suggestions toggle sat in the toolbar beside the title
@@ -309,16 +319,18 @@ function SuggestionsPanel({
               <ArrowUUpLeftIcon aria-hidden />
             </IconButton>
           )}
-          {/* A phone's sheet has its own X */}
-          <IconButton
-            place="row"
-            label="Close Suggestions"
-            tooltip={false}
-            className="shrink-0 max-sm:hidden"
-            onClick={close}
-          >
-            <CloseIcon />
-          </IconButton>
+          {/* A phone's sheet has its own X, and so do the tabs */}
+          {!bare && (
+            <IconButton
+              place="row"
+              label="Close Suggestions"
+              tooltip={false}
+              className="shrink-0 max-sm:hidden"
+              onClick={close}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
         </div>
       </div>
       {changes.length > 0 ? (
@@ -340,7 +352,7 @@ function SuggestionsPanel({
                 aria-label={group.title}
                 // shrink-0: in the scrolling list a clipped section would
                 // otherwise squeeze to fit rather than scroll
-                className="bg-panel max-sm:bg-app rounded-card shrink-0 overflow-hidden"
+                className="bg-panel max-sm:bg-app sm:ring-border-subtle rounded-card shrink-0 overflow-hidden sm:ring-1"
               >
                 <h3>
                   <button

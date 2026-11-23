@@ -61,6 +61,9 @@ export type SuggestionsApi = {
    *  own switch since KAN-799; it sat in the toolbar beside the title row's
    *  Suggestions, two controls for one thing. */
   marks: { shown: boolean; onToggle: () => void };
+  /** Inside the side panel's tabs (one panel, Suggestions a tab of it):
+   *  the tabs name it and close it, so it draws no frame, heading or X. */
+  bare?: boolean;
 };
 
 /** What the editor hands the popup beside a changed line it has open. */

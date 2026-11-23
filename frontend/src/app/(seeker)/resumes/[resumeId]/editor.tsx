@@ -63,6 +63,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
+import { useSearchParams } from "next/navigation";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
@@ -143,6 +144,9 @@ import {
   PanelTabs,
   type PanelTab,
   type Side,
+  ReviewRail,
+  ReviewTabs,
+  type ReviewTab,
 } from "./toolbar";
 import { readMarked, runs, showMarked } from "./text-marks";
 import {
@@ -808,6 +812,14 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<Side>("suggestions");
+  // Two trials of where Tailor's review keeps its views (2026-11-23), picked
+  // by the address while the user compares them: `?panels=rail`, a rail of
+  // icons down the page's right edge (T2); else one panel with tabs (T3)
+  const panels = useSearchParams().get("panels") === "rail" ? "rail" : "tabs";
+  const reviewTab = (view: Side): view is ReviewTab =>
+    view === "suggestions" || view === "sections" || view === "format";
+  // The tab the title row's Suggestions opens the panel on (T3)
+  const [lastTab, setLastTab] = useState<ReviewTab>("suggestions");
   // What the editor shows in Scout's panel (KAN-440): the assistant, or the
   // Experiences picker, opened from the toolbar. The panel shows one at a
   // time, so they share it, and there is no switch in it: the top bar's Scout
@@ -1545,6 +1557,7 @@ export function Editor({
     }
     // The comparison only reads (`comparing`): an open line saves and closes
     if (to === "original") select(null);
+    if (reviewTab(to)) setLastTab(to);
     setSide(to);
   };
 
@@ -2540,9 +2553,10 @@ export function Editor({
       />
     ) : undefined;
   const Suggestions = suggestions;
-  const panel =
+  const panelOf = (bare: boolean) =>
     reviewing && Suggestions ? (
       <Suggestions
+        bare={bare}
         record={reviewing}
         pageOrder={pageOrder}
         bank={bank}
@@ -2568,6 +2582,7 @@ export function Editor({
         marks={{ shown: showMarks, onToggle: () => setShowMarks(!showMarks) }}
       />
     ) : null;
+  const panel = panelOf(false);
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
@@ -3336,7 +3351,8 @@ export function Editor({
         disabled: !rendered,
         onChange: applyPage,
         panelOpen,
-        onPanel: togglePanel,
+        // Tailor's review opens its views beside the page, not from the bar
+        onPanel: suggestions ? undefined : togglePanel,
       }}
     />
   );
@@ -3348,17 +3364,39 @@ export function Editor({
   const comparing = Boolean(shownOriginal);
   const compareHeading = "text-label text-ink font-semibold";
 
+  const rail = Boolean(reviewing) && panels === "rail";
   const grid = (
     <div
       className={cn(
         "grid items-start gap-5",
         // The column docks beside the page from @6xl only; below it floats
         // over the page (`floating`)
-        (shownPanel || shownTabs || shownCut) && "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
+        (shownPanel || shownTabs || shownCut) &&
+          (rail
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_auto] @6xl/main:grid-cols-[minmax(0,1fr)_24rem_auto]"
+            : "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]"),
         // The two resumes at one width, so a line reads against its twin
-        shownOriginal && "@4xl/main:grid-cols-2",
+        shownOriginal &&
+          (rail
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+            : "@4xl/main:grid-cols-2"),
+        rail && !side && "@4xl/main:grid-cols-[minmax(0,1fr)_auto]",
       )}
     >
+      {/* T2's rail: the grid's last column from @4xl, level with the bar,
+          sticking with it */}
+      {rail && (
+        <div className="sticky top-0 hidden self-start @4xl/main:col-end-[-1] @4xl/main:row-start-1 @4xl/main:block">
+          <ReviewRail
+            review={{
+              count: suggestionCount,
+              side,
+              onSide: showSide,
+              hasOriginal: Boolean(original),
+            }}
+          />
+        </div>
+      )}
       {/* Placed, so a column floating in the same cell never pushes it down */}
       {/* One surface, the desk (./slim-bar.ts): the bar on top, the pages on
           its grey. The comparison only reads, so it draws the page alone */}
@@ -3567,13 +3605,43 @@ export function Editor({
             FLOATING,
           )}
         >
-          {shownTabs ? (
-            <section
-              aria-label="Side Panel"
-              className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-3 sm:p-3 sm:ring-1"
+          {reviewing && panels === "tabs" && reviewTab(side) ? (
+            // T3: one panel, Suggestions a tab beside Sections and Format
+            <section aria-label="Side Panel" className={cn(SIDE_SHELL, "gap-3")}>
+              <ReviewTabs
+                tab={side}
+                count={suggestionCount}
+                onTab={showSide}
+                onClose={() => showSide(null)}
+              />
+              {side === "suggestions" ? (
+                panelOf(true)
+              ) : (
+                <div className={SIDE_SCROLL}>
+                  {side === "sections" ? (
+                    sectionsOutline
+                  ) : (
+                    <FormatOptions page={page} onChange={applyPage} />
+                  )}
+                </div>
+              )}
+            </section>
+          ) : reviewing && panels === "rail" && (side === "sections" || side === "format") ? (
+            // T2: each view its own panel, named, opened from the rail
+            <SidePanel
+              title={side === "sections" ? "Sections" : "Format"}
+              onClose={() => showSide(null)}
             >
+              {side === "sections" ? (
+                sectionsOutline
+              ) : (
+                <FormatOptions page={page} onChange={applyPage} />
+              )}
+            </SidePanel>
+          ) : shownTabs ? (
+            <section aria-label="Side Panel" className={cn(SIDE_SHELL, "gap-3")}>
               <PanelTabs tab={tab} onTab={showTab} onClose={() => showSide(null)} />
-              <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5">
+              <div className={SIDE_SCROLL}>
                 {side === "sections" ? (
                   sectionsOutline
                 ) : (
@@ -3633,12 +3701,20 @@ export function Editor({
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
         {reviewing && (
-          <div className="flex shrink-0 items-center gap-1">
+          // With the rail (T2) these move to it from @4xl, where it shows;
+          // with the tabs (T3) Suggestions is the panel's one button: it
+          // shows pressed on any tab and opens the tab shown last
+          <div
+            className={cn(
+              "flex shrink-0 items-center gap-1",
+              panels === "rail" && "@4xl/main:hidden",
+            )}
+          >
             <ReviewButtons
               review={{
                 count: suggestionCount,
-                side,
-                onSide: showSide,
+                side: panels === "tabs" && reviewTab(side) ? "suggestions" : side,
+                onSide: (to) => showSide(panels === "tabs" && to === "suggestions" ? lastTab : to),
                 hasOriginal: Boolean(original),
               }}
             />
@@ -3705,6 +3781,18 @@ function useFitToWindow(foot = 24) {
   }, [el, foot]);
   return setEl;
 }
+
+/** A panel beside the page: white with the desk's outline (2026-11-23).
+ *  It was the brand tint, the colour every picked control wears, so the
+ *  panel read as picked, a third material beside the desk's grey and the
+ *  page's white, and one more purple area beside the step bar and Finish.
+ *  Bare in a phone's sheet, its own panel. */
+const SIDE_SHELL =
+  "sm:bg-panel sm:ring-border-surface sm:rounded-card flex min-h-0 flex-col sm:p-3 sm:ring-1";
+/** The panel's list under its top, which stays put. Never wider than the
+ *  panel: a row that is would scroll it sideways and cut its left edge. */
+const SIDE_SCROLL =
+  "relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-none pr-1.5";
 
 /** The review's column from @4xl to @6xl: in the page's cell, at its right,
  *  over the desk, 12px under its 44px bar (`DESK_BAR`) at rest and when

@@ -8,7 +8,9 @@ import {
   ArrowUpIcon,
   CircleNotchIcon,
   LightbulbIcon,
+  ListBulletsIcon,
   QuestionIcon,
+  TextAaIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
@@ -80,9 +82,11 @@ export type FormatTools = {
   disabled: boolean;
   onChange: (next: PageSettings) => void;
   /** Whether the side panel is open, and its button (KAN-586): the panel
-   *  holds Sections and Format as tabs, so neither has a button of its own. */
+   *  holds Sections and Format as tabs, so neither has a button of its own.
+   *  No button on Tailor's review, whose views open from its own controls
+   *  beside the page (`ReviewTabs`, `ReviewRail`). */
   panelOpen: boolean;
-  onPanel: () => void;
+  onPanel?: () => void;
 };
 
 /** The side panel's tabs (KAN-586). */
@@ -472,7 +476,13 @@ export function Bar({
             <TooltipContent>Take the Tour</TooltipContent>
           </Tooltip>
         )}
-        <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
+        {format.onPanel && (
+          <PanelToggle
+            open={format.panelOpen}
+            disabled={format.disabled}
+            onToggle={format.onPanel}
+          />
+        )}
       </div>
     </div>
   );
@@ -917,4 +927,109 @@ export function FitButton({
 /** The zoom control (./zoom.tsx) as a bar, until the first render lands. */
 function ZoomSkeleton() {
   return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
+}
+
+/** Tailor's review's views beside the page, as one panel's tabs (trial
+ *  T3, 2026-11-23): Suggestions, with its count, Sections and Format, on a
+ *  rule, and the panel's close, as `PanelTabs` draws the editor's. The title
+ *  row's Suggestions opens the panel on the tab shown last. */
+export type ReviewTab = "suggestions" | "sections" | "format";
+
+export function ReviewTabs({
+  tab,
+  count,
+  onTab,
+  onClose,
+}: {
+  tab: ReviewTab;
+  count: number;
+  onTab: (tab: ReviewTab) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <TabButtons
+        label="Side Panel"
+        ruled
+        className="flex-1 gap-5"
+        options={[
+          { value: "suggestions", label: count ? `Suggestions ${count}` : "Suggestions" },
+          { value: "sections", label: "Sections" },
+          { value: "format", label: "Format" },
+        ]}
+        value={tab}
+        onChange={onTab}
+      />
+      <IconButton
+        place="row"
+        label="Close Panel"
+        tooltip="Close"
+        className="mb-1"
+        onClick={onClose}
+      >
+        <CloseIcon />
+      </IconButton>
+    </div>
+  );
+}
+
+/**
+ * Tailor's review's views as a rail of icons down the page's right edge
+ * (trial T2, 2026-11-23), as Google Docs keeps its side panels' icons:
+ * Suggestions with its count, Sections, Format and Original. A press opens
+ * that view in the column beside the rail and shows pressed; a press on the
+ * pressed one closes it, and the page takes the room. The rail stays, so
+ * every view is always one press away.
+ */
+export function ReviewRail({ review }: { review: ReviewTools }) {
+  const item = (
+    side: Exclude<Side, null>,
+    label: string,
+    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>,
+    count = 0,
+  ) => {
+    const open = review.side === side;
+    return (
+      <Tooltip key={side}>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              aria-label={count > 0 ? `${label}, ${count}` : label}
+              aria-pressed={open}
+              // Muted until pressed, as the bar's own buttons are (`BAR_BUTTONS`):
+              // in the brand colour, every icon read as an open view
+              className={cn(PRESSED_GLYPH, "text-ink-muted hover:text-ink relative shrink-0")}
+              onClick={() => review.onSide(open ? null : side)}
+            />
+          }
+        >
+          <Icon aria-hidden className="size-5" />
+          {count > 0 && (
+            <span className="bg-brand text-on-brand text-note absolute -top-1 -right-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
+              {count}
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="left">{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+  return (
+    <nav
+      aria-label="Views beside the page"
+      className="bg-panel ring-border-surface rounded-card flex flex-col items-center gap-1 p-1 ring-1"
+    >
+      {item("suggestions", "Suggestions", LightbulbIcon, review.count)}
+      {item("sections", "Sections", ListBulletsIcon)}
+      {item("format", "Format", TextAaIcon)}
+      {review.hasOriginal && (
+        <>
+          <span aria-hidden className="bg-border-subtle my-0.5 h-px w-6" />
+          {item("original", "Original Resume", FileIcon)}
+        </>
+      )}
+    </nav>
+  );
 }
