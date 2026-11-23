@@ -42,11 +42,20 @@ export function windowOf(params: { days?: Param; back?: Param }): Window {
   return { days, back };
 }
 
-/** The page's address for a window, leaving out a zero `back`. */
-export function windowHref(window: Window): string {
+/**
+ * A page's address for a window, leaving out a zero `back`. `path` is the
+ * admin page (Fill Health shares the time control), and `keep` the page's
+ * other filters, each left out when empty.
+ */
+export function windowHref(
+  window: Window,
+  path = "/admin/scrape-health",
+  keep: Record<string, string> = {},
+): string {
   const query = new URLSearchParams({ days: String(window.days) });
   if (window.back) query.set("back", String(window.back));
-  return `/admin/scrape-health?${query}`;
+  for (const [key, value] of Object.entries(keep)) if (value) query.set(key, value);
+  return `${path}?${query}`;
 }
 
 /**

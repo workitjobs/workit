@@ -84,6 +84,10 @@ test("a new period keeps the window's last day where the history allows", () => 
 test("a window's address leaves out a zero distance back", () => {
   assert.equal(windowHref({ days: 14, back: 14 }), "/admin/scrape-health?days=14&back=14");
   assert.equal(windowHref({ days: 30, back: 0 }), "/admin/scrape-health?days=30");
+  assert.equal(
+    windowHref({ days: 7, back: 7 }, "/admin/fill-health", { engine_version: "v1", none: "" }),
+    "/admin/fill-health?days=7&back=7&engine_version=v1",
+  );
 });
 
 test("a window's days end on today less its distance back", () => {

@@ -48,6 +48,42 @@ export function percent(share: number): string {
   return `${Math.round(share * 100)}%`;
 }
 
+/** The fills of some rows: all of them, and each job system's, most first. */
+export function fillTotals(rows: FillHealthRow[]): {
+  fills: number;
+  systems: { job_system: string; fills: number }[];
+} {
+  const by = new Map<string, number>();
+  for (const r of rows) by.set(r.job_system, (by.get(r.job_system) ?? 0) + r.fills);
+  const systems = [...by].map(([job_system, fills]) => ({ job_system, fills }));
+  systems.sort((x, y) => y.fills - x.fills || x.job_system.localeCompare(y.job_system));
+  return { fills: systems.reduce((sum, s) => sum + s.fills, 0), systems };
+}
+
+/**
+ * The Fills table's filters. `needsYou` is the lowest rate a row may have,
+ * as a share ("0.25"). `errors` is "with" (any error), "none", or
+ * "name:<error name>" for one error.
+ */
+export type FillFilters = { system: string; needsYou: string; errors: string };
+export const ALL_FILLS = "all";
+export const NO_FILL_FILTERS: FillFilters = {
+  system: ALL_FILLS,
+  needsYou: ALL_FILLS,
+  errors: ALL_FILLS,
+};
+
+/** Whether a row passes every filter. */
+export function matchesFilters(row: FillHealthRow, filters: FillFilters): boolean {
+  const { system, needsYou, errors } = filters;
+  if (system !== ALL_FILLS && row.job_system !== system) return false;
+  if (needsYou !== ALL_FILLS && row.needs_you_rate < Number(needsYou)) return false;
+  if (errors === "with") return row.top_errors.length > 0;
+  if (errors === "none") return row.top_errors.length === 0;
+  if (errors.startsWith("name:")) return row.top_errors.some((e) => `name:${e.name}` === errors);
+  return true;
+}
+
 /** GET /admin/scrape-health's answer (KAN-879, backend app/routers/scrape_health.py). */
 export type ScrapeHealth = {
   /** When the API read these numbers; it keeps them for 10 minutes. */
