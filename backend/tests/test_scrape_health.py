@@ -21,6 +21,8 @@ pytestmark = pytest.mark.anyio
 
 ADMIN = "dev@example.com"
 NOW = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+# Earlier than NOW and on the same UTC day, so a test of one day's counts holds just after midnight.
+EARLIER = NOW.replace(hour=0, minute=0, second=0)
 
 
 def _as(email: str) -> None:
@@ -56,7 +58,7 @@ async def test_scrape_health_counts_boards_reads_and_failures_for_admins_only(da
         await _board(s, "lever", "off", enabled=False, failures=9)  # disabled: counted nowhere
         await _task(s, good, "done", seconds=10)
         await _task(s, good, "done", seconds=20)
-        await _task(s, bad, "failed", error="HTTP 404", at=NOW - datetime.timedelta(minutes=5))
+        await _task(s, bad, "failed", error="HTTP 404", at=EARLIER)
         await _task(s, bad, "failed", error="HTTP 500")
         await _task(s, good, "done", at=NOW - datetime.timedelta(days=30))  # outside the window
         await s.execute(text("INSERT INTO scraper_tasks (schedule_id) VALUES (:s), (:s)"), {"s": bad})  # the backlog
@@ -81,7 +83,7 @@ async def test_scrape_health_counts_boards_reads_and_failures_for_admins_only(da
     assert answer["last_import_at"] is None and answer["read_at"]
     boards = answer["boards"]
     assert boards.pop("oldest_pending_at") is not None
-    assert boards == {"boards": 3, "failing": 1, "resting": 1, "stale": 1, "open_jobs": 0, "pending": 2, "claimed": 0}
+    assert boards == {"boards": 3, "failing": 1, "resting": 1, "stale": 1, "pending": 2, "claimed": 0}
     assert [(r["ats"], r["boards"], r["read"]) for r in answer["systems"]] == [("greenhouse", 2, 2), ("lever", 1, 1)]
     today = {r["ats"]: r for r in answer["days"] if r["day"] == NOW.date().isoformat()}
     assert today["greenhouse"]["done"] == 2

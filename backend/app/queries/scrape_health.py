@@ -8,10 +8,9 @@ nothing.
 import datetime
 import time
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 from app.models.scraper import Job_Source, Scraper_Schedule, Scraper_Task
 
@@ -26,7 +25,7 @@ S, T, J = Scraper_Schedule, Scraper_Task, Job_Source
 
 async def boards_summary(db: AsyncSession) -> dict:
     '''counts over enabled boards now: all, failing (a failed read since its last good one), resting
-    (rest_until ahead), stale (unread for STALE_AFTER or never read); and the open scraped jobs'''
+    (rest_until ahead), stale (unread for STALE_AFTER or never read); and the task backlog'''
     now = datetime.datetime.now(datetime.UTC)
     row = (await db.execute(
         select(
@@ -38,12 +37,6 @@ async def boards_summary(db: AsyncSession) -> dict:
             ).label("stale"),
         ).where(S.enabled.is_(True))
     )).one()
-    open_jobs = (await db.execute(
-        select(func.count()).select_from(Job_Post).where(
-            Job_Post.status == job_post_status.published,
-            exists().where(J.apply_url == Job_Post.apply_url),
-        )
-    )).scalar_one()
     # The backlog: a worker that stopped leaves its tasks pending, which no finished read shows.
     tasks = (await db.execute(
         select(
@@ -52,7 +45,7 @@ async def boards_summary(db: AsyncSession) -> dict:
             func.min(T.created_at).filter(T.status == "pending").label("oldest_pending_at"),
         )
     )).one()
-    return {**row._asdict(), **tasks._asdict(), "open_jobs": open_jobs}
+    return {**row._asdict(), **tasks._asdict()}
 
 
 async def systems(db: AsyncSession) -> list[dict]:
@@ -109,8 +102,7 @@ async def failing_boards(db: AsyncSession) -> list[dict]:
         .order_by(T.finished_at.desc()).limit(1).scalar_subquery()
     )
     rows = (await db.execute(
-        select(S.ats, S.token, S.company, S.consecutive_failures, S.last_read_at, S.rest_until,
-               last_error.label("last_error"))
+        select(S.ats, S.token, S.company, S.consecutive_failures, last_error.label("last_error"))
         .where(S.enabled.is_(True), S.consecutive_failures > 0)
         .order_by(S.consecutive_failures.desc(), S.company).limit(FAILING_LIMIT)
     )).all()

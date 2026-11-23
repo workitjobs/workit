@@ -629,7 +629,7 @@ Find files with a directory listing; these are the rules for where code goes.
 - **The scraper's health for admins** (KAN-879, `routers/scrape_health.py`
   over `queries/scrape_health.py`): `GET /admin/scrape-health?days=`
   behind `get_admin`, as `/admin/fill-health`. It answers the enabled
-  boards now (all, failing, resting, stale, and the open scraped jobs),
+  boards now (all, failing, resting and stale),
   the backlog (tasks pending and claimed, and the oldest pending one's
   time: a worker that stopped leaves its tasks pending, which no finished
   read shows), the enabled boards per hiring system with how many were
@@ -645,7 +645,13 @@ Find files with a directory listing; these are the rules for where code goes.
   failing list lacks**: a failed publish marks its task failed but never
   calls `record_failure` (`worker._checkpoint_board`), so on 2026-11-15 the
   page showed 2 failing boards while 90 reads had failed, 88 for one
-  cause. **It reads only the worker's own tables**
+  cause. **The page prints `scraper_tasks.error` as it is stored**, so
+  `_sanitize_error` (`scraper/tasks.py`) is the only guard: it masks
+  credential-like `key=value` pairs (quoted too, and the token after
+  `Bearer`) and a URL's password. A new shape of secret gets a case in
+  `tests/test_scrape_worker.py` first. **An answer field no page reads
+  is removed**: `open_jobs` counted over all of `job_postings` on every
+  fill for a caption that was gone (2026-11-23). **It reads only the worker's own tables**
   (`scraper_schedules`, `scraper_tasks`, `job_sources`) and
   `job_postings`: no new table, no migration, and the worker writes
   nothing for it. A board is failing when `consecutive_failures` is above

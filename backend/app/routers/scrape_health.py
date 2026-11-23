@@ -10,7 +10,7 @@ GET /admin/scrape-health  ?days=1..90 (default 14)
     yet.
     `boards`: enabled boards now, how many are failing (a failed read since
     their last good one), resting (rest_until ahead) and stale (unread for
-    2 days or never read), the open scraped jobs, and the backlog: tasks
+    2 days or never read), and the backlog: tasks
     pending and claimed, and when the oldest pending one was made.
     `systems`: per hiring system, the enabled boards, how many were ever
     read, and the newest read.
@@ -45,7 +45,6 @@ class BoardsSummary(BaseModel):
     failing: int
     resting: int
     stale: int
-    open_jobs: int
     pending: int
     claimed: int
     oldest_pending_at: datetime.datetime | None
@@ -72,8 +71,6 @@ class FailingBoard(BaseModel):
     token: str
     company: str
     consecutive_failures: int
-    last_read_at: datetime.datetime | None
-    rest_until: datetime.datetime | None
     last_error: str | None
 
 
