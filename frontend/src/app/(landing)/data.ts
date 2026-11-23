@@ -101,17 +101,20 @@ export const hero = {
 /**
  * The home page's get started section, just above the footer (closing-cta.tsx;
  * the user's ask, 2026-11-23). Short on purpose: a headline, one line and
- * the buttons. The headline is the page's own pitch, quality and never
+ * the buttons. Both lines are the page's own pitch, quality and never
  * volume (the rule on `site.tagline`), as the hero's line ends: time goes
- * into making each application better. The line is two claims: an account
- * is free (every account is on Free: pricing/data.ts), and the experience
- * a student adds is read by the resumes, the matches and the filled forms.
- * "Retyping" is the problems section's own word; never "busywork" again.
+ * into making each application better. The line is the user's pick of
+ * three (2026-11-23); "Create a free account and add your experience once.
+ * WorkIt takes the retyping from there." was here first and did not sound
+ * right to them ("takes the retyping from there" is not a thing people
+ * say). Its claims: an account is free (every account is on Free:
+ * pricing/data.ts), and the experience and profile a student sets up are
+ * read by the resumes, the matches and the filled forms. Never "busywork"
+ * again: that is the tagline's word.
  */
 export const getStarted = {
   title: "Make your next application your best one",
-  subtitle:
-    "Create a free account and add your experience once. WorkIt takes the retyping from there.",
+  subtitle: "Free to start. Set up once, then spend your time on the applications that matter.",
 };
 
 /** "That's why WorkIt exists" over the four pipeline cells (why-exists.tsx).

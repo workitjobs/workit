@@ -443,7 +443,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - **Get started closes the page, and "You stay in control" is
     archived** (the user's calls, 2026-11-23). Above the footer stands
     `ClosingCta` (closing-cta.tsx), the feature pages' own, with nothing
-    added: "Make your next application your best one", one line and the
+    added: "Make your next application your best one", one line ("Free
+    to start. Set up once, then spend your time on the applications that
+    matter.", the user's pick of three) and the
     sign-up pair, on WorkIt's violet blend at 22% (`studioGround`'s
     `strength`; a box's own 46% was too dark under words written
     straight on it, the user's catch), now the page's one violet box
