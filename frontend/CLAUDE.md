@@ -4770,6 +4770,19 @@ file in `admin/scrape-health/`:
   behind a click, and no admin page uses tabs. It was a card in a rail the
   admin could close, beside counts the page already showed; the rail is
   gone.
+- **Fill Health is built from the same parts** (`fill-health/`,
+  2026-11-23): `WindowControls` with its own `path` and the engine version
+  in `keep`, so it reads all `HISTORY` days once and cuts them to the
+  window; Metrics (`metrics.tsx`), the window's fills in total and per job
+  system; and Fills (`fills-table.tsx`), the table with sortable columns.
+  **Job System, Needs You Rate and Errors filter the rows in the browser**
+  (`matchesFilters` in `lib/fill-health.ts`, tested); **Engine Version is
+  the API's filter**, so its pick opens the address and every window link
+  keeps it. **Metrics shows sums only, never a rate for the window**: a
+  true rate needs the pages and fields behind each row, which the API does
+  not answer, and a mean of the rows' rates is another number. A new admin
+  page takes its time control from `WindowControls`, never a form of its
+  own: Fill Health had a Days select with a Filter button until then.
 - **Boards by Hiring System and Board Reads** (`reads-explorer.tsx`, one
   client component, since they share a pick): a bar per system, the five
   largest until Show All, each row a button that filters the table to its

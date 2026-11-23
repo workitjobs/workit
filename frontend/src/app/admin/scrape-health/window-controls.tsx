@@ -25,11 +25,14 @@ const ARROW =
  */
 function Arrow({
   to,
+  href,
   today,
   off,
   children,
 }: {
   to: Window | null;
+  /** The page's address for `to`. */
+  href: (window: Window) => string;
   today: string;
   /** The arrow's name where the window cannot move: "No Earlier Days". */
   off: string;
@@ -44,7 +47,7 @@ function Arrow({
   }
   return (
     <Link
-      href={windowHref(to)}
+      href={href(to)}
       aria-label={`Show ${rangeOf(datesOf(to, today))}`}
       className={`${ARROW} text-ink hover:bg-hover focus-visible:ring-brand-ring focus-visible:ring-2 focus-visible:outline-none`}
     >
@@ -68,26 +71,36 @@ function Arrow({
  * where that switch was. Before that the chart had its own zoom and arrows
  * beside the page's day pills, which a design review found was two time
  * controls on one page.
+ *
+ * Fill Health uses it too, with its own `path` and the filters its address
+ * keeps (`keep`), so every admin page moves through time the same way.
  */
 export function WindowControls({
   window,
   today,
+  path,
+  keep,
 }: {
   window: Window;
   /** The newest day, YYYY-MM-DD (UTC): the day the API's answer was read. */
   today: string;
+  /** The admin page these links open; Scrape Health when left out. */
+  path?: string;
+  /** The page's other filters, kept in every link. */
+  keep?: Record<string, string>;
 }) {
+  const href = (to: Window) => windowHref(to, path, keep);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex items-center gap-1.5">
-        <Arrow to={moved(window, -1)} today={today} off="No Earlier Days">
+        <Arrow to={moved(window, -1)} href={href} today={today} off="No Earlier Days">
           <CaretLeftIcon size={16} aria-hidden />
         </Arrow>
         {/* A fixed room for the longest range, so the arrows hold still as the days change. */}
         <p className="text-label text-ink min-w-36 text-center tabular-nums" aria-live="polite">
           {rangeOf(datesOf(window, today))}
         </p>
-        <Arrow to={moved(window, 1)} today={today} off="No Later Days">
+        <Arrow to={moved(window, 1)} href={href} today={today} off="No Later Days">
           <CaretRightIcon size={16} aria-hidden />
         </Arrow>
       </div>
@@ -97,7 +110,7 @@ export function WindowControls({
         options={SPANS.map((days) => ({
           value: String(days),
           label: `${days} Days`,
-          href: windowHref(resized(window, days)),
+          href: href(resized(window, days)),
         }))}
       />
     </div>

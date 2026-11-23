@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { fillTotals, healthQuery, matchesFilters, NO_FILL_FILTERS, percent } from "./fill-health.ts";
+import {
+  fillTotals,
+  healthQuery,
+  matchesFilters,
+  NO_FILL_FILTERS,
+  percent,
+} from "./fill-health.ts";
 
 test("the fill-health query keeps a day count from 1 to 90 and a plain engine version", () => {
   assert.equal(

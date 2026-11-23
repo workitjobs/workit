@@ -61,7 +61,7 @@ export function getFillFixture(id: string): Promise<Read<string>> {
     : Promise.resolve({ data: null, status: 404 });
 }
 
-/** Fill numbers per job system per day (KAN-476): GET /admin/fill-health with the query `healthQuery` built. */
+/** Fill numbers per job system per day (KAN-476): GET /admin/fill-health with the page's query (`?days=` and `engine_version`). */
 export function getFillHealth(query: string): Promise<Read<FillHealth>> {
   return read(`/admin/fill-health${query}`);
 }

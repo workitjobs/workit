@@ -26,6 +26,11 @@ export const SCRAPE_SECTIONS = {
   reads: { id: "board-reads", label: "Board Reads" },
 } as const satisfies Record<string, AdminSection>;
 
+export const FILL_SECTIONS = {
+  metrics: { id: "metrics", label: "Metrics" },
+  fills: { id: "fills", label: "Fills" },
+} as const satisfies Record<string, AdminSection>;
+
 export const REPORT_SECTIONS = {
   groups: { id: "groups", label: "Groups" },
   reports: { id: "reports", label: "Reports" },
@@ -39,8 +44,12 @@ export const ADMIN_PAGES = [
     icon: PulseIcon,
     sections: Object.values(SCRAPE_SECTIONS),
   },
-  // One table, so there is no section to go to.
-  { href: "/admin/fill-health", label: "Fill Health", icon: HeartbeatIcon, sections: [] },
+  {
+    href: "/admin/fill-health",
+    label: "Fill Health",
+    icon: HeartbeatIcon,
+    sections: Object.values(FILL_SECTIONS),
+  },
   {
     href: "/admin/fill-reports",
     label: "Fill Reports",
