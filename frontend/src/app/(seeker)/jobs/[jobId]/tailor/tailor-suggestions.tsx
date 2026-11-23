@@ -11,6 +11,7 @@ import {
   PencilSimpleIcon,
   PlusIcon,
 } from "@phosphor-icons/react/ssr";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 
 import { facetClasses } from "@/components/field-facet";
@@ -27,6 +28,7 @@ import {
 import { IconButton } from "@/components/ui/icon-button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
+import type { TailorEdit } from "@/lib/tailor-actions";
 import { cn } from "@/lib/cn";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
@@ -224,7 +226,10 @@ function SuggestionsPanel({
   marks,
 }: SuggestionsApi) {
   const list = useRef<HTMLDivElement>(null);
-  const changes = changesOf(record.edits, bank);
+  // `?sample=1` on the dev server adds a made-up change of every type the
+  // run does not make yet (`sampleChanges`), to compare them all at once
+  const sample = useSearchParams().get("sample") === "1" && process.env.NODE_ENV !== "production";
+  const changes = [...changesOf(record.edits, bank), ...(sample ? sampleChanges(bank) : [])];
   const [only, setOnly] = useState<ChangeKind | null>(null);
   const shown = only ? changes.filter((c) => c.kind === only) : changes;
   const groups = groupsOf(shown, bank, pageOrder);
@@ -364,7 +369,7 @@ function SuggestionsPanel({
                           current={active === change.key}
                           onFocus={focus}
                           onShow={() => show(change.key)}
-                          onUndo={() => undo(change.edit)}
+                          onUndo={() => !isSample(change) && undo(change.edit)}
                         />
                       </li>
                     ))}
@@ -796,4 +801,64 @@ export function wordChanges(before: string, after: string) {
   }
   const share = b.length ? added.filter(Boolean).length / b.length : 0;
   return { old: runsOf(was, gone), now: runsOf(now, added), share };
+}
+
+/** A made-up change, `sampleChanges`': its Undo does nothing. */
+const isSample = (change: Change) => change.key.startsWith("sample:");
+
+/**
+ * Made-up changes for the dev server's `?sample=1` (2026-11-23), drawn from
+ * the resume's own entries, of each type the run does not make yet: an
+ * added bullet, a removed bullet, a rewording of most of a line (shown with
+ * no marks), and a removed and an added skill. The panel was first drawn
+ * against sample changes too (docs/tailor_resume.md, "Added bullets and
+ * removed lines are drawn but not yet made"). Never in production, and
+ * never on the page or in the record: nothing here is saved or undone.
+ */
+function sampleChanges(bank: Bank): Change[] {
+  const entries = bank.entries.filter((e) => e.section !== "education" && e.bullets.length > 1);
+  const [first, second] = [entries[0], entries[1] ?? entries[0]];
+  if (!first) return [];
+  const edit = { kind: "skill", skill_id: "sample" } as TailorEdit;
+  const skill = bank.skills[0];
+  return [
+    {
+      key: "sample:added-bullet",
+      kind: "added",
+      where: first.id,
+      edit,
+      after: "Ran weekly design reviews with two engineers, cutting rework on shipped screens.",
+    },
+    {
+      key: "sample:removed-bullet",
+      kind: "removed",
+      where: first.id,
+      edit,
+      before: first.bullets.at(-1)?.text,
+    },
+    {
+      key: "sample:rewrite",
+      kind: "reworded",
+      where: second.id,
+      edit,
+      before: second.bullets[0]?.text,
+      after: "Shipped a design system of 40 components that four teams adopted within one term.",
+    },
+    {
+      key: "sample:removed-skill",
+      kind: "removed",
+      where: "skills",
+      edit,
+      before: skill?.name ?? "Jira",
+      group: skill?.group ?? undefined,
+    },
+    {
+      key: "sample:added-skill",
+      kind: "added",
+      where: "skills",
+      edit,
+      after: "GraphQL",
+      group: "Engineering",
+    },
+  ];
 }

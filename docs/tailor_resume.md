@@ -282,7 +282,12 @@ changed, as an AI rewording mostly does, neither line is marked, since a
 line all marked marks nothing. Its whole old line struck in red over its
 whole new line in green came first, then for a day its new words alone in
 green with Show Before: green is the added colour, and hiding the old
-words hid what the choice needs. An added skill is a green chip. Three frames deep (panel, entry,
+words hid what the choice needs. An added skill is a green chip. **`?sample=1` on the dev server** adds a made-up
+change of each type the run does not make yet (an added and a removed
+bullet, a rewording of most of a line, a removed and an added skill),
+drawn from the resume's own entries, to compare every type at once
+(`sampleChanges` in `tailor-suggestions.tsx`); never in production, never
+on the page, and their Undo does nothing. Three frames deep (panel, entry,
 change) and the entries' outlines, cut off by the scrolling list, went
 with this. A card's Undo is "Undo This Change" in its tooltip. The rest of
 this section describes the cards and boxes as they were.
