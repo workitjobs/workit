@@ -4164,6 +4164,11 @@ student who opened a resume from Experiences landed on another view.
   (`FitNotice`, the phone's until KAN-586, now removed), a Done button, and
   Download and Ask Scout in both states, while Tailor's review had the
   slim one: a student saw two editor designs.
+- **Tailor's review opens its views from a rail** (2026-11-23,
+  `ReviewRail` in `[resumeId]/toolbar.tsx`): icons down the page's right
+  edge for Suggestions, Sections, Format and Original, which fold away to
+  a tab at the window's edge; `../../docs/tailor_resume.md`, "Suggestions",
+  has why and what was tried.
 - **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page

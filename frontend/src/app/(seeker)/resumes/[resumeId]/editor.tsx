@@ -3,6 +3,7 @@
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CaretLeftIcon,
   CloudSlashIcon,
   ScissorsIcon,
   StackIcon,
@@ -26,6 +27,7 @@ import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { closeScout, setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -63,7 +65,6 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
-import { useSearchParams } from "next/navigation";
 import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
@@ -145,8 +146,6 @@ import {
   type PanelTab,
   type Side,
   ReviewRail,
-  ReviewTabs,
-  type ReviewTab,
 } from "./toolbar";
 import { readMarked, runs, showMarked } from "./text-marks";
 import {
@@ -812,14 +811,26 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<Side>("suggestions");
-  // Two trials of where Tailor's review keeps its views (2026-11-23), picked
-  // by the address while the user compares them: `?panels=rail`, a rail of
-  // icons down the page's right edge (T2); else one panel with tabs (T3)
-  const panels = useSearchParams().get("panels") === "rail" ? "rail" : "tabs";
-  const reviewTab = (view: Side): view is ReviewTab =>
-    view === "suggestions" || view === "sections" || view === "format";
-  // The tab the title row's Suggestions opens the panel on (T3)
-  const [lastTab, setLastTab] = useState<ReviewTab>("suggestions");
+  // Tailor's review's rail of views (2026-11-23, the user's pick of three
+  // trials): folded away to a tab at the window's edge, kept per browser
+  const [railFolded, setRailFolded] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the browser's choice once mounted
+      setRailFolded(localStorage.getItem(RAIL_FOLDED) === "1");
+    } catch {
+      // No storage (a private window): the rail shows
+    }
+  }, []);
+  const foldRail = (folded: boolean) => {
+    setRailFolded(folded);
+    if (folded) setSide(null);
+    try {
+      localStorage.setItem(RAIL_FOLDED, folded ? "1" : "0");
+    } catch {
+      // Kept for this page only
+    }
+  };
   // What the editor shows in Scout's panel (KAN-440): the assistant, or the
   // Experiences picker, opened from the toolbar. The panel shows one at a
   // time, so they share it, and there is no switch in it: the top bar's Scout
@@ -903,6 +914,8 @@ export function Editor({
   const [zoom, setZoom] = useZoom();
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
+  // The rail, down to the window's foot
+  const fitRail = useFitToWindow(0);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -1557,7 +1570,6 @@ export function Editor({
     }
     // The comparison only reads (`comparing`): an open line saves and closes
     if (to === "original") select(null);
-    if (reviewTab(to)) setLastTab(to);
     setSide(to);
   };
 
@@ -2553,10 +2565,9 @@ export function Editor({
       />
     ) : undefined;
   const Suggestions = suggestions;
-  const panelOf = (bare: boolean) =>
+  const panel =
     reviewing && Suggestions ? (
       <Suggestions
-        bare={bare}
         record={reviewing}
         pageOrder={pageOrder}
         bank={bank}
@@ -2582,7 +2593,6 @@ export function Editor({
         marks={{ shown: showMarks, onToggle: () => setShowMarks(!showMarks) }}
       />
     ) : null;
-  const panel = panelOf(false);
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
@@ -3364,7 +3374,8 @@ export function Editor({
   const comparing = Boolean(shownOriginal);
   const compareHeading = "text-label text-ink font-semibold";
 
-  const rail = Boolean(reviewing) && panels === "rail";
+  // The rail shows from @4xl; below, the title row's buttons open the views
+  const rail = Boolean(reviewing) && !railFolded;
   const grid = (
     <div
       className={cn(
@@ -3373,20 +3384,27 @@ export function Editor({
         // over the page (`floating`)
         (shownPanel || shownTabs || shownCut) &&
           (rail
-            ? "@4xl/main:grid-cols-[minmax(0,1fr)_auto] @6xl/main:grid-cols-[minmax(0,1fr)_24rem_auto]"
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem] @6xl/main:grid-cols-[minmax(0,1fr)_24rem_3.5rem]"
             : "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]"),
         // The two resumes at one width, so a line reads against its twin
         shownOriginal &&
           (rail
-            ? "@4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3.5rem]"
             : "@4xl/main:grid-cols-2"),
-        rail && !side && "@4xl/main:grid-cols-[minmax(0,1fr)_auto]",
+        rail && !side && "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem]",
       )}
     >
-      {/* T2's rail: the grid's last column from @4xl, level with the bar,
-          sticking with it */}
+      {/* The rail: the grid's last column from @4xl, level with the desk,
+          on the page's ground with no box, in a 56px column of its own
+          (bled across the gutter first, it ran past the window on a page
+          with a narrower gutter), down to the window's foot, sticking as
+          the page scrolls */}
       {rail && (
-        <div className="sticky top-0 hidden self-start @4xl/main:col-end-[-1] @4xl/main:row-start-1 @4xl/main:block">
+        <aside
+          ref={fitRail}
+          aria-label="Views beside the page"
+          className="sticky top-0 hidden w-14 self-start pb-4 @4xl/main:col-end-[-1] @4xl/main:row-start-1 @4xl/main:block @4xl/main:h-(--fit-height)"
+        >
           <ReviewRail
             review={{
               count: suggestionCount,
@@ -3394,8 +3412,9 @@ export function Editor({
               onSide: showSide,
               hasOriginal: Boolean(original),
             }}
+            onFold={() => foldRail(true)}
           />
-        </div>
+        </aside>
       )}
       {/* Placed, so a column floating in the same cell never pushes it down */}
       {/* One surface, the desk (./slim-bar.ts): the bar on top, the pages on
@@ -3603,31 +3622,14 @@ export function Editor({
           className={cn(
             "max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:order-none @4xl/main:max-h-(--fit-height)",
             FLOATING,
+            // It slides out from the rail, as Gmail's side panels do; still
+            // with reduced motion
+            reviewing &&
+              "animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none",
           )}
         >
-          {reviewing && panels === "tabs" && reviewTab(side) ? (
-            // T3: one panel, Suggestions a tab beside Sections and Format
-            <section aria-label="Side Panel" className={cn(SIDE_SHELL, "gap-3")}>
-              <ReviewTabs
-                tab={side}
-                count={suggestionCount}
-                onTab={showSide}
-                onClose={() => showSide(null)}
-              />
-              {side === "suggestions" ? (
-                panelOf(true)
-              ) : (
-                <div className={SIDE_SCROLL}>
-                  {side === "sections" ? (
-                    sectionsOutline
-                  ) : (
-                    <FormatOptions page={page} onChange={applyPage} />
-                  )}
-                </div>
-              )}
-            </section>
-          ) : reviewing && panels === "rail" && (side === "sections" || side === "format") ? (
-            // T2: each view its own panel, named, opened from the rail
+          {reviewing && (side === "sections" || side === "format") ? (
+            // Each view its own panel, named, opened from the rail
             <SidePanel
               title={side === "sections" ? "Sections" : "Format"}
               onClose={() => showSide(null)}
@@ -3701,20 +3703,14 @@ export function Editor({
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
         {reviewing && (
-          // With the rail (T2) these move to it from @4xl, where it shows;
-          // with the tabs (T3) Suggestions is the panel's one button: it
-          // shows pressed on any tab and opens the tab shown last
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-1",
-              panels === "rail" && "@4xl/main:hidden",
-            )}
-          >
+          // Below @4xl, where the rail does not show, the views open from
+          // here; from @4xl they are the rail's
+          <div className="flex shrink-0 items-center gap-1 @4xl/main:hidden">
             <ReviewButtons
               review={{
                 count: suggestionCount,
-                side: panels === "tabs" && reviewTab(side) ? "suggestions" : side,
-                onSide: (to) => showSide(panels === "tabs" && to === "suggestions" ? lastTab : to),
+                side,
+                onSide: showSide,
                 hasOriginal: Boolean(original),
               }}
             />
@@ -3738,6 +3734,25 @@ export function Editor({
         />
       )}
       {grid}
+      {reviewing && railFolded && (
+        // The folded rail: a tab at the window's right edge, near its foot,
+        // as Gmail's "Show side panel"
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Show Side Panel"
+                onClick={() => foldRail(false)}
+                className="bg-panel ring-border-surface text-ink-muted hover:text-ink hover:bg-hover focus-visible:ring-brand-ring fixed right-0 bottom-6 z-30 hidden h-10 w-9 items-center justify-center rounded-l-full pl-1 shadow-(--shadow-panel) ring-1 focus-visible:ring-2 focus-visible:outline-none @4xl/main:flex"
+              />
+            }
+          >
+            <CaretLeftIcon aria-hidden className="size-4" weight="bold" />
+          </TooltipTrigger>
+          <TooltipContent side="left">Show Side Panel</TooltipContent>
+        </Tooltip>
+      )}
       {entryDialog}
     </div>
   );
@@ -3781,6 +3796,9 @@ function useFitToWindow(foot = 24) {
   }, [el, foot]);
   return setEl;
 }
+
+/** Where the browser keeps whether the review's rail is folded away. */
+const RAIL_FOLDED = "workit:review-rail-folded";
 
 /** A panel beside the page: white with the desk's outline (2026-11-23).
  *  It was the brand tint, the colour every picked control wears, so the

@@ -929,59 +929,22 @@ function ZoomSkeleton() {
   return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
 }
 
-/** Tailor's review's views beside the page, as one panel's tabs (trial
- *  T3, 2026-11-23): Suggestions, with its count, Sections and Format, on a
- *  rule, and the panel's close, as `PanelTabs` draws the editor's. The title
- *  row's Suggestions opens the panel on the tab shown last. */
-export type ReviewTab = "suggestions" | "sections" | "format";
-
-export function ReviewTabs({
-  tab,
-  count,
-  onTab,
-  onClose,
-}: {
-  tab: ReviewTab;
-  count: number;
-  onTab: (tab: ReviewTab) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex items-end gap-2">
-      <TabButtons
-        label="Side Panel"
-        ruled
-        className="flex-1 gap-5"
-        options={[
-          { value: "suggestions", label: count ? `Suggestions ${count}` : "Suggestions" },
-          { value: "sections", label: "Sections" },
-          { value: "format", label: "Format" },
-        ]}
-        value={tab}
-        onChange={onTab}
-      />
-      <IconButton
-        place="row"
-        label="Close Panel"
-        tooltip="Close"
-        className="mb-1"
-        onClick={onClose}
-      >
-        <CloseIcon />
-      </IconButton>
-    </div>
-  );
-}
-
 /**
- * Tailor's review's views as a rail of icons down the page's right edge
- * (trial T2, 2026-11-23), as Google Docs keeps its side panels' icons:
- * Suggestions with its count, Sections, Format and Original. A press opens
- * that view in the column beside the rail and shows pressed; a press on the
- * pressed one closes it, and the page takes the room. The rail stays, so
- * every view is always one press away.
+ * Tailor's review's views, as a rail of icons down the window's right edge
+ * (2026-11-23, after Gmail's; the user's pick of three trials): Suggestions
+ * with its count, Sections, Format and Original, each named by its
+ * tooltip. A press opens that view beside the rail and tints the icon, as
+ * a pressed bar button is tinted (`PRESSED_GLYPH`); a press on the open one
+ * closes it, and the page takes the room. The chevron at its foot folds the
+ * rail away to a tab at the window's edge, as Gmail's does.
+ *
+ * It has no box: the icons stand on the page's own ground, so the rail
+ * reads as the window's frame, not one more box beside the page. A boxed
+ * card of icons came first, short and floating, which read as content and
+ * could not be put away; tiles with names under the icons, as the left
+ * sidebar's, came second, and the user found them heavy (2026-11-23).
  */
-export function ReviewRail({ review }: { review: ReviewTools }) {
+export function ReviewRail({ review, onFold }: { review: ReviewTools; onFold: () => void }) {
   const item = (
     side: Exclude<Side, null>,
     label: string,
@@ -993,21 +956,21 @@ export function ReviewRail({ review }: { review: ReviewTools }) {
       <Tooltip key={side}>
         <TooltipTrigger
           render={
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              aria-label={count > 0 ? `${label}, ${count}` : label}
+            <button
+              type="button"
               aria-pressed={open}
-              // Muted until pressed, as the bar's own buttons are (`BAR_BUTTONS`):
-              // in the brand colour, every icon read as an open view
-              className={cn(PRESSED_GLYPH, "text-ink-muted hover:text-ink relative shrink-0")}
+              aria-label={count > 0 ? `${label}, ${count}` : label}
               onClick={() => review.onSide(open ? null : side)}
+              className={cn(
+                RAIL_ICON,
+                open ? "bg-brand-tint text-brand" : "text-ink-muted hover:bg-ink/5 hover:text-ink",
+              )}
             />
           }
         >
           <Icon aria-hidden className="size-5" />
           {count > 0 && (
-            <span className="bg-brand text-on-brand text-note absolute -top-1 -right-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
+            <span className="bg-brand text-on-brand text-caption absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
               {count}
             </span>
           )}
@@ -1017,19 +980,35 @@ export function ReviewRail({ review }: { review: ReviewTools }) {
     );
   };
   return (
-    <nav
-      aria-label="Views beside the page"
-      className="bg-panel ring-border-surface rounded-card flex flex-col items-center gap-1 p-1 ring-1"
-    >
+    <div className="flex h-full flex-col items-center gap-2 py-1">
       {item("suggestions", "Suggestions", LightbulbIcon, review.count)}
       {item("sections", "Sections", ListBulletsIcon)}
       {item("format", "Format", TextAaIcon)}
       {review.hasOriginal && (
         <>
-          <span aria-hidden className="bg-border-subtle my-0.5 h-px w-6" />
+          <span aria-hidden className="bg-border-surface h-px w-6" />
           {item("original", "Original Resume", FileIcon)}
         </>
       )}
-    </nav>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Hide Side Panel"
+              onClick={onFold}
+              className={cn(RAIL_ICON, "text-ink-meta hover:bg-ink/5 hover:text-ink mt-auto")}
+            />
+          }
+        >
+          <ChevronRightIcon aria-hidden className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side="left">Hide Side Panel</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
+
+/** A rail icon: 40px, round as Gmail's, its pressed tint the bar's. */
+const RAIL_ICON =
+  "focus-visible:ring-brand-ring relative flex size-10 shrink-0 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";

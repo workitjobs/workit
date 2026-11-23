@@ -244,6 +244,27 @@ response lists each change with what it replaced, by handle and id:
 
 ## Suggestions
 
+**The views beside the page open from a rail** (2026-11-23, after
+Gmail's; the user's pick of three trials). A column of icons down the
+page's right edge, on the page's own ground with no box, holds
+Suggestions (with its count), Sections, Format and Original, each named by
+its tooltip. A press opens that view beside the rail, sliding out over
+200ms (still with reduced motion), and tints the icon as a pressed bar
+button is; a press on the open one closes it. The chevron at the rail's
+foot folds it away, with any open view, to a tab at the window's right
+edge ("Show Side Panel"), kept per browser (`workit:review-rail-folded`).
+The panels are white with the desk's outline: the Suggestions panel and
+the Sections and Format panels were the brand tint, the colour every
+picked control wears, so each read as picked. Before the rail, Original
+and Suggestions were icons in the title row and Sections and Format a
+button at the toolbar's end: one kind of control in two places. The
+toolbar now holds tools for the page only, and below @4xl, where the rail
+does not show, the title row's icons open the views. Also tried: one
+panel with Suggestions, Sections and Format as tabs; a boxed card of
+icons; and tiles with names under the icons as the left sidebar's, which
+the user found heavy. The rest of this section says "the toolbar's
+Suggestions" or "the title row's icons" where the rail now does it.
+
 The review step (`/jobs/[jobId]/tailor?resumeId=`) shows one resume, the
 tailored one in the editor, and a Suggestions panel on its right, as a
 document's suggestions sit in its margin
