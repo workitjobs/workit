@@ -32,7 +32,7 @@ from workit_scout.schemas import (
     TextEvent,
 )
 from workit_scout.settings import Endpoint, ScoutSettings
-from workit_scout.testing import ScriptedLLM
+from workit_scout.testing import ScriptedLLM, endpoint
 
 _REQUEST = httpx.Request("POST", "http://primary.test/v1/chat/completions")
 
@@ -96,7 +96,77 @@ def test_the_chain_moves_down_past_a_429_a_5xx_and_a_dead_endpoint():
     down = APIConnectionError(request=_REQUEST)
     fake = ScriptedLLM(rate_limited(), server_error(), down, ["fourth"])
     assert reply(collect(fake, "hello")) == "fourth"
-    assert len(fake.prompts) == 4
+    # The 5xx endpoint is asked three times, once and after each pause.
+    assert len(fake.prompts) == 6
+
+
+class BusyAtFirst(ScriptedLLM):
+    """The chain's first endpoint answers 503 to its first `busy` asks, then
+    follows its script, as Gemini's free tier does under high demand."""
+
+    def __init__(self, busy: int, *scripts):
+        super().__init__(*scripts)
+        self.busy = busy
+        self.asked: dict = {}
+
+    async def _complete(self, client, endpoint, messages):
+        self.asked[endpoint] = self.asked.get(endpoint, 0) + 1
+        if endpoint == self._endpoints[0][0] and self.asked[endpoint] <= self.busy:
+            self.prompts.append(list(messages))
+            raise server_error()
+        async for piece in super()._complete(client, endpoint, messages):
+            yield piece
+
+
+def test_a_busy_endpoint_is_asked_again_before_the_chain_moves_down():
+    fake = BusyAtFirst(2, ["from the first"], ["from the second"])
+    assert reply(collect(fake, "hello")) == "from the first"
+    assert len(fake.prompts) == 3
+
+
+def test_a_busy_structured_call_is_asked_again():
+    fake = BusyAtFirst(1, ['{"title": "T", "bullets": []}'])
+    assert ask_json(fake).title == "T"
+    assert len(fake.prompts) == 2
+
+
+def test_a_busy_schema_call_is_asked_again():
+    fake = BusyAtFirst(2, ['{"a": 1}'])
+    messages = [{"role": "user", "content": "x"}]
+    answer, _ = asyncio.run(fake.complete_schema(messages, {"type": "object"}, identity=Identity()))
+    assert answer == {"a": 1}
+
+
+def test_an_endpoint_busy_past_its_pauses_gives_way_to_the_next():
+    fake = BusyAtFirst(3, ["never"], ["from the second"])
+    assert reply(collect(fake, "hello")) == "from the second"
+    assert fake.asked[endpoint(0)] == 3
+
+
+def test_a_busy_endpoint_waits_each_pause_in_turn(monkeypatch):
+    waited = []
+
+    async def sleep(seconds):
+        waited.append(seconds)
+
+    monkeypatch.setattr(llm_module.asyncio, "sleep", sleep)
+    fake = BusyAtFirst(2, ['{"title": "T", "bullets": []}'])
+    fake.BUSY_PAUSES = LLM.BUSY_PAUSES
+    assert ask_json(fake).title == "T"
+    assert waited == list(LLM.BUSY_PAUSES)
+
+
+def test_a_429_and_a_dead_endpoint_are_not_asked_again():
+    down = APIConnectionError(request=_REQUEST)
+    fake = ScriptedLLM(rate_limited(), down, ["third"])
+    assert reply(collect(fake, "hello")) == "third"
+    assert len(fake.prompts) == 3
+
+
+def test_a_5xx_mid_reply_is_not_asked_again():
+    events = collect(ScriptedLLM(["Half a", server_error()], ["whole"]), "hello")
+    assert reply(events) == "Half a"
+    assert events[-1] == ErrorEvent(message=llm_module.CUT_OFF)
 
 
 def test_unreachable_primary_falls_back():
