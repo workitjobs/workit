@@ -3016,8 +3016,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   mouse wheel (each event held to a tenth, or one notch jumped 60%), two
   fingers on a touch screen, any percent from 50 to 200, over the desk
   round the pages (a pinch begun on its grey zoomed the whole browser).
-  While it moves the pages are only stretched; once it ends they draw
-  again at their new width and the line under the fingers stays there.
+  While it moves the pages are only stretched, and the bar's percent
+  follows the fingers (a store of its own in `zoom.tsx`, so only the
+  label draws again, never the editor; it stood still until the pinch
+  ended). Once it ends they draw again at their new width and the line
+  under the fingers stays there. **A zoom lands in one frame**:
+  `useZoomTo` sets it inside `flushSync`, then lets go of the stretch and
+  scrolls before the browser paints. It did both two frames later at
+  first, so a pinch's end showed the page at its new width still
+  stretched (half size for two frames after a pinch out), then moved it:
+  the user saw the editor flash. The canvases keep their old drawing,
+  stretched, until pdf.js draws them sharp (`PageCanvas`), so nothing
+  blanks.
   **The first version jumped** (the user, 2026-11-23), for four reasons
   the hook's comment lists: it drew again at any short pause mid-pinch, it
   stretched about the pointer while the centred page grows about its

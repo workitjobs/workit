@@ -2,6 +2,7 @@
 
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { flushSync } from "react-dom";
 
 import { ChevronDownIcon } from "@/components/icons";
 import {
@@ -70,6 +71,39 @@ export function useZoom() {
   return [zoom, set] as const;
 }
 
+/**
+ * The percent a pinch shows while the fingers move (2026-11-23): the bar
+ * stood at the old percent until the pinch ended (the user). Kept outside
+ * React state so only the bar's label draws again on each step, never the
+ * editor. `base` is the percent the page had when it was written: once the
+ * page's own percent moves on (`usePageZoom`), the label reads that again.
+ */
+type Live = { percent: number; base: number } | null;
+let livePercent: Live = null;
+const liveListeners = new Set<() => void>();
+function setLive(next: Live) {
+  if (next?.percent === livePercent?.percent && next?.base === livePercent?.base) return;
+  livePercent = next;
+  liveListeners.forEach((listener) => listener());
+}
+/** What the bar shows: the pinch's percent while it moves and until the
+ *  page's own percent catches up, else the page's own. */
+function useShownPercent(shown: number) {
+  const live = useSyncExternalStore(
+    (listener) => {
+      liveListeners.add(listener);
+      return () => liveListeners.delete(listener);
+    },
+    () => livePercent,
+    () => null,
+  );
+  // The page's own percent has moved on: the pinch's is spent
+  useEffect(() => {
+    if (live && live.base !== shown) setLive(null);
+  }, [live, shown]);
+  return live && live.base === shown ? live.percent : shown;
+}
+
 /** Zoom Out, the zoom as a menu of its steps, and Zoom In, as a PDF
  *  viewer has them, at the slim bar's end (the bar draws the rule before
  *  it). After KAN-421 widened every seeker page to 1440px,
@@ -89,6 +123,7 @@ export function Zoom({
   full?: boolean;
   onZoom: (zoom: number) => void;
 }) {
+  const percent = useShownPercent(shown);
   const below = [...ZOOMS].reverse().find((step) => step < shown - 0.5);
   const above = full ? undefined : ZOOMS.find((step) => step > shown + 0.5);
   return (
@@ -104,10 +139,10 @@ export function Zoom({
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label={`Zoom, ${zoom === FIT ? "Fit Width, " : ""}${shown}%`}
+          aria-label={`Zoom, ${zoom === FIT ? "Fit Width, " : ""}${percent}%`}
           render={<Button variant="ghost" size="sm" />}
         >
-          {shown}%
+          {percent}%
           <ChevronDownIcon className="text-ink-meta size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent data-keeps-selection align="center" className="w-auto min-w-28">
@@ -142,8 +177,8 @@ function ZoomItems({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => v
 }
 
 /** Sets the zoom and keeps the line at `y` (a screen position) where it
- *  is (`useZoomTo`); `after` runs once the pages have drawn at the new
- *  zoom, before the scroll. */
+ *  is (`useZoomTo`); `after` runs once the pages have their new width,
+ *  before the scroll, in the same frame. */
 export type ZoomTo = (zoom: number, y?: number, after?: () => void) => void;
 
 function scrollerOf(el: HTMLElement): HTMLElement {
@@ -191,13 +226,13 @@ export function useZoomTo(pages: RefObject<HTMLElement | null>, setZoom: (zoom: 
       if (el.getBoundingClientRect().top < top) y = top;
     }
     const place = el && y != null ? placeAt(el, y) : null;
-    setZoom(zoom);
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        after?.();
-        if (el && scroller && place && y != null) scroller.scrollBy({ top: yOf(el, place) - y });
-      }),
-    );
+    // The new width, the stretch let go and the scroll all land before the
+    // browser paints: two frames later, as it first ran, a pinch's end drew
+    // the page at its new width still stretched (half size for two frames
+    // after a pinch out), then at the right place (the user's "flash")
+    flushSync(() => setZoom(zoom));
+    after?.();
+    if (el && scroller && place && y != null) scroller.scrollBy({ top: yOf(el, place) - y });
   };
   return zoomTo;
 }
@@ -280,6 +315,10 @@ export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number
     const show = () => {
       el.style.transformOrigin = `50% ${anchor}px`;
       el.style.transform = scale === 1 ? "" : `scale(${scale})`;
+      if (moving) {
+        const from = latest.current.shown;
+        setLive({ percent: Math.round(from * scale), base: from });
+      }
     };
     const begin = (clientY: number) => {
       if (moving) return;
@@ -295,7 +334,10 @@ export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number
       const { shown: from, onZoom: set } = latest.current;
       const to = Math.round(from * scale);
       scale = 1;
-      if (to === from) return show();
+      if (to === from) {
+        setLive(null);
+        return show();
+      }
       // The stretch stays until the page has drawn at its new width, so
       // nothing shows at the old size in between. The line under the
       // fingers is where the gesture began: the stretch holds it still
@@ -380,11 +422,12 @@ export function ZoomSubmenu({
   shown: number;
   onZoom: (zoom: number) => void;
 }) {
+  const percent = useShownPercent(shown);
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
         <MagnifyingGlassPlusIcon aria-hidden /> Zoom
-        <span className="text-ink-meta">{shown}%</span>
+        <span className="text-ink-meta">{percent}%</span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent data-keeps-selection className="w-auto min-w-28">
         <ZoomItems zoom={zoom} onZoom={onZoom} />
