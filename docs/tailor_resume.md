@@ -272,11 +272,17 @@ and Undo All Suggestions, in words, Undo All last and red. Six controls on
 one row, four bare icons, and Undo All drawn as each card's Undo arrow
 came first. Entries are sections under hairlines with no box, and a change
 has no box either: each row's badge sits on its entry title's edge, and
-its name and change on one edge after it. A rewording shows its new words
-with only the changed ones highlighted (`markNew`, a longest common run of
-words), and Show Before opens the old words in grey; its whole old line
-struck in red over its whole new line in green was hard to read and
-marked nothing. An added skill is a chip. Three frames deep (panel, entry,
+its name and change on one edge after it. **A rewording shows Was over
+Now, both always** (`wordChanges`, a longest common run of words; the
+user's pick of three, over Docs' "Replace X with Y" sentence and one
+merged line): the student keeps or undoes it by comparing the two. When
+at most half its words are new, the gone ones are struck in grey and the
+new ones tinted the reworded blue, as the page tints the line; when more
+changed, as an AI rewording mostly does, neither line is marked, since a
+line all marked marks nothing. Its whole old line struck in red over its
+whole new line in green came first, then for a day its new words alone in
+green with Show Before: green is the added colour, and hiding the old
+words hid what the choice needs. An added skill is a green chip. Three frames deep (panel, entry,
 change) and the entries' outlines, cut off by the scrolling list, went
 with this. A card's Undo is "Undo This Change" in its tooltip. The rest of
 this section describes the cards and boxes as they were.

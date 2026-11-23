@@ -11,7 +11,7 @@ import {
   PencilSimpleIcon,
   PlusIcon,
 } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 
 import { facetClasses } from "@/components/field-facet";
 import { ChevronDownIcon, CloseIcon, EllipsisIcon, FilterIcon } from "@/components/icons";
@@ -634,15 +634,15 @@ function title(change: Change) {
  * A change under its row's name, with no box (2026-11-23): an added skill
  * as a chip, as the Edit Skill Group dialog draws one; an added or removed
  * line in plain type; each moved bullet with its place before and after as
- * an amber tag; a rewording as its new words, only the changed ones
- * highlighted (`markNew`), with Show Before for the old words in grey. A
- * white card with an outline held each change until then, a third frame
- * inside the panel and its entry, and a rewording showed its whole old line
- * struck in red over its whole new line in green: struck paragraphs are
- * hard to read, and a line all marked marks nothing.
+ * an amber tag; a rewording as Was over Now (`wordChanges`). A white card
+ * with an outline held each change until then, a third frame inside the
+ * panel and its entry, and a rewording showed its whole old line struck in
+ * red over its whole new line in green: struck paragraphs are hard to read,
+ * a line all marked marks nothing, and green is the added colour, not the
+ * reworded one. Its new words alone in green, with Show Before, came next
+ * for a day.
  */
 function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
-  const [before, setBefore] = useState(false);
   if (change.kind === "added" && change.where === "skills")
     return (
       <span className="bg-positive-tint text-positive-ink text-note rounded-control self-start px-2 py-0.5 font-medium">
@@ -680,37 +680,50 @@ function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; cho
   const after = change.after ?? "";
   const old = change.before;
   if (!old) return <p className="text-note text-ink">{after}</p>;
+  // Was over Now, both always shown (2026-11-23, the user's pick of three):
+  // the student keeps or undoes it by comparing the two, so the old words
+  // were one click away behind Show Before. A few words changed: the gone
+  // ones struck in grey, the new ones in the reworded blue, as the page
+  // tints the line. Most of the line changed, as an AI rewording mostly
+  // does: no marks, since a line all marked marks nothing
+  const words = wordChanges(old, after);
+  const marked = words.share <= 0.5;
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-note text-ink">
-        {markNew(old, after).map((run, i) =>
-          run.added ? <Added key={i}>{run.text}</Added> : <span key={i}>{run.text}</span>,
+    <dl className="text-note grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5 gap-y-1.5">
+      <dt className={PAIR_LABEL}>Was</dt>
+      <dd className="text-ink-meta">
+        {words.old.map((run, i) =>
+          marked && run.changed ? (
+            <del key={i} className="decoration-ink-meta/70 line-through">
+              {run.text}
+            </del>
+          ) : (
+            <span key={i}>{run.text}</span>
+          ),
         )}
-      </p>
-      <button
-        type="button"
-        aria-expanded={before}
-        onClick={() => setBefore(!before)}
-        className="text-note text-ink-meta hover:text-ink focus-visible:outline-brand flex items-center gap-1 self-start rounded-xs font-medium focus-visible:outline-2"
-      >
-        {before ? "Hide Before" : "Show Before"}
-        <CaretDownIcon
-          aria-hidden
-          className={cn("size-3 transition-transform duration-150", before && "rotate-180")}
-        />
-      </button>
-      {before && <p className="text-note text-ink-meta">{old}</p>}
-    </div>
+      </dd>
+      <dt className={PAIR_LABEL}>Now</dt>
+      <dd className="text-ink">
+        {words.now.map((run, i) =>
+          marked && run.changed ? (
+            <ins
+              key={i}
+              className="bg-advanced-tint rounded-sm box-decoration-clone px-0.5 no-underline"
+            >
+              {run.text}
+            </ins>
+          ) : (
+            <span key={i}>{run.text}</span>
+          ),
+        )}
+      </dd>
+    </dl>
   );
 }
 
-function Added({ children }: { children: ReactNode }) {
-  return (
-    <ins className="bg-positive/25 rounded-sm box-decoration-clone px-0.5 no-underline">
-      {children}
-    </ins>
-  );
-}
+/** "Was" and "Now" before a rewording's two lines: small, quiet labels on
+ *  the lines' first baselines. */
+const PAIR_LABEL = "text-caption text-ink-meta pt-px font-semibold uppercase tracking-wide";
 
 function ordinal(n: number) {
   const tens = n % 100;
@@ -722,50 +735,65 @@ function ordinal(n: number) {
  *  that change what it says ("C++", "50%"), in any case. */
 const keyOf = (word: string) => word.toLowerCase().replace(/[^\p{L}\p{N}+#%$]/gu, "");
 
+type Run = { text: string; changed: boolean };
+
+/** Words with the spaces between them kept, and each word's key. */
+function wordsOf(line: string) {
+  const parts = line.trim().split(/(\s+)/);
+  const words = parts.filter((_, i) => i % 2 === 0);
+  return { parts, words, keys: words.map(keyOf) };
+}
+
+/** Words as runs, a run per stretch of changed or kept words. The space
+ *  between two runs goes with the kept one, so a mark ends at its word: it
+ *  ran on over the next space (2026-11-23). A word with no letters or
+ *  numbers (a dash) follows its neighbour. */
+function runsOf({ parts, words, keys }: ReturnType<typeof wordsOf>, changed: boolean[]): Run[] {
+  words.forEach((_, j) => {
+    if (!keys[j] && j > 0) changed[j] = changed[j - 1];
+  });
+  const runs: Run[] = [];
+  words.forEach((word, j) => {
+    const space = j > 0 ? parts[2 * j - 1] : "";
+    const last = runs.at(-1);
+    if (last && last.changed === changed[j]) last.text += space + word;
+    else if (last && !last.changed) {
+      last.text += space;
+      runs.push({ text: word, changed: changed[j] });
+    } else runs.push({ text: space + word, changed: changed[j] });
+  });
+  return runs;
+}
+
 /**
- * The new line as runs of words, each marked when the old line does not
- * have it in that order (a longest common run of words, compared by
- * `keyOf`), with the spaces kept, so only what the rewording brought in is
- * highlighted. A head-and-tail match came first: it marked a whole line
- * whenever a word near its start changed.
+ * A rewording's two lines as runs of words, each marked where the other
+ * line does not have it in that order (a longest common run of words,
+ * compared by `keyOf`), and the share of the new line's words that are new.
+ * A head-and-tail match came first: it marked a whole line whenever a word
+ * near its start changed.
  */
-export function markNew(before: string, after: string): { text: string; added: boolean }[] {
-  const a = before.trim().split(/\s+/).map(keyOf);
-  const words = after.trim().split(/(\s+)/);
-  const b = words.filter((_, i) => i % 2 === 0);
-  const keys = b.map(keyOf);
-  // lcs[i][j]: the longest common run of a[i..] and keys[j..]
-  const lcs = Array.from({ length: a.length + 1 }, () =>
-    new Array<number>(keys.length + 1).fill(0),
-  );
+export function wordChanges(before: string, after: string) {
+  const was = wordsOf(before);
+  const now = wordsOf(after);
+  const a = was.keys;
+  const b = now.keys;
+  // lcs[i][j]: the longest common run of a[i..] and b[j..]
+  const lcs = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
   for (let i = a.length - 1; i >= 0; i--)
-    for (let j = keys.length - 1; j >= 0; j--)
+    for (let j = b.length - 1; j >= 0; j--)
       lcs[i][j] =
-        a[i] && a[i] === keys[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+        a[i] && a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const gone = new Array<boolean>(a.length).fill(true);
   const added = new Array<boolean>(b.length).fill(true);
-  for (let i = 0, j = 0; i < a.length && j < keys.length;) {
-    if (a[i] && a[i] === keys[j]) {
+  for (let i = 0, j = 0; i < a.length && j < b.length;) {
+    if (a[i] && a[i] === b[j]) {
+      gone[i] = false;
       added[j] = false;
       i++;
       j++;
     } else if (lcs[i + 1][j] >= lcs[i][j + 1]) i++;
     else j++;
   }
-  // A word with no letters or numbers (a dash) follows its neighbour
-  b.forEach((word, j) => {
-    if (!keyOf(word) && j > 0) added[j] = added[j - 1];
-  });
-  const runs: { text: string; added: boolean }[] = [];
-  b.forEach((word, j) => {
-    const space = j > 0 ? words[2 * j - 1] : "";
-    const last = runs.at(-1);
-    if (last && last.added === added[j]) last.text += space + word;
-    // The space between two runs goes with the unmarked one, so a
-    // highlight ends at its word: it ran on over the next space
-    else if (last && !last.added) {
-      last.text += space;
-      runs.push({ text: word, added: added[j] });
-    } else runs.push({ text: space + word, added: added[j] });
-  });
-  return runs;
+  const share = b.length ? added.filter(Boolean).length / b.length : 0;
+  return { old: runsOf(was, gone), now: runsOf(now, added), share };
 }
