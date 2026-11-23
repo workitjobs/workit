@@ -4783,6 +4783,16 @@ file in `admin/scrape-health/`:
   not answer, and a mean of the rows' rates is another number. A new admin
   page takes its time control from `WindowControls`, never a form of its
   own: Fill Health had a Days select with a Filter button until then.
+- **Fill Reports and a report's page use the same parts** (`fill-reports/`,
+  2026-11-23): the filters in a card, then Groups and Reports as a `Panel`
+  each, a status as `StatusPill`, and on a report's page the summary, the
+  triage, Fields and Fix Brief as a card each (`fill-reports/parts.tsx`
+  holds the pill, the field classes and the time format). **Their forms
+  stay native** (a GET form for the filters, a server action for the
+  triage), so the address holds the filters and both work with no script.
+  **Not seen with data**: the shared database held no report when they
+  were restyled, so the two tables, the pills and a report's page were
+  checked by types and lint only. Look at them with the first real report.
 - **Boards by Hiring System and Board Reads** (`reads-explorer.tsx`, one
   client component, since they share a pick): a bar per system, the five
   largest until Show All, each row a button that filters the table to its
