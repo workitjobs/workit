@@ -4669,8 +4669,8 @@ link goes to its section (the user's request, 2026-11-19):
   pages and the sidebar both read it (the rule on `HISTORY`, below).
 - **On the page itself the link is the fragment alone** (`#board-reads`),
   so the address keeps its period and position; from another page it is
-  that page's address with the fragment. A page with one part (Fill
-  Health) has no section links.
+  that page's address with the fragment. Every admin page has sections
+  now, so the sidebar draws the arrow on every row.
 - **`goTo` in `admin-nav.tsx` scrolls on every press.** Next scrolls to a
   fragment only when the fragment changes (`url.hash !== oldUrl.hash` in
   its navigation), so a second press on the same section, after the admin
@@ -4706,6 +4706,27 @@ link goes to its section (the user's request, 2026-11-19):
   reach.
 - **Still open:** no link is marked as the section in view, and a phone
   has no section links.
+- **A read with no data goes through `refuse`** (`admin/refuse.ts`):
+  signed out to the sign-in page, a 403 or 404 to the 404 page, and any
+  other answer thrown to `admin/error.tsx` (This Page Isn't Loading Right
+  Now, with Try Again, inside the shell). Every failed read went to the
+  404 page until 2026-11-23, so a broken scraper query told an admin the
+  page did not exist. A new admin page calls `refuse(status)`, never
+  `notFound()` itself.
+- **Shared admin parts, each used by more than one page**:
+  `admin/format.ts` (`count`, `when`: seven files had their own
+  `count`), `admin/sort-heads.tsx` (`SortHeads` and `bySort`, the
+  sortable header both tables draw, so their `aria-sort` cannot drift),
+  and `Key` from `reads-chart.tsx`. A third admin table takes
+  `SortHeads`; it never copies the header.
+- **A table's pick can outlive its option** (`fills-table.tsx`, `held`):
+  the Job System and Errors options come from the window's rows, and the
+  window moves under the table. A pick the rows no longer hold counts as
+  no pick, or the table says nothing matches while rows exist. Board
+  Reads lists every hiring system whatever the window, so it needs none.
+- **A chart column has a 2px floor** (`min-h-0.5`, `reads-chart.tsx`): 3
+  failed reads on a 5,000 axis drew 0.13px, so a day with failures showed
+  no red.
 
 `/admin/fill-reports` gives its two sections ids (Groups, Reports) and
 now always draws the Groups heading, with "No groups for these filters."

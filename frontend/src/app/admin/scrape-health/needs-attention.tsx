@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { dayLabel, HISTORY, systemName } from "@/lib/scrape-status";
 
+import { count } from "../format";
 import { SCRAPE_SECTIONS } from "../pages";
 import { Panel } from "../panel";
 
-const count = (n: number) => n.toLocaleString("en-US");
 const SUBHEAD = "text-label text-ink-meta bg-well border-border-subtle border-b px-5 py-2";
 const ROW = "border-border-subtle border-b px-5 py-3 last:border-b-0";
 /** The rows a list shows before See More. */

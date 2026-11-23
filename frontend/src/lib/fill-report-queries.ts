@@ -66,7 +66,7 @@ export function getFillHealth(query: string): Promise<Read<FillHealth>> {
   return read(`/admin/fill-health${query}`);
 }
 
-/** The scraper's health (KAN-879): GET /admin/scrape-health with `?days=` from `daysOf`. */
+/** The scraper's health (KAN-879): GET /admin/scrape-health for the last `days` days. */
 export function getScrapeHealth(days: number): Promise<Read<ScrapeHealth>> {
   return read(`/admin/scrape-health?days=${days}`);
 }

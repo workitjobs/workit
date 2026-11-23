@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/ssr";
+import { CaretDownIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { SelectField } from "@/components/ui/select-field";
@@ -8,10 +8,12 @@ import { cn } from "@/lib/cn";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { systemName } from "@/lib/scrape-status";
 
+import { count } from "../format";
 import { SCRAPE_SECTIONS } from "../pages";
-import { Panel, TD, TH } from "../panel";
+import { Panel, TD } from "../panel";
+import { bySort, type Sort, SortHeads } from "../sort-heads";
+import { Key } from "./reads-chart";
 
-const count = (n: number) => n.toLocaleString("en-US");
 /** The systems the first card shows before its arrow opens the rest. */
 const FIRST = 5;
 const ALL = "all";
@@ -32,15 +34,6 @@ const COLUMNS = [
   { key: "new_jobs", label: "New Jobs", numeric: true },
 ] as const satisfies readonly { key: keyof Row; label: string; numeric: boolean }[];
 type SortKey = (typeof COLUMNS)[number]["key"];
-
-function Key({ swatch, children }: { swatch: string; children: string }) {
-  return (
-    <span className="flex items-center gap-2">
-      <span className={`size-2.5 rounded-xs ${swatch}`} aria-hidden />
-      {children}
-    </span>
-  );
-}
 
 /**
  * Scrape Health's two lower cards, which share one pick (KAN-879).
@@ -69,7 +62,7 @@ export function ReadsExplorer({
   const [open, setOpen] = useState(false);
   const [system, setSystem] = useState(ALL);
   const [result, setResult] = useState(ALL);
-  const [sort, setSort] = useState<{ key: SortKey; down: boolean }>({ key: "day", down: true });
+  const [sort, setSort] = useState<Sort<SortKey>>({ key: "day", down: true });
 
   const most = Math.max(...systems.map((s) => s.boards), 1);
   const more = systems.length - FIRST;
@@ -82,11 +75,7 @@ export function ReadsExplorer({
         (system === ALL || r.ats === system) &&
         (result === ALL || (result === "failed" ? r.failed > 0 : r.failed === 0)),
     )
-    .toSorted((a, b) => {
-      const [x, y] = [a[sort.key] ?? -1, b[sort.key] ?? -1];
-      const order = x < y ? -1 : x > y ? 1 : 0;
-      return sort.down ? -order : order;
-    });
+    .toSorted(bySort(sort));
 
   return (
     <>
@@ -195,34 +184,7 @@ export function ReadsExplorer({
             <table className="text-body w-full border-collapse text-left">
               <thead>
                 <tr className="border-border-subtle border-b">
-                  {COLUMNS.map((c) => {
-                    const sorted = sort.key === c.key;
-                    const Caret = sorted && !sort.down ? CaretUpIcon : CaretDownIcon;
-                    return (
-                      <th
-                        key={c.key}
-                        aria-sort={sorted ? (sort.down ? "descending" : "ascending") : "none"}
-                        className={cn(TH, "font-normal", c.numeric && "text-right")}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSort({ key: c.key, down: sorted ? !sort.down : true })}
-                          className={cn(
-                            "hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none",
-                            sorted && "text-ink",
-                          )}
-                        >
-                          {c.label}
-                          <Caret
-                            size={12}
-                            weight="bold"
-                            aria-hidden
-                            className={sorted ? undefined : "opacity-0"}
-                          />
-                        </button>
-                      </th>
-                    );
-                  })}
+                  <SortHeads columns={COLUMNS} sort={sort} onSort={setSort} />
                 </tr>
               </thead>
               <tbody>

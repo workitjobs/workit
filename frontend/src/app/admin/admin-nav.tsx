@@ -52,7 +52,7 @@ function goTo(id: string, event: MouseEvent<HTMLAnchorElement>) {
  * (`#board-reads`), so the address keeps its period and position, and from
  * another page it is that page's address with the fragment. They show from
  * lg up on the open sidebar only: the rail has icons alone, and the bar
- * below lg is one row. A page with one part (Fill Health) has none.
+ * below lg is one row.
  *
  * THE SECTION LINKS ARE CLOSED UNTIL THEIR ARROW OPENS THEM. Each page with
  * sections has a small arrow at the end of its row, a button of its own
@@ -119,7 +119,6 @@ export function AdminSidebar() {
         <ul className="flex gap-1 lg:flex-col">
           {ADMIN_PAGES.map(({ href, label, icon: Icon, sections }) => {
             const current = pathname === href || pathname.startsWith(`${href}/`);
-            const hasSections = sections.length > 0;
             const shown = open.includes(href);
             const listId = `admin-sections-${href.slice(href.lastIndexOf("/") + 1)}`;
             return (
@@ -132,65 +131,59 @@ export function AdminSidebar() {
                     className={cn(
                       ROW,
                       current ? CURRENT : QUIET,
-                      collapsed ? "lg:justify-center" : hasSections && "lg:pr-9",
+                      collapsed ? "lg:justify-center" : "lg:pr-9",
                     )}
                   >
                     <Icon size={18} weight={current ? "fill" : "regular"} aria-hidden />
                     <span className={words}>{label}</span>
                   </Link>
-                  {hasSections && (
-                    // Beside the page's link, never inside it: a press on the arrow opens the
-                    // list and goes nowhere. It sits in the room the link's padding leaves.
-                    <button
-                      type="button"
-                      onClick={() => toggle(href)}
-                      aria-expanded={shown}
-                      aria-controls={listId}
-                      aria-label={`${shown ? "Hide" : "Show"} ${label} Sections`}
-                      className={cn(
-                        "text-ink-meta hover:bg-rail-hover hover:text-ink rounded-control absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center transition-colors duration-150 max-lg:hidden",
-                        FOCUS,
-                        collapsed && "lg:hidden",
-                      )}
-                    >
-                      <CaretDownIcon
-                        size={14}
-                        weight="bold"
-                        aria-hidden
-                        className={cn(
-                          "transition-transform duration-150 motion-reduce:transition-none",
-                          shown && "rotate-180",
-                        )}
-                      />
-                    </button>
-                  )}
-                </div>
-                {hasSections && (
-                  <ul
-                    id={listId}
-                    aria-label={`${label} Sections`}
+                  {/* Beside the page's link, never inside it: a press on the arrow opens the
+                    list and goes nowhere. It sits in the room the link's padding leaves. */}
+                  <button
+                    type="button"
+                    onClick={() => toggle(href)}
+                    aria-expanded={shown}
+                    aria-controls={listId}
+                    aria-label={`${shown ? "Hide" : "Show"} ${label} Sections`}
                     className={cn(
-                      "border-rail-border mt-1 ml-5 flex-col border-l pl-2 max-lg:hidden",
-                      shown ? "flex" : "hidden",
+                      "text-ink-meta hover:bg-rail-hover hover:text-ink rounded-control absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center transition-colors duration-150 max-lg:hidden",
+                      FOCUS,
                       collapsed && "lg:hidden",
                     )}
                   >
-                    {sections.map((section) => (
-                      <li key={section.id}>
-                        <Link
-                          // The fragment alone on the page itself, so the address keeps its query.
-                          href={pathname === href ? `#${section.id}` : `${href}#${section.id}`}
-                          onClick={
-                            pathname === href ? (event) => goTo(section.id, event) : undefined
-                          }
-                          className={SECTION}
-                        >
-                          {section.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                    <CaretDownIcon
+                      size={14}
+                      weight="bold"
+                      aria-hidden
+                      className={cn(
+                        "transition-transform duration-150 motion-reduce:transition-none",
+                        shown && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </div>
+                <ul
+                  id={listId}
+                  aria-label={`${label} Sections`}
+                  className={cn(
+                    "border-rail-border mt-1 ml-5 flex-col border-l pl-2 max-lg:hidden",
+                    shown ? "flex" : "hidden",
+                    collapsed && "lg:hidden",
+                  )}
+                >
+                  {sections.map((section) => (
+                    <li key={section.id}>
+                      <Link
+                        // The fragment alone on the page itself, so the address keeps its query.
+                        href={pathname === href ? `#${section.id}` : `${href}#${section.id}`}
+                        onClick={pathname === href ? (event) => goTo(section.id, event) : undefined}
+                        className={SECTION}
+                      >
+                        {section.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </li>
             );
           })}

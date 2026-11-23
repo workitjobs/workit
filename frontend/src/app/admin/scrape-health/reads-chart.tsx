@@ -2,10 +2,10 @@ import { Tip } from "@/components/ui/tip";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import { dayLabel as label, rangeOf } from "@/lib/scrape-status";
 
+import { count } from "../format";
 import { SCRAPE_SECTIONS } from "../pages";
 import { Panel } from "../panel";
 
-const count = (n: number) => n.toLocaleString("en-US");
 /** An axis number, short once it is large: 1.5K, 20K. */
 const short = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
@@ -17,7 +17,7 @@ function niceTop(max: number): number {
   return top * power;
 }
 
-function Key({ swatch, children }: { swatch: string; children: string }) {
+export function Key({ swatch, children }: { swatch: string; children: string }) {
   return (
     <span className="flex items-center gap-2">
       <span className={`size-2.5 rounded-xs ${swatch}`} aria-hidden />
@@ -96,13 +96,13 @@ export function ReadsChart({
                     >
                       {day.failed > 0 && (
                         <span
-                          className="bg-danger block w-full max-w-8 rounded-t-xs"
+                          className="bg-danger block min-h-0.5 w-full max-w-8 rounded-t-xs"
                           style={{ height: share(day.failed) }}
                         />
                       )}
                       {day.done > 0 && (
                         <span
-                          className={`bg-brand block w-full max-w-8 ${day.failed > 0 ? "" : "rounded-t-xs"}`}
+                          className={`bg-brand block min-h-0.5 w-full max-w-8 ${day.failed > 0 ? "" : "rounded-t-xs"}`}
                           style={{ height: share(day.done) }}
                         />
                       )}

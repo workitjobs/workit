@@ -25,7 +25,6 @@ const boards = (failing: number) => ({
   failing,
   resting: 0,
   stale: 0,
-  open_jobs: 0,
   pending: 0,
   claimed: 0,
   oldest_pending_at: null,

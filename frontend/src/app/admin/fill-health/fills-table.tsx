@@ -1,6 +1,5 @@
 "use client";
 
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -8,6 +7,7 @@ import { SelectField } from "@/components/ui/select-field";
 import { cn } from "@/lib/cn";
 import {
   ALL_FILLS,
+  type FillFilters,
   type FillHealthRow,
   matchesFilters,
   NO_FILL_FILTERS,
@@ -15,10 +15,10 @@ import {
 } from "@/lib/fill-health";
 import { systemName, type Window, windowHref } from "@/lib/scrape-status";
 
+import { count } from "../format";
 import { FILL_SECTIONS } from "../pages";
 import { Panel, TD, TH } from "../panel";
-
-const count = (n: number) => n.toLocaleString("en-US");
+import { bySort, type Sort, SortHeads } from "../sort-heads";
 
 const NEEDS_YOU = [
   { value: ALL_FILLS, label: "Any Rate" },
@@ -60,17 +60,22 @@ export function FillsTable({
 }) {
   const router = useRouter();
   const [filters, setFilters] = useState(NO_FILL_FILTERS);
-  const [sort, setSort] = useState<{ key: SortKey; down: boolean }>({ key: "day", down: true });
+  const [sort, setSort] = useState<Sort<SortKey>>({ key: "day", down: true });
 
   const systems = [...new Set(rows.map((r) => r.job_system))].toSorted();
   const errorNames = [...new Set(rows.flatMap((r) => r.top_errors.map((e) => e.name)))].toSorted();
-  const shown = rows
-    .filter((r) => matchesFilters(r, filters))
-    .toSorted((a, b) => {
-      const [x, y] = [a[sort.key], b[sort.key]];
-      const order = x < y ? -1 : x > y ? 1 : 0;
-      return sort.down ? -order : order;
-    });
+  // A pick can outlive its option: the options come from the window's rows, and the window
+  // moves under this table. A pick the rows no longer hold counts as no pick, or the table
+  // would say nothing matches while rows exist.
+  const held: FillFilters = {
+    ...filters,
+    system: systems.includes(filters.system) ? filters.system : ALL_FILLS,
+    errors:
+      filters.errors.startsWith("name:") && !errorNames.includes(filters.errors.slice(5))
+        ? ALL_FILLS
+        : filters.errors,
+  };
+  const shown = rows.filter((r) => matchesFilters(r, held)).toSorted(bySort(sort));
 
   return (
     <Panel section={FILL_SECTIONS.fills} bodyClassName="p-0">
@@ -78,7 +83,7 @@ export function FillsTable({
         <SelectField
           id="fills-system"
           label="Job System"
-          value={filters.system}
+          value={held.system}
           onValueChange={(system) => setFilters({ ...filters, system })}
           options={[
             { value: ALL_FILLS, label: "All Job Systems" },
@@ -97,7 +102,7 @@ export function FillsTable({
         <SelectField
           id="fills-errors"
           label="Errors"
-          value={filters.errors}
+          value={held.errors}
           onValueChange={(errors) => setFilters({ ...filters, errors })}
           options={[
             { value: ALL_FILLS, label: "Any" },
@@ -136,34 +141,7 @@ export function FillsTable({
           <table className="text-body w-full border-collapse text-left">
             <thead>
               <tr className="border-border-subtle border-b">
-                {COLUMNS.map((c) => {
-                  const sorted = sort.key === c.key;
-                  const Caret = sorted && !sort.down ? CaretUpIcon : CaretDownIcon;
-                  return (
-                    <th
-                      key={c.key}
-                      aria-sort={sorted ? (sort.down ? "descending" : "ascending") : "none"}
-                      className={cn(TH, "font-normal", c.numeric && "text-right")}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSort({ key: c.key, down: sorted ? !sort.down : true })}
-                        className={cn(
-                          "hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none",
-                          sorted && "text-ink",
-                        )}
-                      >
-                        {c.label}
-                        <Caret
-                          size={12}
-                          weight="bold"
-                          aria-hidden
-                          className={sorted ? undefined : "opacity-0"}
-                        />
-                      </button>
-                    </th>
-                  );
-                })}
+                <SortHeads columns={COLUMNS} sort={sort} onSort={setSort} />
                 <th className={cn(TH, "font-normal")}>Top Errors</th>
               </tr>
             </thead>

@@ -5,11 +5,10 @@ import { cn } from "@/lib/cn";
 import type { ScrapeHealth } from "@/lib/fill-health";
 import type { Status } from "@/lib/scrape-status";
 
+import { count, when } from "../format";
 import { FIRST_SECTION_TARGET, SCRAPE_SECTIONS } from "../pages";
 
-const count = (n: number) => n.toLocaleString("en-US");
-const when = (iso: string | null) =>
-  iso ? `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC` : "Never";
+const whenOrNever = (iso: string | null) => (iso ? `${when(iso)} UTC` : "Never");
 
 /**
  * Each level's glyph and colours. The glyph and the title say the level, so
@@ -74,7 +73,7 @@ export function StatusLine({
           </h2>
           <p className="text-body text-ink-muted mt-1 max-w-(--measure-prose)">
             {status.reason} These numbers describe the worker, which is not scheduled yet. The
-            scheduled scrape last imported jobs at {when(data.last_import_at)}.
+            scheduled scrape last imported jobs at {whenOrNever(data.last_import_at)}.
           </p>
         </div>
       </div>
@@ -86,7 +85,7 @@ export function StatusLine({
         <Fact label="Resting Boards" value={count(boards.resting)} />
         <Fact label="Tasks Pending" value={count(boards.pending)} />
         <Fact label="Tasks Claimed" value={count(boards.claimed)} />
-        <Fact label="Oldest Pending Task" value={when(boards.oldest_pending_at)} />
+        <Fact label="Oldest Pending Task" value={whenOrNever(boards.oldest_pending_at)} />
       </dl>
     </Card>
   );

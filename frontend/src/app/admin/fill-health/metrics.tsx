@@ -3,9 +3,8 @@ import { cn } from "@/lib/cn";
 import { fillTotals, type FillHealthRow } from "@/lib/fill-health";
 import { systemName } from "@/lib/scrape-status";
 
+import { count } from "../format";
 import { FILL_SECTIONS, FIRST_SECTION_TARGET } from "../pages";
-
-const count = (n: number) => n.toLocaleString("en-US");
 
 /**
  * Fill Health's numbers (KAN-879), in one line: the window's fills, then

@@ -1,9 +1,6 @@
 import { cn } from "@/lib/cn";
 import type { ReportStatus } from "@/lib/fill-reports";
 
-/** A time as the admin pages print it: "2026-11-15 02:41" (UTC). */
-export const when = (iso: string) => new Date(iso).toISOString().slice(0, 16).replace("T", " ");
-
 /**
  * A native field in a Fill Reports form: a white box with the field edge
  * (`border-control`, 3:1), at the height of the page's buttons. The forms
