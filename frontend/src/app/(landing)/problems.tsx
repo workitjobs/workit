@@ -61,6 +61,13 @@ export function Problems() {
             </h2>
             <p className={cn(TYPE.lead, "text-ink-meta mx-auto mt-5 max-w-2xl")}>{subtitle}</p>
           </div>
+        </div>
+        {/* The hub is wider than the page's column (83rem against 72rem),
+            and all of the gain goes to the stage in the middle, 608px at
+            1440 where it was 432px (the user's ask, 2026-11-23: the
+            pictures looked squished). The band is a panel of its own, so
+            it can hold a wider block than the sections round it. */}
+        <div className="mx-auto w-full max-w-[83rem] px-4 sm:px-6 lg:px-8">
           <ProblemHub problems={items} scenes={items.map((item) => SCENES[item.scene])} />
         </div>
       </GrowIn>

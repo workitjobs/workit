@@ -51,15 +51,23 @@ import { delay, Panel } from "./scene-parts";
  * ask for it again. The inbox's tray is an outline: filled, it drew as a
  * solid blue block (the user's catch).
  *
- * **A picture is 20rem wide and at most 319px tall as drawn**: the stage's
- * height and the picture's three sizes are worked out from that
- * (`.problem-window` in landing.css), so a taller one is cut at the
- * stage's foot. Measure after a change.
+ * **A picture is up to 30rem wide and at most 319px tall as drawn**, a
+ * window wider than it is tall, as a real one is (it was 20rem until
+ * 2026-11-23, and the user found the pictures squished): the stage's size
+ * and the picture's sizes are worked out from that (`.problem-window` in
+ * landing.css), so a taller one is cut at the stage's foot. Measure after
+ * a change. It is fluid down to a phone's 19rem, so every row truncates
+ * and every extra column is behind a container query.
  *
  * Each plays once as it shows, its parts coming in
  * one after another (the `.journey-*` classes, held by the stage's
  * `data-arrived`), and is drawn finished without script and with reduced
- * motion. All are `aria-hidden`: the problem beside them says what they
+ * motion. **Three keep moving, because their cards are about doing a
+ * thing again and again**: the browser's tabs take turns, the forms take
+ * turns and are typed into each time, and the question's box has a stock
+ * line typed into it and deleted. All three run the hub's one clock
+ * (`--board-loop`) and are held when it is. **A picture's motion says
+ * what its card says, or it has none.** All are `aria-hidden`: the problem beside them says what they
  * show. They replaced a clickable frame of three wide screens and, before
  * that, a screening machine, which the user found AI-made: a scan line is a
  * process nobody sees, and these are moments everybody has.
@@ -87,7 +95,7 @@ function Window({
       {/* On a stage with the room, the visual is drawn up to 1.2 times its
           size, so it leads the hub (`.problem-window` in landing.css, the
           user's ask, 2026-11-21). */}
-      <div className="problem-window @container relative w-full max-w-[20rem] min-w-0">
+      <div className="problem-window @container relative w-full max-w-[30rem] min-w-0">
         {Array.from({ length: stacked }, (_, i) => {
           const step = stacked - i;
           return (
@@ -272,7 +280,7 @@ function Age({ role, className }: { role: Role; className?: string }) {
 function BoardPage({ turn, children }: { turn: number; children: ReactNode }) {
   return (
     <div
-      className="board-turn absolute inset-0 px-4 pt-3"
+      className="board-turn absolute inset-0 bg-white px-4 pt-3"
       data-first={turn === 0 || undefined}
       style={{ "--i": turn } as CSSProperties}
     >
@@ -485,14 +493,18 @@ export function BoardsScene() {
   );
 }
 
+/** The newest copy of the resume: the file window's last row, and the
+ *  file every form says is uploaded. */
+const RESUME_FILE = "Resume_FINAL (1).pdf";
+
 /** The resume, saved again for each job. */
 const FILES = [
-  { name: "Resume.pdf", date: "Aug 2" },
-  { name: "Resume_final.pdf", date: "Sep 14" },
-  { name: "Resume_final_v2.pdf", date: "Sep 15" },
-  { name: "Resume_Stripe.pdf", date: "Oct 3" },
-  { name: "Resume_Figma_NEW.pdf", date: "Oct 9" },
-  { name: "Resume_FINAL (1).pdf", date: "Today" },
+  { name: "Resume.pdf", date: "Aug 2", size: "84 KB" },
+  { name: "Resume_final.pdf", date: "Sep 14", size: "86 KB" },
+  { name: "Resume_final_v2.pdf", date: "Sep 15", size: "86 KB" },
+  { name: "Resume_Stripe.pdf", date: "Oct 3", size: "91 KB" },
+  { name: "Resume_Figma_NEW.pdf", date: "Oct 9", size: "88 KB" },
+  { name: RESUME_FILE, date: "Today", size: "92 KB" },
 ];
 
 /** A file window's sidebar: the usual places, and the folder that is open. */
@@ -503,7 +515,11 @@ const PLACES = [
   { name: "Resumes", icon: FolderSimpleIcon },
 ];
 
-const FILE_ROW = "grid grid-cols-[minmax(0,1fr)_2.75rem] items-center";
+/** A file's row: its name and when it changed, and its size where the
+ *  window is wide enough for a third column. */
+const FILE_ROW =
+  "grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-x-2 @[25rem]:grid-cols-[minmax(0,1fr)_3.5rem_3rem]";
+const FILE_SIZE = "hidden text-right tabular-nums @[25rem]:block";
 
 /** The resume you keep rewriting: a file window open on the folder of
  *  resume versions, one more saved each time, the newest selected. The
@@ -541,6 +557,7 @@ export function ResumesScene() {
           <div className={cn(FILE_ROW, T.meta, RULE, "border-b px-3 py-1")}>
             <span>Name</span>
             <span>Modified</span>
+            <span className={FILE_SIZE}>Size</span>
           </div>
           <ul className="px-1.5 py-1">
             {FILES.map((file, i) => {
@@ -565,6 +582,9 @@ export function ResumesScene() {
                     </span>
                   </span>
                   <span className={cn(T.meta, last && "text-white/85")}>{file.date}</span>
+                  <span className={cn(T.meta, FILE_SIZE, last && "text-white/85")}>
+                    {file.size}
+                  </span>
                 </li>
               );
             })}
@@ -588,137 +608,341 @@ const Star = () => <span className="text-danger"> *</span>;
 /** A form's own blue edge and soft halo on the field in use. */
 const FOCUS = { boxShadow: `0 0 0 2px ${LINK_BLUE}, 0 0 0 5px ${LINK_BLUE}26` };
 
-/** The foot of a form's step: a quiet Back and the step's main button,
- *  lit (`on`) or waiting. */
-function FormFoot({ next, on }: { next: string; on?: boolean }) {
+/** The student's details, the same on every form. The email and the school
+ *  are the ones Auto Apply's scenes fill in (features/visuals). */
+const [FIRST_NAME, ...LAST_NAMES] = candidate.name.split(" ");
+const DETAILS = {
+  first: FIRST_NAME,
+  last: LAST_NAMES.join(" "),
+  email: "alex@example.com",
+  school: "Northview University",
+};
+
+/** The three applications the forms picture goes through: the followed
+ *  job, then two roles from the browser picture's boards, each on its own
+ *  hiring system's kind of form. */
+const APPLICATIONS = [
+  { company: followedJob.company, domain: followedJob.domain, role: followedJob.title },
+  { company: "Nike", domain: "nike.com", role: WORKDAY_ROLES[0].title },
+  { company: "Spotify", domain: "spotify.com", role: LEVER_ROLES[0].title },
+];
+
+/** One company's form: shown in its turn (`.form-turn` in landing.css),
+ *  and `--i` sets off everything typed into it. */
+function FormPage({ turn, children }: { turn: number; children: ReactNode }) {
+  return (
+    <div
+      className="form-turn absolute inset-0 flex flex-col bg-white"
+      data-first={turn === 0 || undefined}
+      style={{ "--i": turn } as CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A field's box with its value typed in, a letter at a time, in the
+ *  field's own stretch of the form's turn (`k`, 0 to 3), under the form's
+ *  blue ring while it is typed (`.form-type`, `.form-focus`). */
+function Entry({ value, k, className }: { value: string; k: number; className?: string }) {
+  return (
+    <span className={cn(T.text, FIELD, "relative flex h-6 min-w-0 items-center px-2", className)}>
+      <span className="relative block max-w-full min-w-0 overflow-hidden whitespace-nowrap">
+        {value}
+        <span className="form-type" data-k={k} style={{ "--n": value.length } as CSSProperties} />
+      </span>
+      <span className="form-focus" data-k={k} style={FOCUS} />
+    </span>
+  );
+}
+
+/** A field with its label above it, as most forms set one. */
+function Labelled({
+  label,
+  value,
+  k,
+  className,
+}: {
+  label: string;
+  value: string;
+  k: number;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className={cn(T.meta, "truncate")}>
+        {label}
+        <Star />
+      </p>
+      <Entry value={value} k={k} className="mt-1" />
+    </div>
+  );
+}
+
+/** The resume, already uploaded: the form asks for what is on it anyway. */
+function Uploaded({ className }: { className?: string }) {
+  return (
+    <p
+      className={cn(
+        T.meta,
+        "flex min-w-0 items-center gap-1.5 rounded-md bg-[#e8f5ee] px-2 py-1 text-[#14663c]",
+        className,
+      )}
+    >
+      <CheckCircleIcon weight="fill" className="size-3.5 shrink-0" />
+      <span className="truncate">{RESUME_FILE} uploaded</span>
+    </p>
+  );
+}
+
+/** A form's main button: waiting, then lit once its last field is typed
+ *  (`.form-done`). `fill` is the form's own colour. */
+function Submit({ label, fill = LINK_BLUE }: { label: string; fill?: string }) {
+  return (
+    <span
+      className={cn(
+        T.button,
+        "text-ink-meta/60 relative rounded-md bg-slate-900/[0.07] px-3 py-1 whitespace-nowrap",
+      )}
+    >
+      {label}
+      <span
+        className="form-done absolute inset-0 grid place-items-center rounded-md text-white"
+        style={{ background: fill }}
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/** The foot of a written question's step: a quiet Back and the step's main
+ *  button, waiting. */
+function FormFoot({ next }: { next: string }) {
   return (
     <div className="mt-3 flex items-center justify-between">
       <span className={cn(T.button, "text-ink-meta font-normal")}>Back</span>
-      <span
-        className={cn(
-          T.button,
-          "rounded-md px-3 py-1",
-          on ? "text-white" : "text-ink-meta/60 bg-slate-900/[0.07]",
-        )}
-        style={on ? { background: LINK_BLUE } : undefined}
-      >
+      <span className={cn(T.button, "text-ink-meta/60 rounded-md bg-slate-900/[0.07] px-3 py-1")}>
         {next}
       </span>
     </div>
   );
 }
 
-/** Forms that ask it all again: one more company's My information step. The
- *  resume is uploaded, and the form asks for what is on it again (the name
- *  done, the email under way), with the forms before it stacked behind. */
+/**
+ * Forms that ask it all again: three companies' application forms take
+ * turns, and each is typed into while it is up, the same name, email and
+ * school every time, with the resume already uploaded on each (the user's
+ * ask, 2026-11-23). Three forms in three layouts, as three hiring systems
+ * set them (labels above the fields; a stepped form; labels beside the
+ * fields), since the card's point is a new form for every company; the
+ * type is `T`'s on all three, as on the four job boards. The forms before
+ * are stacked behind.
+ *
+ * It was one still form with the email half typed ("alex.m"), which read
+ * as a broken picture and showed one form where the point is many.
+ * The motion is `.form-*` in landing.css.
+ */
 export function FormsScene() {
-  const [first, ...rest] = candidate.name.split(" ");
-  const fields = [
-    { label: "First name", value: first },
-    { label: "Last name", value: rest.join(" ") },
-    { label: "Email", value: `${first.toLowerCase()}.m`, typing: true, wide: true },
-    { label: "School", wide: true },
-  ];
+  const [stripe, nike, spotify] = APPLICATIONS;
   return (
     <Window className="p-4" stacked={2}>
-      <div className="flex items-center gap-2">
-        <FaviconLogo domain={followedJob.domain} className="size-5 rounded-md" />
-        <span className={cn(T.title, "truncate")}>Apply for {followedJob.title}</span>
-      </div>
-      {/* The open step's column is wider, so "My information" shows whole. */}
-      <ol className="mt-2.5 grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-1">
-        {STEPS.map((step, i) => (
-          <li key={step} className="grid gap-1">
-            <span
-              className="block h-1 rounded-full bg-slate-900/10"
-              style={i <= 1 ? { background: LINK_BLUE, opacity: i === 1 ? 0.45 : 1 } : undefined}
-            />
-            <span className={cn(T.meta, "truncate", i === 1 && "text-ink font-semibold")}>
-              {step}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p
-        className={cn(
-          T.meta,
-          "journey-in mt-2.5 flex items-center gap-1.5 rounded-md bg-[#e8f5ee] px-2 py-1 text-[#14663c]",
-        )}
-        style={delay(0.3)}
-      >
-        <CheckCircleIcon weight="fill" className="size-3.5 shrink-0" />
-        <span className="truncate">Resume_FINAL (1).pdf uploaded</span>
-      </p>
-      <div className="mt-2.5 grid grid-cols-2 gap-x-2.5 gap-y-2">
-        {fields.map((field, i) => (
-          <div
-            key={field.label}
-            className={cn("journey-in", field.wide && "col-span-2")}
-            style={delay(0.5 + i * 0.12)}
-          >
-            <p className={T.meta}>
-              {field.label}
-              <Star />
-            </p>
-            <span
-              className={cn(T.text, FIELD, "mt-1 flex h-6 items-center px-2")}
-              style={field.typing ? FOCUS : undefined}
-            >
-              {field.value}
-              {field.typing && <span className="caret-blink bg-ink inline-block h-3 w-px" />}
-            </span>
+      <HoldOffscreen className="relative h-[15.5rem]">
+        {/* Labels above the fields, one button at the foot. */}
+        <FormPage turn={0}>
+          <div className="flex items-center gap-2">
+            <FaviconLogo domain={stripe.domain} className="size-5 rounded-md" />
+            <span className={cn(T.title, "truncate")}>Apply for {stripe.role}</span>
           </div>
-        ))}
-      </div>
-      <FormFoot next="Save and continue" on />
+          <Uploaded className="mt-2.5" />
+          <div className="mt-2.5 grid grid-cols-2 gap-x-2.5 gap-y-2">
+            <Labelled label="First name" value={DETAILS.first} k={0} />
+            <Labelled label="Last name" value={DETAILS.last} k={1} />
+            <Labelled label="Email" value={DETAILS.email} k={2} className="col-span-2" />
+            <Labelled label="School" value={DETAILS.school} k={3} className="col-span-2" />
+          </div>
+          <div className="mt-auto flex justify-end">
+            <Submit label="Submit application" />
+          </div>
+        </FormPage>
+        {/* A stepped form: the same details under other labels. */}
+        <FormPage turn={1}>
+          <div className="flex items-center gap-2">
+            <FaviconLogo domain={nike.domain} className="size-5 rounded-md" />
+            <span className={cn(T.title, "truncate")}>{nike.role}</span>
+          </div>
+          {/* The open step's column is wider, so "My information" shows whole. */}
+          <ol className="mt-2.5 grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-1">
+            {STEPS.map((step, i) => (
+              <li key={step} className="grid gap-1">
+                <span
+                  className="block h-1 rounded-full bg-slate-900/10"
+                  style={
+                    i <= 1 ? { background: LINK_BLUE, opacity: i === 1 ? 0.45 : 1 } : undefined
+                  }
+                />
+                <span className={cn(T.meta, "truncate", i === 1 && "text-ink font-semibold")}>
+                  {step}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-2.5 grid grid-cols-2 gap-x-2.5 gap-y-2">
+            <Labelled label="Legal first name" value={DETAILS.first} k={0} />
+            <Labelled label="Legal last name" value={DETAILS.last} k={1} />
+            <Labelled label="Email address" value={DETAILS.email} k={2} className="col-span-2" />
+            <Labelled label="University" value={DETAILS.school} k={3} className="col-span-2" />
+          </div>
+          <div className="mt-auto flex items-center justify-between">
+            <span className={cn(T.button, "text-ink-meta font-normal")}>Back</span>
+            <Submit label="Save and continue" />
+          </div>
+        </FormPage>
+        {/* Labels beside the fields, the name asked as one. */}
+        <FormPage turn={2}>
+          <div className="flex items-center gap-2">
+            <FaviconLogo domain={spotify.domain} className="size-5 rounded-md" />
+            <span className={cn(T.title, "truncate")}>{spotify.role}</span>
+            <span className={cn(T.meta, "ml-auto shrink-0")}>{spotify.company}</span>
+          </div>
+          <p className={cn(T.label, RULE, "mt-2.5 border-b pb-1")}>Submit your application</p>
+          <div className="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 whitespace-nowrap">
+            <span className={T.meta}>
+              Resume
+              <Star />
+            </span>
+            <Uploaded />
+            <span className={T.meta}>
+              Full name
+              <Star />
+            </span>
+            <Entry value={candidate.name} k={0} />
+            <span className={T.meta}>
+              Email
+              <Star />
+            </span>
+            <Entry value={DETAILS.email} k={2} />
+            <span className={T.meta}>
+              Current school
+              <Star />
+            </span>
+            <Entry value={DETAILS.school} k={3} />
+            {/* One more thing to find and paste, left for later. */}
+            <span className={T.meta}>LinkedIn URL</span>
+            <span className={cn(FIELD, "h-6")} />
+          </div>
+          <div className="mt-auto flex justify-end">
+            <Submit label="Submit" fill="var(--color-ink)" />
+          </div>
+        </FormPage>
+      </HoldOffscreen>
     </Window>
   );
 }
 
-/** The questions you dread: one more written question on one more form, its
- *  box empty and the cursor waiting. A "Session expires in 12:48" line
- *  under the box was taken out at the user's ask (2026-11-21). The question
- *  is the one line set a size up (13px): it is what the picture is about. */
+/** The stock opening line the question picture types and deletes. */
+const STOCK_ANSWER = "I am a hard-working team player who";
+
+/**
+ * The questions you dread: one more written question on one more form. A
+ * stock opening line is typed into the box, sits there, and is deleted
+ * again, once a loop (`.question-type` in landing.css; the user's ask for
+ * motion that makes the card's point, 2026-11-23): the card says a rushed
+ * answer sounds like everyone else's, and an empty box with a cursor said
+ * only that nothing was written. The character count went with the empty
+ * box, since CSS cannot count the letters as they come; a "Session expires
+ * in 12:48" line went before it (the user's ask, 2026-11-21). The question
+ * is the one line set a size up (13px): it is what the picture is about.
+ */
 export function QuestionScene() {
   return (
     <Window className="p-4">
-      <div className="flex items-center gap-2">
-        <FaviconLogo domain="notion.so" className="size-5 rounded-md" />
-        <span className={T.title}>Apply to Notion</span>
-        <span className={cn(T.meta, "ml-auto")}>Question 3 of 5</span>
-      </div>
-      <span className="mt-2.5 block h-1 rounded-full bg-slate-900/10">
-        <span className="block h-full w-3/5 rounded-full" style={{ background: LINK_BLUE }} />
-      </span>
-      <p className="text-ink mt-3.5 text-[13px] leading-[18px] font-semibold">
-        Why do you want to work at Notion?
-        <Star />
-      </p>
-      <p className={cn(T.meta, "mt-0.5")}>In your own words. 500 characters at most.</p>
-      <div className="journey-in mt-2 h-24 rounded-lg p-2.5" style={{ ...delay(0.3), ...FOCUS }}>
-        <span className="caret-blink bg-ink inline-block h-3.5 w-px" />
-      </div>
-      <p className={cn(T.meta, "mt-2.5 text-right tabular-nums")}>0 / 500</p>
-      <FormFoot next="Next" />
+      <HoldOffscreen>
+        <div className="flex items-center gap-2">
+          <FaviconLogo domain="notion.so" className="size-5 rounded-md" />
+          <span className={T.title}>Apply to Notion</span>
+          <span className={cn(T.meta, "ml-auto")}>Question 3 of 5</span>
+        </div>
+        <span className="mt-2.5 block h-1 rounded-full bg-slate-900/10">
+          <span className="block h-full w-3/5 rounded-full" style={{ background: LINK_BLUE }} />
+        </span>
+        <p className="text-ink mt-3.5 text-[13px] leading-[18px] font-semibold">
+          Why do you want to work at Notion?
+          <Star />
+        </p>
+        <p className={cn(T.meta, "mt-0.5")}>In your own words. 500 characters at most.</p>
+        <div className="journey-in mt-2 h-24 rounded-lg p-2.5" style={{ ...delay(0.3), ...FOCUS }}>
+          {/* 2px of room at the line's end, where the cursor stands once
+              the line is typed. */}
+          <span
+            className={cn(
+              T.text,
+              "relative inline-block max-w-full overflow-hidden pr-0.5 align-top whitespace-nowrap",
+            )}
+          >
+            {STOCK_ANSWER}
+            <span
+              className="question-type"
+              style={{ "--n": STOCK_ANSWER.length } as CSSProperties}
+            />
+          </span>
+        </div>
+        <FormFoot next="Next" />
+      </HoldOffscreen>
     </Window>
   );
 }
 
-/** The applications spreadsheet, eighty rows in, the last ones unsure. */
+/** The applications spreadsheet, eighty rows in, the last ones unsure, with
+ *  the notes a student leaves themselves where the window has a column for
+ *  them. */
 const ROWS = [
-  { n: 78, company: "Ramp", status: "Applied", tone: "blue", resume: "v3", unsure: false },
-  { n: 79, company: "Duolingo", status: "Rejected", tone: "red", resume: "?", unsure: true },
-  { n: 80, company: "Plaid", status: "No reply", tone: "grey", resume: "v5", unsure: false },
+  {
+    n: 78,
+    company: "Ramp",
+    status: "Applied",
+    tone: "blue",
+    resume: "v3",
+    note: "",
+    unsure: false,
+  },
+  {
+    n: 79,
+    company: "Duolingo",
+    status: "Rejected",
+    tone: "red",
+    resume: "?",
+    note: "auto-reply?",
+    unsure: true,
+  },
+  {
+    n: 80,
+    company: "Plaid",
+    status: "No reply",
+    tone: "grey",
+    resume: "v5",
+    note: "follow up!!",
+    unsure: false,
+  },
   {
     n: 81,
     company: "Datadog",
     status: "Interview?",
     tone: "amber",
     resume: "FINAL (1)",
+    note: "call when??",
     unsure: true,
   },
-  { n: 82, company: "Figma", status: "??", tone: "grey", resume: "which one", unsure: true },
-  { n: 83, company: "Notion", status: "", tone: "grey", resume: "", unsure: false },
+  {
+    n: 82,
+    company: "Figma",
+    status: "??",
+    tone: "grey",
+    resume: "which one",
+    note: "",
+    unsure: true,
+  },
+  { n: 83, company: "Notion", status: "", tone: "grey", resume: "", note: "", unsure: false },
 ] as const;
 
 /** The selected cell, C83: the newest row's resume. */
@@ -749,7 +973,12 @@ function StatusChip({ status, tone }: { status: string; tone: keyof typeof STATU
   );
 }
 
-const SHEET = "grid grid-cols-[1.75rem_minmax(0,1fr)_5.5rem_5rem]";
+/** The sheet's columns: a fourth, Notes, where the window is wide enough. */
+const SHEET =
+  "grid grid-cols-[1.75rem_minmax(0,1fr)_5.5rem_5rem] @[25rem]:grid-cols-[1.75rem_minmax(0,1fr)_6rem_5.5rem_6.5rem]";
+/** The third column's right edge and the fourth column, both only there. */
+const THIRD = "border-r-0 @[25rem]:border-r";
+const FOURTH = "hidden border-r-0 @[25rem]:block";
 const CELL = cn(T.text, RULE, "border-r border-b px-2 py-1");
 /** A row's number and a column's letter: the sheet's own grey edge. */
 const EDGE = "text-ink-meta bg-slate-900/[0.04] px-0 text-center text-[10px] tabular-nums";
@@ -781,10 +1010,10 @@ export function TrackerScene() {
       </div>
       <div>
         <div className={SHEET}>
-          {["", "A", "B", "C"].map((letter, i) => (
+          {["", "A", "B", "C", "D"].map((letter, i) => (
             <span
               key={letter}
-              className={cn(CELL, EDGE, "py-0.5", i === 3 && "border-r-0")}
+              className={cn(CELL, EDGE, "py-0.5", i === 3 && THIRD, i === 4 && FOURTH)}
               style={letter === SELECTED_COLUMN ? EDGE_ON : undefined}
             >
               {letter}
@@ -794,10 +1023,15 @@ export function TrackerScene() {
         {/* The sheet's own header row, frozen: a heavier line under it. */}
         <div className={SHEET}>
           <span className={cn(CELL, EDGE, "border-b-slate-900/20")}>1</span>
-          {["Company", "Status", "Resume"].map((head, i) => (
+          {["Company", "Status", "Resume", "Notes"].map((head, i) => (
             <span
               key={head}
-              className={cn(CELL, "border-b-slate-900/20 font-semibold", i === 2 && "border-r-0")}
+              className={cn(
+                CELL,
+                "border-b-slate-900/20 font-semibold",
+                i === 2 && THIRD,
+                i === 3 && FOURTH,
+              )}
             >
               {head}
             </span>
@@ -813,7 +1047,7 @@ export function TrackerScene() {
               <StatusChip status={row.status} tone={row.tone} />
             </span>
             <span
-              className={cn(CELL, "truncate border-r-0", row.unsure && "bg-[#fff6cc]")}
+              className={cn(CELL, "truncate", THIRD, row.unsure && "bg-[#fff6cc]")}
               // The selected cell, as a sheet outlines it.
               style={
                 row.n === SELECTED_ROW ? { boxShadow: `inset 0 0 0 2px ${SHEET_GREEN}` } : undefined
@@ -824,6 +1058,7 @@ export function TrackerScene() {
                 <span className="caret-blink bg-ink inline-block h-3 w-px align-middle" />
               )}
             </span>
+            <span className={cn(CELL, "text-ink-meta truncate", FOURTH)}>{row.note}</span>
           </div>
         ))}
       </div>

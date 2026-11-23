@@ -860,19 +860,47 @@ selling line that says what the product does** and "See how", a
     every card taller, and the band with them.
     On a phone, one column, each card keeps its own height: held to one
     height there, the short ones showed blank room under their words.
-    **The visual is the hub's main piece** (the user's ask, 2026-11-21):
-    from xl up the side columns are 19.75rem, the widest that leaves the
-    stage 27rem (at 20.5rem the stage was a quarter wider than a card and
-    read as one more card), and a visual is drawn 1.1, 1.15 or 1.2 times
-    its size where its stage has the room (`.problem-window` in landing.css,
-    `zoom` by the screen's size; the reasons are in the comment there).
+    **The visual is the hub's main piece** (the user's asks, 2026-11-21
+    and 2026-11-23): the hub is wider than the page's column (83rem
+    against 72rem, problems.tsx; the band is a panel of its own, so it
+    can hold a wider block), and all of the gain goes to the stage: 608px
+    at 1440, about twice a side column, where it was 432px with pictures
+    20rem wide that the user found squished. From xl up the side columns
+    stay 19.75rem (at 19rem the longest title took two lines and every
+    card grew), and a picture is up to 30rem wide, a window wider than it
+    is tall, drawn 1.1 or 1.15 times its size where its stage has the
+    room (`.problem-window` in landing.css, `zoom` by the screen's size;
+    the reasons are in the comment there). The band's height did not
+    change (682px on a 723px screen).
+    **A picture's motion says what its card says, or it has none**
+    (2026-11-23, the user's ask: "proper animations if it helps reinforce
+    the points"). Three keep moving, each because its card is about doing
+    a thing again and again, all on the hub's one clock (`--board-loop`)
+    and held when it is: the browser's four tabs take turns; **the forms
+    picture goes through three companies' forms** (Stripe, Nike, Spotify,
+    each in its own layout), and each is typed into while it is up, the
+    same name, email and school, with the resume already uploaded on
+    each; **the question's box has a stock opening line typed into it and
+    deleted** ("I am a hard-working team player who"), the card's "rushed
+    ones sound like everyone else's". The forms picture was one still
+    form with the email half typed ("alex.m"), which read as a broken
+    picture and showed one form where the point is many (the user's
+    catch). Typing is a cover that steps aside a letter at a time, a
+    transform, so it runs off the main thread (`.form-type`,
+    `.question-type`). **A turn's first frame is shown, never empty**: a
+    card opened with the pointer still on it is held at that frame, and
+    while a turn began with a fade-in, the forms and the browser's page
+    stood empty until the pointer left (found the same day; `board-turn`
+    and `form-turn` now start shown and fade back in at the loop's end).
+    Where a window has the room (`@[25rem]`) the file list gains a Size
+    column and the sheet a Notes column ("follow up!!", "call when??").
     **The visuals are moments everybody has**
     (`problem-scenes.tsx`): a browser of company job board tabs with roles
     posted months ago, a folder of resume versions ending in
-    "Resume_FINAL (1).pdf", one more company's My information step with
-    the same name, email and school typed in again over a stack of the
-    forms before it (`Window`'s `stacked`), an empty "Why do you want to
-    work at Notion?" box, the student's spreadsheet with "??" in it, and an
+    "Resume_FINAL (1).pdf", three companies' forms asking for the same
+    name, email and school over a stack of the forms before them
+    (`Window`'s `stacked`), a "Why do you want to work at Notion?" box
+    with a stock line typed and deleted, the student's spreadsheet with "??" in it, and an
     inbox where a rejection lands "minutes after you applied" above an
     application with "No reply in weeks". **Each is the real kind of app
     it stands for** (the user's ask, 2026-11-21, "Google Sheets or Excel
@@ -950,9 +978,9 @@ selling line that says what the product does** and "See how", a
     sidebar on a window narrower than 19.5rem so the file names show
     whole. **Review a picture in Chrome, zoomed, before calling it
     done** (`zoom` on the stage): the faults above showed at twice the
-    size and not in the page. **A picture is
-    20rem wide and at most 319px tall as drawn**
-    (the six are 254 to 304px): the stage's height and the picture's
+    size and not in the page. **A picture is up to
+    30rem wide and at most 319px tall as drawn**
+    (the six are 254 to 295px), and fluid down to a phone's 19rem: the stage's height and the picture's
     sizes are worked out from that, so measure after a change. Each is
     centred on the stage, a grey well with a slate hairline (above),
     under a dot grid in slate at 13% that fades toward the middle (`.problem-dots` in

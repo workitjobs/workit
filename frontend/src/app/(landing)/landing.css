@@ -1810,16 +1810,17 @@ html[data-tab-flight="flying"] .tour-tabs {
   background-position: center;
   mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);
 }
-/* The hub's visual (`Window` in problem-scenes.tsx, 20rem wide and up to
-   319px tall as drawn) grows where its stage has the room, with the
+/* The hub's visual (`Window` in problem-scenes.tsx, up to 30rem wide and
+   319px tall as drawn; it was 20rem until 2026-11-23, when the user found
+   the pictures squished) grows where its stage has the room, with the
    stage's 1.5rem of padding each side: at z times it needs a stage
-   20z + 3rem wide and 319z + 48px tall. Between md and lg the stage is
-   the container's width and 27rem tall, so 1.2 times. From xl up it is
-   27rem wide and `100svh - 23.5rem` tall (problem-hub.tsx), so the steps
-   follow the screen's height: 1.1 times from 776px, 1.15 from 792px, 1.2
-   from 808px; at 1280 × 720 a visual at 1.2 times was cut at the stage's
-   foot. Change the stage's height rule and these three together. Between
-   lg and xl the stage is too narrow to grow in. `zoom`, not a scale: the
+   30z + 3rem wide and 319z + 48px tall. Between md and lg the stage is
+   the container's width (704px or more) and 27rem tall, so 1.2 times.
+   From 90rem up the stage is 608px wide (problems.tsx, problem-hub.tsx)
+   and `100svh - 23.5rem` tall, so the steps follow the screen's height:
+   1.1 times from 776px and 1.15 from 792px, which is as wide as the stage
+   takes. Between lg and 90rem the stage is too narrow to grow in. Change
+   the stage's size rules and these together. `zoom`, not a scale: the
    layout grows with it, so the window's safe centring still holds. Media
    queries, since a container query on the stage's height matched nothing
    in the three-column layout, where the stage's height is auto (Chrome,
@@ -1829,19 +1830,14 @@ html[data-tab-flight="flying"] .tour-tabs {
     zoom: 1.2;
   }
 }
-@media (min-width: 80rem) and (min-height: 48.5rem) {
+@media (min-width: 90rem) and (min-height: 48.5rem) {
   .problem-window {
     zoom: 1.1;
   }
 }
-@media (min-width: 80rem) and (min-height: 49.5rem) {
+@media (min-width: 90rem) and (min-height: 49.5rem) {
   .problem-window {
     zoom: 1.15;
-  }
-}
-@media (min-width: 80rem) and (min-height: 50.5rem) {
-  .problem-window {
-    zoom: 1.2;
   }
 }
 /* The browser picture's tabs take turns (`BoardsScene` in
@@ -1856,9 +1852,14 @@ html[data-tab-flight="flying"] .tour-tabs {
    by problem-hub.tsx): the four boards make one pass as the open card's
    ring draws, and they are held when the ring is (`data-held`), so the
    hub runs on one clock. */
+/* A turn starts shown, at its first frame, and fades back in at the loop's
+   end: a card opened with the pointer still on it is held at that first
+   frame, and with the fade-in at the start the picture stood empty until
+   the pointer left (found 2026-11-23). So no fill before a turn's delay:
+   a later board waits unseen on its own `opacity: 0`. */
 .board-turn {
   opacity: 0;
-  animation: board-turn var(--board-loop, 12.8s) linear infinite both;
+  animation: board-turn var(--board-loop, 12.8s) linear infinite;
   animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 4);
 }
 [data-arrived="false"] .board-turn,
@@ -1867,20 +1868,16 @@ html[data-tab-flight="flying"] .tour-tabs {
   animation-play-state: paused;
 }
 @keyframes board-turn {
-  0% {
-    opacity: 0;
-  }
-  2.5% {
-    opacity: 1;
-  }
+  0%,
   25% {
     opacity: 1;
   }
-  27.5% {
+  27.5%,
+  97.5% {
     opacity: 0;
   }
   100% {
-    opacity: 0;
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1889,6 +1886,245 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
   .board-turn[data-first] {
     opacity: 1;
+  }
+}
+/*
+ * The forms picture's forms take turns (`FormsScene` in problem-scenes.tsx,
+ * 2026-11-23): three companies' application forms, a third of the loop
+ * each, and each one is typed into while it is up, the same details every
+ * time. The card says "typed into a new form for every company", and the
+ * picture was one still form with half an email in it (the user's catch:
+ * it read as broken, and showed one form where the point is many).
+ *
+ * One loop (`--board-loop`, the hub's clock, as the browser's tabs), and
+ * every piece of a form runs it with the form's own delay (`--i`), so a
+ * form and its typing cannot drift. In a form's third: it comes in, its
+ * four fields are typed one after another, its button lights, it goes.
+ *
+ * Typing is a cover over the field's text that steps aside a letter at a
+ * time (`.form-type`, `--n` letters): a transform, so it runs off the main
+ * thread, where a width or a clip that grows would repaint every frame.
+ * The field in use shows the form's blue ring (`.form-focus`, opacity).
+ * `--k` (0 to 3) is the field's place in the form.
+ *
+ * Held as the tabs are: while the stage waits to arrive, while the cards'
+ * ring is held, and off screen. With reduced motion the first form shows,
+ * filled in and still.
+ */
+.form-turn {
+  opacity: 0;
+  animation: form-turn var(--board-loop, 12.8s) linear infinite;
+  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 3);
+}
+.form-type,
+.form-focus,
+.form-done {
+  animation: var(--form-anim) var(--board-loop, 12.8s) linear infinite both;
+  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 3);
+}
+.form-type {
+  --form-anim: form-type-0;
+  position: absolute;
+  inset: 0;
+  background: white;
+}
+.form-type[data-k="1"] {
+  --form-anim: form-type-1;
+}
+.form-type[data-k="2"] {
+  --form-anim: form-type-2;
+}
+.form-type[data-k="3"] {
+  --form-anim: form-type-3;
+}
+.form-focus {
+  --form-anim: form-focus-0;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+.form-focus[data-k="1"] {
+  --form-anim: form-focus-1;
+}
+.form-focus[data-k="2"] {
+  --form-anim: form-focus-2;
+}
+.form-focus[data-k="3"] {
+  --form-anim: form-focus-3;
+}
+.form-done {
+  --form-anim: form-done;
+  opacity: 0;
+}
+[data-arrived="false"] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type),
+[data-held] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type),
+[data-paused] :is(.form-turn, .form-type, .form-focus, .form-done, .question-type) {
+  animation-play-state: paused;
+}
+/* Shown from its first frame, as a board's turn is (`board-turn`). */
+@keyframes form-turn {
+  0%,
+  33.33% {
+    opacity: 1;
+  }
+  35.33%,
+  98% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+/* A field's letters, each field in its own stretch of the form's third:
+   3 to 6%, 7 to 10%, 11 to 19% (the email, the long one) and 20 to 27%. */
+@keyframes form-type-0 {
+  0%,
+  3% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 6), end);
+  }
+  6%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+@keyframes form-type-1 {
+  0%,
+  7% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 6), end);
+  }
+  10%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+@keyframes form-type-2 {
+  0%,
+  11% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 16), end);
+  }
+  19%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+@keyframes form-type-3 {
+  0%,
+  20% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 16), end);
+  }
+  27%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+@keyframes form-focus-0 {
+  0%,
+  2.4%,
+  6.6%,
+  100% {
+    opacity: 0;
+  }
+  3%,
+  6% {
+    opacity: 1;
+  }
+}
+@keyframes form-focus-1 {
+  0%,
+  6.6%,
+  10.6%,
+  100% {
+    opacity: 0;
+  }
+  7%,
+  10% {
+    opacity: 1;
+  }
+}
+@keyframes form-focus-2 {
+  0%,
+  10.6%,
+  19.6%,
+  100% {
+    opacity: 0;
+  }
+  11%,
+  19% {
+    opacity: 1;
+  }
+}
+@keyframes form-focus-3 {
+  0%,
+  19.6%,
+  27.6%,
+  100% {
+    opacity: 0;
+  }
+  20%,
+  27% {
+    opacity: 1;
+  }
+}
+/* The form's main button lights once the last field is in. */
+@keyframes form-done {
+  0%,
+  28% {
+    opacity: 0;
+  }
+  29.5%,
+  100% {
+    opacity: 1;
+  }
+}
+/*
+ * The question picture's answer (`QuestionScene`, 2026-11-23): a stock
+ * opening line is typed into the box, sits there, and is deleted again,
+ * once a loop. The card says rushed answers sound like everyone else's;
+ * an empty box with a cursor said only that nothing was written. The same
+ * cover as the forms', and its left edge is the cursor.
+ */
+.question-type {
+  position: absolute;
+  inset: 0;
+  background: white;
+  border-left: 1px solid var(--color-ink);
+  animation: question-type var(--board-loop, 12.8s) linear infinite both;
+}
+@keyframes question-type {
+  0%,
+  10% {
+    transform: translateX(0);
+    animation-timing-function: steps(var(--n, 30), end);
+  }
+  44%,
+  68% {
+    transform: translateX(calc(100% - 2px));
+    animation-timing-function: steps(10, end);
+  }
+  76%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .form-turn,
+  .form-done {
+    animation: none;
+  }
+  .form-turn[data-first],
+  .form-done {
+    opacity: 1;
+  }
+  .form-type,
+  .form-focus,
+  .question-type {
+    display: none;
   }
 }
 /* The open card's turn (problem-hub.tsx): a hairline drawn clockwise round

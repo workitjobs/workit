@@ -122,13 +122,14 @@ const watchWide = (onChange: () => void) => {
  * own height. Set loosely in the middle of each column, the cards were
  * shorter than the stage and the section read as small and tall at once
  * (the user's catch). **The visual is the hub's main piece** (the user's
- * ask, 2026-11-21): from xl up the stage is about half as wide again as a
- * side column (19.75rem each, the widest that leaves the stage 27rem, the
- * room a visual at 1.2 times needs; at 20.5rem the stage was only a quarter
- * wider than a card), and a visual is drawn 1.1, 1.15 or 1.2 times its
- * size where the stage has the room (`.problem-window` in landing.css: by
- * the screen's size, since on a short screen a larger visual was cut at
- * the stage's foot). The band fits the screen with about 4rem to spare:
+ * asks, 2026-11-21 and 2026-11-23): the hub is wider than the page's
+ * column (83rem, problems.tsx) and the side columns are 19.75rem each
+ * from xl (narrower, a card's longest title took two lines and every card
+ * grew), so the stage is about twice a side column, 608px at 1440 (it was
+ * 432px, with 20rem pictures the user found squished), and a picture is
+ * up to 30rem wide, drawn 1.1 or 1.15 times its size where the stage has
+ * the room (`.problem-window` in landing.css: by the screen's size, since
+ * on a short screen a larger visual was cut at the stage's foot). The band fits the screen with about 4rem to spare:
  * the stage is `clamp(23rem, 100svh - 23.5rem, 30rem)` tall and grows to
  * the cards' height, what is left once the band's padding, the heading
  * and its one-line subtitle are counted (measured at 1440 × 800: the band
