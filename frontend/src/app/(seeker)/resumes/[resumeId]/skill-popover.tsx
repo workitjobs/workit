@@ -83,7 +83,6 @@ export function SkillPopover({
           autoFocus
           value={group}
           maxLength={GROUP_MAX}
-          placeholder="Languages"
           disabled={busy}
           aria-invalid={error ? true : undefined}
           onChange={(event) => {
@@ -97,7 +96,6 @@ export function SkillPopover({
           label="First Skill"
           value={skill}
           maxLength={SKILL_MAX}
-          placeholder="Python"
           disabled={busy}
           aria-invalid={error ? true : undefined}
           onChange={(event) => {

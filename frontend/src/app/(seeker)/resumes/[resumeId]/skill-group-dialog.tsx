@@ -162,7 +162,6 @@ export function SkillGroupDialog({
             id="skill-group-name"
             label="Group Name"
             maxLength={GROUP_MAX}
-            placeholder="Languages"
             value={name}
             onChange={(event) => {
               setName(event.target.value);
@@ -217,7 +216,6 @@ export function SkillGroupDialog({
               id="skill-group-add"
               label="Add a Skill"
               maxLength={SKILL_MAX}
-              placeholder="Python"
               value={skill}
               // Read-only while it saves, not disabled: a disabled field
               // drops the focus, and the next skill is typed straight after
