@@ -65,7 +65,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
-import { FIT, usePageZoom, usePinchZoom, useZoom, useZoomTo, zoomWidth } from "./zoom";
+import { FIT, useZoomView, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
@@ -912,11 +912,8 @@ export function Editor({
     cutsNow.current = readFitCuts(resumeId);
     setCuts(cutsNow.current);
   }, [resumeId]);
-  const [zoom, setZoom] = useZoom();
-  // What the zoom comes to (Fit's percent), and a pinch on the pages
-  const [shownZoom, fullZoom] = usePageZoom(pages, zoom);
-  const zoomTo = useZoomTo(pages, setZoom);
-  usePinchZoom(pages, shownZoom, zoomTo);
+  // The zoom as drawn, the page's percent, Fit Width's, and a pinch
+  const { zoom, shown: shownZoom, room: zoomRoom, zoomTo } = useZoomView(pages);
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
   // The rail, down to the window's foot
@@ -3361,7 +3358,7 @@ export function Editor({
             }
           : null
       }
-      zoom={{ zoom, shown: shownZoom, full: fullZoom, onZoom: (to) => zoomTo(to) }}
+      zoom={{ zoom, shown: shownZoom, room: zoomRoom, onZoom: (to) => zoomTo(to) }}
       history={history}
       format={{
         page,

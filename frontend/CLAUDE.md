@@ -2991,9 +2991,21 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   inch), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
   survives). **It opens on Fit Width** (`FIT`, 2026-11-23): the page as
-  wide as its column, up to 150%, flush with the desk's sides and toolbar,
+  wide as the desk, up to 200%, flush with the desk's sides and toolbar,
   with no grey round it (the desk's margin read as the gaps Fit was meant
-  to close); every other zoom keeps the margin.
+  to close); every other zoom keeps the margin. **Fit Width is the biggest
+  the page can be, by every route** (`room` in `zoom.tsx`, the desk's
+  width read as it changes): Zoom In ends on it, the menu turns off the
+  steps at or past it, a pinch stops at it, and a pick at or past it
+  draws as Fit Width, flush (`fitted`). The pick is kept, so a 150% drawn
+  as Fit Width while the side panel is open is 150% again once it closes.
+  Until then each route had its own ceiling (the user, 2026-11-23): Fit
+  stopped at 150%, a pinch from Fit reached the whole desk (169% with the
+  panel closed) and one from a step the desk less its margin (163%), and
+  a step past the desk drew a few percent short of Fit. `useZoomView`
+  holds all of it for both resume pages; the desk's scroll box keeps its
+  scroll bar's room (`scrollbar-gutter`), or a bar that takes room
+  (Windows) would move Fit's percent as the pages' height changed.
   **Every zoom change keeps the line being read where it is**
   (`useZoomTo`), by scrolling the desk's own box (the desk, above), so
   the website stays where it is. From the bar or its menu: while the page's top shows,
@@ -3010,11 +3022,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   either side of the page on a wide screen with the panel closed, and
   filling 1730px would print the text at about 21pt. The bar shows what a
   zoom comes to (`usePageZoom`), and Zoom In and Out go to the next step
-  from there; Zoom In is off once the column stops the page (about 105%
-  with the side panel open), where it stayed pressable and did nothing. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
+  from there; Zoom In is off on Fit Width, where it once stayed pressable
+  and did nothing. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
   pinch (Ctrl and the wheel; Safari's gesture events), Ctrl or Cmd with a
   mouse wheel (each event held to a tenth, or one notch jumped 60%), two
-  fingers on a touch screen, any percent from 50 to 200, over the desk
+  fingers on a touch screen, any percent from 50 to Fit Width's, over the desk
   round the pages (a pinch begun on its grey zoomed the whole browser).
   While it moves the pages are only stretched, and the bar's percent
   follows the fingers (a store of its own in `zoom.tsx`, so only the
@@ -3034,7 +3046,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   middle, it stretched past the column, and the browser's scroll
   anchoring moved the page too. A Ctrl and wheel gesture now ends after
   400ms with no step, the stretch is about the page's middle across, it
-  stops at the column's width, and the pages are out of scroll anchoring
+  stops at Fit Width's, and the pages are out of scroll anchoring
   (`overflow-anchor: none`). Measured: the line under the pointer stayed
   within a pixel from 65% to 90%; at the page's top a zoom out cannot
   keep it, since there is nothing above to scroll to. A browser that kept a step before this keeps it until Fit Width

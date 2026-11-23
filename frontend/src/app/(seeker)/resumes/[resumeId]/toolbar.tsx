@@ -77,7 +77,7 @@ export type ExperiencesTools = {
 export type ZoomTools = {
   zoom: number;
   shown: number;
-  full: boolean;
+  room: number | null;
   onZoom: (zoom: number) => void;
 };
 
@@ -450,7 +450,7 @@ export function Bar({
         >
           <Divider />
           {rendered ? (
-            <Zoom zoom={zoom.zoom} shown={zoom.shown} full={zoom.full} onZoom={zoom.onZoom} />
+            <Zoom zoom={zoom.zoom} shown={zoom.shown} room={zoom.room} onZoom={zoom.onZoom} />
           ) : (
             <ZoomSkeleton />
           )}
@@ -756,7 +756,12 @@ function MoreMenu({
             </DropdownMenuCheckboxItem>
           )}
           {away.has("zoom") && (
-            <ZoomSubmenu zoom={zoom.zoom} shown={zoom.shown} onZoom={zoom.onZoom} />
+            <ZoomSubmenu
+              zoom={zoom.zoom}
+              shown={zoom.shown}
+              room={zoom.room}
+              onZoom={zoom.onZoom}
+            />
           )}
         </DropdownMenuContent>
       </DropdownMenu>

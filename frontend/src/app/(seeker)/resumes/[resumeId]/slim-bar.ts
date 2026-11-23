@@ -67,5 +67,7 @@ export const DESK_PAGES = "px-3 py-4 @2xl/main:px-6 @2xl/main:py-6";
  * the pages, as before.
  */
 export const DESK_FIT = "@4xl/main:h-(--fit-height)";
+// A scroll bar that takes room (Windows) keeps it at every zoom, so Fit
+// Width's room (`usePageZoom`) never changes as the pages' height does
 export const DESK_SCROLL =
-  "@4xl/main:min-h-0 @4xl/main:flex-1 @4xl/main:overflow-x-hidden @4xl/main:overflow-y-auto";
+  "@4xl/main:min-h-0 @4xl/main:flex-1 @4xl/main:overflow-x-hidden @4xl/main:overflow-y-auto @4xl/main:[scrollbar-gutter:stable]";

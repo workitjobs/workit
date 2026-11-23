@@ -16,15 +16,7 @@ import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
 import { useFitToWindow } from "../../[resumeId]/fit-to-window";
 import { DESK, DESK_BAR, DESK_FIT, DESK_PAGES, DESK_SCROLL } from "../../[resumeId]/slim-bar";
-import {
-  FIT,
-  usePageZoom,
-  usePinchZoom,
-  useZoom,
-  useZoomTo,
-  Zoom,
-  zoomWidth,
-} from "../../[resumeId]/zoom";
+import { FIT, useZoomView, Zoom, zoomWidth } from "../../[resumeId]/zoom";
 
 /**
  * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
@@ -51,11 +43,8 @@ import {
 export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: string | null }) {
   const name = resume.original_filename ?? "Resume";
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useZoom();
   const pages = useRef<HTMLDivElement>(null);
-  const [shownZoom, fullZoom] = usePageZoom(pages, zoom);
-  const zoomTo = useZoomTo(pages, setZoom);
-  usePinchZoom(pages, shownZoom, zoomTo);
+  const { zoom, shown: shownZoom, room: zoomRoom, zoomTo } = useZoomView(pages);
   // The desk ends at the window's foot, and the page scrolls inside it
   const fitDesk = useFitToWindow();
 
@@ -111,7 +100,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           <div ref={fitDesk} className={cn(DESK, DESK_FIT)}>
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <div className="ml-auto">
-                <Zoom zoom={zoom} shown={shownZoom} full={fullZoom} onZoom={(to) => zoomTo(to)} />
+                <Zoom zoom={zoom} shown={shownZoom} room={zoomRoom} onZoom={(to) => zoomTo(to)} />
               </div>
             </div>
             <div data-page-scroll className={cn(DESK_SCROLL, zoom !== FIT && DESK_PAGES)}>
