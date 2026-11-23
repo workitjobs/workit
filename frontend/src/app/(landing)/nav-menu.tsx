@@ -152,16 +152,13 @@ export function NavMenu({ label, children }: { label: string; children: ReactNod
       </button>
 
       {/* The top padding bridges the gap to the trigger, so the pointer
-          never leaves the root on its way down. 28px: the panel starts 8px
-          under the header's foot line (the trigger is 36px tall, centred
-          in the 76px bar). At 12px it began inside the bar and lay across
-          that line. */}
+          never leaves the root on its way down. */}
       <div
         id={`${id}-panel`}
         data-open={open ? "" : undefined}
         onClick={onPanelClick}
         className={cn(
-          "absolute top-full left-1/2 z-10 -translate-x-1/2 pt-7",
+          "absolute top-full left-1/2 z-10 -translate-x-1/2 pt-3",
           "ease-exit invisible -translate-y-1 opacity-0 transition-[opacity,translate,visibility] duration-150",
           "data-open:ease-glide data-open:visible data-open:translate-y-0 data-open:opacity-100 data-open:duration-250",
         )}

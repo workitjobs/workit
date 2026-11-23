@@ -6,23 +6,7 @@
  * application's page; the sent resume (docs/sent_resume.md). WorkIt reads
  * no email (the Inbox is archived, docs/email_tracker.md), so no line says
  * an employer's reply moves an application.
- *
- * The headline is "The spreadsheet that fills itself in" (2026-11-21, from
- * the home page's product tiles when that section went; it was "Every
- * application, in one place", which repeated What is WorkIt's "finally in
- * one place"). It answers the problems' card about the spreadsheet a
- * student gives up on. "Fills itself in", never "updates itself": a saved
- * job lands on its own, Auto Apply marks a job applied when the student
- * submits in its tab, and Apply Now asks "Did you apply?" on the way
- * back; stages past Applied are set by hand.
  */
-import {
-  ArrowsClockwiseIcon,
-  CalendarCheckIcon,
-  PaperPlaneTiltIcon,
-  TableIcon,
-} from "@phosphor-icons/react/ssr";
-
 import { UpdatesAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { SentResumeVisual } from "../visuals/resumes";
@@ -36,48 +20,35 @@ const content: FeatureContent = {
       "Keep every job you save or apply to in one list, with its stage, its match score and the resume you sent.",
   },
   hero: {
-    title: "The spreadsheet that fills itself in",
+    title: "Every application, in one place",
     subtitle:
       "Save a job or apply to it and it lands on your tracker. Move it to Interviewing or Offer as you hear back, with the resume you sent one click away.",
   },
   // The home tour's Updates stop.
   animation: UpdatesAnimation,
   sections: [
-    // The four points, the user's picks (2026-11-21): it fills itself in,
-    // arrange it, the calendar, what you sent. They were Saved and applied
-    // side by side, It asks when you come back, Move it along as you hear
-    // back, and The resume you sent. Each title has its own shape and no
-    // two end on one word (the lesson of the Auto Apply review). The
-    // pictures are the old points' and wait for real recordings. Icons,
-    // picked from fourteen: arrows in a circle, a table, a calendar with a
-    // check, and the paper plane kept.
     {
-      title: "No more updating a spreadsheet",
-      icon: ArrowsClockwiseIcon,
-      body: "Save a job and it is in your list. Come back from a company’s site and WorkIt asks if you applied. One yes, and it is marked.",
-      visual: AskedVisual,
-    },
-    {
-      // The list arranged as a table: columns, Group By, Sort and filters
-      // (frontend/docs/screens.md, Applications).
-      title: "Sort it, group it, make it yours",
-      icon: TableIcon,
-      body: "Choose your columns, group by stage or company, and sort by date, match or pay. It works like the spreadsheet you know, without the upkeep.",
+      eyebrow: "One list",
+      title: "Saved and applied, side by side",
+      body: "Every job you save or apply to sits in one list, with its stage and your match score. Search it, filter it by status, and sort it by date, match or pay.",
       visual: ListVisual,
     },
     {
-      // Dated events added on an application's page fill the Calendar
-      // (KAN-413). WorkIt shows the dates; it sends no reminder, so "never
-      // miss" means they are all in one place, the user's pick knowing it.
-      title: "Never miss an interview",
-      icon: CalendarCheckIcon,
-      body: "Add an interview, an assessment or a deadline to any application. It shows on your calendar, next to the job it belongs to.",
+      eyebrow: "Did you apply?",
+      title: "It asks when you come back",
+      body: "Press Apply Now and the company’s application opens in a new tab. When you come back, WorkIt asks if you applied and which resume you sent. Say yes and the job moves to Applied.",
+      visual: AskedVisual,
+    },
+    {
+      eyebrow: "Stages",
+      title: "Move it along as you hear back",
+      body: "Set each application’s stage yourself: Applied, Interviewing, Offer or Rejected. Add an interview or an assessment to its page, so the date stays with the job.",
       visual: StageVisual,
     },
     {
-      title: "See exactly what you sent",
-      icon: PaperPlaneTiltIcon,
-      body: "Each application keeps the resume it went out with. Read what the recruiter saw before you walk into the interview.",
+      eyebrow: "Sent resume",
+      title: "The resume you sent, one click away",
+      body: "Each application keeps the resume it went out with, so you can read what the recruiter saw before your interview.",
       visual: SentResumeVisual,
     },
   ],

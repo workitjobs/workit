@@ -1,5 +1,7 @@
 import { useEffect, useState, type RefObject } from "react";
 
+import { useMotionPaused } from "./motion-pause";
+
 /**
  * Whether a CSS media query matches. Null in the server-rendered HTML and
  * until the component mounts, so the first client render matches the server's.
@@ -17,13 +19,13 @@ export function useMediaQuery(query: string): boolean | null {
 }
 
 /**
- * True while the page is in a background tab or minimized window. The
- * animations use it to hold timers and loops nobody can see where they
- * are, and go on from there. It also held them for Pause Animations, the
- * button in the footer and the phone menu, until the user had it removed
- * (KAN-923, 2026-11-19).
+ * True while the page is in a background tab or minimized window, or the
+ * visitor pressed Pause Animations (motion-pause.ts). The animations use it
+ * to hold timers and loops nobody can see, or that someone asked to stop,
+ * where they are, and go on from there.
  */
 export function useLoopsHeld(): boolean {
+  const paused = useMotionPaused();
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     const update = () => setHidden(document.hidden);
@@ -31,7 +33,7 @@ export function useLoopsHeld(): boolean {
     document.addEventListener("visibilitychange", update);
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
-  return hidden;
+  return hidden || paused;
 }
 
 /**

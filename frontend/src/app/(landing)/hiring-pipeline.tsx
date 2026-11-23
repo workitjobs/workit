@@ -126,7 +126,7 @@ export function HiringSystemsSection() {
       <GrowIn className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
         <div className={CONTAINER}>
           <FocusIn>
-            <SectionHeading title={copy.title} subtitle={copy.subtitle} />
+            <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
           </FocusIn>
           <HiringSystems />
         </div>
@@ -232,7 +232,12 @@ function PinnedPipeline() {
                 } as React.ComponentProps<typeof motion.div>["style"]
               }
             >
-              <SectionHeading align="left" title={copy.title} subtitle={copy.subtitle} />
+              <SectionHeading
+                align="left"
+                eyebrow={copy.eyebrow}
+                title={copy.title}
+                subtitle={copy.subtitle}
+              />
             </motion.div>
           </div>
           <div
@@ -699,7 +704,7 @@ function Posting({
             style={{ x, y, scale }}
           >
             <motion.div
-              className="surface-card text-ink absolute -top-[72px] flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
+              className="gloss-card text-ink absolute -top-[72px] flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
               style={{ width: PILL_W, left: -PILL_W / 2, opacity: pill }}
             >
               <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />

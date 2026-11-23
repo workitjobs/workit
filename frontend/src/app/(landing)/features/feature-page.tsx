@@ -5,9 +5,9 @@ import { cn } from "@/lib/cn";
 
 import { ClosingCta } from "../closing-cta";
 import { FaqList } from "../faq-list";
-import { CONTAINER, HERO_PILL, PANEL, PANEL_INSET, SectionHeading, TYPE } from "../layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
 import { EmailSignUpLink, SocialSignUpButton } from "../social-sign-up";
-import { backdrop, deepDiveAnchor, featurePages, type Feature } from "./catalog";
+import { backdrop, featurePages, type Feature } from "./catalog";
 import { featureContent } from "./content";
 import { FeatureIcon } from "./feature-icon";
 import { DeepDiveStage, FeatureMotion, FeatureStage } from "./feature-stage";
@@ -33,14 +33,14 @@ export function FeaturePage({ feature }: { feature: Feature }) {
         <section className={PANEL_INSET}>
           <div className={cn(PANEL, "overflow-hidden")} style={{ background: ground }}>
             <div className={cn(CONTAINER, "pt-16 text-center sm:pt-20 lg:pt-24")}>
-              <p className={cn(HERO_PILL, "py-1 pl-1")}>
+              <p className="glass-card text-ink inline-flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm font-medium">
                 <FeatureIcon feature={feature} className="rounded-full" />
                 {feature.name}
               </p>
-              <h1 className={cn(TYPE.display, "text-ink mx-auto mt-6 max-w-4xl")}>
+              <h1 className="text-ink mx-auto mt-6 max-w-3xl text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance sm:text-6xl">
                 {content.hero.title}
               </h1>
-              <p className={cn(TYPE.lead, "text-ink-muted mx-auto mt-6 max-w-2xl")}>
+              <p className="text-ink-muted mx-auto mt-5 max-w-2xl text-lg leading-[1.55] text-pretty">
                 {content.hero.subtitle}
               </p>
               <SignUpButtons className="mt-8" />
@@ -73,7 +73,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
         <section className={PANEL_INSET}>
           <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
             <div className={CONTAINER}>
-              <SectionHeading title={content.howItWorks.title} />
+              <SectionHeading eyebrow="How it works" title={content.howItWorks.title} />
               <ol
                 className={cn(
                   "mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2",
@@ -81,7 +81,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                 )}
               >
                 {steps.map((step, i) => (
-                  <li key={step.title} className="surface-card rounded-2xl p-6">
+                  <li key={step.title} className="gloss-card rounded-2xl p-6">
                     <span
                       aria-hidden="true"
                       className="flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums"
@@ -100,15 +100,15 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
         <section className="py-20 sm:py-28">
           <div className={CONTAINER}>
-            <SectionHeading title="One app for the whole search" />
-            <ul className="mt-12 grid gap-3 sm:mt-16 md:grid-cols-3">
+            <SectionHeading eyebrow="More from WorkIt" title="One app for the whole search" />
+            <ul className="mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
               {featurePages
                 .filter((page) => page.slug !== feature.slug)
                 .map((page) => (
                   <li key={page.slug}>
                     <Link
                       href={page.href}
-                      className="group ease-glide surface-card flex h-full flex-col rounded-2xl p-6 transition-[translate] duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                      className="group ease-glide gloss-card flex h-full flex-col rounded-2xl p-6 transition-[translate] duration-200 hover:-translate-y-0.5 active:translate-y-0"
                     >
                       <FeatureIcon feature={page} size="md" />
                       <h3 className="text-ink mt-4 font-semibold">{page.name}</h3>
@@ -133,7 +133,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
         <section className="pb-20 sm:pb-28">
           <div className={CONTAINER}>
-            <SectionHeading title="Questions, answered" />
+            <SectionHeading eyebrow="FAQ" title="Questions, answered." />
             <FaqList items={content.faqs} className="mt-12" />
           </div>
         </section>
@@ -158,13 +158,14 @@ function DeepDive({
 }) {
   const Visual = section.visual;
   return (
-    // Its anchor, which the home page's product rows link to.
-    <div
-      id={deepDiveAnchor(section.title)}
-      className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
-    >
+    <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
       <div className={cn(flip && "lg:order-last")}>
-        <SectionHeading align="left" title={section.title} subtitle={section.body} />
+        <SectionHeading
+          align="left"
+          eyebrow={section.eyebrow}
+          title={section.title}
+          subtitle={section.body}
+        />
         {section.points && (
           <ul className="mt-6 grid gap-3">
             {section.points.map((point) => (

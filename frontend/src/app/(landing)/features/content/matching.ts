@@ -4,24 +4,11 @@
  * (backend/app/services/matching/scoring.py), Best Match as the Jobs
  * page's first sort (frontend/docs/screens.md), the hiring systems the
  * scraper reads (scraper/, data.ts) and the roles it keeps (Intern and New
- * Grad, in every field), the match's bands (lib/match.ts) and the reasons
- * a job card's match rail shows (backend services/matching/highlights.py:
- * up to three, what fits before what to weigh).
- *
- * The headline is "Know your fit before you apply" (2026-11-21, the user's
- * pick from six; it was "The jobs you fit best, at the top"): the score
- * and its reasons come before the student spends time on a form.
+ * Grad, in every field).
  */
-import {
-  BuildingsIcon,
-  ChartDonutIcon,
-  ListChecksIcon,
-  TargetIcon,
-} from "@phosphor-icons/react/ssr";
-
 import { MatchingAnimation } from "../animations";
 import type { FeatureContent } from "../types";
-import { BestMatchVisual, ReasonsVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
+import { BestMatchVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
 
 const content: FeatureContent = {
   line: "Every job posting scored on how well you fit.",
@@ -31,20 +18,16 @@ const content: FeatureContent = {
       "WorkIt scores internship and new-grad job postings against your experience bank and puts the best fits first.",
   },
   hero: {
-    title: "Know your fit before you apply",
+    title: "The jobs you fit, first",
     subtitle:
       "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top of your Jobs page.",
   },
   animation: MatchingAnimation,
   sections: [
     {
-      title: "Every job, scored on your experience",
-      // A ring partly filled, close to the app's own match ring (the user's
-      // pick, 2026-11-21; it was a gauge). This point joins the old first
-      // and third ("The best fits at the top"): the score and the ranking
-      // are one idea.
-      icon: ChartDonutIcon,
-      body: "Every job gets a score from your real experience, and the best fits come first.",
+      eyebrow: "Your score",
+      title: "Scored on what you have done",
+      body: "Your match score weighs four things from your experience bank: how closely your background reads like the job’s description, your skills, the titles you have held, and the years of experience the posting asks for.",
       points: [
         "A match score on every job posting",
         "Built from your own experience bank",
@@ -53,39 +36,15 @@ const content: FeatureContent = {
       visual: ScoreVisual,
     },
     {
-      title: "See why a job fits, or why it does not",
-      // Ticked lines, as the app lists a match's reasons (the user's picks,
-      // 2026-11-21; it was a double check under "Why each job fits"). "Or
-      // why it does not": a match's reasons are what fits ("Uses 3 of your
-      // skills", "Fits your major") and one caution, "Asks for N+ years",
-      // when the posting wants more experience (matching/highlights.py).
-      icon: ListChecksIcon,
-      body: "Before you spend an evening on an application, see what the job wants and what you bring. Then decide in seconds.",
-      visual: ReasonsVisual,
-    },
-    {
-      title: "Your best match, every time",
-      // A target: an aim set (the student's preferences) and a job that
-      // lands on it (the user's picks, 2026-11-21, who wanted a mark for the
-      // best match, not a filter or a slider). New: the saved filters (role,
-      // place, workplace, job type, pay, start term, visa sponsorship), which
-      // a fresh visit to the Jobs page applies again. The body is the
-      // user's own words. It replaced "The best fits at the top", which
-      // moved into the first point.
-      icon: TargetIcon,
-      body: "Find the jobs that match both your experience and your preferences. WorkIt remembers them every time you come back.",
+      eyebrow: "Best Match",
+      title: "The best fits at the top",
+      body: "Your Jobs page opens on Best Match, so the postings that fit you most come first, each with its score. Switch to Newest any time.",
       visual: BestMatchVisual,
     },
     {
-      title: "Every job, in one place",
-      // The answer to the problems' "Jobs scattered everywhere" (the user's
-      // picks, 2026-11-21, who found "Straight from company job boards" too
-      // much about the source: the point is that WorkIt pulls the jobs
-      // together). Buildings stay as its icon. "Careers pages", never "job
-      // boards" alone: WorkIt reads the pages companies host on hiring
-      // systems (about 5,000, scraper/boards.csv), not Indeed or LinkedIn.
-      icon: BuildingsIcon,
-      body: "No more checking one careers page after another. WorkIt reads thousands of them and puts every job in one list.",
+      eyebrow: "Hiring systems",
+      title: "Straight from company job boards",
+      body: "WorkIt reads job postings from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Apply Now opens the company’s own application.",
       visual: SourcesVisual,
     },
   ],

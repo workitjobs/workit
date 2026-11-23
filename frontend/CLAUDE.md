@@ -258,784 +258,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   headline on its widest phrase and the city, taken when a strong match shows,
   since a red 67% was the wrong first impression. A change to the hero's look
   means taking it again. The home page's tab title is short (`site.tabTitle`,
-  a tab shows about 30 characters). Its description, in search results and
-  the preview, is `homeDescription` in data.ts, in other words than the
-  hero's line, which a preview showed beside the hero's own (the web review,
-  2026-11-20).
+  a tab shows about 30 characters); its preview carries the whole tagline.
   After a deploy, check a link in a preview debugger: a platform caches the
   old card for days.
-- **The home page since KAN-923** (2026-11-19, after Calendly's home page;
-  the review and the agreed direction are in `docs/home-page-review.md`).
-  The user found the old page AI-made: a rolling gradient headline, one
-  heading size, and scenes that pinned whole screens. The order, each
-  section leading into the next, is `page.tsx`: the hero (a fixed headline,
-  `hero.title`, which is `site.tagline`, "Your job search, without the
-  busywork.", and a line that ends on why: the time saved goes into making
-  each application better; the sign-up pair, which a Download
-  for Mac button from KAN-922 joins in the same wrapping row), the logo
-  strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), **the opening run after Loopsii's** (the
-  user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`: on the left
-  WorkIt's app icon as a thin slab of glass in 3D, tilted so its edge
-  shows and floating over a shadow on a slow loop (`app-icon.tsx`, built
-  as the hiring coins were: a face and twelve squircles stacked behind it
-  under `perspective`; a flat icon read as 2D), with "What is WorkIt?"
-  under it as an app's name sits under its icon, the pair centred in its
-  column both ways and evenly between the frame's side line and the
-  words; on the right one large line of what WorkIt holds ("Your resume,
-  your job matches and every application, finally in one place.", the
-  user's pick of five) and one smaller line of how, in other words than
-  the hero's line, read in word by word as they arrive. **"Busywork" is
-  the hero's word**: it stays in the headline (and the footer's tagline
-  and the tab title, which repeat it) and nowhere else, since it was on
-  four lines of the page (the user's catch, 2026-11-20). It was a small grey label beside one six-line
-  paragraph, which read as plain text and a wall of words, the user's
-  catches), where applications
-  get lost (`problems.tsx`, **a light grey band, the page's one panel
-  between the hero and the footer**, which zooms in as it rises: from lg up it grows from 80% to
-  full size over its way up the screen, `GrowIn` with `from`, while What
-  is WorkIt's statement fades to a quarter and shrinks to 96%, both
-  scroll-linked opacity and transform strings the browser runs off the
-  main thread, after Loopsii's statement going out of focus under its
-  dark card; a blur was left out, since it would stay half on wherever
-  the reader stopped; the user's ask, 2026-11-20, which merged a separate
-  band of a job seeker's thoughts as pills, Loopsii's own layout, into
-  the problems), and That's why WorkIt exists
-  (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
-  sky; **the demo is a placeholder**, a white screen with a play mark and
-  "Product demo, coming soon", until a recording or screenshot replaces
-  it at 16:10), then one product section each
-  for Resume Builder, Job Matching, Auto Apply and the Application Tracker
-  (`product-sections.tsx`), what stays the student's call (`control.tsx`),
-  the hiring systems as a centred chapter
-  (`hiring-grid.tsx`, `#hiring-systems`), which runs into the footer.
-  **The FAQ is off the home page** (the user's call, 2026-11-19): its
-  questions (`faqs` in data.ts) are on the Help Center's coming-soon page
-  (`soon.questions` in `resources/catalog.ts`, under the panel, its button
-  `#questions`), and the footer's FAQ link went. **The user took two
-  sections out on 2026-11-19**: the statement
-  ("Slop applications get skipped", archived: `statement.tsx` stays,
-  unmounted) and the home page's closing call to action with its drifting
-  status chips (deleted, with its `closing` copy; `ClosingCta` stays for
-  the feature pages).
-  **The rules it set:**
-  - **WorkIt sells quality, never volume** (the user's call, 2026-11-20):
-    it takes the busywork of applying off the student, so their time goes
-    into making each application better, since applying to more jobs gets
-    no one hired. Competitors sell mass applying; no line on the site
-    sells "apply to more jobs" or a count of applications sent, and none
-    promises replies, interviews or offers. "Five at a time" is a fact
-    about Auto Apply, never a pitch for volume. "Apply to more jobs, with a
-    better resume for each." was the hero for a day and went for this.
-  - **The drafting grid frames every section** between the hero and the
-    footer (`DraftLines` in `draft-lines.tsx`, the user's call,
-    2026-11-20, after Loopsii): hairlines across the window at each
-    block's top and foot, side lines on one rail 1.5rem outside the
-    container's content that run 6rem past each frame and so join between
-    sections, and ink squares where they cross. It takes no room (absolute,
-    in a `relative` parent at the container's width) and shows from lg
-    up. The rules: `docs/marketing-design-system.md`, "The drafting grid".
-  - **Every picture sits in a `StudioBox`** (`layout-parts.tsx`): a
-    rounded box on a feature's ground with a fine grain (`.studio-box` in
-    landing.css; faint ruled lines across it went, the user found them odd
-    over the gradients). **The ground is a blend of neighbouring colours**
-    (`studioGround`, 2026-11-21, after a reference image the user gave):
-    the feature's colour fills the box, one neighbour hue pools in the
-    lower left and another in the upper right, and a pale streak of light
-    crosses between them (`MESH` in layout-parts.tsx: blue with cyan and
-    periwinkle, peach with yellow and coral, green with lime and teal,
-    pink with coral and plum, and the brand's violet with blue and
-    magenta). It
-    replaced a sky in one colour, pale to half strength, which the user
-    found AI-made and odd ("just blue and white"), that sky at full
-    strength, too strong with four boxes side by side, and first blobs of
-    the colour over a tint, flat and muddy: one colour and white is not a
-    gradient worth looking at. **At pastel strength** (`STRENGTH`, 46% of each colour
-    over white; the user's pick over full strength, compared side by side
-    in the page, 2026-11-21): the site is paper and ink, and four boxes at
-    full strength in the hero were louder than the headline. **No grain**:
-    the boxes had one until the same day, and on the pastel grounds the
-    user could still see it and had it removed. **Nothing writes straight on a box's
-    ground**: a line outside a card sits on a white pill (`GroundNote` in
-    `features/visuals/parts.tsx`); after a change to a scene, check what
-    sits on the bare ground. **No scene fills the screen**, as on
-    Calendly, whose animations sit in boxes of 290 to 424px. A new
-    picture goes in a
-    `StudioBox`, never a full-width panel of its own. Nothing on the home
-    page pins: the product sections did, until 2026-11-20 (below), and so
-    did the tools collapse for a day (below).
-  - **The hero is the pipeline in the drafting grid** (2026-11-21,
-    `hero-pipeline.tsx`; the user's ask: "a new hero that matches the grid
-    feel of our website and captures the whole pipeline"). On the white
-    page, in the page's first `DraftLines` frame (`first`: its side lines
-    start at its top line, or they crossed the header), the headline, its
-    line and the sign-up pair are centred, and under them stand four cells
-    of the grid, one per product in the order a search meets them: the
-    product's mark and name over one `StudioBox` on its own sky, as its
-    section uses further down. **One application runs through all four**
-    (`followedJob`): the resume with two lines reworded as the picked
-    keywords tick off, the posting's match filling to its band, the form's
-    fields filling with Submit and a pointer (the student clicks), and the
-    application landing in the tracker at Applied. **It plays in turn**
-    (`.pipe-anim` in landing.css): one loop is five slots of 3.2 s, a
-    cell's own and a fifth of rest; a line in the product's colour fills
-    along the cell's top rule (the product rows' `.row-fill` idea) while
-    its scene plays, and at the rest's end all four cells fade clear
-    together, so each loop starts from four empty cells (each cell once
-    ran the loop from its own slot, so on the second loop the first
-    emptied alone beside three full ones: the user's catch, 2026-11-21).
-    Every piece runs one clock with no delay of its own; its keyframes
-    hold all four slots and the cell picks its own through `--p1` to
-    `--p3` (landing.css). All CSS on the server's HTML, opacity and transform only,
-    paused off screen (`HoldOffscreen`, `data-paused`), finished and still
-    with reduced motion. **Scenes are in em**: drawn at 252 × 201px with
-    every size in em and the box setting the em from its own width
-    (`.pipe-stage`), so a 165px box on a phone holds the same picture; a
-    px size in a scene breaks that. From lg up the cells run rail to rail
-    (`lg:-mx-6`) with the grid's own rule, dividers and ink squares
-    (`.pipe-lines`); from sm to lg they are two by two with no lines, and
-    **below sm they are one row that swipes sideways**, a cell at 78% of
-    the row so the next shows at the edge (two by two on a phone, a box
-    was 165px wide and its scene's words 6 to 8px tall; now 268px and 9.5
-    to 12.6px). **Each cell is a link to its product's section**
-    (`/#resumes` and so on, as `FeatureJumps` links them): a visitor who
-    sees a product in the hero tries to click it. **A signed-in student
-    sees one Open WorkIt in place of the sign-up pair** (`SessionSwap`,
-    as the header: the hero offered "Sign up" under a header that said
-    Open WorkIt). The
-    section fills the screen's height under the header (58rem at most),
-    with no padding above: the frame hangs from the header's foot line,
-    the headline is centred in the room above the pipeline, and the logo
-    strip starts below the first screen. Checked at 1440 × 900 (the
-    frame's foot at 884px), 1024 × 768 (752px) and 375 × 812 (the swipe row ends at 772px), signed in and
-    signed out, with no sideways scroll of the page. **The page's entrance draws the grid, and nothing in it
-    fades** (2026-11-21, the user's asks: only the hero's words came in on
-    load; then the first version's fades read as AI-made). The header
-    drops down from above the window as one bar (a plain move, the user's
-    call: a wipe from the centre was more than the bar needed); the
-    headline, its line and the sign-up pair rise from behind their
-    own foot, as from a slot (`.hero-reveal`); the rails draw and the ink
-    squares pop as lines reach them; **the four cells are drawn, left to
-    right**: each is dragged out from its top left corner like a frame in
-    a design tool, with an ink square riding the corner as its handle,
-    which then rests as the grid's mark (`.pipe-handle`; the user's pick
-    over cells that fed down out of the top rule, the two compared in the
-    page); the loop starts as the last closes, at 1.7s (the `load-*` rules
-    at the foot of landing.css, with the timeline in their comment). A
-    piece is hidden by a clip, never by opacity or a blur; each rule fills
-    backwards only, so no clip or transform stays on an element (a clip
-    left on the nav would cut its menus). Never a loading screen. The
-    lines and the handles from lg up; nothing with reduced motion. The foot's five squares are the pipeline's
-    (`.pipe-lines`), so `DraftLines first` draws none. **The Browser pane holds CSS
-    animations at their first frame**, so there the hero shows no words
-    and unfilled scenes: before a screenshot run
-    `document.getAnimations().forEach((a) => { try { a.finish() } catch {
-    a.currentTime = 15500 } })`, or look in Chrome.
-  - **The hero before that** (`hero-board.tsx`, unmounted since
-    2026-11-20; it told Job Matching's story alone and may go on that
-    product's page; its CSS stays): **the first screen and nothing else**
-    (the user's call,
-    2026-11-19): a grainy violet panel (`.hero-ground`) the screen's height under
-    the header (`min-h-[calc(100svh-5rem)]`, 6.25rem from sm: the 72/76px
-    header and the 8/24px inset; a minimum, so a screen too short for the
-    headline grows the hero rather than clipping it), filled edge to edge
-    by a grid of glass tiles (`HeroGrid` in `hero-board.tsx`, `.hero-grid`
-    in landing.css). The headline, line and sign-up pair sit in one large
-    tile in the middle (`.hero-copy`): solid white, the one tile that is not
-    glass and the brightest surface, so it leads by lightness. **The ground
-    and the glass are the user's ask** (2026-11-19, after a flat brand-100
-    panel with solid violet lit tiles, which the user did not like): the
-    ground is deeper violets in the corners, lighter ones along the edges
-    and a pale pool behind the headline, all one hue family (never
-    Calendly's blue to pink), under grey noise in overlay (`::after`), so
-    the grain lightens and darkens without greying the violet. Every small
-    tile is frosted glass (`.hero-tile`: a faint white, `backdrop-filter:
-    blur(14px) saturate(1.2)` that smooths the grain, a white hairline and
-    a brighter top edge). Postings light up as bright glass cards
-    (`.board-lit`: near-white over the tile's frost, a white edge and a
-    slate shadow), each a real employer, **one card at a time, anywhere on
-    the grid**: every tile the screen shows takes one 3.4 s turn (0.45 s
-    in, a hold, out by 3.35 s, its match bar filling in its first second)
-    in a shuffled order per layout (`ORDERS` in hero-board.tsx, by the 8,
-    12, 20, 24 or 28 tiles a layout shows), never two neighbouring tiles
-    and never the same posting twice in a row (`POSTING_OF`), so the next
-    card appears somewhere else as the last one goes. A tile's turn in
-    each order is `--s<n>` on it, and landing.css picks the layout's
-    `--slot`, `--n` and keyframes (`board-lit-<n>`, `board-bar-<n>`, made
-    by a script from the turn's times). **No card shows until the page has
-    settled**: the first fades in 1.5 s after load (`--lead`; one lit at
-    the first paint looked pre-loaded, the user's catch). **Each visit
-    starts somewhere else**: the page is prerendered, so an inline script
-    in `HeroGrid` (`SHUFFLE`, before the grid, never inside it, since the
-    grid's nth-child rules count its children) sets `--hero-start` and
-    `--hero-dir` on `<html>` before the first paint, and landing.css turns
-    each tile's turn round that start and direction with `mod()` (in an
-    `@supports` rule; without it, or without script, the fixed order
-    plays). It writes only to `<html>`, whose attributes hydration does
-    not check (`suppressHydrationWarning`, the root layout rule), so no
-    mismatch. Each order's rules hold from any start and either way.
-    Measured at five layouts, 375 × 812 to 2560 × 1080: never more than
-    one card shown, the grid empty about 5% of the time (the crossfade's
-    edge); over four loads, no card before 1.45 s and four different first
-    tiles. Before, every posting
-    looped on its own (two to six lit at once, which the user found
-    overlapping), and before that seven fixed tiles on one 14 s loop (too
-    orderly). With reduced motion one tile per
-    posting is lit and still (`STILL`, `data-still`). Each card has ink
-    text in the Jobs page job card's weights (`compact-job-card.tsx`: role medium, company
-    regular, match semibold) and the match in the app's own colours, as on
-    the Jobs page. **The lit layer carries no blur of its own**: a tile
-    with a backdrop filter is the backdrop root of what is inside it, so a
-    second blur there sees nothing; the tile's blur reads a still ground
-    and the light costs only its opacity and transform. Glass was turned
-    down once on cost; measured with it: about 8.4ms frames, none over
-    20ms, at 1728 wide. **A lit tile's role never runs into the match**
-    (`.tile-role`, the user's catch: "Software Engineer Intern" was cut
-    through its second line): two lines on a tile from 122px tall, one with
-    an ellipsis from 108px, none below, by container queries on the tile,
-    and it never shrinks (a flex child with its overflow hidden could
-    shrink below its lines). **A lit tile is two groups, by proximity**:
-    the job (company, role) and the verdict (band, bar, percentage) at the
-    foot, at least 10px apart, with 4px from the band to its bar; at 6px
-    each way the band read as part of the role (the user's catch). Checked
-    at nine sizes, 375 × 812 to 2560 × 1080. The match's strength is in the app's own bands (`matchTier` from
-    `lib/match.ts`): the app's match ring (`MatchGlyph` from
-    `components/match-badge.tsx`, the match badge's 14px ring), then
-    "Excellent Match" or "Good Match", the short name on a tile under
-    8.5rem wide, no ring under 6rem. The user picked the ring over signal
-    bars, a badge icon per band and the Matching target, and over a plain
-    dot. Under it a slim bar in the band's colour with the percentage at its
-    end (`MatchBar`; the band leads because a bare number does not tell a
-    student whether to apply, the user's call; a ring took too much
-    height), at their cell's size (lifted 4% they stood out of line).
-    **Why the steps** (the user's "something feels off", measured): before
-    them every surface sat between 94% and 100% lightness in three
-    temperatures (a cool grey ground, white tiles, a lavender headline
-    tile, Google's neutral buttons), the pairs that had to separate
-    measured 1.01 to 1.11 contrast, and the blank white boxes on grey read
-    as a loading skeleton. Keep them: the ground mid violet, the empty
-    glass a little lighter, the lit cards and the headline tile the
-    lightest. Every match on the page says its band, never a bare number:
-    the journey's Match step too.
-    Below lg the tiles are square, one row above the headline's tile and
-    one below; from lg up the grid is 5 rows sharing the panel's height,
-    the headline's tile spans the middle 3 and all but the outer columns,
-    and the column count follows the screen's shape so tiles stay near
-    square: 7 below 8:5, 9 from 8:5, 11 from 21:10. Each layout shows only
-    the tiles it has cells for (`nth-child` rules in landing.css; a spare
-    tile opens a new row). From lg up the headline is
-    `clamp(2.75rem,6.4svh,4.5rem)`, so it fits three rows at 1024 × 768.
-    Each lit tile's match bar fills from empty as the tile comes up
-    (`.board-bar`: a translate inside the clipped track, from 0.45 s to
-    1.45 s into the tile's turn, reading its tile's `--n`, `--turn` and
-    `--slot`, full with reduced motion), the user's first ask for
-    more motion. After any change to the hero, check 1024 × 768, 1366 × 768, 1440 ×
-    900, 1920 × 1080, 768 × 1024 and 375 × 812: no bare ground beside the
-    grid, the headline inside its tile, and the next section starting
-    below the screen. The lights are `.board-lit` (opacity and transform,
-    one per posting lit and still with reduced motion); the
-    grid is a server component with no script. It replaced a violet mesh
-    gradient (too close to Calendly's), then a board of wide grey posting
-    cards, then a grid capped at 84rem, which left bare grey margins on a
-    wide screen; the "For internships and new-grad roles" pill was taken
-    out. Data: `heroFits` in data.ts.
-  - **The four product tiles are gone** (the user's call, 2026-11-21):
-    the section "One app for every step of applying", with a tile per
-    product, stood between That's why WorkIt exists and the product
-    sections. The hero now shows the four products and links each to its
-    section, so the tiles said it twice. `FeatureJumps` and
-    `featuresIntro` are deleted (git history has them). **Three of its
-    details moved into the product sections**, which the feature pages
-    share: the tracker's headline is "The spreadsheet that fills itself
-    in" (the tiles' best line; it was "Every application, in one place",
-    which repeated What is WorkIt); Auto Apply's profile row is "The
-    basics, from your profile" (it was "Every field", more than Auto
-    Apply does); and Resume Builder's first row ends "No resume yet? Add
-    your experience piece by piece, and WorkIt builds your first one."
-    (the intro's own point, said nowhere else). Dropped as said below
-    already, or as unprovable: "Making a resume has never been easier",
-    "Tailor in a click", "Spend your time on the jobs your experience
-    fits best" and "five applications at a time". The next bullet
-    describes the removed section, kept for its reasons.
-  - **WorkIt's answer, after the problems (removed 2026-11-21)**: a short section, "One app
-    for every step of applying", then one line on where to start ("Start
-    wherever you are, even if you don't have a resume yet."), then the four
-    products as a row of flat tiles, each in its feature's pale tint with
-    its mark ringed in white (`FeatureJumps`; grey, the four read as alike,
-    the user's call, 2026-11-20), in the drafting grid's frame. **The point
-    is one platform for every step, wherever the student stands** (the
-    user's words, 2026-11-20): a student with no resume starts on
-    Experiences, whose intake asks about their experience one thing at a
-    time, and Generate builds the first resume from it. The line was "Set
-    up your profile once. Every tool below uses it, so you stop typing the
-    same things over and over.", which the user found meant nothing to a
-    student here. **No examples before the tiles** (the user's call,
-    2026-11-20): for a day eight tool cards (Google Docs and Overleaf,
-    careers pages and job sites, a notes app and copy and paste, Google
-    Sheets and a calendar), each a piece of the tool's screen, leaned on
-    the four products' empty slots and flew into them while the section
-    pinned and the scroll drove the collapse, after Loopsii's "your whole
-    stack, in one app". The user found them in the way, serving no
-    purpose next to the four products; the code is in git history
-    (`tools-collapse.tsx`, up to f430254f). Each tile has its mark, its name, **a
-selling line that says what the product does** and "See how", a
-    `Link` to its section (`/#resumes`, `/#matching`, `/#auto-apply`,
-    `/#tracker`, the product sections' ids). The heading, the line and the
-    four selling lines are `featuresIntro` in data.ts, each claim tied to
-    its source in the comment there (the editor types on the page and
-    typesets in LaTeX, Tailor in one click, Best Match first, five forms at
-    a time, the tracker filling itself in), and none promises replies or
-    interviews. **Sell on facts the student feels** (the user's ask,
-    2026-11-20): each line sells what the product saves the student, with
-    their time going into quality ("Spend your time on the jobs your
-    experience fits best"), never a feature name or a count of
-    applications. **The four lines stay even**: close in length (54 to 57
-    characters) and short, so the tiles take the same two lines; lines from 36
-    to 120 characters, each in its own pattern, read as uneven (the
-    user's catch, 2026-11-20). **The tracker "fills itself in", never
-    "updates itself"**: a saved job lands on its own, Auto Apply marks a
-    job applied when the student submits in its tab and Apply Now asks
-    "Did you apply?", but stages past Applied are set by hand, since
-    WorkIt reads no email. **What it replaced**: the
-    heading "WorkIt is one place for your whole job search", which the
-    user found off, over tiles that read "Fixes" and the problem above it
-    (`FIXES`), which named the problem but not what the product does;
-    before that, "Every step of the search, in one place", which listed
-    the features but did not answer the problems. **The turn from the
-    problems to the product** is the user's ask (2026-11-20). **Never the
-    hero's line again**: the first version listed the hero subtitle's four
-    steps nearly word for word (the user's catch). **The links are `Link`s to
-    "/#slug"**, as the Features menu's "/#hiring-systems" is: as plain
-    anchors, "#slug" and "/#slug" jumped to the page's top. **It replaced
-    the four features' tabs** (`hero-features.tsx`, unmounted, kept: a tab
-    row over one large card telling the open feature's story), which told
-    the same four products' stories that the product sections told again
-    right below, the same resume text in both (the web review, 2026-11-20).
-  - **Why before how** (the user's plan, 2026-11-19, after Calendly's
-    "Built for people whose work runs on meetings"): the page named the
-    four features three times (the features card, the journey, the product
-    sections) and never who WorkIt is for or what problem it fixes. So the
-    journey is archived and two sections replace it. **The problems**
-    (`problems.tsx`, after What is WorkIt): "Applying for a job shouldn't
-    feel like a full-time job" (the user's words, 2026-11-20; it was
-    "Applying for jobs has become a full-time job"), what a job seeker goes
-    through day to day across the
-    whole job application process (never internships and new-grad roles
-    alone: the user's call). **A hub** (`problem-hub.tsx`, the user's
-    layout, 2026-11-20): six problems in the order a search meets them,
-    three before applying on the left (Jobs scattered everywhere, The
-    resume you keep rewriting, Forms that ask it all again) and three after on the
-    right (The questions you dread, The spreadsheet you gave up on,
-    Silence, or an instant no), each card's words and icon the user's
-    pick from four options a card (2026-11-20: the forms are the basic
-    details typed again, the written answers are their own card, and the
-    last card names both likely ends) and one large visual in the middle
-    for the open one. **The section's one figure is archived** (the user's
-    call, 2026-11-21: `ProblemStat` in `problem-stat.tsx`, unmounted, with
-    `problems.stat` in data.ts): 81%, Greenhouse's 2026 candidate report,
-    linked, shown as a fact with its source. It was the hub's last row, an
-    outlined strip with no fill and the number large in ink, and read as
-    hiding at the foot; it waits for a better place. Its look came from
-    the user's calls of 2026-11-20: filled like the cards it blended in;
-    an outlined box with quote marks on its corners read as tacked on;
-    plain text under a hairline did not read as a sourced fact; its number
-    in light red read as a template's stat callout.
-    **The first card sells the pain, not the list of places** (the
-    user's picks, 2026-11-21, of nine icons and seven lines): two browser
-    windows (Phosphor's `BrowsersIcon`; the folded map read as tidy where
-    the card is about a mess) over "Jobs are posted all over. Some you
-    never even see." The user first picked "Every company posts somewhere
-    different. Some jobs you never even see.", which at 70 characters took
-    three lines in the card where the other five took two, then this
-    shorter one. It was "Greenhouse, Lever, Workday, a careers page: every
-    company keeps its jobs somewhere new."
-    **The second card** (the user's picks the same day, of seven icons,
-    five titles and six lines): the Files icon stays, over "The resume you
-    keep rewriting" and "You know you should tailor it. You rarely have the
-    time." The title was "A folder of almost-the-same resumes", two lines
-    in the card.
-    **The third card** (the user's picks the same day, of seven icons,
-    five titles and six lines): Phosphor's `RepeatIcon` over "Forms that
-    ask it all again" and "The same details, typed into a new form for
-    every company." It was the copy glyph over "Copy, paste, repeat".
-    **The fourth card** (the user's picks the same day, of seven icons,
-    five titles and six lines): Phosphor's `PencilSimpleLineIcon` over
-    "The questions you dread" and "Good answers take time. Rushed ones
-    sound like everyone else's." It was an hourglass over "Short answers
-    that take forever".
-    **The fifth card** (the user's picks the same day, of seven icons,
-    five titles and six lines): the Table icon stays, over "The
-    spreadsheet you gave up on" and "Keeping it current is one more job
-    on top of the search.", which echoes the heading. It was "The
-    spreadsheet you stopped updating" over "Week one, it's up to date. By
-    week three, it's untouched, and you can't tell which resume went
-    where."
-    **The sixth card** (the user's picks the same day, of seven icons,
-    five titles and six lines): Phosphor's `ChatSlashIcon` over "Silence,
-    or an instant no" and "You put in the work. Too often, nothing comes
-    back." It was Phosphor's envelope with its cross set on the corner by
-    hand (`EnvelopeXIcon`, deleted) over "Ghosted or rejected". **All six
-    icons are single Phosphor glyphs.**
-    **Offer choices before changing a card's icon or words**: a trial put
-    in the page before the pick was taken back out. An icon comes from
-    Phosphor first; a hand-drawn glyph is a choice to offer, never the
-    default.
-    **It stands on a light grey band** (`--mk-mist`, #f0f0f0, a step
-    below the white page) with no glow and no grain; the stage's dot grid
-    is its one texture. **It was dark for a day** (2026-11-20): first the
-    ink, #121a28, a blue-black, with a slate pool in the middle and dots
-    across the band, which read as the stock dark section of an AI-made
-    site, then a flat near-black, which read as out of nowhere, the one
-    dark block between two white sections (the user's catches).
-    **The hub's colour** (the user's pick of three directions previewed
-    in the page, 2026-11-21): the five closed cards have no box, their
-    words on the band and each glyph on a white tile, with a faint white
-    fill under the pointer; the open card is the one white, lifted card
-    (`--mk-shadow-float`), its glyph on an ink tile; the stage is a well a
-    step darker than the band (`--mk-well`, #e4e4e4, `.problem-well`), so
-    a picture's white window stands out on it. The open card and the
-    window are one material, white on grey, which says which card shows
-    which picture. **Contrast is a budget: spend it where the eye should
-    go.** Until then the open card was solid ink with white words, so a
-    card at the side was the strongest shape in the section while the
-    picture sat on the weakest ground (a white window on white at 60%),
-    and six white cards with the stage were seven boxes of one weight
-    (the user: "something about it"). The ink is also a blue-black, a
-    cold colour on a neutral grey band. A dark stage was the third
-    preview and the boldest; not taken, since a dark block here was
-    taken out once already. Before the ink the open card was a pale
-    violet tint, which read as off theme (the user's catch, 2026-11-20). A
-    click, a tap or Enter opens a problem, never a hover (the user's call:
-    the cards changed under a passing pointer). **The cards take turns**
-    from lg up (the user's idea, 2026-11-21, since nothing told a reader
-    the cards could be clicked): a hairline draws clockwise round the
-    open card over 8 s (`TURN`, `.card-ring` in landing.css) and the next
-    card opens when it closes, in the order of a search, round again
-    after the sixth. It follows the product rows' rules: it plays only
-    while the hub is well on screen, the tab is shown and no pointer or
-    keyboard focus is on a card; with reduced motion nothing turns and
-    there is no ring. **A click opens a card and the turns go on from
-    it**, its ring drawn again from empty (the user's catch, 2026-11-21:
-    "when I clicked a card, the progress doesn't appear anymore"). For an
-    hour a click stopped the turns for good and took the ring away, as
-    the product rows do; the reader saw the timer vanish and read it as
-    broken. So a card is held by keeping the pointer or the keyboard's
-    focus on it, and **a faint track runs round the open card all the
-    time** (`.card-track`), so the timer shows even when its line is
-    empty or held: without it, a card just clicked, with the pointer
-    still on it, showed no ring at all. Only focus the keyboard put
-    there holds a turn (`:focus-visible`): a clicked button keeps focus
-    after the pointer has gone, and the turn never started again.
-    **One clock in the hub**: where the cards
-    turn, the browser picture's four tabs make one pass per turn
-    (`--board-loop`) and are held whenever the ring is (`data-held`), so
-    two timers never run at two speeds in one panel; below lg the tabs
-    keep their own 12.8 s loop. **Below lg nothing turns**:
-    there the picture sits above the list, and a card that opened by
-    itself would move the lit row under the reader's thumb. The ring is
-    1.5px of ink at half strength at one steady speed: a timer, not a
-    second focus. It is a stroke, so the browser repaints that one card's
-    edge each frame, the one place on the page that does; measured in
-    Chrome at 120 frames a second with no frame over 14 ms. **It
-    replaced "nothing changes on a timer"**, the hub's first rule: the
-    taste rules ban timed tabs, and WorkIt's own design system allows a
-    turn the reader can hold. With it every
-    section from the hero to the footer moves by itself; if that is too
-    much, still the logo strip before adding a pause button.
-    The problems are buttons with
-    `aria-pressed`, and every problem's words stay on screen, so only the
-    picture changes. **The open card is the selected state**, shown by
-    its white fill and its lift: never an
-    edge, which read as an outline button (the user's call, 2026-11-20).
-    **The hub is one block** from lg up: each side's three cards fill the
-    stage's height and the stage grows to theirs; set
-    loosely beside a taller stage, under a two-line heading and a two-line
-    line, the section read as small and tall at once (the user's catch),
-    so the line under the heading is one line. **From xl up the stage
-    stands 1.5rem above and below the card stacks** (the user's ask,
-    2026-11-21, so the centre stands out; the columns' `xl:py-6`): with
-    their edges level, the stage read as a seventh card. The cards still
-    fill their column, so nothing sits loose. **The six cards are one
-    height** from md up (the user's ask, 2026-11-21: `md:auto-rows-fr`,
-    the words centred in each): rows as tall as their words, with the
-    spare room shared out, left six heights from 90 to 129px, which read
-    as inconsistent. Every row is as tall as the longest card, so a longer
-    line on one card makes the whole hub taller: the fifth card's first
-    words, a two-line title over a line of 101 characters, put the band
-    57px past a 1024 × 768 screen. **Write a card to one line of title
-    (about 30 characters) and a line of about 60**: a longer one makes
-    every card taller, and the band with them.
-    On a phone, one column, each card keeps its own height: held to one
-    height there, the short ones showed blank room under their words.
-    **The visual is the hub's main piece** (the user's ask, 2026-11-21):
-    from xl up the side columns are 19.75rem, the widest that leaves the
-    stage 27rem (at 20.5rem the stage was a quarter wider than a card and
-    read as one more card), and a visual is drawn 1.1, 1.15 or 1.2 times
-    its size where its stage has the room (`.problem-window` in landing.css,
-    `zoom` by the screen's size; the reasons are in the comment there).
-    **The visuals are moments everybody has**
-    (`problem-scenes.tsx`): a browser of company job board tabs with roles
-    posted months ago, a folder of resume versions ending in
-    "Resume_FINAL (1).pdf", one more company's My information step with
-    the same name, email and school typed in again over a stack of the
-    forms before it (`Window`'s `stacked`), an empty "Why do you want to
-    work at Notion?" box, the student's spreadsheet with "??" in it, and an
-    inbox where a rejection lands "minutes after you applied" above an
-    application with "No reply in weeks". **Each is the real kind of app
-    it stands for** (the user's ask, 2026-11-21, "Google Sheets or Excel
-    is green at the header"): a green spreadsheet with a formula bar,
-    column letters, a dropdown pill in each status cell, a selected cell
-    and its one sheet tab (a second tab, "Copy of Sheet1", was taken out
-    at the user's ask); a mail inbox with the
-    senders' logos, unread dots and a count (its tray icon an outline:
-    filled, it drew as a solid blue block, the user's catch); a file
-    window with a sidebar, red PDF icons and a blue selected row; a
-    browser with real window dots, four tabs and a lock (below); two
-    application forms with the company's logo, a blue focus ring and a
-    main button. All six were one
-    white window with three grey dots and a bold title, in greys alone,
-    and the user found the section boring: the whole band was one grey
-    family with the open card its only dark shape, so the eye went to the
-    side, and no picture read as a real app. **The rule below bans WorkIt's
-    violet, never colour**: it had been drawn as "no colour". The colours
-    are each app's own kind (the constants in problem-scenes.tsx) and the
-    hub's only colour, so the open picture leads; the cards and the band
-    stay white, ink and grey. **No product's logo or name** on a picture:
-    a green sheet reads as a spreadsheet without Google's or Microsoft's
-    mark (employers' logos stay, as everywhere on the page). **One detail
-    in each tells its card's story**: "Last edit 3 weeks ago" on the
-    sheet, postings months old in amber, the resume uploaded above the
-    fields that ask for it again, and in the inbox the same sender twice
-    a quarter of an hour apart (received at 11:32 PM, turned down at
-    11:47 PM) over the student's own follow-up with a mail app's nudge,
-    "Sent 24 days ago. Follow up?". **The story is told with what the
-    real app shows, never with a caption laid over it**: the inbox had
-    two pills, "Minutes after you applied" and "No reply in weeks", and
-    no mail app has such labels, so they read as notes stuck on the
-    picture. The question picture has none beyond
-    its empty box: a "Session expires in 12:48" line under it was taken
-    out at the user's ask (2026-11-21). **The browser's tabs take turns**
-    (`BoardsScene`, the user's ask, 2026-11-21: "switching through tabs
-    like a company website or a job board"): four company job boards,
-    3.2 s each, round and round, the lit tab, the address and the page
-    changing together. Each company is on the hiring system it is on in
-    `scraper/boards.csv`, with that board's own address, and each page is
-    laid out as that system lays one out: Stripe on Greenhouse (a
-    department's roles), Nike on Workday (a search, a count, results),
-    Spotify on Lever (filters over a team's postings), Goldman Sachs on
-    Oracle (a grid of tiles). **Only show a company on a system it is
-    on**; a change to the four checks the file. Three or four postings a
-    page, each a job card with a title, a place and an age: six bare text
-    rows read as a table, not a job page (the user's catch). It has its
-    own list of four and does not read the logo strip. **Its loop** is
-    CSS on opacity alone, the three parts on one clock
-    set apart by whole turns (`.board-turn` in landing.css: 12.8 s on its
-    own, the cards' 8 s turn while they turn, above), held while
-    the stage waits to arrive and while none of it is on screen
-    (`HoldOffscreen`), and still on the first board with reduced motion.
-    **The six pictures share one type system** (`T` in problem-scenes.tsx;
-    the user's catch, 2026-11-21, "a clash of fonts"): five roles (title,
-    text, meta, label, button), two weights (regular and semibold, never
-    medium between them), sentence case but for the one label role, and
-    sizes of 10 to 12px, with the question's own line at 13px. Each job
-    board was first drawn in "its own" type: a title was medium, then
-    blue, then bold, then a size smaller; the line under it sentence
-    case, then Title Case, then tracked capitals. The tabs turn every
-    3.2 s, so the type changed under the same words again and again.
-    **Things that take turns in one place are set apart by layout, never
-    by type**: each board keeps its own structure (a department's list,
-    a search over result cards, filters over postings with Apply, a grid
-    of tiles) and one rhythm (12px of room, a 24px head, a body that ends
-    about 20px above the window's foot; two pages once ended 40px short
-    and read as unfinished). One hairline and one control edge too
-    (`RULE`, `FIELD`): six border greys and four corner sizes had crept
-    in. **Amber means one thing in all six**: this has sat too long (an
-    old posting, a letter nobody answered). Smaller truths to each app:
-    a tab shows a bare favicon, not one on a white tile; a sheet tints
-    the letter and the number beside its selected cell; a file window
-    keeps its count of items in the bar at its foot, and loses its
-    sidebar on a window narrower than 19.5rem so the file names show
-    whole. **Review a picture in Chrome, zoomed, before calling it
-    done** (`zoom` on the stage): the faults above showed at twice the
-    size and not in the page. **A picture is
-    20rem wide and at most 319px tall as drawn**
-    (the six are 254 to 304px): the stage's height and the picture's
-    sizes are worked out from that, so measure after a change. Each is
-    centred on the stage, a grey well with a slate hairline (above),
-    under a dot grid in slate at 13% that fades toward the middle (`.problem-dots` in
-    landing.css; the user's pick of six patterns, 2026-11-20, since a flat
-    stage read as boring; at 22rem the windows hid all but a thin band of
-    dots), with no feature's
-    sky: this is the search before WorkIt, so nothing in it is violet;
-    safely centred so a tall one keeps
-    its top in view on a short screen, and plays once as it shows (the
-    stage's `data-arrived`, "false" for two frames after a switch; a caret
-    blinks four times, `.caret-blink`, then stays). **The band fits the
-    screen with room to spare** from lg up (the user's catch, 2026-11-21:
-    at 794px on an 800px screen the reader had to scroll it into place
-    exactly, or it was cut): the band's padding is 3.5rem (it was 5rem)
-    and the stage is `clamp(23rem, 100svh - 23.5rem, 30rem)` tall, which
-    leaves about 4rem of the screen free. Measured: 738px at 1440 × 800
-    (62px free, the stage 432 × 424, each card 316 × 119, the visual at
-    1.15 times), 794px at 1440 × 900 and wider (the stage 480px, the
-    visual at 1.2 times), 682px at 1280 × 720 (38px free, the visual at
-    its drawn size) and 721px at 1024 × 768 (47px free). The visual's
-    three sizes follow the stage's height rule: change the two together
-    (`.problem-window` in landing.css). **Why
-    this shape, the user's calls**: the heading covers the whole search,
-    not one problem ("Many applications stop before a person reads them"
-    sold screening alone); no numbers in the heading ("Forty tabs, nine
-    forms, and not one reply" confused them); a fact looks like a fact,
-    with its source; three on each side with the visual between. **What
-    it replaced**: a screening machine, a scan line reading one document
-    at a time onto a "Not moved forward" pile, which the user found AI-made
-    (a process nobody sees); before it, one wide frame of three clickable
-    screens with WorkIt's answer in a foot bar; before that, a bento of
-    three cards, each a small scene centred in a coloured box (ugly and
-    AI-made: three equal problems at two sizes, small pieces on coloured
-    panels, boxes three deep); and first, three pains as plain text. **Its
-    claims follow the research** in the comment on `problems` in data.ts:
-    hedged ("some", "often") where a survey measures a fear, not a fact,
-    the one figure checked against its source, and never "75% of resumes
-    are rejected by an ATS", "40% of jobs are fake" or "recruiters read a
-    resume in 6 seconds", which no sound study backs. **Control** (`control.tsx`, after the
-    product sections): "You stay in control", designed the same way, its
-    scenes on WorkIt's violet sky where the problems' are slate (the
-    search as it is, then WorkIt's answer). Two promises side by side:
-    Nothing invented (Tailor's marked rewording of the student's own line,
-    with Undo) and Your words win (the student's answer typed over the
-    draft, kept for next time). It led with "You click Submit, every time"
-    and ended on "Five at a time, never a flood"; both went with the web
-    review (2026-11-20), since Auto Apply's product section says them just
-    above. It replaced four cards of an icon and two lines, which the user
-    found undesigned. Both sections draw with `scene-parts.tsx` (`Panel`,
-    `delay`). The worry any auto apply tool raises, answered as what
-    WorkIt does, where the archived statement said it as a warning. Both are claims, each tied to
-    its source in `problems` and `control` in data.ts: never a number
-    WorkIt cannot back, and no customer results until real ones exist.
-  - **The journey (archived 2026-11-19)** follows the one application (`followedJob`) through
-    four `.surface-card`s joined by a rail; each picture plays once as its
-    box arrives (`Arrive` in `arrive.tsx` sets `data-arrived`;
-    `.journey-in`, `.journey-ring`, `.journey-grow` in landing.css), never
-    loops, so needs no pause. The trigger is on the box, not the card: on
-    a phone the card is a screen tall and the picture played before it
-    showed. Its server HTML has no `data-arrived`, so it shows finished
-    without script and with reduced motion. Its lines are claims, tied to
-    the feature pages' content files in the comment on `journey`.
-  - **The product sections read the feature pages' own content**
-    (`features/content/`), **four products with four rows each** (the
-    user's call: Job Matching had three, so it gained "Why each job fits",
-    the reasons a job card's match rail shows; the Application Tracker took
-    the place hiring systems had, which in a product section's heading and
-    halves read as a fifth product and is now a centred chapter). **Each
-    headline wraps to two lines at every width**: written at about 30 to
-    40 characters, held to 12em and balanced (a tablet's full-width line
-    ran on one), so a new product's headline is written to that length.
-    The feature's label above it is the 36px mark and its name at 18px
-    (at 24px and 14px it read as a caption). **The headline is Plus
-    Jakarta Sans** (`TYPE.product`, 44px from lg), as every other heading:
-    it was Newsreader, the site's only serif, after Calendly's split, and
-    the user found it fancy and out of place (2026-11-20); the face is gone
-    from the site. **The rows open one after another on their own**, as
-    Calendly's do (the user's ask, 2026-11-20): the open row shows its body
-    and its own arrow link to that deep dive on the feature page
-    (`deepDiveAnchor` in `features/catalog.ts`, which the feature page sets
-    as the deep dive's id), centred on the body beside it (at its foot it
-    sat apart, the user's catch); a line in the feature's colour fills
-    along its foot over six seconds (`.row-fill`, `TURN`), and when it is
-    full the next row opens, the first again after the last; the box shows
-    the open row's still scene, swapping with a fade. **A row's body sells
-    first** (the copy review, 2026-11-20): it opens on what the student
-    gains, then how, and never on a button's name ("Press Generate
-    Resume…", "press Change in the WorkIt panel" read as a manual) or on a
-    limit ("Each form gets your default resume." led the Auto Apply row).
-    The rows are the feature pages' deep dives, so the same words show
-    there. **No two products' rows say the same thing or share a scene**:
-    the Resume Builder's last row was the sent resume, which the Tracker's
-    last row says with the same scene, so it became Fit to One Page (the
-    copy review, 2026-11-20); the sent resume stays in the Resume Builder
-    page's How it works. **The Resume Builder's heading and four rows were
-    reviewed with the user, one choice at a time** (2026-11-21; each pick
-    and its reason is in `features/content/resumes.ts`): the heading is
-    "The easiest way to make a resume for every job"; the rows are Start
-    from scratch, or from your resume (a page with a plus), Edit freely.
-    The layout keeps up. (the text cursor: typing, drag handles, Add
-    Experiences, the Format tab, Fit to One Page and Undo, which the
-    editor gained with KAN-920 on main), Reworded for the job, never
-    invented (the app's Tailor mark) and Every version, labelled by job
-    (folders: the Documents page). Bodies are short beats. **Read the
-    app's screen notes on `origin/main` before writing a product's
-    rows**: this branch is behind main, and the first options left out
-    the editor's newest abilities. **The rows' pictures wait for real
-    recordings** (the user's call, 2026-11-21: recreated scenes do not
-    match a recording's quality), so no new scene is drawn; until then the
-    last Resume Builder row still shows the Fit to One Page scene, which
-    no longer matches its words. **Job Matching was reviewed the same
-    way** (`features/content/matching.ts`): the heading is "Know your fit
-    before you apply"; the rows are Every job, scored on your experience
-    (a score ring; the score and the ranking in one), See why a job fits,
-    or why it does not (ticked lines), Your best match, every time (a
-    target: the saved preferences, new) and Every job, in one place
-    (buildings: the answer to the problems' scattered jobs). **A body
-    starts from the student, not from how the feature works**: the user
-    turned down every description that explained bands and reasons, and
-    took "Before you spend an evening on an application…". **Auto Apply's
-    review is under way**: its heading is "Type your details once. Apply
-    in parallel." (the user's words; no count of forms on the site, since
-    "five at a time" read as a limit). **One line is ahead of the app, on
-    purpose**: its last row says "Submit it yourself, or let WorkIt",
-    because a teammate is building a submit option while this page is
-    written, and the extension does not submit today. **Before this page
-    ships, either that option is live or the row goes back to the
-    student clicking Submit**, and if it is live the hero's "You click
-    Submit.", the "You stay in control" section, the FAQ and `/terms`
-    must be brought into line with it: today they all say WorkIt never
-    submits. Its rows: Skip the retyping (a text box), Applications that
-    run side by side (browser windows), Answer a question only once (a
-    pencil on a line) and Submit it yourself, or let WorkIt (a click).
-    **The Tracker** (`features/content/tracker.ts`), under "The
-    spreadsheet that fills itself in": No more updating a spreadsheet
-    (arrows in a circle), Sort it, group it, make it yours (a table),
-    Never miss an interview (a calendar with a check; WorkIt shows the
-    dates and sends no reminder) and See exactly what you sent (a paper
-    plane). **Within one section, each row title has its own shape, no
-    two end on one word, no two icons share a silhouette, and a verb is
-    not repeated across the rows** (the user's catches on Auto Apply:
-    two titles ran "noun, past verb ... time" over two box-behind-a-box
-    icons, and "filled" stood in three places). **After a run of icon or
-    import changes, restart the dev server**: Turbopack kept a compiled
-    copy that asked for a removed icon and every page failed with "module
-    factory is not available" (2026-11-21). **It plays only while
-    someone can watch**: with the section well on screen, the tab shown, and
-    no pointer or keyboard focus on the rows. **A click on a row opens it
-    and stops the turns** for good, its line full: the reader has taken
-    over, and it is the way to stop the motion WCAG 2.2.2 asks for. With
-    reduced motion nothing turns and every line is full. **Nothing pins**:
-    each section is about 0.9 of a laptop screen. It was a pinned block at
-    the screen's middle whose rows the scroll opened, 45svh and then 25svh
-    of scroll a row; each product took two to three screens, and the page
-    about 18 (the web review, 2026-11-20); it is now about 9.4. **The rows
-    keep room for the longest open body** (measured), bottom-aligned, so
-    the column keeps one height whichever row is open: grown with each row,
-    it shifted by up to 10px. Each row has the deep dive's icon (`icon` in
-    `features/types.ts`, required). Below lg the order is heading, box, rows
-    (one tree, `display: contents`). `product-accordion.tsx`.
-  - **Drifting rows** (`.drift-row`: the logo strip)
-    draw their items twice and move by half their width, still with
-    reduced motion.
-  - **Unmounted, kept** (the user's choice, 2026-11-19): the city hero
-    (`hero-city.tsx`, `hero-title.tsx`), the bridge, the pinned tour
-    (`product-tour.tsx`), the 3D hiring pipeline (`hiring-pipeline.tsx`),
-    the applications route (`applications.tsx`) and the statement
-    (`statement.tsx`, archived the same day). Their notes below stay for
-    when one returns; to bring one back, mount it through a `hydrateNear`
-    line in a client module (`deferred-sections.tsx`, deleted once it held
-    none; git history has it) and give it a box, not a screen.
-  - **Checking it in the Browser pane**: a hidden pane freezes CSS
-    transitions at their start, so the journey's pictures read as empty
-    there; check them in a visible browser (Chrome showed them end to end).
-- **The page at `/` is the landing page, `app/(landing)/`**, ported from (its layout notes, to the Pricing bullet, describe the home page before
-  KAN-923; the scenes they name are unmounted, above)
+- **The home page redesign is off `main`, kept on its branch** (2026-11-23,
+  the team's call). PR #660 (KAN-923, KAN-933: the pipeline hero, the
+  drafting grid, the problems hub, the new product sections and the Mac
+  app's offers) was reverted whole, so the site is the page below again.
+  Its work is on `KAN-933-home-hero-and-product-sections`, and its notes
+  are in that branch's `frontend/CLAUDE.md` and `docs/`. To show it to the
+  team, deploy that branch to the preview (`../.github/CLAUDE.md`, "Deploy
+  preview"). **To bring it back, revert the revert commit**: a new PR from
+  the old branch shows no changes, since git counts it as merged.
+- **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
   site's markup, classes and copy, with two deliberate changes, and read in
@@ -1052,28 +287,8 @@ selling line that says what the product does** and "See how", a
   `PANEL_INSET` in `layout-parts.tsx`, the frame every marketing page
   shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
   renders a Skip to Content link, the header and the footer, and each page
-  renders its own `<main id="main">`, the link's target, KAN-580); **the header is the drafting grid's top row**
-  (2026-11-21, the user's ask: a floating rounded bar matched none of the
-  grid): it spans the window, 4.5rem tall and 4.75rem from sm, clear at
-  the page's top and white with a blur and a foot hairline once the page
-  scrolls (`floating-header.tsx`); on a page that draws the grid, from lg
-  up, the hairline shows at the top too and the grid's rails run through
-  the bar with an ink square at each crossing (`.header-line`,
-  `.header-marks` in landing.css, switched on by `.landing:has(.draft)`),
-  and the home hero's frame hangs from it (`DraftLines first` draws no
-  top line of its own); its menu panels are solid white with a hairline edge
-  and a deep shadow, 8px under the foot line (`MENU_PANEL`: translucent
-  with a blur, a panel was white on white over the white hero, the
-  user's catch, 2026-11-21); a panel's hover fill is one fill that glides
-  from item to item (`GlideList` in `menu-glide.tsx`, the user's ask,
-  2026-11-21: transform only, placed on the first item with no slide,
-  and it follows keyboard focus too); it **slides up out of the
-  way while the reader scrolls down and comes back on a scroll up**
-  (KAN-923, the user's ask, 2026-11-20: `data-hidden`, `.site-header` in
-  landing.css; it always shows in the top 96px, a move must pass 6px
-  either way so a trackpad's jitter does not flicker it, and it stays
-  while keyboard focus is in it or a menu is open; `:focus-within` kept
-  it after any mouse click, so the rule reads `:focus-visible`). And the site's feature
+  renders its own `<main id="main">`, the link's target, KAN-580); the header floats as a white rounded bar
+  once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
   through the four features, each with its own app colour, in the
@@ -1551,22 +766,18 @@ selling line that says what the product does** and "See how", a
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy, so it is hidden (`testimonial.show` in `data.ts`) until a real,
   approved quote exists: shown, it read as an unfinished site on
-  production. Never fill it with an invented quote. The FAQ answers (now on
-  the Help Center's page) are product claims, each tied to its source in a
-  comment in `data.ts`.
+  production. Never fill it with an invented quote. The FAQ answers are product
+  claims, each tied to its source in a comment in `data.ts`.
 - **The marketing site is the home page, a page per feature, Pricing and
   the Resources pages**, all in `app/(landing)/`, after Linear, Notion and
   Calendly. The home page is the overview. The header reads Features ▾,
-  Resources ▾, Pricing, Download (once the Mac app has a build, below), Log
-  in and Get started (the team renamed Product to Features); its old anchor links (Features, Applications, FAQ) are gone.
+  Resources ▾, Pricing, Log in and Get started (the team renamed Product to
+  Features); its old anchor links (Features, Applications, FAQ) are gone.
   The team first kept two links and turned down a third, Help Center among
   them; on 2026-10-21 it reversed that and added Resources ▾ (MCP docs,
-  Help Center, Blog). **Resources ▾ is archived from the header** (the
-  user's call, 2026-11-20: `RESOURCES_IN_NAV` in `resources/catalog.ts`,
-  false), in the bar and the phone menu, since none of its pages exists;
-  the routes and the footer's Resources column stay. Still turned down:
-  Integrations (too small for a page), a public job list (no postings
-  shown signed out), What's New and For Career Centers.
+  Help Center, Blog). Still turned down: Integrations (too small for a
+  page), a public job list (no postings shown signed out), What's New and
+  For Career Centers.
   **The Resources list is `resources/catalog.ts`**: each item's name, link,
   icon and menu line, in menu order. The Resources menu, the phone menu and
   the footer's Resources column read it. None of the three has a page yet,
@@ -1580,14 +791,7 @@ selling line that says what the product does** and "See how", a
   Help page (`app/(seeker)/help/`): a second `/help` in this group stops
   every page with "two parallel pages that resolve to the same path".
   **The feature list is `features/catalog.ts`**: each feature page's slug,
-  name, icon, mark and colour, in menu order. **A feature's mark is its
-  own** (`features/feature-marks.tsx`, KAN-923): a small piece of its real
-  screen on a squircle in its colour, after Calendly's product icons, in
-  place of a generic glyph on a solid tile, which the user found generic.
-  `FeatureIcon` draws the mark where a feature has one (24px or 36px) and
-  the glyph tile otherwise (the Resources menu; Scout). A new mark stays
-  one colour family from the feature's token and legible at 24px; the
-  marks and why each reads are in `docs/marketing-design-system.md`. The Features menu, the phone menu,
+  name, icon and colour, in menu order. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
   tour's "Learn more" links (each stop's only link: the team dropped the
   "Try it free" beside it, since the header and hero already ask for the
@@ -1597,7 +801,7 @@ selling line that says what the product does** and "See how", a
   in its pink; Scout had no stop, so it took amber, the one app colour
   left free. **One template, one content file per feature**:
   `features/[slug]/page.tsx` is the route (`generateStaticParams` lists
-  the slugs the site shows, `featurePages`, and the page's `notFound()` makes any other a 404; the
+  the five slugs and the page's `notFound()` makes any other a 404; the
   metadata comes from each content file). **Never set `dynamicParams = false`
   on a prerendered dynamic segment here** (KAN-368): an unlisted value then
   matches no route, Next falls through to the seeker `@modal/[...catchAll]`,
@@ -1615,18 +819,14 @@ selling line that says what the product does** and "See how", a
   five applications at once, each in its own tab, attaches the default
   resume and writes no answer to a new written question, and the student
   clicks Submit on each, so no page says WorkIt submits, sends or
-  applies. **Scout is off the site** (the user's call, 2026-11-19,
-  KAN-923, reversing the 2026-11-07 choice to keep it): Ask Scout is
-  hidden and Fill With Scout is off in the app (`FILL_WITH_SCOUT_LIVE`,
-  KAN-732), so the site showed a feature that does not work. `HIDDEN` in
-  `features/catalog.ts` drops it from `featurePages`: no menu item, footer
-  link or related card, `/features/scout` is a 404, and the pricing table
-  and the Resumes page's FAQ no longer name it. Its content file and
-  animations stay, unmounted; to bring it back, take its slug out of
-  `HIDDEN` and restore the pricing row (its limits were 3, 50 and 150 a
-  day, Free's being `ai_scout_cap`). Its page is about Fill With Scout;
-  bring the job questions back to it when `ASK_SCOUT_LIVE` turns on.
-  **A content file imports its animation from
+  applies. Scout's page is about Fill With Scout, the one way into Scout
+  while Ask Scout is hidden; bring the job questions back to it when
+  `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
+  (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
+  still open; **the site keeps Scout on purpose meanwhile** (settled
+  2026-11-07): its page, the pricing table's Scout row and the Resumes
+  page's FAQ stay. Revisit them when Fill With Scout's new place is
+  settled. **A content file imports its animation from
   `features/animations.tsx`, never the animation itself**: each there is
   a `next/dynamic` wrapper, server-rendered as before, whose chunk only
   the page that shows it loads. A client component a server file imports
@@ -1694,34 +894,6 @@ selling line that says what the product does** and "See how", a
   expandable group in it (`MobileGroup`, a native `<details>`). The
   footer's link columns are Features and Resources, from the two
   catalogs, then `site.footer`'s.
-- **The Mac app's offers wait for its build** (KAN-922).
-  `DESKTOP_DOWNLOAD_URL` in `lib/auto-apply-desktop.ts` is the DMG's
-  address, null until W8 of `../docs/desktop_application_auto_apply.md`
-  publishes one; setting it is the launch, and the only change it needs.
-  While it is null, nothing offers a file that does not exist: the home
-  hero's Download for Mac, the Auto Apply feature page's Mac answer and
-  the app's top bar button and Up Next offer (`docs/screens.md`, "The Mac
-  app's offers") are hidden. **`/download` and the header's Download link
-  are public before the build** (the user's call, 2026-11-19; the page
-  was a 404): with no build the page's pill says Coming soon, its hero
-  offers the sign-up and Add to Chrome, which work today, the Mac card
-  says Coming soon, and its FAQ opens on "When can I download it?". Once
-  set, every one of them becomes Download for Mac, so the app is hard to miss,
-  after claude.com and chatgpt.com: a header link, a hero button beside
-  the sign-up and a public `/download` page that offers both ways to auto
-  apply, the Mac app and the Chrome extension. The signed-in offers show
-  only on a Mac (`lib/use-mac.ts`). A page gives no limit on who may
-  download: a public link reaches anyone, so a tester list for the beta,
-  if one is needed, belongs at the app's sign-in. `/download` draws with
-  this site's frame and buttons and the signed-in page's drawings
-  (`components/auto-apply-desktop/`), on Auto Apply's green ground, and
-  follows the marketing design system since KAN-923 merged it in
-  (`TYPE`, `HERO_PILL`, no label above a heading, `.surface-card`s, each
-  scene in a `StudioBox` on Auto Apply's sky, Download for Mac in
-  `.primary-btn`'s solid violet, Add to Chrome a `SecondaryButton`); it is
-  a page of its own, not a sixth feature page, since it sells a download,
-  not a feature. To see it before launch, set the constant to any address
-  locally and put it back.
 - **The Pricing page, `app/(landing)/pricing/`, shows the team's plans.**
   Every plan, price, daily limit, feature row and billing answer lives in
   its `data.ts`; the page holds layout only. The team picked Free, Plus
@@ -1735,9 +907,9 @@ selling line that says what the product does** and "See how", a
   would sell a plan nobody can buy, and one "Get started for free" on every
   plan read as the same plan three times). Set it to true only once billing
   ships and the API enforces the paid limits. Every limit is a claim: Free's
-  Tailor limit is the API's cap today (`ai_tailor_cap` in
-  `backend/app/config.py`), so change both together (Scout has no row while
-  it is off the site); a Tailor use is one Tailor run or the first keyword
+  Tailor and Scout limits are the API's caps today (`ai_tailor_cap`,
+  `ai_scout_cap` in `backend/app/config.py`), so change both together; a
+  Scout use is one message, a Tailor use one Tailor run or the first keyword
   check against a job posting WorkIt has not read; no answer says Auto Apply
   attaches a resume, since the extension's upload is unverified live;
   employer replies stay "Coming soon" until they are built, whatever the
@@ -1784,7 +956,7 @@ selling line that says what the product does** and "See how", a
   `FaqList` in a `FocusIn`, as on the home page, and the closing band's
   headline, line and button rise in a `FocusIn`. Still with reduced
   motion.
-- **The home page's lower half before KAN-923** (after the tour: hiring systems, the
+- **The home page's lower half** (after the tour: hiring systems, the
   statement, the applications section, the FAQ, the closing call to
   action and the footer; the testimonial is hidden) reads as one story, like the hero, bridge and tour
   above it. **One object is carried down the page**: the application the
@@ -1922,17 +1094,18 @@ selling line that says what the product does** and "See how", a
   time, once it is well on screen (`useArrived` in `hooks.ts`), and keeps
   its placeholder copy, hidden for now. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
-  `LOGO_WORD` from `components/logo.tsx`) as a still signature: one SVG
-  path in slate at 6% on a light grey panel (`--mk-mist`, as the problems
-  band; it was the ink, a blue-black, then a near-black, and stood alone
-  as the page's one black block once the rest went light, the user's
-  pick, 2026-11-20), its lower letters cut by the
-  panel's foot (`WORD_SHOWN` in `footer.tsx`), with nothing moving and no
-  script (KAN-923, the user's pick of four directions). It was the word
-  filled with rows of job titles that slid in and drifted, which the user
-  found an eyesore; that component (`footer-wordmark.tsx`) and its CSS are
-  deleted. The tagline above the columns is weight 500, as every heading
-  is (it was 600). Its copyright year is `new Date().getFullYear()` read
+  `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
+  HTML rows of the page's job titles, the followed one in the pale
+  brand violet a weight up (each row one run of text, with only that
+  title in an element of its own: a span per title made the wordmark
+  about 950 of the 1,400 elements on a legal page, all styled, laid out
+  and hydrated on every marketing page; the titles are read by
+  `footer.tsx` on the server and passed in, or the three data files they
+  come from load on every page), which slide in from alternate sides, in time,
+  once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
+  threshold: a line a third up the screen was out of reach on a tall
+  window), then keep drifting slowly (`.wordmark-drift`, a track of the
+  titles twice moved by half its width), paused off screen. Its copyright year is `new Date().getFullYear()` read
   on the server, so on a prerendered page it is frozen at build time and
   rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
@@ -1956,12 +1129,8 @@ selling line that says what the product does** and "See how", a
   so a scene on a clock (the sorting line's flow, the statement's loop, a held
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
-- **Scroll cues, time plays.** The home page's scenes move on their own
-  (since 2026-11-20 nothing on the home page pins, and the product
-  sections' rows turn on a timer; the rule holds for any scene that
-  returns); the scroll only takes the reader to the next phase. A pinned,
-  scrubbed tools collapse, the user's ask, was the one exception for a day
-  (2026-11-20), and went with its section's examples. The team disliked
+- **Scroll cues, time plays.** The home page's scenes move on their own;
+  the scroll only takes the reader to the next phase. The team disliked
   scenes scrubbed by the scroll, which froze half way through a move
   whenever the reader stopped (a ball in mid-air, the card between two
   stops, the coin ring standing still). So:
@@ -1979,11 +1148,11 @@ selling line that says what the product does** and "See how", a
     beats rest on their boundary, and with the swap before it a resting
     beat showed no caption, title or verdict (`fadeWindow`).
   - A phase that should keep moving while it rests runs its own loop on
-    `useLoopClock`, stopped off screen and in a hidden tab
-    (`useLoopsHeld`): the coin ring, the sorting line's flow,
+    `useLoopClock`, stopped off screen, in a hidden tab and on Pause
+    Animations (`useLoopsHeld`): the coin ring, the sorting line's flow,
     the bridge's floating postings (CSS).
-  - A reveal on arrival (the testimonial's words, the headings' and
-    Pricing's FAQ's `FocusIn`, the home page's scenes' `Arrive`) plays in time once the
+  - A reveal on arrival (the testimonial's words, the footer wordmark's
+    rows, the headings' and the FAQ's `FocusIn`) plays in time once the
     element is well on screen (`useArrived`), and resets only once it is
     wholly below the screen, with a second observer: one observer that
     reset at the arrival line undid reveals in full view whenever the
@@ -1996,30 +1165,29 @@ selling line that says what the product does** and "See how", a
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
-- **There is no Pause Animations button** (removed at the user's ask,
-  KAN-923, 2026-11-19). KAN-580 had put one in the footer and the phone
-  menu for WCAG 2.2.2 (a way to pause anything that moves on its own for
-  more than five seconds), with its choice kept in localStorage
-  (`workit:motion`) as `data-motion="paused"` on `<html>`. The button,
-  its state (`motion-toggle.tsx`, `motion-pause.ts`) and landing.css's
-  rule that held each CSS loop are deleted, and nothing reads the key, so
-  a visitor who had paused is not left paused with no way back. **This
-  leaves WCAG 2.2.2 open on the home page**: the hero's lights, the
-  logo strip's drift and the problems hub's browser tabs loop with no
-  pause on the page (the product rows turn too, but a click stops those;
-  the hub's cards turn and are held only by a pointer or keyboard focus
-  on a card, which a touch screen from lg up cannot do); only the operating
-  system's reduced motion stills them. Bringing a pause back means
-  restoring those two files and the CSS rule from git history.
-  - Timed loops still read `useLoopsHeld` (hooks.ts), now a hidden tab
-    alone: the tagline, each `Story`, the statement, the coin ring, the
-    sorting line's flow, the applications section's loop below lg, and
-    the two long scene steps (Resumes' tailoring beats, Auto Apply's
-    form, one field at a time). A story holds on its scene while the tab
-    is hidden and its hold starts again when it shows. A short move
-    already under way, under about 2.5 s, still ends.
-  - CSS loops run on, opacity and transform only, and stop with reduced
-    motion.
+- **Every loop has a pause: Pause Animations** (KAN-580, WCAG 2.2.2), in
+  the footer's bottom row and at the foot of the phone menu
+  (`motion-toggle.tsx`; it reads Play Animations once pressed, and is
+  hidden with reduced motion, where nothing loops). It writes
+  `data-motion="paused"` on `<html>` and keeps it in localStorage
+  (`workit:motion`, `motion-pause.ts`), so it holds on every marketing
+  page and the next visit. It is not reduced motion: that swaps a scene
+  for its still frame, while a pause keeps the frame on screen and Play
+  goes on from it. Two halves, and a new loop joins one of them:
+  - CSS loops hold on their frame through one rule at the top of
+    landing.css that names each loop (`animation-play-state: paused
+    !important`). Never pause every animation there: an entrance (the
+    city's fade in, the hero's rise, Pricing's rows) paused before it ran
+    hides what it brings in.
+  - Timed loops read `useLoopsHeld` (hooks.ts: a hidden tab or the pause),
+    as they read a hidden tab before: the tagline, each `Story`, the
+    statement, the coin ring, the sorting line's flow, the applications
+    section's loop below lg, and the two long scene
+    steps (Resumes' tailoring beats, Auto Apply's form, one field at a
+    time). A story holds on its scene and its hold starts again on Play.
+    A short move already under way, under about 2.5 s (a motion
+    transition, a one-off timer in a scene), still ends: motion has no
+    clock to stop.
 - **The marketing pages run Lenis with the wheel left native**
   (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
   `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides
@@ -2037,7 +1205,7 @@ selling line that says what the product does** and "See how", a
   stops once `isSmooth` is false). Ticked on every frame, it kept the
   browser drawing a main-thread frame at rest on every marketing page, and
   each of those frames updated every running CSS animation: at the footer,
-  with the old wordmark's 29 drifting rows (since removed), the main thread was 96% busy at
+  with the wordmark's 29 drifting rows, the main thread was 96% busy at
   rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
   these pages runs a frame loop at rest (a `keepAlive` frame, an endless
   `requestAnimationFrame`): a composited CSS animation is free only while
@@ -2077,116 +1245,27 @@ selling line that says what the product does** and "See how", a
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
-- **On the marketing site, a company job board may be called a "careers
-  page"** (2026-11-21). The logo strip's line is "Jobs straight from the
-  careers pages of thousands of companies": to a student a "job board"
-  is Indeed or LinkedIn, so the repo's term (root `CLAUDE.md`,
-  Conventions) could read there as the opposite of what it means.
-  **Still open:** the hiring-systems section, the Job Matching rows and
-  the FAQ still say "company job boards"; the user has not said whether
-  they change too.
-- **Sections arrive in the hero's vocabulary: drawn lines and pieces that
-  come out from behind an edge, never a fade** (2026-11-21, the user's
-  ask for transitions between the sections). **Every drafting frame draws
-  itself as it arrives** (`DraftLines`, now a client component for one
-  observer: `.draft[data-arrived]` in landing.css): the top line grows
-  from the centre, the side lines draw down, the foot line grows, and
-  each corner's ink square pops as its lines reach it; so every framed
-  section has a transition with no code of its own. **What is WorkIt**
-  then brings its content in the same way: the app icon pops as the ink
-  squares do, its name rises from behind its own foot, and the answer
-  rises word by word (`.word-rise`: each word its own box, a clip and a
-  translate; it came up from a faint grey before, a fade). In time, once
-  the section is well on screen (`useArrived`), never scrubbed; no
-  `data-arrived` in the server's HTML, so nothing is hidden without
-  script; nothing moves with reduced motion. **Every section heading
-  rises the same way** (`SectionHeading` is an `Arrive` whose title and
-  subtitle are `.rise`; each product section's label and headline too):
-  from behind its own foot, as the hero's headline. On the home page
-  these headings had no entrance before. So a new section gets its
-  transition by using `SectionHeading` and `DraftLines`; a piece of its
-  own takes `.rise` as a direct child of an `Arrive`. `FocusIn`, which
-  brought a heading out of a blur, now rises its pieces too and is left
-  on Pricing's FAQ rows and closing band. **Still open:** the pieces
-  inside the scenes (`.journey-in`: Control's cards, the problems'
-  pictures) still come in on a short fade; the problems section's own
-  heading is the Problem session's.
-- **No feature wears violet** (the user's call, 2026-11-21). The four
-  feature colours are the usual pastel four: blue (Resume Builder), peach
-  (Job Matching, `--color-matching` with its `-tint` and `-ink` in
-  globals.css), green (Auto Apply) and pink (Application Tracker). Job
-  Matching was the brand violet, which read as WorkIt and not as one of
-  four products, and made three neighbours of blue, violet and pink.
-  Violet stays the brand's: the main button and the boxes that stand for
-  WorkIt as a whole ("That's why WorkIt exists", "You stay in control").
-  The hiring-systems box sits on Job Matching's sky, so it is peach too.
-  White text goes on `--color-matching-ink` (5.2:1), never on
-  `--color-matching` (2.6:1). The mock app screens inside Job Matching's
-  scenes keep the app's own violet, since that is how the app looks.
-- **A makeover of the home page narrowed to its hero** (2026-11-20 to
-  21; `docs/home-page-makeover-brief.md`). After Loopsii the user lifted
-  four of these rules for a day and picked, from five live directions, a
-  look of flat pastel tiles. Its hero was built, and in the page, above
-  sections still in this system, the user found it off; everything from
-  the logo strip down then stayed as it was and only the hero was redrawn,
-  in this system. So the rules here are all in force. **What it taught: a
-  new look needs the whole page, and a section is judged in the page,
-  between its real neighbours, never on a sheet of its own.**
-- **The marketing design system is `docs/marketing-design-system.md`**
-  (KAN-923, 2026-11-19): read it before styling anything in
-  `app/(landing)/`. The user found the site still AI-made after the home
-  page's redesign and named the violet glass buttons, the bordered sign-up
-  buttons and the lavender gradient on cards, so: **colour lives only in
-  the home hero's grainy ground and inside a `StudioBox`; cards and the page are
-  white, ink and grey; violet marks small things only** (the main
-  button, solid and flat, `.primary-btn`, since 2026-11-20; checks,
-  feature tiles, Plus's limit pills, and the pale tint of a selected item
-  the visitor clicked on a light ground; on the problems' grey band the
-  open card is the one white, lifted card instead; one exception to grey cards: the four
-  product tiles, each flat in its own feature's pale tint, 2026-11-20);
-  **shadows are slate, never violet**
-  (`--mk-shadow-card`, `--mk-shadow-float` on `.landing` in landing.css).
-  A new style that breaks one of these goes in the doc first, with the
-  user's yes.
-- **A solid card on the marketing pages is `.surface-card`** (landing.css,
-  KAN-923): white and `--mk-shadow-card`, a hairline drawn as a shadow. It
-  replaced `.gloss-card` (KAN-368), a white that shaded to lavender under a
-  sheen with violet shadows, which the user named as AI-made; that had
-  itself replaced `bg-white` with a 5% ring, which the team found flat, so
-  keep the soft shadow. Glass (`.glass-card`, neutral frosted white since
-  KAN-923, no violet tint or ring) is for a card over colour, where its
-  blur has something to show. An element with either carries no `ring-*`
-  or `shadow-*` utility, which would replace its shadows, and paper (a
-  resume page, the statement's pages) stays flat paper. The feature pages'
-  steps and "More from WorkIt" cards are `.surface-card` too; a related
-  card's hover lifts it by translate alone.
-- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581;
-  colours KAN-923): `PrimaryButton` (solid WorkIt violet, flat, a step
-  deeper on hover, `.primary-btn`: it was solid ink until the page's dark
-  blocks went and ink buttons were its only dark marks, the user's pick,
-  2026-11-20),
-  `SecondaryButton` (slate at 6%, no border) and `OnFillButton` (white with
-  `--mk-shadow-float`, on a coloured or grey panel, the plan cards), all
-  in one shape (`rounded-control`, the app's) and two heights, `md` 44px
-  and `lg` 48px. The header's Get started and Open WorkIt are primary,
-  Log in secondary. **A primary button ends in an arrow on a small square
-  tile** (2026-11-21, the user found the plain button boring beside the
-  grid): the grid's square, flat white at 16%; on hover the arrow leaves
-  to the right as a second comes in from the left (`.primary-btn-arrow`,
-  transform only, still with reduced motion). A caller that sets the
-  padding sets the left side only (`pl-*`); `arrow={false}` where there
-  is no room (the phone header). A page may change a role's colours for a tier, never
-  its shape or height. The site had five recipes, three corner shapes and
-  four heights, three of them in Pricing's one row; then a violet glass
-  primary and a violet outline, which the user found AI-made. **The social
-  sign-up pair is Google's neutral theme** (#F2F2F2, no stroke, #1F1F1F
-  text; LinkedIn matched, its tile with a white "in"), the guidelines'
-  only theme with no border: the light theme's grey border read as a
-  bordered AI-made button, and the dark theme, tried first, was too heavy
-  for the user. It matches `SecondaryButton`'s soft grey, so KAN-922's
-  Download for Mac joins the row as a `SecondaryButton` (merged in; it
-  shows only while `DESKTOP_DOWNLOAD_URL` is set). It takes the same shape and `md` height
-  (`BUTTON_SHAPE`, `BUTTON_SIZES`).
+- **A solid card on the marketing pages is `.gloss-card`** (landing.css,
+  KAN-368): a white body shading to a pale violet at its foot under a top
+  sheen, a hairline lit from above and a stack of soft shadows. It
+  replaced `bg-white` with a 5% ring and one shadow, which the team found
+  flat ("basic white cards with borders"). Glass (`.glass-card`) is for a
+  card over colour, where its blur has something to show; over a grey or
+  white panel it read as that same flat card. An element with it carries
+  no `ring-*` or `shadow-*` utility, which would replace its shadows, and
+  paper (a resume page, the statement's pages) stays flat paper. The
+  feature pages' steps and "More from WorkIt" cards are `.gloss-card` too
+  (KAN-581); a related card's hover lifts it by translate alone.
+- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581):
+  `GlassButton` (primary), `OutlineButton` (secondary) and `OnFillButton`
+  (white on a coloured or grey panel, the plan cards), all in one shape
+  (`rounded-control`, the app's) and two heights, `md` 44px and `lg`
+  48px. A page may change a role's colours for a tier (Pricing's Free ring
+  and Plus violet), never its shape or height. The site had five recipes,
+  three corner shapes and four heights, three of them in Pricing's one
+  row. The social sign-up pair keeps Google's branded colours but takes
+  the same shape and `md` height (`BUTTON_SHAPE`, `BUTTON_SIZES`).
+  `.glass-btn` in landing.css is only the glass fill and edge.
 - **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
   `/go-home`, in place of Log in and Get started, in the bar and the phone
   menu. The pages stay prerendered, so the header draws both pairs and
@@ -2215,19 +1294,7 @@ selling line that says what the product does** and "See how", a
   decides access by it.
 - **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
   everything else is Inter** (2026-11-10, Jobright's split: a display face
-  on marketing headlines, Inter in the product); a product's own heading
-  was Newsreader, a serif (KAN-923, Calendly's split), until the user found
-  it fancy and out of place (2026-11-20), and the face is gone. **Sizes come from `TYPE` in
-  `layout-parts.tsx`**, one step per job: `display` (the hero, 72px from
-  lg, 40px on a phone), `chapter` (`SectionHeading` and the closing call
-  to action, 56px and 34px), `product` (a product section's h2, 44px
-  and 30px), `card` (28px), `item`, `lead` and `eyebrow` (a small grey
-  line in capitals, never a label above a heading: `SectionHeading` takes
-  none since the user had every violet eyebrow removed, KAN-923; capitals set
-  wide). Every heading is weight 500: the size steps carry the hierarchy,
-  as on Calendly, where before every h2 was 600 at 30 to 36px and nothing
-  read as a chapter or a detail. `SectionHeading` changed with it, so the
-  feature pages and Pricing take the new chapter size too. One rule in landing.css
+  on marketing headlines, Inter in the product). One rule in landing.css
   gives every `h1` to `h3` under `.landing` the face, so a new section's
   heading cannot miss it; a display line that is no heading (the bridge's
   lines, the footer's tagline, the quote, a plan's price) takes the
@@ -2241,9 +1308,11 @@ selling line that says what the product does** and "See how", a
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
   line's highlight tints the letters of the line above where they reach
   into it: the opaque brand-100 cut off their descenders (g, p, y).
-  Headings take the leading of their `TYPE` step (1.05 to 1.1 for the
-  big ones, `leading-tight` for a card), and rely on the see-through
-  selection where lines overlap. A decoration that hangs below the line is drawn as a layer
+  Headings that wrap at 30 to 36px (`SectionHeading`, the footer tagline,
+  the tour's stop headings, the closing call to action on a phone) take
+  `leading-tight`, which clears the overlap; display lines (the hero,
+  the statement, the bridge) keep 1.08 and rely on the see-through
+  selection. A decoration that hangs below the line is drawn as a layer
   of its own (`.slop-wave`), since a selection repaints decorations only
   inside its highlight. Labels at 12px and under on a tinted panel or on
   glass use `ink-muted`: there the meta grey fell under 4.5:1 (the
@@ -2252,7 +1321,7 @@ selling line that says what the product does** and "See how", a
   holds 5.6:1. White text
   sits only on a fill that holds 4.5:1: `positive-ink`, not `positive`
   (2.8:1), and ink, not white, on the amber fill. So a feature's marks
-  (a glyph tile from `FeatureIcon`, a How it works step's number, a deep dive's check) take
+  (`FeatureIcon`, a How it works step's number, a deep dive's check) take
   its `onGlow` pair in `features/catalog.ts`, never its `glow`, which is
   for the blobs only (KAN-580): on `glow` white read 2.8:1 on Auto Apply's
   green and 3.19:1 on Scout's amber. The header's links tint
@@ -2285,10 +1354,9 @@ selling line that says what the product does** and "See how", a
     Apply's upload bar, the hiring-systems strike), and a sweep moves by
     `x` on a layer the size of the card it crosses.
   - Nothing scroll-linked is SVG: the browser never moves SVG content on
-    its own layer, so the old footer wordmark's 29 rows of titles (some
+    its own layer, so the footer wordmark's 29 rows of titles (some
     12,000 glyphs, once SVG text under a clip path) repainted the whole
-    word on every frame. A still SVG, as the footer's word is now, costs
-    nothing.
+    word on every frame. They are HTML under a CSS mask of the outline.
   - Never fade a `preserve-3d` root: below full opacity it flattens. The
     hiring-systems coins fade their faces, and each coin's pose is one
     `transform` string a frame.
@@ -2316,21 +1384,17 @@ selling line that says what the product does** and "See how", a
   into one bundle that every marketing page loads, `/privacy` included.
   So a client component only some pages draw is lazy
   (`features/animations.tsx`), and data a client component in the shell
-  needs is read on the server and passed in (the old footer wordmark's
-  titles were). Check after changing a layout, the header, the footer or a
+  needs is read on the server and passed in (the footer wordmark's
+  titles). Check after changing a layout, the header, the footer or a
   content file: on `next build` and `next start`, `/privacy` loads about
   215 KB compressed of JavaScript up to its load event (340 KB before this
   rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to
   130 KB more, which is expected. A jump means a client import leaked in.
   Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
-  `near.tsx`, used by `deferred-sections.tsx` until it held none). Since
-  the statement was archived (2026-11-19) nothing is deferred: the hero's
-  tabs hydrate with the page, and the
-  journey, product sections and hiring grid are server components with
-  small client parts. A deferred section (then the bridge, the tour,
-  hiring systems, the statement, the applications section) is in the
-  server's HTML from the start, with its
+  `near.tsx`, used by `deferred-sections.tsx`). Each section below the
+  hero (the bridge, the tour, hiring systems, the statement, the
+  applications section) is in the server's HTML from the start, with its
   text, links, anchors and height, but its script loads and React
   hydrates it only once it comes within a screen of view. Hydrated at
   once, the page was one long task: at a 4x CPU slowdown it froze for
@@ -2345,8 +1409,8 @@ selling line that says what the product does** and "See how", a
     came with the page.
   - On the server the gate opens at once: waiting there for a scroll
     that never comes hung `next build` ("took more than 60 seconds").
-  - After a change, load `/#hiring-systems` and `/help-center#questions`
-    fresh: each must land on its section.
+  - After a change, load `/#hiring-systems`, `/#applications` and
+    `/#faq` fresh: each must land on its section.
   - Measure on a production build (`npm run build`, then `npm run
     start`) with the CPU slowed 4x: `next dev` ships unminified code and
     hides or invents the cost.
@@ -2406,7 +1470,9 @@ selling line that says what the product does** and "See how", a
   rows with the same names. **Each section has one name in the panel**
   (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
-  two sets of names for one app (2026-11-05). **The same names are used
+  two sets of names for one app (2026-11-05). A name may take two lines on
+  its tile, no more: "Auto Apply Desktop" (KAN-835, `docs/screens.md`) does,
+  and `RAIL_BUTTON` wraps it where shadcn cut it to "o Apply Desk". **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
   "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or

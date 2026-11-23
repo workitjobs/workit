@@ -47,7 +47,7 @@ export function DeepDiveStage({
   return (
     <div
       ref={box}
-      className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl p-4 sm:p-6"
+      className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[2rem] p-4 sm:p-6"
       style={{ background }}
     >
       <Fit box={box}>{children}</Fit>

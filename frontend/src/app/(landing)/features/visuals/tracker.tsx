@@ -48,7 +48,7 @@ export function ListVisual() {
   ];
   return (
     <Vignette className="px-3">
-      <div className="surface-card rounded-2xl p-3">
+      <div className="gloss-card rounded-2xl p-3">
         <div className="flex items-center gap-2">
           <span className="text-ink-meta flex flex-1 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[10px] ring-1 ring-slate-900/10">
             <MagnifyingGlassIcon className="size-3.5" />
@@ -100,7 +100,7 @@ export function ListVisual() {
 export function AskedVisual() {
   return (
     <Vignette className="px-8">
-      <div className="surface-card rounded-2xl p-4">
+      <div className="gloss-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <FaviconLogo domain={followedJob.domain} className="size-9" />
           <div>
@@ -152,7 +152,7 @@ export function AskedVisual() {
 export function StageVisual() {
   return (
     <Vignette className="px-4">
-      <div className="surface-card rounded-2xl p-4">
+      <div className="gloss-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <FaviconLogo domain={followedJob.domain} className="size-9" />
           <div className="min-w-0 flex-1">
@@ -179,7 +179,7 @@ export function StageVisual() {
               </span>
             </div>
           </div>
-          <div className="w-[120px] shrink-0 rounded-xl bg-white p-1 shadow-[0_14px_28px_-12px_rgb(15_23_42/0.25)] ring-1 ring-slate-900/8">
+          <div className="w-[120px] shrink-0 rounded-xl bg-white p-1 shadow-[0_14px_28px_-12px_rgb(40_20_90/0.35)] ring-1 ring-slate-900/8">
             {(Object.keys(STAGES) as Stage[]).map((stage) => (
               <p
                 key={stage}

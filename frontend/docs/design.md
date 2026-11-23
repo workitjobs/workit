@@ -1165,9 +1165,7 @@ which is about three times the size.
 
 **The match score pill takes the button edge** (`border-surface`,
 2026-11-09): it opens a modal that explains the score, so `MatchBadge` is
-edged as a button is. Its ring is `MatchGlyph` (same file), which the
-marketing home page also draws on its lit glass tiles, in the same
-colours.
+edged as a button is.
 
 **Rules meet in a T, never a "+"** (2026-11-03). Where a column's edge meets a
 row's rule, one of them stops at the other. The rail's logo header has no
@@ -1538,9 +1536,7 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   glyph, one sentence and the actions that settle it, for something that
   waits on the student (written questions, closed postings). The Tracker's
   closed postings drew a white card with a black pill of their own until
-  2026-11-11. Its `offer` tone, violet, is for something WorkIt suggests
-  that nothing waits on, with its own Dismiss: Up Next's offer of the Mac
-  app (KAN-922). Tones are named by role, never by colour.
+  2026-11-11.
 
 **Named exceptions**, each a control drawn for its place, not a form field:
 the resume editor's in-place lines, title rename, size stepper, phone sheet

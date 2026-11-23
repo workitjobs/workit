@@ -226,8 +226,8 @@ function Application({ live, style }: { live: boolean; style: React.CSSPropertie
   // window that is not live is already submitted.
   const [active, setActive] = React.useState(live ? -1 : COUNT + 1);
 
-  // One step at a time, so a hidden tab holds the form on its field and
-  // goes on from there when it shows again.
+  // One step at a time, so Pause Animations holds the form on its field
+  // and Play goes on from there.
   const held = useLoopsHeld();
   React.useEffect(() => {
     if (!live || held || active > COUNT) return;

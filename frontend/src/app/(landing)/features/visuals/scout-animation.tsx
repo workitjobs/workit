@@ -19,7 +19,7 @@ import { ANSWER, Bubble, Composer, DraftCard, QUESTION, ScoutMark, StageCard } f
 export default function ScoutAnimation() {
   return (
     <div aria-hidden="true" className="flex w-[520px] shrink-0 justify-center py-4">
-      <div className="surface-card flex w-[400px] flex-col gap-3 rounded-3xl p-4">
+      <div className="gloss-card flex w-[400px] flex-col gap-3 rounded-3xl p-4">
         <div className="flex items-center gap-2">
           <ScoutMark />
           <p className="text-ink flex-1 text-[14px] font-semibold">Scout</p>
