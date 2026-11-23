@@ -45,25 +45,6 @@ export function Score({ score, className }: { score: number; className?: string 
   );
 }
 
-/**
- * A line that sits on the box's ground itself, outside any card: on a
- * white pill, since the ground is a mid tone of colour that holds 4.5:1
- * with no one text colour (`studioGround`). A line inside a card is a
- * `Label`.
- */
-export function GroundNote({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <p
-      className={cn(
-        "text-ink mx-auto flex w-fit items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold shadow-[var(--mk-shadow-float)]",
-        className,
-      )}
-    >
-      {children}
-    </p>
-  );
-}
-
 /** A small caption over a group in a scene, as the app's section labels. */
 export function Label({ children, className }: { children: ReactNode; className?: string }) {
   return <p className={cn("text-ink-muted text-[11px] font-semibold", className)}>{children}</p>;

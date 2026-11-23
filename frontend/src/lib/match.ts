@@ -38,26 +38,10 @@
  * clutter. Home's count of them is Excellent Matches.
  */
 const TIERS = [
-  {
-    min: 80,
-    label: "Excellent Match",
-    color: "var(--color-match-excellent)",
-  },
-  {
-    min: 65,
-    label: "Good Match",
-    color: "var(--color-match-good)",
-  },
-  {
-    min: 40,
-    label: "Fair Match",
-    color: "var(--color-match-fair)",
-  },
-  {
-    min: 0,
-    label: "Weak Match",
-    color: "var(--color-match-weak)",
-  },
+  { min: 80, label: "Excellent Match", color: "var(--color-match-excellent)" },
+  { min: 65, label: "Good Match", color: "var(--color-match-good)" },
+  { min: 40, label: "Fair Match", color: "var(--color-match-fair)" },
+  { min: 0, label: "Weak Match", color: "var(--color-match-weak)" },
 ] as const;
 
 /** The bands' names, best first: Up Next's Group By Match and its Match

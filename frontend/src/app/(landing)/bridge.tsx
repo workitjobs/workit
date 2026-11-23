@@ -325,7 +325,7 @@ function PostingCard({
           (`data-sorted`). */}
       <div
         className={cn(
-          "bridge-float surface-card flex items-center gap-2.5 rounded-xl p-2.5",
+          "bridge-float gloss-card flex items-center gap-2.5 rounded-xl p-2.5",
           fit && "bridge-fit",
         )}
         style={{ "--float-delay": `${-(index * 0.7) % 6}s` } as React.CSSProperties}
@@ -643,7 +643,7 @@ function LoopCard({
         delay: phase === 0 ? index * 0.06 : fit ? posting.fit * 0.08 : 0,
       }}
     >
-      <div className="surface-card flex h-full items-center gap-1.5 rounded-xl px-1.5">
+      <div className="gloss-card flex h-full items-center gap-1.5 rounded-xl px-1.5">
         <FaviconLogo domain={posting.domain} eager className="size-6 shrink-0 rounded-md" />
         <span className="min-w-0 flex-1">
           {/* Two lines for the title, so it is read whole, not cut short;
@@ -695,7 +695,7 @@ function StillBridge() {
         {fit.slice(0, 3).map((posting) => (
           <div
             key={posting.company}
-            className="surface-card flex items-center gap-2.5 rounded-xl p-2.5"
+            className="gloss-card flex items-center gap-2.5 rounded-xl p-2.5"
           >
             <FaviconLogo domain={posting.domain} className="size-8 rounded-lg" />
             <span className="min-w-0 flex-1">

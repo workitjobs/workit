@@ -34,10 +34,9 @@ export type FeatureContent = {
 };
 
 export type FeatureSection = {
+  /** A short label above the title. */
+  eyebrow?: string;
   title: string;
-  /** Its mark: the home page's product section draws it beside the title
-   *  (product-accordion.tsx), as Calendly's rows carry an icon each. */
-  icon: ComponentType<{ className?: string }>;
   body: string;
   /** Up to four short points, each with a tick. */
   points?: string[];

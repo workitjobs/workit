@@ -9,8 +9,8 @@ import { useLoopsHeld } from "./hooks";
 /**
  * A product tour stop told as a short story that loops a scene at a time,
  * never every step at once (all four tour stops). It plays only while in
- * view and starts over each time it comes back; a hidden tab holds it on
- * its scene, and the scene's hold starts again when the tab shows. A
+ * view and starts over each time it comes back; Pause Animations and a hidden
+ * tab hold it on its scene, and the scene's hold starts again on Play. A
  * glass pill over the stage
  * titles the current scene and numbers it; it is not a switcher (the team
  * removed the step bar's buttons) and has no progress line (removed too).
@@ -26,14 +26,6 @@ export type StoryScene<Id extends string> = {
   /** How long it holds, in ms. */
   hold: number;
 };
-
-/**
- * Called when a story has played its last scene, in place of looping back
- * to the first (KAN-923): the home hero's feature tabs provide it, so each
- * story plays once, whole, before the next tab's. Without a provider a
- * story loops, as on the feature pages.
- */
-export const StoryEnd = React.createContext<(() => void) | null>(null);
 
 /** The tour's travel curve (docs/motion.md, --ease-glide). */
 export const GLIDE = [0.16, 1, 0.3, 1] as const;
@@ -84,16 +76,11 @@ export function Story<Id extends string>({
     }
   }
 
-  const onEnd = React.useContext(StoryEnd);
   React.useEffect(() => {
     if (!inView || reduceMotion || held) return;
-    const last = step === scenes.length - 1;
-    const timer = window.setTimeout(
-      () => (last && onEnd ? onEnd() : go((step + 1) % scenes.length)),
-      scenes[step].hold,
-    );
+    const timer = window.setTimeout(() => go((step + 1) % scenes.length), scenes[step].hold);
     return () => window.clearTimeout(timer);
-  }, [inView, reduceMotion, held, step, tick, go, scenes, onEnd]);
+  }, [inView, reduceMotion, held, step, tick, go, scenes]);
 
   const shown = reduceMotion
     ? Math.max(

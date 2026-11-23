@@ -148,7 +148,7 @@ export function Composer() {
 export function WalkVisual() {
   return (
     <Vignette className="gap-3 px-8">
-      <div className="surface-card flex flex-col gap-3 rounded-2xl p-3">
+      <div className="gloss-card flex flex-col gap-3 rounded-2xl p-3">
         <StageCard />
         <div className="flex items-end gap-2">
           <ScoutMark />
@@ -203,14 +203,14 @@ export function PrivacyVisual() {
   return (
     <Vignette className="gap-2 px-8">
       <p className="text-ink-muted text-[11px] font-semibold">You type</p>
-      <p className="surface-card text-ink rounded-2xl px-3.5 py-3 text-[12px] leading-relaxed">
+      <p className="gloss-card text-ink rounded-2xl px-3.5 py-3 text-[12px] leading-relaxed">
         {typed}
       </p>
       <p className="text-ink-muted mt-2 flex items-center gap-1.5 text-[11px] font-semibold">
         <SparkleIcon className="size-3.5" />
         The model reads
       </p>
-      <p className="surface-card text-ink rounded-2xl px-3.5 py-3 text-[12px] leading-relaxed">
+      <p className="gloss-card text-ink rounded-2xl px-3.5 py-3 text-[12px] leading-relaxed">
         {sent}
       </p>
     </Vignette>

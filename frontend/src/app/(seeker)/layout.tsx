@@ -13,7 +13,6 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
 import { SeekerAccount } from "./account-status";
 import { BAR_ICON, BAR_TITLE } from "./bar";
 import { BarTitle } from "./bar-title";
-import { DesktopAppButton } from "./desktop-app-button";
 import { Greeting } from "./greeting";
 import { ProfileCacheProvider } from "./profile-cache";
 import { getQueueCount } from "./auto-apply/applications";
@@ -58,9 +57,8 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * the rail's width, so shadcn's in-flow gap beside it matches it.
  *
  * THE BAR holds, below md, the toggle that opens the panel's sheet, then the
- * page's title (./bar-title.tsx) and, on the right, Download App on a Mac
- * once the Mac app has a build (./desktop-app-button.tsx, KAN-922), Scout
- * (archived, `SCOUT_LAUNCHER_LIVE`), the bell, and the photo with the full name and email beside it from lg. It
+ * page's title (./bar-title.tsx) and, on the right, Scout (archived, `SCOUT_LAUNCHER_LIVE`), the
+ * bell, and the photo with the full name and email beside it from lg. It
  * had a "N New Roles Since Yesterday" pill from xl too; it was taken out as
  * a distraction, and a bar message comes back only when it is worth one. That last opens the
  * account menu: Settings, Help and Sign Out, which live there and nowhere
@@ -187,8 +185,6 @@ export default async function AppLayout({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <DesktopAppButton />
-
             {SCOUT_LAUNCHER_LIVE && <ScoutLauncher className={BAR_ICON} />}
 
             <SeekerNotificationsBell className={BAR_ICON} />

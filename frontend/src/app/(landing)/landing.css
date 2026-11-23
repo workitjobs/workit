@@ -7,32 +7,16 @@
  */
 
 .landing {
-  /*
-   * The marketing design system's tokens (KAN-923,
-   * frontend/docs/marketing-design-system.md). Shadows are neutral slate,
-   * never violet: violet shadows and violet-tinted whites were half of what
-   * read as AI-made. Colour lives in the hero and inside framed boxes; the
-   * page, its cards and its buttons are white, ink and grey.
-   */
-  --mk-hairline: rgb(15 23 42 / 0.08);
-  /* The light grey panels' ground (the problems band, the footer): a step
-     below the white page, so each reads as its own block in the page's
-     own light family and white cards stand on it. Both were dark: the
-     ink, a blue-black, then a neutral near-black, which read first as an
-     AI-made dark section and then as out of nowhere on the white page
-     (the user's catches, 2026-11-20). */
-  --mk-mist: #f0f0f0;
-  /* A well in a mist panel, a step darker again and as neutral: the
-     problems hub's stage, so a white window stands out on it. */
-  --mk-well: #e4e4e4;
-  /* A card resting on the page. */
-  --mk-shadow-card:
-    0 0 0 1px var(--mk-hairline), 0 1px 2px rgb(15 23 42 / 0.04),
-    0 12px 32px -16px rgb(15 23 42 / 0.16);
-  /* A piece of UI floating over colour (inside a StudioBox, a chip). */
-  --mk-shadow-float:
-    0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 2px rgb(15 23 42 / 0.06),
-    0 14px 30px -14px rgb(15 23 42 / 0.28);
+  /* Brand glass surface, shared by .glass-btn and the highlighted chips. */
+  --brand-glass-fill: linear-gradient(
+    135deg,
+    var(--color-landing-brand-100),
+    var(--color-landing-brand-300)
+  );
+  --brand-glass-edge:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    inset 0 0 0 1px color-mix(in oklab, var(--color-landing-brand-400) 50%, transparent);
+
   /* The app's own face, Inter (globals.css), as the marketing site had it;
    * the headlines take Plus Jakarta Sans (below). */
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
@@ -67,6 +51,39 @@
 .landing :focus-visible {
   outline: 2px solid var(--color-landing-brand-500);
   outline-offset: 2px;
+}
+
+/*
+ * Pause Animations (motion-pause.ts, KAN-580): every endless CSS loop holds
+ * on the frame it is at, and Play goes on from there. The loops only, by
+ * name: an entrance (the city's fade in, the hero's rise, Pricing's rows)
+ * paused before it ran would hide what it brings in. A new loop joins this
+ * list. !important beats each piece's `animation` shorthand, as the city's
+ * off-screen pause does.
+ */
+:root[data-motion="paused"]
+  :is(
+    .slop-word,
+    .line-scan,
+    .wordmark-drift,
+    .bridge-float,
+    .hero-city .streak,
+    .hero-city .msolid,
+    .hero-city .mwire .wire,
+    .hero-city .mwire .we,
+    .hero-city .swire,
+    .hero-city .pool,
+    .hero-city .tag,
+    .hero-city .tag > * > *,
+    .tour-spin,
+    .tour-scan,
+    .tour-typing,
+    .gate-scan *,
+    .gate-shield *,
+    .gate-bot *,
+    .workit-hop circle
+  ) {
+  animation-play-state: paused !important;
 }
 
 /* The scan's sheet of light in the sorting line's gate (sorting-line.tsx). */
@@ -127,102 +144,6 @@ html:has(.landing) {
   scroll-padding-top: 5rem;
 }
 
-/* The header slides up out of the way while the reader scrolls down and
- * comes back on a scroll up (`data-hidden`, floating-header.tsx). It stays
- * while keyboard focus is inside it or a menu is open (a header menu's
- * `aria-expanded`, the phone menu's popover), so a keyboard visitor never
- * tabs into a hidden bar and an open panel never leaves with it. Keyboard
- * focus only (`:focus-visible`): a button a mouse clicked keeps focus, and
- * with `:focus-within` the bar stayed until the reader clicked elsewhere. */
-.site-header {
-  transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* A header menu's hover fill (menu-glide.tsx): one fill behind the items
- * that glides to whichever the pointer or the keyboard is on. Placed with
- * no transition while hidden, so it lands on the first item without a
- * slide, then moved by a transform. An item's own hover fill is off under
- * it. */
-.menu-glide {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: -1;
-  border-radius: 0.75rem;
-  background: rgb(15 23 42 / 0.05);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-.menu-glide[data-shown] {
-  opacity: 1;
-  transition:
-    opacity 0.15s,
-    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-[data-glide] a:hover {
-  background-color: transparent;
-}
-@media (prefers-reduced-motion: reduce) {
-  .menu-glide[data-shown] {
-    transition: opacity 0.15s;
-  }
-}
-
-/* The header as the drafting grid's top row (header.tsx, 2026-11-21). A
- * hairline along the bar's foot, across the window: shown once the page
- * scrolls, on every page. On a page that draws the grid (one with a
- * `.draft` frame: the home page), from lg up, it shows at the top too, and
- * the grid's side rails run through the bar with an ink square where each
- * meets the foot, so the hero's frame (`DraftLines first`, which draws no
- * top line of its own) hangs from the header. A page with no grid gets
- * none of the marks: there they would be rails that lead nowhere. */
-.header-line {
-  position: absolute;
-  inset: auto 0 0;
-  height: 1px;
-  background: rgb(15 23 42 / 0.08);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.site-header[data-scrolled] .header-line {
-  opacity: 1;
-}
-@layer components {
-  .header-marks {
-    display: none;
-  }
-}
-@media (min-width: 64rem) {
-  .landing:has(.draft) .header-line {
-    opacity: 1;
-  }
-  .landing:has(.draft) .header-marks {
-    display: block;
-    position: absolute;
-    inset: 0 0.5rem;
-    pointer-events: none;
-  }
-  .header-marks > span {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: rgb(15 23 42 / 0.08);
-  }
-  .header-marks > i {
-    top: 100%;
-  }
-}
-.site-header[data-hidden]:not(:has(:focus-visible, [aria-expanded="true"], :popover-open)) {
-  translate: 0 calc(-100% - 1rem);
-}
-@media (prefers-reduced-motion: reduce) {
-  .site-header {
-    transition: none;
-  }
-}
-
 /*
  * Lenis (smooth-scroll.tsx) marks <html> with .lenis while it runs. These
  * are lenis.css's rules, less its `html.lenis { height: auto }`, which
@@ -260,80 +181,43 @@ html:has(.landing) {
 }
 
 /*
- * The primary button (buttons.tsx, KAN-923): solid WorkIt violet, flat,
- * white label (6.26:1), a step deeper on hover, the one way a marketing
- * page asks for the main action. It was solid ink, as Calendly's navy
- * button is, until the page's other dark blocks went and the ink buttons
- * were the only dark marks left (the user's pick, 2026-11-20). Before
- * that it was `.glass-btn`, a violet gradient glass with a text shadow,
- * which the user named as AI-made: so flat, never a gradient, glass or
- * glow. Shape and size are buttons.tsx's. In the components layer, so a
- * utility on the element wins.
+ * Glass button (buttons.tsx): the two light brand violets with a glassy top
+ * highlight, its fill a pseudo-element behind the label. Its shape and size
+ * are buttons.tsx's, shared by every marketing button (KAN-581). In the
+ * components layer, as on the site, so a utility on the element wins.
  */
 @layer components {
-  .primary-btn {
-    background: var(--color-brand);
-    color: white;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.16),
-      0 1px 2px rgb(15 23 42 / 0.2);
+  .glass-btn {
+    position: relative;
+    isolation: isolate;
+    color: var(--color-landing-brand-950);
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
     transition:
-      background-color 150ms ease,
-      transform 150ms ease;
+      transform 150ms ease,
+      box-shadow 200ms ease;
   }
-  .primary-btn:hover {
-    background: var(--color-landing-brand-700);
+
+  .glass-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--brand-glass-fill);
+    box-shadow: var(--brand-glass-edge);
   }
-  .primary-btn:active {
-    transform: scale(0.98);
+
+  .glass-btn:hover {
+    box-shadow: 0 4px 14px -4px color-mix(in oklab, var(--color-landing-brand-600) 45%, transparent);
   }
-  .primary-btn:focus-visible {
-    outline: 2px solid var(--color-brand);
-    outline-offset: 3px;
+
+  .glass-btn:active {
+    transform: scale(0.97);
   }
-  /* The button's arrow tile (buttons.tsx): the grid's square, flat. Two
-     arrows share one cell; on hover the first leaves to the right as the
-     second comes in from the left. Transform only. */
-  .primary-btn-arrow {
-    display: grid;
-    place-items: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    overflow: hidden;
-    border-radius: 0.3125rem;
-    background: rgb(255 255 255 / 0.16);
-  }
-  .primary-btn-arrow > svg {
-    grid-area: 1 / 1;
-    width: 0.875rem;
-    height: 0.875rem;
-    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  .primary-btn-arrow > svg:last-child {
-    transform: translateX(-200%);
-  }
-  .primary-btn:hover .primary-btn-arrow > svg:first-child,
-  .primary-btn:focus-visible .primary-btn-arrow > svg:first-child {
-    transform: translateX(200%);
-  }
-  .primary-btn:hover .primary-btn-arrow > svg:last-child,
-  .primary-btn:focus-visible .primary-btn-arrow > svg:last-child {
-    transform: none;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .primary-btn-arrow > svg {
-      transition: none;
-    }
-  }
-  /* Below 360px the header has no room for the tile beside the logo and
-     the menu button. */
-  @media (max-width: 359px) {
-    .site-header .primary-btn-arrow {
-      display: none;
-    }
-    .site-header .primary-btn {
-      padding-right: 0.75rem;
-    }
+
+  .glass-btn:focus-visible {
+    outline: 2px solid var(--color-landing-brand-500);
+    outline-offset: 4px;
   }
 }
 
@@ -385,6 +269,32 @@ html:has(.landing) {
 @media (width >= 64rem) {
   .hero-city {
     width: max(1600px, 115cqw);
+  }
+}
+
+/*
+ * The footer wordmark's rows drift slowly once they have settled
+ * (footer-wordmark.tsx): each row's track holds its titles twice and moves
+ * by half its width, so the loop has no seam. Paused while the word is not
+ * on screen, and off with reduced motion.
+ */
+@keyframes wordmark-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.wordmark-drift {
+  animation: wordmark-drift 180s linear infinite;
+}
+
+[data-paused] .wordmark-drift {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark-drift {
+    animation: none;
   }
 }
 
@@ -557,34 +467,43 @@ html:has(.landing) {
  * root: the blur then sees nothing behind it.
  */
 /*
- * The marketing pages' card (KAN-923): white, a hairline and a soft slate
- * shadow (`--mk-shadow-card`). It replaced `.gloss-card` (KAN-368), a white
- * that shaded to lavender under a sheen with violet shadows, which the
- * user named as AI-made ("the purple gradient on cards"). Colour belongs
- * to the framed boxes, not to the cards around them. An element with it
- * carries no `ring-*` or `shadow-*` utility, which would replace its
- * shadow.
+ * The landing pages' solid card (KAN-368): a white body that shades to a
+ * pale violet at its foot under a bright top sheen, a hairline lit from
+ * above, and a stack of soft shadows, so a card reads as a glossy object.
+ * It replaced `bg-white` with a 5% ring and one shadow, which the team
+ * found flat ("basic white cards with borders"). Glass (below) stays for
+ * cards over colour, where its blur has something to show; over the grey
+ * and white panels a glass card read as that same flat white card. An
+ * element given this class carries no `ring-*` or `shadow-*` utility,
+ * which would replace its shadows.
  */
 @layer components {
-  .surface-card {
-    background: white;
-    box-shadow: var(--mk-shadow-card);
+  .gloss-card {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0) 48%) padding-box,
+      linear-gradient(180deg, #fdfdff, #eeecf8) padding-box,
+      linear-gradient(180deg, #fff 20%, rgb(76 39 163 / 0.2)) border-box;
+    box-shadow:
+      inset 0 1px 0 #fff,
+      inset 0 -2px 4px -2px rgb(76 39 163 / 0.08),
+      0 1px 1px rgb(30 20 70 / 0.05),
+      0 3px 6px -2px rgb(30 20 70 / 0.07),
+      0 14px 28px -12px rgb(40 20 90 / 0.24),
+      0 32px 52px -30px rgb(40 20 90 / 0.3);
   }
 }
 
-/*
- * A card over colour (a story's scene title, Pricing's plans): frosted
- * white, so the colour behind shows through the blur, with a bright top
- * edge and a slate shadow. Neutral since KAN-923; it was tinted violet
- * with a violet ring.
- */
 .glass-card {
-  background: rgb(255 255 255 / 0.72);
-  backdrop-filter: blur(12px) saturate(1.4);
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.22) 65%),
+    rgb(237 232 252 / 0.3);
+  backdrop-filter: blur(10px) saturate(1.8);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.9),
-    0 0 0 1px rgb(15 23 42 / 0.06),
-    0 12px 28px -14px rgb(15 23 42 / 0.3);
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 0 0 1px rgb(255 255 255 / 0.55),
+    0 0 0 1px rgb(76 39 163 / 0.12),
+    0 14px 32px -14px rgb(40 20 90 / 0.45);
 }
 
 @keyframes hero-city-solid {
@@ -870,49 +789,24 @@ html[data-tab-flight="flying"] .tour-tabs {
 }
 
 /*
- * A piece that rises as its section arrives, from behind its own foot, as
- * the hero's headline does (2026-11-21): a direct child of an `Arrive`
- * (`data-arrived`), hidden by a clip and shifted down by its own height,
- * so its foot stands still on the page while it comes up. `--rise` is its
- * delay. Every `SectionHeading` rises this way, and each product
- * section's label and headline. A clip and a translate, never opacity or
- * a blur. The resting clip is open past the box, so no letter and no
- * focus ring is cut. No `data-arrived` in the server's HTML, so nothing
- * is hidden without script.
+ * A section heading comes into focus as it arrives (focus-in.tsx marks the
+ * wrapper): the eyebrow, the title and the subtitle each rise out of a
+ * blur, a little apart. "wait" has no transition, so hiding is instant;
+ * "in" transitions back to the elements' own values, so the blur ends as
+ * `none`, never a leftover blur(0px), which would make the heading a
+ * backdrop root.
  */
-@media (prefers-reduced-motion: no-preference) {
-  [data-arrived] > .rise {
-    clip-path: inset(-0.5em -1em -0.5em -1em);
-    transition:
-      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rise, 0s),
-      clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rise, 0s);
-  }
-  [data-arrived="false"] > .rise {
-    transform: translateY(100%);
-    clip-path: inset(-0.5em -1em 100% -1em);
-    transition: none;
-  }
-}
-
-/*
- * `FocusIn` (focus-in.tsx), for a block that is no `SectionHeading`
- * (Pricing's FAQ rows and closing band): its pieces rise the same way,
- * one after another. It was a blur and a fade ("comes into focus") until
- * 2026-11-21, the look the user called AI-made in the hero. "wait" has no
- * transition, so hiding is instant.
- */
-.focus-in[data-focus] > * > * {
-  clip-path: inset(-1rem -1rem -1rem -1rem);
-}
 .focus-in[data-focus="wait"] > * > * {
-  transform: translateY(100%);
-  clip-path: inset(-1rem -1rem 100% -1rem);
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(14px);
 }
 
 .focus-in[data-focus="in"] > * > * {
   transition:
-    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
-    clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.7s ease-out,
+    filter 0.8s ease-out,
+    transform 0.9s var(--ease-glide);
 }
 
 .focus-in[data-focus="in"] > * > :nth-child(2) {
@@ -928,7 +822,7 @@ html[data-tab-flight="flying"] .tour-tabs {
  * in time: the list sits in a FocusIn (page.tsx), whose rules above move
  * each row, and each row waits its turn (`--i`, faq-list.tsx). Scrubbed by
  * the scroll over each row's own few pixels at the screen's foot, a row
- * that stopped there stayed half way.
+ * that stopped there stayed half faded.
  */
 .focus-in[data-focus="in"] > .faq-rise > * {
   transition-delay: calc(var(--i, 0) * 0.07s);
@@ -980,8 +874,9 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 
-/* The Popular pill pops on once Plus has landed. A light that swept
- * across the card after it was taken out with the violet (KAN-923). */
+/* The Popular pill pops on once Plus has landed, then a light sweeps once
+ * across the card (`.price-sheen`, a layer that clips the light to the
+ * card: the card itself may not clip, since the pill hangs over its edge). */
 .price-badge {
   animation: price-badge 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1s both;
 }
@@ -990,6 +885,17 @@ html[data-tab-flight="flying"] .tour-tabs {
   from {
     opacity: 0;
     transform: translateY(8px) scale(0.5);
+  }
+}
+
+.price-sheen > span {
+  transform: translateX(-110%) skewX(-18deg);
+  animation: price-sheen 1.1s ease-in-out 1.25s both;
+}
+
+@keyframes price-sheen {
+  to {
+    transform: translateX(260%) skewX(-18deg);
   }
 }
 
@@ -1085,6 +991,10 @@ html[data-tab-flight="flying"] .tour-tabs {
   .price-swap,
   .price-strike::after {
     animation: none;
+  }
+
+  .price-sheen {
+    display: none;
   }
 }
 
@@ -1207,1461 +1117,5 @@ html[data-tab-flight="flying"] .tour-tabs {
   .gate-bot *,
   .workit-hop circle {
     animation: none;
-  }
-}
-
-/*
- * The home page's framed box (StudioBox in layout-parts.tsx, KAN-923)
- * carries no texture: its ground is the pastel blend alone. It had a grain
- * (SVG noise in a `::after`) until 2026-11-21: once the grounds went
- * pastel the user could still see it and had it taken out, since on a pale
- * ground it read as dirt, not as print. Faint ruled lines like resume
- * paper went before it. `.studio-box` stays on the element as its name.
- */
-
-/*
- * The home hero's ground (KAN-923): a grainy violet gradient that the glass
- * tiles frost over, the user's ask, after a flat pale violet (brand-100)
- * under solid violet lit tiles, whose cards the user did not like. Deeper
- * violets in the corners, lighter ones along the edges, and one pool of
- * pale light behind the headline's tile, so the light has a source and the
- * glass has a range of colour to blur. One hue family, never Calendly's
- * blue-to-pink. The grain (::after, grey noise in overlay, so it lightens
- * and darkens without greying the violet) sits under the tiles: in the gaps
- * it reads as a printed surface, and each tile's blur smooths it, which is
- * what makes the tile read as frosted glass. Static: nothing here moves.
- */
-.hero-ground {
-  background:
-    radial-gradient(
-      ellipse 50% 48% at 50% 50%,
-      color-mix(in oklab, var(--color-landing-brand-100) 90%, transparent),
-      transparent 100%
-    ),
-    radial-gradient(55% 70% at 0% 0%, var(--color-landing-brand-500), transparent 75%),
-    radial-gradient(
-      55% 70% at 100% 100%,
-      color-mix(in oklab, var(--color-brand) 85%, var(--color-landing-brand-950)),
-      transparent 75%
-    ),
-    radial-gradient(50% 60% at 100% 0%, var(--color-landing-brand-300), transparent 75%),
-    radial-gradient(50% 60% at 0% 100%, var(--color-landing-brand-400), transparent 75%),
-    var(--color-landing-brand-300);
-}
-.hero-ground::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.3;
-  mix-blend-mode: overlay;
-}
-
-/*
- * The hero's grid (hero-board.tsx): tiles in equal columns filling the
- * hero panel edge to edge, the headline's tile in the middle and the
- * small tiles flowing round it, so no stretch of bare ground shows at any
- * size (the user saw bare margins when the grid had a fixed width).
- *
- * Below lg the tiles are square and the headline's tile is a full-width
- * row between a row of tiles above and one below; that row takes the
- * height left in the panel, which is at least the screen's (page.tsx).
- *
- * From lg up the panel is the screen's height under the header (the hero
- * is the first screen and nothing else; a minimum, so a screen too short
- * for the headline grows the panel instead of clipping the grid's last
- * row, which happened at 1024 × 768 before the headline took the screen's
- * height into account), the grid is 5 rows that share it, and the headline's tile spans the middle 3 rows and all but the
- * outer columns. To keep the tiles near square, the column count follows
- * the screen's shape: 7 columns below 8:5 (a 4:3 or 3:2 screen), 9 from
- * 8:5 (16:10 and 16:9 laptops and monitors), 11 from 21:10 (ultrawide).
- *
- * Each width shows only the tiles it has cells for (the `nth-child` rules;
- * child 1 is the headline's tile): phone 8, sm 12, 7 columns 20, 9 columns
- * 24, 11 columns 28, as hero-board.tsx renders. A spare tile would open a
- * new row. Check at 1024 × 768, 1280 × 800, 1440 × 900, 1920 × 1080 and a
- * phone after any change to the hero's type or these numbers.
- */
-.hero-grid {
-  --cols: 4;
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  grid-template-rows: auto 1fr auto;
-  gap: 0.5rem;
-}
-/*
- * Every small tile is frosted glass over the grainy ground: a faint white
- * that fades down the tile, a blur that smooths the grain and lifts the
- * colour under it (`saturate`), a hairline of white round its edge and a
- * brighter one along its top. The blur reads a still ground, so it is drawn
- * once and kept; only the lit layer inside changes (`.board-lit`), and it
- * carries no blur of its own: a tile with a backdrop filter is the backdrop
- * root of what is inside it, so a second blur there would see nothing.
- */
-.hero-tile {
-  aspect-ratio: 1;
-  background: linear-gradient(170deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.1));
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.28),
-    inset 0 1px 0 rgb(255 255 255 / 0.5);
-  container-type: size;
-}
-/*
- * A lit tile's role, from lg up, by the tile's height: two lines from
- * 122px, one line (cut with an ellipsis) from 108px, none below, where the
- * logo and the match fill the tile. The cutoffs keep the 10px between the
- * role and the match (`MatchBar` in hero-board.tsx): two lines need about
- * 122px with it, one line about 106px. It never shrinks: as a flex child with
- * its overflow hidden it could shrink below its lines, and a long role
- * ("Software Engineer Intern") was cut through its second line by the match
- * (the user's catch, 2026-11-19).
- */
-.tile-role {
-  display: none;
-}
-@media (min-width: 64rem) {
-  .tile-role {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-}
-@container (max-height: 7.625rem) {
-  .tile-role {
-    -webkit-line-clamp: 1;
-  }
-}
-@container (max-height: 6.75rem) {
-  .tile-role {
-    display: none;
-  }
-}
-/* A lit tile's match line (hero-board.tsx, `MatchBar`) by the tile's width:
- * the band's full name ("Excellent Match") and the percentage from 8.5rem,
- * which a 1024-wide screen's 125px tiles miss by a few pixels; the short
- * name ("Excellent") below it; and no ring under 6rem, a phone's 80px tile,
- * where "Excellent" alone fills the line. */
-.tile-tier-short {
-  display: none;
-}
-@container (max-width: 8.5rem) {
-  .tile-tier-full,
-  .tile-pct {
-    display: none;
-  }
-  .tile-tier-short {
-    display: inline;
-  }
-}
-@container (max-width: 6rem) {
-  .tile-mark {
-    display: none;
-  }
-}
-.hero-tile:nth-child(n + 10) {
-  display: none;
-}
-/*
- * The headline's tile: solid white, the one tile that is not glass, so it is
- * the brightest surface in the hero and Google's #F2F2F2 pair reads on it.
- * It was a pastel violet gradient (and before that a deep one), which sat at
- * the same lightness as the ground and the lit tiles (1.01 to 1.05
- * contrast).
- */
-.hero-copy {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2.5rem 1rem;
-  border-radius: 1rem;
-  background: white;
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.6),
-    0 24px 48px -28px rgb(18 26 40 / 0.45);
-  text-align: center;
-}
-@media (min-width: 40rem) {
-  .hero-grid {
-    --cols: 6;
-    gap: 0.75rem;
-  }
-  .hero-tile:nth-child(n + 10) {
-    display: block;
-  }
-  .hero-tile:nth-child(n + 14) {
-    display: none;
-  }
-  .hero-copy {
-    padding: 3rem 2rem;
-  }
-}
-@media (min-width: 64rem) {
-  .hero-grid {
-    --cols: 7;
-    grid-template-rows: repeat(5, minmax(0, 1fr));
-  }
-  .hero-tile {
-    aspect-ratio: auto;
-  }
-  .hero-tile:nth-child(n + 14) {
-    display: block;
-  }
-  .hero-tile:nth-child(n + 22) {
-    display: none;
-  }
-  .hero-copy {
-    grid-column: 2 / -2;
-    grid-row: 2 / span 3;
-    padding: 1rem 1.5rem;
-  }
-}
-@media (min-width: 64rem) and (min-aspect-ratio: 8/5) {
-  .hero-grid {
-    --cols: 9;
-  }
-  .hero-tile:nth-child(n + 22) {
-    display: block;
-  }
-  .hero-tile:nth-child(n + 26) {
-    display: none;
-  }
-}
-@media (min-width: 64rem) and (min-aspect-ratio: 21/10) {
-  .hero-grid {
-    --cols: 11;
-  }
-  .hero-tile:nth-child(n + 26) {
-    display: block;
-  }
-}
-
-/*
- * A tile lights up (hero-board.tsx): its bright glass card fades in over
- * the tile, settling from just under its size to its place (never bigger
- * than its cell: lifted 4% it stood out of line with its neighbours, which
- * the user flagged), holds and fades out. **One card at a time** (the
- * user's call: lit together, two to six at once, they read as
- * overlapping): every tile the screen shows takes one turn of `--turn`
- * (3.4 s: 0.45 s in, a hold to 2.85 s, out by 3.35 s) in a shuffled order
- * (`ORDERS` in hero-board.tsx), so the loop is `--n` turns long, one per
- * shown tile, and the next card appears somewhere else just as the last
- * has gone. Each layout has its own order and keyframes, since each shows
- * a different number of tiles (8, 12, 20, 24 or 28, the `.hero-grid`
- * rules above): a tile's turn is `--s<n>`, set on it, and the layout picks
- * its `--slot`. The first card fades in 1.5 s after the page loads
- * (`--lead`), and each visit starts the order at a random tile in a
- * random direction (below).
- * Opacity and transform only, so it runs off the main thread. With
- * reduced motion one tile per posting (`data-still`) is lit and still.
- */
-/*
- * A lit tile is the bright glass card of a posting (KAN-923, the user's ask
- * for glass): a near-white layer over the tile's frost, brighter at the
- * top, with a white edge and a soft slate shadow, so the tile seems to
- * rise out of the glass. Ink text in the Jobs page card's weights and the
- * match in the app's own colours, as on the Jobs page. It replaced a solid
- * violet card with white text, which the user found plain.
- * The layer has no blur of its own (the tile's blur is under it, above), so
- * the light costs only its opacity and transform.
- */
-.board-lit {
-  --turn: 3.4s;
-  /* No card until the page has settled (the user's call: one lit at the
-   * first paint looked pre-loaded); the first fades in at 1.5 s. */
-  --lead: 1.5s;
-  --n: 8;
-  --slot: var(--s8);
-  /* The tile's place in this visit's sequence: its turn, unless the
-   * shuffle below turns the loop to a random start and direction. */
-  --pos: var(--slot);
-  opacity: 0;
-  animation: board-lit-8 calc(var(--n) * var(--turn)) ease-in-out
-    calc(var(--pos) * var(--turn) + var(--lead)) infinite;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.74));
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.8),
-    0 18px 32px -18px rgb(18 26 40 / 0.5);
-}
-/*
- * A lit tile's match bar fills from empty as the tile comes up (KAN-923, the
- * user's "progress bars loading"): the fill slides in from the left of its
- * track (the track clips it, so its rounded end keeps its shape), from
- * 0.45 s into the tile's turn, once it is lit, to 1.45 s, then holds; it
- * snaps back to empty at the loop's end, while the tile is out. It reads
- * its tile's `--n`, `--turn` and `--slot`. Transform only, off the main
- * thread.
- */
-.board-bar {
-  animation: board-bar-8 calc(var(--n) * var(--turn)) cubic-bezier(0.16, 1, 0.3, 1)
-    calc(var(--pos) * var(--turn) + var(--lead)) infinite;
-}
-@media (min-width: 40rem) {
-  .board-lit {
-    --n: 12;
-    --slot: var(--s12);
-    animation-name: board-lit-12;
-  }
-  .board-bar {
-    animation-name: board-bar-12;
-  }
-}
-@media (min-width: 64rem) {
-  .board-lit {
-    --n: 20;
-    --slot: var(--s20);
-    animation-name: board-lit-20;
-  }
-  .board-bar {
-    animation-name: board-bar-20;
-  }
-}
-@media (min-width: 64rem) and (min-aspect-ratio: 8/5) {
-  .board-lit {
-    --n: 24;
-    --slot: var(--s24);
-    animation-name: board-lit-24;
-  }
-  .board-bar {
-    animation-name: board-bar-24;
-  }
-}
-@media (min-width: 64rem) and (min-aspect-ratio: 21/10) {
-  .board-lit {
-    --n: 28;
-    --slot: var(--s28);
-    animation-name: board-lit-28;
-  }
-  .board-bar {
-    animation-name: board-bar-28;
-  }
-}
-/*
- * A different sequence each visit (the user's call: every load showed the
- * same cards in the same places). An inline script in hero-board.tsx sets
- * `--hero-start` (0 to 27) and `--hero-dir` (1 or -1) on <html> before the
- * first paint, and each tile's place becomes its turn read from that start
- * in that direction, wrapped round the layout's loop with `mod()`. Each
- * order is a loop whose rules (no neighbours, no posting twice in a row)
- * hold either way round and from any start, so one card at a time still
- * holds. Where `mod()` is missing, or with no script, the fixed order
- * plays.
- */
-@supports (width: mod(3px, 2px)) {
-  .board-lit {
-    --pos: mod(calc(var(--slot) * var(--hero-dir, 1) - var(--hero-start, 0)), var(--n));
-  }
-}
-/* One turn as a share of each layout's loop (made by a script: 0.45, 2.85
- * and 3.35 s of n turns of 3.4 s for the light, 0.45 to 1.45 s for the
- * bar). Change `--turn` or a time, and make them again. */
-@keyframes board-lit-8 {
-  0%,
-  12.316%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  1.654%,
-  10.478% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes board-bar-8 {
-  0%,
-  1.654% {
-    transform: translateX(-101%);
-  }
-  5.331%,
-  100% {
-    transform: translateX(0);
-  }
-}
-@keyframes board-lit-12 {
-  0%,
-  8.211%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  1.103%,
-  6.985% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes board-bar-12 {
-  0%,
-  1.103% {
-    transform: translateX(-101%);
-  }
-  3.554%,
-  100% {
-    transform: translateX(0);
-  }
-}
-@keyframes board-lit-20 {
-  0%,
-  4.926%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  0.662%,
-  4.191% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes board-bar-20 {
-  0%,
-  0.662% {
-    transform: translateX(-101%);
-  }
-  2.132%,
-  100% {
-    transform: translateX(0);
-  }
-}
-@keyframes board-lit-24 {
-  0%,
-  4.105%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  0.551%,
-  3.493% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes board-bar-24 {
-  0%,
-  0.551% {
-    transform: translateX(-101%);
-  }
-  1.777%,
-  100% {
-    transform: translateX(0);
-  }
-}
-@keyframes board-lit-28 {
-  0%,
-  3.519%,
-  100% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  0.473%,
-  2.994% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes board-bar-28 {
-  0%,
-  0.473% {
-    transform: translateX(-101%);
-  }
-  1.523%,
-  100% {
-    transform: translateX(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .board-lit {
-    animation: none;
-    transform: none;
-  }
-  .board-lit[data-still] {
-    opacity: 1;
-  }
-  .board-bar {
-    animation: none;
-  }
-}
-
-/*
- * A product section's open row fills its line in the feature's colour
- * over one turn (product-accordion.tsx, KAN-923, after Calendly's), and
- * the row after it opens when the line is full (`animationend`). The
- * component sets the turn's length and pauses it off screen, in a hidden
- * tab and while the reader is on the rows. With reduced motion the line is
- * full and nothing turns. It replaced a pinned stretch of scroll per row.
- */
-.row-fill {
-  animation-name: row-fill;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-}
-@keyframes row-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .row-fill {
-    animation: none;
-  }
-}
-
-/*
- * A row that drifts sideways for ever (the logo strip, the closing call to
- * action's chips): the row holds its items twice and moves by half its
- * width, so the loop has no seam. Slow on purpose, a backdrop, not a
- * ticker. Still with reduced motion.
- */
-.drift-row {
-  animation: drift-row var(--drift, 60s) linear infinite;
-}
-@keyframes drift-row {
-  to {
-    transform: translateX(-50%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .drift-row {
-    animation: none;
-  }
-}
-
-/*
- * The journey cards' small pictures (journey.tsx): each part waits, then
- * comes in once its card has arrived (`data-arrived`, set by script once
- * the card is well on screen), each after its own `--d`. One pass, then
- * still: no loop, so no pause control. Without the script, or with reduced
- * motion, they show as they end.
- */
-.journey-in {
-  transition:
-    opacity 0.5s ease-out var(--d, 0s),
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s);
-}
-/* The match ring fills to its score from empty. */
-.journey-ring {
-  transition: stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s);
-}
-.journey-grow {
-  transform-origin: left;
-  transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s);
-}
-/* The waiting poses, only where motion is welcome: with reduced motion the
- * pictures are drawn as they end. */
-@media (prefers-reduced-motion: no-preference) {
-  [data-arrived="false"] .journey-in {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  [data-arrived="false"] .journey-ring {
-    stroke-dasharray: 0 100;
-  }
-  [data-arrived="false"] .journey-grow {
-    transform: scaleX(0);
-  }
-}
-
-/* A text cursor waiting in an empty field (problem-scenes.tsx): it blinks
- * a few times as its visual shows, then stays, so nothing on the page
- * blinks for good; still with reduced motion. */
-@media (prefers-reduced-motion: no-preference) {
-  .caret-blink {
-    animation: caret-blink 1s steps(1, end) 4;
-  }
-}
-/* What is WorkIt's statement (what-is.tsx): each word comes up from a
-   faint grey a little after the one before, once the line arrives. */
-/* Words that rise one after another from behind their own foot, as the
-   hero's headline does (what-is.tsx): each word is its own box, hidden by
-   a clip and shifted down by its height, so its foot stands still while
-   it comes up. `--w` is the word's place. A clip and a translate, never
-   opacity. The resting clip is open past the box, so no letter is cut. */
-.word-rise > span {
-  display: inline-block;
-  clip-path: inset(-0.2em -0.2em -0.3em -0.2em);
-  transition:
-    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--w) * 30ms + 0.3s),
-    clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--w) * 30ms + 0.3s);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .word-rise[data-arrived="false"] > span {
-    transform: translateY(100%);
-    clip-path: inset(-0.2em -0.2em 100% -0.2em);
-    transition: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .word-rise > span {
-    transition: none;
-  }
-}
-.word-reveal > span {
-  transition: opacity 0.5s ease calc(var(--w) * 28ms);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .word-reveal[data-arrived="false"] > span {
-    opacity: 0.16;
-    transition: none;
-  }
-}
-
-/* WorkIt's app icon as a thin slab of glass, floating (app-icon.tsx), on
-   What is WorkIt. `--s` is its size. The slab is tilted in 3D: its face is a
-   violet squircle lit from above (a white sheen over the top, a deeper pool
-   at the foot, a bright top rim) with a frosted sheet inset in it and the
-   white figure on the sheet; behind the face, twelve squircles a step apart
-   in depth make its edge, lighter near the face. It floats on a slow loop
-   over a soft slate shadow on the ground, which shrinks and fades as it
-   rises. Transforms and opacity only; still with reduced motion. */
-.app-icon-3d {
-  --s: 5rem;
-  position: relative;
-  display: block;
-  flex-shrink: 0;
-  width: var(--s);
-  height: calc(var(--s) * 1.3);
-  perspective: calc(var(--s) * 6);
-}
-@media (min-width: 40rem) {
-  .app-icon-3d {
-    --s: 6rem;
-  }
-}
-@media (min-width: 64rem) {
-  .app-icon-3d {
-    --s: 9.5rem;
-  }
-}
-.app-icon-float {
-  position: absolute;
-  inset: 0 0 auto;
-  height: var(--s);
-  transform-style: preserve-3d;
-}
-.app-icon-slab {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transform: rotateX(24deg) rotateY(-26deg) rotateZ(5deg);
-}
-.app-icon-slab > span {
-  position: absolute;
-  inset: 0;
-  border-radius: 22.5%;
-}
-.app-icon-edge {
-  transform: translateZ(calc(var(--s) * var(--n) * -0.009));
-  background: color-mix(
-    in oklab,
-    var(--color-landing-brand-900) calc(var(--n) * 6%),
-    var(--color-landing-brand-500)
-  );
-}
-.app-icon {
-  display: grid;
-  place-items: center;
-  isolation: isolate;
-  background:
-    radial-gradient(120% 70% at 50% -8%, rgb(255 255 255 / 0.45), transparent 60%),
-    radial-gradient(90% 75% at 80% 112%, rgb(32 12 74 / 0.55), transparent 70%),
-    linear-gradient(
-      155deg,
-      var(--color-landing-brand-400),
-      var(--color-brand) 50%,
-      var(--color-landing-brand-900)
-    );
-  box-shadow:
-    inset 0 1.5px 0 rgb(255 255 255 / 0.7),
-    inset 0 0 0 1px rgb(255 255 255 / 0.2),
-    inset 0 -3px 8px rgb(15 23 42 / 0.25);
-}
-.app-icon::before {
-  content: "";
-  position: absolute;
-  inset: 12%;
-  z-index: -1;
-  border-radius: 26%;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.07));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.65),
-    inset 0 -1px 0 rgb(255 255 255 / 0.1),
-    0 8px 14px -8px rgb(15 23 42 / 0.45);
-}
-.app-icon-glyph {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 2px 2.5px rgb(15 23 42 / 0.32));
-}
-.app-icon-shadow {
-  position: absolute;
-  bottom: 0;
-  left: 8%;
-  width: 84%;
-  height: 16%;
-  border-radius: 50%;
-  background: radial-gradient(
-    closest-side,
-    rgb(15 23 42 / 0.3),
-    rgb(15 23 42 / 0.12) 55%,
-    transparent
-  );
-}
-@media (prefers-reduced-motion: no-preference) {
-  .app-icon-float {
-    animation: app-icon-hover 6s ease-in-out infinite;
-  }
-  .app-icon-shadow {
-    animation: app-icon-shadow 6s ease-in-out infinite;
-  }
-  /* It pops in as the grid's ink squares do, from nothing with a small
-     overshoot, and its name rises from behind its own foot (`data-arrived`
-     on their column). No opacity: it rose in on a fade before. */
-  .what-is-mark .app-icon-3d {
-    transition: transform 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s;
-  }
-  .what-is-mark[data-arrived="false"] .app-icon-3d {
-    transform: scale(0);
-    transition: none;
-  }
-  .what-is-mark h2 {
-    clip-path: inset(0 0 -0.3em 0);
-    transition:
-      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.4s,
-      clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.4s;
-  }
-  .what-is-mark[data-arrived="false"] h2 {
-    transform: translateY(100%);
-    clip-path: inset(0 0 100% 0);
-    transition: none;
-  }
-}
-@keyframes app-icon-hover {
-  50% {
-    transform: translateY(calc(var(--s) * -0.07));
-  }
-}
-@keyframes app-icon-shadow {
-  50% {
-    opacity: 0.6;
-    transform: scale(0.82);
-  }
-}
-
-/* The problems band (problems.tsx): flat light grey, with no glow and no
-   grain; the stage's dot grid (`.problem-dots`) is the band's one texture.
-   It was a near-black band, and before that ink with a slate pool and dots
-   across it; both read as out of place on the white page (the user's
-   catches, 2026-11-20). */
-.problems-ground {
-  background: var(--mk-mist);
-}
-/* The product demo's glass frame (why-exists.tsx): a frosted white bezel
-   with a bright top edge and a white rim, over a StudioBox's violet sky,
-   so the blur has colour to show. */
-.demo-glass {
-  background: rgb(255 255 255 / 0.3);
-  backdrop-filter: blur(18px) saturate(1.3);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.9),
-    inset 0 0 0 1px rgb(255 255 255 / 0.5),
-    0 30px 60px -30px rgb(15 23 42 / 0.45);
-}
-
-/* The drafting grid's frame (draft-lines.tsx), shared by every section:
-   hairlines across the window at a block's
-   top and foot (clipped by `.landing`'s overflow-x-clip), down its sides,
-   and an ink square where they cross. Neutral, never a feature's colour.
-   From lg up: below it the side lines ran along the window's edge. Every
-   frame's sides sit 1.5rem outside the container's content, so they form
-   one rail down the page, and run 6rem past each frame, so the rail joins
-   across the gap between two framed sections (it broke at 2.5rem). */
-@layer components {
-  .draft {
-    display: none;
-  }
-}
-@media (min-width: 64rem) {
-  .draft {
-    display: block;
-    position: absolute;
-    inset: calc(-1 * var(--gap-top, var(--gap, 1.25rem))) -1.5rem calc(-1 * var(--gap, 1.25rem));
-    pointer-events: none;
-  }
-}
-.draft-first {
-  --gap-top: 0px;
-}
-/* A frame draws itself as it arrives (draft-lines.tsx): the top line grows
-   from the centre, the side lines draw down from it, the foot line grows,
-   and each corner's ink square pops as its lines reach it. Held undrawn,
-   with no transition, while `data-arrived` is "false"; the attribute is
-   absent in the server's HTML and on the page's first frame, which the
-   page's own entrance draws. Scale only. */
-@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .draft[data-arrived] > .draft-h {
-    transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
-  }
-  .draft[data-arrived] > .draft-h.bottom-0 {
-    transition-delay: 0.5s;
-  }
-  .draft[data-arrived] > .draft-v {
-    transform-origin: top;
-    transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1) 0.15s;
-  }
-  .draft[data-arrived] > i {
-    transition: transform 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 0.2s;
-  }
-  .draft[data-arrived] > i.top-full {
-    transition-delay: 0.8s;
-  }
-  .draft[data-arrived="false"] > .draft-h {
-    transform: scaleX(0);
-    transition: none;
-  }
-  .draft[data-arrived="false"] > .draft-v {
-    transform: scaleY(0);
-    transition: none;
-  }
-  .draft[data-arrived="false"] > i {
-    transform: translate(-50%, -50%) scale(0);
-    transition: none;
-  }
-}
-.draft-h,
-.draft-v {
-  position: absolute;
-  background: rgb(15 23 42 / 0.08);
-}
-.draft-h {
-  left: -100vw;
-  right: -100vw;
-  height: 1px;
-}
-.draft-v {
-  top: -6rem;
-  bottom: -6rem;
-  width: 1px;
-}
-.draft-first .draft-v {
-  top: 0;
-}
-.draft > i,
-.pipe-lines > i,
-.header-marks > i {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  background: var(--color-ink);
-  transform: translate(-50%, -50%);
-}
-
-/* The stage is a well in the band: a step darker, with a soft inner
-   shadow at its top edge and a hairline, so it reads as set in. */
-.problem-well {
-  background: var(--mk-well);
-  box-shadow:
-    inset 0 1px 3px rgb(15 23 42 / 0.07),
-    inset 0 0 0 1px rgb(15 23 42 / 0.05);
-}
-/* The problems hub's stage (problem-hub.tsx), on the light grey band: a
-   dot grid in slate at 13%,
-   strongest at the edges and fading to a fifth toward the middle, so the
-   visual stands on the plain stage. Still, so it costs nothing per frame. */
-.problem-dots {
-  background-image: radial-gradient(rgb(15 23 42 / 0.13) 1.3px, transparent 1.5px);
-  background-size: 16px 16px;
-  background-position: center;
-  mask-image: radial-gradient(closest-side, rgb(0 0 0 / 0.18), #000 95%);
-}
-/* The hub's visual (`Window` in problem-scenes.tsx, 20rem wide and up to
-   319px tall as drawn) grows where its stage has the room, with the
-   stage's 1.5rem of padding each side: at z times it needs a stage
-   20z + 3rem wide and 319z + 48px tall. Between md and lg the stage is
-   the container's width and 27rem tall, so 1.2 times. From xl up it is
-   27rem wide and `100svh - 23.5rem` tall (problem-hub.tsx), so the steps
-   follow the screen's height: 1.1 times from 776px, 1.15 from 792px, 1.2
-   from 808px; at 1280 × 720 a visual at 1.2 times was cut at the stage's
-   foot. Change the stage's height rule and these three together. Between
-   lg and xl the stage is too narrow to grow in. `zoom`, not a scale: the
-   layout grows with it, so the window's safe centring still holds. Media
-   queries, since a container query on the stage's height matched nothing
-   in the three-column layout, where the stage's height is auto (Chrome,
-   2026-11-21). */
-@media (min-width: 48rem) and (max-width: 63.99rem) {
-  .problem-window {
-    zoom: 1.2;
-  }
-}
-@media (min-width: 80rem) and (min-height: 48.5rem) {
-  .problem-window {
-    zoom: 1.1;
-  }
-}
-@media (min-width: 80rem) and (min-height: 49.5rem) {
-  .problem-window {
-    zoom: 1.15;
-  }
-}
-@media (min-width: 80rem) and (min-height: 50.5rem) {
-  .problem-window {
-    zoom: 1.2;
-  }
-}
-/* The browser picture's tabs take turns (`BoardsScene` in
-   problem-scenes.tsx): four boards, 3.2 s each. A turn's three parts (the
-   lit tab, the address, the page) each fade in for their quarter of one
-   12.8 s loop and wait out the rest, set apart by a delay of whole turns,
-   so they change together and the next board comes in as the last goes
-   out. Opacity alone. Held while the stage waits to arrive, and while none
-   of the picture is on screen (`HoldOffscreen`). With reduced motion
-   nothing turns: the first board stays. **Where the hub's cards take
-   turns (lg up) the loop is the cards' turn** (`--board-loop`, set on the stage
-   by problem-hub.tsx): the four boards make one pass as the open card's
-   ring draws, and they are held when the ring is (`data-held`), so the
-   hub runs on one clock. */
-.board-turn {
-  opacity: 0;
-  animation: board-turn var(--board-loop, 12.8s) linear infinite both;
-  animation-delay: calc(var(--i, 0) * var(--board-loop, 12.8s) / 4);
-}
-[data-arrived="false"] .board-turn,
-[data-held] .board-turn,
-.board-tabs[data-paused] .board-turn {
-  animation-play-state: paused;
-}
-@keyframes board-turn {
-  0% {
-    opacity: 0;
-  }
-  2.5% {
-    opacity: 1;
-  }
-  25% {
-    opacity: 1;
-  }
-  27.5% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .board-turn {
-    animation: none;
-  }
-  .board-turn[data-first] {
-    opacity: 1;
-  }
-}
-/* The open card's turn (problem-hub.tsx): a hairline drawn clockwise round
-   the card, from its top left corner, at one steady speed; the next card
-   opens when it closes. The line's length is 1 (`pathLength`), so the dash
-   is the whole edge and the offset is how much of it is still to draw.
-   A stroke cannot be moved as a layer, so the browser repaints this one
-   card's edge each frame: the one place on the page that does, and small
-   (measured in Chrome, 2026-11-21). With reduced motion there is no ring
-   and nothing turns (the svg is hidden; with no animation there is no end
-   to open the next card). */
-/* The ring's track: the whole edge, faint, there for as long as the card
-   is open, so the timer shows even when its line is empty or held (a card
-   just clicked, with the pointer still on it, showed no ring at all). */
-.card-track {
-  fill: none;
-  stroke: rgb(18 26 40 / 0.1);
-  stroke-width: 1.5px;
-}
-.card-ring {
-  fill: none;
-  stroke: rgb(18 26 40 / 0.5);
-  stroke-width: 1.5px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: card-ring linear both;
-}
-@keyframes card-ring {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .card-ring {
-    animation: none;
-  }
-}
-@keyframes caret-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-/*
- * The home hero's pipeline (hero-pipeline.tsx, 2026-11-21): four cells of
- * the drafting grid under the headline, one per product, each a framed box
- * with a scene of one application's way through it.
- *
- * Its own lines, from lg up, where the cells stand in one row from rail to
- * rail: a rule across the window at the cells' top, one down between each
- * pair of cells to the hero frame's foot (1.5rem below, `DraftLines`' gap),
- * and the frame's ink squares at every crossing.
- */
-.pipe-lines {
-  display: none;
-}
-@media (min-width: 64rem) {
-  .pipe-lines {
-    display: block;
-    position: absolute;
-    inset: 0 0 -1.5rem;
-    pointer-events: none;
-  }
-}
-.pipe-v {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: rgb(15 23 42 / 0.08);
-}
-
-@layer components {
-  /* A scene is drawn at 252px wide with every size in em; the box is a
-     size container and the stage's em is 16px at that width, so the scene
-     scales as one piece (a 165px box on a phone). */
-  .pipe-scene {
-    container-type: inline-size;
-  }
-  .pipe-stage {
-    position: absolute;
-    inset: 0;
-    font-size: calc(100cqi / 15.75);
-    color: var(--color-ink);
-  }
-}
-
-/*
- * The pipeline plays in turn, on one clock. One loop is five slots
- * (`--pipe-slot` each): a cell's own slot (`--i` on it, 0 to 3), then the
- * fifth, a rest with all four done, at whose end every cell fades clear
- * together, so each loop starts from four empty cells. (Each cell once ran
- * the loop from its own slot, so on the second loop the first cell emptied
- * alone beside three full ones: the user's catch, 2026-11-21.)
- *
- * Every moving piece runs the same loop with no delay of its own; its
- * keyframes hold all four cells' windows, and the cell picks its own
- * through `--p1` to `--p3`: `--pN` is 1 once N slots have ended for a cell
- * at or before slot N, else 0 (a cell's piece is done from its own slot's
- * end on). So in a keyframe, slot k is 20k% to 20k + 20%: a cell's line
- * fills over its whole slot, and its scene's pieces grow, pop or come in
- * at set points inside it; a stop between two slots reads `--pN`, which
- * is 0 for cells still to come and 1 for cells done. Opacity and transform
- * only. Paused while the hero is off screen (`HoldOffscreen`); with
- * reduced motion nothing moves and every piece shows finished.
- */
-.pipe {
-  --pipe-slot: 3.2s;
-}
-.pipe-anim {
-  --p1: clamp(0, 1 - var(--i), 1);
-  --p2: clamp(0, 2 - var(--i), 1);
-  --p3: clamp(0, 3 - var(--i), 1);
-  animation-duration: calc(var(--pipe-slot) * 5);
-  animation-delay: 1.7s;
-  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  animation-iteration-count: infinite;
-  animation-fill-mode: both;
-}
-.pipe[data-paused] .pipe-anim {
-  animation-play-state: paused;
-}
-.pipe-fill {
-  animation-name: pipe-fill;
-  animation-timing-function: linear;
-}
-.pipe-grow-a,
-.pipe-grow-b {
-  transform-origin: left;
-}
-.pipe-grow-a {
-  animation-name: pipe-grow-a;
-}
-.pipe-grow-b {
-  animation-name: pipe-grow-b;
-}
-.pipe-pop-a {
-  animation-name: pipe-pop-a;
-}
-.pipe-pop-b {
-  animation-name: pipe-pop-b;
-}
-.pipe-in-a {
-  animation-name: pipe-in-a;
-}
-.pipe-in-c {
-  animation-name: pipe-in-c;
-}
-@keyframes pipe-fill {
-  0% {
-    transform: scaleX(0);
-    opacity: 1;
-  }
-  20% {
-    transform: scaleX(var(--p1));
-  }
-  40% {
-    transform: scaleX(var(--p2));
-  }
-  60% {
-    transform: scaleX(var(--p3));
-  }
-  80%,
-  96% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(1);
-    opacity: 0;
-  }
-}
-@keyframes pipe-grow-a {
-  0%,
-  3% {
-    transform: scaleX(0);
-    opacity: 1;
-  }
-  9%,
-  23% {
-    transform: scaleX(var(--p1));
-  }
-  29%,
-  43% {
-    transform: scaleX(var(--p2));
-  }
-  49%,
-  63% {
-    transform: scaleX(var(--p3));
-  }
-  69%,
-  96% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(1);
-    opacity: 0;
-  }
-}
-@keyframes pipe-grow-b {
-  0%,
-  8% {
-    transform: scaleX(0);
-    opacity: 1;
-  }
-  14%,
-  28% {
-    transform: scaleX(var(--p1));
-  }
-  34%,
-  48% {
-    transform: scaleX(var(--p2));
-  }
-  54%,
-  68% {
-    transform: scaleX(var(--p3));
-  }
-  74%,
-  96% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(1);
-    opacity: 0;
-  }
-}
-@keyframes pipe-pop-a {
-  0%,
-  8% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  11%,
-  28% {
-    opacity: var(--p1);
-    transform: scale(calc(0.6 + 0.4 * var(--p1)));
-  }
-  31%,
-  48% {
-    opacity: var(--p2);
-    transform: scale(calc(0.6 + 0.4 * var(--p2)));
-  }
-  51%,
-  68% {
-    opacity: var(--p3);
-    transform: scale(calc(0.6 + 0.4 * var(--p3)));
-  }
-  71%,
-  96% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-}
-@keyframes pipe-pop-b {
-  0%,
-  13% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  16%,
-  33% {
-    opacity: var(--p1);
-    transform: scale(calc(0.6 + 0.4 * var(--p1)));
-  }
-  36%,
-  53% {
-    opacity: var(--p2);
-    transform: scale(calc(0.6 + 0.4 * var(--p2)));
-  }
-  56%,
-  73% {
-    opacity: var(--p3);
-    transform: scale(calc(0.6 + 0.4 * var(--p3)));
-  }
-  76%,
-  96% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-}
-@keyframes pipe-in-a {
-  0%,
-  2% {
-    opacity: 0;
-    transform: translateY(-0.6em);
-  }
-  7%,
-  22% {
-    opacity: var(--p1);
-    transform: translateY(calc(-0.6em * (1 - var(--p1))));
-  }
-  27%,
-  42% {
-    opacity: var(--p2);
-    transform: translateY(calc(-0.6em * (1 - var(--p2))));
-  }
-  47%,
-  62% {
-    opacity: var(--p3);
-    transform: translateY(calc(-0.6em * (1 - var(--p3))));
-  }
-  67%,
-  96% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-}
-@keyframes pipe-in-c {
-  0%,
-  14% {
-    opacity: 0;
-    transform: translate(0.9em, 0.9em);
-  }
-  18%,
-  34% {
-    opacity: var(--p1);
-    transform: translate(calc(0.9em * (1 - var(--p1))), calc(0.9em * (1 - var(--p1))));
-  }
-  38%,
-  54% {
-    opacity: var(--p2);
-    transform: translate(calc(0.9em * (1 - var(--p2))), calc(0.9em * (1 - var(--p2))));
-  }
-  58%,
-  74% {
-    opacity: var(--p3);
-    transform: translate(calc(0.9em * (1 - var(--p3))), calc(0.9em * (1 - var(--p3))));
-  }
-  78%,
-  96% {
-    opacity: 1;
-    transform: translate(0, 0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(0, 0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pipe-anim {
-    animation: none;
-  }
-}
-
-/*
- * The home page's entrance (2026-11-21, the user's asks: only the hero's
- * words came in on load, and the entrance should use the grid; then the
- * first version's fades read as AI-made, so nothing here fades). The grid
- * draws itself and the content comes out of it, in about 1.7s:
- *
- *   0s     the header drops down from above the window, as one bar: its
- *          content, its foot line and its rails together (a plain move,
- *          the user's call: its foot line first grew from the centre and
- *          uncovered the content like a wipe, which the bar did not need)
- *   0.1s   the headline rises from behind its own foot, as from a slot;
- *          its line and the sign-up pair follow (`.hero-reveal`, `--rd`)
- *   0.3s   the rails draw down the hero's sides, from the header's foot
- *   0.55s  the pipeline's top rule grows from the centre
- *   0.6s   the four cells are drawn, left to right, 160ms apart: each is
- *          dragged out from its top left corner like a frame in a design
- *          tool, and an ink square rides the corner as its handle, then
- *          rests as the grid's mark at the cell's far corner; the square
- *          at a cell's near corner pops as its frame starts, and the
- *          divider at its far side draws down behind the handle
- *   0.9s   the frame's foot line grows
- *   1.7s   the last frame closes and the pipeline's loop starts
- *          (`.pipe-anim`'s delay)
- *
- * The cells' move is the user's pick (2026-11-21) over one where each cell
- * fed down out of the top rule like paper from a plotter, the two compared
- * in the page.
- *
- * No opacity anywhere: a piece is hidden by a clip, and where it also
- * moves, the clip and the translate are paired so the clip's edge stands
- * still on the page while the piece passes it. A line grows by a scale and
- * a square pops by a scale. Every rule fills backwards only, so no clip or
- * transform is left on an element once it has played (a clip left on the
- * header would hold its menu panels in its own box). CSS on the server's
- * HTML, so it plays before any script. Never a loading screen: the content
- * is in the HTML, and a curtain would hide a finished page. The lines and
- * the handles run from lg up, where the grid shows; below lg the header
- * drops, the words rise and the cells are drawn with no lines. The
- * header's drop runs only on a page that draws the grid. With reduced
- * motion nothing here runs and the page is simply there.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .hero-reveal {
-    animation: load-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rd, 0s) backwards;
-  }
-  .pipe li {
-    animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
-      backwards;
-  }
-  .landing:has(.draft) .site-header > div {
-    animation: load-drop 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  }
-}
-/* The handles travel a cell's width and the pipeline's height, which only
-   container units can say in a transform. */
-@media (min-width: 64rem) {
-  .pipe-lines {
-    container-type: size;
-  }
-}
-@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .draft-first > .draft-v {
-    transform-origin: top;
-    animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
-  }
-  .pipe-lines > .draft-h {
-    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.55s backwards;
-  }
-  /* `--k` on a line or a square is the cell it belongs to (0 to 3; the
-     top rule's last square closes the row, so it waits a cell longer). */
-  .pipe-lines > i.top-0 {
-    animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) calc(0.55s + var(--k) * 0.16s)
-      backwards;
-  }
-  .pipe-lines > .pipe-v {
-    transform-origin: top;
-    animation: load-draw-y 0.4s ease-out calc(0.8s + var(--k) * 0.16s) backwards;
-  }
-  .pipe-lines > .pipe-handle {
-    animation: load-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--k) * 0.16s)
-      backwards;
-  }
-  .draft-first > .draft-h,
-  .pipe-lines > i.top-full:not(.pipe-handle) {
-    animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
-  }
-  .pipe-lines > i.top-full:not(.pipe-handle) {
-    animation-name: load-mark;
-    animation-duration: 0.3s;
-  }
-}
-@keyframes load-draw-x {
-  from {
-    transform: scaleX(0);
-  }
-}
-@keyframes load-draw-y {
-  from {
-    transform: scaleY(0);
-  }
-}
-@keyframes load-mark {
-  from {
-    transform: translate(-50%, -50%) scale(0);
-  }
-}
-/* Up from behind the piece's own foot. The clip ends a little below the
-   box, so a headline's descenders are whole as it lands. */
-@keyframes load-rise {
-  from {
-    transform: translateY(100%);
-    clip-path: inset(0 0 100% 0);
-  }
-  to {
-    transform: translateY(0);
-    clip-path: inset(0 0 -0.25em 0);
-  }
-}
-/* A cell dragged out from its top left corner. Open past the right and
-   the foot at its end, so nothing beside the cell is cut as it lands. */
-@keyframes load-frame {
-  from {
-    clip-path: inset(0 100% 100% 0);
-  }
-  to {
-    clip-path: inset(0 -1rem -1rem 0);
-  }
-}
-/* A cell's handle: from the cell's top left corner (a cell's width to the
-   left of its resting place and the pipeline's height above it) to rest. */
-@keyframes load-handle {
-  from {
-    transform: translate(calc(-50% - 25cqw), calc(-50% - 100cqh));
-  }
-}
-/* The header, down from above the window. */
-@keyframes load-drop {
-  from {
-    transform: translateY(-100%);
   }
 }
