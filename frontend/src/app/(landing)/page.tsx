@@ -11,7 +11,6 @@ import { Control } from "./control";
 import { hero, homeDescription, site, testimonial } from "./data";
 import { DraftLines } from "./draft-lines";
 import { GrowIn } from "./grow-in";
-import { HeroPipeline } from "./hero-pipeline";
 import { CONTAINER, PANEL, PANEL_INSET, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
@@ -41,12 +40,11 @@ export const metadata: Metadata = {
  * The page at /, redesigned in KAN-923 after Calendly's home page
  * (frontend/docs/home-page-review.md) and being redrawn section by section
  * since (frontend/docs/home-page-makeover-brief.md says what was tried):
- * the hero shows the whole pipeline as four cells of the drafting grid,
- * then each section leads into the next:
+ * the hero says what WorkIt is, then each section leads into the next:
  * proof the jobs are real (the logo strip), where applications get lost
- * (the problems), the four features, each product in depth, what stays
- * the student's call (control) and where the jobs come from (hiring
- * systems), which runs into the footer. The FAQ went on 2026-11-19 (the
+ * (the problems), why WorkIt exists over the whole pipeline as four cells
+ * of the drafting grid, each product in depth, and what stays the
+ * student's call (control), which runs into the footer. The FAQ went on 2026-11-19 (the
  * user's call); its questions are on the Help Center's page. Every
  * animation sits in a `StudioBox`; only the product sections pin. The
  * scenes this replaced (the city hero, the bridge, the pinned tour, the 3D
@@ -58,26 +56,24 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <main id="main" className="flex-1">
-      {/* Hero (redrawn 2026-11-21): the first screen, on the page's own
-          white ground, in the drafting grid's frame, the page's first, so
-          its side lines start the rail every section below continues. The
-          headline, its line and the sign-up pair are centred, and under
-          them the whole pipeline stands as four cells of the grid
-          (hero-pipeline.tsx): one application, from the resume to the
-          tracker. The frame hangs from the header: its top edge is the
-          header's foot line (header.tsx draws it), so the section has no
-          padding above. It fills the screen's height under the header
-          (4.5rem, 4.75rem from sm; 58rem at most, so a tall screen does
-          not stretch it), the headline centred in the room above the
-          pipeline, so the logo strip starts below the first screen. */}
-      <section className="flex min-h-[min(calc(100svh-4.5rem),58rem)] flex-col pb-10 sm:min-h-[min(calc(100svh-4.75rem),58rem)]">
-        <div className={cn(CONTAINER, "flex flex-1 flex-col")}>
-          <div className="relative flex flex-1 flex-col">
+      {/* Hero (redrawn 2026-11-21; its pipeline moved down on 2026-11-23):
+          the first screen, on the page's own white ground, in the drafting
+          grid's frame, the page's first, so its side lines start the rail
+          every section below continues. The headline, its line and the
+          sign-up pair are centred. The frame hangs from the header: its top
+          edge is the header's foot line (header.tsx draws it), so the
+          section has no padding above. It is as tall as its words for now:
+          the four pipeline cells under them moved to That's why WorkIt
+          exists, beside the product sections they link to (the team's
+          call), and the hero waits for a visual of its own. */}
+      <section className="pb-10">
+        <div className={CONTAINER}>
+          <div className="relative">
             <DraftLines gap="1.5rem" first />
-            <div className="relative mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center py-10 text-center">
+            <div className="relative mx-auto flex w-full max-w-4xl flex-col justify-center py-16 text-center sm:py-24">
               {/* From lg up the headline takes the screen's height into
-                  account (7.4svh, 48 to 72px), so its two lines and the
-                  pipeline fit one screen on a short laptop (1024 × 768). */}
+                  account (7.4svh, 48 to 72px), so its lines fit a short
+                  laptop (1024 × 768). */}
               <h1
                 className={cn(
                   TYPE.display,
@@ -135,7 +131,6 @@ export default function LandingPage() {
                 />
               </div>
             </div>
-            <HeroPipeline />
           </div>
         </div>
       </section>
@@ -151,6 +146,8 @@ export default function LandingPage() {
           headline (the team's call, 2026-11-23). */}
       <Problems />
 
+      {/* The turn from the problems to the product: the four pipeline cells,
+          each a link to its product section just below (why-exists.tsx). */}
       <WhyExists />
 
       {/* Each product in depth, from its feature page: product-sections.tsx.

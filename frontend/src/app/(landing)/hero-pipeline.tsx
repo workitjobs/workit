@@ -15,9 +15,9 @@ import { HoldOffscreen } from "./hold-offscreen";
 import { StudioBox, studioGround } from "./layout-parts";
 
 /**
- * The home hero's picture (KAN-923's hero, redrawn 2026-11-21): the whole
- * pipeline, one application start to finish, as four cells of the page's
- * own drafting grid under the headline. Each cell is a product, in the
+ * The whole pipeline (KAN-923's hero, redrawn 2026-11-21; under That's why
+ * WorkIt exists since 2026-11-23, why-exists.tsx): one application start
+ * to finish, as four cells of the page's own drafting grid. Each cell is a product, in the
  * order a search meets them, with its mark and name over one framed box
  * (`StudioBox`, on the product's own sky, as its section further down the
  * page): the resume reworded for the posting, the posting's match, the
@@ -28,8 +28,8 @@ import { StudioBox, studioGround } from "./layout-parts";
  * It plays in turn: a line in the product's colour fills along the cell's
  * top rule (the product rows' own fill line, `.row-fill`), its scene plays
  * once, and the next cell starts; after the fourth, one turn of rest, then
- * all four clear together and it goes round again. On load the cells are
- * drawn left to right, each dragged out from its corner with an ink
+ * all four clear together and it goes round again. As the section arrives
+ * (`.pipe-arrive`) the cells are drawn left to right, each dragged out from its corner with an ink
  * square as its handle, and the loop starts as the last closes (the
  * `load-*` rules in landing.css). All CSS on the server's HTML (`.pipe-anim` in landing.css),
  * opacity and transform only, stopped off screen (`HoldOffscreen`) and
@@ -108,7 +108,7 @@ export function HeroPipeline({ className }: { className?: string }) {
       </ul>
       {/* The grid's own lines, from lg up: a rule across the window at the
           cells' top, one down between each pair of cells to the frame's
-          foot (1.5rem below, `DraftLines`' gap in page.tsx), and an ink
+          foot (1.5rem below, `DraftLines`' gap in why-exists.tsx), and an ink
           square at every crossing, as the frame's corners have. */}
       <span aria-hidden="true" className="pipe-lines">
         <span className="draft-h top-0" />

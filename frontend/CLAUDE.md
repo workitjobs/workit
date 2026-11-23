@@ -276,10 +276,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   wherever the reader stopped; the user's ask, 2026-11-20, which merged a
   separate band of a job seeker's thoughts as pills, Loopsii's own layout,
   into the problems), and That's why WorkIt exists
-  (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
-  sky; **the demo is a placeholder**, a white screen with a play mark and
-  "Product demo, coming soon", until a recording or screenshot replaces
-  it at 16:10), then one product section each
+  (`why-exists.tsx`, the four pipeline cells, below), then one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
   (`product-sections.tsx`) and what stays the student's call
   (`control.tsx`), which runs into the footer.
@@ -368,12 +365,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     `StudioBox`, never a full-width panel of its own. Nothing on the home
     page pins: the product sections did, until 2026-11-20 (below), and so
     did the tools collapse for a day (below).
-  - **The hero is the pipeline in the drafting grid** (2026-11-21,
+  - **The hero is words alone for now, and the pipeline stands under
+    That's why WorkIt exists** (2026-11-23, the team's call). That
+    section held a placeholder for the product demo, a white screen with
+    a play mark and "Product demo, coming soon": the largest picture on
+    the page was empty, and a teammate found the new page less impressive
+    than the old one. So the placeholder went (with `.demo-glass`), and
+    the four cells moved from the hero to that section, between the
+    problems they answer and the product sections they link to, which
+    start right below. **Never put a placeholder in the page's largest
+    picture**: a page is judged by its biggest thing. The hero keeps its
+    frame (`DraftLines first`, which now draws its own two foot squares),
+    the headline, its line and the sign-up pair, as tall as its words,
+    so the logo strip shows on the first screen; **it waits for a visual
+    of its own**. In why-exists.tsx the frame holds the heading and the
+    cells, as the hero's held its words and the cells, with the 1.5rem
+    gap the cells' own lines expect, and the cells are drawn as the
+    section arrives (`Arrive`, `.pipe-arrive[data-arrived]` in
+    landing.css), no longer on load, when they would play below the
+    screen. The notes below describe the cells as they were in the hero;
+    all hold where they stand now but the first screen's height and the
+    entrance on load.
+  - **The pipeline in the drafting grid** (2026-11-21, the hero then,
     `hero-pipeline.tsx`; the user's ask: "a new hero that matches the grid
     feel of our website and captures the whole pipeline"). On the white
     page, in the page's first `DraftLines` frame (`first`: its side lines
     start at its top line, or they crossed the header), the headline, its
-    line and the sign-up pair are centred, and under them stand four cells
+    line and the sign-up pair were centred, and under them stood four cells
     of the grid, one per product in the order a search meets them: the
     product's mark and name over one `StudioBox` on its own sky, as its
     section uses further down. **One application runs through all four**

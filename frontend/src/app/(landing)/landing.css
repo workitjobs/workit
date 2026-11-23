@@ -1791,18 +1791,6 @@ html[data-tab-flight="flying"] .tour-tabs {
 .problems-ground {
   background: var(--mk-mist);
 }
-/* The product demo's glass frame (why-exists.tsx): a frosted white bezel
-   with a bright top edge and a white rim, over a StudioBox's violet sky,
-   so the blur has colour to show. */
-.demo-glass {
-  background: rgb(255 255 255 / 0.3);
-  backdrop-filter: blur(18px) saturate(1.3);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.9),
-    inset 0 0 0 1px rgb(255 255 255 / 0.5),
-    0 30px 60px -30px rgb(15 23 42 / 0.45);
-}
-
 /* The drafting grid's frame (draft-lines.tsx), shared by every section:
    hairlines across the window at a block's
    top and foot (clipped by `.landing`'s overflow-x-clip), down its sides,
@@ -2392,9 +2380,16 @@ html[data-tab-flight="flying"] .tour-tabs {
   .hero-reveal {
     animation: load-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--rd, 0s) backwards;
   }
-  .pipe li {
+  /* The pipeline cells (why-exists.tsx since 2026-11-23, the hero's
+     before): drawn as the section arrives, not on load, when they would
+     play below the screen. Hidden only once script has said the section
+     has not arrived, so the server's HTML shows them drawn. */
+  .pipe-arrive[data-arrived="true"] .pipe li {
     animation: load-frame 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--i) * 0.16s)
       backwards;
+  }
+  .pipe-arrive[data-arrived="false"] .pipe li {
+    clip-path: inset(0 100% 100% 0);
   }
   .landing:has(.draft) .site-header > div {
     animation: load-drop 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
@@ -2412,30 +2407,40 @@ html[data-tab-flight="flying"] .tour-tabs {
     transform-origin: top;
     animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
   }
-  .pipe-lines > .draft-h {
+  .pipe-arrive[data-arrived="true"] .pipe-lines > .draft-h {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.55s backwards;
   }
   /* `--k` on a line or a square is the cell it belongs to (0 to 3; the
      top rule's last square closes the row, so it waits a cell longer). */
-  .pipe-lines > i.top-0 {
+  .pipe-arrive[data-arrived="true"] .pipe-lines > i.top-0 {
     animation: load-mark 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) calc(0.55s + var(--k) * 0.16s)
       backwards;
   }
   .pipe-lines > .pipe-v {
     transform-origin: top;
+  }
+  .pipe-arrive[data-arrived="true"] .pipe-lines > .pipe-v {
     animation: load-draw-y 0.4s ease-out calc(0.8s + var(--k) * 0.16s) backwards;
   }
-  .pipe-lines > .pipe-handle {
+  .pipe-arrive[data-arrived="true"] .pipe-lines > .pipe-handle {
     animation: load-handle 0.6s cubic-bezier(0.65, 0, 0.35, 1) calc(0.6s + var(--k) * 0.16s)
       backwards;
   }
-  .draft-first > .draft-h,
-  .pipe-lines > i.top-full:not(.pipe-handle) {
+  .draft-first > .draft-h {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
   }
-  .pipe-lines > i.top-full:not(.pipe-handle) {
-    animation-name: load-mark;
-    animation-duration: 0.3s;
+  .draft-first > i,
+  .pipe-arrive[data-arrived="true"] .pipe-lines > i.top-full:not(.pipe-handle) {
+    animation: load-mark 0.3s cubic-bezier(0.65, 0, 0.35, 1) 0.9s backwards;
+  }
+  .pipe-arrive[data-arrived="false"] .pipe-lines > .draft-h {
+    transform: scaleX(0);
+  }
+  .pipe-arrive[data-arrived="false"] .pipe-lines > .pipe-v {
+    transform: scaleY(0);
+  }
+  .pipe-arrive[data-arrived="false"] .pipe-lines > i {
+    transform: translate(-50%, -50%) scale(0);
   }
 }
 @keyframes load-draw-x {

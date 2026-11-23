@@ -39,9 +39,9 @@ export function DraftLines({
    *  header: its top edge is the header's foot, and the header draws that
    *  line, its ink squares and the rails above it (`.header-line`,
    *  `.header-marks`), so this frame draws no top line, takes no gap
-   *  above, and starts its side lines at its top. It draws no squares
-   *  either: the hero's pipeline draws the two at its foot, where they
-   *  are the cells' handles on load (hero-pipeline.tsx). */
+   *  above, and starts its side lines at its top. It draws the two
+   *  squares at its foot, which the hero's pipeline drew until it moved
+   *  to That's why WorkIt exists (2026-11-23). */
   first?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -69,10 +69,10 @@ export function DraftLines({
         <>
           <i className="top-0 left-0" />
           <i className="top-0 left-full" />
-          <i className="top-full left-0" />
-          <i className="top-full left-full" />
         </>
       )}
+      <i className="top-full left-0" />
+      <i className="top-full left-full" />
     </span>
   );
 }

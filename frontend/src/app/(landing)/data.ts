@@ -101,15 +101,11 @@ export const hero = {
     "Tailor your resume, find the jobs that fit you and fill in applications, all in one app. WorkIt handles the busywork, so your time goes into making each application better.",
 };
 
-/**
- * "That's why WorkIt exists" over the product demo (why-exists.tsx). The
- * demo is a placeholder until a recording exists: a glass frame round an
- * empty screen with a play mark, named as coming soon, so it never passes
- * for the real thing. Swap the screen for the recording or a screenshot.
- */
+/** "That's why WorkIt exists" over the four pipeline cells (why-exists.tsx).
+ *  The product demo's placeholder line went with the placeholder
+ *  (2026-11-23). */
 export const whyExists = {
   title: "That’s why WorkIt exists",
-  demo: "Product demo, coming soon",
 };
 
 /**
