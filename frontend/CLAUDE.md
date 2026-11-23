@@ -2979,7 +2979,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   inch), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
   survives). **It opens on Fit Width** (`FIT`, 2026-11-23): the page as
-  wide as its column, up to 150%; a fixed 125% left about 350px of grey
+  wide as its column, up to 150%, flush with the desk's sides and toolbar,
+  with no grey round it (the desk's margin read as the gaps Fit was meant
+  to close); every other zoom keeps the margin.
+  **Every zoom change keeps the line being read where it is**
+  (`useZoomTo`): the middle of what shows of the pages, or the line under
+  a pinch's fingers. The page jumped on every change until then, since the
+  scroll stayed at its pixel while the pages' height changed; a fixed 125% left about 350px of grey
   either side of the page on a wide screen with the panel closed, and
   filling 1730px would print the text at about 21pt. The bar shows what a
   zoom comes to (`usePageZoom`), and Zoom In and Out go to the next step

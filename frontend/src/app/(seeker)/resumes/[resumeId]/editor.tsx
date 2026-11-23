@@ -65,7 +65,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
-import { usePageZoom, usePinchZoom, useZoom, zoomWidth } from "./zoom";
+import { FIT, usePageZoom, usePinchZoom, useZoom, useZoomTo, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
@@ -914,7 +914,8 @@ export function Editor({
   const [zoom, setZoom] = useZoom();
   // What the zoom comes to (Fit's percent), and a pinch on the pages
   const shownZoom = usePageZoom(pages, zoom);
-  usePinchZoom(pages, shownZoom, setZoom);
+  const zoomTo = useZoomTo(pages, setZoom);
+  usePinchZoom(pages, shownZoom, zoomTo);
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
   // The rail, down to the window's foot
@@ -3357,7 +3358,7 @@ export function Editor({
             }
           : null
       }
-      zoom={{ zoom, shown: shownZoom, onZoom: setZoom }}
+      zoom={{ zoom, shown: shownZoom, onZoom: (to) => zoomTo(to) }}
       history={history}
       format={{
         page,
@@ -3442,7 +3443,9 @@ export function Editor({
         )}
         {/* The paper on the desk: the margin is the desk's, so the page
             keeps its zoom's width */}
-        <div className={cn(!comparing && DESK_PAGES)}>
+        {/* Fit Width lies flush with the desk, no grey round it (the user,
+            2026-11-23): its margin read as the gaps Fit was meant to close */}
+        <div className={cn(!comparing && zoom !== FIT && DESK_PAGES)}>
           <div
             ref={pages}
             data-keeps-selection

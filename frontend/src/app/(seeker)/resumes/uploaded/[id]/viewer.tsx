@@ -15,7 +15,15 @@ import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
 import { DESK, DESK_BAR, DESK_PAGES } from "../../[resumeId]/slim-bar";
-import { usePageZoom, usePinchZoom, useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
+import {
+  FIT,
+  usePageZoom,
+  usePinchZoom,
+  useZoom,
+  useZoomTo,
+  Zoom,
+  zoomWidth,
+} from "../../[resumeId]/zoom";
 
 /**
  * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
@@ -45,7 +53,8 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const [zoom, setZoom] = useZoom();
   const pages = useRef<HTMLDivElement>(null);
   const shownZoom = usePageZoom(pages, zoom);
-  usePinchZoom(pages, shownZoom, setZoom);
+  const zoomTo = useZoomTo(pages, setZoom);
+  usePinchZoom(pages, shownZoom, zoomTo);
 
   async function download() {
     setError(null);
@@ -99,10 +108,10 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           <div className={DESK}>
             <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
               <div className="ml-auto">
-                <Zoom zoom={zoom} shown={shownZoom} onZoom={setZoom} />
+                <Zoom zoom={zoom} shown={shownZoom} onZoom={(to) => zoomTo(to)} />
               </div>
             </div>
-            <div className={DESK_PAGES}>
+            <div className={cn(zoom !== FIT && DESK_PAGES)}>
               <div ref={pages} className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
                 <PdfPages
                   pdf={pdf}

@@ -138,6 +138,62 @@ function ZoomItems({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => v
   );
 }
 
+/** A place on the pages: a share of their height, and where on the
+ *  screen it is. */
+type Place = { frac: number; y: number };
+
+/** Sets the zoom and keeps a line in place (`useZoomTo`); `after` runs
+ *  once the pages have drawn at the new zoom, before the scroll. */
+export type ZoomTo = (zoom: number, at?: Place, after?: () => void) => void;
+
+function scrollerOf(el: HTMLElement): HTMLElement {
+  for (let at = el.parentElement; at; at = at.parentElement)
+    if (/(auto|scroll)/.test(getComputedStyle(at).overflowY)) return at;
+  return document.scrollingElement as HTMLElement;
+}
+
+/**
+ * Every zoom change, from the bar, its menu or a pinch, keeps the line the
+ * student is reading where it is on the screen (2026-11-23): the middle of
+ * what shows of the pages, or the line under a pinch's fingers. A zoom
+ * changes the pages' height, so without it the page jumped on every change
+ * (the user): the scroll stayed at the same pixel while the text under it
+ * moved, and the pages are out of the browser's scroll anchoring
+ * (`usePinchZoom`), which used to soften it.
+ */
+export function useZoomTo(pages: RefObject<HTMLElement | null>, setZoom: (zoom: number) => void) {
+  const zoomTo: ZoomTo = (zoom, at, after) => {
+    const el = pages.current;
+    if (!el) {
+      setZoom(zoom);
+      return after?.();
+    }
+    const scroller = scrollerOf(el);
+    let place = at;
+    if (!place) {
+      const box = el.getBoundingClientRect();
+      const view =
+        scroller === document.scrollingElement
+          ? { top: 0, bottom: window.innerHeight }
+          : scroller.getBoundingClientRect();
+      const top = Math.max(box.top, view.top);
+      const bottom = Math.min(box.bottom, view.bottom);
+      const y = bottom > top ? (top + bottom) / 2 : box.top;
+      place = { frac: (y - box.top) / box.height, y };
+    }
+    const kept = place;
+    setZoom(zoom);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        after?.();
+        const box = el.getBoundingClientRect();
+        scroller.scrollBy({ top: box.top + kept.frac * box.height - kept.y });
+      }),
+    );
+  };
+  return zoomTo;
+}
+
 /** The page's width in percent of its printed size, read as it changes:
  *  what the bar shows, since Fit's percent depends on the column. */
 export function usePageZoom(pages: RefObject<HTMLElement | null>, zoom: number) {
@@ -180,11 +236,7 @@ export function usePageZoom(pages: RefObject<HTMLElement | null>, zoom: number) 
  * stretch is about the page's middle across and the fingers down, it stops
  * at the column's width, and the pages are left out of scroll anchoring.
  */
-export function usePinchZoom(
-  pages: RefObject<HTMLElement | null>,
-  shown: number,
-  onZoom: (zoom: number) => void,
-) {
+export function usePinchZoom(pages: RefObject<HTMLElement | null>, shown: number, onZoom: ZoomTo) {
   const latest = useRef({ shown, onZoom });
   useEffect(() => {
     latest.current = { shown, onZoom };
@@ -224,21 +276,17 @@ export function usePinchZoom(
       moving = false;
       const { shown: from, onZoom: set } = latest.current;
       const to = Math.round(from * scale);
-      const ratio = to / from;
+      // The line under the fingers: `anchor` down the unstretched page,
+      // which the stretch holds still on the screen
+      const place = {
+        frac: anchor / el.offsetHeight,
+        y: el.getBoundingClientRect().top + anchor * scale,
+      };
       scale = 1;
       if (to === from) return show();
       // The stretch stays until the page has drawn at its new width, so
       // nothing shows at the old size in between
-      set(to);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          show();
-          let scroller = el.parentElement;
-          while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
-            scroller = scroller.parentElement;
-          (scroller ?? document.scrollingElement)?.scrollBy({ top: anchor * (ratio - 1) });
-        }),
-      );
+      set(to, place, show);
     };
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
