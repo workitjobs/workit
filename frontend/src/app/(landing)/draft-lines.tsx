@@ -35,14 +35,17 @@ export function DraftLines({
   first,
 }: {
   gap?: string;
-  /** The page's first frame (the home hero's): only its foot line and
-   *  the two ink squares on it. The header's foot line, with its own two
-   *  squares, is its top (`.header-line`, `.header-marks`), so it takes no
-   *  gap above. **It has no side lines** (the user's pick, 2026-11-23):
-   *  the hero's city runs across the whole window, and two lines down its
-   *  sides drew a frame the city did not sit in and crossed its buildings.
-   *  The foot line is the city's ground; the rail starts at the next
-   *  framed section. */
+  /** The page's first frame (the home hero's), which hangs from the
+   *  header: its top edge is the header's foot, and the header draws that
+   *  line, its ink squares and the rails above it (`.header-line`,
+   *  `.header-marks`), so this frame draws no top line, takes no gap
+   *  above, and starts its side lines at its top; they end at its foot
+   *  line, on its two squares. **The hero's city is drawn over these
+   *  lines** (page.tsx): they show in the open sky beside the headline
+   *  and pass behind the buildings. Drawn over the city (until
+   *  2026-11-23) they crossed its buildings, and with no side lines at
+   *  all (for a few hours) the squares marked no crossing and the first
+   *  screen showed none of the page's grid. */
   first?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -64,10 +67,10 @@ export function DraftLines({
     >
       {!first && <span className="draft-h top-0" />}
       <span className="draft-h bottom-0" />
+      <span className="draft-v left-0" />
+      <span className="draft-v right-0" />
       {!first && (
         <>
-          <span className="draft-v left-0" />
-          <span className="draft-v right-0" />
           <i className="top-0 left-0" />
           <i className="top-0 left-full" />
         </>

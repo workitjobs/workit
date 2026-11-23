@@ -222,8 +222,8 @@ for this system. Rules:
   behind the hero's foot line; a tower grows by a scale and its card
   pops by one. No fade. Transforms on HTML boxes only.
 - **It stands on the frame's foot line** and runs off the window's sides,
-  with no side fade. So the hero's frame has no side lines, and the
-  header no rails: a frame is for content that sits inside it.
+  with no side fade. The hero's frame is drawn behind it: the side lines
+  show in the sky and pass behind the buildings.
 - **Grey first.** No tower is up while the city arrives; the first grows
   2.2s after.
 
@@ -332,9 +332,9 @@ across the window at the block's top and foot and two down its sides.
   (`relative`), or the absolutely placed lines draw over it.
 - **From lg up.** Below it the side lines ran along the window's edge.
 - **Neutral**, never a feature's colour. The hero's frame is the page's
-  first (`DraftLines first`): only its foot line and two squares, under
-  the header's line and squares, with no side lines since 2026-11-23
-  (the hero city, above). The hero's own cell lines (`.pipe-lines`)
+  first (`DraftLines first`): its side lines start at its top line, where
+  every other frame's run 6rem above to join the frame before, since up
+  there they crossed the header. The hero's own cell lines (`.pipe-lines`)
   use the same hairline and squares.
 
 ### The grey band (`problems.tsx`)

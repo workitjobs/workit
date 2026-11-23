@@ -372,16 +372,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     skyline. It is back in this page's look: buildings in white and cool
     grey with slate hairlines, the drafting grid's own line (`LOOK`), on
     the grid's ground plane, standing on the hero frame's foot line and
-    running off both sides of the window. **The hero's frame has no side
-    lines** (the user's pick of three, 2026-11-23: `DraftLines first`
-    draws its foot line and that line's two squares, and the header its
-    own line and squares, with no rails through the bar): two lines down
-    the hero drew a frame the full-width city did not sit in, and crossed
-    its buildings. A frame says its content is inside it; a scene that
-    runs off the window takes none. The rail starts at the next framed
-    section. **No tower is up while the city comes in**: the loops start
-    with the city's arrival (`data-ready`), the first tower 2.2s after
-    it, 0.3s after the front row lands, and its card at 3s. **Its only colour is six
+    running off both sides of the window. **The hero's frame is drawn
+    behind the city** (the user's pick, 2026-11-23): its two side lines
+    run down from the header's squares in the open sky beside the
+    headline, pass behind the buildings and end on the foot line's
+    squares (the city's clip is z-1, the text z-2, the lines unset; the
+    foot squares are lifted over the city). Two versions went the same
+    day: the lines drawn over the city crossed its buildings, and with no
+    side lines the squares marked no crossing and the first screen showed
+    none of the grid the rest of the page is built on. A grid mark needs
+    its lines: an ink square stands only where two lines cross. **No
+    tower is up while the city comes in**: the loops start with the
+    city's arrival (`data-ready`), the first tower 2.2s after it, 0.3s
+    after the front row lands, and its card at 3s. **Its only colour is six
     towers in the four feature colours** (`MESH`'s blends, at 72%, each
     by its turn in the loop, `TURN_HUES`, so towers standing together
     differ): each grows out of a low building for a job that fits, sends

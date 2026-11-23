@@ -172,11 +172,11 @@ html:has(.landing) {
 /* The header as the drafting grid's top row (header.tsx, 2026-11-21). A
  * hairline along the bar's foot, across the window: shown once the page
  * scrolls, on every page. On a page that draws the grid (one with a
- * `.draft` frame: the home page), from lg up, it shows at the top too, with
- * an ink square where each of the grid's rails would meet it, so the line
- * is the top of the hero's frame (`DraftLines first`, which draws only its
- * foot line and that line's two squares: no side lines since 2026-11-23,
- * and no rails through the bar). A page with no grid gets no marks. */
+ * `.draft` frame: the home page), from lg up, it shows at the top too, and
+ * the grid's side rails run through the bar with an ink square where each
+ * meets the foot, so the hero's frame (`DraftLines first`, which draws no
+ * top line of its own) hangs from the header. A page with no grid gets
+ * none of the marks: there they would be rails that lead nowhere. */
 .header-line {
   position: absolute;
   inset: auto 0 0;
@@ -202,6 +202,13 @@ html:has(.landing) {
     position: absolute;
     inset: 0 0.5rem;
     pointer-events: none;
+  }
+  .header-marks > span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgb(15 23 42 / 0.08);
   }
   .header-marks > i {
     top: 100%;
@@ -1760,6 +1767,21 @@ html[data-tab-flight="flying"] .tour-tabs {
   bottom: -6rem;
   width: 1px;
 }
+/* The hero's side lines run from the header's foot to the frame's own:
+   every other frame's run 6rem past it, to join the next frame, but below
+   the hero the logo strip and the grey band follow, with no frame, and
+   the lines ended in mid-air above the logos. */
+.draft-first .draft-v {
+  top: 0;
+  bottom: 0;
+}
+/* The hero's foot squares stand over the city, whose front row would
+   cover their upper half: the city is drawn over the frame's lines
+   (page.tsx), and `.draft` makes no stacking context, so this lifts the
+   squares alone. */
+.draft-first > i {
+  z-index: 2;
+}
 .draft > i,
 .pipe-lines > i,
 .header-marks > i {
@@ -2233,23 +2255,22 @@ html[data-tab-flight="flying"] .tour-tabs {
  * draws itself and the content comes out of it, in about 1.7s:
  *
  *   0s     the header drops down from above the window, as one bar: its
- *          content, its foot line and its squares together (a plain move,
+ *          content, its foot line and its rails together (a plain move,
  *          the user's call: its foot line first grew from the centre and
  *          uncovered the content like a wipe, which the bar did not need)
  *   0.1s   the headline rises from behind its own foot, as from a slot;
  *          its line and the sign-up pair follow (`.hero-reveal`, `--rd`)
- *   0.9s   the hero's foot line grows and its two squares pop
- *   then   the city, once its images have loaded, about half a second
- *          in: its ground opens from the centre and its layers rise from
- *          behind the foot line (`city-rise`, above), and 2.2s after
- *          that the first coloured tower grows (`city-tower`)
- *
- * The hero's side lines drew down from the header at 0.3s until
- * 2026-11-23, when the hero lost them. The pipeline's cells were drawn in
- * this sequence too, left to right, until they moved to That's why WorkIt
- * exists, where they are drawn as the section arrives (`.pipe-arrive`):
- * each is dragged out from its top left corner like a frame in a design
- * tool, and an ink square rides the corner as its handle.
+ *   0.3s   the rails draw down the hero's sides, from the header's foot
+ *   0.55s  the pipeline's top rule grows from the centre
+ *   0.6s   the four cells are drawn, left to right, 160ms apart: each is
+ *          dragged out from its top left corner like a frame in a design
+ *          tool, and an ink square rides the corner as its handle, then
+ *          rests as the grid's mark at the cell's far corner; the square
+ *          at a cell's near corner pops as its frame starts, and the
+ *          divider at its far side draws down behind the handle
+ *   0.9s   the frame's foot line grows
+ *   1.7s   the last frame closes and the pipeline's loop starts
+ *          (`.pipe-anim`'s delay)
  *
  * The cells' move is the user's pick (2026-11-21) over one where each cell
  * fed down out of the top rule like paper from a plotter, the two compared
@@ -2295,6 +2316,10 @@ html[data-tab-flight="flying"] .tour-tabs {
   }
 }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .draft-first > .draft-v {
+    transform-origin: top;
+    animation: load-draw-y 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s backwards;
+  }
   .pipe-arrive[data-arrived="true"] .pipe-lines > .draft-h {
     animation: load-draw-x 0.5s cubic-bezier(0.65, 0, 0.35, 1) 0.55s backwards;
   }

@@ -74,14 +74,18 @@ export default function LandingPage() {
         {/* The city (hero-city.tsx), clipped at the frame's foot line, 1rem
             above the section's foot, so that line is its ground and the
             buildings rise from behind it. A clip of its own: on the
-            section it would cut the rails, which run on below. */}
-        <div aria-hidden="true" className="absolute inset-x-0 top-0 bottom-4 overflow-hidden">
+            section it would cut the rails, which run on below. It is drawn
+            over the frame's lines (z-1; the lines have no z-index) and
+            under the text (z-2): the two side lines run down from the
+            header in the open sky and pass behind the buildings, as a
+            sheet's guide lines pass behind a model standing on it. */}
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 bottom-4 z-[1] overflow-hidden">
           <HeroCity />
         </div>
         <div className={cn(CONTAINER, "flex flex-1 flex-col")}>
           <div className="relative flex flex-1 flex-col">
             <DraftLines gap="1.5rem" first />
-            <div className="relative mx-auto w-full max-w-5xl pt-14 text-center sm:pt-20 lg:pt-24">
+            <div className="relative z-[2] mx-auto w-full max-w-5xl pt-14 text-center sm:pt-20 lg:pt-24">
               {/* One line from lg up, sized by the window's width (4.6vw,
                   48 to 72px: the line is about 15.4em wide, so 71% of the
                   window), so it stays inside the rails. The city's height
