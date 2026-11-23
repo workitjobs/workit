@@ -61,11 +61,18 @@ export const site = {
 };
 
 export const hero = {
-  // The home hero's headline since KAN-923: the site's tagline, standing
-  // still. The rolling "Stop ___ by hand." below (hero-title.tsx, now
-  // unmounted) read as a template trope, and the user found the page
-  // AI-made. The headline is `site.tagline`, so the footer repeats it.
-  title: site.tagline,
+  // The home hero's headline (2026-11-23, the team's call): what WorkIt
+  // is, in a few seconds. It was `site.tagline`, "Your job search, without
+  // the busywork.", a feeling that left a new visitor asking whether WorkIt
+  // is an app, a job board or a service; What is WorkIt's "Your resume, your
+  // job matches and every application, finally in one place." said what it
+  // is, one section later, so the two merged here (the user's pick of three
+  // options). Short, so it takes one or two lines at the display size; the
+  // four pipeline cells under it show the "one place". The footer, the tab
+  // and the share title keep `site.tagline`. Before that the rolling
+  // "Stop ___ by hand." below (hero-title.tsx, now unmounted) read as a
+  // template trope, and the user found the page AI-made.
+  title: "Your whole job search, in one place.",
   // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank loops
   // through the pipeline in the tour's order, one chore a student knows per
   // step, starting on `rest`, auto apply, which with matching matters most;
@@ -87,35 +94,11 @@ export const hero = {
   // quality, the headline's promise (the user's call, 2026-11-20). It opened
   // "WorkIt learns your experience", which was vague and sounded like a
   // model training on the student (the copy review, 2026-11-20).
+  // Since 2026-11-23 it names the steps and carries "busywork", the
+  // tagline's word, once; "You click Submit." went with it, to keep the
+  // first screen short: Auto Apply's section says who submits.
   subtitle:
-    "WorkIt tailors your resume, finds the jobs that fit you and fills in the forms, so your time goes into making each application better. You click Submit.",
-};
-
-/**
- * The home page's opening run after the hero (KAN-923, after Loopsii's,
- * the user's ask, 2026-11-20): what WorkIt is, then the problems (on a dark
- * band since 2026-11-20, `problems` below), then why WorkIt exists over the
- * product demo.
- *
- * `whatIs` says what WorkIt holds, the whole search in one place, in other
- * words than the hero's line, which already says what it does step by step,
- * and without "busywork", which the hero's headline keeps: the word was on
- * four lines of the page (the user's catch, 2026-11-20). The user picked the
- * large line from five (2026-11-20); "The job search app for anyone tired
- * of doing the same work twice." was here and did not sound right to them.
- * "Connected" is the
- * claim: the resumes, the matches and the filled forms all read the one
- * experience bank and profile, and the tracker keeps what each application
- * sent. Quality, never volume (the rule on `site.tagline`). The answer is
- * one large line of who it is for, then one smaller line of how: as one
- * paragraph of 42 words at the large size it read as a wall of text (the
- * user's catch, 2026-11-20).
- */
-export const whatIs = {
-  label: "What is WorkIt?",
-  statement: "Your resume, your job matches and every application, finally in one place.",
-  detail:
-    "Your experience, resumes, matches and applications stay connected, so the time you save goes into applications worth sending.",
+    "Tailor your resume, find the jobs that fit you and fill in applications, all in one app. WorkIt handles the busywork, so your time goes into making each application better.",
 };
 
 /**

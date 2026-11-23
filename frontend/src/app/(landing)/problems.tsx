@@ -48,8 +48,8 @@ export function Problems() {
     <section aria-labelledby="problems-title" className={cn(PANEL_INSET, "py-2")}>
       {/* The zoom in: the band grows from 80% as it rises up the screen, a
           scroll-linked scale the browser runs off the main thread
-          (`GrowIn`), so What is WorkIt hands over to it as if the camera
-          moved in. From lg up and without reduced motion only. */}
+          (`GrowIn`), as if the camera moved in. From lg up and without
+          reduced motion only. */}
       <GrowIn
         from={0.8}
         className={cn(PANEL, "problems-ground relative isolate overflow-hidden py-14")}

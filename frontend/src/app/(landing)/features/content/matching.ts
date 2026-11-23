@@ -84,8 +84,11 @@ const content: FeatureContent = {
       // together). Buildings stay as its icon. "Careers pages", never "job
       // boards" alone: WorkIt reads the pages companies host on hiring
       // systems (about 5,000, scraper/boards.csv), not Indeed or LinkedIn.
+      // Since 2026-11-23 it also says each job links to the company's own
+      // application: the home page's hiring-systems section said it, and
+      // went (the logo strip says where the jobs come from).
       icon: BuildingsIcon,
-      body: "No more checking one careers page after another. WorkIt reads thousands of them and puts every job in one list.",
+      body: "No more checking one careers page after another. WorkIt reads thousands of them, puts every job in one list and links each one to the company's own application.",
       visual: SourcesVisual,
     },
   ],

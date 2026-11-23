@@ -12,7 +12,6 @@ import { hero, homeDescription, site, testimonial } from "./data";
 import { DraftLines } from "./draft-lines";
 import { GrowIn } from "./grow-in";
 import { HeroPipeline } from "./hero-pipeline";
-import { HiringGrid } from "./hiring-grid";
 import { CONTAINER, PANEL, PANEL_INSET, TYPE } from "./layout-parts";
 import { LogoStrip } from "./logo-strip";
 import { Problems } from "./problems";
@@ -20,7 +19,6 @@ import { ProductSections } from "./product-sections";
 import { SessionSwap } from "./session-swap";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Testimonial } from "./testimonial";
-import { WhatIs } from "./what-is";
 import { WhyExists } from "./why-exists";
 
 /** The home page's link preview has room for the whole tagline. */
@@ -142,15 +140,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Real employers, drifting: logo-strip.tsx. */}
+      {/* Real employers, drifting: logo-strip.tsx. The page's one word on
+          where the jobs come from: a hiring-systems section at the foot
+          said it again and went (the team's call, 2026-11-23). */}
       <LogoStrip />
 
-      {/* The opening run after Loopsii's (the user's ask, 2026-11-20): what
-          WorkIt is, then the problems on a dark band that zooms in as it
-          rises, then why WorkIt exists over the product demo. */}
-      <WhatIs />
-
-      {/* Applying as it is, before how WorkIt works: problems.tsx. */}
+      {/* Applying as it is, before how WorkIt works: problems.tsx. It
+          follows the logo strip straight on: What is WorkIt stood between
+          them and said the hero's line again, so its line became the hero's
+          headline (the team's call, 2026-11-23). */}
       <Problems />
 
       <WhyExists />
@@ -164,9 +162,6 @@ export default function LandingPage() {
 
       {/* What WorkIt will never do without you: control.tsx. */}
       <Control />
-
-      {/* Where the jobs come from. The Features menu's foot row links here. */}
-      <HiringGrid />
 
       {/* Testimonial, read word by word: testimonial.tsx. Hidden until a
           real quote replaces the placeholder (`testimonial.show`). */}

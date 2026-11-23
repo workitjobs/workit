@@ -35,11 +35,9 @@ look needs the whole page, and one section in it reads as a mistake.
    slate shadow so the mark's pastel squircle stands off the tint. Grey,
    the four read as alike. Never a fade to white: a colour washing to
    white was the option the user turned down as AI-made. The logo is
-   violet wherever it shows, and What is WorkIt draws it as an app icon
-   (`AppIcon`, the user's asks, 2026-11-20): a thin slab of glass tilted
-   in 3D and floating over a slate shadow, its face a violet squircle lit
-   from above with a frosted sheet and the white figure, its edge deeper
-   violets.
+   violet wherever it shows. (What is WorkIt drew it as a 3D app icon
+   until that section became the hero's headline, 2026-11-23; git history
+   has `AppIcon`.)
 2. **One accent, used small.** WorkIt violet marks things: a
    check, Plus's limit pills, the slop word. It
    never fills a button or a card. Two exceptions: the home hero's
@@ -348,8 +346,7 @@ of nowhere, the one dark block between two white sections (the user's
 catches). The footer went light grey with it, the same `--mk-mist`, so
 the page has no dark block. It is the search
 before WorkIt, the chapter the product sections answer. From lg up it
-zooms in as it rises (`GrowIn`, from 80%) while What is WorkIt above
-fades and shrinks a little, both scroll-linked opacity and transforms;
+zooms in as it rises (`GrowIn`, from 80%), a scroll-linked transform;
 never a blur, which would rest half on. Its frame breaks the drafting
 grid's rail: the band is the rail's pause.
 
@@ -406,8 +403,7 @@ the pill painted under the grey and the open tab did not show.
 scale, an ink square pops, and a piece comes out from behind an edge (a
 clip paired with a translate). Never an opacity fade or a blur, which read
 as AI-made. Every `DraftLines` frame draws itself as it arrives, so each
-framed section has a transition; What is WorkIt's icon pops and its words
-rise one by one; every `SectionHeading` rises from behind its own foot
+framed section has a transition; every `SectionHeading` rises from behind its own foot
 (`.rise` under an `Arrive`). In time on arrival, never scrubbed by the
 scroll.
 
@@ -419,8 +415,7 @@ on a timer that a pointer or keyboard focus on a card holds (a hairline
 draws round the open card, over a faint track that is always there, so
 the timer never vanishes); a panel runs one clock, never two; no shine
 sweeps or glows. Nothing pins or follows the scroll frame
-by frame but the entrances (`GrowIn`'s scale, What is WorkIt stepping
-back). A pinned tools collapse into the four product tiles was built and
+by frame but the entrances (`GrowIn`'s scale). A pinned tools collapse into the four product tiles was built and
 taken out the same day (2026-11-20): the user found its examples in the
 way.
 There is no Pause Animations button since the user had it removed, which

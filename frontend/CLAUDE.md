@@ -262,47 +262,57 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the review and the agreed direction are in `docs/home-page-review.md`).
   The user found the old page AI-made: a rolling gradient headline, one
   heading size, and scenes that pinned whole screens. The order, each
-  section leading into the next, is `page.tsx`: the hero (a fixed headline,
-  `hero.title`, which is `site.tagline`, "Your job search, without the
-  busywork.", and a line that ends on why: the time saved goes into making
-  each application better; the sign-up pair, which a Download
-  for Mac button from KAN-922 joins in the same wrapping row), the logo
-  strip (`logo-strip.tsx`, real employers from
-  `logoStrip` in data.ts), **the opening run after Loopsii's** (the
-  user's ask, 2026-11-20): What is WorkIt (`what-is.tsx`: on the left
-  WorkIt's app icon as a thin slab of glass in 3D, tilted so its edge
-  shows and floating over a shadow on a slow loop (`app-icon.tsx`, built
-  as the hiring coins were: a face and twelve squircles stacked behind it
-  under `perspective`; a flat icon read as 2D), with "What is WorkIt?"
-  under it as an app's name sits under its icon, the pair centred in its
-  column both ways and evenly between the frame's side line and the
-  words; on the right one large line of what WorkIt holds ("Your resume,
-  your job matches and every application, finally in one place.", the
-  user's pick of five) and one smaller line of how, in other words than
-  the hero's line, read in word by word as they arrive. **"Busywork" is
-  the hero's word**: it stays in the headline (and the footer's tagline
-  and the tab title, which repeat it) and nowhere else, since it was on
-  four lines of the page (the user's catch, 2026-11-20). It was a small grey label beside one six-line
-  paragraph, which read as plain text and a wall of words, the user's
-  catches), where applications
-  get lost (`problems.tsx`, **a light grey band, the page's one panel
-  between the hero and the footer**, which zooms in as it rises: from lg up it grows from 80% to
-  full size over its way up the screen, `GrowIn` with `from`, while What
-  is WorkIt's statement fades to a quarter and shrinks to 96%, both
-  scroll-linked opacity and transform strings the browser runs off the
-  main thread, after Loopsii's statement going out of focus under its
-  dark card; a blur was left out, since it would stay half on wherever
-  the reader stopped; the user's ask, 2026-11-20, which merged a separate
-  band of a job seeker's thoughts as pills, Loopsii's own layout, into
-  the problems), and That's why WorkIt exists
+  section leading into the next, is `page.tsx`: the hero (a fixed
+  headline, `hero.title`, "Your whole job search, in one place.", and a
+  line that names the steps and ends on why: the time saved goes into
+  making each application better; the sign-up pair, which a Download for
+  Mac button from KAN-922 joins in the same wrapping row), the logo strip
+  (`logo-strip.tsx`, real employers from `logoStrip` in data.ts), where
+  applications get lost (`problems.tsx`, **a light grey band, the page's
+  one panel between the hero and the footer**, which zooms in as it
+  rises: from lg up it grows from 80% to full size over its way up the
+  screen, `GrowIn` with `from`, a scroll-linked transform the browser runs
+  off the main thread; a blur was left out, since it would stay half on
+  wherever the reader stopped; the user's ask, 2026-11-20, which merged a
+  separate band of a job seeker's thoughts as pills, Loopsii's own layout,
+  into the problems), and That's why WorkIt exists
   (`why-exists.tsx`, the product demo in a glass frame on WorkIt's violet
   sky; **the demo is a placeholder**, a white screen with a play mark and
   "Product demo, coming soon", until a recording or screenshot replaces
   it at 16:10), then one product section each
   for Resume Builder, Job Matching, Auto Apply and the Application Tracker
-  (`product-sections.tsx`), what stays the student's call (`control.tsx`),
-  the hiring systems as a centred chapter
-  (`hiring-grid.tsx`, `#hiring-systems`), which runs into the footer.
+  (`product-sections.tsx`) and what stays the student's call
+  (`control.tsx`), which runs into the footer.
+  **The team cut two repeats on 2026-11-23**, after the redesign went to
+  the preview for review:
+  - **What is WorkIt became the hero.** The section after the logo strip
+    (`what-is.tsx`, WorkIt's app icon as a floating slab of glass in 3D,
+    `app-icon.tsx`, beside "Your resume, your job matches and every
+    application, finally in one place.") said what the hero's line said,
+    and both ended on the time saved going into better applications. The
+    team found its line the better opening: the old headline, "Your job
+    search, without the busywork." (`site.tagline`), was a feeling that
+    left a new visitor asking whether WorkIt is an app, a job board or a
+    service. The user picked the short headline from three options (the
+    team's line whole took three lines on a laptop and pushed the
+    pipeline below the first screen). Both files, their CSS and `whatIs`
+    are deleted; git history has them. **The first screen says what
+    WorkIt is**: a new headline names the thing, never only a feeling.
+  - **The hiring systems section went** (`hiring-grid.tsx`,
+    `#hiring-systems`, "Straight from the hiring systems companies use"):
+    the logo strip under the hero says where the jobs come from, with
+    names a student knows (Stripe, Nike), where Greenhouse and Workday are
+    recruiters' tools. Its one other point, that each job links to the
+    company's own application, moved into Job Matching's "Every job, in
+    one place" row, and the Features menu's "Works with Greenhouse, Lever,
+    Ashby" foot row, which linked to it, went too. `hiringSystems` and
+    `hiringSystemsSection` stay in data.ts for the unmounted pipeline
+    scenes and the Matching scene's logos. **Say a thing once on the
+    page**: a second section on the same point is cut, not reworded.
+  **"Busywork" is the tagline's word**: it is in the hero's line once,
+  and in the footer's tagline, the tab title and the share title, which
+  read `site.tagline`; nowhere else, since it was on four lines of the
+  page (the user's catch, 2026-11-20).
   **The FAQ is off the home page** (the user's call, 2026-11-19): its
   questions (`faqs` in data.ts) are on the Help Center's coming-soon page
   (`soon.questions` in `resources/catalog.ts`, under the panel, its button
@@ -599,7 +609,7 @@ selling line that says what the product does** and "See how", a
     problems to the product** is the user's ask (2026-11-20). **Never the
     hero's line again**: the first version listed the hero subtitle's four
     steps nearly word for word (the user's catch). **The links are `Link`s to
-    "/#slug"**, as the Features menu's "/#hiring-systems" is: as plain
+    "/#slug"**, as the hero's pipeline cells are: as plain
     anchors, "#slug" and "/#slug" jumped to the page's top. **It replaced
     the four features' tabs** (`hero-features.tsx`, unmounted, kept: a tab
     row over one large card telling the open feature's story), which told
@@ -1676,9 +1686,8 @@ selling line that says what the product does** and "See how", a
   neutral colour, never a feature's. Features, Resources and Pricing
   share one box, `NAV_ITEM` in `layout-parts.tsx`: Pricing as a bare
   inline link sat 1px lower, its 14px text on the list item's 16px
-  baseline. The Features panel's foot row links to the home page's
-  `#hiring-systems`; the team decided that section gets no page of its
-  own. **The bar's white fill
+  baseline. The Features panel has no foot row since 2026-11-23: it
+  linked to the home page's hiring-systems section, which went. **The bar's white fill
   is a layer behind the nav, not the nav's parent**: with `backdrop-blur`
   on an ancestor, that ancestor is the panel's backdrop root, and the
   panel's own blur would see nothing behind it. The phone menu is the
@@ -2339,7 +2348,7 @@ selling line that says what the product does** and "See how", a
     came with the page.
   - On the server the gate opens at once: waiting there for a scroll
     that never comes hung `next build` ("took more than 60 seconds").
-  - After a change, load `/#hiring-systems` and `/help-center#questions`
+  - After a change, load `/#matching` and `/help-center#questions`
     fresh: each must land on its section.
   - Measure on a production build (`npm run build`, then `npm run
     start`) with the CPU slowed 4x: `next dev` ships unminified code and

@@ -1,11 +1,10 @@
-import { ArrowRightIcon, CaretDownIcon, ListIcon, XIcon } from "@phosphor-icons/react/ssr";
-import Image from "next/image";
+import { CaretDownIcon, ListIcon, XIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
-import { hiringSystems, site } from "./data";
+import { site } from "./data";
 import { featurePages, type Feature } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
@@ -17,9 +16,6 @@ import { MobileMenu } from "./mobile-menu";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
 import { RESOURCES_IN_NAV, resourcePages, type Resource } from "./resources/catalog";
 import { SessionSwap } from "./session-swap";
-
-/** The Features menu's foot row: the first few hiring systems by name. */
-const WORKS_WITH = hiringSystems.slice(0, 3);
 
 /**
  * The header is the drafting grid's top row (2026-11-21, the user's ask:
@@ -230,9 +226,10 @@ const MENU_PANEL =
 
 /**
  * The Features menu's panel: the feature pages in two columns, each with its
- * mark, its name and its content file's `line`, then the hiring systems.
- * Drawn here on the server and passed into NavMenu, so the content files
- * never reach the browser.
+ * mark, its name and its content file's `line`. A foot row of hiring
+ * systems linked to the home page's hiring-systems section until that
+ * section went (2026-11-23). Drawn here on the server and passed into
+ * NavMenu, so the content files never reach the browser.
  */
 function FeaturesPanel() {
   return (
@@ -244,29 +241,6 @@ function FeaturesPanel() {
           </li>
         ))}
       </GlideList>
-      {/* The home page's hiring-systems section, which has no page of its own. */}
-      <Link
-        href="/#hiring-systems"
-        className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.045] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
-      >
-        <span className="flex -space-x-1.5" aria-hidden="true">
-          {WORKS_WITH.map((system) => (
-            <Image
-              key={system.name}
-              src={system.logo}
-              alt=""
-              width={20}
-              height={20}
-              className="size-5 rounded-md bg-white ring-2 ring-white"
-            />
-          ))}
-        </span>
-        Works with {WORKS_WITH.map((system) => system.name).join(", ")} and more
-        <ArrowRightIcon
-          aria-hidden="true"
-          className="ml-auto size-4 transition-transform duration-200 group-hover:translate-x-0.5"
-        />
-      </Link>
     </div>
   );
 }
