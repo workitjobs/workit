@@ -690,13 +690,21 @@ can break, on each OS. The goal is not a high count of tests.
 The store copy (W6) is not Windows work. When it ships, it changes P8's
 clicks on every OS.
 
-**M1's code is built** (P1 to P3), but nothing has run on Windows yet. A
-Windows developer's first run with `worker_mode: cdp` checks it.
+**M1's code is built** (P1 to P3), but nothing has run on Windows yet.
+
+**The Windows checks come last** (decided 2026-11-24). Fixes go on, from
+a Mac, until every blocker here seems fixed. Then a teammate on a Windows
+computer runs all the checks at once: M1's first run with
+`worker_mode: cdp`, then plain Workers, and the open questions in
+section 8. Each result goes into this note.
 
 **Next: M2, starting with P4,** the channel between Apply and the hosts.
 Plain Workers can't talk to Apply on Windows until P4 and P5 are built.
 
 ## 8. Open questions
+
+A teammate on Windows checks these after every blocker seems fixed
+(section 7).
 
 - **Is Chrome for Testing right for students?** If it is, students need no
   seed at all. D21's reason against it ("Chrome for Testing can't turn on
