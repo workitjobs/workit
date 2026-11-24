@@ -169,7 +169,8 @@ form.addEventListener('submit', async event => {
 # What leaves the computer (section 3.4, /privacy): first run and Settings show it.
 DISCLOSURE = """<ul>
 <li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
-address and self-identification answers; your applications' stages; the answers you approve; your Auto Apply queue.
+address and self-identification answers; your applications' stages; the answers you approve or edit, and the
+short answers its AI drafts for your Answer bank, marked for your review; your Auto Apply queue.
 One application's record and log go only when you press Send Report.</li>
 <li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
 tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>

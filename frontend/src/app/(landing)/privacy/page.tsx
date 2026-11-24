@@ -187,8 +187,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
-          private details hidden (next item); your applications&apos; stages, the answers you
-          approve and your Auto Apply queue, as the Chrome extension does; and, only when you send a
+          private details hidden (next item); your applications&apos; stages; the answers you
+          approve or edit, and the short answers its AI drafts for your Answer bank, marked for your
+          review; and your Auto Apply queue, as the Chrome extension does; and, only when you send a
           report from the app&apos;s &ldquo;Report a problem&rdquo; form, what you write there and,
           if you choose to include them, one application&apos;s record and its step-by-step log,
           with your personal details hidden in the log. If you allow it, we may email you about your
