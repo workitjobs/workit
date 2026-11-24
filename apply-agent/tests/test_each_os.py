@@ -10,6 +10,7 @@ import plistlib
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,7 +23,7 @@ import pytest
 from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import launcher, seed_setup, window_capture
+from apply.plain import bridge, channel, launcher, seed_setup, tools, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -421,9 +422,28 @@ def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(monkeypat
     assert sent == []
 
 
-def _stops_windows(node: ast.AST) -> str | None:
-    """Why `node` is a call that works on macOS and Linux but stops Apply on Windows (docs/windows_desktop.md), or
-    None."""
+def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, monkeypatch):
+    """Faults: the Windows channel is a Unix socket (Python on Windows has none: no plain Worker reaches Apply), two
+    profiles folders share one pipe (a second Apply would take the first one's Workers' channel), or a Windows path
+    reaches os.getuid, which Windows lacks (P4)."""
+    monkeypatch.delattr(os, "getuid")
+    long = tmp_path / ("x" * 120)
+    path = bridge.socket_path(long, "win32")
+    assert path == long / "workers.sock"  # no /tmp fallback: on Windows the path only names the pipe
+    assert channel.pipe_name(path).startswith("\\\\.\\pipe\\workit-apply-")
+    assert channel.pipe_name(path) == channel.pipe_name(long / "workers.sock")
+    assert channel.pipe_name(path) != channel.pipe_name(bridge.socket_path(tmp_path / "two", "win32"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # Windows' temp folder, played here
+    assert tools.socket_folder("win32") == tmp_path / "apply"
+    made = []
+    monkeypatch.setattr(channel, "ConnectionListener", lambda address, family, at: made.append((address, family)))
+    channel.listen(path, "win32")
+    assert made == [(channel.pipe_name(path), "AF_PIPE")]
+
+
+def _stops_windows(node: ast.AST, module: Path) -> str | None:
+    """Why `node`, in `module`, is a call that works on macOS and Linux but stops Apply on Windows
+    (docs/windows_desktop.md), or None."""
     if isinstance(node, ast.Import) and any(alias.name.split(".")[0] == "fcntl" for alias in node.names):
         return "imports fcntl (P1: lock through apply.locks)"
     if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "fcntl":
@@ -432,17 +452,20 @@ def _stops_windows(node: ast.AST) -> str | None:
             and isinstance(node.func.value, ast.Name) and node.func.value.id == "os" and len(node.args) == 2
             and isinstance(node.args[1], ast.Constant) and node.args[1].value == 0):
         return "checks a process with os.kill(pid, 0) (P2: psutil.pid_exists)"
+    if isinstance(node, ast.Attribute) and node.attr == "AF_UNIX" and module.name != "channel.py":
+        return "makes a Unix socket of its own (P4: open the channel through apply.plain.channel)"
     return None
 
 
 def test_no_module_of_apply_makes_a_call_that_stops_windows():
-    """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts), or
+    """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts),
     checks a process with `os.kill(pid, 0)` (P2: on Windows signal 0 is CTRL_C_EVENT, and any other number ends the
-    process). It reads the source: on this computer both calls work, and portalocker itself imports `fcntl` on
-    macOS and Linux, so only Windows would show either fault."""
+    process), or makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX). It reads the
+    source: on this computer each call works, and portalocker itself imports `fcntl` on macOS and Linux, so only
+    Windows would show the fault."""
     source = Path(home.__file__).parent
     found = [f"{path.relative_to(source)}:{node.lineno}: {why}"
              for path in sorted(source.rglob("*.py"))
              for node in ast.walk(ast.parse(path.read_text()))
-             if (why := _stops_windows(node))]
+             if (why := _stops_windows(node, path))]
     assert found == []

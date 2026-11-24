@@ -199,7 +199,7 @@ def ref(snapshot: str, line_has: str) -> str:
 
 def test_the_server_lists_playwright_mcps_own_tools_by_the_same_names_and_inputs():
     path = Path(tempfile.mkdtemp(dir="/tmp")) / "t.sock"
-    listening = channel.Listener(path)
+    listening = channel.listen(path)
     threading.Thread(target=lambda: listening.greet(listening.accept()), daemon=True).start()  # mcp's check
     client = Client({"command": sys.executable, "args": ["-I", "-m", "apply.plain.mcp", "--socket", str(path)]})
     try:

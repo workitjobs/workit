@@ -90,11 +90,13 @@ class BridgeBusy(Exception):
     """Another Apply process is listening on the socket."""
 
 
-def socket_path(home: Path = HOME) -> Path:
+def socket_path(home: Path = HOME, system: str = sys.platform) -> Path:
     """`home`/workers.sock, or, when that path is too long for a socket, one under
-    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder."""
+    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder. On Windows the path
+    only names the channel's pipe and holds its secret beside it (channel.pipe_name), so it has no length to keep
+    under, and Windows has no os.getuid."""
     path = home / SOCKET
-    if len(str(path).encode()) <= SOCKET_PATH_MOST:
+    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
         return path
     folder = Path(tempfile.gettempdir() if len(tempfile.gettempdir()) < 40 else "/tmp") / f"apply-{os.getuid()}"
     return folder / f"{hashlib.sha256(str(home.resolve()).encode()).hexdigest()[:16]}.sock"
@@ -260,7 +262,7 @@ class Bridge:
         if self._server:
             return
         try:
-            self._server = channel.Listener(self.path)
+            self._server = channel.listen(self.path)
         except channel.Busy:
             raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}") from None
         self.engine  # noqa: B018 - read the engine's identity before the first hello

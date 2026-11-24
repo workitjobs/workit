@@ -30,6 +30,8 @@ import json
 import os
 import re
 import socket
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -70,7 +72,13 @@ CONSENT = ('That is in the "{title}" dialog, a consent that is the applicant\'s 
            "fill). Apply attaches the file once they have pressed it.")
 
 
-def socket_folder() -> Path:
+def socket_folder(system: str = sys.platform) -> Path:
+    """Where a drive's channel and its secret are: /tmp/apply-<uid>/ (0700) on macOS and Linux. On Windows the user's
+    own temp folder: the path only names the drive's pipe there (channel.pipe_name), and Windows has no os.getuid."""
+    if system == "win32":
+        folder = Path(tempfile.gettempdir()) / "apply"
+        folder.mkdir(exist_ok=True)
+        return folder
     folder = Path("/tmp") / f"apply-{os.getuid()}"
     folder.mkdir(mode=0o700, exist_ok=True)
     os.chmod(folder, 0o700)
@@ -452,7 +460,7 @@ class ToolServer:
         return {"command": self._python, "args": ["-I", "-m", "apply.plain.mcp", "--socket", str(self.path)]}
 
     def __enter__(self) -> Self:
-        self._server = channel.Listener(self.path)
+        self._server = channel.listen(self.path)
         threading.Thread(target=self._accept, daemon=True, name="claude-tools").start()
         return self
 
