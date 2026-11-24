@@ -11,7 +11,6 @@ import http.server
 import json
 import os
 import re
-import socket
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,7 @@ import pytest
 from apply import claude_fill, rescue
 from apply.claude_cli import BROWSER_TOOLS, ClaudeCLI
 from apply.model import FillError
+from apply.plain import channel
 from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortContext, PortPage
@@ -198,10 +198,9 @@ def ref(snapshot: str, line_has: str) -> str:
 
 
 def test_the_server_lists_playwright_mcps_own_tools_by_the_same_names_and_inputs():
-    listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     path = Path(tempfile.mkdtemp(dir="/tmp")) / "t.sock"
-    listening.bind(str(path))
-    listening.listen(1)
+    listening = channel.Listener(path)
+    threading.Thread(target=lambda: listening.greet(listening.accept()), daemon=True).start()  # mcp's check
     client = Client({"command": sys.executable, "args": ["-I", "-m", "apply.plain.mcp", "--socket", str(path)]})
     try:
         tools = client.rpc("tools/list")["tools"]

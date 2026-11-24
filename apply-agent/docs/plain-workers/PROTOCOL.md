@@ -49,7 +49,20 @@ Apply process                                   Worker k (plain Chrome)
   another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
   macOS caps a socket path at 104 bytes; when the profiles folder's path is too long
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
-  `Bridge.path` says which.
+  `Bridge.path` says which. The channel's code is `apply.plain.channel`, which the host loads by
+  its file path.
+- **The check (KAN-929).** Before any frame, both ends prove that they know the channel's
+  secret: `workers.key` beside the socket, mode 0600, new each time the Bridge starts, and
+  written only once the Bridge holds the address. Raw bytes, with no framing:
+  1. Bridge to host: a random challenge, 32 bytes.
+  2. Host to Bridge: `HMAC-SHA256(secret, "client" + challenge)`, then its own random
+     challenge, 32 bytes.
+  3. Bridge to host: `HMAC-SHA256(secret, "server" + the host's challenge)`.
+
+  Each side compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
+  (`channel.GREET_WAIT`), closes the connection with no other message. Then the host sends its
+  `relay` frame, as below. A stranger can't connect, and a program that took the address after
+  Apply went can't pass for Apply to a Worker's next host.
 
 ## Framing
 
@@ -346,7 +359,8 @@ events of its own.
 ### Apply's MCP server
 
 `claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a Unix socket of its own
-for that drive, 0600 in `/tmp/apply-<uid>/`, 0700) and gives `claude -p` this server as
+for that drive, 0600 in `/tmp/apply-<uid>/`, 0700, with its own secret beside it and the same
+check as the Bridge's) and gives `claude -p` this server as
 `playwright`: `python -I -m apply.plain.mcp --socket <path>`. That stdio process (stdlib only)
 answers `initialize` and `tools/list` itself (`apply/plain/mcp_tools.json`: @playwright/mcp@0.0.83's
 own schemas for `claude_cli.BROWSER_TOOLS`, nothing else) and sends each `tools/call` as one JSON

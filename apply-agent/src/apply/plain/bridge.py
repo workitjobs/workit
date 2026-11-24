@@ -280,9 +280,12 @@ class Bridge:
                 sock = server.accept()
             except OSError:
                 return
-            threading.Thread(target=self._greet, args=(sock,), daemon=True).start()
+            threading.Thread(target=self._greet, args=(sock, server), daemon=True).start()
 
-    def _greet(self, sock: socket.socket) -> None:
+    def _greet(self, sock: socket.socket, server: channel.Listener) -> None:
+        if not server.greet(sock):  # it doesn't know this channel's secret: no other message (channel.py)
+            sock.close()
+            return
         try:
             relay = _read_frame(sock)
             hello = _read_frame(sock)

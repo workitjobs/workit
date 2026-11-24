@@ -467,9 +467,13 @@ class ToolServer:
                 connection = self._server.accept()
             except OSError:
                 return
-            threading.Thread(target=self._serve, args=(connection,), daemon=True, name="claude-tool").start()
+            threading.Thread(target=self._serve, args=(connection, self._server), daemon=True,
+                             name="claude-tool").start()
 
-    def _serve(self, connection: socket.socket) -> None:
+    def _serve(self, connection: socket.socket, server: channel.Listener) -> None:
+        if not server.greet(connection):  # it doesn't know this drive's secret (channel.py)
+            connection.close()
+            return
         with connection, connection.makefile("r", encoding="utf-8") as lines:
             for line in lines:
                 if self._stopped.is_set():
