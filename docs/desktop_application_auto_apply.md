@@ -1910,7 +1910,7 @@ lock, signals, the hosts' wrappers, the seed guide's words).
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port), with a check in both directions on every OS (`windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |

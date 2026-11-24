@@ -448,7 +448,7 @@ for each fix, section 6 the tests, and section 7 the order.
   process carries `--user-data-dir` in its arguments as Apply starts it,
   and how long the scan takes there.
 
-### P4. The channel between Apply and the hosts (Unix socket)
+### P4. The channel between Apply and the hosts (Unix socket): being built
 
 - **What it is.** Apply's Bridge listens on a socket file, `workers.sock`,
   that only the user can read (0600). Each Worker's host connects to it
@@ -462,19 +462,72 @@ for each fix, section 6 the tests, and section 7 the order.
 - **What breaks.** Python on Windows has no `socket.AF_UNIX`, and `os` has
   no `getuid`. So no plain Worker can talk to Apply.
 - **Who.** Both, for plain Workers. CDP Workers don't use the channel.
-- **Fix: options.**
-  - `multiprocessing.connection` (standard library): one API that is a
-    Unix socket on macOS and Linux and a named pipe on Windows. The host
-    uses only the standard library today, and it can stay that way. Its
-    messages have their own length header, so the host changes its
-    framing to and from Chrome's in one place.
-  - A named pipe through `pywin32`, as F4's table says. This is a new
-    dependency and Windows-only code.
-  - Not a port on `127.0.0.1`: the app opens no port (D11).
-  - Whichever you choose, the channel must refuse other users of the
-    computer, as the 0600 socket does. A named pipe's default rights let
-    every user read it. `multiprocessing.connection`'s `authkey`, or a
-    security descriptor on the pipe, closes that.
+- **Decided (2026-11-24): a named pipe on Windows only, with a check in
+  both directions on every OS.** macOS and Linux keep today's Unix socket.
+  - **Not a port.** A port on `127.0.0.1` would open nothing to the
+    network, and the OS would pick a free number, so it couldn't collide
+    with a developer's ports. But every program on the computer, and every
+    web page in a browser on it, can send bytes to a local port: Zoom's
+    local server on the Mac (port 19421) let web pages start calls until
+    2019. Desktop apps (Chrome, VS Code) talk between their own processes
+    through named pipes on Windows and Unix sockets on the Mac, and no
+    firewall or antivirus asks about a pipe.
+  - **Not `pywin32`:** a new dependency for one job. Python's own
+    `multiprocessing.connection` makes and opens named pipes on Windows,
+    the same code that `multiprocessing` itself uses there.
+- **The design (being built).** One module, `plain/channel.py`, standard
+  library only, holds the channel for the Bridge, the host, `tools.py` and
+  `mcp.py`, with an entry for each OS:
+  - **macOS and Linux:** the Unix socket, as today: `workers.sock` in the
+    profiles folder (`socket_path`), mode 0600, with `/tmp/apply-<uid>/`
+    for a path that is too long.
+  - **Windows:** a named pipe, `\\.\pipe\workit-apply-<16 hex>`, the hash of
+    the same path. So one profiles folder always gives the same pipe, and
+    two folders never share one. Windows refuses to make a pipe a second
+    time (`FILE_FLAG_FIRST_PIPE_INSTANCE`, which Python sets), so a second
+    Apply on the same folder gets `BridgeBusy`, as today.
+  - **The Windows adapter.** The pipe sends whole messages, and the Bridge
+    reads a stream of bytes. A small class gives the pipe the calls the
+    Bridge and `tools.py` use: `sendall`, `recv`, `shutdown`, `close`,
+    `settimeout` and `makefile`. Two facts from Python's source shape it.
+    A close cancels a pending send but not a pending receive: a reader
+    blocked on another thread wakes only when Windows cancels its read,
+    and Python then raises `RuntimeError("shouldn't get here")`, so every
+    failure of a read counts as "closed". And a blocked `accept` doesn't
+    wake when the listener closes, so `close` first connects once to its
+    own pipe: else the pipe stays, and the next Bridge in the same process
+    (a run after the seed's setup) can't make it again. The Bridge already
+    sends under a lock, which the pipe needs: it refuses two sends at once.
+  - **The check in both directions.** When a channel starts, it writes a
+    new random secret, 32 bytes, beside its address (`workers.key` beside
+    `workers.sock`): only after it holds the address, so a second Apply
+    never overwrites the first one's secret. Then each new connection:
+    the listener sends a random challenge, the connecting side answers
+    `HMAC(secret, "client" + challenge)` and its own random challenge, and
+    the listener answers `HMAC(secret, "server" + that)`. Each side checks
+    with `hmac.compare_digest` and closes on a wrong answer, before any
+    other message. A stranger can't connect, a stranger can't pass for
+    Apply to a host whose Apply has gone, and an old answer fails a new
+    challenge. It runs on the Mac too, so one handshake serves every OS.
+  - **The host stays standard-library only.** It loads its neighbour
+    `channel.py` by its file path, and reads the address and the secret
+    from its `--socket` argument, as today. This prepares P5 too: on
+    Windows, one wrapper serves every Worker, and the host can find the
+    profiles folder from its parent Chrome's `--user-data-dir`.
+  - **`tools.py` and `mcp.py`** (Claude's drive, developer only) use the
+    same module. `/tmp` and `os.getuid()` stay in the macOS and Linux
+    entry only.
+- **Tests.** `tests/test_plain_channel.py` (fast list) runs each test on the
+  entries its OS has. On macOS and Linux, Python's `multiprocessing`
+  connections over a Unix socket stand in for the pipe's, so the Windows
+  adapter, its listener and the check run in CI too; only the pipe's own
+  calls wait for Windows. One test for each fault: a message both ways,
+  one over 1 MB too; a client without the secret is refused; a listener
+  without it is refused by the client; an old answer fails a new
+  challenge; a close wakes a blocked reader; a channel closed and opened
+  again in one process listens again. The tests that play a host on a raw
+  Unix socket (`tests/test_plain_bridge.py`, `tests/test_plain_claude.py`)
+  connect through the channel.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows. That needs P5 too.
 
@@ -658,7 +711,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 | P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
 | P2 "is it still running?" | Built: a library (`psutil.pid_exists`), the same code on every OS |
 | P3 profile lock | Built: a library (psutil finds the Chrome by its arguments on Windows), one check for every OS |
-| P4 channel | The standard library (`multiprocessing.connection`): one API, a socket on macOS and Linux and a named pipe on Windows |
+| P4 channel | Decided: a Windows entry, a named pipe (`multiprocessing.connection`); the Unix socket stays on macOS and Linux; one check in both directions on every OS |
 | P5 host file | A Windows entry: the registry key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
 | P7 clean quit | For the seed: ask the student to close its window, on every OS or on Windows only. For a Worker: a Windows entry (`taskkill` with no `/F`), after a measurement |
@@ -693,7 +746,10 @@ can break, on each OS. The goal is not a high count of tests.
   `test_plain_guards.py` and `test_plain_routing.py`. Also run the tests
   that the change touches on your Mac, with `-k`, as `apply-agent/CLAUDE.md`
   says.
-- **A Windows job in CI.** Add a `windows-latest` job for the fast list
+- **A Windows job in CI: later** (decided 2026-11-24, not built with P4).
+  It would run the channel's tests on a real named pipe on every PR. Until
+  then the pipe's own calls wait for the teammate's run (section 7). Add a
+  `windows-latest` job for the fast list
   (`apply-fast`'s files, `ci.yml:224`). Start it after P1, since no file
   imports on Windows before that. Give it only the files that pass, and
   add files as each fix lands. After M2, add the real plain Worker tests
