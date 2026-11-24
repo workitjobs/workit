@@ -1,6 +1,6 @@
 # WorkIt Auto Apply on Windows
 
-**Status (2026-11-21, KAN-929):** a plan. P1 and P2 are built; the rest is not. This note lists what
+**Status (2026-11-21, KAN-929):** a plan. P1, P2 and P3 are built; the rest is not. This note lists what
 stops Apply on Windows, one problem per section, in the order to solve
 them. It expands F4 and W4's "Found on the way" list in
 `desktop_application_auto_apply.md`. Line numbers are at commit
@@ -74,7 +74,7 @@ proves which process it is, or it holds the live process object.
 |---|---|---|
 | The Workers this Apply started | In memory: `PlainWorkers.running` and `_starting`, each with its `Popen` (on the Mac, a `launcher.Chrome`) | `stop` and `stop_all` stop exactly those |
 | A Worker's Chrome that outlives its Apply | On disk: `apply-owner.json` in its profile, with Apply's PID and start time (`launcher.own`, KAN-885) | Workers keep running after a crash. The next run stops one whose Apply is gone (`reclaim`) |
-| Which Chrome holds a profile | Chrome's own `SingletonLock`, which Chrome writes, not Apply | It covers any Chrome on the profile, also one that Apply didn't start. Windows Chrome doesn't make it (P3) |
+| Which Chrome holds a profile | macOS and Linux: Chrome's own `SingletonLock`, which Chrome writes, not Apply. Windows: the process whose arguments name the profile (P3) | It covers any Chrome on the profile, also one that Apply didn't start |
 | The open Apply windows | On disk: a note for each window in `APPLY_PROFILES/windows/` | `apply ask` and `--into` find them from another process (`into.windows`) |
 
 - **To check that a process runs:** `psutil.pid_exists` (P2). It says only
@@ -312,9 +312,9 @@ for each fix, section 6 the tests, and section 7 the order.
   - Not proven: nothing has run on Windows yet. The first Windows run, or
     the Windows CI job (section 6), proves it.
 - **Unix-only calls that are left.** These fail only when they run, not
-  at import, and each one belongs to another problem: `SingletonLock`
-  (P3), the Unix sockets and their folders (P4), and SIGTERM (P7). P2's
-  `os.kill(pid, 0)` is fixed. Two more are in developer-only modules (`build.DEVELOPER`),
+  at import, and each one belongs to another problem: the Unix sockets
+  and their folders (P4), and SIGTERM (P7). P2's `os.kill(pid, 0)` and
+  P3's `SingletonLock` are fixed. Two more are in developer-only modules (`build.DEVELOPER`),
   so they stop only a Windows developer's command that runs them:
   - `os.killpg` in `claude_cli.stream_claude` (`claude_cli.py:154`), used
     with `ask_model: claude`.
@@ -392,34 +392,54 @@ for each fix, section 6 the tests, and section 7 the order.
 - **Still open.** Run it on Windows (the Windows CI job, section 6). The
   tests' Chrome reaper still stops a Chrome with SIGTERM and SIGKILL (P7).
 
-### P3. Which Chrome has a profile open (`SingletonLock`): half built
+### P3. Which Chrome has a profile open (`SingletonLock`): built
 
 - **What it is.** Apply finds the PID of the Chrome that has a profile
   open. With it, Apply knows that a profile is in use, stops an orphan
   Chrome, brings a Worker forward, and, in the seed wizard, sees that the
   seed's Chrome is open.
-- **Where.** `browsers.chrome_pid` (`browsers.py:100-107`) reads the
+- **Where it was** (line numbers before the fix). `browsers.chrome_pid` (`browsers.py:100-107`) reads the
   profile's `SingletonLock` link. The end of the link's target is the PID.
   Its callers: `in_use` (`browsers.py:95-97`), `browsers.py:210`, `:275`,
   `:280`, `PlainWorkers.idle` (`plain/launcher.py:176-178`), `launch`
   (`:313`), `start_in_background` (`:461`), `orphan` (`:493`), and
   `Desk.chrome` (`plain/seed_setup.py:156`).
-- **What breaks.** Chrome makes `SingletonLock` on macOS and Linux only.
+- **What broke.** Chrome makes `SingletonLock` on macOS and Linux only.
   On Windows a profile has a `lockfile`, with no PID in it. So `chrome_pid`
   always returns None. Every profile looks free, no orphan is ever found,
   and the seed wizard thinks Chrome never opened.
 - **Who.** Both.
-- **Built: the identity half** (P2's review fix). `chrome_pid` takes the
-  lock's PID only while that process is a browser (no `--type=`) whose
-  `--user-data-dir` is this profile.
-- **Fix: what is left.** Find that browser without `SingletonLock`: on
-  every OS, use psutil to find the browser process (no `--type=` switch)
-  whose `--user-data-dir` is this profile. This needs no per-OS code. It reads every process's
-  arguments, so measure its time with many processes running, and handle
-  `AccessDenied` for other users' processes. If the time matters, keep
-  `SingletonLock` as the fast path where it exists.
-- **Done when.** `in_use` and the seed wizard see a running Chrome on
-  Windows, and `tests/test_each_os.py` has a case for each OS.
+- **The fix (KAN-929).** `chrome_pid(profile, system)` has an entry for
+  each OS. Both entries end in one check, `_browser_on`: a browser (no
+  `--type=`) whose `--user-data-dir` is this profile.
+  - **macOS and Linux:** the PID that `SingletonLock` names, checked so
+    (the identity half, from P2's review). It reads one link and one
+    process, so it stays: 0.02 ms on this Mac.
+  - **Windows:** every process's arguments, through
+    `psutil.process_iter(["cmdline"], ad_value=None)`. psutil gives a
+    process that Apply may not read, or a zombie, no arguments (None),
+    and skips one that ends during the scan (read in psutil 7.2.2's
+    source). So the scan never raises, and a process of another user is
+    never the profile's Chrome.
+  - **No filter by program name.** Every process is checked, not only
+    `chrome.exe`. The check is what proves the Chrome, and the tests'
+    stand-in browser (`conftest.browser_on`) is a Python process.
+  - **Cost.** The same scan takes 8–16 ms over 596 processes on this Mac.
+    Apply asks seldom: once per Worker start, profile check or tile that
+    starts filming, and once a second during the seed's setup. Not
+    measured on Windows (section 8).
+- **Tests**, in the fast list: `tests/test_each_os.py`,
+  `test_on_windows_the_profiles_chrome_is_found_by_its_arguments`. Its
+  scan holds a helper of the profile's Chrome, another profile's browser,
+  a process Apply may not read, and the profile's own browser, which it
+  must find; after that Chrome quits, it must find none. Four faults each
+  went red: no Windows entry, a helper counts, a process with no
+  arguments crashes the scan, and any profile's browser counts. The
+  macOS and Linux entry keeps its tests (P2's review fix), and the real
+  plain Worker tests pass on the Mac.
+- **Still open.** Run it on Windows: whether Windows Chrome's browser
+  process carries `--user-data-dir` in its arguments as Apply starts it,
+  and how long the scan takes there.
 
 ### P4. The channel between Apply and the hosts (Unix socket)
 
@@ -613,7 +633,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 |---|---|
 | P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
 | P2 "is it still running?" | Built: a library (`psutil.pid_exists`), the same code on every OS |
-| P3 profile lock | Half built: `chrome_pid` checks the lock's PID is the profile's browser. Left: a library (psutil finds the Chrome without the lock), the same code on every OS |
+| P3 profile lock | Built: a library (psutil finds the Chrome by its arguments on Windows), one check for every OS |
 | P4 channel | The standard library (`multiprocessing.connection`): one API, a socket on macOS and Linux and a named pipe on Windows |
 | P5 host file | A Windows entry: the registry key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
@@ -636,7 +656,7 @@ can break, on each OS. The goal is not a high count of tests.
 | P1 | Built, `tests/test_locks.py`: two processes write the Tracker at the same time, and both writes are there after | The lock does nothing | The fast list |
 | P1 | Built, `tests/test_each_os.py`: no module of Apply imports `fcntl`, read from the source | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
 | P2 | Built: `tests/test_each_os.py` reads the source for `os.kill(pid, 0)`; `tests/test_into.py` holds a live PID and a gone one | A module checks a process with `os.kill(pid, 0)` again; the check misses a live process | The fast list |
-| P3 | `tests/test_plain_orphans.py`, `tests/test_each_os.py`: the profile's own Chrome is found; a helper process (`--type=`), another profile's Chrome and a reused PID never count | Another process is taken for the profile's Chrome | The fast list |
+| P3 | Built, `tests/test_each_os.py`: on Windows the profile's own Chrome is found by its arguments; a helper (`--type=`), another profile's Chrome and a process Apply may not read never count | Another process is taken for the profile's Chrome, or none is found | The fast list |
 | P4 | `tests/test_plain_bridge.py` on the new channel: a hello, a message over 512 KiB, and a client without the key, which is refused | A client that isn't Apply's host gets in | The fast list, on every OS |
 | P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, and the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker | The fast list |
 | P7, P8 | `tests/test_plain_seed_setup.py`, with its fakes: on Windows the wizard never ends the seed's Chrome by force, and it says the Windows words | A forced stop loses the student's clicks | The fast list |
@@ -663,18 +683,18 @@ can break, on each OS. The goal is not a high count of tests.
 
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
-| M1 | A developer runs CDP Workers | P1 and P2 (built), P3 | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
+| M1 | A developer runs CDP Workers | P1, P2 and P3 (built) | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
 | M2 | A developer runs plain Workers, with no seed | P4, P5, P6, P9 | `plain_chrome: testing` | Every host fills; a developer never needs the seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 The store copy (W6) is not Windows work. When it ships, it changes P8's
 clicks on every OS.
 
-**Next: the rest of P3.** `browsers.chrome_pid` (`browsers.py:100-107`)
-still reads the PID from `SingletonLock`, which Windows Chrome doesn't
-make. It already checks that the PID is the profile's own browser, so
-what is left is finding that browser without the lock. With P3 built, a
-Windows developer can run CDP Workers (M1).
+**M1's code is built** (P1 to P3), but nothing has run on Windows yet. A
+Windows developer's first run with `worker_mode: cdp` checks it.
+
+**Next: M2, starting with P4,** the channel between Apply and the hosts.
+Plain Workers can't talk to Apply on Windows until P4 and P5 are built.
 
 ## 8. Open questions
 
@@ -687,5 +707,8 @@ Windows developer can run CDP Workers (M1).
   not be Google Chrome's key.
 - Does Chrome save when `taskkill` with no `/F` stops it?
 - Does `--no-startup-window` keep Chrome running on Windows?
-- How long does it take psutil to find a profile's Chrome when many
-  processes run?
+- How long does `chrome_pid`'s scan take on Windows (P3)? It took 8–16 ms
+  over 596 processes on this Mac. If it is too slow, Chrome's `lockfile`
+  may skip it for a free profile: if Chrome deletes that file when it
+  closes, as Chromium's source seems to say (not checked), a profile with
+  no `lockfile` has no Chrome.

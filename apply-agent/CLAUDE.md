@@ -85,7 +85,9 @@ has neither.
   extension's `windows.focus`). Per-OS code lives in one place for each job,
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
-  Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
+  Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`:
+  its SingletonLock, or every process's arguments on Windows), the native
+  host's folder (`native_host.chrome_hosts`), a
   Worker's background start (`plain/launcher.start_in_background`), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder

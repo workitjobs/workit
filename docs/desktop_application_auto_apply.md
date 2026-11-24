@@ -1101,7 +1101,9 @@ on Windows each one stops Apply:
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
   PID read find nothing there, and Show brings no CDP Worker forward: it
   brings one only when the lock names a running Chrome, since Chrome
-  leaves its `DevToolsActivePort` file behind when it quits.
+  leaves its `DevToolsActivePort` file behind when it quits. Built
+  (KAN-929): on Windows `chrome_pid` finds the Chrome by its arguments
+  (`windows_desktop.md`, P3).
 - Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.

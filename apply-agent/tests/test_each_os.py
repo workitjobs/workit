@@ -351,6 +351,27 @@ def test_a_stale_lock_whose_pid_another_user_took_leaves_the_profile_free(tmp_pa
     assert not browsers.in_use(tmp_path)
 
 
+def test_on_windows_the_profiles_chrome_is_found_by_its_arguments(tmp_path, monkeypatch):
+    """Windows' Chrome makes no SingletonLock, so chrome_pid read nothing there and every profile looked free: a second
+    run could open a profile a Worker had open (P3). Faults: no Windows entry; a helper (`--type=`), another
+    profile's browser, or a process whose arguments Apply may not read taken for the profile's Chrome."""
+    profile = tmp_path / "plain-1"
+    profile.mkdir()
+    chrome = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    processes = [
+        (11, [chrome, "--type=renderer", f"--user-data-dir={profile}"]),  # a helper of the profile's Chrome
+        (12, [chrome, f"--user-data-dir={tmp_path / 'plain-2'}"]),  # another profile's browser
+        (13, None),  # a process Apply may not read: psutil gives it no arguments
+        (14, [chrome, f"--user-data-dir={profile}", "--no-first-run"]),  # the profile's own browser
+    ]
+    monkeypatch.setattr(browsers.psutil, "process_iter", lambda attrs=None, ad_value=None: [
+        SimpleNamespace(pid=pid, info={"cmdline": arguments}) for pid, arguments in processes])
+
+    assert browsers.chrome_pid(profile, "win32") == 14
+    processes.pop()  # its Chrome quits
+    assert browsers.chrome_pid(profile, "win32") is None
+
+
 def _stops_windows(node: ast.AST) -> str | None:
     """Why `node` is a call that works on macOS and Linux but stops Apply on Windows (docs/windows_desktop.md), or
     None."""

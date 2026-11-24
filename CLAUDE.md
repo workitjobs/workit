@@ -257,7 +257,7 @@ with the failure it prevents.
   server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
   data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
-- `docs/windows_desktop.md` — KAN-929, a plan with P1 and P2 built: what stops
+- `docs/windows_desktop.md` — KAN-929, a plan with P1 to P3 built: what stops
   Apply on Windows, one problem per section (file locks, the process
   checks, Chrome's profile lock, the plain Workers' channel and host
   file, a clean quit, the seed), each with where it is, how to fix it
