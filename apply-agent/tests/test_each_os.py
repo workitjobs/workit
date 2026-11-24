@@ -21,7 +21,7 @@ import pytest
 from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import launcher, seed_setup
+from apply.plain import launcher, seed_setup, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -370,6 +370,27 @@ def test_on_windows_the_profiles_chrome_is_found_by_its_arguments(tmp_path, monk
     assert browsers.chrome_pid(profile, "win32") == 14
     processes.pop()  # its Chrome quits
     assert browsers.chrome_pid(profile, "win32") is None
+
+
+@pytest.mark.parametrize("system", ["win32", "linux"])
+def test_off_the_mac_a_tile_takes_the_extensions_frames(monkeypatch, system):
+    """Fault: native capture off the Mac. Its helper is ScreenCaptureKit's, and its permission note named the app
+    through `ps`, which Windows lacks: every plain Worker's tile failed on each watch turn and stayed blank, and each
+    turn added its handlers again (found in review, 2026-11-24)."""
+    monkeypatch.delenv("APPLY_TILE_CAPTURE", raising=False)
+    assert window_capture.mode(system) == "extension"
+    assert window_capture.mode("darwin") == "native"
+
+
+def test_a_hosts_chrome_is_its_parent_read_with_no_ps(monkeypatch):
+    """Fault: chrome_of reads the host's parent with `ps`, which Windows lacks. P3 made the tile reach it there: its
+    check that a connection is its Worker's own failed on each watch turn (found in review, 2026-11-24)."""
+    def no_ps(*args, **kwargs):
+        raise FileNotFoundError("ps")  # as on Windows
+
+    monkeypatch.setattr(window_capture.subprocess, "run", no_ps)
+    assert window_capture.chrome_of(os.getpid()) == os.getppid()
+    assert window_capture.chrome_of(None) is None
 
 
 def _stops_windows(node: ast.AST) -> str | None:

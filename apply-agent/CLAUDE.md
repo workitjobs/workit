@@ -91,7 +91,9 @@ has neither.
   Worker's background start (`plain/launcher.start_in_background`), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder
-  (`plain/seed_setup.Desk.reveal`), and keeping the computer awake during a run
+  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`:
+  ScreenCaptureKit on the Mac, the extension's frames elsewhere), and keeping
+  the computer awake during a run
   (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in

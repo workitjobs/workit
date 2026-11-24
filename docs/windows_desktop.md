@@ -502,6 +502,13 @@ for each fix, section 6 the tests, and section 7 the order.
   - The student's everyday Chrome also sees the key. That is safe: only
     the Worker extension's IDs may call the host (`allowed_origins`), and
     the everyday Chrome doesn't have that extension.
+  - **Check the host's parent.** The tile proves a connection is its
+    Worker's own by comparing the host's parent (`chrome_of`) with the
+    Worker's Chrome (`tile._foreign_to`). Chrome on Windows may start a
+    host through `cmd.exe` (recalled from Chromium; its source was not
+    read). Then the parent is `cmd.exe`, and every tile counts as
+    foreign. If so, accept the Worker's Chrome anywhere among the host's
+    ancestors (`psutil.Process(host_pid).parents()`).
 - **Done when.** The same check as P4: a plain Worker says hello on
   Windows.
 
@@ -603,6 +610,14 @@ for each fix, section 6 the tests, and section 7 the order.
 - **Smooth tiles.** The Swift helper (`plain/window_capture.swift`) is the
   Mac's. Elsewhere a tile shows about 2 frames a second until
   `Page.startScreencast` (W6).
+- **The tile's PID reads: built** (found in review, 2026-11-24). Off the
+  Mac, `window_capture.mode` is always "extension", so the tile never
+  tries ScreenCaptureKit there, nor its permission note, which names the
+  app through `ps`. `window_capture.chrome_of` reads a host's parent with
+  psutil, not `ps`. Before, P3 let a Windows tile reach `ps`: each watch
+  turn failed without a word, the tile stayed blank, and each turn added
+  its handlers again. Tests in `tests/test_each_os.py` (fast list): the
+  mode on each OS, and the parent read with `ps` gone.
 - **Focus.** FocusKeeper is the Mac's. Elsewhere `focus.KEEPER` is a
   `NoKeeper`, and the extension's `windows.focus` brings a Worker forward
   (`plain/launcher.py:378-391`). Check that Windows keeps Workers behind
