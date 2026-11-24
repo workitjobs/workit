@@ -16,6 +16,9 @@
 /ship-check/
 # The resume and transcript PDFs that the profile's files: names.
 /*.pdf
+# Test Person's sample (sample/): a Developer checkout's only since W11, kept in the repo as it is, and nothing
+# new joins it. WorkIt Auto Apply's profile is WorkIt's, and its build ships no sample/.
+/sample/
 # What Apply writes into the data folder.
 /sent/
 /tailored/

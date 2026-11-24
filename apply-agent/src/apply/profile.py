@@ -7,6 +7,7 @@ answers is saved into the file without losing his comments or its order.
 import json
 import re
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -31,13 +32,17 @@ class ApplicantProfile:
     """Workers add Lisul's answers from their own threads while the
     Orchestrator saves, so every write and save takes one lock."""
 
-    def __init__(self, facts: dict, home: Path, policies: dict | None = None, path: Path | None = None):
+    def __init__(self, facts: dict, home: Path, policies: dict | None = None, path: Path | None = None,
+                 saver: Callable[[list[tuple]], None] | None = None):
+        """With no `path`, the profile is WorkIt's (W11, WorkIt Auto Apply): `refresh` puts it in, and a save hands
+        this process's changes to `saver`, which sends them there."""
         self._lock = threading.RLock()
         self._facts = facts
         self._changes: list[tuple[str, ...]] = []  # what this process set, to lay over the file as it is now
         self._home = home
         self._policies = policies or {}
         self._path = path
+        self._saver = saver
 
     @classmethod
     def load(cls, path: Path, policies: Path = POLICIES) -> "ApplicantProfile":
@@ -53,8 +58,14 @@ class ApplicantProfile:
     def save(self) -> None:
         """Write this process's changes into the profile's file as it is now:
         the copy loaded at its start would undo what changed on disk since
-        (seen live: a rehearsal's dashboard answer dropped a fact added meanwhile)."""
+        (seen live: a rehearsal's dashboard answer dropped a fact added meanwhile). With no file, `saver` takes the
+        changes; one it can't send stays, and goes with the next save."""
         with self._lock:
+            if self._path is None:
+                if self._saver and self._changes:
+                    self._saver(list(self._changes))
+                self._changes = []
+                return
             facts = (_yaml().load(self._path.read_text()) or {}) if self._path.exists() else {}
             for change in self._changes:
                 _apply(facts, *change)
@@ -62,6 +73,13 @@ class ApplicantProfile:
             with self._path.open("w") as f:
                 _yaml().dump(facts, f)
             self._facts, self._changes = facts, []
+
+    def refresh(self, facts: dict, policies: dict) -> None:
+        """WorkIt's profile as it is now (each Start), with this process's changes not yet sent laid over it."""
+        with self._lock:
+            for change in self._changes:
+                _apply(facts, *change)
+            self._facts, self._policies = facts, policies
 
     @property
     def folder(self) -> Path:

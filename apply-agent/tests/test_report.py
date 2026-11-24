@@ -8,6 +8,7 @@ import json
 import shutil
 
 import pytest
+import yaml
 from conftest import FIXTURES
 
 from apply import report
@@ -84,6 +85,11 @@ def test_a_log_never_goes_without_the_profile_to_mask_it(tmp_path):
     with pytest.raises(ValueError, match="not a file"):
         report.build("form", "It hung.", profile.parent, _row(""), traces=traces.parent)
     assert "Person" not in report.build("form", "It hung.", profile, _row(""), traces=traces.parent)["trace"]
+    # WorkIt Auto Apply's profile is WorkIt's (W11): read as the log goes, it masks the same.
+    read = []
+    workit = lambda: read.append(1) or yaml.safe_load(profile.read_text())
+    assert "Person" not in report.build("form", "It hung.", workit, _row(""), traces=traces.parent)["trace"]
+    assert read == [1] and report.build("form", "It hung.", workit, _row(""), include=False) and read == [1]
 
 
 def test_a_general_question_and_a_report_without_the_record_hold_only_the_students_words(tmp_path):

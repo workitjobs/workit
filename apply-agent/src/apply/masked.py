@@ -69,12 +69,13 @@ class Known:
             self._values.setdefault(value, label)
             self._pattern = None
 
-    def learn(self, profile: Path) -> None:
-        """Read the Applicant profile. A file that won't read adds nothing. The Answer bank, which is on WorkIt
-        (W11), adds its own answers as it reads and writes them (apply.answer_bank)."""
+    def learn(self, profile: Path | dict) -> None:
+        """Read the Applicant profile: its file, or the profile itself (WorkIt Auto Apply's comes from WorkIt, W11).
+        A file that won't read adds nothing. The Answer bank, which is on WorkIt (W11), adds its own answers as it
+        reads and writes them (apply.answer_bank)."""
         self._values.clear()
         self._pattern = None
-        tree = _read(profile)
+        tree = profile if isinstance(profile, dict) else _read(profile)
         for section in PERSON:
             for key, value in _leaves(tree.get(section), section):
                 self.add(value, key)

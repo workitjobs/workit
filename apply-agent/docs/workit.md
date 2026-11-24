@@ -332,6 +332,24 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
   uploads, and shows nothing for it: no student has the file.
   `sample/answer-bank.yaml` went with it.
 
+**WorkIt Auto Apply's profile is WorkIt's too** (W11, 2026-11-24,
+`student.profile_from_workit`). The app keeps no Applicant profile file
+and never copies Test Person. Each Start reads `GET /apply-app/profile`
+(`WorkIt.applicant_profile`): the student's Fill engine profile and
+policies, built on the server exactly as the extension builds them, so
+the app fills as the extension does. The policies lie over the app's own,
+and an empty one never wipes Apply's (`high_stakes_job_systems: [ashby]`
+stays). The default resume and the transcript are read then too
+(`WorkIt.profile_file`) and kept in `home.HOME / "files"`, by their names
+alone, for a form's upload. A Start WorkIt doesn't answer says so and
+changes nothing. What the student answers in Needs you goes back
+(`student.to_workit`, `PATCH /apply-app/profile`): answers by question,
+and the facts the Fill engine read from them, never a file's path. A send
+WorkIt doesn't answer stays in the profile and goes with the next save. A
+report's log is masked with the profile read from WorkIt as it goes. A
+Developer checkout keeps its profile file and Test Person. Tests:
+`tests/test_profile_from_workit.py`.
+
 **Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
 `tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,
 fails, refuses or holds a reply. The backend's `backend/tests/test_answer_bank.py` runs the

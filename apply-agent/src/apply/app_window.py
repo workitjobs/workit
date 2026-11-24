@@ -54,15 +54,12 @@ from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
-from apply.home import HOME
 from apply.model import Status
 from apply.tracker import FileTracker, Row
 
 TITLE = "WorkIt Auto Apply"
 # The student page, built from window/ by Vite (`npm run build`) into one file: CI checks it matches its source.
 STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
-# The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
-PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
@@ -629,8 +626,13 @@ class Bridge:
         row = self._application(str(application_id)) if application_id else None
         if application_id and row is None:
             return {"error": "WorkIt Auto Apply has nothing of that application on this computer."}
+        # A log goes masked with the student's profile, which is WorkIt's (W11): read only when one goes.
+        profile = lambda: self._client.applicant_profile()["profile"]
         try:
-            self._report = report.build(str(category), str(note), PROFILE, row, bool(include), bool(contact_ok))
+            self._report = report.build(str(category), str(note), profile, row, bool(include), bool(contact_ok))
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt Auto Apply couldn't read your profile to hide your details in the log ({error}). "
+                             "Try again in a minute."}
         except ValueError as error:  # a category the server doesn't take, or no profile file to mask the log with
             return {"error": f"The report can't go as it is: {error}."}
         return {"parts": report.parts(self._report)}

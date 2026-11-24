@@ -16,7 +16,6 @@ from apply import (
     answering,
     app_window,
     captcha,
-    home,
     rehearsal,
     tailored,
     worker_tiles,
@@ -36,11 +35,11 @@ from apply.first_run import workers
 from apply.home import HOME
 from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
-from apply.profile import ApplicantProfile
+from apply.profile import ApplicantProfile, load_policies
 from apply.records import FolderRecords
 from apply.tracker import FileTracker, WorkItTracker
 from apply.worker import sent_resume
-from apply.workit import WaitingWrites, WorkIt, site
+from apply.workit import WaitingWrites, WorkIt, WorkItError, site
 
 RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
@@ -168,17 +167,22 @@ class Runs:
     def __init__(self, profile: ApplicantProfile, bank: AnswerBank,
                  make: Callable[[ApplicantProfile, AnswerBank], Adapters] = adapters,
                  rehearse: Callable[..., object] = rehearsal.rehearse,
-                 keep_awake: Callable[[], AbstractContextManager] = awake):
+                 keep_awake: Callable[[], AbstractContextManager] = awake,
+                 refresh: Callable[[], None] = lambda: None):
+        """`refresh` puts the student's profile in as each Start begins: WorkIt's (`profile_from_workit`) in the
+        app."""
         self._profile, self._bank, self._make, self._rehearse, self._awake = profile, bank, make, rehearse, keep_awake
+        self._refresh = refresh
         self._site = None  # the run's Workers, to stop when the app quits
 
     def run(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str] | None = None) -> None:
         """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed. `jobs`
         names the WorkIt job of each link from the student's Auto Apply queue. A run waits for the Answer bank
-        (W11): one that hasn't read yet is tried again, a few seconds at most."""
+        (W11): one that hasn't read yet is tried again, a few seconds at most. Then it reads the profile."""
         if not self._bank.wake(BANK_WAIT):
             raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
                              "Press Start again in a moment.")
+        self._refresh()
         with self._awake():  # the Mac never sleeps mid-run (KAN-885)
             self._rehearse_shown(links, show, jobs or {})
 
@@ -212,24 +216,63 @@ class Runs:
             self._site = None
 
 
+# The files the student's profile names, as WorkIt gave them at the last Start: the default resume, the transcript.
+FILES = HOME / "files"
+
+
+def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None) -> None:
+    """The student's profile and policies from WorkIt (W11: the app keeps no profile file and no Test Person), read
+    at each Start, so an edit on WorkIt's website reaches the next run. The files it names are read too and kept in
+    FILES, which a form's upload takes by their path. Raises SetupError, with nothing changed, when WorkIt doesn't
+    answer."""
+    client = client or WorkIt()
+    try:
+        got = client.applicant_profile()
+        facts = got["profile"]
+        for key, fact in (("resume", "resume_pdf"), ("transcript", "unofficial_transcript_pdf")):
+            if where := got["files"].get(key):
+                FILES.mkdir(parents=True, exist_ok=True)
+                path = FILES / Path(where["name"]).name  # a name, never a path WorkIt could steer
+                path.write_bytes(client.profile_file(where))
+                facts.setdefault("files", {})[fact] = str(path)
+    except WorkItError as error:
+        raise SetupError(f"Your profile didn't come from WorkIt ({error}). Press Start again in a moment.") from None
+    profile.refresh(facts, layered(load_policies(), got["policies"]))
+
+
+def to_workit(changes: list[tuple]) -> None:
+    """A profile save, into the student's profile on WorkIt: their Needs you answers, and the facts the Fill engine
+    read from them. A file's path is this Mac's, never sent."""
+    answered = {question: answer for kind, question, answer in changes if kind == "answered"}
+    facts = {key: value for kind, key, value in changes if kind != "answered" and not key.startswith("files.")}
+    if answered or facts:
+        WorkIt().save_answered(answered, facts)
+
+
+def layered(under: dict, over: dict) -> dict:
+    """`over` laid over `under`, section by section, as the extension lays them (WorkIt's policies over the Student
+    build's own): an empty value leaves `under`'s, so WorkIt's empty high_stakes_job_systems keeps Apply's [ashby]."""
+    out = dict(under)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = layered(out[key], value)
+        elif value not in (None, "", [], {}):
+            out[key] = value
+    return out
+
+
 def app() -> None:
     """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, takes them through
-    first run, then shows their Auto Apply queue and runs it (W5)."""
-    if home.fill_from_sample():
-        print(f"No Applicant profile yet: WorkIt Auto Apply runs as Test Person from {HOME} till yours is there.")
-    profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
-    # One Answer bank for the app (W11): Test Person's is memory only; a student's is read from WorkIt in the
-    # background, so the window opens at once while it reads.
-    if profile.get("sample_data") is True:
-        bank = AnswerBank(drafts=False)
-    else:
-        bank = AnswerBank(WorkItSource())
-        bank.load_in_background()
+    first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
+    (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
+    Start."""
+    profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
+    bank = AnswerBank(WorkItSource())
+    bank.load_in_background()
     answers = AnswersTab(bank, profile)
-    runs = Runs(profile, bank)
+    runs = Runs(profile, bank, refresh=lambda: profile_from_workit(profile))
     try:
-        with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, tracker_url=tracker_url(),
-                       serve=False) as board:
+        with Dashboard(0, NoFrames(), answers, tracker_url=tracker_url(), serve=False) as board:
             app_window.run(board, start=runs.run)
     finally:
         runs.close()

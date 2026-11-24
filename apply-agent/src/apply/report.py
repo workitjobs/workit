@@ -19,6 +19,7 @@ is never refused for its size.
 """
 
 import base64
+from collections.abc import Callable
 from pathlib import Path
 
 from apply import masked, trace
@@ -40,11 +41,12 @@ TRACE_MAX = 4_000_000  # characters of the Trace
 PNG_MAX = 4_000_000  # bytes of one screenshot: a larger one is left out
 
 
-def build(category: str, note: str, profile: Path, row: Row | None = None, include: bool = True,
+def build(category: str, note: str, profile: Path | Callable[[], dict], row: Row | None = None, include: bool = True,
           contact_ok: bool = False, traces: Path | None = None) -> dict:
     """The report the form's answers make. `row` is the Application it is about (None for a general question), and
-    `include` whether its record and log go with it. `profile` is the Applicant profile's file (home.HOME /
-    "applicant-profile.yaml", never its folder) the Trace's values are masked from, and `traces` the Traces' folder
+    `include` whether its record and log go with it. `profile` is the Applicant profile the Trace's values are masked
+    from: its file (never its folder), or what reads it (WorkIt Auto Apply's, from WorkIt, read only when a Trace
+    goes), and `traces` the Traces' folder
     (trace.TRACES by default). Raises ValueError for a category the server doesn't take, no words, or, when a Trace
     goes, a `profile` that is not a file."""
     if category not in CATEGORIES or not note.strip():
@@ -97,16 +99,16 @@ def _file(record: Path | None, name: str) -> Path | None:
     return path if path and path.is_file() else None
 
 
-def _masked_trace(application_id: str, profile: Path, traces: Path | None) -> str:
+def _masked_trace(application_id: str, profile: Path | Callable[[], dict], traces: Path | None) -> str:
     path = trace.latest(application_id, traces)
     if path is None:
         return ""
     # Known.learn reads a file it can't as no values, which would send the name and street in the log unmasked:
     # a folder (the profile's `folder`) passed in place of the file did.
-    if not profile.is_file():
+    if isinstance(profile, Path) and not profile.is_file():
         raise ValueError(f"no Applicant profile to mask the log with: {profile.name} is not a file")
     known = masked.Known()
-    known.learn(profile)
+    known.learn(profile if isinstance(profile, Path) else profile())
     known.take(masked.KNOWN)  # the Answer bank's answers, which no file holds (W11)
     lines = [known.scrub(line) for line in path.read_text(errors="replace").splitlines()]
     text = "".join(f"{line}\n" for line in lines)

@@ -184,7 +184,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 
 - the applicant profile, story bank, voice and story map (the Answer bank
   is the one exception: it lives on WorkIt, W11, `docs/workit.md`, on
-  purpose: `docs/adr/0006-the-answer-bank-lives-on-workit.md`);
+  purpose: `docs/adr/0006-the-answer-bank-lives-on-workit.md`; in WorkIt
+  Auto Apply the profile is WorkIt's too);
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login's lock (`workit-login.lock`); the login itself is in
@@ -205,8 +206,13 @@ The repo holds only generic inputs: `policies.default.yaml` (with
 WorkIt (`GET /apply-app/types`, `apply.answering`) into the data folder's
 `question-types.json` when a run starts; the answering guides live only on
 the server (`../backend/app/apply_prompts/answering/`).
-When `APPLY_HOME` has no profile, Apply copies the Test Person sample data
-into it and the window shows "Sample data".
+In a Developer checkout, when `APPLY_HOME` has no profile, Apply copies the
+Test Person sample data into it and the window shows "Sample data".
+**WorkIt Auto Apply never does** (W11, 2026-11-24): its profile is WorkIt's,
+read at each Start with the files it names (`docs/workit.md`), and it keeps
+no profile file, so a first launch needs no `sample/`. `sample/` is a
+Developer checkout's only: kept in the repo, ignored for new files, and
+left out of the app's build.
 
 - Never commit a data file. `.gitignore` here lists each data file name.
 - **Agents: never read this folder raw.** Run `uv run apply data keys [FILE]`

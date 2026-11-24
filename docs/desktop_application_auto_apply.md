@@ -1997,6 +1997,15 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       Answer Bank), since a student with only the extension has no app;
       the app's window takes the same design (built 2026-11-24:
       `apply-agent/docs/apply-window.md`, Answer Bank).
+    - **The profile comes from WorkIt too** (decided and built
+      2026-11-24): the app keeps no Applicant profile file and no Test
+      Person. Each Start reads `GET /apply-app/profile`, the student's
+      Fill engine profile and policies built on the server as the
+      extension builds them (a port, `backend/app/services/engine_profile.py`,
+      held to the extension's mapping by a parity test), with the default
+      resume and the transcript. Needs you answers go back with `PATCH
+      /apply-app/profile` into `fill_profile`, where the extension fills
+      them too (`apply-agent/docs/workit.md`).
     - **The Answers view's edits** go through the same sender, ahead of
       the drafts, and drop a waiting draft to the same question. The view
       waits up to 10 seconds, then says "Not saved: WorkIt didn't answer"

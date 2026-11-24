@@ -212,11 +212,12 @@ class WorkIt:
         longer for a model call (apply.ask_model.WorkItAsk), which waits on WorkIt's whole model chain."""
         return self._call(method, path, body, timeout)[0]
 
-    def _call(self, method: str, path: str, body: Any = None, timeout: float = TIMEOUT) -> tuple[Any, Message]:
-        """`call`, with the answer's headers."""
+    def _call(self, method: str, path: str, body: Any = None, timeout: float = TIMEOUT,
+              binary: bool = False) -> tuple[Any, Message]:
+        """`call`, with the answer's headers. With `binary`, a good answer is its bytes, not JSON."""
         for attempt in range(2):
             status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0),
-                                            timeout=timeout)
+                                            timeout=timeout, binary=binary)
             if status == 429:
                 raise CapReached(f"{method} {path}: 429 {_detail(answer)}", _retry_at(headers.get("Retry-After")))
             if status == 401 and attempt == 0:
@@ -326,6 +327,26 @@ class WorkIt:
         answer = self.call("PATCH", f"/applicants/{self.applicant_id()}/answer-bank",
                            {"set": entries, "delete": deleted})
         return int(answer["version"]), {str(q): str(why) for q, why in (answer.get("kept_out") or {}).items()}
+
+    def applicant_profile(self) -> dict:
+        """The student's Fill engine profile and policies on WorkIt (W11, `GET /apply-app/profile`), built as the
+        extension builds them, and where each file it names is read (`files`)."""
+        return self.call("GET", "/apply-app/profile")
+
+    def save_answered(self, answered: dict, facts: dict) -> None:
+        """What the student answered in Needs you, into their profile on WorkIt (`PATCH /apply-app/profile`): answers
+        by question, and facts the Fill engine read from an answer by dotted key."""
+        self.call("PATCH", "/apply-app/profile", {"answered": answered, "facts": facts})
+
+    def profile_file(self, where: dict) -> bytes:
+        """A file the profile names, by its `files` entry: the default resume (an upload's bytes, or a built resume's
+        PDF rendered now) or the transcript."""
+        me = self.applicant_id()
+        if "built_resume_id" in where:
+            return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{where['built_resume_id']}/render")["pdf"])
+        path = (f"/applicants/{me}/resumes/{where['uploaded_resume_id']}/bytes" if "uploaded_resume_id" in where
+                else f"/applicants/{me}/documents/transcript/bytes")
+        return self._call("GET", path, binary=True)[0]
 
     def applicant_id(self) -> str:
         """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
@@ -577,8 +598,9 @@ def login(client: WorkIt, browser: Callable[[str], str] = _paste) -> Account:
 
 
 def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None,
-          timeout: float = TIMEOUT) -> tuple[int, Any, Message]:
-    """The status, JSON answer and headers. No answer, or a 5xx, is Unreachable."""
+          timeout: float = TIMEOUT, binary: bool = False) -> tuple[int, Any, Message]:
+    """The status, JSON answer (with `binary`, a good answer's bytes) and headers. No answer, or a 5xx, is
+    Unreachable."""
     headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -597,6 +619,8 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         raise Unreachable(f"{urlsplit(url).netloc}: {getattr(error, 'reason', error)}") from None
     if status >= 500:
         raise Unreachable(f"{urlsplit(url).netloc}: {status}", status)
+    if binary and status < 400:
+        return status, raw, headers
     try:
         return status, json.loads(raw) if raw else None, headers
     except ValueError:
