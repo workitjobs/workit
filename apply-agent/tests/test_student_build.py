@@ -294,3 +294,39 @@ def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_
     assert isinstance(first.tracker, WorkItTracker)
     first.tracker.add_employer_account(account)
     assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's
+
+
+def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
+    """Fault: a plain Worker's wrapper in the compiled app runs `-I host.py`, which the app has neither of (no Python,
+    no .py file), or names its program by sys.executable, which in a Nuitka program is a `python` beside it that
+    doesn't exist. Either way Chrome never reaches Apply and no plain Worker says hello (W8). Its own program, as the
+    OS names it, is the relay when host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated
+    Python on host.py."""
+    import shlex
+
+    import psutil
+
+    from apply.plain import host, launcher
+
+    assert shlex.split(launcher.host_command(compiled=True)) == [psutil.Process().exe(), host.APP_FLAG]
+    assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
+
+
+def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):
+    """Fault: the compiled app builds the window capture helper with swiftc, which a student's Mac lacks, so every
+    plain Worker's tile drops to the slow captureVisibleTab path; or it films with a helper left in a cache folder
+    instead of the one signed with the app (W8)."""
+    from apply.plain import window_capture
+
+    shipped = tmp_path / window_capture.BUNDLED_NAME
+    shipped.write_bytes(b"helper")
+    monkeypatch.setattr(window_capture, "BUNDLED", shipped)
+    monkeypatch.setattr(window_capture.shutil, "which", lambda name: pytest.fail(f"looked for {name}"))
+    window_capture.helper.cache_clear()
+    try:
+        assert window_capture.helper() == shipped
+        shipped.unlink()
+        window_capture.helper.cache_clear()
+        assert window_capture.helper() is None  # a missing helper: the tile's extension frames, never a build
+    finally:
+        window_capture.helper.cache_clear()

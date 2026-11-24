@@ -51,3 +51,40 @@ def test_the_applet_writes_the_link_it_is_handed_to_the_inbox():
     script = sign_in_link.SCRIPT.format(inbox="/Users/x/Library/Application Support/WorkIt Auto Apply/sign-in-link")
     assert 'quoted form of "/Users/x/Library/Application Support/WorkIt Auto Apply/sign-in-link"' in script
     assert "on open location theURL" in script and "umask 077" in script
+
+
+def test_the_built_app_takes_the_link_macos_hands_it_once_with_no_helper(inbox, monkeypatch):
+    """Fault: the built app makes the checkout's helper (osacompile, a second bundle claiming the scheme), or takes
+    a link macOS handed it twice, or keeps one from an earlier sign-in. Its own Info.plist claims the scheme
+    (scripts/build_app.py), and the Apple event's link stays in memory (W8)."""
+    monkeypatch.setattr(sign_in_link, "BUNDLED", True)
+    monkeypatch.setattr(sign_in_link.subprocess, "run", lambda *a, **k: pytest.fail("made a helper"))
+    assert sign_in_link.ready() is True
+    sign_in_link.hand("workit-auto-apply://signed-in?code=old")
+    sign_in_link.clear()
+    assert sign_in_link.take() is None
+    sign_in_link.hand("workit-auto-apply://signed-in?code=abc")
+    assert sign_in_link.take() == "workit-auto-apply://signed-in?code=abc"
+    assert sign_in_link.take() is None and not inbox.exists()
+
+
+def test_an_open_url_event_with_no_link_keeps_nothing_and_raises_nothing(monkeypatch):
+    """Fault: any program may send the built app an open-URL Apple event with no link; reading it raised inside
+    Cocoa's call, which can abort the app (app_window.closing). Mac only: it builds a real event (PyObjC)."""
+    foundation = pytest.importorskip("Foundation")
+    monkeypatch.setattr(sign_in_link, "BUNDLED", True)
+    sign_in_link._handle_links()
+
+    def event(link=None):
+        made = foundation.NSAppleEventDescriptor.appleEventWithEventClass_eventID_targetDescriptor_returnID_transactionID_(
+            sign_in_link.GURL, sign_in_link.GURL, None, -1, 0)
+        if link:
+            made.setParamDescriptor_forKeyword_(foundation.NSAppleEventDescriptor.descriptorWithString_(link),
+                                                sign_in_link.DIRECT)
+        return made
+
+    sign_in_link.clear()
+    sign_in_link._listener.handle_withReply_(event(), None)
+    assert sign_in_link.take() is None
+    sign_in_link._listener.handle_withReply_(event("workit-auto-apply://signed-in?code=abc"), None)
+    assert sign_in_link.take() == "workit-auto-apply://signed-in?code=abc"

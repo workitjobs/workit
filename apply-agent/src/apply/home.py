@@ -7,7 +7,8 @@ profiles). Every data path derives from it, read once at import.
 
 CODE is Apply's folder in the checkout (apply-agent/): only generic inputs live there (the
 answering guides, the default policies, the profile template, and SAMPLE, the
-Test Person data a first run starts from).
+Test Person data a first run starts from). In the compiled app it is the folder that
+holds the program, where the build (scripts/build_app.py) puts the same inputs.
 
 APP_FOLDER is WorkIt Auto Apply's data folder (D25), in each OS's standard place
 as platformdirs gives it: ~/Library/Application Support/WorkIt Auto Apply on
@@ -30,7 +31,9 @@ from apply import build
 
 APP_FOLDER = platformdirs.user_data_path("WorkIt Auto Apply", appauthor=False, roaming=False)
 HOME = Path(os.environ.get("APPLY_HOME") or (APP_FOLDER if build.STUDENT else "~/.config/apply")).expanduser()
-CODE = Path(__file__).resolve().parents[2]
+# The compiled app (Nuitka, W8) has no checkout: the build puts these inputs beside the program, and each compiled
+# module's __file__ names its place there (Contents/MacOS/apply/home.py), one folder less deep than src/apply/.
+CODE = Path(__file__).resolve().parents[1 if "__compiled__" in globals() else 2]
 # The Story bank, read by essays, gates, stock answers and the story map: one path, so a test moves all of them.
 STORY_BANK = HOME / "story-bank.md"
 # The Test Person sample data: copied into a data folder that has no Applicant profile yet, never written to.

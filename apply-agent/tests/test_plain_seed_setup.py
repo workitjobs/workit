@@ -182,7 +182,9 @@ def test_a_fresh_profile_reaches_a_working_worker_with_only_the_users_clicks(tmp
     assert run.wizard.run() is True
 
     assert run.desk.opened == [EXTENSIONS_PAGE]  # opened for the user, nothing clicked
-    assert run.desk.copied == [str(run.workers.copy.resolve())]
+    # Fault: Chrome 157 opens a New Tab for a chrome:// page on its command line, and the user had nothing to paste.
+    assert run.desk.copied == [EXTENSIONS_PAGE, str(run.workers.copy.resolve())]
+    assert EXTENSIONS_PAGE in run.text and "address bar" in run.text
     assert run.desk.revealed == [run.workers.copy.resolve()]
     assert run.desk.terminated == [4242]
     assert run.workers.launched == [0] and run.workers.stopped == [0]
@@ -209,7 +211,7 @@ def test_no_extension_says_so_and_nudges_with_the_path_on_the_clipboard_again(tm
                                                                        run.prefs(**run.done())]
     assert run.wizard.run() is True
     assert "No extension yet" in run.text and "Apply still doesn't see the extension" in run.text
-    assert len(run.desk.copied) == 2
+    assert run.desk.copied.count(str(run.workers.copy.resolve())) == 2
 
 
 def test_wrong_folder_names_both_folders_and_shows_the_step_again(tmp_path):
@@ -338,16 +340,29 @@ def test_the_desk_copies_reveals_and_opens_with_no_click(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(seed_setup.pyperclip, "copy", lambda text: calls.append((["copy"], text)))
     monkeypatch.setattr(subprocess, "run", lambda argv, **kw: calls.append((argv, kw.get("input"))))
-    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: calls.append((argv, None)))
-    desk = Desk(tmp_path, Path("/Chrome"))
+    monkeypatch.setattr(seed_setup, "start_in_background", lambda argv, *a, **kw: calls.append((argv, kw)))
+    seed = tmp_path / "plain-seed"
+    desk = Desk(seed, Path("/Chrome"))
     desk.copy("/a/folder")
     desk.reveal(Path("/a/folder"), "darwin")  # each OS's own way: test_each_os.py
-    desk.open_chrome(EXTENSIONS_PAGE)
+    desk.open_chrome(EXTENSIONS_PAGE)  # each OS's start, in front: test_each_os.py
     assert calls[0] == (["copy"], "/a/folder")  # pyperclip: the clipboard on every OS
     assert calls[1] == (["open", "-R", "/a/folder"], None)
-    assert calls[2][0][:2] == ["/Chrome", f"--user-data-dir={tmp_path}"] and calls[2][0][-1] == EXTENSIONS_PAGE
+    assert calls[2][0][:2] == ["/Chrome", f"--user-data-dir={seed}"] and calls[2][0][-1] == EXTENSIONS_PAGE
+    assert calls[2][1] == {"front": True}
     assert not any(a.startswith(("--remote-debugging", "--enable-automation", "--headless", "--load-extension"))
                    for a in calls[2][0])
+
+
+def test_a_chrome_too_slow_to_take_the_seed_is_a_setup_error(tmp_path, monkeypatch):
+    """Fault: start_in_background's TimeoutError left the desk as it was, so `apply plain seed`, which says only a
+    SetupError, printed a traceback when Chrome took the seed profile late (a first launch after an update)."""
+    def late(*args, **kwargs):
+        raise TimeoutError("no Chrome took plain-seed within 20 s of `open`")
+
+    monkeypatch.setattr(seed_setup, "start_in_background", late)
+    with pytest.raises(seed_setup.SetupError, match="did not open the seed profile"):
+        Desk(tmp_path / "plain-seed", Path("/Chrome")).open_chrome(EXTENSIONS_PAGE)
 
 
 def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):

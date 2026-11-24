@@ -736,6 +736,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
                                    min_size=(900, 600))
     bridge._window = window
     closing(window)
+    sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     webview.start()  # no http_server: the page is a string, so pywebview opens no port either
 
 

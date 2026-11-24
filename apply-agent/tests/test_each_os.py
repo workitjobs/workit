@@ -206,6 +206,19 @@ def test_on_the_mac_chrome_starts_through_open_g(tmp_path, monkeypatch):
     assert ran[0][-2:] == ["--args", f"--user-data-dir={tmp_path}"]
 
 
+def test_on_the_mac_the_seeds_chrome_starts_through_open_in_front_never_as_this_apps_child(tmp_path, monkeypatch):
+    """Fault: the seed's Chrome started from its binary is the app's child, so macOS blamed WorkIt Auto Apply when
+    Chrome's updater changed Google Chrome.app ("prevented from modifying apps"); or started with -g, so the window
+    the user works in stays behind."""
+    from apply.plain import seed_setup
+
+    ran = []
+    monkeypatch.setattr(launcher.subprocess, "run", lambda argv, **kwargs: ran.append(argv))
+    monkeypatch.setattr(launcher, "chrome_pid", lambda profile: 4242)
+    seed_setup.Desk(tmp_path / "plain-seed", MAC_CHROME).open_chrome(seed_setup.EXTENSIONS_PAGE, "darwin")
+    assert ran[0][:4] == ["/usr/bin/open", "-n", "-a", "/Applications/Google Chrome.app"]
+
+
 class Port:
     """A plain Worker's port: the ops it was called with, and what `windows.focus` does."""
 
