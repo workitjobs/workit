@@ -1985,6 +1985,17 @@ go then. A change needs to work on Cloudflare only.
   (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
   main"). The runner's scrape needs none of this: each run checks out the
   commit it runs.
+- **Apply `b7e4c2a9d816` (`answer_banks`, KAN-834, W11) once its PR has
+  merged, and before the deploy that maps it.** A revision that `main`
+  lacks breaks every teammate's Alembic (`alembic/CLAUDE.md`). The model
+  maps the table, and every read and save of the Answer bank goes through
+  it: deployed first, the extension's bank reads (`GET .../answer-bank`),
+  its saves (`PUT .../answers`, the connector's one-off answers), the
+  Written Answers page's saves, WorkIt Auto Apply's PATCH and `GET
+  /apply-app/usage` all answer 500. It only adds a table, empty until a
+  student's first read fills their row, so applying it early is safe. It
+  sits on `a9d4c2e7f893`, so `upgrade head` applies `main`'s bank-entry
+  migrations first where they are not yet applied.
 - **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
   has merged, never from its branch.** A revision that `main` lacks breaks
   every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's

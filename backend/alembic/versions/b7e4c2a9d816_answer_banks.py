@@ -13,7 +13,7 @@ applicant_profiles.fill_answers and their saved answers
 once it is on main, never from its branch (backend/alembic/CLAUDE.md).
 
 Revision ID: b7e4c2a9d816
-Revises: f45841235b98
+Revises: a9d4c2e7f893
 Create Date: 2026-11-18 23:00:00.000000
 
 """
@@ -26,7 +26,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'b7e4c2a9d816'
-down_revision: Union[str, Sequence[str], None] = 'f45841235b98'
+down_revision: Union[str, Sequence[str], None] = 'a9d4c2e7f893'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
