@@ -38,6 +38,7 @@ from typing import Self
 from urllib.parse import urlsplit
 
 from apply import attach, captcha, send_click, upload_origin
+from apply.plain import channel
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -444,33 +445,26 @@ class ToolServer:
         self.tools = Tools(page, folder, hook)
         self.path = socket_folder() / f"mcp-{uuid.uuid4().hex[:12]}.sock"
         self._python = python
-        self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._server: channel.Listener | None = None
         self._stopped = threading.Event()
 
     def mcp_server(self) -> dict:
         return {"command": self._python, "args": ["-I", "-m", "apply.plain.mcp", "--socket", str(self.path)]}
 
     def __enter__(self) -> Self:
-        old = os.umask(0o177)
-        try:
-            self._server.bind(str(self.path))
-        finally:
-            os.umask(old)
-        self._server.listen(4)
+        self._server = channel.Listener(self.path)
         threading.Thread(target=self._accept, daemon=True, name="claude-tools").start()
         return self
 
     def __exit__(self, *exc) -> None:
         self._stopped.set()
-        try:
+        if self._server:
             self._server.close()
-        finally:
-            self.path.unlink(missing_ok=True)
 
     def _accept(self) -> None:
         while not self._stopped.is_set():
             try:
-                connection, _ = self._server.accept()
+                connection = self._server.accept()
             except OSError:
                 return
             threading.Thread(target=self._serve, args=(connection,), daemon=True, name="claude-tool").start()

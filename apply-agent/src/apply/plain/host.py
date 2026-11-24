@@ -9,12 +9,13 @@ socket, says which Worker it is, then relays frames both ways unchanged: Chrome'
 Stdlib only, run with `python3 -I`, so it needs nothing from Apply's environment.
 """
 
+import importlib.util
 import json
 import os
-import socket
 import struct
 import sys
 import threading
+from pathlib import Path
 
 PROTOCOL = 1
 TO_CHROME = 1024 * 1024  # Chrome's limit on a message from a host
@@ -39,12 +40,19 @@ def frames(stream):
         yield head + body
 
 
+def _channel():
+    """channel.py beside this file, loaded by its path: the host imports nothing else of Apply's."""
+    spec = importlib.util.spec_from_file_location("apply_channel", Path(__file__).with_name("channel.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main(argv: list[str]) -> None:
     path = argv[argv.index("--socket") + 1]
     worker = int(argv[argv.index("--worker") + 1])
     origin = next((a for a in argv if a.startswith("chrome-extension://")), "")
-    apply = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    apply.connect(path)
+    apply = _channel().connect(Path(path))
     first = json.dumps({"type": "relay", "protocol": PROTOCOL, "worker": worker, "origin": origin,
                         "host_pid": os.getpid()}).encode()
     apply.sendall(struct.pack("=I", len(first)) + first)

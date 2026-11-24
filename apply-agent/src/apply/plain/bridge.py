@@ -31,6 +31,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply.home import HOME
+from apply.plain import channel
 from apply.plain.extension import EXTENSION_ORIGINS, code_hash, engine_identity
 
 PROTOCOL = 1
@@ -244,7 +245,7 @@ class Bridge:
         self._reloaded: set[int] = set()  # Workers told to reload once already
         self.reloadable: Callable[[int], bool] = lambda worker: False  # PlainWorkers: its profile's Developer mode
         self._warned = False
-        self._server: socket.socket | None = None
+        self._server: channel.Listener | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
         self._changed = threading.Condition()
@@ -258,27 +259,10 @@ class Bridge:
     def start(self) -> None:
         if self._server:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.parent.name.startswith("apply-"):
-            self.path.parent.chmod(0o700)
-        if self.path.exists():
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                probe.connect(str(self.path))
-                raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}")
-            except (ConnectionRefusedError, FileNotFoundError):
-                self.path.unlink(missing_ok=True)
-            finally:
-                probe.close()
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        old = os.umask(0o177)
         try:
-            server.bind(str(self.path))
-        finally:
-            os.umask(old)
-        self.path.chmod(0o600)
-        server.listen(16)
-        self._server = server
+            self._server = channel.Listener(self.path)
+        except channel.Busy:
+            raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}") from None
         self.engine  # noqa: B018 - read the engine's identity before the first hello
         threading.Thread(target=self._accept, name="plain-bridge", daemon=True).start()
 
@@ -286,7 +270,6 @@ class Bridge:
         server, self._server = self._server, None
         if server:
             server.close()
-            self.path.unlink(missing_ok=True)
         for connection in list(self._workers.values()):
             connection.close()
         self._workers.clear()
@@ -294,7 +277,7 @@ class Bridge:
     def _accept(self) -> None:
         while (server := self._server) is not None:
             try:
-                sock, _ = server.accept()
+                sock = server.accept()
             except OSError:
                 return
             threading.Thread(target=self._greet, args=(sock,), daemon=True).start()

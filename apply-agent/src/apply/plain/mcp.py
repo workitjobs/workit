@@ -6,14 +6,15 @@ so Claude fill and Rescue see the same tool names and inputs as Playwright MCP's
 (apply.send_click, on mcp__playwright__browser_click) runs as before. It holds no browser: each
 tools/call goes as one JSON line over the drive's Unix socket to Apply's ToolServer
 (apply.plain.tools), which runs it on the Worker's page through its port, and the answer comes
-back the same way. Stdlib only: it starts fast and imports nothing of Apply's.
+back the same way. Stdlib only: it starts fast and imports nothing of Apply's but its channel (plain/channel.py).
 """
 
 import argparse
 import json
-import socket
 import sys
 from pathlib import Path
+
+from apply.plain import channel
 
 TOOLS = json.loads((Path(__file__).with_name("mcp_tools.json")).read_text())["tools"]
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -45,8 +46,7 @@ class Apply:
     """The line-per-message connection to the drive's ToolServer."""
 
     def __init__(self, path: str):
-        self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._socket.connect(path)
+        self._socket = channel.connect(Path(path))
         self._lines = self._socket.makefile("r", encoding="utf-8")
 
     def __call__(self, name: str, arguments: dict) -> dict:
