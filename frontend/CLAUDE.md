@@ -3251,9 +3251,9 @@ are in `docs/auth.md`.
   it, and a module variable would show one account's profile to the next
   person in that tab. My Profile loads through one server action,
   `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
-  profile and answer bank ran in a row on a first visit, and a Save waited
+  profile and Application answers ran in a row on a first visit, and a Save waited
   behind them. A read added to My Profile joins that action. It reads the
-  photo and the profile only since KAN-550; the answer bank went with
+  photo and the profile only since KAN-550; the Application answers went with
   Application Info, which reads it on the server.
 - **My Profile is what an employer sees; Application Info is what the
   autofiller reads** (KAN-550, `docs/screens.md`, My Profile and Auto

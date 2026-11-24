@@ -823,7 +823,7 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
   `027620538860` (KAN-233's expand). It must be on the database before the
   API that maps them deploys.
 
-## The answer bank — `autofill_answers.py` (KAN-283)
+## Application answers — `autofill_answers.py` (KAN-283)
 
 A student's answers to the questions hiring systems repeat on every
 application: work authorization, sponsorship, citizenship and visa status,
@@ -887,7 +887,8 @@ so WorkIt fills forms as completely as Apply does.
 - **The folder is Apply's data folder** (KAN-536). Without `<apply_dir>`, the
   import reads the folder that Apply reads: `$APPLY_HOME`, else
   `~/.config/apply` (`import_apply_writing.apply_home`). The profile, policies,
-  answer bank, story bank, voice and company briefs are directly in it.
+  story bank, voice and company briefs are directly in it, and a Developer
+  checkout's answer-bank.yaml from before W11 when it has one.
 - **The degree is Apply's `degree_type`** ("Bachelor of Science"), else its
   `degree` unless that names only its level ("Bachelor's degree", the
   form value Apply keeps there): then the degree stays empty and the

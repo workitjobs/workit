@@ -1,7 +1,7 @@
 """
 autofill_answers' queries, behind routers/autofill_answers.py: one student's
-answer bank, read whole and merged a key at a time (models/autofill_answers.py).
-Auto apply's fill will read the bank through fetch_bank too.
+Application answers, read whole and merged a key at a time (models/autofill_answers.py).
+Auto apply's fill will read them through fetch_bank too.
 """
 
 import uuid

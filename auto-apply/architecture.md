@@ -943,7 +943,7 @@ This data also shows which hiring systems need adapter work.
 ### `autofill_answers`
 
 **Built** (KAN-283): one JSONB bank of answers per student for the questions
-hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
+hiring systems repeat, `backend/app/models/CLAUDE.md`, "Application answers".
 Onboarding's Profile step fills it, and Application Info's Work
 Authorization and Voluntary Self-Identification cards edit it later
 (KAN-269; on My Profile until KAN-550): work authorization, sponsorship,

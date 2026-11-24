@@ -16,7 +16,7 @@ as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET
 /applicants/{id}/bank`, KAN-212), the onboarding **job preferences** (`GET
-/applicants/{id}/preferences`, KAN-231), and the **autofill answer bank**
+/applicants/{id}/preferences`, KAN-231), and the **Application answers**
 (`GET /applicants/{id}/autofill-answers`, KAN-283) — the same rows the
 Experience Bank and onboarding screens read and write, never an uploaded
 resume's `parsed_json`. Same rule the recommender and Scout follow
