@@ -104,3 +104,12 @@ export async function getApplicationStage(jobId: string): Promise<ApplicationSta
     return null;
   }
 }
+
+/** How many jobs wait in the Auto Apply queue: queued ones and needs-you
+ *  ones, which wait on the seeker too, as Up Next holds them. The sidebar's
+ *  Auto Apply row shows it (../queue-badge.tsx). Null when it can't be read,
+ *  so a failure never passes for an empty queue. */
+export async function getQueueCount(): Promise<number | null> {
+  const { applications } = await getApplications(["queued", "needs_you"] as const);
+  return applications ? applications.length : null;
+}

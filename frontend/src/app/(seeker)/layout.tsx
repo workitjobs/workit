@@ -15,16 +15,18 @@ import { BAR_ICON, BAR_TITLE } from "./bar";
 import { BarTitle } from "./bar-title";
 import { Greeting } from "./greeting";
 import { ProfileCacheProvider } from "./profile-cache";
+import { getQueueCount } from "./auto-apply/applications";
 import { ProfileStrength } from "./profile-strength";
+import { QueueBadge } from "./queue-badge";
 import { ScrollMemory } from "./scroll-memory";
 import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
  * Chrome shared by every signed-in seeker screen, ruled into regions by the
- * control edge (--color-border-control, 2026-11-03), the edge the cards and
- * buttons have, so the frame and what is on it read as one set; in the light
- * hairline it was the only faint line left on the page. The section panel
+ * surface edge (--color-border-surface, 2026-11-09), the edge the cards
+ * have, so the frame and the cards on it read as one set. It was the dark
+ * control edge from 2026-11-03, which the user found too strong. The section panel
  * runs the full height
  * on the left, flush with the window; beside it, the top bar along the top,
  * and under the bar the page itself.
@@ -33,8 +35,8 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * #fcfcfc, 2026-11-03), as Simplify's is. On 2026-11-02 the page went grey
  * (#f5f5f5) because white cards blended into a white page; on the grey,
  * white cards and light edges read as muted. Simplify's own page is #fcfcfc
- * with #e8e8e8 hairlines; here a card's outer edge is --color-border-control,
- * as a button's is (ui/card.tsx), and only its rules are #e8e8e8. Anything that sits on the page and needs its
+ * with #e8e8e8 hairlines; here a card's outer edge is --color-border-surface,
+ * a step darker (ui/card.tsx), and only its rules are #e8e8e8. Anything that sits on the page and needs its
  * own edge is white; a sticky bar is the page's colour, so it hides what
  * scrolls under it without showing as a strip.
  *
@@ -147,6 +149,11 @@ export default async function AppLayout({
             <ProfileStrength />
           </Suspense>
         }
+        queueBadge={
+          <Suspense fallback={null}>
+            <QueueCount />
+          </Suspense>
+        }
       />
 
       {/* The bar and the page. */}
@@ -155,7 +162,7 @@ export default async function AppLayout({
             at the rail's edge, which runs the window's full height: the
             logo header has no rule, since one there crossed that edge in a
             "+" (2026-11-03). */}
-        <header className="bg-panel border-border-control flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
+        <header className="bg-panel border-border-surface flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           {/* The rail is always open from md, so the toggle only opens the
               phone's sheet. Named here, since shadcn's own name is "Toggle
               Sidebar". No logo beside it: the sheet's header shows the logo,
@@ -292,4 +299,10 @@ function AccountSkeleton() {
       </span>
     </div>
   );
+}
+
+/** The Auto Apply row's count, read on the server and streamed in its own
+ *  boundary, so nothing in the shell waits on it (./queue-badge.tsx). */
+async function QueueCount() {
+  return <QueueBadge initial={await getQueueCount()} />;
 }

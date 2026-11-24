@@ -6,6 +6,8 @@ export default defineConfig({
   // A CI runner is slower than a laptop, and a few timing-bound specs now and
   // then miss; a spec that is broken fails all three tries.
   retries: process.env.CI ? 2 : 0,
+  // On CI, one line a test with its time, so a slow spec shows in the log.
+  reporter: process.env.CI ? "list" : undefined,
   projects: [
     {
       // The fill in a saved form's page, minus Chrome (extension.ts).

@@ -1,4 +1,6 @@
-import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
+import { Suspense } from "react";
+
+import { ShallowRouting } from "@/components/shallow-routing";
 import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { LinkedInGlyph } from "@/app/(seeker)/profile/icons";
@@ -9,12 +11,15 @@ import { SECTIONS } from "../data";
 import { TextAreaField } from "@/components/text-area-field";
 
 import {
+  ChoiceCardSpecimen,
+  SuggestFieldSpecimen,
   ChoiceSpecimen,
   DateFieldSpecimen,
   GlyphSelectSpecimen,
   MonthFieldSpecimen,
   ResumeUploadSpecimen,
   SegmentedSpecimen,
+  TabsSpecimen,
   SelectFieldSpecimen,
 } from "../interactive";
 import { FieldFacetStates, MultiSelectSpecimen, SortMenuSpecimen } from "../parts";
@@ -61,9 +66,22 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
+          role="One look of the same content among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
+        </Row>
+        <Row
+          name="<TabLinks>"
+          role="Moves between different content on one subject: in a bar (a job's Overview and Company), and ruled under a page's top (Documents)"
+        >
+          {/* It reads `?tab=`, which a static page must wait for under a
+              Suspense boundary or the build fails; ShallowRouting moves the
+              query in place, as on the motion page. */}
+          <Suspense>
+            <ShallowRouting>
+              <TabsSpecimen />
+            </ShallowRouting>
+          </Suspense>
         </Row>
         <Row
           name="<Stepper>"
@@ -71,7 +89,7 @@ export default function FormsPage() {
         >
           <div className="flex w-full max-w-lg flex-col gap-5">
             <Stepper steps={["Basic Details", "Screening", "Review"]} current={1} />
-            <Stepper size="lg" steps={ONBOARDING_STEPS} current={1} />
+            <Stepper size="lg" steps={["Role", "Resume", "Profile", "Extension"]} current={1} />
           </div>
         </Row>
         <Row name="<SelectField>" role="Label wired by aria-labelledby, WorkIt's field height">
@@ -91,7 +109,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SortMenu>"
-          role="A list's order, drawn as a filter is; never tinted, since an order is always in force"
+          role="A list's order, first in every page toolbar's filter row, drawn as a filter is; never tinted, since an order is always in force"
         >
           <SortMenuSpecimen />
         </Row>
@@ -125,6 +143,18 @@ export default function FormsPage() {
           role="A tile: one answer on a one-question screen. A radio row: one pick in a form's list"
         >
           <ChoiceSpecimen />
+        </Row>
+        <Row
+          name="<ChoiceCard>"
+          role="Two or three big answers side by side, each a different path: onboarding's resume question"
+        >
+          <ChoiceCardSpecimen />
+        </Row>
+        <Row
+          name="<SuggestField>"
+          role="One value, suggested from a list as it is typed, kept as typed: a school, a degree, a field of study"
+        >
+          <SuggestFieldSpecimen />
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />

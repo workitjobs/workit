@@ -1,5 +1,7 @@
 # An uploaded resume fills the experience bank on upload, and the parser's output is not kept
 
+Superseded in part: ADR 0005 replaced the merge rule, and ADR 0007 replaced "the parser only, unless the student asks" (every upload is read by the model first, the parser behind it).
+
 Uploading a resume saves the file, reads its text into `resumes.raw_text`, parses it, and writes the entries and skills straight into the experience bank, in one request (KAN-240). Each new resume adds to one bank: an entry already in the bank is merged, never copied. `resumes.parsed_json` is dropped, because the bank is the only store of resume facts. This reverses KAN-211's "import never writes": students uploaded a resume, saw nothing happen, and never found the review screen inside intake.
 
 ## The rules

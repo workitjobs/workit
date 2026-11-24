@@ -38,12 +38,20 @@ FEATURES = [
     ("tailor", "run", {"large", "small"}),
     ("tailor", "run_streamed", {"large", "small"}),
     ("tailor", "match", {"small"}),
-    ("bank", "import_resume", {"large"}),
+    # Every upload's reading (KAN-732) takes the default chain, Gemini first:
+    # a long resume is more than Groq's free tier takes in a minute.
+    ("bank", "import_resume", {"default"}),
+    ("resumes", "upload_resume", {"default"}),
+    ("resumes", "preview_resume", {"default"}),
+    ("resumes", "replace_resume", {"default"}),
     ("assistant", "ask", {"large"}),
     ("built_resumes", "keyword_match", {"small"}),
     ("company_jobs", "create_job", {"small"}),
     ("company_jobs", "update_job", {"small"}),
     ("company_jobs", "change_job_status", {"small"}),
+    # WorkIt Auto Apply's Model route (KAN-723): Apply's haiku calls take the
+    # small chain, its sonnet and opus calls the large one.
+    ("apply_app", "ask", {"large", "small"}),
 ]
 
 

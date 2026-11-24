@@ -3,14 +3,19 @@
 The wrapped code evaluates `expression`; a function is called with `arg`; a promise is
 awaited. It answers {ok: value}, {undef: true}, or {err: {name, message}}, so a page error
 comes back as data rather than as the extension's own failure.
+
+The worker extension runs it through its chrome.debugger (KAN-839), in the frame's MAIN world,
+where the page's CSP doesn't govern: no chrome.userScripts, which a Chrome Web Store copy may use
+only for the user's own code. The Fill engine goes to the extension's memory once per connection
+(`keep_engine`), so `engine.load` runs it from there: no engine file in the extension's folder.
 """
 
+import hashlib
 import json
 
-from apply.plain.bridge import PortError
+from apply.plain.bridge import PortError, features
 
-USER_SCRIPTS_OFF = ("the page's CSP blocks eval and this Worker's user scripts are off: turn on Allow User Scripts "
-                    "for the Apply Worker extension in the seed profile (`uv run apply plain seed`)")
+HELD_FROM = 4  # the first feature level whose extension holds an engine Apply hands over (cdp.keep)
 
 
 def wrap(expression: str, arg=None) -> str:
@@ -27,10 +32,24 @@ def unwrap(answer):
         raise PortError("EvalError", f"page code gave no answer ({answer!r})")
     if "err" in answer:
         error = answer["err"] or {}
-        if error.get("name") == "UserScriptsOff":
-            raise PortError("UserScriptsOff", f"{USER_SCRIPTS_OFF} ({error.get('message')})")
         raise PortError("EvalError", f"{error.get('name', 'Error')}: {error.get('message', '')}")
     return None if answer.get("undef") else answer.get("ok")
+
+
+def keep_engine(connection) -> None:
+    """The Fill engine's bundle in the extension's memory (`cdp.keep`, with its sha256), so its `engine.load`
+    runs it through the debugger. Once per connection, and again when the bundle on disk changed (a new posting
+    on a running Worker after a pull): the extension refuses a bundle whose sha256 isn't the one sent."""
+    from apply import fill_engine
+
+    if features(getattr(connection, "hello", None) or {}) < HELD_FROM:
+        return  # an older extension: stale, reloaded or told so by the bridge
+    source = fill_engine.source()  # the checkout's file or WorkIt's download, from memory either way (W7)
+    sha = hashlib.sha256(source.encode()).hexdigest()
+    if getattr(connection, "engine_kept", None) == sha:
+        return
+    connection.call("cdp.keep", name="engine", source=source, sha256=sha)
+    connection.engine_kept = sha
 
 
 def evaluate(connection, tab: int, expression: str, arg=None, frame: int = 0):

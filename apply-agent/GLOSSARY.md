@@ -36,6 +36,10 @@ _Avoid_: personal info, answers file
 A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
 _Avoid_: unknown question, gap
 
+**Optional ask**:
+An optional question that asks a fact about Lisul that no source holds, where the fact may exist for him (KAN-759). It shows in Needs you with a Skip (leave blank) button. It never stops or holds the form. Verifying lists it as a note. His answer joins the profile. His Skip is kept as an empty answer, so no later form asks it again. It is never asked when the known facts say that the fact does not exist: an empty profile fact (no middle name), Address Line 2 or 3 of a home address that has none, or a Tax District for a home in no local tax district. An optional catch-all box and a preferred name are never asked.
+_Avoid_: optional Missing fact, optional blank
+
 **Go to question**:
 The button on a Needs you question whose form is still open in its Worker's browser. It brings that browser to the front and scrolls to the field, which it focuses and outlines. A field on another Workday step is not shown: Apply names the step and moves nothing. Lisul can then answer the question on the form. Once he leaves the field and it rests a moment, Apply saves his answer as the card saves it, and the question leaves Needs you.
 _Avoid_: jump, show field
@@ -81,7 +85,7 @@ A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer,
 _Avoid_: retry queue, outbox
 
 **WorkIt client**:
-The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
+The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. Its login is kept in the system's keychain.
 _Avoid_: API wrapper, WorkIt SDK
 
 **Top 500**:
@@ -128,6 +132,10 @@ _Avoid_: ban, captcha, stealth
 The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
+**Session keep-alive**:
+What Apply does to keep a job site's session open while a form is held for the applicant. It acts on every job site, and its site table adds what is known of each system. It sends a request for the page's own address and a mouse-move event to the page. When the site shows a "session about to expire" dialog, Apply presses only that dialog's stay-signed-in button, with the guards on. The applicant's Submit then stays held until they press Dismiss on the page. It never saves, never sends the Application and never changes a field. When a session ends, the tile and the phone push say to press Fill again.
+_Avoid_: heartbeat, refresh, keep awake
+
 **Worker**:
 One process with its own browser that carries one Application at a time: it runs the Filler for the Posting's job system and calls Claude only for answers no stored fact covers. Several run at once.
 _Avoid_: bot, agent, runner
@@ -144,6 +152,30 @@ _Avoid_: scheduler, manager, controller
 A Worker's own browser profile that persists between runs and stays signed in to Lisul's Google account.
 _Avoid_: session, browser, Chrome profile
 
+**Worker extension**:
+The extension through which a plain Worker reads and fills a form. It lives only in Apply's Worker profiles, never in the applicant's own Chrome.
+_Avoid_: helper extension, plugin, "the extension" (that is WorkIt's)
+
+**Seed**:
+The Worker profile that gets the Worker extension once, by the applicant's own clicks. Each new plain Worker's profile starts as a copy of it.
+_Avoid_: template profile, base profile
+
+**Student build**:
+Apply as the app that students download from WorkIt, named WorkIt Auto Apply. It has no developer parts, signs in only to WorkIt, and makes every model call through WorkIt.
+_Avoid_: release, production app, desktop version
+
+**Developer checkout**:
+Apply run from a clone of its repo. It keeps every developer part, such as Claude on the developer's own login.
+_Avoid_: dev mode, local build
+
+**Model route**:
+WorkIt's way for a Student build to call a model. WorkIt holds the provider keys, makes the call and counts it against the student's Usage cap.
+_Avoid_: proxy, AI gateway, model API
+
+**Usage cap**:
+The model use that one student may spend in one month in a Student build. The Apply window shows the use; at the cap, a run pauses.
+_Avoid_: quota, limit, credits
+
 **Apply window**:
 The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
@@ -153,7 +185,7 @@ Any free-text answer Claude writes for a form: a question's answer or a Cover le
 _Avoid_: unique answer, long answer, free-text response
 
 **Question type**:
-The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file in apply/answering/types/.
+The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file on WorkIt's server (backend/app/apply_prompts/answering/types/), whose front matter Apply fetches (apply.answering).
 _Avoid_: question category, prompt kind, essay kind
 
 **Essay plan**:
@@ -183,7 +215,7 @@ What else the employer publishes about itself and the role, read when an Applica
 _Avoid_: research, context, company info
 
 **Company brief**:
-What a company builds and works on: its engineering work first (a problem its engineers solved and what made it hard), then its products, customers and people, and the work of the team a role names, each fact with the page it came from, the kinds of problem it is, and a mark when it is the headline launch every applicant sees. It also holds the company's mission and values word for word, what kind of company it is, and, when a form asks, the problems it states itself and what each of its teams or tracks works on. Every fact is confirmed by a quote on its page; one whose page can't be read is marked unchecked and is never a Named fact. Drawn from the company's own pages, or from press coverage when its own pages can't be read. Lisul may edit it. Essays, cover letters and questions about the company draw on it beside the Company material; it is web text, not employer text. Apply reads a brief only when its heading names the form's company. The company comes from the link, the posting, the open form page or a known job site's host. When none names it, essays get no brief, only a note.
+What a company builds and works on: its engineering work first (a problem its engineers solved and what made it hard), then its products, customers and people, and the work of the team a role names, each fact with the page it came from, the kinds of problem it is, and a mark when it is the headline launch every applicant sees. It also holds the company's mission and values word for word, what kind of company it is, and, when a form asks, the problems it states itself and what each of its teams or tracks works on. Every fact is confirmed by a quote on its page; one whose page can't be read is marked unchecked and is never a Named fact. Drawn from the company's own pages, or from press coverage when its own pages can't be read. Lisul may edit it. Essays, cover letters and questions about the company draw on it beside the Company material; it is web text, not employer text. Apply reads a brief only when its heading names the form's company. The company comes from the link, the posting, the open form page or a known job site's host. When none names it, essays get no brief, only a note. In a Student build, the brief is WorkIt's, shared by every student: the app never researches it, and the student can't edit it.
 _Avoid_: research notes, company profile
 
 **Named fact**:
@@ -211,7 +243,7 @@ A Posting that reappears in the Feed under a new identity but is the same role L
 _Avoid_: duplicate, relisting
 
 **Filler**:
-The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold) from the Applicant profile.
+The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold, amazon.jobs) from the Applicant profile.
 _Avoid_: autofill, script, bot
 
 **Fill engine**:
@@ -219,7 +251,7 @@ The one set of Fillers and answer rules that Apply and the WorkIt extension both
 _Avoid_: shared code, autofill library, extension engine
 
 **Claude fill**:
-How an Application is filled on a job system with no Filler: Claude works the form in the Worker's browser step by step, under a hard cap on turns and tokens. Hitting the cap, or a form it can't finish alone, is a Handoff, and so is a submit the page never confirms: filled is not applied. A sign-in or new Employer account in the way of the form is got past as for a Filler: Claude fills its email and names, Apply types the password and the emailed code itself (Claude never sees a password), and a refused password or an account Keychain has no password for is a Handoff. While Claude works it, in a run as in a Rehearsal, the drive guard blocks the button that sends the form, a sign-in other than Google's (the sign-in's own button goes through only when Apply clicks it), a payment, withdrawing or deleting the application, account or profile (removing an uploaded file goes on, so a wrong file can be replaced), and ticking an opt-in to texts or marketing that Lisul's policies say no to; it is lifted only for the plain-code click that submits, and anything it blocked is a Handoff, in a Rehearsal as in a run (a Rehearsal still sends nothing). Claude stops at the form's last step and names the button that sends, never clicking it: a click it names as that button is refused before it runs, and one the guard blocked on the very button it then names as the one that sends leaves the form filled, not a Handoff, as a Filler leaves it. A company careers page that embeds a Greenhouse form (its link carries ?gh_jid= or the job's id in its path, or its page shows that form in a frame, as Lever and Ashby forms are found too) is filled by the Greenhouse Filler on that form's own Greenhouse link, not by Claude fill.
+How an Application is filled on a job system with no Filler: Claude works the form in the Worker's browser step by step, under a hard cap on turns and tokens. Hitting the cap, or a form it can't finish alone, is a Handoff, and so is a submit the page never confirms: filled is not applied. A sign-in or new Employer account in the way of the form is got past as for a Filler: Claude fills its email and names, Apply types the password and the emailed code itself (Claude never sees a password), and a refused password or an account Keychain has no password for is a Handoff. While Claude works it, in a run as in a Rehearsal, the drive guard blocks the button that sends the form, a sign-in other than Google's (the sign-in's own button goes through only when Apply clicks it), a payment, withdrawing or deleting the application, account or profile (removing an uploaded file goes on, so a wrong file can be replaced), and ticking an opt-in to texts or marketing that Lisul's policies say no to; it is lifted only for the plain-code click that submits, and anything it blocked is a Handoff, in a Rehearsal as in a run (a Rehearsal still sends nothing). A worker the page itself made is refused while the page is guarded, but it is no Handoff: the page made it, not Claude. Claude stops at the form's last step and names the button that sends, never clicking it: a click it names as that button is refused before it runs, and one the guard blocked on the very button it then names as the one that sends leaves the form filled, not a Handoff, as a Filler leaves it. A company careers page that embeds a Greenhouse form (its link carries ?gh_jid= or the job's id in its path, or its page shows that form in a frame, as Lever and Ashby forms are found too) is filled by the Greenhouse Filler on that form's own Greenhouse link, not by Claude fill.
 _Avoid_: fallback, fallback filler, agent fill
 
 **Question set**:
@@ -235,7 +267,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is the one Lisul chose in the Accounts tab, or a random one when he chose none. Each account keeps its own copy in the system's keychain: macOS Keychain, or Windows Credential Manager. The Accounts tab of the Apply window lists each one. Show password shows its password, and Copy password puts it on the clipboard for 60 s. Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:
@@ -277,7 +309,7 @@ Claude's fix, live on a held form, of a problem Lisul tells it in his own words.
 _Avoid_: chat, assistant, live edit
 
 **Rescue**:
-Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.
+Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's and amazon.jobs's Fillers have one.
 _Avoid_: fallback, live repair, retry
 
 **Repair request**:

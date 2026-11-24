@@ -5,6 +5,7 @@ import { createContext, useContext, useId, type ReactNode } from "react";
 import { ArrowLeftIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 type StepApi = {
   /** Shows `step` in place of the section, until Back or `close`. */
@@ -45,12 +46,12 @@ export function SettingsStep({
     <Card as="section" aria-labelledby={id} className="animate-fade flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1">
-          <IconButton label="Back" className="-ml-1.5 size-8" onClick={close}>
-            <ArrowLeftIcon className="size-4" />
+          <IconButton place="row" tooltip={false} label="Back" className="-ml-1.5" onClick={close}>
+            <ArrowLeftIcon />
           </IconButton>
-          <h3 id={id} className="text-subtitle text-ink font-semibold">
+          <SectionHeading as="h3" id={id}>
             {title}
-          </h3>
+          </SectionHeading>
         </div>
         <p className="text-body text-ink-meta">{description}</p>
       </div>

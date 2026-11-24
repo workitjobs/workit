@@ -109,28 +109,41 @@ export function TailorReviewBar({
  * stands apart from the content under it. It replaced the step timeline
  * (`TailorSteps`), the pick steps' Back above the title, and the buttons at
  * each card's foot: one row says where the student is and moves them on.
- * The step's name over "Step 3 of 3", two lines, said more than it needs.
+ * The step's name over "Step 3 of 3", two lines, said more than it needs,
+ * except on a phone, where one line had no room.
+ *
+ * `error` is what went wrong with the step's way on (Next's read of the
+ * match, Tailor Resume's run), shown in the bar under the button that caused
+ * it (KAN-819): it was at the foot of the step's card, past a page of
+ * resumes, while the button sat up here.
  */
 export function TailorBar({
   step,
   back,
   next,
+  error,
 }: {
   step: TailorStep;
   back: ReactNode;
   next: ReactNode;
+  error?: ReactNode;
 }) {
   const at = TAILOR_STEPS.findIndex((s) => s.value === step);
   return (
-    <div className="bg-brand-tint ring-brand-pale grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl p-2 ring-1">
-      <div className="flex justify-self-start">{back}</div>
-      <p aria-current="step" className="text-label text-ink truncate text-center font-semibold">
-        {TAILOR_STEPS[at].label}{" "}
-        <span className="text-ink-meta font-normal">
-          · Step {at + 1} of {TAILOR_STEPS.length}
-        </span>
-      </p>
-      <div className="flex justify-self-end">{next}</div>
+    <div className="bg-brand-tint ring-brand-pale rounded-card p-2 ring-1">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex justify-self-start">{back}</div>
+        {/* On a phone the step's name and its number stack: on one line
+            between Back and Next they were cut to "Choose Ke…". */}
+        <p aria-current="step" className="text-label text-ink min-w-0 text-center font-semibold">
+          <span className="max-sm:block">{TAILOR_STEPS[at].label}</span>{" "}
+          <span className="text-ink-meta max-sm:text-note font-normal max-sm:block">
+            <span className="max-sm:hidden">· </span>Step {at + 1} of {TAILOR_STEPS.length}
+          </span>
+        </p>
+        <div className="flex justify-self-end">{next}</div>
+      </div>
+      {error}
     </div>
   );
 }

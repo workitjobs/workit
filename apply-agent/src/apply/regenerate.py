@@ -38,7 +38,17 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import get_args
 
-from apply import asking, brief, captcha, company, essays, fill_engine, gates, verify
+from apply import (
+    asking,
+    brief,
+    captcha,
+    company,
+    essays,
+    fill_engine,
+    gates,
+    upload_origin,
+    verify,
+)
 from apply import home as data_folder
 from apply.adapters import Claude, JobSite
 from apply.answer_bank import AnswerBank
@@ -140,12 +150,14 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
         [essay], _ = essays.answer(claude, form.posting, [q], [], profile, material, form.posting_text,
                                    answered=answered, redo=redo)
         text, failed = essay.text, list(essay.failed)
+        # The truth check's claims go on the note for Lisul to read; they never keep the old answer.
+        claimed = [f"claims what no source backs: {'; '.join(essay.claims)}"] if essay.claims else []
         if essay.plan and essay.plan.asks:
             return Redone(q, why="Claude needs more from you: " + "; ".join(essay.plan.asks), kept=kept)
     else:
         _, [draft] = essays.answer(claude, form.posting, [], [q], profile, material, form.posting_text,
                                    answered=answered, redo=redo)
-        text, failed = ("" if draft.needs_lisul else draft.shown), []
+        text, failed, claimed = ("" if draft.needs_lisul else draft.shown), [], []
     if not text:
         return Redone(q, why="Claude couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
     if over := gates.over_cap(text, q):
@@ -153,7 +165,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     if invented := [f for f in failed if f.startswith(INVENTED)]:
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
     allowed = essays.sources(profile, material, facts=True)
-    checks = tuple(failed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
+    checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
     banked = written.kind == DRAFT and _bank(bank, q, text, form.posting.company, today)
     written.text, written.why = text, "; ".join(checks)
     if written.kind == ESSAY:
@@ -374,17 +386,23 @@ def working(page, name: str) -> bool:
     return any(_in_frames(page, WORKING, name))
 
 
-def done(page, name: str, text: str, note: str, ok: bool, question: Question | None = None, site: str = "") -> str | None:
+def done(page, name: str, text: str, note: str, ok: bool, question: Question | None = None, site: str = "",
+         own: str = "") -> str | None:
     """Put `text` in the field `name` (when `ok`), say `note` beside it, make it editable again, and return
     what the field shows now (its read-back); None when no frame shows the field.
 
     On a plain Worker's page, with the field's `question` and the form's job `site` (one the engine knows), the
     Fill engine puts the answer in, in the frame that shows the field, as it filled the form; where it can't (the field
     moved to a step it doesn't know), the page's own input events do, as on a CDP page."""
+    if own and upload_origin.origin(page.url) != own:  # the tab left the form's site: nothing of his goes there
+        return None
     if not (ok and _plain(page) and question is not None and site in get_args(Site)):
         shown = _in_frames(page, DONE, [name, text, note, ok])
         return next((s for s in shown if s is not None), None)
-    frame = next((f for f, s in _each_frame(page, DONE, [name, None, note, True]) if s is not None), None)
+    # Only a frame of the form's own site (apply.upload_origin, KAN-795): another site's frame, which a hostile page
+    # can hold, gets no answer from the engine (KAN-855's review).
+    frame = next((f for f, s in _each_frame(page, DONE, [name, None, note, True])
+                  if s is not None and upload_origin.frame_may_upload(f)), None)
     if frame is None:
         return None
     try:

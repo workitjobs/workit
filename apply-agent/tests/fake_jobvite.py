@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 URL = "https://jobs.jobvite.com/tylertech/job/oAVOAfwD/apply"
 SEND_URL = "https://jobs.jobvite.com/tylertech/job/oAVOAfwD/submitApplication"
 
@@ -175,6 +177,8 @@ class FakeJobviteServer:
     def fetch(self, url: str, body: bytes | None = None) -> bytes:
         raise LookupError(f"fake Jobvite has nothing to fetch at {url}")
 
+    guard_at_open = True
+
     @contextmanager
     def open(self, url: str, worker: int = 0):
         with sync_playwright() as playwright:
@@ -183,6 +187,8 @@ class FakeJobviteServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if self.guard_at_open:  # as a Worker opens each page (apply.browsers); off for a control with no guard
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

@@ -9,10 +9,11 @@ import staticAssetsCache from "@opennextjs/cloudflare/overrides/incremental-cach
 // page.
 //
 // Two changes to the stock cache. The data cache stays off, as under the
-// default "dummy" cache: the Jobs page's `revalidate` fetches (lib/api.ts)
-// always reach the API. And writes are dropped: the stock cache logs an
-// error for each one (those fetches, a /features slug not prerendered), which
-// would fill Workers Logs. `name` must stay the stock one: `cf:deploy` copies
+// default "dummy" cache: a fetch's `revalidate` keeps nothing, so no app code
+// passes one (lib/api.ts), and the Jobs page's slow public reads are kept by
+// the API instead (KAN-916). And writes are dropped: the stock cache logs an
+// error for each one (a /features slug not prerendered), which would fill
+// Workers Logs. `name` must stay the stock one: `cf:deploy` copies
 // the pages into the assets only when it sees that name.
 export default defineCloudflareConfig({
   incrementalCache: {

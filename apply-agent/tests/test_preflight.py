@@ -1,12 +1,13 @@
 """`apply preflight` (KAN-668): the plan from the links alone. No browser, and no connection at all."""
 
 import socket
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
 
 from apply import cli, preflight
-from apply.keychain import InMemoryKeychain
+from apply.tracker import EmployerAccount, InMemoryTracker
 
 WORKDAY = "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/NY/Intern_R1"
 WORKDAY_2 = "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/NY/Intern_R2"
@@ -112,12 +113,21 @@ def test_the_command_reads_no_job_site_and_opens_no_browser(monkeypatch, capsys)
         def __getattr__(self, name):
             raise AssertionError(f"preflight used the job site adapter's {name}")
 
-    adapters = SimpleNamespace(keychain=InMemoryKeychain({"acme.wd5.myworkdayjobs.com": "unread"}), site=Site())
+    class NoKeychain:
+        def __getattr__(self, name):
+            raise AssertionError(f"preflight used the keychain's {name}")
+
+    tracker = InMemoryTracker()
+    tracker.add_employer_account(EmployerAccount("Acme", "acme.wd5.myworkdayjobs.com", "test.person@example.com",
+                                                 date(2026, 11, 3)))
+    adapters = SimpleNamespace(keychain=NoKeychain(), tracker=tracker, site=Site())
     monkeypatch.setattr(cli, "_gmail_set_up", lambda: False)
     cli.main(["preflight", WORKDAY, ICIMS], adapters=adapters)
     said = capsys.readouterr().out
     assert "acme.wd5.myworkdayjobs.com" in said and "Sign-ins to do first" in said and "read no job site" in said
     assert f"apply sign-in {ICIMS}" in said
+    # The Tracker lists an Employer account at Acme's tenant, so Apply signs in there with its saved password.
+    assert "acme.wd5.myworkdayjobs.com: signs in with the password in Keychain" in said
 
 
 @pytest.mark.parametrize("given", ["not a link", f"{LEVER} {GREENHOUSE}"])

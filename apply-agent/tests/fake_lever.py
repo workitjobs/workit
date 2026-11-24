@@ -17,6 +17,8 @@ from urllib.parse import parse_qs, urlsplit
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 # Lever's form asks hCaptcha for a token at submit; this one always passes.
 HCAPTCHA_STUB = """
 window.hcaptcha = {
@@ -161,6 +163,8 @@ class FakeLeverServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

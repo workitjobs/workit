@@ -1,8 +1,9 @@
-import type { Bank, BankEntry, Bullet, Skill } from "@/lib/bank-actions";
+import type { Bank, BankEntry, Bullet, SectionLayout, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
-import { ALL, rowsOf, type BankRow } from "../../experiences/holdings.ts";
+import { ALL, rowsOf, skillCopies, type BankRow } from "../../experiences/holdings.ts";
+import { NOUNS, SECTIONS } from "../../experiences/sections.ts";
 import { unmarked } from "./text-marks.ts";
 
 /**
@@ -18,10 +19,12 @@ export type HeaderField =
   | "full_name"
   | "phone_number"
   | "email"
+  | "location"
   | "linkedin_url"
   | "github_url"
   | "portfolio_url"
-  | "other_url";
+  | "other_url"
+  | "resume_header_extra";
 export type Header = Pick<ApplicantProfile, HeaderField>;
 
 export type Line =
@@ -42,13 +45,29 @@ export const LINK_FIELDS = ["linkedin_url", "github_url", "portfolio_url", "othe
 
 /** The entry fields typed in place; they change the bank (user story 61).
  *  The API reads what is typed (`PUT .../lines`, KAN-391): a GPA must be a
- *  number, a label typed back is dropped. */
-const TYPED_ENTRY = new Set(["title", "organization", "location", "honors", "coursework", "gpa"]);
+ *  number, a label typed back is dropped, and coursework and a project's
+ *  tools (KAN-738) are split at commas into their lists. */
+const TYPED_ENTRY = new Set([
+  "title",
+  "organization",
+  "location",
+  "honors",
+  "coursework",
+  "gpa",
+  "tools",
+]);
 
 /** The header fields typed in place; they change the profile. The email is
  *  the profile's contact email, else the sign-in address, so it is set on
- *  My Profile, not typed here. */
-const TYPED_HEADER = new Set<string>(["full_name", "phone_number", ...LINK_FIELDS]);
+ *  My Profile, not typed here. The location is the profile's (KAN-436),
+ *  not an entry's, though both boxes are "location". */
+const TYPED_HEADER = new Set<string>([
+  "full_name",
+  "phone_number",
+  "location",
+  ...LINK_FIELDS,
+  "resume_header_extra",
+]);
 
 /** True when the line's text is typed in place. */
 export function typed(line: Line) {
@@ -88,6 +107,59 @@ export function wording(choices: Choices, bullet: Bullet) {
   return choices.bullets.find((c) => c.bullet_id === bullet.id)?.text ?? bullet.text;
 }
 
+/** A custom section's key on the page (backend `resume_view.custom_key`,
+ *  KAN-498): its name, ignoring case and spacing, so two sections of one
+ *  name print as one, and the key `section_order` names it by. */
+export function customKey(name: string) {
+  return `custom:${name.trim().toLowerCase().split(/\s+/).join(" ")}`;
+}
+
+/** The group an entry prints in: its fixed section, or its custom section's
+ *  key. Entries move within a group. */
+export function groupOf(
+  bank: Pick<Bank, "sections">,
+  entry: Pick<BankEntry, "section" | "custom_section_id">,
+): string {
+  if (entry.section !== "custom") return entry.section;
+  const section = bank.sections.find((s) => s.id === entry.custom_section_id);
+  return section ? customKey(section.name) : "custom:";
+}
+
+/** A group of entries as the picker and the Sections panel list them. */
+export type Group = { id: string; label: string; custom: boolean; layout: SectionLayout | null };
+
+/** Every group the bank can print, fixed sections first, then the custom
+ *  ones in the bank's order, a name once (the first section's name and
+ *  layout), as the API's view lists them. */
+export function groupsOf(bank: Pick<Bank, "sections">): Group[] {
+  const custom = new Map<string, Group>();
+  for (const s of bank.sections) {
+    const id = customKey(s.name);
+    if (!custom.has(id)) custom.set(id, { id, label: s.name, custom: true, layout: s.layout });
+  }
+  return [
+    ...SECTIONS.map((s) => ({ id: s.id as string, label: s.label, custom: false, layout: null })),
+    ...custom.values(),
+  ];
+}
+
+// A custom section the order does not name prints first when its name says
+// it sums the student up (backend `resume_render._LEADS`)
+const LEADS = ["summary", "objective", "profile", "about me"];
+
+/** Every block's key in print order (backend `resume_render.printed_order`):
+ *  the page's order, with each custom group it does not name first when it
+ *  reads as a summary, else last, in the bank's order. */
+export function printedOrder(order: string[], custom: Group[]): string[] {
+  const unnamed = custom.filter((g) => !order.includes(g.id));
+  const leads = unnamed.filter((g) => LEADS.some((w) => g.label.toLowerCase().includes(w)));
+  return [
+    ...leads.map((g) => g.id),
+    ...order,
+    ...unnamed.filter((g) => !leads.includes(g)).map((g) => g.id),
+  ];
+}
+
 /** Shown siblings in resume order: by position, ties in bank order. */
 function ordered<T extends { id: string }>(
   items: T[],
@@ -100,12 +172,6 @@ function ordered<T extends { id: string }>(
     .map((x) => x.item);
 }
 
-/** An entry's bullets that print on this resume, in order. */
-export function shownBullets(entry: BankEntry, choices: Choices) {
-  const row = new Map(choices.bullets.map((c) => [c.bullet_id, c]));
-  return ordered(entry.bullets, (id) => row.get(id)).map((b) => b.id);
-}
-
 /** The PATCH that moves a line one place up (-1) or down (1) among its
  *  shown siblings, renumbering them all so ties can never stall a move; null
  *  at either end. Entries move within their section, bullets within their
@@ -116,7 +182,7 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
     line.kind === "bullet"
       ? ordered(line.entry.bullets, (id) => choices.bullets.find((c) => c.bullet_id === id))
       : ordered(
-          bank.entries.filter((e) => e.section === line.entry.section),
+          bank.entries.filter((e) => groupOf(bank, e) === groupOf(bank, line.entry)),
           (id) => choices.entries.find((c) => c.entry_id === id),
         );
   const id = line.kind === "bullet" ? line.bullet.id : line.entry.id;
@@ -137,13 +203,107 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
+/** The PATCH that puts a bullet or an entry at `to` among its shown
+ *  siblings (KAN-920, a drag on the page), renumbering them all as `move`
+ *  does; null when it stays where it is or is not shown. */
+export function moveTo(
+  bank: Bank,
+  choices: Choices,
+  kind: "bullet" | "entry",
+  id: string,
+  to: number,
+): ChoicesUpdate | null {
+  const entry =
+    kind === "bullet"
+      ? bank.entries.find((e) => e.bullets.some((b) => b.id === id))
+      : bank.entries.find((e) => e.id === id);
+  if (!entry) return null;
+  const siblings =
+    kind === "bullet"
+      ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+      : ordered(
+          bank.entries.filter((e) => groupOf(bank, e) === groupOf(bank, entry)),
+          (e) => choices.entries.find((c) => c.entry_id === e),
+        );
+  const from = siblings.findIndex((s) => s.id === id);
+  if (from < 0 || to === from || to < 0 || to >= siblings.length) return null;
+  const order = moveItem(
+    siblings.map((s) => s.id),
+    from,
+    to,
+  );
+  return kind === "bullet"
+    ? { bullets: order.map((bullet_id, position) => ({ bullet_id, position })) }
+    : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
+}
+
+/** An entry's bullets this resume shows, in its order. */
+export function shownBullets(entry: BankEntry, choices: Choices): BankEntry["bullets"] {
+  return ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b));
+}
+
+/** A bullet typed in on the page (KAN-920), placed on this resume: its
+ *  entry's shown bullets in this resume's order, renumbered, with `added`
+ *  shown after `after`, or last when `after` is not among them. Each row
+ *  says `shown`, so it is one change with Undo (which hides `added` again,
+ *  `reverseChoices`), and `swapsOf` draws no swaps for it: the bullets
+ *  below make room on the page as it is typed. */
+export function bulletsWithNew(
+  bank: Bank,
+  choices: Choices,
+  entryId: string,
+  added: string,
+  after: string,
+): NonNullable<ChoicesUpdate["bullets"]> {
+  const entry = bank.entries.find((e) => e.id === entryId);
+  const ids = entry
+    ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+        .map((b) => b.id)
+        .filter((id) => id !== added)
+    : [];
+  const at = ids.indexOf(after);
+  ids.splice(at < 0 ? ids.length : at + 1, 0, added);
+  return ids.map((bullet_id, position) => ({ bullet_id, position, shown: true }));
+}
+
+/** The page's section order once the printed section at `from` moves to
+ *  `to` (the Sections panel's drag, and the page's, KAN-920). Only the
+ *  sections that print move; the rest keep their places after them, so a
+ *  section the student adds later lands in its usual spot, and a custom
+ *  section that no longer prints leaves the order (KAN-498). */
+export function sectionOrderAfter(
+  printed: string[],
+  order: string[],
+  from: number,
+  to: number,
+): string[] {
+  const moved = moveItem(printed, from, to);
+  return [...moved, ...order.filter((id) => !moved.includes(id) && !id.startsWith("custom:"))];
+}
+
 export type PrintedEntry = {
   id: string;
   title: string;
   detail: string | null;
   bullets: { id: string; text: string }[];
 };
-export type PrintedSection = { id: string; label: string; entries: PrintedEntry[] };
+/** `noun` names one of its entries ("Job"); `addable` says a new entry can
+ *  be added to it from the outline (not Skills, not a Lines section). */
+export type PrintedSection = {
+  id: string;
+  label: string;
+  entries: PrintedEntry[];
+  noun: string;
+  addable: boolean;
+  /** Listed with nothing on the resume yet (`withEmpty`), for its Add. */
+  empty?: boolean;
+};
+
+/** The sections the Sections panel lists even when empty (2026-11-17), so a
+ *  resume with nothing in them still has their Add: a new resume, made in
+ *  onboarding with only its header, listed no section at all, and its
+ *  student had no way to add a first school. */
+const ALWAYS_LISTED = new Set(["education", "experience", "projects", "skills"]);
 
 // `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
 const SECTION_LABELS: Record<string, string> = {
@@ -156,29 +316,66 @@ const SECTION_LABELS: Record<string, string> = {
   skills: "Technical Skills",
 };
 
-/** What prints, section by section in `order`: the outline the Sections
- *  panel drags. A section with nothing on the resume is left out. */
-export function printedSections(bank: Bank, choices: Choices, order: string[]): PrintedSection[] {
+/** What prints, section by section in `order` (`printedOrder`, so a
+ *  custom section prints where the PDF puts it, KAN-498): the outline the
+ *  Sections panel drags. A section with nothing on the resume is left out. */
+export function printedSections(
+  bank: Bank,
+  choices: Choices,
+  order: string[],
+  { withEmpty = false }: { withEmpty?: boolean } = {},
+): PrintedSection[] {
   const entry = (id: string) => choices.entries.find((c) => c.entry_id === id);
   const bullet = (id: string) => choices.bullets.find((c) => c.bullet_id === id);
-  return order.flatMap((id): PrintedSection[] => {
+  const custom = groupsOf(bank).filter((g) => g.custom);
+  return printedOrder(order, custom).flatMap((id): PrintedSection[] => {
     if (id === "skills") {
       const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
-      return shown ? [{ id, label: SECTION_LABELS[id], entries: [] }] : [];
+      return shown || withEmpty
+        ? [
+            {
+              id,
+              label: SECTION_LABELS[id],
+              entries: [],
+              noun: "Skill",
+              addable: false,
+              ...(!shown && { empty: true }),
+            },
+          ]
+        : [];
     }
     const entries = ordered(
-      bank.entries.filter((e) => e.section === id),
+      bank.entries.filter((e) => groupOf(bank, e) === id),
       entry,
     );
+    if (!entries.length && withEmpty && ALWAYS_LISTED.has(id))
+      return [
+        {
+          id,
+          label: SECTION_LABELS[id],
+          noun: NOUNS[id as keyof typeof NOUNS]?.[0] ?? "Entry",
+          addable: true,
+          entries: [],
+          empty: true,
+        },
+      ];
     if (!entries.length) return [];
+    const group = custom.find((g) => g.id === id);
     return [
       {
         id,
-        label: SECTION_LABELS[id] ?? id,
+        noun: group ? "Entry" : (NOUNS[id as keyof typeof NOUNS]?.[0] ?? "Entry"),
+        addable: group ? group.layout !== "lines" : true,
+        label: SECTION_LABELS[id] ?? group?.label ?? id,
         entries: entries.map((e) => ({
           id: e.id,
           title: e.title,
-          detail: e.organization ?? null,
+          // A school's line is its degree: five rows of one university read
+          // the same otherwise
+          detail:
+            e.section === "education"
+              ? [e.degree, e.field_of_study].filter(Boolean).join(", ") || null
+              : (e.organization ?? null),
           bullets: ordered(e.bullets, bullet).map((b) => ({
             id: b.id,
             text: unmarked(wording(choices, b)),
@@ -189,8 +386,121 @@ export function printedSections(bank: Bank, choices: Choices, order: string[]): 
   });
 }
 
+/** A skill group as the page prints it (KAN-586): `key` is the group's
+ *  name, "" for the skills with none, and `label` what the outline shows
+ *  ("Other" for those, as the page labels them beside named groups). */
+export type PrintedSkillGroup = {
+  key: string;
+  label: string;
+  skills: { id: string; name: string }[];
+};
+
+/** The group a skill prints under on this resume: its choice's when the
+ *  student moved it (KAN-586; "" no group), else the bank's. The backend's
+ *  `resume_view._group`; change both together. */
+export function skillGroupOf(skill: Skill, choices: Choices): string {
+  const choice = choices.skills.find((c) => c.skill_id === skill.id);
+  return choice?.group ?? skill.group ?? "";
+}
+
+const GROUP_SMALL = new Set([
+  "a",
+  "an",
+  "and",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+  "&",
+]);
+
+/** Which printed group a skill's group name is (KAN-810): case, spacing
+ *  and "&" for "and" aside, and "Other" is the skills with no group. The
+ *  backend's `resume_view.group_key`; change both together. */
+export function groupKey(name: string | null | undefined): string {
+  const key = (name ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+  return key === "other" ? "" : key;
+}
+
+/** A printed group's name: the first of its names with a capital letter,
+ *  else the first in title case, small words aside; "" for no group. The
+ *  backend's `resume_view.group_label`. */
+export function groupLabel(names: string[]): string {
+  const named = names.filter((n) => groupKey(n));
+  if (!named.length) return "";
+  const words = (named.find((n) => n !== n.toLowerCase()) ?? "").split(/\s+/).filter(Boolean);
+  if (words.length) return words.join(" ");
+  return named[0]
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => (i && GROUP_SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
+/** The resume's skills by group, each group where its first skill prints
+ *  (`fields.skill_lines`), skills by position and then the bank's order.
+ *  Names that differ only in case or "&" are one group, under its label. */
+export function printedSkills(bank: Bank, choices: Choices): PrintedSkillGroup[] {
+  const groups = new Map<string, { names: string[]; skills: PrintedSkillGroup["skills"] }>();
+  for (const skill of ordered(bank.skills, (id) => choices.skills.find((c) => c.skill_id === id))) {
+    const name = skillGroupOf(skill, choices);
+    const group = groups.get(groupKey(name)) ?? { names: [], skills: [] };
+    groups.set(groupKey(name), group);
+    group.names.push(name);
+    group.skills.push({ id: skill.id, name: skill.name });
+  }
+  return [...groups.entries()].map(([key, group]) => {
+    const label = key ? groupLabel(group.names) : "";
+    return { key: label, label: label || "Other", skills: group.skills };
+  });
+}
+
+/** The choice changes that print the skills as `groups` lays them out (a
+ *  drag in the Sections outline, KAN-586): every shown skill numbered from 0
+ *  group by group, so the groups print in this order too, and each skill
+ *  that changed group moved there on this resume alone. */
+export function arrangeSkills(
+  bank: Bank,
+  choices: Choices,
+  groups: PrintedSkillGroup[],
+): ChoicesUpdate {
+  const skill = new Map(bank.skills.map((s) => [s.id, s]));
+  let position = 0;
+  return {
+    skills: groups.flatMap((group) =>
+      group.skills.map(({ id }) => {
+        const moved = groupKey(skillGroupOf(skill.get(id)!, choices)) !== groupKey(group.key);
+        return { skill_id: id, position: position++, ...(moved && { group: group.key }) };
+      }),
+    ),
+  };
+}
+
+/** `groups` with the skill at `from` (its group's index and its own)
+ *  moved to `to`, as a drop or an arrow key leaves them. */
+export function moveSkill(
+  groups: PrintedSkillGroup[],
+  from: { group: number; at: number },
+  to: { group: number; at: number },
+): PrintedSkillGroup[] {
+  const next = groups.map((g) => ({ ...g, skills: [...g.skills] }));
+  const [moved] = next[from.group].skills.splice(from.at, 1);
+  next[to.group].skills.splice(to.at, 0, moved);
+  // A group left empty prints nothing; the outline drops it too
+  return next.filter((g) => g.skills.length);
+}
+
 /** The choices with a change's plain fields (shown, position, the GPA
- *  and coursework toggles) set at once, for rows the resume already has
+ *  and coursework toggles, a skill's group) set at once, for rows the resume already has
  *  (KAN-391): a second move computes from the first, and the copy sent
  *  with the next request holds it. Wording and new rows wait for the
  *  render's answer, which replaces these. */
@@ -200,7 +510,8 @@ export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices 
     ...Object.fromEntries(
       Object.entries(change).filter(
         ([k, v]) =>
-          v !== undefined && ["shown", "position", "show_gpa", "show_coursework"].includes(k),
+          v !== undefined &&
+          ["shown", "position", "show_gpa", "show_coursework", "group"].includes(k),
       ),
     ),
   });
@@ -250,7 +561,25 @@ export function withWording(
 /** Two neighbours a change swaps: an entry within its section, or a
  *  bullet within its entry, `a` the one above before the change. The page
  *  shows the swap at once (KAN-391). */
-export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
+export type Swap = { kind: "entry" | "bullet" | "section"; a: string; b: string };
+
+/** A reorder as neighbour swaps in order, each against the order after the
+ *  ones before it (a bubble sort); empty when the two lists do not hold the
+ *  same ids, or nothing moves. */
+export function orderSwaps(kind: Swap["kind"], before: string[], after: string[]): Swap[] {
+  const want = new Map(after.map((id, i) => [id, i]));
+  if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
+  const now = [...before];
+  const out: Swap[] = [];
+  for (let end = now.length - 1; end > 0; end--) {
+    for (let i = 0; i < end; i++) {
+      if (want.get(now[i])! < want.get(now[i + 1])!) continue;
+      out.push({ kind, a: now[i], b: now[i + 1] });
+      [now[i], now[i + 1]] = [now[i + 1], now[i]];
+    }
+  }
+  return out;
+}
 
 /** Any reorder of one entry's bullets, or of one section's entries, as
  *  neighbour swaps in order, each against the order after the ones before
@@ -262,20 +591,7 @@ export function swapsOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): S
     list &&
     list.length >= 2 &&
     list.every((c) => Object.keys(c).length === 2 && c.position != null);
-  const steps = (kind: Swap["kind"], before: string[], after: string[]): Swap[] => {
-    const want = new Map(after.map((id, i) => [id, i]));
-    if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
-    const now = [...before];
-    const out: Swap[] = [];
-    for (let end = now.length - 1; end > 0; end--) {
-      for (let i = 0; i < end; i++) {
-        if (want.get(now[i])! < want.get(now[i + 1])!) continue;
-        out.push({ kind, a: now[i], b: now[i + 1] });
-        [now[i], now[i + 1]] = [now[i + 1], now[i]];
-      }
-    }
-    return out;
-  };
+  const steps = orderSwaps;
   if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
     const ids = changes.bullets!.map((c) => c.bullet_id);
     const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));
@@ -292,7 +608,7 @@ export function swapsOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): S
     const first = bank.entries.find((e) => e.id === changes.entries![0].entry_id);
     if (!first) return [];
     const before = ordered(
-      bank.entries.filter((e) => e.section === first.section),
+      bank.entries.filter((e) => groupOf(bank, e) === groupOf(bank, first)),
       (id) => choices.entries.find((c) => c.entry_id === id),
     );
     const after = [...changes.entries!].sort((x, y) => x.position! - y.position!);
@@ -354,16 +670,11 @@ export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
   });
 }
 
-/** The skills, a name once: uploads can each hold one, and the page would
- *  print it twice. */
+/** The skills, a name once (`skillCopies`): uploads can each hold one, and
+ *  the page would print it twice. A tick shows one copy, the row's `skill`. */
 export function pickerSkills(bank: Bank, choices: Choices): PickedSkill[] {
   const skill = new Map(choices.skills.map((c) => [c.skill_id, c]));
-  const names = new Map<string, Skill[]>();
-  for (const s of bank.skills) {
-    const name = s.name.trim().toLowerCase();
-    names.set(name, [...(names.get(name) ?? []), s]);
-  }
-  return [...names.values()].map((held) => {
+  return skillCopies(bank.skills).map((held) => {
     const shown = held.filter((s) => skill.get(s.id)?.shown);
     const first = shown[0] ?? held[0];
     return {
@@ -394,6 +705,14 @@ export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
     skills: on
       ? [{ skill_id: row.skill.id, shown: true }]
       : row.shownIds.map((skill_id) => ({ skill_id, shown: false })),
+  };
+}
+
+/** The whole skills section in one PATCH (KAN-435): off takes each skill that
+ *  prints, so the section prints no heading, and on adds each one not printing. */
+export function pickSkills(rows: PickedSkill[], on: boolean): ChoicesUpdate {
+  return {
+    skills: rows.filter((row) => row.on !== on).flatMap((row) => pickSkill(row, on).skills ?? []),
   };
 }
 
@@ -493,17 +812,33 @@ export function restoreCutEntry(row: CutEntry, changes: ChoicesUpdate): ChoicesU
   };
 }
 
-/** One skill Fit cut, and whether it is on the page again. It is the skill
- *  Fit cut, not the picker's row of its copies, so it comes back as itself. */
-export type CutSkill = { skill: Skill; on: boolean };
+/** One skill name Fit cut, a picker row (`pickSkill` ticks it): on while
+ *  any copy prints. Its `skill` is the first copy Fit cut, so a tick puts
+ *  back the copy the page printed, and only that one. */
+export type CutSkill = PickedSkill;
 
-/** Cut From Resume's skills, in the bank's order. Like an entry's row, one
- *  stays once it is back, ticked. */
+/**
+ * Cut From Resume's skills, a name once, in the bank's order (KAN-504). A
+ * resume that showed two copies of a name printed it twice, Fit cut both,
+ * and each was a row of its own. A tick puts one copy back, so the page
+ * prints the name once; an untick takes off every copy that prints, as the
+ * picker's does. Like an entry's row, one stays once it is back, ticked.
+ */
 export function cutSkills(bank: Bank, choices: Choices, cuts: FitCuts): CutSkill[] {
   const shown = new Map(choices.skills.map((c) => [c.skill_id, c.shown]));
-  return bank.skills
-    .filter((s) => cuts.skills.includes(s.id))
-    .map((skill) => ({ skill, on: shown.get(skill.id) === true }));
+  return skillCopies(bank.skills).flatMap((held) => {
+    const first = held.find((s) => cuts.skills.includes(s.id));
+    if (!first) return [];
+    const shownIds = held.filter((s) => shown.get(s.id) === true).map((s) => s.id);
+    return [
+      {
+        skill: first,
+        copies: held.filter((s) => s !== first),
+        on: shownIds.length > 0,
+        shownIds,
+      },
+    ];
+  });
 }
 
 /** True while anything Fit cut is still off the page: Cut From Resume's
@@ -515,14 +850,6 @@ export function cutLeft(bank: Bank, choices: Choices, cuts: FitCuts) {
 }
 
 /** The page-count chip: "1 page", or "2 pages · 3 lines over 1 page". */
-/** The phone's short count, "3 lines over" (or "2 pages" with no estimate),
- *  for its top bar beside the back arrow. */
-export function shortPageLabel(pages: number, linesOver: number) {
-  return linesOver > 0
-    ? `${linesOver} ${linesOver === 1 ? "line" : "lines"} over`
-    : `${pages} pages`;
-}
-
 export function pageLabel(pages: number, linesOver: number) {
   if (pages <= 1) return "1 page";
   const over =

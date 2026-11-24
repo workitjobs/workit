@@ -33,8 +33,11 @@ from apply.records import SECRET
 # The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank the engine's plan meant
 # and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02),
 # except an optional catch-all box ("Additional information") Apply had nothing new for: a note (Lisul, 2026-11-04).
-BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED = (
-    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
+BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND, LEFTOVER = (
+    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history",
+    "leftover")
+# Why an optional question Lisul is asked (no source of his holds it) shows blank: a note, never a hold (KAN-759).
+OPTIONAL_UNANSWERED = "optional, not answered yet: answer it in Needs you, or skip it"
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
 # The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
@@ -65,6 +68,14 @@ START = re.compile(r"start date|earliest (?:date|start)|available to start|avail
 # Start date"), one a form caps at this month, or one about schooling or a job held (Infleqtion's Workable, live 2026-11-04).
 HISTORY = re.compile(r"^[^/]*\s\d+ / |\bup to this month\b|\b(?:education|employment|work (?:experience|history))\b",
                      re.IGNORECASE)
+# A field of a work-history section's entry ("Work Experience 2 / Employer"), or one under a work section's heading,
+# that names the employer (KAN-728): every job on file should show in one. Its "type" is the kind of job, not it.
+WORK_ENTRY = re.compile(r"^work (?:experience|history)\b[^/]*\s\d+ / ", re.IGNORECASE)
+WORK_SECTION = re.compile(r"\b(?:employment|work (?:experience|history))\b", re.IGNORECASE)
+EMPLOYER_FIELD = re.compile(r"\b(?:company|employer|organi[sz]ation)\b(?!.*\btype\b)", re.IGNORECASE)
+ENTRIES = re.compile(r"^work (?:experience|history)\b.*\(entries\)$", re.IGNORECASE)
+# A jobs or schools section's count of entries (KAN-762).
+SECTION_ENTRIES = re.compile(r"^(?:work (?:experience|history)|education)\b.*\(entries\)$", re.IGNORECASE)
 PAY_QUESTION = re.compile(r"salary|compensation|desired (?:pay|rate)|hourly rate|pay expectation|expected pay", re.IGNORECASE)
 YEAR = re.compile(r"\b(20\d\d)\b")
 MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
@@ -186,11 +197,14 @@ def check(
     labels = {q.name: one_line(q.label) for q in questions}
     flags = (
         _blanks(questions, answers, readback, set(asked), set(left), blanks or {})
+        + _leftovers(questions, answers, readback, blanks or {})
         + [Flag(*_split(p), READBACK) for p in fill_engine.readback_problems(questions, answers, readback, accepted)]
         + _files(questions, answers, profile)
         + _choices(questions, readback)
         + _dates(questions, readback, profile, today)
         + _pay(questions, readback, profile, posting_text)
+        + _work_history(questions, readback, profile)
+        + _extra_entries(questions, answers, readback, profile)
         + [f for name, text in essays.items() for f in _essay(labels.get(name, name), text, profile, posting,
                                                               f"{allowed}\n{posting_text}")]
         + [Flag(*_split(p), REVIEW) for p in review]
@@ -260,7 +274,11 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str], plann
     flags = []
     answered = {_norm(q.label) for q in questions if q.name in answers}
     for q in questions:
-        if q.name in answers or not _blank(readback.get(q.name)) or q.name in left or q.label.strip() in asked:
+        if q.name in answers or not _blank(readback.get(q.name)) or q.name in left:
+            continue
+        if q.label.strip() in asked:  # a Missing fact Lisul is asked already: one optional is only noted (KAN-759)
+            if not q.required:
+                flags.append(Flag(one_line(q.label), OPTIONAL_UNANSWERED, BLANK, holds=False))
             continue
         if _norm(q.label) in answered:
             continue  # the other way to give the same thing (a resume pasted as text, when the file is attached)
@@ -276,6 +294,21 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str], plann
             continue
         # An optional one holds as a required one does, a self-ID one too: the profile answers it, a decline at least.
         flags.append(Flag(one_line(q.label), f"left blank ({'required' if q.required else 'optional'})", BLANK))
+    return flags
+
+
+def _leftovers(questions, answers, readback, planned: dict[str, str]) -> list[Flag]:
+    """Each field the engine's plan left blank because the profile has none of it (no minor) and it offers no None,
+    that still shows a value: one an old profile on the site carried over (Amazon's Minor, KAN-754). It holds.
+    A None the plan picked that the page doesn't show is the read-back's flag."""
+    flags = []
+    for q in questions:
+        shown = readback.get(q.name)
+        if q.name in answers or q.name not in planned or _blank(shown) or (q.kind == "select" and PLACEHOLDER.match(str(shown))):
+            continue
+        if fill_engine.left_as_none(planned[q.name]):
+            value = ", ".join(map(str, shown)) if isinstance(shown, list) else str(shown)
+            flags.append(Flag(one_line(q.label), f"shows {value!r}, but your profile has none: clear it", LEFTOVER))
     return flags
 
 
@@ -355,6 +388,57 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
                 flags.append(Flag(one_line(q.label), f"shows {shown!r}; your graduation is {graduation}", DATE))
         if START.search(q.label) and not HISTORY.search(q.label) and (when := _date_in(shown)) and when < today:
             flags.append(Flag(one_line(q.label), f"shows {shown!r}, a date already past", DATE))
+    return flags
+
+
+def _work_history(questions, readback, profile) -> list[Flag]:
+    """Each job on file that no employer field of the form's work section shows (TAL.net's Employment got one of three,
+    KAN-728). A section that takes fewer entries than the jobs on file ("Work Experience (entries)" options) leaves
+    some out by need: then the choice is a note for Lisul to check; any other missing job holds."""
+    fields = [q for q in questions if q.kind != "textarea" and EMPLOYER_FIELD.search(q.label.split(" / ")[-1])
+              and (WORK_ENTRY.search(q.label) or WORK_SECTION.search(q.section))]
+    jobs = [str(j.get("employer") or "").strip() for j in profile.get("experience_facts.employment_history") or []
+            if isinstance(j, dict)]
+    if not fields or not (jobs := [j for j in jobs if j]):
+        return []
+    shown = " | ".join(_norm(" ".join(v) if isinstance(v := readback.get(q.name), list) else v or "") for q in fields)
+    missing = [j for j in jobs if _norm(re.sub(r"\s*\(.*?\)", "", j)) not in shown]
+    if not missing:
+        return []
+    counts = [int(o) for q in questions if ENTRIES.search(q.label.strip()) for o in q.options if str(o).strip().isdigit()]
+    cap = max(counts) if counts else None
+    if cap is not None and len(jobs) > cap and len(jobs) - len(missing) >= cap:
+        put = [j for j in jobs if j not in missing]
+        return [Flag("Work history", f"the section takes {cap} entries: Apply put {', '.join(put) or 'none'} and left out "
+                     f"{', '.join(missing)}. Check the choice", HISTORY_KIND, holds=False)]
+    return [Flag("Work history", f"{j}, a job on your profile, is not on the form's work section", HISTORY_KIND)
+            for j in missing]
+
+
+def _extra_entries(questions, answers, readback, profile) -> list[Flag]:
+    """Entries an old profile on the job site carried over that the profile doesn't list (KAN-762): a section that holds
+    more entries than the plan gave it ("Work Experience (entries)" read back as 4 where 3 were planned: JPMorgan's
+    Oracle kept a Princeton entry), and an employer field Apply didn't fill that names no job on file. Each holds."""
+    flags = []
+    for q in questions:
+        if not SECTION_ENTRIES.search(q.label.strip()):
+            continue
+        try:
+            held, planned = int(str(readback.get(q.name)).strip()), int(str(answers.get(q.name)).strip())
+        except ValueError:
+            continue
+        if held > planned:
+            flags.append(Flag(one_line(q.label), f"holds {held} entries, but your profile lists {planned}: remove each "
+                              "one it doesn't list", LEFTOVER))
+    jobs = [_norm(re.sub(r"\s*\(.*?\)", "", str(j.get("employer") or ""))) for j in profile.get("experience_facts.employment_history") or []
+            if isinstance(j, dict) and j.get("employer")]
+    for q in questions:
+        shown = readback.get(q.name)
+        if (q.name in answers or q.options or q.kind == "textarea" or not isinstance(shown, str) or _blank(shown)
+                or not EMPLOYER_FIELD.search(q.label.split(" / ")[-1]) or not WORK_ENTRY.search(q.label)):
+            continue
+        if not any(job and (job in _norm(shown) or _norm(shown) in job) for job in jobs):
+            flags.append(Flag(one_line(q.label), f"shows {shown!r}, a job your profile doesn't list: remove the entry", LEFTOVER))
     return flags
 
 

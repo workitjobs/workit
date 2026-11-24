@@ -6,6 +6,7 @@ concurrent workers never double-read a board, and marks done/failed after.
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 
 from sqlalchemy import select, text, update
@@ -17,6 +18,20 @@ from app.models.scraper import Scraper_Task
 _tasks = Scraper_Task.__table__
 
 LEASE_DURATION = timedelta(minutes=30)
+
+# Matches key=value pairs where the key looks like a credential.
+# Longest alternatives first so access_token wins over bare token.
+_CREDENTIAL_RE = re.compile(
+    r"(access_token|refresh_token|api_key|authorization|password|secret|token)"
+    r"[=:]\s*[^\s&]+",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_error(error: str) -> str:
+    """Strip credential-like values from an error string, then truncate."""
+    cleaned = _CREDENTIAL_RE.sub(lambda m: m.group(1) + "=***", error)
+    return cleaned[:2000]
 
 
 async def create_tasks(conn: AsyncConnection, schedule_ids: list) -> int:
@@ -110,7 +125,7 @@ async def mark_failed(
         .values(
             status="failed",
             finished_at=text("now()"),
-            error=error[:2000] if error else None,
+            error=_sanitize_error(error) if error else None,
         )
     )
 

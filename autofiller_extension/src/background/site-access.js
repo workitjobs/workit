@@ -57,8 +57,11 @@ function launcherFiles() {
 
 async function register(origin) {
   const id = scriptId(origin);
-  if ((await chrome.scripting.getRegisteredContentScripts({ ids: [id] })).length) return;
-  await chrome.scripting.registerContentScripts([{ id, matches: [pattern(origin)], js: launcherFiles(), runAt: "document_idle", persistAcrossSessions: true }]);
+  const [kept] = await chrome.scripting.getRegisteredContentScripts({ ids: [id] });
+  // One registered by an older version (with all the panel's files, before KAN-749) takes the launcher's files now.
+  if (kept && JSON.stringify(kept.js) === JSON.stringify(launcherFiles())) return;
+  if (kept) await chrome.scripting.updateContentScripts([{ id, js: launcherFiles() }]);
+  else await chrome.scripting.registerContentScripts([{ id, matches: [pattern(origin)], js: launcherFiles(), runAt: "document_idle", persistAcrossSessions: true }]);
 }
 
 async function forget(origin) {

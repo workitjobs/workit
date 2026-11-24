@@ -12,6 +12,8 @@ from pathlib import Path
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 UPLOAD_GRANT = re.compile(r"^https://apply\.workable\.com/api/v1/jobs/(\w+)/form/upload/(\w+)\?")
 STORAGE = "https://workable-application-form.s3.us-east-1.amazonaws.com"
 APPLY = re.compile(r"^https://apply\.workable\.com/api/v1/jobs/(\w+)/apply$")
@@ -97,6 +99,8 @@ class FakeWorkableServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

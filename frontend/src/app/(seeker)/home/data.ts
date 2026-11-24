@@ -41,43 +41,44 @@ export type HomeStat = {
   href: string;
 };
 
-/** The lowest score Strong Matches counts: the Strong Match band and up in
- *  @/lib/match. It counted from 65, Good Match, while the tile was named
- *  Strong Matches; renamed Strong Matches, it counts that band, so a 70% job
- *  never sits under a label its own badge contradicts. */
-const STRONG_MATCH = 80;
+/** The lowest score Excellent Matches counts: the Excellent Match band in
+ *  @/lib/match, so a 70% job never sits under a label its own badge
+ *  contradicts. It counted from 65, Good Match, at first. The tile was
+ *  Excellent Matches, after the Excellent Match band (80 to 89), until that band
+ *  merged into Excellent Match from 80 (2026-11-10): the count is the same. */
+const EXCELLENT_MATCH = 80;
 
 /** How many jobs Top Matches lists (./top-matches.tsx). */
 export const TOP_MATCHES_SHOWN = 12;
 
 /**
- * Home's matches, read once per render: the numbers' Strong Matches and Top
+ * Home's matches, read once per render: the numbers' Excellent Matches and Top
  * Matches below them share the one API call (getHomeMatches says why it is
  * one). The window is the longest range's, and at least 30 days, the
  * month's.
  */
 export const getMatches = cache(() =>
-  getHomeMatches(Math.max(30, rangeDays("season", getNow())), STRONG_MATCH, TOP_MATCHES_SHOWN),
+  getHomeMatches(Math.max(30, rangeDays("season", getNow())), EXCELLENT_MATCH, TOP_MATCHES_SHOWN),
 );
 
-/** Where the Jobs page shows what Strong Matches counts, best first. Its Date
+/** Where the Jobs page shows what Excellent Matches counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
-const STRONG_MATCHES_HREF: Record<RangeKey, string> = {
+const EXCELLENT_MATCHES_HREF: Record<RangeKey, string> = {
   week: "/jobs?sort=match&posted_within=7",
   month: "/jobs?sort=match&posted_within=30",
   season: "/jobs?sort=match",
 };
 
-/** Under Strong Matches in place of a change. */
-const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
+/** Under Excellent Matches in place of a change. */
+const EXCELLENT_MATCHES_NOTE: Record<RangeKey, string> = {
   week: "Posted this week",
   month: "Posted in 30 days",
   season: "Posted since Aug 4",
 };
 
 /**
- * The four headline numbers for every range, in tile order: Strong Matches,
+ * The four headline numbers for every range, in tile order: Excellent Matches,
  * Saved, Applied, Interviewing. Each tile links to the page that lists
  * what it counts (KAN-342).
  *
@@ -95,12 +96,12 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * which read sent, then find, then outcome, then shortlist.
  *
  * EACH TILE WEARS ITS OWN COLOUR (KAN-423, ./headline.tsx): a pale tint for
- * its ground, the solid colour for its glyph's disc. Strong Matches wore the
+ * its ground, the solid colour for its glyph's disc. Excellent Matches wore the
  * one violet fill, and Applied before it, until violet proved to be
  * Applied's stage colour twice over.
  *
- * Strong Matches is the job postings from the range that score Strong Match
- * or better for this seeker (STRONG_MATCH), from the Best Match scores
+ * Excellent Matches is the job postings from the range that score Excellent Match
+ * or better for this seeker (EXCELLENT_MATCH), from the Best Match scores
  * (GET /jobs/recommended/{id}/home, getMatches). It replaced New Roles, a
  * count of every posting in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
@@ -148,14 +149,14 @@ export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
   const tiles = (range: RangeKey): HomeStat[] => [
     {
       key: "strongMatches",
-      label: "Strong Matches",
+      label: "Excellent Matches",
       value: strongMatches(rangeDays(range, now)),
       previous: null,
       ...(matched === "empty"
         ? { note: "Add your experience first", href: "/experiences" }
         : {
-            note: matched ? STRONG_MATCHES_NOTE[range] : undefined,
-            href: STRONG_MATCHES_HREF[range],
+            note: matched ? EXCELLENT_MATCHES_NOTE[range] : undefined,
+            href: EXCELLENT_MATCHES_HREF[range],
           }),
     },
     {

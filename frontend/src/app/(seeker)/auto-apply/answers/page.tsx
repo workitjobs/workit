@@ -1,10 +1,12 @@
-import { CheckCircleIcon, CloudSlashIcon } from "@phosphor-icons/react/ssr";
+import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
@@ -14,10 +16,10 @@ import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { ConnectClaude, WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
-import { DeleteAnswer } from "./delete-answer";
 import { FactBox } from "./fact-box";
 import { isNew, newestSaved, SEEN_COOKIE, seenAt } from "./new-answers";
 import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
+import { RemovableAnswer } from "./remove-answer";
 import { SeenNow } from "./seen-now";
 
 export const metadata: Metadata = {
@@ -56,8 +58,8 @@ export const metadata: Metadata = {
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
  * Named fact, KAN-369) linked to the page that states it, so the student
- * can read up on it before an interview. Every answer has a Delete
- * (./delete-answer.tsx): the student's own, one saved here, and their
+ * can read up on it before an interview. Every answer has a Remove with
+ * Undo (./remove-answer.tsx): the student's own, one saved here, and their
  * Claude's (not own limits reuse, not removal). A list that doesn't load is left out
  * rather than shown as an error.
  *
@@ -98,25 +100,22 @@ export default async function WrittenAnswersPage() {
       </div>
 
       {error != null ? (
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="Your Questions Aren't Loading"
+        <LoadFailed
+          title="Your Questions Aren't Loading Right Now"
           className="mt-8"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
-          We couldn&apos;t reach your applications. Refresh the page in a few minutes.
-        </EmptyState>
+          We couldn&apos;t reach your applications. Try again in a few minutes.
+        </LoadFailed>
       ) : !postings || postings.length === 0 ? (
         <EmptyState Icon={CheckCircleIcon} title="Nothing Left to Write" className="mt-8">
           When an open application asks a written question, it shows up here.
         </EmptyState>
       ) : (
-        <div className="mt-6 flex flex-col gap-5">
+        <div className="mt-6 flex flex-col gap-4">
           {postings.map((posting) => (
             <Card as="section" padding="lg" key={posting.job_id} aria-labelledby={posting.job_id}>
-              <h2 id={posting.job_id} className="text-subtitle text-ink">
-                {posting.title ?? "Untitled Job"}
-              </h2>
+              <SectionHeading id={posting.job_id}>{posting.title ?? "Untitled Job"}</SectionHeading>
               {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
               <div className="mt-4 flex max-w-[68ch] flex-col gap-6">
                 {posting.questions.map((question) => (
@@ -147,14 +146,18 @@ export default async function WrittenAnswersPage() {
             What your applications were given, with the company fact each answer uses. Read up on it
             before an interview.
           </p>
-          <div className="mt-4 flex flex-col gap-5">
+          <div className="mt-4 flex flex-col gap-4">
             {answered.map((posting) => (
               <Card as="article" padding="lg" key={posting.job_id}>
-                <h3 className="text-subtitle text-ink">{posting.title ?? "Untitled Job"}</h3>
+                <SectionHeading as="h3">{posting.title ?? "Untitled Job"}</SectionHeading>
                 {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
                 <dl className="mt-4 flex max-w-[68ch] flex-col gap-5">
                   {posting.questions.map((question) => (
-                    <div key={question.name} className="flex flex-col gap-1.5">
+                    <RemovableAnswer
+                      key={question.name}
+                      jobId={posting.job_id}
+                      name={question.name}
+                    >
                       <dt className="text-body text-ink flex items-center gap-2 font-semibold">
                         {question.label}
                         {isNew(question, seen) && <Badge tone="brand">New</Badge>}
@@ -172,8 +175,7 @@ export default async function WrittenAnswersPage() {
                           </TextLink>
                         </dd>
                       )}
-                      <DeleteAnswer jobId={posting.job_id} name={question.name} />
-                    </div>
+                    </RemovableAnswer>
                   ))}
                 </dl>
               </Card>

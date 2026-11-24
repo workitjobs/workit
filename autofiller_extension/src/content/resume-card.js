@@ -17,7 +17,7 @@
 //   place, through the Fill engine's file fill (the failed card's
 //   fill-one-field, content-script.js `fixesOf`).
 //
-// Loaded after panel.js by the static launcher and by every fill; the first
+// Loaded after panel.js by the launcher's panel/shell and by every fill; the first
 // copy keeps the state. Each fill hands its Plan over with `use(fixes)`;
 // overlay.js's row asks `card(field)` for the opened row.
 window.WIA = window.WIA || {};

@@ -26,6 +26,7 @@ function entry(id: string, fields: Partial<BankEntry> = {}): BankEntry {
     field_of_study: null,
     honors: null,
     coursework: [],
+    tools: [],
     bullets: [],
     resume_ids: [],
     copy_group: id,
@@ -73,6 +74,20 @@ test("a copy no resume holds, with other bullets, stays a row of its own", () =>
       ["2", []],
     ],
   );
+});
+
+test("a copy with the row's bullets in another order is no row of its own", () => {
+  const bullets = (...texts: string[]) =>
+    texts.map((text, i) => ({ id: `${i}`, position: i, text })) as BankEntry["bullets"];
+  const entries = [
+    entry("1", { copy_group: "job", resume_ids: ["a"], bullets: bullets("Led it", "Built it") }),
+    entry("2", { copy_group: "job", bullets: bullets("Built it", "Led it") }),
+  ];
+  assert.deepEqual(
+    rowsOf(ALL, entries, [resume("a", true)]).map((r) => [r.entry.id, r.copies.map((c) => c.id)]),
+    [["1", ["2"]]],
+  );
+  assert.deepEqual(otherVersions({ entry: entries[0], copies: [entries[1]] }, [resume("a")]), []);
 });
 
 test("a resume's view keeps every copy as its own row", () => {
@@ -123,6 +138,15 @@ test("a search matches every word, in any order and case, bullets and copies inc
   assert.equal(rowMatches(row, "react DESIGNER"), true);
   assert.equal(rowMatches(row, "   "), true);
   assert.equal(rowMatches(row, "python"), false);
+});
+
+test("a search finds a project by a tool it lists", () => {
+  const row = {
+    entry: entry("1", { section: "projects", tools: ["Next.js", "FastAPI"] }),
+    copies: [],
+  };
+  assert.equal(rowMatches(row, "fastapi"), true);
+  assert.equal(rowMatches(row, "django"), false);
 });
 
 test("a skill matches by its name or its group", () => {

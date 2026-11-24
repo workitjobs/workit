@@ -228,7 +228,7 @@ def swap(text: str, kind: str, company: str, brief: str) -> list[str]:
     """On a company-facing type, sentences naming `company` with no specific
     fact (sameness.swap_survivors): no brief fact's name, number or other
     proper noun, so they would read true of a competitor."""
-    if kind not in sameness.COMPANY_FACING or not company:
+    if kind not in sameness.company_facing() or not company:
         return []
     facts = re.findall(r"^- \*\*(.+?)\*\*", brief, re.MULTILINE)
     return [f'would read true of another company: "{s}"' for s, _ in sameness.swap_survivors(text, company, [], facts)]

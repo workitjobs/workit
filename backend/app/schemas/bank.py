@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -24,6 +25,7 @@ from pydantic import (
 )
 
 from app.models.dto import bank_section, entry_end_kind
+from app.schemas.profile import HeaderFill
 
 _MONTH_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
 
@@ -53,11 +55,17 @@ Grade = Annotated[Decimal, Field(gt=0, le=100, max_digits=5, decimal_places=2)]
 # The fields only one section holds. Any other section must leave them empty.
 SECTION_FIELDS: dict[bank_section, tuple[str, ...]] = {
     bank_section.education: ("degree", "field_of_study", "gpa", "gpa_scale", "coursework", "honors"),
-    bank_section.projects: ("link",),
+    bank_section.projects: ("link", "tools"),
     bank_section.certifications: ("issuer",),
     bank_section.awards: ("award_date",),
 }
 _ALL_SECTION_FIELDS = {f for fields in SECTION_FIELDS.values() for f in fields}
+
+
+# A date given as a year alone (KAN-808): stored as January of it, which no
+# resume prints
+YearOnly = Literal["start_month", "end_month", "award_date"]
+YEAR_DATES: tuple[YearOnly, ...] = ("start_month", "end_month", "award_date")
 
 
 class EntryFields(BaseModel):
@@ -77,8 +85,20 @@ class EntryFields(BaseModel):
     coursework: list[Text] = Field(default_factory=list, max_length=40)
     honors: LongText | None = None
     link: LongText | None = None
+    tools: list[Name] = Field(default_factory=list, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
+    # Which of the dates above name a year alone (KAN-808)
+    year_only: list[YearOnly] = Field(default_factory=list, max_length=3)
+    # The section the student named (KAN-498), on a `custom` entry only. It
+    # is fixed once the entry exists, as `section` is.
+    custom_section_id: UUID | None = None
+
+    @field_validator("coursework", "tools", "year_only", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        # PATCH clears a field with null; a list's empty value is []
+        return [] if value is None else value
 
     @model_validator(mode="after")
     def _fits_together(self) -> "EntryFields":
@@ -86,6 +106,8 @@ class EntryFields(BaseModel):
         stray = [f for f in sorted(_ALL_SECTION_FIELDS - own) if getattr(self, f) not in (None, [])]
         if stray:
             raise ValueError(f"A {self.section.value} entry has no {', '.join(stray)}")
+        if self.custom_section_id is not None and self.section is not bank_section.custom:
+            raise ValueError(f"A {self.section.value} entry is in no section of yours")
 
         if self.end_kind is entry_end_kind.present and self.end_month is not None:
             raise ValueError("An entry that runs to Present has no end month")
@@ -98,6 +120,8 @@ class EntryFields(BaseModel):
 
         if self.gpa is not None and self.gpa_scale is not None and self.gpa > self.gpa_scale:
             raise ValueError("The GPA is higher than its scale")
+        # A mark only on a date the entry has, once each, in one order
+        self.year_only = [f for f in YEAR_DATES if f in self.year_only and getattr(self, f) is not None]
         return self
 
 
@@ -105,6 +129,60 @@ class EntryCreate(EntryFields):
     """POST body: an entry, optionally with its bullets in order."""
 
     bullets: list[LongText] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def _custom_has_section(self) -> "EntryCreate":
+        if self.section is bank_section.custom and self.custom_section_id is None:
+            raise ValueError("Pick the section this entry goes in")
+        return self
+
+
+# A custom section's layout (KAN-498): entries print as a project does
+# (title | organization, dates); lines print as plain lines, no heading.
+SectionLayout = Literal["entries", "lines"]
+# Most custom sections one owner holds: an upload, or the student's own
+MAX_CUSTOM_SECTIONS = 5
+# The fixed sections' printed names: a custom section never takes one, or
+# the page would print two headings of that name
+FIXED_SECTION_NAMES = frozenset({
+    "education", "experience", "projects", "leadership & activities", "leadership", "awards",
+    "certifications", "skills", "technical skills",
+})
+
+
+def _not_fixed(name: str) -> str:
+    if " ".join(name.casefold().split()) in FIXED_SECTION_NAMES:
+        raise ValueError(f"You already have a {name} section")
+    return name
+
+
+SectionName = Annotated[Name, AfterValidator(_not_fixed)]
+
+
+class CustomSectionCreate(BaseModel):
+    """POST body: a section the student names (KAN-498)."""
+
+    name: SectionName
+    layout: SectionLayout = "entries"
+
+
+class CustomSectionUpdate(BaseModel):
+    """PATCH body: a new name. The layout is fixed once made."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: SectionName
+
+
+class CustomSectionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    layout: SectionLayout
+    resume_ids: list[UUID] = []
+    """The upload that owns it (an import's section, ADR 0005), then the
+    built resumes that show one of its entries, as an entry's."""
 
 
 class EntryUpdate(BaseModel):
@@ -126,8 +204,11 @@ class EntryUpdate(BaseModel):
     coursework: list[Text] | None = Field(None, max_length=40)
     honors: LongText | None = None
     link: LongText | None = None
+    tools: list[Name] | None = Field(None, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
+    # Left out, a date the edit changes loses its mark (`bank.with_years`)
+    year_only: list[YearOnly] | None = Field(None, max_length=3)
 
 
 class BulletCreate(BaseModel):
@@ -177,6 +258,28 @@ class SkillUpdate(BaseModel):
     group: Name | None = None
 
 
+class SkillPlace(BaseModel):
+    """One skill in `SkillOrder`: its id and the group it goes in (null: no
+    group). The group is required, so a body that leaves it out never
+    clears one."""
+
+    id: UUID
+    group: Name | None
+
+
+class SkillOrder(BaseModel):
+    """PUT body (KAN-816): the skills the Skills dialog lists, in their new
+    order, each with its group. Each skill once."""
+
+    skills: list[SkillPlace] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def _each_once(self) -> "SkillOrder":
+        if len({s.id for s in self.skills}) != len(self.skills):
+            raise ValueError("Each skill can be listed once")
+        return self
+
+
 class DeleteMany(BaseModel):
     """Clear All's body (KAN-352): the entries or skills a section shows."""
 
@@ -221,6 +324,9 @@ class BankResponse(BaseModel):
     entries: list[EntryResponse]
     skills: list[SkillResponse]
     resumes: list[BankResume] = []
+    # The sections the student named (KAN-498), oldest first. A custom
+    # entry's `custom_section_id` is one of these.
+    sections: list[CustomSectionResponse] = []
 
 
 class DuplicateEntry(BaseModel):
@@ -232,12 +338,10 @@ class DuplicateEntry(BaseModel):
 
 class ImportRequest(BaseModel):
     """POST body for Import Again. Without a resume id, import reads the
-    default resume, else the newest upload. `read_with_ai` reads the resume
-    with the model in place of the heuristic parser; only the student asks
-    for it (ADR 0003)."""
+    default resume, else the newest upload, as every upload is read: the
+    model first, the parser behind it (KAN-732, ADR 0007)."""
 
     resume_id: UUID | None = None
-    read_with_ai: bool = False
 
 
 class DraftEntry(EntryCreate):
@@ -246,6 +350,16 @@ class DraftEntry(EntryCreate):
 
     gpa: float | None = None
     gpa_scale: float | None = None
+    # A custom entry read from a heading the bank has no section for
+    # (KAN-498): the section's name, which the import makes as the upload's
+    # own, in place of an id no section has yet.
+    section_name: Name | None = None
+
+    @model_validator(mode="after")
+    def _custom_has_section(self) -> "DraftEntry":
+        if self.section is bank_section.custom and self.custom_section_id is None and self.section_name is None:
+            raise ValueError("Pick the section this entry goes in")
+        return self
 
 
 class ImportResult(BaseModel):
@@ -261,10 +375,13 @@ class ImportResult(BaseModel):
     # a parse preview replaces any (KAN-372, ADR 0006).
     entries_replaced: int = 0
     skills_replaced: int = 0
-    # Who read the resume: the heuristic parser, or the model (KAN-222).
+    # Who read the resume: the model, or the heuristic parser behind it
+    # (KAN-732, ADR 0007).
     read_by: Literal["parser", "model"] = "parser"
-    # Model readings the student has left today, for "Read It With AI".
+    # AI readings the student has left today; at 0 the parser reads.
     uses_left: int
+    # What the resume's header filled on the profile, and offers (KAN-436)
+    header: HeaderFill = HeaderFill()
 
 
 class PreviewEntry(DraftEntry):
@@ -287,12 +404,13 @@ class PreviewDuplicate(BaseModel):
 
 
 class ResumePreview(BaseModel):
-    """POST .../resumes/preview (KAN-372, ADR 0006): what the parser reads
-    in a file, before anything is saved."""
+    """POST .../resumes/preview (KAN-372, ADR 0006): what a reading finds in
+    a file, before anything is saved."""
 
     entries: list[PreviewEntry]
     skills: list[PreviewSkill]
     duplicate_of: PreviewDuplicate | None = None
+    read_by: Literal["parser", "model"] = "parser"
 
 
 class ImportResponse(ImportResult):
@@ -319,11 +437,12 @@ class ModelEntry(BaseModel):
     gpa_scale: float | None = None
     coursework: list[str] = Field(default_factory=list)
     honors: str | None = None
+    tools: list[str] = Field(default_factory=list)
     issuer: str | None = None
     award_date: str | None = Field(None, description="YYYY-MM")
     bullets: list[str] = Field(default_factory=list)
 
-    @field_validator("coursework", "bullets", mode="before")
+    @field_validator("coursework", "tools", "bullets", mode="before")
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         # Groq's gpt-oss sends coursework: null on a job; that is no courses,
@@ -346,3 +465,15 @@ class ModelReading(BaseModel):
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         return [] if value is None else value
+
+
+class ConfirmedReading(BaseModel):
+    """A parse preview's reading, sent back as the `reading` form field of
+    the upload that confirms it (KAN-732), so the confirm saves what the
+    student saw without reading the file again: one AI reading per resume.
+    Each entry passes the entry schema and each skill the catalog, as an
+    Add does; a preview entry's `replaces` is ignored."""
+
+    entries: list[DraftEntry] = Field(default_factory=list, max_length=200)
+    skills: list[ModelSkill] = Field(default_factory=list, max_length=500)
+    read_by: Literal["parser", "model"] = "parser"

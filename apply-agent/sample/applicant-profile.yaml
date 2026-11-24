@@ -19,6 +19,7 @@ identity:
   pronouns: they/them/theirs
   email: test.person@example.com
   phone: "+15550100199"
+  phone_type: mobile
   current_location:
     city: Springfield
     state: IL

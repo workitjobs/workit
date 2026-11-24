@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import type { TrackerEvent } from "../tracker";
 import { dayKey, isTimed, KIND_LABEL, longDay, lookOf, timeOf, timeRange } from "./entries";
 import { EventEntry } from "./event-card";
+import { Tip } from "@/components/ui/tip";
 
 /** One hour's height on the grid, in px. */
 const HOUR = 48;
@@ -142,7 +143,7 @@ export function TimeGrid({
   }, [opensAt, keys[0]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="border-border-control rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+    <div className="border-border-surface rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
       {/* The days, and under them the all-day row. */}
       <div className="bg-surface border-border-subtle grid shrink-0 border-b" style={columns}>
         <span aria-hidden="true" />
@@ -169,22 +170,24 @@ export function TimeGrid({
         <span className="text-caption text-ink-meta border-border-subtle flex flex-col items-end gap-0.5 border-t py-1.5 pr-2">
           All Day
           {untimed.some((list) => list.length > ALL_DAY_SHOWN) && (
-            <button
-              type="button"
-              aria-expanded={allDayOpen}
-              onClick={() => setAllDayOpen(!allDayOpen)}
-              className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-            >
-              <ChevronDownIcon
-                className={cn(
-                  "size-3.5 transition-transform duration-150",
-                  allDayOpen && "rotate-180",
-                )}
-              />
-              <span className="sr-only">
-                {allDayOpen ? "Show fewer" : "Show all"} all-day entries
-              </span>
-            </button>
+            <Tip label={`${allDayOpen ? "Show fewer" : "Show all"} all-day entries`}>
+              <button
+                type="button"
+                aria-expanded={allDayOpen}
+                onClick={() => setAllDayOpen(!allDayOpen)}
+                className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <ChevronDownIcon
+                  className={cn(
+                    "size-3.5 transition-transform duration-150",
+                    allDayOpen && "rotate-180",
+                  )}
+                />
+                <span className="sr-only">
+                  {allDayOpen ? "Show fewer" : "Show all"} all-day entries
+                </span>
+              </button>
+            </Tip>
           )}
         </span>
         {days.map((day, i) => (

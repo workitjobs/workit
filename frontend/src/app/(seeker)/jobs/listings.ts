@@ -18,14 +18,14 @@ import {
   type FeedFilters,
   type SavedPreferences,
 } from "./filter-query";
-import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
+import { JOBS_VIEW_COOKIE, readJobsView, type JobsView } from "./view";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * sends its words as `q`), and by their Load More (./actions) a page at a
- * time. Home's Strong Matches reads the Best Match scores here too.
+ * time. Home's Excellent Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -189,7 +189,7 @@ export type HomeMatches = {
   /** The best ones auto apply can fill: Top Matches' picking mode. */
   autoApply: JobListing[];
   /** When each job posting from the window that scores at least the floor
-   *  went up: Strong Matches counts them per range. */
+   *  went up: Excellent Matches counts them per range. */
   strongPosted: string[];
 };
 
@@ -200,7 +200,7 @@ export type HomeMatches = {
  * nothing to score against (the API's 404 for an empty bank, or 403 for a
  * company account); null when the API can't say.
  *
- * ONE CALL, NOT THREE. Top Matches, its picking mode and Strong Matches
+ * ONE CALL, NOT THREE. Top Matches, its picking mode and Excellent Matches
  * each asked GET /jobs/recommended, and each call scanned every job
  * posting's vector, so the three ran side by side on one Postgres (13 to
  * 23 s on 2026-10-28). The API scores once and keeps the result until the
@@ -235,7 +235,7 @@ export async function getHomeMatches(
 
 /** The seeker's saved preferences as the feed's filters, or null when they
  *  have saved none or the API can't say: a fresh visit's starting filters
- *  (./page). */
+ *  (./(list)/page.tsx). */
 export async function getSavedFilters(): Promise<FeedFilters | null> {
   try {
     const { id, token } = await getApplicantSession();
@@ -284,23 +284,25 @@ export async function getSearchFacts(q: string): Promise<SearchFact[]> {
   }
 }
 
-/** How long the filter row's places and facet lists are reused before asking
- *  the API again. They change only when an import runs (every few hours), and each ask
- *  costs the API a database connection and six counting queries, which every
- *  filter change used to pay again. */
-const COUNTS_TTL = 300;
-
 /** The Jobs page's view, from the student's choice (./view). */
 export async function getJobsView(): Promise<JobsView> {
-  return (await cookies()).get(JOBS_VIEW_COOKIE)?.value === "split" ? "split" : "cards";
+  return readJobsView((await cookies()).get(JOBS_VIEW_COOKIE)?.value);
 }
 
 /** The Location filter's options. Empty when the API can't be reached: the
- *  facet then shows disabled, and the feed below reports the error itself. */
+ *  facet then shows disabled, and the feed below reports the error itself.
+ *
+ *  READ ONCE PER VISIT, KEPT BY THE API. The jobs layout starts it
+ *  (./layout.tsx), and a layout is not drawn again when a filter or the sort
+ *  changes, so a filter change never asks for it (KAN-916). The API keeps the
+ *  answer until the job postings change (backend
+ *  app/queries/jobs/kept_options.py). Next keeps nothing: production's data
+ *  cache is off (frontend/open-next.config.ts), so the `revalidate` this
+ *  once passed reached the API every time (0.8 to 6.7 s on 2026-11-18). */
 export async function getJobLocations(): Promise<JobLocationOption[]> {
   await connection();
   try {
-    const res = await apiGet("/jobs/locations", undefined, { revalidate: COUNTS_TTL });
+    const res = await apiGet("/jobs/locations");
     return res.ok ? ((await res.json()) as JobLocationOption[]) : [];
   } catch {
     return [];
@@ -338,11 +340,12 @@ const NO_FACETS: JobFacets = {
 
 /** The filter row's Role and Start Date options. Empty when the API can't be
  *  reached: Role's list is empty, Start Date shows disabled, and the feed
- *  below reports the error itself. No option shows its count (KAN-252). */
+ *  below reports the error itself. No option shows its count (KAN-252).
+ *  Read once per visit and kept by the API, as getJobLocations is. */
 export async function getJobFacets(): Promise<JobFacets> {
   await connection();
   try {
-    const res = await apiGet("/jobs/facets", undefined, { revalidate: COUNTS_TTL });
+    const res = await apiGet("/jobs/facets");
     // Over the empty groups, so an API that doesn't send a group yet (one
     // deployed before Role existed) leaves that facet empty rather than
     // crashing the filters.
@@ -366,16 +369,40 @@ export async function getJobListing(
   // API's other named routes answer 200 with something that isn't one.
   if (!UUID.test(id)) return { job: null, error: null };
   try {
-    // Kept for a minute: it carries no token, so its answer is the same for
-    // everyone, and since the job page has a loading.tsx a prefetch of each
-    // job link in view runs its generateMetadata, which reads this (KAN-368).
-    // Uncached, one Jobs page of 50 cards cost about 100 API calls.
-    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`, undefined, { revalidate: 60 });
+    // Read once per page: Next shares one fetch between the page and its
+    // generateMetadata in a render. Nothing keeps it longer, since
+    // production's data cache is off (frontend/open-next.config.ts). Since
+    // the job page has a loading.tsx, a prefetch of a job link runs its
+    // generateMetadata, which reads this, so job links prefetch on hover only
+    // (components/hover-prefetch-link.tsx, KAN-916): prefetched in view, one
+    // Jobs page of 50 cards cost about 100 API calls (KAN-368).
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`);
     if (res.status === 404) return { job: null, error: null };
     if (!res.ok) return { job: null, error: await extractErrorMessage(res) };
     return { job: (await res.json()) as JobListing, error: null };
   } catch {
     return { job: null, error: "Could not reach the server." };
+  }
+}
+
+/** This job's match for the viewer (`GET /jobs/{id}/match`, 2026-11-10), the
+ *  score and reasons its card in the feed shows, for the match rail on its
+ *  own page. Asked apart from `getJobListing`, which is the same for everyone
+ *  and carries no token. The split view's open job takes its list row's
+ *  score instead (./[jobId]/job-view.tsx, `listed`). `null` when there is no score: signed out, an empty
+ *  experience bank, a scoring failure or the API unreachable. */
+export async function getJobMatch(
+  id: string,
+): Promise<{ score: number; highlights: Highlight[] } | null> {
+  const token = await viewerToken();
+  if (!token || !UUID.test(id)) return null;
+  try {
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}/match`, token);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { match: number | null; highlights: Highlight[] };
+    return body.match == null ? null : { score: body.match, highlights: body.highlights };
+  } catch {
+    return null;
   }
 }
 

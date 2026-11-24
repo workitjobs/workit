@@ -11,6 +11,7 @@ import { ArrowLeftIcon, PlusIcon } from "@/components/icons";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -26,12 +27,14 @@ import { SelectField } from "@/components/ui/select-field";
 import { FIELD_LABEL, RequiredMark, TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
+import { CALENDAR_LIVE } from "../calendar/live";
 import { KIND_ICON, KIND_STAGE, STAGE_COLOR } from "../stage-colors";
 import type { EventKind } from "../tracker";
 
 import { addApplicationEvent, type NewEventKind } from "./actions";
 import { ApplicationTile } from "./application-tile";
 import { ApplicationTable, type PickableApplication } from "./pick-application";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * CREATE EVENT (KAN-413, KAN-429): the one way a student puts an interview,
@@ -152,21 +155,25 @@ export function CreateEventDialog({
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          iconOnly ? (
-            <Button variant={variant} size="icon-lg" aria-label="Create Event" title="Create Event">
-              <PlusIcon />
-            </Button>
-          ) : (
-            <Button variant={variant} size="sm">
-              <PlusIcon />
-              Create Event
-            </Button>
-          )
-        }
-      />
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      {/* "Create Event" on hover while it is the plus alone
+          (components/ui/tip.tsx). */}
+      <Tip label="Create Event" disabled={!iconOnly}>
+        <DialogTrigger
+          render={
+            iconOnly ? (
+              <Button variant={variant} size="icon-lg" aria-label="Create Event">
+                <PlusIcon />
+              </Button>
+            ) : (
+              <Button variant={variant} size="sm">
+                <PlusIcon />
+                Create Event
+              </Button>
+            )
+          }
+        />
+      </Tip>
+      <DialogContent className="sm:max-w-2xl">
         {/* Mounted per open, so each opens blank. */}
         {open && (
           <CreateEventForm
@@ -266,23 +273,24 @@ function CreateEventForm({
           {/* Back to the form, once it has an application to go back to. */}
           {choosing && picked && (
             <IconButton
+              place="row"
+              tooltip={false}
               label="Back to the event"
-              className="-ml-1.5 size-8"
+              className="-ml-1.5"
               onClick={() => setChoosing(false)}
             >
-              <ArrowLeftIcon className="size-4" />
+              <ArrowLeftIcon />
             </IconButton>
           )}
-          <DialogTitle className="text-subtitle font-semibold">
-            {choosing ? "Choose Application" : "Create Event"}
-          </DialogTitle>
+          <DialogTitle>{choosing ? "Choose Application" : "Create Event"}</DialogTitle>
         </div>
         <DialogDescription>
           {choosing
             ? "Pick the application this event is for."
             : empty
               ? "Save a job first: every event belongs to one of your applications."
-              : (MOVES[kind] ?? "It shows on the application's timeline and your Calendar.")}
+              : (MOVES[kind] ??
+                `It shows on the application's timeline${CALENDAR_LIVE ? " and your Calendar" : ""}.`)}
         </DialogDescription>
       </DialogHeader>
       {choosing && (
@@ -299,142 +307,145 @@ function CreateEventForm({
           />
         </div>
       )}
+      {/* A column inside the dialog's: the fields scroll, the buttons stay. */}
       <form
         onSubmit={submit}
-        className={cn("animate-fade grid gap-4 sm:grid-cols-6", choosing && "hidden")}
+        className={cn("animate-fade flex min-h-0 flex-1 flex-col gap-4", choosing && "hidden")}
       >
-        <div className="sm:col-span-6">
-          <TextField
-            id="event-title"
-            name="title"
-            label="Title"
-            placeholder={label}
-            maxLength={120}
-          />
-        </div>
-        {/* THE APPLICATION IS PICKED IN CHOOSE APPLICATION, the step above
-            (./pick-application.tsx), never a dropdown, and shown as the
-            Inbox shows its pick: the logo, the role, the company and
-            Change. */}
-        {!jobId && (
-          <div className="flex min-w-0 flex-col gap-1 sm:col-span-4">
-            <p id="event-application-label" className={FIELD_LABEL}>
-              Application
-              <RequiredMark />
-            </p>
-            {picked ? (
-              <div
-                aria-labelledby="event-application-label"
-                className="flex min-h-[2.625rem] min-w-0 items-center gap-3"
-              >
-                <ApplicationTile application={picked} size="sm" />
-                <div className="min-w-0">
-                  <p className="text-label text-ink truncate font-semibold">{picked.role}</p>
-                  <p className="text-note text-ink-meta truncate">
-                    {picked.company}
-                    {" · "}
-                    <button
-                      type="button"
-                      onClick={() => setChoosing(true)}
-                      className="text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      Change
-                    </button>
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <Button
-                id="event-application"
-                variant="secondary"
-                className="self-start"
-                aria-describedby={
-                  fieldErrors.application
-                    ? "event-application-label event-application-error"
-                    : "event-application-label"
-                }
-                disabled={empty}
-                onClick={() => setChoosing(true)}
-              >
-                <ListChecksIcon aria-hidden className="size-4" />
-                Choose Application
-              </Button>
-            )}
-            {fieldErrors.application && (
-              <p id="event-application-error" className="text-note text-danger">
-                {fieldErrors.application}
-              </p>
-            )}
+        <DialogBody className="grid sm:grid-cols-6">
+          <div className="sm:col-span-6">
+            <TextField
+              id="event-title"
+              name="title"
+              label="Title"
+              placeholder={label}
+              maxLength={120}
+            />
           </div>
-        )}
-        <SelectField
-          id="event-kind"
-          label="Type"
-          value={kind}
-          options={KIND_OPTIONS}
-          onValueChange={(next) => setKind(next as NewEventKind)}
-          className={jobId ? "sm:col-span-6" : "sm:col-span-2"}
-        />
-        <div className="sm:col-span-2">
-          <DateField
-            id="event-day"
-            label="Date"
-            value={day}
-            onValueChange={(next) => {
-              setDay(next);
-              setFieldErrors((errors) => ({ ...errors, day: undefined }));
-            }}
-            required
-            error={fieldErrors.day}
+          {/* THE APPLICATION IS PICKED IN CHOOSE APPLICATION, the step above
+              (./pick-application.tsx), never a dropdown, and shown as the
+              Inbox shows its pick: the logo, the role, the company and
+              Change. */}
+          {!jobId && (
+            <div className="flex min-w-0 flex-col gap-1 sm:col-span-4">
+              <p id="event-application-label" className={FIELD_LABEL}>
+                Application
+                <RequiredMark />
+              </p>
+              {picked ? (
+                <div
+                  aria-labelledby="event-application-label"
+                  className="flex min-h-[2.625rem] min-w-0 items-center gap-3"
+                >
+                  <ApplicationTile application={picked} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-label text-ink truncate font-semibold">{picked.role}</p>
+                    <p className="text-note text-ink-meta truncate">
+                      {picked.company}
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={() => setChoosing(true)}
+                        className="text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        Change
+                      </button>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  id="event-application"
+                  variant="secondary"
+                  className="self-start"
+                  aria-describedby={
+                    fieldErrors.application
+                      ? "event-application-label event-application-error"
+                      : "event-application-label"
+                  }
+                  disabled={empty}
+                  onClick={() => setChoosing(true)}
+                >
+                  <ListChecksIcon aria-hidden className="size-4" />
+                  Choose Application
+                </Button>
+              )}
+              {fieldErrors.application && (
+                <p id="event-application-error" className="text-note text-danger">
+                  {fieldErrors.application}
+                </p>
+              )}
+            </div>
+          )}
+          <SelectField
+            id="event-kind"
+            label="Type"
+            value={kind}
+            options={KIND_OPTIONS}
+            onValueChange={(next) => setKind(next as NewEventKind)}
+            className={jobId ? "sm:col-span-6" : "sm:col-span-2"}
           />
-        </div>
-        <SelectField
-          id="event-start"
-          label="Start"
-          value={startTime}
-          options={QUARTERS.map((time) => ({ value: time, label: clock(time) }))}
-          onValueChange={pickStart}
-          disabled={allDay}
-          className="sm:col-span-2"
-        />
-        <SelectField
-          id="event-end"
-          label="End"
-          value={endTime}
-          options={endOptions(startTime)}
-          onValueChange={setEndTime}
-          disabled={allDay}
-          className="sm:col-span-2"
-        />
-        {/* ALL DAY, as Google Calendar's: for something due by the end of a
-            day, an assessment's deadline or an offer's answer-by. */}
-        <label className="text-label text-ink -mt-1 flex w-fit cursor-pointer items-center gap-2 sm:col-span-6">
-          <Checkbox
-            className="border-ink-meta"
-            checked={allDay}
-            onCheckedChange={(next) => setAllDay(next === true)}
+          <div className="sm:col-span-2">
+            <DateField
+              id="event-day"
+              label="Date"
+              value={day}
+              onValueChange={(next) => {
+                setDay(next);
+                setFieldErrors((errors) => ({ ...errors, day: undefined }));
+              }}
+              required
+              error={fieldErrors.day}
+            />
+          </div>
+          <SelectField
+            id="event-start"
+            label="Start"
+            value={startTime}
+            options={QUARTERS.map((time) => ({ value: time, label: clock(time) }))}
+            onValueChange={pickStart}
+            disabled={allDay}
+            className="sm:col-span-2"
           />
-          All Day
-        </label>
-        <div className="sm:col-span-6">
-          <TextField
-            id="event-link"
-            name="link"
-            type="url"
-            label="Meeting Link"
-            placeholder="https://"
-            maxLength={500}
+          <SelectField
+            id="event-end"
+            label="End"
+            value={endTime}
+            options={endOptions(startTime)}
+            onValueChange={setEndTime}
+            disabled={allDay}
+            className="sm:col-span-2"
           />
-        </div>
-        <div className="sm:col-span-6">
-          <TextAreaField id="event-note" name="note" label="Note" rows={2} maxLength={1000} />
-        </div>
-        {error && (
-          <p role="alert" className="text-note text-danger sm:col-span-6">
-            {error}
-          </p>
-        )}
-        <DialogFooter className="sm:col-span-6">
+          {/* ALL DAY, as Google Calendar's: for something due by the end of a
+              day, an assessment's deadline or an offer's answer-by. */}
+          <label className="text-label text-ink -mt-1 flex w-fit cursor-pointer items-center gap-2 sm:col-span-6">
+            <Checkbox
+              className="border-ink-meta"
+              checked={allDay}
+              onCheckedChange={(next) => setAllDay(next === true)}
+            />
+            All Day
+          </label>
+          <div className="sm:col-span-6">
+            <TextField
+              id="event-link"
+              name="link"
+              type="url"
+              label="Meeting Link"
+              placeholder="https://"
+              maxLength={500}
+            />
+          </div>
+          <div className="sm:col-span-6">
+            <TextAreaField id="event-note" name="note" label="Note" rows={2} maxLength={1000} />
+          </div>
+          {error && (
+            <p role="alert" className="text-note text-danger sm:col-span-6">
+              {error}
+            </p>
+          )}
+        </DialogBody>
+        <DialogFooter>
           <DialogClose render={<Button variant="secondary">Cancel</Button>} />
           <Button type="submit" disabled={pending || empty}>
             {pending ? "Creating…" : "Create Event"}

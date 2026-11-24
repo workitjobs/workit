@@ -7,6 +7,14 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Minify the script wrangler uploads (KAN-782, 2026-11-10). OpenNext's own
+  // output is minified, but wrangler bundles it again and, without this, writes
+  // it out unminified: 22.5 MB, against 15.5 MB with it (frontend/CLAUDE.md,
+  // Deployment, "The Worker's size is its cold start"). A new copy of the
+  // Worker parses the whole script before it answers, and on workitjobs.ai
+  // about half of the requests a second apart met a new copy and took 0.75 to
+  // 1.35 s, against 0.06 s. Function names are kept (wrangler's keep_names).
+  "minify": true,
   // Workers Logs: without it a failed request leaves no trace to read
   "observability": { "enabled": true },
   "assets": {

@@ -29,7 +29,7 @@ import { cn } from "@/lib/cn";
  */
 type SectionHeadingProps = {
   /** Pick the level that fits the outline, not the size — the size is fixed. */
-  as?: "h1" | "h2" | "h3";
+  as?: "h1" | "h2" | "h3" | "h4";
   id?: string;
   action?: ReactNode;
   className?: string;

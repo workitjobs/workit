@@ -17,7 +17,7 @@ def _bank() -> SimpleNamespace:
     row = SimpleNamespace(
         id=ENTRY, section="experience", title="Intern", organization=None, location=None, start_month=None,
         end_month=None, end_kind=None, degree=None, field_of_study=None, gpa=None, gpa_scale=None, coursework=[],
-        honors=None, link=None, issuer=None, award_date=None,
+        honors=None, link=None, tools=[], issuer=None, award_date=None,
     )
     bullets = [SimpleNamespace(id=b, text=t) for b, t in ((FIRST, "First"), (SECOND, "Second"), (NEW, "Led a team"))]
     return SimpleNamespace(entries=[SimpleNamespace(row=row, bullets=bullets)], skills=[])

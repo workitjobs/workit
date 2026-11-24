@@ -35,14 +35,16 @@ window.WIA = window.WIA || {};
 (function () {
   "use strict";
 
-  // The stepped system's button, review page, words that go on, and error (steps.js; Workday's by default).
+  // The stepped system's button, review page, words that go on, and error (steps.js; Workday's by default):
+  // the Rules table's, read at each use (site-data.js).
   const system = window.WIA.steps ?? window.WIA.workday;
-  const { next: NEXT, review: REVIEW_PAGE, goesOn: GOES_ON, banner: BANNER } = system.walk;
+  const walk = system.walk;
+  // Words that send, on any system: never pressed. Kept here, not in the table, so no served data can loosen it.
   const SENDS = /\b(submit|send|apply|finish|complete|confirm)\b/i;
   // The page where the walk stops shows (Workday's Review page, Oracle's Submit button).
   // The document the steps are drawn in (iCIMS's frame), else this page.
   const root = () => system.doc?.() ?? document;
-  const onReview = () => [...root().querySelectorAll(REVIEW_PAGE)].some((el) => el.checkVisibility());
+  const onReview = () => [...root().querySelectorAll(walk.review)].some((el) => el.checkVisibility());
   const NAME = system.name;
   const PRESS = system.nextLabel;
   // This tab's choice (Fill to Review pressed) and the steps pressed in it, kept across Workday's page loads.
@@ -110,19 +112,19 @@ window.WIA = window.WIA || {};
   function refuse(button) {
     if (onReview()) return `This is ${NAME}'s ${system.reviewName} page. Check everything, then press Submit yourself.`;
     const words = (button.innerText || button.value || button.getAttribute("aria-label") || "").trim();
-    if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
+    if (!walk.goesOn.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
       return `This step's button reads "${words}", which WorkIt never presses. Check the step, then go on yourself.`;
     }
     return null;
   }
 
-  const banner = () => [...root().querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
+  const banner = () => [...root().querySelectorAll(walk.banner)].find((b) => b.checkVisibility() && b.innerText.trim());
   // The system's error page in place of the step (Workday's "Something went wrong").
   const wentWrong = system.walk.wentWrong;
   // The step's button: the one that reads as going on where the footer has more (Oracle's Back), else the one shown.
   const shown = () => {
-    const buttons = [...root().querySelectorAll(NEXT)].filter((b) => b.checkVisibility());
-    return buttons.find((b) => GOES_ON.test((b.innerText || b.value || b.getAttribute("aria-label") || "").trim())) ?? buttons[0];
+    const buttons = [...root().querySelectorAll(walk.next)].filter((b) => b.checkVisibility());
+    return buttons.find((b) => walk.goesOn.test((b.innerText || b.value || b.getAttribute("aria-label") || "").trim())) ?? buttons[0];
   };
 
   /**

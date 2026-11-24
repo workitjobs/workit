@@ -171,7 +171,15 @@ test("fills a saved Waymo careers site form from a WorkIt profile, reading its q
 
   expect(phase).toBe("filled");
   expect(shown(rows)).toMatchObject({ first_name: "Test", last_name: "Person", email: "test.person@example.com" });
-  expect(failed(rows)).toEqual({});
+  // Two required boxes are the student's own tick (the engine's attestations, KAN-676 and KAN-775): a plain "I certify
+  // this is true", and Waymo's AI-policy notice that "you acknowledge and agree to adhere to". The panel lists each as
+  // theirs (KAN-841). Its privacy policy acknowledgement is a consent the policy ticks.
+  expect(failed(rows)).toEqual({
+    "By submitting my application, I certify that the information provided (including in my resume/CV) is true and correct. I understand that any misrepresentations or false statements made in connection with the recruitment process may be grounds for disqualification from further consideration for employment or, if employed, separation of employment.":
+      "Yours to tick: you attest to it or sign it yourself.",
+    "To ensure a fair and accurate assessment of each candidate's unique capabilities, Waymo prohibits the use of unauthorized outside assistance during the interview process. This includes, but is not limited to, artificial intelligence (AI) tools, generative software, or third-party resources, unless explicitly authorized by the hiring team. By submitting this application, you acknowledge and agree to adhere to these guidelines.":
+      "Yours to tick: you attest to it or sign it yourself.",
+  });
   expect(waymo.submissions).toEqual([]);
 });
 

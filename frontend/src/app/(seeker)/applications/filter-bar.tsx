@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useRef, useState } from "react";
 
 import { FieldFacet } from "@/components/field-facet";
-import { CloseIcon, FilterIcon, workStyleIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
-import { SearchField } from "@/components/ui/search-field";
+import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
+import { workStyleIcon } from "@/components/icons";
+import { SELECTION_ROW } from "@/components/selection-bar";
+import { useShallowPush } from "@/components/shallow-routing";
+import { SortMenu } from "@/components/sort-menu";
+import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import type { StageKey } from "../stage-colors";
@@ -21,7 +23,8 @@ import {
   type Picks,
 } from "./field-filters";
 import { StatusIcon } from "./icons";
-import { ColumnsMenu } from "./list-controls";
+import { TrackerSelectionBar } from "./pick";
+import { TableSettingsMenu } from "./list-controls";
 import { ViewSwitcher } from "./view-switcher";
 import {
   applicationsHref,
@@ -31,6 +34,7 @@ import {
   filterCount,
   filterOptions,
   NO_FILTERS,
+  SORT_OPTIONS,
   type Filterable,
   type FilterKey,
 } from "./query";
@@ -39,16 +43,19 @@ import { useApplicationsQuery } from "./view-switcher";
 /**
  * The Applications filters, in two rows (KAN-282). The first is the search
  * over role and company. The second is laid out as the Jobs page's filter
- * row: a dropdown for Status and one per field (./field-filters.tsx), then,
- * at the right, Clear Filters as a cross, All Filters (a panel with every
- * one of them) and, while the list is shown, its Columns menu. Status was a
+ * row: Sort first (KAN-827), as on the Jobs page, then a dropdown for Status
+ * and one per field (./field-filters.tsx), then, at the right, Clear Filters
+ * as a cross, All Filters (a panel with every one of them) and, while the
+ * list is shown, its Table Settings. Status was a
  * row of stage chips with counts (KAN-256) until the row became dropdowns.
  *
  * EVERYTHING HERE IS A URL, like the view switcher beside the title
  * (./query.ts). The search is a GET form, a `next/form`, so pressing Enter
  * navigates with `?q=` set and the views below re-render on the server; the
  * current view, stages, field picks and sort ride along as hidden fields so
- * a search does not reset them. The field is keyed by the query it shows,
+ * a search does not reset them. Sort moves ?sort= in place, as the list's
+ * headings do: both layouts sort the rows they hold (./list.tsx, ./cards.tsx).
+ * The field is keyed by the query it shows,
  * so it empties when Clear Filters navigates away from a search, which an
  * uncontrolled field would not do on its own. A dropdown pick replaces the
  * URL (`apply`).
@@ -67,6 +74,7 @@ export function FilterBar({
 }) {
   const query = useApplicationsQuery();
   const router = useRouter();
+  const push = useShallowPush();
   // The picks show at once; the URL's catch up when the filtered page lands.
   const [picks, show] = useOptimistic<Picks>({ stages: query.stages, filters: query.filters });
   const [allOpen, setAllOpen] = useState(false);
@@ -95,7 +103,7 @@ export function FilterBar({
       options={options[key].map((value) => ({
         value,
         label: value,
-        // Work Model's options differ by glyph, as on the Jobs page.
+        // Workplace's options differ by glyph, as on the Jobs page.
         Icon: key === "workModel" ? workStyleIcon(value) : undefined,
       }))}
       values={picks.filters[key]}
@@ -109,7 +117,7 @@ export function FilterBar({
       {/* The switcher is two glyphs, so it fits beside the search at every
           width. */}
       <div className="flex items-center justify-between gap-3">
-        <Form action="/applications" className="min-w-0 flex-1 @lg/main:max-w-64">
+        <Form action="/applications" className={PAGE_SEARCH}>
           {query.view !== DEFAULT_VIEW && <input type="hidden" name="view" value={query.view} />}
           {picks.stages.length > 0 && (
             <input type="hidden" name="stage" value={picks.stages.join(",")} />
@@ -125,7 +133,7 @@ export function FilterBar({
             id="applications-search"
             label="Search Applications"
             name="q"
-            placeholder="Search role or company"
+            placeholder="Search job or company"
             defaultValue={query.q}
             enterKeyHint="search"
           />
@@ -134,21 +142,29 @@ export function FilterBar({
       </div>
 
       {/* THE DROPDOWNS STEP OUT ONE AT A TIME, least used first, from the
-          right, as the Jobs page's facets do; All Filters, which holds them
-          all, stays at every width. Each dropdown is at least 144px; the
-          cross, All Filters and Columns take about 280px with their gaps, so
-          this row (its own @container) fits Status from 440px, Company from
-          592, Job Type from 744, Work Model from 896 and Source from 1048. A
-          phone's row is All Filters and Columns. The cross's room is kept
-          whether or not it shows, so a pick never pushes a dropdown out. */}
-      <div className="@container flex items-center gap-2">
+          right, as the Jobs page's facets do; Sort and All Filters, which
+          holds them all, stay at every width. Each dropdown is at least
+          144px; Sort takes the first place, so this row (its own
+          @container) fits Status from 488px, Company from 640, Job
+          Type from 792 and Workplace from 944. A phone's row is Sort, All
+          Filters and Table Settings. The cross's room is kept whether or
+          not it shows, so a pick never pushes a dropdown out. */}
+      <div className={cn("@container flex items-center gap-2", SELECTION_ROW)}>
+        {/* The picked rows' bar, over this row while any is picked
+            (./pick.tsx); the list's alone, as the grid has no boxes. */}
+        {query.view === "list" && <TrackerSelectionBar />}
+        <SortMenu
+          value={query.sort}
+          options={SORT_OPTIONS}
+          onChange={(sort) => push(applicationsHref(query, { sort, app: null }))}
+        />
         <FieldFacet
           label="Status"
           Icon={StatusIcon}
           options={STATUS_OPTIONS}
           values={picks.stages}
           onChange={(stages) => apply({ ...picks, stages: stages as StageKey[] })}
-          className="hidden min-w-36 @min-[27.5rem]:flex"
+          className="hidden min-w-36 @min-[30.5rem]:flex"
         />
         <SearchFacet
           label="Company"
@@ -158,41 +174,31 @@ export function FilterBar({
           options={options.company}
           values={picks.filters.company}
           onChange={(values) => setField("company", values)}
-          className="hidden min-w-36 @min-[37rem]:flex"
+          className="hidden min-w-36 @min-[40rem]:flex"
         />
-        {facet("track", "Job Type", "hidden min-w-36 @min-[46.5rem]:flex")}
-        {facet("workModel", "Work Model", "hidden min-w-36 @min-[56rem]:flex")}
-        {facet("source", "Source", "hidden min-w-36 @min-[65.5rem]:flex")}
+        {facet("track", "Job Type", "hidden min-w-36 @min-[49.5rem]:flex")}
+        {facet("workModel", "Workplace", "hidden min-w-36 @min-[59rem]:flex")}
 
-        {/* Every pick and the search off in one press, shown only while
-            there is one: an outlined cross, its name in the tooltip, as on
-            the Jobs page. The press hands focus to All Filters, since the
-            cross leaves with the last pick. */}
+        {/* Clear and All Filters, as on the Jobs page (components/
+            filter-actions.tsx). Clear's press hands focus to All Filters,
+            since it leaves with the last pick. */}
         {filtered && (
-          <IconButton
-            label="Clear filters"
-            variant="outline"
-            className="animate-fade ml-auto size-9 shrink-0"
+          <ClearFiltersButton
+            className="animate-fade ml-auto shrink-0"
             onClick={() => {
               allButton.current?.focus();
               apply({ stages: [], filters: NO_FILTERS }, "");
             }}
-          >
-            <CloseIcon className="size-4" />
-          </IconButton>
+          />
         )}
-        <Button
+        <AllFiltersButton
           ref={allButton}
-          variant="secondary"
-          size="sm"
+          count={picks.stages.length + filterCount(picks.filters)}
           onClick={() => setAllOpen(true)}
           className={cn("shrink-0", !filtered && "ml-auto")}
-        >
-          <FilterIcon className="size-4" />
-          All Filters
-        </Button>
+        />
         {/* The list's own control: the grid has no columns. */}
-        {query.view === "list" && <ColumnsMenu className="shrink-0" />}
+        {query.view === "list" && <TableSettingsMenu />}
       </div>
 
       <AllFiltersPanel
@@ -215,7 +221,13 @@ export function ClearFiltersLink({ className }: { className: string }) {
 
   return (
     <Link
-      href={applicationsHref(query, { stages: [], q: "", filters: NO_FILTERS, app: null })}
+      href={applicationsHref(query, {
+        stages: [],
+        q: "",
+        filters: NO_FILTERS,
+        app: null,
+        closed: false,
+      })}
       scroll={false}
       className={className}
     >

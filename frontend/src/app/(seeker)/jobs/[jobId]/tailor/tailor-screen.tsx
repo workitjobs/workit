@@ -3,19 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CheckIcon,
-  PlusIcon,
-  SparkleIcon,
-} from "@/components/icons";
+import { ArrowRightIcon, CheckIcon, PlusIcon, SparkleIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { LoadFailed } from "@/components/ui/load-failed";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import { matchColor } from "@/lib/match";
@@ -32,8 +28,9 @@ import {
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, ResumeListsSkeleton, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
-import { BackToJobs } from "../page-actions";
 import type { JobListing } from "../../listings";
+import { BackLink } from "../../../back-link";
+import { TailorStepBack } from "./tailor-back";
 import { TailorBar, TailorHeader } from "./tailor-header";
 import { TailorRunning, type Phase } from "./tailor-running";
 import { type TailorStep } from "./tailor-steps";
@@ -251,19 +248,19 @@ export function TailorScreen({
         step={step}
         back={
           step === "pick" ? (
-            <BackToJobs className="group/back" />
+            // To the page that opened Tailor, the job's page for a direct visit.
+            <BackLink
+              parent={{ href: `/jobs/${encodeURIComponent(jobId)}`, name: "Job Posting" }}
+              className="group/back"
+            />
           ) : (
-            <Button
-              variant="secondary"
-              size="sm"
+            <TailorStepBack
               disabled={running}
               onClick={() => {
                 setError(null);
                 setStep("pick");
               }}
-            >
-              <ArrowLeftIcon /> Back
-            </Button>
+            />
           )
         }
         next={
@@ -281,6 +278,7 @@ export function TailorScreen({
             </Button>
           )
         }
+        error={<TailorError error={error} />}
       />
       <div className="mt-4">
         <TailorHeader job={job} title={HEADINGS[step]} />
@@ -291,6 +289,15 @@ export function TailorScreen({
             <Card as="section" aria-label="Pick a Resume" className="flex min-w-0 flex-col gap-3">
               {choices == null ? (
                 <ResumeListsSkeleton />
+              ) : choiceError ? (
+                <LoadFailed
+                  compact
+                  title="Your Resumes Aren't Loading Right Now"
+                  onRetry={refreshChoices}
+                  detail={process.env.NODE_ENV === "development" ? choiceError : undefined}
+                >
+                  We couldn&apos;t reach your resumes. Try again in a few minutes.
+                </LoadFailed>
               ) : (
                 <>
                   <ResumeLists
@@ -312,17 +319,11 @@ export function TailorScreen({
                   />
                 </>
               )}
-              {choiceError && (
-                <p role="alert" className="text-note text-danger">
-                  {choiceError}
-                </p>
-              )}
               {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
               <p className="text-note text-ink-meta">
                 Each run uses one of today&apos;s 2 Tailor runs.
               </p>
               */}
-              <TailorError error={error} />
             </Card>
             {previewed && (
               <ResumePreviewDialog
@@ -343,7 +344,6 @@ export function TailorScreen({
             resume={matchedChoice?.label}
             picked={picked}
             onToggle={toggle}
-            error={error}
           />
         )}
       </div>
@@ -383,13 +383,11 @@ function KeywordCard({
   resume,
   picked,
   onToggle,
-  error,
 }: {
   match: TailorMatch;
   resume: string | undefined;
   picked: Set<string>;
   onToggle: (keyword: string) => void;
-  error: { message: string; status: number | null } | null;
 }) {
   const total = match.matched.length + match.missing.length;
   return (
@@ -410,9 +408,9 @@ function KeywordCard({
             <span className="bg-positive-tint text-positive-ink flex size-10 items-center justify-center rounded-full">
               <CheckIcon aria-hidden className="size-5" />
             </span>
-            <h2 className="text-subtitle text-ink mt-3">
+            <SectionHeading className="mt-3">
               {total > 0 ? "Every Keyword Is on This Resume" : "This Posting Names No Keywords"}
-            </h2>
+            </SectionHeading>
             <p className="text-body text-ink-meta mt-1">
               Tailor Resume still rewords your bullets for this job.
             </p>
@@ -420,15 +418,11 @@ function KeywordCard({
         )}
 
         {/* Said before the click, not after: the run has no confirmation. */}
-        {(match.tailored_resume_id || error) && (
-          <div className="border-border-subtle flex flex-col gap-2 border-t pt-4">
-            {match.tailored_resume_id && (
-              <p className="text-note text-ink-meta">
-                This posting already has a tailored resume. Tailor Resume replaces it with a new
-                run.
-              </p>
-            )}
-            <TailorError error={error} />
+        {match.tailored_resume_id && (
+          <div className="border-border-subtle border-t pt-4">
+            <p className="text-note text-ink-meta">
+              This posting already has a tailored resume. Tailor Resume replaces it with a new run.
+            </p>
           </div>
         )}
       </Card>
@@ -501,7 +495,7 @@ function MatchPanel({
           </p>
         </div>
         <div className="min-w-0">
-          <h2 className="text-subtitle text-ink">Keyword Match</h2>
+          <SectionHeading>Keyword Match</SectionHeading>
           <p className="text-note text-ink-muted mt-0.5">
             {matched.length} of {total} keywords
           </p>
@@ -653,15 +647,21 @@ function MissingKeywords({
   );
 }
 
+/** What went wrong with Next or Tailor Resume, in the bar under the button
+ *  that caused it (`TailorBar`'s `error`, KAN-819), right-aligned to it. The
+ *  alert region is always there, so a screen reader hears each new error. */
 function TailorError({ error }: { error: { message: string; status: number | null } | null }) {
-  if (!error) return null;
   return (
-    <div role="alert" className="text-note text-danger mt-2">
-      <p>{error.message}</p>
-      {error.status === 409 && error.message.toLowerCase().includes("bank") && (
-        <ButtonLink href="/experiences" size="sm" className="mt-2">
-          Fill My Bank
-        </ButtonLink>
+    <div role="alert" className="text-note text-danger flex flex-col items-end text-right">
+      {error && (
+        <div className="mt-2 flex flex-col items-end gap-2 px-1">
+          <p>{error.message}</p>
+          {error.status === 409 && error.message.toLowerCase().includes("bank") && (
+            <ButtonLink href="/experiences" size="sm">
+              Fill My Bank
+            </ButtonLink>
+          )}
+        </div>
       )}
     </div>
   );

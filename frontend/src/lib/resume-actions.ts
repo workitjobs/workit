@@ -140,19 +140,28 @@ export async function getResumeFileUrl(
 
 /** One entry of a parse preview: the entry fields, its bullets' text, and
  *  the ids of the other uploads' entries a confirm replaces (ADR 0006). */
-export type PreviewEntry = EntryFields & { bullets: string[]; replaces: string[] };
+/** `section_name`: a heading the bank has no section for (KAN-498), read as
+ *  a Lines section of that name. */
+export type PreviewEntry = EntryFields & {
+  bullets: string[];
+  replaces: string[];
+  section_name: string | null;
+};
 export type PreviewSkill = { name: string; group: string | null; replaces: string[] };
-/** POST .../resumes/preview (KAN-372): what the parser reads in a file,
- *  with nothing saved. `duplicate_of` names an upload with the same text. */
+/** POST .../resumes/preview (KAN-372): what a reading finds in a file, with
+ *  nothing saved. `duplicate_of` names an upload with the same text;
+ *  `read_by` says whether AI or the parser read it (KAN-732). */
 export type ResumePreview = {
   entries: PreviewEntry[];
   skills: PreviewSkill[];
   duplicate_of: { resume_id: string; name: string } | null;
+  read_by: "parser" | "model";
 };
 
 // The parse preview (KAN-372, ADR 0006): the API reads the file as an upload
-// does and saves nothing. The student confirms by uploading the same file
-// with `replaceMatching`.
+// does and saves nothing but the day's AI reading. The student confirms by
+// uploading the same file with `replaceMatching` and the preview as
+// `reading`.
 export async function previewResume(
   formData: FormData,
 ): Promise<{ preview: ResumePreview | null; error: string | null }> {
@@ -166,18 +175,30 @@ export async function previewResume(
   }
 }
 
-// The API reads the file itself and writes what it read into the experience
-// bank; the client never sends parsed content. A file whose text the student
-// has already uploaded is refused (KAN-267): `error` is "Duplicate Resume
-// found: <name>" and `duplicateOf` that resume's id. `replaceMatching`
-// confirms a parse preview: the other uploads' matching entries and skills
-// are replaced, not copied (ADR 0006).
+// The API reads the file itself, with AI first and the parser behind it
+// (KAN-732), and writes what it read into the experience bank. A file whose
+// text the student has already uploaded is refused (KAN-267): `error` is
+// "Duplicate Resume found: <name>", `duplicateOf` that resume's id and
+// `duplicateName` its name (the Resumes page's modal says it in its words).
+// `replaceMatching` confirms a parse preview: the other uploads' matching
+// entries and skills are replaced, not copied (ADR 0006). `reading` is that
+// preview, sent back so the API saves what the student saw instead of
+// reading the file again: one AI reading per resume.
 export async function uploadResume(
   formData: FormData,
-  { replaceMatching = false }: { replaceMatching?: boolean } = {},
-): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
+  { replaceMatching = false, reading }: { replaceMatching?: boolean; reading?: ResumePreview } = {},
+): Promise<{
+  resume: ResumeItem | null;
+  error: string | null;
+  duplicateOf?: string;
+  duplicateName?: string;
+}> {
   try {
     const { id, token } = await getApplicantSession();
+    if (reading) {
+      const { entries, skills, read_by } = reading;
+      formData.append("reading", JSON.stringify({ entries, skills, read_by }));
+    }
     const query = replaceMatching ? "?replace=matching" : "";
     const res = await apiUpload(`/applicants/${id}/resumes${query}`, formData, token);
     if (!res.ok) return await refused(res);
@@ -193,13 +214,16 @@ export async function uploadResume(
  *  duplicate (409, KAN-267) the id of the resume it matched. */
 async function refused(
   res: Response,
-): Promise<{ resume: null; error: string; duplicateOf?: string }> {
+): Promise<{ resume: null; error: string; duplicateOf?: string; duplicateName?: string }> {
   const body: unknown = await res.json().catch(() => null);
-  const duplicateOf = (body as { detail?: { resume_id?: unknown } } | null)?.detail?.resume_id;
+  const detail = (body as { detail?: { resume_id?: unknown; name?: unknown } } | null)?.detail;
+  const duplicateOf = detail?.resume_id;
+  const duplicateName = detail?.name;
   return {
     resume: null,
     error: errorMessage(body),
     ...(res.status === 409 && typeof duplicateOf === "string" ? { duplicateOf } : {}),
+    ...(res.status === 409 && typeof duplicateName === "string" ? { duplicateName } : {}),
   };
 }
 

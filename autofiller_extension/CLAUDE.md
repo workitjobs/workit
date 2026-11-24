@@ -10,7 +10,8 @@ the "Custom ATS Autofiller Build Plan" doc, built directly on
 ## Where this folder sits
 
 A third kind of project in this repo, alongside `frontend/` and `backend/`:
-no server, no build step, no dependency manifest. It's loaded into Chrome
+no server, no build step, no dependency manifest (only the Store package's
+build, `store/build.mjs`, minifies a copy). It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET
@@ -32,8 +33,9 @@ connector, or theirs (KAN-470, "Written questions" below).
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
 `src/shared/types.js` standing in for compile-time types. The Fill engine
 comes the same way: a git submodule whose committed bundle is loaded as it
-is (below). Only `test/` has a `package.json`, for its test runner; nothing
-the extension loads depends on it.
+is (below). Only `test/` (its test runner) and `store/` (esbuild, for the
+Store package only) have a `package.json`; nothing the extension loads
+depends on either.
 
 ## The Fill engine (KAN-329, KAN-340): what fills the form
 
@@ -41,9 +43,9 @@ The form is filled by the **Fill engine**, the TypeScript engine Apply
 (Lisul's autopilot) fills with too: one copy of every job system's filler
 and of the answer rules, so a fix lands in both. It lives in the private
 repo `workitjobs/fill-engine` and sits here as the submodule
-`fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
-autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
-a change to the engine reaches students only when someone here chooses it.
+`fill-engine/`, **pinned to a commit on its `main`**. A person moves the
+pin ("Move the engine pointer", at the end of this section), so a change
+to the engine reaches students only when someone here chooses it.
 Nothing else changes with the pin: `ENGINE_VERSION` (`src/background/engine.js`,
 what a problem report and a fill event name) is the bundle's own `version`
 (the engine's package.json version and a hash of its src/), and
@@ -186,7 +188,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   taken as a source (KAN-489). A dropdown answer its list lacks takes the
   list's own name for it (Ferrovial's "United States of America"), and
   Phone Device Type takes Telephone where a tenant offers no Mobile (Ace
-  Hardware's).
+  Hardware's). The engine reads a phone type from `identity.phone_type`
+  (KAN-757); WorkIt holds no phone type and the adapter gives none, so
+  Mobile stays the engine's guess here. Adding one would need a profile
+  column and a migration.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
@@ -203,6 +208,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
   SuccessFactors) is one more script giving it, loaded before `steps.js`
   (shared/content-scripts.js), plus its name in `steps.js`'s list.
+  Still open: the engine fills amazon.jobs as a stepped system too
+  (`site: "amazon"`, KAN-765, Apply's Amazon Filler), but the extension
+  doesn't run there yet: it needs an `amazon.js` face, the manifest's
+  `*://*.amazon.jobs/*/applicant/jobs/*` match and the backend's
+  AUTO_APPLY_HOSTS.
 - **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
   `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
   email gate (Email Address, a terms box, a hidden honeypot; a returning
@@ -347,6 +357,79 @@ builds it: `dist/engine.js` is committed in the engine repo.
   then `npm --prefix autofiller_extension/test test` (Chromium:
   `npx playwright install chromium` once).
 
+### Move the engine pointer
+
+The pointer (`fill-engine/`, a gitlink: the one engine commit this repo
+records) picks the engine for three things at once: this extension, Apply
+in a Developer checkout, and WorkIt Auto Apply, which downloads the build
+that `publish-engine.yml` signs on each merge to `main` that moves it. One
+PR moves it for all three. Nothing moves it for you: a merge in
+`workitjobs/fill-engine` changes nothing here.
+
+1. **Merge the engine change** into `workitjobs/fill-engine`'s `main`,
+   with its built `dist/` committed. The pointer names a commit on the
+   engine's `main`, usually that merge commit. CI checks that the commit's
+   `dist/` is built from its `src/`, but not that the commit is on the
+   engine's `main`: a commit from another branch would ship code that no
+   engine PR reviewed. The engine stopped making tags after v0.3.5. Its
+   `package.json` version names it (v0.3.48 at `66d8403`).
+2. **Branch here from a fresh `main`:**
+   `npm run worktree -- KAN-123-engine-v0-3-49`.
+3. **Move the pointer.** `<commit>` is the engine commit, or `origin/main`
+   for the newest one:
+
+   ```bash
+   git submodule update --init autofiller_extension/fill-engine
+   git -C autofiller_extension/fill-engine fetch origin main
+   git -C autofiller_extension/fill-engine checkout --detach <commit>
+   git -C autofiller_extension/fill-engine merge-base --is-ancestor HEAD origin/main && echo "on the engine's main"
+   git -C autofiller_extension/fill-engine show HEAD:package.json | grep '"version"'
+   git add autofiller_extension/fill-engine
+   git commit -m "KAN-123: Point the engine at v0.3.49"
+   ```
+
+   `git show --stat HEAD` then lists one path,
+   `autofiller_extension/fill-engine`. Nothing else changes with the
+   pointer.
+4. **Decide two things in the same PR.**
+   - **Can the apps that students have run it?** When the engine needs
+     something that only a newer WorkIt Auto Apply has, raise
+     `backend/app/scripts/engine_min_app.txt` to that app version. Older
+     apps then keep the build before it. Otherwise leave the file alone.
+   - **Must Store users get it now?** A pointer move alone publishes no
+     extension: Store users get the engine with the next `store/store.json`
+     bump. To ship it now, raise `version` there in this PR
+     (`../.github/CLAUDE.md`, "Publish extension to Chrome Web Store").
+5. **Try it on your Mac.** Reload the unpacked extension in
+   `chrome://extensions` and fill a posting that the change touches. For
+   Apply, run `uv run apply rehearse <url>` from `apply-agent/`: a
+   rehearsal never submits. The specs under **Tests** above run on the new
+   engine too.
+6. **Open the PR.** CI's `extension` job checks the pinned commit's
+   `dist/` against its `src/` and runs the smoke specs. The `apply` job
+   runs Apply's fast tests on the new engine. A stale `dist/` fails: build
+   and commit it in the engine repo, then point at that commit.
+7. **After the merge:**
+   - `publish-engine.yml` signs and publishes the build in about 30 s.
+     Check it: `gh run list --repo workitjobs/workit --workflow
+     publish-engine.yml --limit 1` shows success, and the run's log says
+     "Published". A failed run leaves students on the last build. Fix the
+     cause, then run `gh workflow run publish-engine.yml --ref main`
+     (`../.github/CLAUDE.md`, "Publish the Fill engine").
+   - WorkIt Auto Apply gets the build at its next launch, within 60 s of
+     the publish. An app that is running keeps its engine until it
+     restarts.
+   - Each teammate runs `git submodule update` after the pull. `git pull`
+     does not move a checkout's engine, so it keeps the old one.
+
+**Roll back a bad engine** with a PR that moves the pointer back to the
+last good commit, by the same steps. Keep `engine_min_app.txt` as it is,
+even when the bad PR raised it. An app takes the build with the highest
+min app that fits it, so a rollback that lowers the min app leaves the
+apps at the higher version on the bad build (found in a dry run,
+2026-11-16). The Store extension rolls back only with another
+`store.json` bump.
+
 ## Two surfaces, one engine
 
 The build plan doc's "JobRight has two operating modes" framing, applied
@@ -395,15 +478,25 @@ themselves, on the job system's own page, after reviewing what got
 filled.
 
 **What does run on page load is a small check, and only on the job
-systems' hosts** (KAN-394): manifest.json's second `content_scripts` entry
-(`tokens.js`, `panel.js`, `launcher.js`, top frame, `document_idle`) on the
-same hosts `host_permissions` already lists, so it adds no install
-warning. `launcher.js` waits for the page's load plus a second (a node
-drawn during Greenhouse's start-up makes it redraw the form, see the
-overlay), asks the background `panel/where` (the engine's `jobOf` on the
-page's link, and whether the tab is a batch's), and on a job page outside
-a batch draws only the edge tab. Nothing fills, nothing is read from the
-form, and other pages get nothing drawn. **Any posting there, in
+systems' hosts** (KAN-394, KAN-749): manifest.json's second
+`content_scripts` entry is `launcher.js` alone, on the same hosts
+`host_permissions` already lists, so it adds no install warning. It waits
+for the page's load plus a second (a node drawn during Greenhouse's
+start-up makes it redraw the form, see the overlay), asks the background
+`panel/where` (the engine's `jobOf` on the page's link, and whether the
+tab is a batch's), and on any page that is no job page stops there. **Most
+pages on those hosts are no form** (greenhouse.io's own site, a Workday
+tenant's search, the frames inside them), so none of the panel's files
+load there: no observer, no listener, no timer past that one second, one
+message (`test/idle.extension.spec.ts` counts them in the content scripts'
+isolated world, `loadExtension`'s `probe`, and the extension files Chrome
+parsed; before KAN-749 all ten panel files ran in every frame of every
+such page, three frames: 30 files and two `visibilitychange` listeners,
+now 3 files and none). On a job page outside a batch the launcher asks
+`panel/shell`, which checks the page is a job system's (`pageSystem`) and
+loads `SHELL_FILES` (`src/shared/content-scripts.js`) into that frame
+only, then draws only the edge tab. Nothing fills, nothing is read from the
+form. **Any posting there, in
 WorkIt's feed or not**: nothing here asks the API whether it knows the
 job (the job card falls back to the engine's `jobNames`, the answer bank
 to the page's company), so a posting the student found anywhere fills as
@@ -423,7 +516,9 @@ toolbar popup on a posting-like page of another host offers **Allow
 WorkIt on <host>**, whose click calls `chrome.permissions.request` for
 that one origin (it needs the click; Simplify and Jobright ask the same
 way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
-`allowed_sites`), registers the launcher's files for it
+`allowed_sites`), registers the launcher's files for it (a registration
+an older version kept, with all the panel's files, is updated to the
+launcher alone at the worker's start, KAN-749)
 (`registerContentScripts`, id `site-<host>`, kept across restarts), runs
 them in the tab at once, and answers what it found: the engine's own
 reading of the page (`pageJobUrl`: `jobOf` of the link, or a job system
@@ -1200,7 +1295,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the iframe's `src` (decision 633). Greenhouse's page starts React only in
   `requestIdleCallback`, which an iframe in a background tab may never run:
   its form stayed dead and the fill waited on it for good (1 run in 2 to 4
-  with four Chromiums at once). The manifest's one static content script,
+  with four Chromiums at once). The manifest's first static content script,
   `embed-idle.js` (MAIN world, `document_start`, the embed frame only),
   gives those callbacks a 500 ms deadline.
 - **Wait for the page, then the form, then fill.** `startFill` waits for
@@ -1661,7 +1756,11 @@ the row names the signed-in sender, who alone can read it back. The popup's Requ
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The off switch (KAN-467) reads `GET
 /extension/config` (`routers/extension_config.py`), public and sent with no
-token: it names only the job systems turned off. Every fill sends `POST
+token: it names only the job systems turned off. The Rules table (KAN-756's
+contract, KAN-773; `src/background/rules.js`) is `POST /extension/rules/token`
+with the posting's link, then `GET /extension/rules` with that site token
+(`routers/extension_rules.py`): the account's watermarked copy of the
+engine's table for that one job system, below. Every fill sends `POST
 /fill-events` (KAN-476, `routers/fill_events.py`; "Fill numbers" below):
 counts and error names only, with the sender for the backend's daily cap.
 The rest are older:
@@ -1748,14 +1847,98 @@ server to opt in. This is standard, documented Chrome extension behavior,
 not something this prototype had to build. See Open Items for the one
 caveat (this is unverified against a live Chrome instance — see below).
 
+## The Rules table from the API (KAN-773): fetched on posting open, memory only
+
+The engine bundles its Rules table (selectors, wordings, patterns, answer
+rules; the engine README's "The Rules table") and the API serves the same
+table, one job system at a time, watermarked per account
+(`backend/app/routers/extension_rules.py`). `src/background/rules.js`
+fetches it as a posting opens, before any fill: `panel/where` (the
+launcher) and a batch tab's `openTab` call `prefetchRules`, which asks a
+site token for the page's link, then the table. A token is used again
+until 15 s before it expires (5 min by default), then a new one is asked
+for; a 401 for the table gets one new token and one more fetch.
+
+- **Memory only.** The table lives in the service worker's memory and in the
+  page's isolated world (`window.WIA.rules`, which the launcher asks for with
+  `rules/get`, so a worker Chrome stopped while the student read the posting
+  loses nothing). Never `chrome.storage`, IndexedDB or the page's storage.
+  Another account's sign-in drops every token and table.
+- **Every injection loads it.** `injectFill` (and `tab-load.js`'s Workable
+  draft check) runs `loadRulesIn` right after `ENGINE_FILES`; the
+  background's own engine, which plans, holds every site's held table at
+  once (the answers are the same in each).
+- **Any failure is the bundled table.** No answer, any 4xx or 5xx (a 500
+  too), a token for another job system, or a table the engine refuses (a
+  `RulesError`, checked in the background before it is held): the table
+  isn't held and the engine fills with its bundled one. With the full engine (the dev
+  extension's) a fill never waits for the API: a table still on its way is
+  the next fill's. The Store package's engine has no data of its own, so
+  there the fill waits a while and, with no table, is a basic one (below).
+- **As received.** The watermark is in the strings' order and spelling:
+  nothing here sorts, dedupes or rewrites them.
+- Job systems the off switch turned off and signed-out pages ask for
+  nothing. A practice form is Lever's form on WorkIt's own site: it asks for
+  Lever's table with a Lever link for its job (`tokenLink`), since the API
+  names no job system on WorkIt's site.
+- **The extension's own job-system names come from the table too (KAN-778).**
+  The stepped systems' scripts (`workday.js`, `oracle.js`, `icims.js`,
+  `successfactors.js`, `workday-walk.js`, `primary.js`) and the panel's
+  Workday step line (`panel-top.js`) hold no selector or pattern of a job
+  system: they read the table's names through `window.WIA.site(site)`
+  (`content/site-data.js`, first of `SHELL_FILES`), `SEL.NAME` and
+  `PAT.NAME`, at each use. The background gives the page's isolated world
+  its job system's data (`giveSiteData`: the background engine's
+  `FillEngine.siteRules(site)`, the held table's else the bundled data) before
+  the panel's shell (`panel/shell`) and in `injectFill` after
+  `loadRulesIn`. The background's own checks read it the same way
+  (`signInFirst`'s TikTok sign-in path, `tab-load.js`'s Workable Submit).
+  With no data (the Store package before its table comes) a name is a
+  selector and a pattern that match nothing, so a script finds nothing
+  rather than throwing. A list is used only whole (a served copy's lists
+  are watermarked). Names only the extension reads are marked so in the
+  engine's `src/systems-table.ts` (Workday's sign-in and Apply buttons, each
+  system's footer buttons, review pages and error banners). Plain words
+  stay in code: Workday's sign-in and verification wordings, its Apply
+  button words, and the walk's words that send (`SENDS`), which no served
+  table may loosen. A test that injects the fill's scripts itself gives the
+  data as `injectFill` does (`siteData: { site, data: FillEngine.siteRules(site) }`).
+- **The Store package bundles no job system's data (KAN-777).** It ships the
+  engine's Store bundle (fill-engine `dist/engine.store.js`, packaged as
+  `dist/engine.js`): the same code, every site `{}` and only the basic answer
+  rules (names, email, phone, links, home, school, degree, major,
+  graduation, work authorization, sponsorship, age). So every job system's
+  selectors, patterns, kinds and timeouts come from this table. A fill whose
+  table is still on its way, or failed as the posting opened, waits up to 5 s
+  for it, or for a new fetch for the page (`rulesFor`, `TABLE_WAIT_MS`; only
+  when the engine has no data of its own for the site). Whether the fill is
+  basic is the page's engine's to say (`supported`), not the background's,
+  which may hold a table that came after the page's engine was loaded.
+  With none, **the fill is a basic one** (`engine.js` `planBasic`): the
+  engine's `readBasic` reads the form's plain fields by their labels, the
+  basic rules plan them, `fillBasic` types the text answers (no file, no
+  list), and the panel's first row says "Basic fill: WorkIt can't reach its
+  server" and what it filled. A basic fill flags no empty required field and
+  watches no edits (the engine reads no job system's fields back), and the
+  row keeps a batch tab the student's. A stepped job system (Workday, Oracle,
+  iCIMS, SuccessFactors) gets no basic fill: its step is the student's. The
+  dev extension and every test but the Store build's load the full bundle,
+  which fills as before with no API.
+
+`test/store-build.extension.spec.ts`: the Store package filling Greenhouse
+fully with the served table, and a basic fill (and its row) with the API
+down. `test/rules.extension.spec.ts`: the prefetch, a renamed Ashby submit
+selector the fill then can't find, the token's reuse and renewal, every
+error in the contract falling back, and nothing stored.
+
 ## Work authorization, visa, clearance and EEO self-identification questions
 
 KAN-283's `autofill_answers` (`backend/app/models/autofill_answers.py`) holds
 the nine answers hiring systems repeat on every form:
 `work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
 `security_clearance`, `gender`, `hispanic_latino`, `race`,
-`veteran_status`, `disability_status`. Onboarding's Profile step and My
-Profile write it, and the extension writes only the self-identification a
+`veteran_status`, `disability_status`. Onboarding's Authorization page
+(the first two) and Application Info write it, and the extension writes only the self-identification a
 form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 `engineProfile` turns each option key into the fact the engine's rules
 read (yes/no as true/false, "declined" as "decline", the rest in
@@ -2000,10 +2183,12 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
 | `batch-line` | Workday's step line only ("Step 3 of 6 · My Experience") | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
+| `coverage` | the coverage badge before a fill (Fully supported, Partly supported, Not supported) and its one line | coverage.js |
 | `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`, the only one (KAN-424): overlay.js's summary, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open({ trigger, field })` | report.js: the preview, Which field is wrong?, the note, Exactly what WorkIt sends, Send report, Back |
+| `check` | Check before Submit, shown in place of the tab's body; `window.WIA.presubmit.open()` | presubmit.js: every answer on the page, flagged first, Back |
 
 **The frame (KAN-369 Q4-Q6).** Top to bottom: the header (WorkIt, ⋯,
 Close: Close is the old Collapse, `data-collapse`); the batch line, job
@@ -2015,7 +2200,8 @@ covers only the tab's body: the strip stays, and pressing a tab leaves the
 view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
 null)`, role menu, shut by Escape, a press elsewhere in the panel or an
 item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
-tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
+tab (overlay.mount), Fill Again (30) and Check before Submit (35) after a
+fill (primary.js, presubmit.js), Report a
 problem (40), Settings (50), Hide on this site (60) and Hide everywhere
 (70), the shell's own. Each item carries
 `data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
@@ -2040,8 +2226,8 @@ file that fills one sets `hidden = false`. A file loaded before the shell
 exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
 (`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
 Autofill tab instead of making a host, and `unmount` (a fill again)
-empties it and leaves the shell. panel.js is loaded first by the static
-launcher and again by every fill (`CONTENT_SCRIPT_FILES`,
+empties it and leaves the shell. panel.js is loaded first by the launcher's
+panel/shell (on job pages only) and again by every fill (`CONTENT_SCRIPT_FILES`,
 `HUMAN_CHECK_FILES`), in the same isolated world: the first copy makes the
 shell, later ones return at once. It also owns the font (`overlay/font`)
 and `keepAttached` (Greenhouse replacing `<html>`).
@@ -2139,7 +2325,8 @@ walk). One purple button at the panel's bottom (KAN-369 Q5):
   read like "next job". Next Thing itself is Alt+N's (below). What the
   button answers shows under it (`[data-said]`).
 - **Review and submit** once nothing is red (amber guesses may be left:
-  Alt+N still walks them): scrolls to the employer's Submit
+  Alt+N still walks them): opens **Check before Submit** (below), and
+  there the button reads **Go to Submit**, which scrolls to the employer's Submit
   (the submit warning's rule: a visible control whose words start with
   "Submit", never WorkIt's host), rings it (marks.js) and focuses it. It
   never presses it. A Submit under the open panel (Anduril's sits at the
@@ -2182,8 +2369,48 @@ fill controls since KAN-394.
 
 Tests: `test/panel-primary.extension.spec.ts` ("Answer 1 of N" against
 the red box, staying on the first red field; Alt+N; Review and submit
-rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
+opens Check before Submit, and Go to Submit rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
+
+### Check before Submit (KAN-747): every answer, flagged first
+
+`src/content/presubmit.js` (`window.WIA.presubmit`, loaded before
+primary.js, which mounts it) is the extension's copy of Apply's Pre-submit
+check (`apply-agent/docs/held-forms.md`, "Verifying a filled form"), with
+the student as the checker: no model call, no read-back of its own. It is
+a view (the `check` slot, `panel.showView("check", ...)`) in place of the
+Autofill tab's body, opened by Review and submit and by the ⋯ menu's
+Check before Submit at any time after a fill (while something is red, the
+button still reads Answer 1 of N).
+
+- **What it lists**: every field the fill filled (status `filled`), and
+  every one lib-status.js flags. Notes, optional fields left empty and
+  questions the form isn't asking now are not answers and stay out.
+- **Order** (`flagOf`'s tier, `data-flagged` on the row; page order inside
+  a tier, `groups.inPageOrder`): 0 needs you (the one rule: the review's
+  flag, a failed field, "The page shows something other than WorkIt's
+  answer", a required field still empty), 1 WorkIt's guess (source
+  `guessed`, the engine's "not sure"), 2 words to read (source `claude`,
+  a pasted answer, a saved answer filled into a written question, or an
+  answer just in, `toCheck`), 3 waiting on the student's Claude;
+  then, under "Filled", the rest.
+- **Each row** shows why it is flagged, the answer as the engine read it
+  back (one line, 120 characters; a password or SSN field's reads
+  "(hidden)") and its source pill. A press (or Enter) goes to the field
+  through `window.WIA.showField`, as a checklist row does; a field the
+  page doesn't show says so for 4 s (on Workday, a field of another step
+  names its step).
+- It redraws on every status change while it shows, so an answer that
+  lands or an edit moves its row. Back, a tab's press or another view
+  leaves it (`presubmit.viewed`, which also redraws the button).
+- **It never presses Submit.** Go to Submit only rings the employer's
+  button (primary.js `ringControl`); the submit warning still holds a
+  batch tab's Submit while something is open.
+
+Tests: `test/presubmit.extension.spec.ts` (Anduril: every filled, guessed
+and red row listed, flagged first, a row's press focusing its field, Back;
+Review and submit, then Go to Submit ringing Submit with nothing sent;
+Lumen's batch answer waiting, then Claude's words, redrawn in place).
 
 ### Live progress (KAN-398): Scanning, Autofilling · N%, Cancel and Skip
 
@@ -2230,8 +2457,7 @@ stay-on-page notice shows and goes).
 ## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
 
 `src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
-report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
-`SHELL_FILES`) and `src/background/panel-states.js`:
+report.js everywhere it is: `CONTENT_SCRIPT_FILES` and `SHELL_FILES`) and `src/background/panel-states.js`:
 
 - **Signed out**: `panelStates.start()` is what the launcher and the
   toolbar call in place of `panel.fillButton` before a fill. Signed out
@@ -2250,15 +2476,47 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   (`tab.before`): Ready sets the application back to queued, anything else
   to needs_you, with no date (backend pipeline.py), and the tab to that
   state, in its group.
+- **The coverage badge** (KAN-749, `src/content/coverage.js`,
+  `window.WIA.coverage`, and `src/background/coverage.js`): before a fill,
+  the `coverage` slot under the job card shows a pill and one line, from the
+  Fill engine's job system for the page (`panel/coverage`: `jobOf` of
+  `pageJobUrl`). **Fully supported** (positive tint): a job system the
+  engine fills in one form, "WorkIt fills this Greenhouse form." (a practice
+  form: "WorkIt fills this practice form."). **Partly supported** (warning
+  tint): one whose form comes in steps, the engine's `stepped` (Workday,
+  Oracle, iCIMS, SuccessFactors), "WorkIt fills Workday one step at a time.
+  You sign in and check each step yourself." **Not supported** (gray): no job
+  system the engine covers, or one WorkIt turned off ("WorkIt can't fill
+  Workday right now. Copy your answers into the form yourself."). The rule
+  is the engine's: a new job system takes its level from whether the engine
+  steps it, never from a list here; only the names students see
+  (`SYSTEM_NAMES`) are the extension's. `panelStates.start()` draws it once
+  signed in; the fill's list (overlay.js `draw`) hides it, for good on
+  that page (a badge still on its way stays hidden). **Not supported
+  lists the student's answers** in the Autofill tab (`[data-answers]`,
+  `panel/answers`: `answerList`, from the same `engineProfile` the fill
+  plans with), by the Fields to Autofill groups (Contact info, Location,
+  Education, Experience, Work authorization), each a label, the value and
+  **Copy** (aria-label "Copy Email"; pressed, "Copied", until another Copy
+  takes it), through ui.js's `copy` (letter-preview.js's Copy uses it too).
+  Only answers the student has, none of a category they switched off in
+  Options (`autofill_off`), the location as they typed it; no file and no
+  self-identification answer (a form asks those in its own words, and the
+  student answers them there). Tests: `test/coverage.spec.ts` (the levels,
+  the list), `test/coverage.extension.spec.ts` (each badge, Show My
+  Answers, Copy).
 - **A site WorkIt can't fill**: every host the manifest lists is a job
-  system the Fill engine fills, so the panel never shows this (an allowed
-  employer site with nothing to fill gets no panel either); the toolbar
-  popup does, on a web page of any other host (not WorkIt's own) that looks
+  system the Fill engine fills, so the panel never opens there by itself
+  (an allowed employer site with nothing to fill gets no panel either); the
+  toolbar popup does, on a web page of any other host (not WorkIt's own) that looks
   like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
   apply or position part in its path, or a schema.org `JobPosting` block,
   read in the tab), where the icon's press lets it read the tab's link
   (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
-  can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
+  can't fill this site yet" with **Show My Answers** (KAN-749,
+  `popup/answers`, from the popup's own page only: the panel's files go into
+  the tab, as the toolbar's press lets them, and the panel opens there on
+  Not supported and the answers to copy, with no fill button), then **Save to WorkIt** (`popup/save`: `POST
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
@@ -2318,8 +2576,8 @@ The header (panel.js) is WorkIt's logo (logo.tsx's lockup, the figure
 violet and the word "workit" in ink, as the webapp and the popup's header
 draw it; change the copies together), ⋯ (the menu, above: Report a problem, Settings, a
 batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
-after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`):
+after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`):
 
 - **Step line** (`batch-line`): on Workday only, "Step 3 of 6 · My
   Experience", read off Workday's step bar (`progressBarActiveStep`) and
@@ -2338,8 +2596,8 @@ background.js `SHELL_FILES`):
   logo when the API has one (in a 40 px tile; gone if the page won't load
   it), the title on up to two lines, then one line of company, place (`location_label`) and pay ("$45–$55 an
   hour"), and the Match score as a small ring
-  (purple) with its band (Strong Match at 80,
-  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  (purple) with its band (four since 2026-11-10: Weak, Fair from 40, Good
+  from 65, Excellent from 80, as frontend/src/lib/match.ts; Store 1.0.7), and "You applied on Oct 25" at the applied
   stage. No application, or signed out: the engine's `jobNames` read gives
   title and company only. No score: no ring. **A job WorkIt has is a link**
   (KAN-424): the whole card (`.job[role=link]`, Enter too) opens its job
@@ -2574,8 +2832,8 @@ cover letter waiting). `fake-api.ts` records each `redo` and its steer in
 ## The panel's settings (KAN-402): Claude, auto-open, report, Workday
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after
-panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+panel-top.js everywhere it is: `CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`); `src/background/panel-settings.js` answers
 its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
@@ -2648,8 +2906,8 @@ the shape, or any of the student's values in it).
 ## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 
 `src/content/resume-card.js` (`window.WIA.resumeCard`, loaded after
-panel-top.js wherever it is: manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`) draws the card of the opened Resume/CV row
+panel-top.js wherever it is: `CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`) draws the card of the opened Resume/CV row
 (overlay.js asks `resumeCard.card(field)` before any other card, on the
 opened row only), from `src/background/resume-tab.js` (`resume/tab`,
 `resume/file`, `resume/choose`, `resume/upload`). The row is the file field
@@ -2748,7 +3006,11 @@ was: a guess with Looks right, or a change with Save for next time. A
 failed delete says "WorkIt couldn't undo it. Try again." Tests:
 `test/batch.extension.spec.ts` (the walk, the save, Undo of a change, the
 next form), `test/greenhouse.spec.ts` (the batch skips self-ID and legal;
-Undo after Looks right ×N).
+Undo after Looks right ×N). Since KAN-775 the engine guesses no box that
+names arbitration (Coinbase's is the student's, Needs you), so that test
+puts its own guessed legal box in the panel to check the batch skips it;
+it had expected Coinbase's box guessed, and failed on every PR that ran
+the extension's tests after the pin moved.
 
 Both of the extension's surfaces, the popup and the panel, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are
@@ -2779,7 +3041,11 @@ overlay uses the system font.
   that makes this work lives in exactly one place —
   `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
   `CONTENT_SCRIPT_FILES`), which the panel and batch apply both use through
-  `injectFill` — and a new content file is added there by hand.
+  `injectFill` — and a new content file is added there by hand. A file the
+  panel needs before a fill goes in its `SHELL_FILES` (the shell the
+  launcher's `panel/shell` and the toolbar load, KAN-749), which
+  `CONTENT_SCRIPT_FILES` starts with; never in the manifest's entry, which
+  is `launcher.js` alone.
 - **`src/background/engine.js` uses no `chrome.*` API at import time**, so
   the test imports it as it is. Keep `chrome.*` calls in `background.js`.
 - **`src/background/` and `src/popup/` do use ES modules** (`"type":
@@ -2808,15 +3074,40 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
 - `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
   of them skips a null one, so nothing probes or calls localhost),
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
-- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
-  `fill-engine/dist`.
+- only what Chrome loads, plus the extension's own `LICENSE` and `NOTICE`
+  (KAN-849): `manifest.json`, `icons`, `fonts`, `src`, and
+  the engine's Store bundle as `fill-engine/dist/engine.js` (KAN-777, "The
+  Rules table from the API" above). Not its full bundle or the rest of its
+  `dist/`: `rules-table.json` (fill-engine KAN-756) is for other hosts, and
+  the Store spec fails on any engine file but `engine.js`.
+- every `.js` file minified by esbuild (KAN-744), with no source map and
+  `BANNER`, the copyright notice, as its first line. The engine ships only
+  as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs
+  with no `format` and no `target`: a classic script keeps its top-level
+  names and a module its imports and exports, and no syntax is lowered, so
+  no helper is added that an `executeScript` `func` would lack. The build
+  needs `npm ci --prefix store` once.
 
 The build fails if any packaged file still names localhost, vercel.app or
-"Prototype" (as a word). A new dev-only line in `config.js` must be one
+"Prototype" (as a word), and if the package holds any job system's data
+(`perSiteData`): the packaged engine must bundle no site's data and only
+basic answer rules, and no packaged file may hold a selector, wording or
+pattern of the full table (`fill-engine/dist/rules-table.json`, the copy kept
+outside the package), nor one of its class, id or attribute names (one word
+of 10 characters or more with a `-` or `_`), nor a field-kind map (all its
+`type: "kind"` pairs) or a timeout written out (its name given its ms); the
+engine's own `{}` for every site covers all four parts, `kinds` and
+`timeouts` too. The only values allowed are generic ones the code keeps on
+purpose (`GENERIC`: two label patterns and the step walk's words that send;
+`NAMED_IN_CODE`: a Greenhouse question name and the attribute a field is
+found by with its own name). No file is exempt (KAN-778, "The extension's
+own job-system names come from the table too" above). A new one anywhere fails the build. A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
-the zip back; `test/store-build.extension.spec.ts` loads the built package
+the zip back (minified, the banner, no source map, one engine file);
+`test/store-build.extension.spec.ts` loads the built package
 with a fake server answering `localhost:8000/health` and checks it calls only
-`api.workitjobs.ai`, answers the site's ping and opens Start batch's tabs.
+`api.workitjobs.ai`, answers the site's ping, opens Start batch's tabs and
+fills one.
 KAN-447's publish workflow uploads this zip; the Store version is
 `store/store.json`'s, so a release bumps it there.
 

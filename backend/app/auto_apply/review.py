@@ -21,6 +21,13 @@ review flags that same text again. Rewrite with Claude (rewrite) clears the
 answer for the student's Claude to write again, and keeps the flag (`rewrite`)
 for get_next_application to hand over with the question. Edit myself needs
 nothing here: the edited answer is no longer the one read.
+
+The truth check (KAN-748, truth.py) flags the same way, in code, when an
+answer is saved: an answer with claims none of the student's sources hold
+shows as needing them, with those claims named and the first one's
+sentence marked, until it changes or they keep it. It is kept apart from
+the review's verdict (`truth`), so neither replaces the other; the
+review's own flag shows first.
 """
 
 import dataclasses
@@ -29,6 +36,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import truth
 from app.auto_apply.queries import (
     drop_written,
     fetch_next_to_review,
@@ -70,11 +78,16 @@ def _marked(review: dict | None, rows: list[tuple[WrittenAnswer, bool]]) -> list
     for answer, own in rows:
         same = answer.answer is not None and read.get(answer.name) == answer.answer
         flag = flags.get(answer.name) if same and kept.get(answer.name) != answer.answer else None
+        quote = review.get("quotes", {}).get(answer.name) if flag else None
+        hard = bool(flag) and answer.name in review.get("hard", [])
+        claims = review.get("truth", {}).get(answer.name)
+        if flag is None and claims and claims["answer"] == answer.answer and kept.get(answer.name) != answer.answer:
+            flag, quote = claims["reason"], claims["quote"]
         marked.append((answer.model_copy(update={
             "reviewed": answer.answer is not None and (own or same),
             "flag": flag,
-            "flag_quote": review.get("quotes", {}).get(answer.name) if flag else None,
-            "flag_hard": bool(flag) and answer.name in review.get("hard", []),
+            "flag_quote": quote,
+            "flag_hard": hard,
         }), own))
     return marked
 
@@ -148,6 +161,7 @@ async def save_review(
         "quotes": {name: flag.quote.strip() for name, flag in flags.items() if flag.quote and flag.quote.strip()},
         "hard": [name for name, flag in flags.items() if flag.hard],
         "kept": kept,
+        "truth": (earlier or {}).get("truth", {}),
     })
     await db.commit()
     return len(flags), changed
@@ -162,11 +176,35 @@ async def _flagged(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID,
     question or it has no answer."""
     await open_application(db, applicant_id, job_id)
     review, rows = await fetch_review(db, applicant_id, job_id)
-    reason = (review or {}).get("flags", {}).get(name)
+    review = review or {}
+    claims = review.get("truth", {}).get(name) or {}
     for answer, own in rows:
-        if answer.name == name and answer.answer is not None and reason:
-            return review, answer.model_copy(update={"flag": reason, "flag_quote": review.get("quotes", {}).get(name)}), own
+        if answer.name != name or answer.answer is None:
+            continue
+        reason, quote = review.get("flags", {}).get(name), review.get("quotes", {}).get(name)
+        if not reason and claims.get("answer") == answer.answer:  # a truth flag holds only on the text it read
+            reason, quote = claims.get("reason"), claims.get("quote")
+        if reason:
+            return review, answer.model_copy(update={"flag": reason, "flag_quote": quote}), own
     raise Refused("That answer isn't flagged.")
+
+
+async def flag_claims(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, saved: dict[str, tuple[str, list[truth.Claim]]],
+) -> None:
+    """Keeps the truth check's verdict on answers just saved (KAN-748): by
+    question name, the answer and the claims in it no source holds. One with
+    claims is flagged for the student while it stands; one with none clears
+    its flag. Flushes; the caller commits."""
+    review, _ = await fetch_review(db, applicant_id, job_id)
+    held = dict((review or {}).get("truth", {}))
+    for name, (answer, claims) in saved.items():
+        if claims:
+            held[name] = {"answer": answer, "reason": truth.reason(claims), "quote": claims[0].sentence}
+        else:
+            held.pop(name, None)
+    if held != (review or {}).get("truth", {}):
+        await set_answer_review(db, applicant_id, job_id, {**(review or {}), "truth": held})
 
 
 async def keep(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> None:

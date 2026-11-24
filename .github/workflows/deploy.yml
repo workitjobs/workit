@@ -26,20 +26,44 @@ jobs:
       run:
         working-directory: backend/cloudflare
     steps:
+      # The image copies the Fill engine's Rules table from the private
+      # fill-engine submodule (backend/Dockerfile, KAN-756), so the deploy
+      # checks it out at the commit main records.
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in ci.yml's extension-store-build.
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
       - run: npm ci
       - run: ../../.github/scripts/ensure-worker.sh workit-api
-      # One JSON secret holds every runtime value. It goes on before the
-      # deploy: the deploy's image rollout restarts the containers with the
-      # secrets of that moment, and a secrets-only version restarts none
-      # (.github/CLAUDE.md, "Deploy to Cloudflare").
+      # The runtime values are the API_* repo secrets that Infisical's
+      # workit-prod/api sync writes (docs/secrets.md). Each goes to the Worker
+      # without its prefix; an empty one is dropped, since GitHub passes a
+      # missing secret as "". They go on before the deploy: the image rollout
+      # restarts the containers with the secrets of that moment, and a
+      # secrets-only version restarts none (.github/CLAUDE.md, "Deploy to
+      # Cloudflare").
       - name: Set runtime secrets
         env:
-          SECRETS_JSON: ${{ secrets.CF_API_SECRETS_JSON }}
-        run: printf '%s' "$SECRETS_JSON" | npx wrangler secret bulk
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          RUNTIME=$(printf '%s' "$ALL_SECRETS" | jq -c 'with_entries(select((.key | startswith("API_")) and .value != "") | .key |= ltrimstr("API_"))')
+          if [ "$RUNTIME" = "{}" ]; then
+            echo "::error::No API_* secrets: the Infisical workit-prod/api sync wrote nothing (docs/secrets.md)."
+            exit 1
+          fi
+          printf '%s' "$RUNTIME" | npx wrangler secret bulk
       # wrangler builds backend/Dockerfile (context: the repo root) with the
       # runner's Docker and pushes it to Cloudflare's registry.
       - run: npm run deploy
@@ -77,4 +101,18 @@ jobs:
       # permission error below can be read straight from the log.
       - run: npx wrangler whoami
       - run: ../.github/scripts/ensure-worker.sh workit-web
+      # The website's runtime secrets: the WEB_* repo secrets that Infisical's
+      # workit-prod/web sync writes (docs/secrets.md), without the prefix.
+      # With none, the Worker keeps what it has: GOOGLE_CLIENT_SECRET was set
+      # on it by hand, and secret bulk never deletes.
+      - name: Set runtime secrets
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          RUNTIME=$(printf '%s' "$ALL_SECRETS" | jq -c 'with_entries(select((.key | startswith("WEB_")) and .value != "") | .key |= ltrimstr("WEB_"))')
+          if [ "$RUNTIME" = "{}" ]; then
+            echo "No WEB_* secrets; the Worker keeps the ones it has."
+            exit 0
+          fi
+          printf '%s' "$RUNTIME" | npx wrangler secret bulk
       - run: npm run cf:deploy

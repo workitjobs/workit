@@ -6,6 +6,7 @@ render route's tests below skip without Tectonic (backend/CLAUDE.md, Tests).
 """
 
 import datetime
+import json
 import uuid
 
 import httpx
@@ -141,11 +142,11 @@ async def test_the_word_file_has_every_entry_in_section_order_newest_first(stude
     assert res.headers["content-disposition"] == 'attachment; filename="General SWE.docx"'
     assert _docx_lines(res.content) == [
         "Sam Seeker",
-        f"555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
+        f"+1 555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
         "EDUCATION",
         "Stony Brook University\tStony Brook, NY",
         "Bachelor of Science in Computer Science\tAug. 2023 – Expected May 2027",
-        "GPA: 3.8/4.0",
+        "GPA: 3.80/4.00",
         "Relevant Coursework: Data Structures, Algorithms",
         "EXPERIENCE",
         "Software Intern\tJune 2025 – Aug. 2025",
@@ -255,6 +256,65 @@ async def test_generate_leaves_a_copy_of_an_entry_off(student):
     assert len(hidden) == 1
 
 
+def test_generate_shows_each_skill_name_once():
+    # KAN-504: two copies of a name (case and spaces aside) are one skill; the
+    # first in the bank's order shows and the rest wait hidden, with rows.
+    from types import SimpleNamespace
+
+    from app.services.built_resumes import base_choices
+
+    names = ("Go", "Python", " python", "PYTHON ", "Rust")
+    skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group="Languages") for n in names]
+    choices = base_choices(SimpleNamespace(entries=[], skills=skills))
+    assert [choices.skills[s.id].shown for s in skills] == [True, True, False, False, True]
+
+
+def test_a_blank_resume_prints_its_header_alone():
+    # 2026-11-18: onboarding's "No, build one for me" starts from scratch.
+    # Every bank entry and skill gets a choice row, hidden, so the page
+    # prints the header and Add Experiences can still show any of them.
+    from types import SimpleNamespace
+
+    from app.services.built_resumes import blank_choices
+
+    bullet = SimpleNamespace(id=uuid.uuid4())
+    entry = SimpleNamespace(row=SimpleNamespace(id=uuid.uuid4(), section="experience"), bullets=[bullet])
+    skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group=None) for n in ("Go", "Rust")]
+    choices = blank_choices(SimpleNamespace(entries=[entry], skills=skills))
+    assert choices.entries[entry.row.id].shown is False
+    assert [choices.skills[s.id].shown for s in skills] == [False, False]
+    assert bullet.id in choices.bullets
+
+
+async def test_generate_shows_a_skill_two_uploads_hold_once(student, monkeypatch):
+    # KAN-504: each upload owns its skills (ADR 0005), so two uploads each
+    # held Python. Generate showed both, the resume printed it twice, and
+    # Fit to One Page then cut both, so Cut From Resume listed it twice.
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    uploads = []
+    for _ in range(2):
+        res = await _upload(client, me)
+        assert res.status_code == 200, res.text
+        uploads.append(res.json()["id"])
+    for upload, name in zip(uploads, ("Python", "PYTHON")):
+        res = await client.post(f"{me}/bank/skills?resume_id={upload}", json={"name": name, "group": "Languages"})
+        assert res.status_code == 201, res.text
+    resume_id = await _generate(client, me)
+
+    lines = _docx_lines((await client.get(f"{me}/built-resumes/{resume_id}/docx")).content)
+    assert [line.lower() for line in lines if line.startswith("Languages")] == ["languages: python"]
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    assert sorted(s["shown"] for s in choices["skills"]) == [False, True]
+    # The copy shown is the one with the lower id, on every read (KAN-444):
+    # the bank's order broke the tie at random, so a second Generate could
+    # show the other copy and miss that it was a duplicate.
+    assert next(s for s in choices["skills"] if s["shown"])["skill_id"] == min(s["skill_id"] for s in choices["skills"])
+    res = await client.post(f"{me}/built-resumes", json={})
+    assert (res.status_code, res.json()["detail"]["built_resume_id"]) == (409, resume_id)
+
+
 async def test_generate_refuses_a_resume_the_student_already_has(student):
     """KAN-267: a second Generate with nothing changed made a copy."""
     client, me = student
@@ -263,7 +323,8 @@ async def test_generate_refuses_a_resume_the_student_already_has(student):
 
     res = await client.post(f"{me}/built-resumes", json={})
     assert res.status_code == 409
-    assert res.json()["detail"] == {"message": "Duplicate Resume found: General SWE", "built_resume_id": first}
+    assert res.json()["detail"] == {
+        "message": "Duplicate Resume found: General SWE", "built_resume_id": first, "name": "General SWE"}
     assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
 
     # The first resume edited, a new one is not the same...
@@ -279,6 +340,86 @@ async def test_generate_refuses_a_resume_the_student_already_has(student):
     # A bank entry added since makes the next one new.
     await client.post(f"{me}/bank/entries", json={"section": "experience", "title": "Barista", "organization": "Cafe"})
     assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+
+
+def _lines(res: httpx.Response) -> list[dict]:
+    return [json.loads(line) for line in res.text.splitlines()]
+
+
+async def test_a_streamed_generate_names_each_step_then_the_resume(student):
+    """KAN-444: the Resumes page shows Generate's steps as they happen."""
+    client, me = student
+    await _fill_bank(client, me)
+    res = await client.post(f"{me}/built-resumes/stream", json={})
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/x-ndjson")
+    lines = _lines(res)
+    assert lines[:2] == [{"type": "phase", "phase": "checking"}, {"type": "phase", "phase": "saving"}]
+    assert [line["type"] for line in lines] == ["phase", "phase", "done"]
+    made = lines[-1]["resume"]
+    assert (made["name"], made["is_default"]) == ("Resume #1", True)
+    # Committed: the list reads it back
+    assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [made["id"]]
+
+
+async def test_a_streamed_generate_names_the_duplicate_and_writes_nothing(student):
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    lines = _lines(await client.post(f"{me}/built-resumes/stream", json={}))
+    assert lines == [
+        {"type": "phase", "phase": "checking"},
+        {"type": "error", "status": 409, "message": "Duplicate Resume found: General SWE", "built_resume_id": first,
+         "name": "General SWE"},
+    ]
+    assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
+
+
+async def test_a_confirmed_copy_is_made_without_the_check(student):
+    """KAN-444: the Resumes page asks "You Already Have This Resume", and
+    the student's Confirm makes the copy, streamed or not."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    lines = _lines(await client.post(f"{me}/built-resumes/stream", json={"allow_duplicate": True}))
+    assert [line.get("phase", line["type"]) for line in lines] == ["saving", "done"]
+    res = await client.post(f"{me}/built-resumes", json={"allow_duplicate": True})
+    assert res.status_code == 201
+    listed = [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()]
+    assert len(listed) == 3 and first in listed
+
+
+async def test_generate_tells_a_tailored_resume_with_its_own_skill_from_a_new_base_resume(student, database):
+    """Generate reads the bank once, every resume's own skills included, and
+    leaves those skills off the new resume (KAN-444): a tailored resume
+    whose own skill is its only difference is not a duplicate, and the new
+    resume does not show that skill."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+    applicant_id = uuid.UUID(me.rsplit("/", 1)[1])
+    skill = uuid.uuid4()
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO bank_skills (id, applicant_id, name, built_resume_id) VALUES (:id, :a, 'Kubernetes', :r)"),
+            {"id": skill, "a": applicant_id, "r": uuid.UUID(first)},
+        )
+        await session.execute(
+            text("INSERT INTO built_resume_skills (built_resume_id, skill_id, shown, position) VALUES (:r, :s, true, 99)"),
+            {"r": uuid.UUID(first), "s": skill},
+        )
+        await session.commit()
+
+    # The first resume now prints Kubernetes, so a new one is no duplicate of it
+    second = await _generate(client, me)
+    choices = (await client.get(f"{me}/built-resumes/{second}/choices")).json()
+    names = {s["skill_id"] for s in choices["skills"]}
+    bank_skills = {s["id"]: s["name"] for s in (await client.get(f"{me}/bank")).json()["skills"]}
+    assert "Kubernetes" not in {bank_skills.get(i) for i in names}
+    assert all(i in bank_skills for i in names)
 
 
 async def test_generate_matches_a_resume_only_on_what_it_prints(student):
@@ -361,6 +502,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
                 " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
             )
         )
+        await session.execute(
+            text("UPDATE job_postings SET company_logo_url = 'https://example.com/acme.png',"
+                 " company_domain = 'acme.com' WHERE id = :p"),
+            {"p": posting},
+        )
         tailored = await session.scalar(
             text(
                 "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
@@ -376,6 +522,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
 
     # The card names the posting and links to it (KAN-268).
     assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", False)}
+    # ...and shows its company's logo (2026-11-10)
+    rows = {r["id"]: r for r in (await client.get(f"{me}/built-resumes")).json()}
+    assert (rows[str(tailored)]["posting_logo_url"], rows[str(tailored)]["posting_company_domain"]) == (
+        "https://example.com/acme.png", "acme.com")
+    assert rows[base]["posting_logo_url"] is None
     async with database() as session:
         await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
         await session.commit()
@@ -603,7 +754,7 @@ async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(st
 async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template, page):
+    def missing(view, identity, template, page, **_):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.routers.built_resumes.render", missing)
@@ -616,7 +767,7 @@ async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch)
 
 
 async def test_recommendations_work_when_the_default_is_a_base_resume(student, monkeypatch):
-    async def no_embedding(texts, *, timeout=None):
+    async def no_embedding(texts, *, timeout=None, query=False):
         return None
 
     monkeypatch.setattr("app.queries.jobs.recommendations.embed", no_embedding)
@@ -681,3 +832,120 @@ async def test_edited_at_is_created_at_until_the_resume_itself_changes(student):
 
     edited = (await client.get(f"{me}/built-resumes")).json()[0]
     assert _at(edited["edited_at"]) > _at(edited["created_at"])
+
+
+# Start From a Resume You Have (2026-11-11): the Resumes page's Generate
+# Resume dialog copies a built resume or starts one from an upload.
+
+
+async def _copy(client, me, **source) -> httpx.Response:
+    return await client.post(f"{me}/built-resumes/copy", json={k: str(v) for k, v in source.items()})
+
+
+async def test_a_copy_prints_as_its_source_and_owns_its_own_skill_and_wording(student, database):
+    client, me = student
+    await _fill_bank(client, me)
+    source = uuid.UUID(await _generate(client, me, "General SWE"))
+    applicant_id = uuid.UUID(me.rsplit("/", 1)[1])
+    bank = (await client.get(f"{me}/bank")).json()
+    intern = next(e for e in bank["entries"] if e["title"] == "Software Intern")
+    tutor = next(e for e in bank["entries"] if e["title"] == "Tutor")
+    bullet = uuid.UUID(intern["bullets"][0]["id"])
+    async with database() as session:
+        # What only the source owns: a Tailor skill and a typed wording.
+        skill = await session.scalar(
+            text("INSERT INTO bank_skills (applicant_id, name, built_resume_id) VALUES (:a, 'Kubernetes', :r) RETURNING id"),
+            {"a": applicant_id, "r": source},
+        )
+        await session.execute(
+            text("INSERT INTO built_resume_skills (built_resume_id, skill_id, shown, position) VALUES (:r, :s, true, 99)"),
+            {"r": source, "s": skill},
+        )
+        variant = await session.scalar(
+            text("INSERT INTO bank_bullet_variants (bullet_id, text, built_resume_id) VALUES (:b, 'Made pages load 30% faster', :r) RETURNING id"),
+            {"b": bullet, "r": source},
+        )
+        await session.execute(
+            text("UPDATE built_resume_bullets SET variant_id = :v WHERE built_resume_id = :r AND bullet_id = :b"),
+            {"v": variant, "r": source, "b": bullet},
+        )
+        # And a choice: one entry taken off.
+        await session.execute(
+            text("UPDATE built_resume_entries SET shown = false WHERE built_resume_id = :r AND entry_id = :e"),
+            {"r": source, "e": uuid.UUID(tutor["id"])},
+        )
+        await session.commit()
+    printed = _docx_lines((await client.get(f"{me}/built-resumes/{source}/docx")).content)
+    assert any("Made pages load 30% faster" in line for line in printed)
+    assert not any("Tutor" in line for line in printed)
+
+    res = await _copy(client, me, built_resume_id=source)
+    assert res.status_code == 201, res.text
+    copy = res.json()
+    assert (copy["name"], copy["job_posting_id"], copy["is_default"]) == ("General SWE (Copy)", None, False)
+    assert _docx_lines((await client.get(f"{me}/built-resumes/{copy['id']}/docx")).content) == printed
+
+    async with database() as session:
+        owned = (await session.execute(
+            text("SELECT (SELECT count(*) FROM bank_skills WHERE built_resume_id = :c),"
+                 " (SELECT count(*) FROM bank_bullet_variants WHERE built_resume_id = :c)"),
+            {"c": uuid.UUID(copy["id"])},
+        )).one()
+    assert tuple(owned) == (1, 1)  # its own rows, not the source's
+
+    # The source goes; the copy prints as it did.
+    assert (await client.delete(f"{me}/built-resumes/{source}")).status_code == 204
+    assert _docx_lines((await client.get(f"{me}/built-resumes/{copy['id']}/docx")).content) == printed
+
+
+async def test_a_copy_of_a_tailored_resume_leaves_its_posting_and_is_numbered(student, database):
+    client, me = student
+    tailored = await _tailored(database, me)
+    first = (await _copy(client, me, built_resume_id=tailored)).json()
+    second = (await _copy(client, me, built_resume_id=tailored)).json()
+    assert (first["name"], first["job_posting_id"]) == ("Tailored (Copy)", None)
+    assert second["name"] == "Tailored (Copy 2)"
+
+
+async def test_starting_from_an_upload_shows_only_that_uploads_entries(student, monkeypatch):
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    uploads = []
+    for title in ("Data Intern", "Barista"):
+        upload = (await _upload(client, me)).json()["id"]
+        uploads.append(upload)
+        res = await client.post(
+            f"{me}/bank/entries?resume_id={upload}",
+            json={"section": "experience", "title": title, "organization": "Acme", "start_month": "2025-06",
+                  "end_month": "2025-08", "bullets": [f"Did {title} work"]},
+        )
+        assert res.status_code == 201, res.text
+
+    res = await _copy(client, me, uploaded_resume_id=uploads[0])
+    assert res.status_code == 201, res.text
+    made = res.json()
+    assert made["name"] == "resume (Copy)"  # the file's name, resume.pdf
+    lines = _docx_lines((await client.get(f"{me}/built-resumes/{made['id']}/docx")).content)
+    assert any("Data Intern" in line for line in lines)
+    assert not any("Barista" in line for line in lines)
+
+
+async def test_starting_from_an_empty_upload_is_refused(student, monkeypatch):
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    upload = (await _upload(client, me)).json()["id"]
+    res = await _copy(client, me, uploaded_resume_id=upload)
+    assert res.status_code == 409
+    assert (await client.get(f"{me}/built-resumes")).json() == []
+
+
+async def test_starting_from_a_resume_needs_one_source_of_the_students_own(student):
+    client, me = student
+    mine = await _generate(client, me)
+    assert (await client.post(f"{me}/built-resumes/copy", json={})).status_code == 422
+    both = {"built_resume_id": mine, "uploaded_resume_id": str(uuid.uuid4())}
+    assert (await client.post(f"{me}/built-resumes/copy", json=both)).status_code == 422
+    assert (await _copy(client, me, built_resume_id=uuid.uuid4())).status_code == 404
+    assert (await _copy(client, me, uploaded_resume_id=uuid.uuid4())).status_code == 404

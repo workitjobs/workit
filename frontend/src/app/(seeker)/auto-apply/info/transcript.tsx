@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { ScrollIcon } from "@phosphor-icons/react/ssr";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -48,17 +52,22 @@ export function Transcript() {
   // The toast whose close sends the held DELETE; null once it is sent or taken back.
   const held = useRef<number | null>(null);
 
+  const read = useCallback(
+    () =>
+      getTranscript()
+        .then(({ transcript: t, error: err }) => {
+          if (err) setStatus("error");
+          else {
+            setTranscript(t);
+            setStatus("loaded");
+          }
+        })
+        .catch(() => setStatus("error")),
+    [],
+  );
   useEffect(() => {
-    getTranscript()
-      .then(({ transcript: t, error: err }) => {
-        if (err) setStatus("error");
-        else {
-          setTranscript(t);
-          setStatus("loaded");
-        }
-      })
-      .catch(() => setStatus("error"));
-  }, []);
+    void read();
+  }, [read]);
 
   // Leaving the page sends a held DELETE at once: back here, the card would show the file it removes.
   useEffect(
@@ -131,6 +140,45 @@ export function Transcript() {
     toast.show({ message: `Your transcript wasn't removed. ${err}` });
   }
 
+  const input = (
+    <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+  );
+
+  // None yet: the app's empty state, its action a bordered button (it starts
+  // something), in place of the card (2026-11-11). It was a grey "No
+  // transcript yet." line under the card's description, with Upload as the
+  // heading's glyph.
+  if (status === "loaded" && !transcript) {
+    return (
+      <>
+        <EmptyState
+          Icon={ScrollIcon}
+          title="No Transcript Yet"
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={uploading}
+              onClick={() => picker.current?.click()}
+            >
+              <UploadIcon className="size-4" />
+              {uploading ? "Uploading…" : "Upload Transcript"}
+            </Button>
+          }
+        >
+          Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
+          autofiller attaches it for you.
+        </EmptyState>
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
+          </p>
+        )}
+        {input}
+      </>
+    );
+  }
+
   return (
     <Card
       as="section"
@@ -141,16 +189,6 @@ export function Transcript() {
     >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="transcript-heading">Transcript</SectionHeading>
-        {status === "loaded" && !transcript && (
-          <SectionAction
-            aria-label="Upload Transcript"
-            disabled={uploading}
-            onClick={() => picker.current?.click()}
-          >
-            <UploadIcon />
-            {uploading ? "Uploading…" : "Upload"}
-          </SectionAction>
-        )}
       </div>
       <p className="text-body text-ink-meta mt-1">
         Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
@@ -166,40 +204,48 @@ export function Transcript() {
         </div>
       )}
       {status === "error" && (
-        <p role="status" className="text-note text-ink-meta mt-4">
-          Your transcript didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed
+          compact
+          title="Your Transcript Isn't Loading Right Now"
+          onRetry={read}
+          className="mt-4"
+        >
+          We couldn&apos;t reach your file. Try again in a few minutes.
+        </LoadFailed>
       )}
 
+      {/* A plain row under the line, not a bordered box: a card holds no
+          second card (docs/design.md, KAN-821). */}
       {transcript && (
-        <div className="bg-panel border-border-control rounded-card mt-5 flex items-center gap-4 border p-4">
+        <div className="mt-4 flex items-center gap-4">
           <FileIcon className="text-ink-meta size-5 shrink-0" />
           <p className="text-body text-ink min-w-0 flex-1 truncate">
             {transcript.original_filename}
           </p>
           <SectionAction
-            aria-label="Replace Transcript"
+            label="Replace Transcript"
             disabled={uploading}
             onClick={() => picker.current?.click()}
+            tooltip={uploading ? "Saving…" : "Replace"}
           >
             <UploadIcon />
-            {uploading ? "Saving…" : "Replace"}
           </SectionAction>
-          <SectionAction aria-label="Remove Transcript" disabled={uploading} onClick={remove}>
+          <SectionAction
+            label="Remove Transcript"
+            disabled={uploading}
+            onClick={remove}
+            tooltip="Remove"
+          >
             <TrashIcon />
-            Remove
           </SectionAction>
         </div>
-      )}
-      {status === "loaded" && !transcript && (
-        <p className="text-body text-ink-meta mt-4">No transcript yet.</p>
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-4">
           {error}
         </p>
       )}
-      <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+      {input}
     </Card>
   );
 }

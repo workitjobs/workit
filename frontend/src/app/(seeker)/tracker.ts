@@ -82,6 +82,9 @@ export type Application = {
   open?: boolean;
   /** Where the job is, as the Jobs page prints it; null when unstated. */
   location?: string | null;
+  /** Every place the posting lists, where `location` names the first and
+   *  "+N more" (components/places-value.tsx). */
+  places?: string[];
   /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
   workModel?: string | null;
   /** Its job type, Internship or Full-Time and so on: the list's Job Type
@@ -92,7 +95,7 @@ export type Application = {
   source?: string | null;
   /** Its pay, as the Jobs page prints it; null when unstated. */
   pay?: string | null;
-  /** The top of its pay as a yearly figure, what the list's Pay Range sort
+  /** The top of its pay as a yearly figure, what the list's Salary sort
    *  reads (KAN-282); null when unstated. */
   payPerYear?: number | null;
   /** The name of the resume last sent to its job posting (Apply or auto

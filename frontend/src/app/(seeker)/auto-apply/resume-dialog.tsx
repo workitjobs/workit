@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -89,25 +90,31 @@ export function ResumeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Choose a Resume</DialogTitle>
+          <DialogTitle>Choose a Resume</DialogTitle>
           <DialogDescription>
             The resume Auto Apply attaches to {role} at {company}.
           </DialogDescription>
         </DialogHeader>
-        {choices == null ? (
-          <ResumeListsSkeleton />
-        ) : (
-          <ResumeLists
-            name={`resume-for-${jobId}`}
-            choices={choices}
-            empty="None yet. Generate or upload one on Resumes."
-            picked={picked}
-            onPick={setPicked}
-          />
-        )}
-        {error && <p className="text-note text-danger">{error}</p>}
+        <DialogBody>
+          {choices == null ? (
+            <ResumeListsSkeleton />
+          ) : (
+            <ResumeLists
+              name={`resume-for-${jobId}`}
+              choices={choices}
+              empty="None yet. Generate or upload one on Resumes."
+              picked={picked}
+              onPick={setPicked}
+            />
+          )}
+          {error && (
+            <p role="alert" className="text-note text-danger">
+              {error}
+            </p>
+          )}
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel

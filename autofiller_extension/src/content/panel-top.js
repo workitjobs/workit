@@ -9,7 +9,7 @@
 //   with its Match score as a ring and its band, and "You applied on Oct 25"
 //   when WorkIt has the application as applied (background panel-top.js).
 //
-// Loaded after panel.js by the static launcher and by every fill; the first
+// Loaded after panel.js by the launcher's panel/shell and by every fill; the first
 // copy draws, once the shell exists.
 window.WIA = window.WIA || {};
 
@@ -69,9 +69,9 @@ window.WIA = window.WIA || {};
 
   // The Match score's bands, by their lowest score (frontend/src/lib/match.ts; GLOSSARY.md).
   const BANDS = [
-    [90, "Excellent Match"],
-    [80, "Strong Match"],
+    [80, "Excellent Match"],
     [65, "Good Match"],
+    [40, "Fair Match"],
     [0, "Weak Match"],
   ];
   const bandOf = (score) => BANDS.find(([min]) => score >= min)[1];
@@ -203,11 +203,12 @@ window.WIA = window.WIA || {};
 
   /** "Step 3 of 6 · My Experience", from Workday's step bar ("" when it shows none). */
   function workdayStep() {
-    const bar = document.querySelector("[data-automation-id=progressBarActiveStep]");
+    const { SEL, PAT } = window.WIA.site("workday"); // the Rules table's (site-data.js)
+    const bar = document.querySelector(SEL.ACTIVE_STEP);
     const lines = (bar?.innerText ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
     const count = lines.map((l) => /step (\d+) of (\d+)/i.exec(l)).find(Boolean);
     if (!count) return "";
-    const name = lines[lines.length - 1].replace(/^(current )?step \d+ of \d+\s*/i, "");
+    const name = lines[lines.length - 1].replace(PAT.STEP_OF, "");
     return `Step ${count[1]} of ${count[2]}${name ? ` · ${name}` : ""}`;
   }
 

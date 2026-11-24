@@ -1,3 +1,4 @@
+import { BAR_TITLE } from "@/app/(seeker)/bar";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import {
   BellIcon,
@@ -8,11 +9,62 @@ import {
   SignOutIcon,
   SparkleIcon,
 } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { TextField } from "@/components/ui/text-field";
+import { TextLink } from "@/components/ui/text-link";
+import { TEXT } from "@/components/ui/text-roles";
 
-import { SECTIONS, SHADCN_SIZES, TYPE_SCALE, TYPEFACES, WEIGHTS } from "../data";
+import {
+  ROLE_GROUPS,
+  SECTIONS,
+  SHADCN_SIZES,
+  TYPE_SCALE,
+  TYPEFACES,
+  WEIGHTS,
+  type RoleRow,
+} from "../data";
+import { RoleSample } from "../role-sample";
 import { Group, KitPage, Row } from "../specimen";
 
 export const metadata = { title: SECTIONS.type.title };
+
+/** A role's sample, drawn by the code that draws it on a screen: its TEXT
+ *  classes, or the `ui/` part that owns it. */
+function RoleSpecimen({ row }: { row: RoleRow }) {
+  if ("text" in row) return <span className={TEXT[row.text]}>{row.sample}</span>;
+  switch (row.part) {
+    case "pageTitle":
+      return <span className={`${BAR_TITLE} block`}>{row.sample}</span>;
+    case "sectionHeading":
+      return <SectionHeading as="h3">{row.sample}</SectionHeading>;
+    case "fieldLabel":
+      return (
+        <div className="w-56">
+          <TextField id="dk-role-label" label={row.sample} placeholder="you@school.edu" />
+        </div>
+      );
+    case "button":
+      return (
+        <Button variant="secondary" size="sm">
+          {row.sample}
+        </Button>
+      );
+    case "ghostButton":
+      return <Button variant="ghost">{row.sample}</Button>;
+    case "sectionButton":
+      return <Button variant="section">{row.sample}</Button>;
+    case "chip":
+      return <Chip>{row.sample}</Chip>;
+    case "textLink":
+      return (
+        <span className={TEXT.body}>
+          Add it on your <TextLink href="/profile">{row.sample}</TextLink>.
+        </span>
+      );
+  }
+}
 
 export default function TypePage() {
   return (
@@ -33,9 +85,24 @@ export default function TypePage() {
         ))}
       </Group>
 
+      {ROLE_GROUPS.map(({ title, note, rows }) => (
+        <Group key={title} title={title} note={note}>
+          {rows.map((row) => (
+            <Row key={row.name} name={row.name} role={row.role}>
+              <RoleSample
+                differs={row.differs}
+                pick={"part" in row && row.part === "textLink" ? "a" : undefined}
+              >
+                <RoleSpecimen row={row} />
+              </RoleSample>
+            </Row>
+          ))}
+        </Group>
+      ))}
+
       <Group
         title="Weights"
-        note="Each weight has one job. Regular is 450, not 400: Plus Jakarta Sans is a variable font, and its 400 read thin in small grey text. A size whose token carries no weight (body, note) takes the one its job asks for, so a menu row at --text-body is still medium."
+        note="Each weight has one job. Regular is Inter's 400, with the Mac's own smoothing (no antialiased), as Jobright's; it was 450 while the app was Plus Jakarta Sans, whose 400 read thin. A size whose token carries no weight (body, note) takes the one its job asks for, so a menu row at --text-body is still medium."
       >
         {WEIGHTS.map(({ token, cls, role }) => (
           <Row key={token} name={token} role={role}>
@@ -86,7 +153,7 @@ export default function TypePage() {
 
       <Group
         title="shadcn Sizes"
-        note="What a vendored component's stock size resolves to. Bound in globals.css rather than restyled per component, the same way its colour roles are, so a menu row moves with --text-body. Its rows are medium, set there too by data-slot. A vendored title is 16px medium, a pairing the scale has no token for, so each call site passes text-subtitle font-semibold, the size and weight of an empty state's heading."
+        note="What a vendored component's stock size resolves to. Bound in globals.css rather than restyled per component, the same way its colour roles are, so a menu row moves with --text-body. Its rows are medium, set there too by data-slot. A stock title was 16px medium, a pairing the scale has no token for, so the forked DialogTitle is text-title (20px, from 2026-11-17: 16px was too small to lead a dialog) and SheetTitle text-subtitle, and no call site passes a size."
       >
         {SHADCN_SIZES.map(({ token, cls, role }) => (
           <Row key={token} name={token} role={role}>

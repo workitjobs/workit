@@ -2,7 +2,8 @@
 // to load, then for its form to show. Both watch events, never
 // requestAnimationFrame, which a hidden tab does not run.
 
-import { ENGINE_FILES } from "../shared/content-scripts.js";
+import { ENGINE_FILES, loadRulesIn } from "../shared/content-scripts.js";
+import { rulesFor } from "./rules.js";
 
 const LOAD_TIMEOUT_MS = 30_000;
 
@@ -134,6 +135,7 @@ export function waitForLoad(tabId) {
  */
 export async function forgetWorkableDraft(tabId, { onlyIfDraft = false } = {}) {
   await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
+  await loadRulesIn({ tabId }, await rulesFor("workable", null).catch(() => null));
   const [{ result: draft }] = await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", args: [onlyIfDraft], func: (onlyIfDraft) => {
     const draft = globalThis.FillEngine.forgetDrafts("workable");
     // Workable may save the form again before the page goes (its draft of what it restored): forgotten then too.
@@ -177,15 +179,15 @@ export async function forgetShownWorkableDraft(tabId, prepared) {
   // Only a page's first Plan looks: later ones (a fill's own entries showing) never reload it.
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: async (names, timeoutMs) => {
+    func: async (names, submit, timeoutMs) => {
       if (window.__workitDraftLooked) return false;
       window.__workitDraftLooked = true;
-      // The restored entries show once Workable's app has mounted, which shows the form's Submit.
+      // The restored entries show once Workable's app has mounted, which shows the form's Submit (the Rules table's).
       const end = Date.now() + timeoutMs;
-      while (!document.querySelector("button[data-ui=apply-button]") && Date.now() < end) await new Promise((wait) => setTimeout(wait, 200));
+      while (submit && !document.querySelector(submit) && Date.now() < end) await new Promise((wait) => setTimeout(wait, 200));
       return names.some((name) => document.querySelector(`[data-ui="${CSS.escape(name)}"] li`));
     },
-    args: [sections, LOAD_TIMEOUT_MS],
+    args: [sections, globalThis.FillEngine.siteRules("workable").strings?.SUBMIT ?? null, LOAD_TIMEOUT_MS],
   });
   if (!result || again) return false;
   freshened.add(tabId);

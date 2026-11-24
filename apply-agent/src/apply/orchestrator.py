@@ -16,6 +16,7 @@ from apply import (
     already_applied,
     asking,
     bot_signals,
+    build,
     captcha,
     description,
     embedded,
@@ -32,23 +33,25 @@ from apply.adapters import (
     Claude,
     JobSite,
     SetupError,
-    UsageLimitHit,
     UsageReading,
 )
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
+from apply.applicant import as_applicant
 from apply.captcha import Waiter
-from apply.claude_fill import ClaudeFill, OnePage
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
+from apply.generic_fill import (  # noqa: F401 (rehearsal reads FIX_HERE here)
+    FIX_HERE,
+    GenericFiller,
+    picker,
+)
 from apply.match_queue import match_queue, over_employer_limits
 from apply.model import Posting, Status, one_line
-from apply.notify import TITLE, WAITING, summary, used_again, waiting
+from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.records import Record
-from apply.repair import requests_for
 from apply.request import is_request, resolve
-from apply.rescue import Rescue
 from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
 from apply.verify import verifying
 from apply.worker import Result, apply_to, named
@@ -95,7 +98,10 @@ def run(
     """Submit every Hold Lisul approved, then apply to every waiting Request
     unless `requests` is False, then to the Match queue unless `matches` is False.
     Every run, even one for Requests only, takes approvals first, so an
-    approval waits no longer than the next 5-minute Requests check."""
+    approval waits no longer than the next 5-minute Requests check. A Developer checkout's: the Student build has
+    no live run (apply.build)."""
+    from apply.notify import TITLE, summary, used_again
+
     accounts_before = len(adapters.tracker.employer_accounts())
     this_run = _Run(adapters, profile)
     this_run.list_answers()
@@ -114,6 +120,8 @@ def _push(adapters: Adapters, profile: ApplicantProfile, applications: list[tupl
     up. A push that fails is said and the run goes on: the Tracker has them all."""
     if not applications or profile.policy("phone_push") is not True or adapters.phone is None:
         return
+    from apply.notify import waiting
+
     try:
         adapters.phone.notify(*waiting(applications))
     except Exception as failed:
@@ -325,6 +333,8 @@ class _Run:
                 if result:
                     self._write(posting, result.status, result.reason)
                     self.statuses[result.status] += 1
+                    from apply.notify import WAITING
+
                     if result.status in WAITING:
                         self.waiting.append((result.status, posting.company, posting.title, result.reason))
                 else:
@@ -379,7 +389,7 @@ class _Run:
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
                 if posting.job_system == "other":
                     fetched = description.from_link(posting, on_worker)
-                behind = embedded.form_behind(posting, on_worker, fetched)  # a Greenhouse, Lever or Ashby form in the page
+                behind = embedded.form_behind(posting, on_worker, fetched)  # a job system's form in the page
             if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
                 return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
             if behind != posting:
@@ -429,13 +439,13 @@ class _Run:
         )
 
     def _before_submit(self, posting: Posting) -> str:
-        """Once the limit is hit, every Worker is paused: none submits. During
-        the Calibration run the Application is held instead (the reason is
-        returned). The row says Submitting before the form is sent, so an
-        interrupted run is never submitted twice."""
-        usage = self._adapters.usage.reading()
-        if usage.limited:
-            raise UsageLimitHit(usage.resets_at)
+        """During the Calibration run the Application is held instead (the
+        reason is returned). The row says Submitting before the form is sent,
+        so an interrupted run is never submitted twice. A usage limit never
+        stops a submit, which makes no model call: at a limit no new
+        Application starts (`_resume_at`), and one still filling is paused by
+        its own refused call. Paused here, a form whose pre-submit review
+        reached WorkIt's Usage cap was filled again after the reset."""
         with self._writing:
             hold = "" if posting.id in self._approved else self._calibration_hold(posting)
         if not hold:
@@ -479,6 +489,8 @@ class _Run:
         self.statuses[result.status] += 1
         if bot_signals.BLOCKED in result.bot_signals:
             self._to_everyday_chrome(named_posting)
+        from apply.notify import WAITING
+
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
             # Its context line (apply.asking) follows its question, as in its Tracker reason.
@@ -600,9 +612,13 @@ def by_filler(
     A Posting behind a known sign-in wall is a Handoff before Claude fill
     starts where Gmail can't be read, unless its site is one of `signed_in`."""
     filler = FILLERS.get(posting.job_system)
-    if isinstance(filler, type):  # with a Rescue: Claude fills a field its own code fails on
-        rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
-                        marketing_opt_in=profile.policy("marketing_opt_in") is True)
+    if isinstance(filler, type):  # with a Rescue, Claude filling a field its own code fails on; none in the Student build
+        rescue = None
+        if not build.STUDENT:
+            from apply.rescue import Rescue
+
+            rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
+                            marketing_opt_in=profile.policy("marketing_opt_in") is True)
         # policies.yaml: workday_sign_in, email (the default) or google.
         options = {"sign_in": profile.policy("workday_sign_in") or "email"} if posting.job_system == "workday" else {}
         with OnePage(site) as page_site:
@@ -611,6 +627,15 @@ def by_filler(
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
+    if build.STUDENT:  # no Claude fill (apply.build): the generic Filler, where code fills and a model only picks
+        pick, next_button = picker(as_applicant(claude, profile))  # the student's private values masked (D8)
+        generic = GenericFiller(pick, next_button, resume=profile.get("files.resume_pdf"),
+                                sms_opt_in=profile.policy("sms_opt_in") is True,
+                                marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        with OnePage(site) as page_site:
+            return apply(generic, page_site)
+    from apply.claude_fill import ClaudeFill, entry_history
+
     signing_in, agree = accounts(), bool(profile.policy("tick_consent_when_true"))
     no_mail = signing_in.mail_unavailable()
     if no_mail and walls.wall(posting.url) and walls.site(posting.url) not in signed_in:
@@ -632,7 +657,8 @@ def by_filler(
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
                         accounts=signing_in, account_facts=account_facts(profile, agree),
                         page_gates=_page_gates(profile.policy("page_gates")),
-                        signed_in=oracle.signed_in if oracle_sign_in else None)
+                        signed_in=oracle.signed_in if oracle_sign_in else None, history=entry_history(profile),
+                        google_login=profile.get("identity.email") if profile.policy("provider_sign_in") == "google" else None)
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))
@@ -648,7 +674,11 @@ def account_facts(profile: ApplicantProfile, agree_to_terms: bool) -> dict:
 
 def keep_repair_requests(adapters: Adapters, posting: Posting, result: Result) -> None:
     """Keep what went wrong of Apply's making for a Repair. A request that
-    can't be kept never costs the Application its row."""
+    can't be kept never costs the Application its row. The Student build has no Repairs, and keeps none."""
+    if build.STUDENT:
+        return
+    from apply.repair import requests_for
+
     try:
         for request in requests_for(posting, result):
             adapters.repairs.add(request)

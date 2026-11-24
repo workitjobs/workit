@@ -9,14 +9,17 @@ click or key of Claude's in a captcha's frame (apply.submit_guard). A bot block 
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
+from apply import chrome_finder
 from apply.model import Blocked, Handoff
 
 # A captcha's challenge, once shown on the page. Each one goes away when it is solved.
@@ -35,6 +38,8 @@ HOSTS = ("captcha-delivery.com", "hcaptcha.com", "arkoselabs.com", "funcaptcha.c
          "recaptcha.net")
 # reCAPTCHA's frames are on www.google.com, by path.
 PATHS = ("/recaptcha/",)
+# The hosts whose PATHS are a captcha's to the guards (KAN-791): a page can serve that path from any host of its own.
+PATH_HOSTS = ("google.com",)
 # A captcha on the page itself: its frame, or the box a widget draws its frame in. Nothing in one is Apply's to touch.
 ELEMENTS = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha.com'], iframe[src*='challenges.cloudflare.com'], "
             "iframe[src*='captcha-delivery.com'], iframe[src*='arkoselabs.com'], iframe[src*='funcaptcha.com'], "
@@ -77,15 +82,33 @@ def in_frame(url: str) -> bool:
 WIDGETS = (
     ("iframe[src*='recaptcha/api2/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
     ("iframe[src*='recaptcha/enterprise/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
-    ("iframe[src*='hcaptcha.com'][src*='frame=checkbox']", "h-captcha-response"),
+    ("iframe[src*='hcaptcha.com'][src*='frame=checkbox']:not([src*='checkbox-invisible'])", "h-captcha-response"),
     ("iframe[src*='challenges.cloudflare.com']", "cf-turnstile-response"),
 )
+# Whether an element shows to a person: displayed, 10px or more each way, neither it nor a parent hidden or
+# see-through (opacity 0) or aria-hidden, and not parked off the page. An invisible captcha keeps its challenge's frame
+# in the page while it is closed, hidden that way (hCaptcha and reCAPTCHA park it at top:-10000px), and its words
+# ("Please try again", "Verify") still read in a snapshot: JPMorgan's Oracle form, 2026-11-10 (KAN-760).
+SHOWN_JS = """const shown = (el) => {
+    if (!el.checkVisibility({opacityProperty: true, visibilityProperty: true})) return false;
+    if (el.closest('[aria-hidden="true"]')) return false;
+    for (let up = el; up; up = up.parentElement) if (parseFloat(getComputedStyle(up).opacity) === 0) return false;
+    const box = el.getBoundingClientRect(), doc = document.documentElement;
+    if (box.width < 10 || box.height < 10) return false;
+    return box.right + scrollX > 0 && box.bottom + scrollY > 0
+      && box.left + scrollX < Math.max(doc.scrollWidth, innerWidth) && box.top + scrollY < Math.max(doc.scrollHeight, innerHeight);
+  };"""
+# Whether a frame shows a captcha's challenge (CHALLENGE) to a person.
+VISIBLE = """(selector) => {
+  """ + SHOWN_JS + """
+  return [...document.querySelectorAll(selector)].some(shown);
+}"""
 # Whether a frame shows one not done yet: its box on view, and no token in its field.
 UNSOLVED = """(widgets) => {
+  """ + SHOWN_JS + """
   for (const [selector, field] of widgets) {
     for (const frame of document.querySelectorAll(selector)) {
-      const box = frame.getBoundingClientRect();
-      if (!frame.checkVisibility() || box.width < 10 || box.height < 10) continue;
+      if (!shown(frame)) continue;
       const scope = frame.closest('form') || document;
       if (![...scope.querySelectorAll(`[name="${field}"]`)].some((el) => el.value)) return true;
     }
@@ -113,13 +136,18 @@ SAYS_BLOCKED = re.compile("|".join((*BLOCKS, r"access denied", r"unusual activit
 
 
 def shows(page: Page) -> bool:
-    """Whether the page shows a captcha's challenge now. A page that is gone
-    shows none, and a bot block (DataDome's, in the same frame) is none."""
-    try:
-        challenge = page.locator(CHALLENGE)
-        return any(challenge.nth(i).is_visible() for i in range(challenge.count())) and not blocks(page)
-    except Exception:
-        return False
+    """Whether the page shows a captcha's challenge to a person now, as Apply's own code reads it (VISIBLE), in any
+    of its frames: never Claude's word for it. A challenge's frame kept hidden, as an invisible captcha keeps one
+    while it is closed, is none. A page that is gone shows none, and a bot block (DataDome's, in the same frame) is none."""
+    for frame in getattr(page, "frames", ()):
+        if in_frame(frame.url):
+            continue  # a captcha's own frame: its insides are no challenge on the page
+        try:
+            if frame.evaluate(VISIBLE, CHALLENGE):
+                return not blocks(page)
+        except Exception:
+            continue  # a frame loading, or gone
+    return False
 
 
 def unsolved(page: Page) -> bool:
@@ -188,10 +216,26 @@ def as_block(handoff: Handoff, page: Page | None, company: str, url: str) -> Han
     return blocked(company, url, said) if said else handoff
 
 
-def to_everyday_chrome(url: str) -> None:
-    """Open `url` in the student's everyday Chrome, as a click in the Dock would: never over DevTools, and never
-    in a Worker profile, so the job system sees their own browser. The extension fills the form there."""
-    subprocess.run(["open", "-a", "Google Chrome", url], check=False)
+def to_everyday_chrome(url: str, chrome: Path | None = None, system: str = sys.platform,
+                       popen: Callable[..., subprocess.Popen] = subprocess.Popen) -> None:
+    """Open `url` in the student's everyday Chrome, as a click on a link would: never over DevTools, and never
+    in a Worker profile, so the job system sees their own browser. The extension fills the form there.
+
+    The Chrome finder's Chrome gets the link with no profile flag (W4): a Chrome that runs takes it as a new tab in
+    the student's own profile, and one that doesn't starts on it. FileNotFoundError when there is no Chrome.
+
+    - macOS: through `open -a` and that Chrome's app, so Launch Services starts it as its own app. Started from its
+      binary, a Chrome that wasn't running would be Apply's child process: with Apply's privacy permissions (a
+      site's camera or microphone request would name Apply's app) and Apply's environment.
+    - Windows and Linux: the binary itself, in a session of its own."""
+    binary = chrome or chrome_finder.find(system)
+    if binary is None:
+        raise FileNotFoundError(chrome_finder.NO_CHROME)
+    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if system == "darwin":
+        subprocess.run(["open", "-a", str(binary.parents[2]), url], check=False, **quiet)  # …/X.app/Contents/MacOS/X
+        return
+    popen([str(binary), url], start_new_session=True, **quiet)
 
 
 # The submit's wait for a captcha that shows once the form is sent (at_submit); none outside it.
@@ -230,16 +274,16 @@ PUSH = "Do the captcha on {}. Apply goes on by itself once it's done."
 
 
 def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int = POLL_MS) -> bool:
-    """Wait on `page` for Lisul to do its captcha. True once the challenge
-    that showed is gone and its box is done, or he pressed Resume (`pressed()`); False after
-    `minutes`, or once the page is closed. It never touches the page."""
-    seen = pending(page)  # a challenge only Claude saw, perhaps in a frame no selector names: Resume alone ends it
+    """Wait on `page` for Lisul to do its captcha. True once Apply's own check sees no challenge showing and no
+    box left to do (`pending`), or he pressed Resume (`pressed()`); False after `minutes`, or once the page is
+    closed. A wait with nothing showing to a person ends at once (KAN-760): Claude's word alone never holds a
+    fill. It never touches the page."""
     deadline = time.monotonic() + minutes * 60
     while time.monotonic() < deadline:
         try:
             if page.is_closed():
                 return False
-            if pressed() or (seen and not pending(page)):
+            if pressed() or not pending(page):
                 try:
                     page.wait_for_load_state(timeout=15_000)  # a solved DataDome slider loads the page again
                 except Exception:
@@ -249,6 +293,18 @@ def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int =
         except Exception:
             return False  # its browser was quit
     return False
+
+
+# After a captcha Lisul did in a Worker's own window, the Apply window comes back to the front this long after Apply
+# sees it done: a breath to see the page go on, not a jump (KAN-855). Only while that window is still in front.
+BACK_AFTER_S = 2.0
+
+
+def _pending(page) -> bool:
+    try:
+        return pending(page)
+    except Exception:
+        return False  # the page going: nothing for him there
 
 
 class Waiter:
@@ -263,6 +319,7 @@ class Waiter:
         minutes = profile.policy("captcha_wait_minutes")
         self.minutes = WAIT_MINUTES if minutes is None else float(minutes)
         self._pushed = False
+        self._came_back = False  # the Apply window came back once for this Application (BACK_AFTER_S)
 
     def __call__(self, why: str, page: Page, company: str = "") -> bool:
         """True once Lisul did the captcha on `page` of `company`'s form: the fill goes on there."""
@@ -271,9 +328,15 @@ class Waiter:
         board, n = self._board, self._worker
         board.update(n, status="handoff", why=why, captcha=True, resume={"ok": True})
         self.tell(company or self._caption().get("company") or "")
+        showed = _pending(page)  # one for him to do: a wait for nothing on view ends at once, and calls no one back
         done = wait(page, lambda: board.resumed(n), self.minutes)
         if done:  # filling again, which clears the tile: its caption anew, as a fill's start gives it
             board.update(n, **self._caption(), status="filling")
+            if showed and not self._came_back and (back := getattr(board, "come_back", None)):
+                self._came_back = True  # once an Application: a challenge that comes back again never pulls him again
+                later = threading.Timer(BACK_AFTER_S, back, args=(n,))
+                later.daemon = True
+                later.start()
         else:
             board.update(n, captcha=False)
         return done

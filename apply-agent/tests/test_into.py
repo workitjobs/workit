@@ -12,7 +12,7 @@ from apply.dashboard import Dashboard, NoFrames
 
 
 class Frames(NoFrames):
-    def frame(self, worker: int) -> bytes | None:
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
         return f"worker {worker}".encode()
 
 
@@ -41,6 +41,8 @@ def test_a_link_sent_by_port_gets_a_tile_of_its_own_on_that_worker(window):
     _, answer = into.send(f"{port}:2", "https://jobs.example/two", folder)
     assert answer == {"tile": 2, "worker": 1} and taken == [("https://jobs.example/two", 1, 2)]
     assert len(board.state()["tiles"]) == 3
+    assert board._frames.frame(2) is None  # its form's tab not known yet: it might show another form's (KAN-717)
+    board.showing(2, 7)
     assert board._frames.frame(2) == b"worker 1"  # its tile shows that Worker's window
     assert "Browser 2" in board.page().split('data-k="2"')[1].split("</div>")[1]
 
@@ -96,6 +98,26 @@ def test_fill_again_with_no_form_held_there_says_why_and_asks_nothing(window, bo
     board.update(0, application_id="app-1", status="filling")  # still filling: not held for him
     assert post_fill_again(board, body)[0] == status
     assert not board.fill_again_asked(0)
+
+
+def test_fill_again_still_works_on_a_form_whose_session_ended(window):
+    """KAN-776: the job site ended the held form's session. It is held no more (no Ask Claude), but Fill again is
+    how it comes back, from the window as from its page."""
+    board, _, _, _ = window
+    board.update(0, application_id="app-1", status="handoff", askable=False, refill=True)
+    assert post_fill_again(board, {"id": "tile-0"})[0] == 200
+    assert board.fill_again_asked(0)
+
+
+def test_fill_again_works_on_a_failed_form_whose_page_is_still_held(window):
+    """KAN-873: a Student run has no Ask Claude, so no tile is askable, but its Worker still holds the page of a
+    form that failed or was ruled out: Try again in the window fills it anew. Once the page goes, it can't."""
+    board, _, _, _ = window
+    board.update(0, application_id="app-1", status="failed", why="TimeoutError: Page.goto", again=True)
+    assert post_fill_again(board, {"id": "tile-0"})[0] == 200
+    assert board.fill_again_asked(0)
+    board.update(0, again=False)
+    assert post_fill_again(board, {"id": "tile-0"})[0] == 409
 
 
 def test_only_apply_may_fill_a_form_again(window):
@@ -211,3 +233,23 @@ def test_two_links_sent_into_one_worker_at_once_never_reset_the_others_guards():
         thread.join(10)
 
     assert connection.resets == [set()]  # one reset, with no other form open
+
+
+def test_a_forms_tab_is_told_to_its_tile_before_its_page_loads():
+    # `--into`: the new tile must know its own tab while its form still loads, else it would show and press
+    # whichever tab the Worker shows then, maybe another form's held Submit (KAN-717).
+    from apply.plain.site import PlainSite, telling
+
+    workers = _Workers()
+    site = PlainSite(workers, fetcher=object())
+    connection, said = _Connection(site), []
+    workers.running[0] = workers.SimpleNamespace(connection=connection)
+    call = connection.call
+    connection.call = lambda name, **given: said.append(name) or call(name, **given)
+    with telling(lambda tab: said.append(("shown", tab))), site.open("https://jobs.example.com/a", worker=0) as page:
+        pass
+
+    assert ("shown", page.tab) in said
+    told = said.index(("shown", page.tab))
+    assert not [name for name in said[:told] if name == "tabs.goto"]
+    assert [name for name in said[told:] if name == "tabs.goto"]

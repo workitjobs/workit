@@ -17,10 +17,10 @@ transaction:
    Apply's run settings (caps, limits, schedules) stay Apply's;
 3. `fill_answers`: every Answer bank entry, with the company it was first
    asked at (the answer bank keeps a company's answers to that company's
-   forms). As in Apply, only an entry with `source: lisul` is the student's
-   own words; Claude's drafts (`source: claude`, reviewed or not) come as
-   their Claude's, so they pass Claude's checks and a form that bans AI text
-   never takes them. A choice's entry (its options, or a list) is `choice`;
+   forms), by the rules Apply's sync uses too (services/apply_answers.py):
+   only an entry with `source: lisul`, and never one marked `reviewed:
+   false`, is the student's own words; Claude's drafts come as their
+   Claude's. A choice's entry (its options, or a list) is `choice`;
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
@@ -71,8 +71,9 @@ from app.models.resume import Resume
 from app.schemas.bank import EntryFields
 from app.schemas.profile import ApplicantProfileUpdate
 from app.scripts import import_apply_writing
-from app.services import bank, local_files
+from app.services import apply_answers, bank, local_files
 from app.services.names import join_name
+from app.utils.resume_parser import is_degree_level
 
 PROFILE, POLICIES, ANSWERS = "applicant-profile.yaml", "policies.yaml", "answer-bank.yaml"
 # The policies the Fill engine reads (fill-engine src/rules.ts, planner.ts).
@@ -118,24 +119,6 @@ def _month(value: Any) -> datetime.date | None:
         return datetime.date(int(year), int(month), 1)
     except (ValueError, TypeError):
         return None
-
-
-def _answers(entries: dict) -> dict:
-    brought = {}
-    for filed, entry in entries.items():
-        if not isinstance(entry, dict) or entry.get("answer") in (None, "", []):
-            continue
-        answer = entry["answer"]
-        answer = [str(a) for a in answer] if isinstance(answer, list) else str(answer)
-        first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
-        # Apply's own rule (answer_bank.py, LISUL): only an answer the student
-        # gave is theirs. A Claude draft stays Claude's even once reviewed.
-        brought[str(entry.get("question") or filed).strip()] = {
-            "answer": answer, "own": entry.get("source") == "lisul",
-            "choice": isinstance(answer, list) or bool(entry.get("options")),
-            "company": (str(first.get("company") or "").strip() or None),
-        }
-    return brought
 
 
 def _home(place: Any) -> str | None:
@@ -186,6 +169,20 @@ async def _set_fields(profile: Applicant_Profile, facts: dict, report: Report) -
             report.fields.append("name")
 
 
+def _degree(school: dict, report: Report) -> str | None:
+    """The school's degree as a resume prints it: Apply's `degree_type`
+    ("Bachelor of Science"), else its `degree`, but never one that names only
+    its level ("Bachelor's degree", Apply's form value). With only a level the
+    degree stays empty and the report says so: the import's fallback to
+    `degree` printed "Bachelor's degree" on generated resumes (KAN-812)."""
+    said = [str(school.get(key) or "").strip() for key in ("degree_type", "degree")]
+    if named := next((d for d in said if d and not is_degree_level(d)), None):
+        return named
+    if level := next((d for d in said if d), None):
+        report.notes.append(f"degree left empty: {PROFILE} names only its level ({level})")
+    return None
+
+
 async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: dict, report: Report) -> None:
     school = facts.get("education") or {}
     title = str(school.get("school") or "").strip()
@@ -195,7 +192,7 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
     end = _month(school.get("expected_graduation"))
     changes = {
         "section": bank_section.education, "title": title,
-        "degree": school.get("degree_type") or school.get("degree"),
+        "degree": _degree(school, report),
         "field_of_study": majors[0] if majors else None,
         "gpa": school.get("gpa_cumulative"), "gpa_scale": school.get("gpa_scale"),
         "start_month": _month(school.get("start_date")), "end_month": end,
@@ -295,7 +292,7 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
 
     profile.fill_profile = _plain({k: v for k, v in facts.items() if k != "files"})
     profile.fill_policies = _plain({k: policies[k] for k in ENGINE_POLICIES if k in policies})
-    profile.fill_answers = _plain(_answers(_read(apply_dir / ANSWERS)))
+    profile.fill_answers = _plain(apply_answers.from_bank(_read(apply_dir / ANSWERS)))
     report.profile_sections = sorted(profile.fill_profile)
     report.policies = sorted(profile.fill_policies)
     report.answers = len(profile.fill_answers)

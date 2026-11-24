@@ -1,9 +1,8 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
-import { PdfIcon, TrashIcon, UploadIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { CloseIcon, FileIcon, PdfIcon, UploadIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
@@ -40,8 +39,25 @@ export function formatBytes(bytes: number) {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * The resume dropzone (onboarding's upload, the design kit), redrawn on
+ * 2026-11-17 after a modern upload dialog the user chose: a white well with
+ * a dashed edge, a file glyph wearing an upload badge, one line, "Drag and
+ * drop your resume here or choose a file", and the formats and size limit
+ * under the well, left and right, instead of a grey well with a third line
+ * and an outlined Browse Files button inside it. The picked file is a row
+ * of its own: the file's glyph on a white tile, its name and size, and a ×;
+ * while it is read, a bar runs under it.
+ *
+ * THE WELL IS ONE BUTTON, so the keyboard and a screen reader reach the
+ * picker from it; the formats line names it. It was a div whose click
+ * opened the picker, reachable by keyboard only through Browse Files inside
+ * it. The file input sits outside the well, so its own click cannot bubble
+ * back into it.
+ */
 export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: ResumeUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const hintId = useId();
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -60,7 +76,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
     event.target.value = "";
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
+  function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     setDragging(false);
     const next = event.dataTransfer.files?.[0];
@@ -69,15 +85,12 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
 
   return (
     <div>
-      {/* The whole well opens the picker, not only the button: Browse Files
-          has no handler of its own, and its click bubbles up to this one. The
-          file input sits outside the well so its own click cannot bubble back
-          into it. */}
-      <div
+      <button
+        type="button"
         aria-busy={busy}
-        onClick={() => {
-          if (!busy) inputRef.current?.click();
-        }}
+        aria-describedby={hintId}
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
         onDragEnter={(event) => {
           event.preventDefault();
           setDragging(true);
@@ -88,28 +101,38 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         }}
         onDrop={handleDrop}
         className={cn(
-          "border-border-control bg-well rounded-control hover:border-ink-meta flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
-          dragging && "border-brand bg-brand-tint",
+          "border-border-control bg-panel rounded-card hover:border-ink-meta hover:bg-well/50 focus-visible:ring-brand-ring flex w-full flex-col items-center border border-dashed px-6 py-12 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
+          dragging && "border-brand bg-brand-tint hover:border-brand hover:bg-brand-tint",
           busy && "cursor-progress opacity-60",
         )}
       >
-        <UploadIcon className="text-ink-meta size-6" />
-        <p className="text-note text-ink mt-2.5 font-medium">
+        {/* A page with an upload badge on its corner. */}
+        <span aria-hidden className="relative">
+          <FileIcon className="text-ink-subtle size-12" />
+          <span className="bg-brand text-on-brand ring-panel absolute -right-1.5 -bottom-1 grid size-6 place-items-center rounded-full ring-2">
+            <UploadIcon className="size-3.5" />
+          </span>
+        </span>
+        <span className="text-body text-ink mt-4">
           {busy ? (
-            "Uploading…"
+            "Reading your resume…"
           ) : (
             <>
-              <span className="pointer-coarse:hidden">Drag and drop your resume here</span>
-              <span className="hidden pointer-coarse:inline">Upload your resume</span>
+              <span className="pointer-coarse:hidden">Drag and drop your resume here or </span>
+              <span className="text-brand-ink font-semibold underline underline-offset-2 pointer-coarse:no-underline">
+                <span className="pointer-coarse:hidden">choose a file</span>
+                <span className="hidden pointer-coarse:inline">Choose a file</span>
+              </span>
             </>
           )}
-        </p>
-        <p className="text-note text-ink-meta mt-1.5">Supported formats: PDF, DOCX (up to 5 MB)</p>
-        <Button type="button" variant="outline" className="mt-2" disabled={busy}>
-          Browse Files
-        </Button>
-      </div>
+        </span>
+      </button>
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+
+      <p id={hintId} className="text-note text-ink-meta mt-2 flex justify-between gap-4">
+        <span>Supported formats: PDF, DOCX</span>
+        <span>Maximum size: 5 MB</span>
+      </p>
 
       {fileError && (
         <p role="alert" className="text-note text-danger mt-2">
@@ -118,15 +141,34 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
       )}
 
       {file && (
-        <div className="border-border-subtle bg-well rounded-control mt-4 flex items-center gap-3 border p-2">
-          <PdfIcon className="size-5 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-label text-ink truncate">{file.name}</p>
-            <div className="text-meta text-ink-meta">{formatBytes(file.size)}</div>
+        <div className="bg-well rounded-card mt-4 p-3">
+          <div className="flex items-center gap-3">
+            <span className="bg-panel ring-border-subtle rounded-control grid size-10 shrink-0 place-items-center ring-1">
+              <PdfIcon className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-body text-ink truncate font-medium">{file.name}</p>
+              <p className="text-note text-ink-meta">
+                {busy ? "Reading…" : formatBytes(file.size)}
+              </p>
+            </div>
+            <IconButton
+              place="row"
+              tooltip={false}
+              label="Remove resume"
+              disabled={busy}
+              onClick={onRemove}
+            >
+              <CloseIcon />
+            </IconButton>
           </div>
-          <IconButton label="Remove resume" onClick={onRemove}>
-            <TrashIcon className="size-4" />
-          </IconButton>
+          {/* While WorkIt reads it: a bar with no figure, since the API
+              sends no progress. */}
+          {busy && (
+            <div className="bg-ink/8 mt-3 h-1.5 overflow-hidden rounded-full">
+              <div className="bg-brand h-full w-full animate-pulse rounded-full" />
+            </div>
+          )}
         </div>
       )}
     </div>

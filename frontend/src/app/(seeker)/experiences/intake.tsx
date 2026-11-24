@@ -14,6 +14,7 @@ import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode
 import { Composer, Message, Typing, ScoutMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import {
   createEntry,
@@ -112,7 +113,7 @@ import {
  * Onboarding keeps the page layout.
  */
 
-type DraftWire = EntryFields & { bullets: string[] };
+type DraftWire = EntryFields<Section> & { bullets: string[] };
 
 type IntakeEvent =
   | { type: "text"; delta: string }
@@ -127,10 +128,10 @@ type Line =
   | { kind: "skipped"; section: Section };
 
 /** The card. `entryId` is set when it edits an entry already in the bank. */
-type Kept = { draft: EntryDraft; done: boolean; entryId?: string };
+type Kept = { draft: EntryDraft<Section>; done: boolean; entryId?: string };
 
 /** Where the walk goes next: a new entry in a section, or a bank entry's gaps. */
-type Target = { section: Section } | { entry: BankEntry };
+type Target = { section: Section } | { entry: BankEntry<Section> };
 
 /** Docked with an empty bank, Scout's greeting asks the resume question,
  *  alone: the first section waits for the answer (`resumeStage`). */
@@ -160,7 +161,7 @@ const ANOTHER: Record<Section, string> = {
 };
 
 /** Scout's first line on a visit to a bank entry with gaps. Fixed text too. */
-function gapOpener(entry: BankEntry): string {
+function gapOpener(entry: BankEntry<Section>): string {
   const [first, ...rest] = gapQuestions(entry);
   const name = [entry.title, entry.organization].filter(Boolean).join(", ");
   return (
@@ -169,12 +170,12 @@ function gapOpener(entry: BankEntry): string {
   );
 }
 
-const toWire = ({ bullets, ...fields }: EntryDraft): DraftWire => ({
+const toWire = ({ bullets, ...fields }: EntryDraft<Section>): DraftWire => ({
   ...fields,
   bullets: bullets.map((b) => b.text.trim()).filter(Boolean),
 });
 
-const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
+const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft<Section> => ({
   ...fields,
   bullets: bullets.map((text) => ({ text })),
 });
@@ -185,7 +186,11 @@ const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
  * student's value; every other field takes the model's. So a reply never
  * overwrites what the student is typing into the card.
  */
-function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): EntryDraft {
+function mergeReply(
+  current: EntryDraft<Section>,
+  sent: EntryDraft<Section>,
+  reply: EntryDraft<Section>,
+): EntryDraft<Section> {
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
   const merged = { ...reply } as Record<string, unknown>;
   const now = current as Record<string, unknown>;
@@ -193,7 +198,7 @@ function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): E
   for (const key of Object.keys(now)) {
     if (!same(now[key], then[key])) merged[key] = now[key];
   }
-  return merged as EntryDraft;
+  return merged as EntryDraft<Section>;
 }
 
 /** What intake is working on, for the page to mark: a bank entry it is
@@ -213,7 +218,7 @@ export function Intake({
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
   /** The bank's entries, for the walk to visit those with gaps. */
-  entries?: readonly BankEntry[];
+  entries?: readonly BankEntry<Section>[];
   onSaved: () => Promise<string | null>;
   /** Lead the student through the sections, one after another. */
   walk?: boolean;
@@ -236,7 +241,7 @@ export function Intake({
   const [usesLeft, setUsesLeft] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
+  const [duplicate, setDuplicate] = useState<BankEntry<Section> | null>(null);
   const [sheet, setSheet] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
@@ -504,7 +509,7 @@ export function Intake({
     setError(failure);
   }
 
-  async function save(input: EntryDraft, allowDuplicate = false) {
+  async function save(input: EntryDraft<Section>, allowDuplicate = false) {
     const entry = savable(input);
     if (kept?.entryId) return saveVisit(kept.entryId, entry);
     setSaving(true);
@@ -516,7 +521,8 @@ export function Intake({
       allowDuplicate,
     );
     setSaving(false);
-    if (res.duplicate) return setDuplicate(res.duplicate);
+    // A duplicate is in the draft's own section, a fixed one
+    if (res.duplicate) return setDuplicate(res.duplicate as BankEntry<Section>);
     if (res.error) return setSaveError(res.error);
     setLines((l) => [...l, { kind: "saved", title: entry.title }]);
     advance(entry.section);
@@ -544,7 +550,7 @@ export function Intake({
   }
 
   /** Saves a visit to a bank entry as an edit of it. */
-  async function saveVisit(entryId: string, edited: EntryDraft) {
+  async function saveVisit(entryId: string, edited: EntryDraft<Section>) {
     const saved = entries.find((e) => e.id === entryId);
     if (!saved) return setSaveError("This entry is no longer in your bank.");
     setSaving(true);
@@ -596,7 +602,7 @@ export function Intake({
   );
 
   const uploadStrip = offerImport && !importing && (
-    <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
+    <div className="border-brand-pale bg-brand-tint/40 rounded-card flex flex-wrap items-center gap-x-4 gap-y-2 border border-dashed px-4 py-3">
       <FileArrowUpIcon aria-hidden className="text-brand size-5 shrink-0" />
       <p className="text-note text-ink-muted min-w-0 flex-1">
         Want to pre-fill your entries? Upload your resume. Scout fills in what it can, then asks
@@ -614,7 +620,7 @@ export function Intake({
         onClick={() => fileInput.current?.click()}
         disabled={uploading || answering || saving}
       >
-        <FileArrowUpIcon aria-hidden /> {uploading ? "Uploading…" : "Upload Resume"}
+        <FileArrowUpIcon aria-hidden /> {uploading ? "Reading Resume…" : "Upload Resume"}
       </Button>
       {uploadError && (
         <p role="alert" className="text-note text-danger basis-full">
@@ -641,7 +647,7 @@ export function Intake({
           disabled={uploading || answering || saving}
         >
           <FileArrowUpIcon aria-hidden />
-          {uploading ? "Uploading…" : "Upload Resume"}
+          {uploading ? "Reading Resume…" : "Upload Resume"}
         </Chip>
         <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
           <FileTextIcon aria-hidden /> Use One I Uploaded
@@ -733,7 +739,7 @@ export function Intake({
   }) => (
     <div
       className={cn(
-        "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
+        "from-brand-tint to-panel ring-brand-tint rounded-shell flex flex-col overflow-hidden bg-linear-to-b ring-1",
         className,
       )}
     >
@@ -826,7 +832,7 @@ export function Intake({
     <button
       type="button"
       onClick={() => setSheet(true)}
-      className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+      className="bg-panel ring-brand-tint hover:bg-hover active:bg-hover focus-visible:ring-brand-ring rounded-card flex items-center gap-2.5 px-3.5 py-2.5 text-left ring-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none @4xl/main:hidden"
     >
       <Dot ready={kept?.done ?? false} />
       <span className="text-label text-ink min-w-0 flex-1 truncate">
@@ -884,7 +890,7 @@ export function Intake({
         {fileField}
         {!resumeStage && (
           <div className="px-4">
-            <div className="bg-stage-card rounded-2xl px-3.5 py-3">{stepBar}</div>
+            <div className="bg-stage-card rounded-card px-3.5 py-3">{stepBar}</div>
           </div>
         )}
         {importing ? (
@@ -936,9 +942,7 @@ export function Intake({
       <div className="flex items-center gap-3">
         <Mark />
         <div className="min-w-0">
-          <h2 id="intake-title" className="text-subtitle text-ink">
-            Tell Scout About It
-          </h2>
+          <SectionHeading id="intake-title">Tell Scout About It</SectionHeading>
           <p className="text-note text-ink-meta">
             Talk it through, and Scout fills in an entry from your own words.
           </p>
@@ -955,7 +959,7 @@ export function Intake({
 
           <aside
             aria-label="Draft entry"
-            className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
+            className="bg-panel ring-brand-tint shadow-card rounded-shell hidden ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
           >
             {!sheet && card}
           </aside>
@@ -1063,15 +1067,15 @@ function DraftCard({
   error,
   duplicate,
 }: {
-  draft: EntryDraft | null;
+  draft: EntryDraft<Section> | null;
   done: boolean;
-  onChange: (draft: EntryDraft) => void;
-  onSave: (draft: EntryDraft) => void;
-  onSaveAsNew: (draft: EntryDraft) => void;
+  onChange: (draft: EntryDraft<Section>) => void;
+  onSave: (draft: EntryDraft<Section>) => void;
+  onSaveAsNew: (draft: EntryDraft<Section>) => void;
   onDiscard: () => void;
   saving: boolean;
   error: string | null;
-  duplicate: BankEntry | null;
+  duplicate: BankEntry<Section> | null;
 }) {
   if (!draft)
     return (
@@ -1088,7 +1092,7 @@ function DraftCard({
   return (
     <div className="@container/main flex flex-col gap-4 p-5">
       <div className="flex items-center gap-3">
-        <span className="bg-brand-tint text-brand flex size-10 items-center justify-center rounded-2xl">
+        <span className="bg-brand-tint text-brand rounded-control flex size-10 items-center justify-center">
           <Icon aria-hidden className="size-5" />
         </span>
         <div className="min-w-0 flex-1">

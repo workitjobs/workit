@@ -22,7 +22,8 @@ import { BackToJobs } from "./page-actions";
  *
  * `back` replaces Back to the Jobs page: the application's own page
  * (/applications/[jobId], KAN-256) draws this bar too, and goes back to
- * Applications.
+ * Applications. It puts its own tabs in `tabs`, beside Back as the job's
+ * are (KAN-824), and has no actions once it is applied to.
  *
  * BELOW md IT SCROLLS AWAY. On a phone the actions wrap to rows beside Back,
  * a lot to hold over a 812px screen; the Jobs page stopped
@@ -36,9 +37,11 @@ export function JobActionBar({
   children,
 }: {
   back?: ReactNode;
-  /** The job's Overview and Company (./job-tabs), after Back. */
+  /** The job's Overview and Company (./job-tabs), after Back, or an
+   *  application's tabs. */
   tabs?: ReactNode;
-  children: ReactNode;
+  /** The actions, at the right end. */
+  children?: ReactNode;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
@@ -77,10 +80,10 @@ export function JobActionBar({
         SEEKER_GUTTER,
         // In the split view's panel: 60px, the list heading's height, with a
         // rule that always shows, running across the pane. It is the panel's
-        // dark edge (`border-control`), as the list's edge beside it is: a
-        // light rule inside the dark-edged panel read as a different line
+        // surface edge (`border-surface`), as the list's edge beside it is: a
+        // lighter rule inside the edged panel read as a different line
         // (2026-11-03). A narrow window wraps it taller.
-        "in-data-split:@4xl/main:after:bg-border-control in-data-split:@4xl/main:-mx-4! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-4! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
+        "in-data-split:@4xl/main:after:bg-border-surface in-data-split:@4xl/main:-mx-4! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-4! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
       )}
     >
       {/* The split view's list is Back's list, already on screen. */}

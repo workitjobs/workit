@@ -1,8 +1,10 @@
 """Which kind of Worker fills a form (S8, KAN-614): policies.yaml's `worker_mode`.
 
-- `cdp` (the default): every form in a CDP Worker (apply.browsers.WorkerBrowsers), as before.
+- `cdp`: every form in a CDP Worker (apply.browsers.WorkerBrowsers), as before. Policies with no
+  worker_mode at all (a test's) read as cdp.
 - `plain`: every form in a plain Worker (PlainSite over apply.plain.launcher.PlainWorkers).
-- `protected`: a plain Worker only for the protected hosts, a CDP Worker for the rest
+- `protected` (policies.default.yaml's default since 2026-11-06, KAN-723): a plain Worker only for
+  the protected hosts, a CDP Worker for the rest
   (RoutedSite). The protected hosts are policies.yaml's `plain_worker_hosts` (Lever,
   SmartRecruiters and Workable by default) and each host a bot block was seen on
   (`learn`, kept in APPLY_HOME/plain-hosts.json).
@@ -20,6 +22,7 @@ guards reset and its extension reloaded if its code changed (PlainWorkers.refres
 import json
 import sys
 import threading
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -28,7 +31,7 @@ from apply import submit_guard
 from apply.browsers import BUSY, ProfileInUse, WorkerBrowsers, in_use
 from apply.home import HOME
 from apply.plain import guards
-from apply.plain.launcher import WINDOW, PlainWorkers
+from apply.plain.launcher import WINDOW, PlainWorkers, reclaim
 from apply.profile import load_policies
 
 MODES = ("cdp", "plain", "protected")
@@ -75,6 +78,21 @@ def protected(url: str, policies: dict | None = None, hosts: list[str] | None = 
     return any(host == h or host.endswith("." + h) for h in (str(h).lower().removeprefix("www.") for h in hosts))
 
 
+_told = threading.local()  # what hears each form's tab as soon as it exists (telling)
+
+
+@contextmanager
+def telling(shown: Callable[[int], None]):
+    """Each page PlainSite.open makes on this thread, inside this, is told to `shown(tab)` as soon as its tab exists,
+    before its first navigation: an `--into` tile knows its own tab while its form still loads (KAN-717)."""
+    before = getattr(_told, "shown", None)
+    _told.shown = shown
+    try:
+        yield
+    finally:
+        _told.shown = before
+
+
 class PlainSite:
     """The live JobSite on plain Workers, in WorkerBrowsers' shape. A Worker's Chrome is started
     on its first form and reused for each one after (its guards reset), until close()."""
@@ -111,7 +129,11 @@ class PlainSite:
         return frozenset()  # `apply sign-in` signs the CDP Workers' profiles in, not these
 
     def refuse_in_use(self) -> None:
-        busy = [p.name for p in sorted(self.profiles.glob("plain-[0-9]*")) if p.is_dir() and in_use(p)]
+        """A profile whose Chrome a gone Apply left running is reclaimed first (KAN-885): only a live one is busy."""
+        profiles = [p for p in sorted(self.profiles.glob("plain-[0-9]*")) if p.is_dir()]
+        for profile in profiles:
+            reclaim(profile)
+        busy = [p.name for p in profiles if in_use(p)]
         if busy:
             raise ProfileInUse(f"{', '.join(busy)} {BUSY}")
 
@@ -125,6 +147,9 @@ class PlainSite:
     def show(self, worker: int) -> bool:
         """Only Lisul's own Show brings a plain Worker forward."""
         return self.workers.show(worker)
+
+    def in_front(self, worker: int) -> bool:
+        return self.workers.in_front(worker)
 
     def plain(self, worker: int) -> bool:
         return True
@@ -168,6 +193,8 @@ class PlainSite:
                 page = context.page(connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])["tab"])
             with self._tabs:
                 self._open.setdefault(worker, set()).add(page.tab)
+            if shown := getattr(_told, "shown", None):
+                shown(page.tab)
             for tab in before:  # the last form's tabs, done with: never a tab another form holds
                 context.page(tab).close()
         try:
@@ -243,6 +270,9 @@ class RoutedSite:
 
     def show(self, worker: int) -> bool:
         return (self.plain_site if self.plain(worker) else self.cdp).show(worker)
+
+    def in_front(self, worker: int) -> bool:
+        return (self.plain_site if self.plain(worker) else self.cdp).in_front(worker)
 
     @contextmanager
     def open(self, url: str, worker: int = 0):

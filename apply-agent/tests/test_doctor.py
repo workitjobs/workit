@@ -7,11 +7,14 @@ import io
 import json
 import os
 import plistlib
+import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
@@ -25,9 +28,12 @@ from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
-    info = tmp_path / "Info.plist"
-    info.write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
-    return info
+    """Google Chrome's binary, as the Chrome finder finds it on the Mac: its version in the app's Info.plist."""
+    contents = tmp_path / "Google Chrome.app" / "Contents"
+    (contents / "MacOS").mkdir(parents=True, exist_ok=True)
+    (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
+    (contents / "MacOS" / "Google Chrome").write_text("")
+    return contents / "MacOS" / "Google Chrome"
 
 
 def filled(tmp_path):
@@ -35,7 +41,7 @@ def filled(tmp_path):
     (tmp_path / "resume.pdf").write_bytes(b"%PDF-1.4")
     return {
         "identity": {"legal_first_name": "Test", "legal_last_name": "Person", "email": "test.person@example.com",
-                     "phone": "+15550100199", "current_location": {"city": "Columbus", "state": "OH", "country": "USA"}},
+                     "phone": "+15550100199", "phone_type": "mobile", "current_location": {"city": "Columbus", "state": "OH", "country": "USA"}},
         "files": {"resume_pdf": "resume.pdf"},
         "links": {"linkedin_url": "https://www.linkedin.com/in/test-person"},
         "education": {"school": "Ohio State University", "degree": "Bachelor's Degree", "expected_graduation": "2028-05"},
@@ -137,9 +143,10 @@ def test_chrome_says_its_version(tmp_path):
 
 
 def test_no_chrome_fails_with_how_to_install_it(tmp_path):
-    found = check(machine(tmp_path, chrome=tmp_path / "missing.plist"), "Chrome")
+    found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
+    assert "/Applications/Google Chrome.app" in found.detail or sys.platform != "darwin"  # where it looked
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
@@ -165,7 +172,7 @@ def test_prints_a_line_per_check_and_exits_zero_with_no_failure(tmp_path):
 
 
 def test_any_failure_exits_non_zero(tmp_path):
-    assert doctor.run(machine(tmp_path, chrome=tmp_path / "missing.plist"), io.StringIO()) == 1
+    assert doctor.run(machine(tmp_path, chrome=None), io.StringIO()) == 1
 
 
 def test_claude_logged_in_says_whose_login(tmp_path):
@@ -263,12 +270,12 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
 
 
 def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
-    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), "WorkIt")
 
 
 def logged_in(tmp_path, fake: FakeWorkIt) -> None:
-    client = WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
 
 
 def test_workit_logged_in_says_as_whom(tmp_path):
@@ -284,6 +291,22 @@ def test_workit_with_no_login_warns_and_says_rehearsals_still_work(tmp_path):
     assert "rehearsals work without it" in found.detail
     assert "apply login" in found.fix
     assert fake.requests == []  # no login: nothing to ask WorkIt
+
+
+@pytest.mark.parametrize("way", ["no login", "expired", "company account"])
+def test_workit_fails_each_way_its_login_cant_serve_ask_model_workit(tmp_path, way):
+    # Fault: with ask_model: workit, the default, a way the login can't serve the Model route only warns, though a
+    # rehearsal then stops at its first written answer. Each way is its own branch.
+    with FakeWorkIt(account_type="company" if way == "company account" else "applicant") as fake:
+        if way != "no login":
+            logged_in(tmp_path, fake)
+        if way == "expired":
+            fake.revoke()
+        client = lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        found = check(machine(tmp_path, profile=profile(tmp_path, ask_model="workit"), workit=client), "WorkIt")
+    assert found.level == doctor.FAIL
+    if way == "no login":
+        assert "first written answer" in found.detail and "apply app" in found.fix
 
 
 def test_workit_expired_login_warns_to_log_in_again(tmp_path):
@@ -319,7 +342,7 @@ def test_doctor_never_prints_the_workit_tokens(tmp_path):
         logged_in(tmp_path, fake)
         fake.expire()  # doctor refreshes it
         out = io.StringIO()
-        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), out)
     assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
     assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
 
@@ -354,7 +377,7 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     from apply.workit import WaitingWrites, Write
 
     with FakeWorkIt() as fake:
-        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
         waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
         waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
 
@@ -459,6 +482,14 @@ def test_blank_required_facts_fail_naming_each(tmp_path):
     assert found.level == doctor.FAIL
     assert "identity.phone" in found.detail and "education.school" in found.detail
     assert "identity.email" not in found.detail
+
+
+def test_a_blank_optional_fact_warns_naming_it(tmp_path):
+    facts = filled(tmp_path)
+    del facts["identity"]["phone_type"]
+    found = check(machine(tmp_path, profile=profile(tmp_path, facts)), "Applicant profile")
+    assert found.level == doctor.WARN
+    assert "identity.phone_type" in found.detail and "mobile, landline or work" in found.fix
 
 
 def test_a_no_is_a_fact_not_a_blank(tmp_path):
@@ -621,13 +652,17 @@ def test_an_apply_accounts_host_whose_wrapper_is_gone_warns(tmp_path):
     assert check(m, "Apply accounts host").level == doctor.WARN
 
 
-def plain_seed(profiles: Path, installed=True, developer=True) -> Path:
-    """A plain seed profile, its Preferences as Chrome writes them after Load unpacked of the worker extension."""
-    from apply.plain.extension import EXTENSION_ID
+def plain_seed(profiles: Path, installed=True, developer=True, current=True) -> Path:
+    """A plain seed profile, its Preferences as Chrome writes them after Load unpacked of the worker extension: a
+    folder of this checkout's extension code, or (`current` False) of older code."""
+    from apply.plain.extension import CODE_FILES, EXTENSION_DIR, EXTENSION_ID
 
     folder = profiles / "worker-extension"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "manifest.json").write_text("{}")
+    for part in CODE_FILES:
+        (shutil.copytree if (EXTENSION_DIR / part).is_dir() else shutil.copy2)(EXTENSION_DIR / part, folder / part)
+    if not current:
+        (folder / "ops" / "tile.js").write_text("// KAN-645's tile.js: no title in tile.shown\n")
     prefs = {"extensions": {"ui": {"developer_mode": developer},
                             "settings": {EXTENSION_ID: {"path": str(folder)}} if installed else {}}}
     (profiles / "plain-seed" / "Default").mkdir(parents=True)
@@ -656,6 +691,16 @@ def test_a_plain_seed_without_the_worker_extension_fails_with_how_to_seed_it(tmp
 
     assert missing.level == bare.level == doctor.FAIL and "apply plain seed" in missing.fix
     assert "isn't installed" in bare.detail
+
+
+def test_a_plain_seed_whose_extension_holds_older_code_fails_with_how_to_update_it(tmp_path):
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="chrome")
+    m = machine(tmp_path, profile=plain, profiles=plain_seed(tmp_path / "profiles", current=False))
+
+    found = check(m, "Plain seed")
+
+    assert found.level == doctor.FAIL and "holds other code than this checkout's" in found.detail
+    assert found.fix == doctor.STALE_SEED and "start Apply" in found.fix and "apply plain seed" in found.fix
 
 
 def test_protected_worker_mode_checks_both_kinds_of_worker(tmp_path):

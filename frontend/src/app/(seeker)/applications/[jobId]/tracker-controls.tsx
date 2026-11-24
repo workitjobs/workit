@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
-import { ExternalLinkIcon, TrashIcon } from "@/components/icons";
+import { CalendarIcon, ExternalLinkIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
   DialogClose,
@@ -15,12 +15,13 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { Section } from "@/components/ui/section";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
+import { CALENDAR_LIVE } from "../../calendar/live";
 import { When } from "../../local-time";
 import {
   KIND_ICON,
@@ -39,6 +40,7 @@ import {
 } from "../actions";
 import { CreateEventDialog } from "../create-event";
 
+import { EmptySlot } from "./empty-slot";
 import { asksFirst, readdEvent, undoStage } from "./undo";
 
 /**
@@ -58,7 +60,7 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
 /**
  * The stage menu: Applied, Interviewing, Offer or Rejected, any way, each
  * in its glyph and colour as the Tracker's Status filter draws it. A saved
- * job has no pick yet ("Move To…"), since saved is a bookmark the menu never
+ * job has no pick yet ("Move to…"), since saved is a bookmark the menu never
  * goes back to. An interview, offer or rejection added below moves the stage
  * forward by itself; this is for everything else.
  *
@@ -68,21 +70,27 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
  * while a write runs.
  *
  * The Tracker's list rows and cards carry it too, so a stage changes where
- * the application is seen; there a saved job's menu reads "Saved"
- * (`placeholder`), its stage, rather than the page's "Move To…". Its id is
+ * the application is seen. Every caller passes "Saved" (`placeholder`), so
+ * a saved job's menu names its stage: the application page's did too once
+ * it became the card's only mark of the stage (KAN-824). Its id is
  * its own (`useId`): the list and the cards are both on the page at once.
  */
 export function StageMenu({
   jobId,
   stage,
-  placeholder = "Move To…",
+  placeholder = "Move to…",
   className = "w-40",
+  compact = false,
 }: {
   jobId: string;
   stage: StageKey;
   /** What a saved job's menu reads, since Saved is not a pick. */
   placeholder?: string;
   className?: string;
+  /** A pill in the stage's tint, 30px tall, as the Tracker's table draws
+   *  it (2026-11-10): a 42px bordered field on every row made the table
+   *  read as a form, taller than the page's own 36px buttons. */
+  compact?: boolean;
 }) {
   const id = useId();
   const router = useRouter();
@@ -140,6 +148,14 @@ export function StageMenu({
           iconClassName: STAGE_COLOR[value].onTint,
         }))}
         disabled={pending}
+        triggerClassName={
+          compact
+            ? cn(
+                "text-label sm:text-label w-fit gap-1.5 rounded-full border-transparent py-1 pr-2 pl-2.5 font-medium",
+                STAGE_COLOR[stage].tint,
+              )
+            : undefined
+        }
         onValueChange={(next) => {
           if (!next || next === stage || pending) return;
           if (asksFirst(stage)) setAsking(next as PickableStage);
@@ -150,9 +166,7 @@ export function StageMenu({
       <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
-              Move to {asking && STAGE_LABEL[asking]}?
-            </DialogTitle>
+            <DialogTitle>Move to {asking && STAGE_LABEL[asking]}?</DialogTitle>
             <DialogDescription>
               Once it moves, it can&apos;t go back to Saved. It takes today as its applied date if
               it has none.
@@ -183,14 +197,15 @@ export function StageMenu({
  * rejection moves the stage forward as Create Event does). Only an event
  * the student added has Delete: one read from an email stays, as every
  * email stays in the Inbox as a record (the API refuses its delete too).
+ *
+ * Built as What You Sent under it is (KAN-824): a `Section` with Create
+ * Event at its heading's end, an elevated `Card`, and with no events the
+ * same quiet empty row in that card (./empty-slot.tsx). It had its own
+ * heading row and a bare line on the grey ground until then.
  */
 export function TrackerEvents({ jobId, events }: { jobId: string; events: ApplicationEvent[] }) {
   return (
-    <section className="mt-5">
-      <div className="flex items-center justify-between gap-3">
-        <SectionHeading>Interviews &amp; Dates</SectionHeading>
-        <CreateEventDialog jobId={jobId} />
-      </div>
+    <Section title="Interviews & Dates" action={<CreateEventDialog jobId={jobId} />}>
       {events.length > 0 ? (
         <Card as="ul" padding="none" className="divide-border-subtle mt-3 divide-y">
           {events.map((event) => (
@@ -198,12 +213,14 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
           ))}
         </Card>
       ) : (
-        <p className="text-body text-ink-meta mt-3">
-          Add interviews, assessments, offers and replies here. They show on your timeline and your
-          Calendar.
-        </p>
+        <Card padding="lg" className="mt-3">
+          <EmptySlot icon={<CalendarIcon className="text-ink-meta size-5" />}>
+            Add interviews, assessments, offers and replies here. They show on your timeline
+            {CALENDAR_LIVE && " and your Calendar"}.
+          </EmptySlot>
+        </Card>
       )}
-    </section>
+    </Section>
   );
 }
 
@@ -247,8 +264,9 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
       </div>
       {event.id && event.source !== "gmail" && (
         <IconButton
+          place="row"
           label={`Delete ${event.title}`}
-          tooltip="Delete"
+          tooltip={false}
           disabled={pending}
           onClick={() =>
             start(async () => {
@@ -275,7 +293,7 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
             })
           }
         >
-          <TrashIcon className="size-4" />
+          <TrashIcon />
         </IconButton>
       )}
     </li>

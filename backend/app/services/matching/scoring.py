@@ -23,11 +23,12 @@ W_SEMANTIC = 0.45       # cosine similarity via pg_vector
 W_SKILL = 0.25          # fraction of distinct resume skills mentioned in posting
 W_TITLE = 0.15          # word overlap of resume titles & job title
 W_ELIGIBILITY = 0.15    # stated years-of-experience requirement (not a gate)
+CURVE_POWER = 0.6       # < 1 stretches mid-range scores upward
 
 
 @dataclass(frozen=True)
 class ScoreComponent:
-    """Points are on the 0-100 scale before freshness is applied."""
+    """Points are on the 0-100 scale, scaled so they sum to score_before_rounding."""
 
     value: float | None
     weight: float
@@ -64,20 +65,22 @@ def compute_breakdown(
         total = W_SKILL + W_TITLE + W_ELIGIBILITY
         weights = (0.0, W_SKILL / total, W_TITLE / total, W_ELIGIBILITY / total)
     values = (semantic, skill_overlap, title_fit, eligibility)
-    components = tuple(
-        ScoreComponent(value, weight, (value if value is not None else 0.0) * weight * 100)
-        for value, weight in zip(values, weights, strict=True)
-    )
     # Preserve the scoring operation order before converting to percentage points.
     weighted = sum((value if value is not None else 0.0) * weight
                    for value, weight in zip(values, weights, strict=True))
-    adjusted = weighted * freshness * 100
+    raw = max(0.0, weighted * freshness)  # guard negative semantic
+    curved = raw ** CURVE_POWER
+    scale = curved / weighted if weighted > 0 else 0.0
+    components = tuple(
+        ScoreComponent(value, weight, (value if value is not None else 0.0) * weight * 100 * scale)
+        for value, weight in zip(values, weights, strict=True)
+    )
     return ScoreBreakdown(
         *components,
         freshness_multiplier=freshness,
         weighted_score=weighted * 100,
-        score_before_rounding=adjusted,
-        final_score=max(0, min(100, round(adjusted))),
+        score_before_rounding=curved * 100,
+        final_score=max(0, min(100, round(curved * 100))),
     )
 
 
@@ -126,8 +129,8 @@ def title_fit(job_title: str, resume_titles: Sequence[str], field_of_study: str 
 
 
 def freshness(days_old: float) -> float:
-    """1.0 for today, decaying linearly to 0.7 over 300 days."""
-    return max(0.7, 1.0 - 0.3 * max(0.0, days_old) / 300)
+    """1.0 for today, decaying linearly to 0.85 over 300 days."""
+    return max(0.85, 1.0 - 0.15 * max(0.0, days_old) / 300)
 
 
 def experience_years(experience: Sequence[Experience], *, today: date) -> float:

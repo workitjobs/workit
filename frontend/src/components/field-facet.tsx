@@ -14,13 +14,14 @@ import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { cn } from "@/lib/cn";
 
 /**
- * A filter dropdown in the Jobs page facet's look (jobs/filters.tsx): a
- * small secondary button with the field's glyph, its label and a chevron,
- * taking the brand tint while it holds a pick and is closed, over checkbox
- * rows (ui/check-row.tsx). A pick leaves it open for the next. Used by the
- * Applications filter row (KAN-282) and Live Activity's Status filter on
- * Auto Apply (KAN-285); `facetClasses` and `FacetLabel` also draw the
- * Applications page's Company dropdown, which holds a search field.
+ * A filter dropdown: a small secondary button with the field's glyph, its
+ * label and a chevron, taking the brand tint while it holds a pick and is
+ * closed, over checkbox rows (ui/check-row.tsx). A pick leaves it open for
+ * the next. Used by the Jobs page's row (Workplace and Job Type, KAN-823),
+ * the Applications filter row (KAN-282) and Live Activity's Status filter
+ * on Auto Apply (KAN-285); `facetClasses` and `FacetLabel` also draw the
+ * dropdowns that hold a search field (`SearchFacet`: the Tracker's Company,
+ * the Jobs page's Role) and the Jobs page's Location popover.
  */
 
 export type Glyph = ComponentType<{ className?: string }>;
@@ -34,11 +35,13 @@ export type FacetOption = {
 };
 
 /** The Jobs page facet's look: a small secondary button with the brand
- *  tint while it holds a pick and its list is closed. */
+ *  tint while it holds a pick and its list is closed. Its label is regular
+ *  (400), not a button's medium, as Jobright's filters are (2026-11-10): a
+ *  row of medium filters read heavier than the cards under it. */
 export function facetClasses(active: boolean, className?: string) {
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
-    "justify-between",
+    "justify-between font-normal",
     active && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );
@@ -115,7 +118,7 @@ export function FieldFacet({
         className={facetClasses(active, className)}
       >
         <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

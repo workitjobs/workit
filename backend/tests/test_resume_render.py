@@ -6,6 +6,7 @@ warning. CI installs Tectonic, and where `CI` is set these tests fail rather tha
 skip when it is missing.
 '''
 
+import datetime
 import hashlib
 import io
 import os
@@ -14,6 +15,7 @@ import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from typing import get_args
 
@@ -28,13 +30,18 @@ from app.services import resume_render
 from app.services.resume_render import (
     ALIGNMENTS,
     BODY_SIZES,
+    DATE_FORMATS,
     DEFAULT_PAGE,
+    EDUCATION_FIRST,
+    EXPERIENCE_FIRST,
     FONT_FAMILIES,
     FONT_SIZES,
+    HEADER_FIELDS,
     HEADING_SIZES,
     LINE_SPACINGS,
     MARGINS,
     NAME_SIZES,
+    PROJECT_TOOLS,
     TEMPLATE,
     TITLE_SIZES,
     WRAPPED_LINE,
@@ -45,10 +52,28 @@ from app.services.resume_render import (
     escape,
     jakes_document,
     render,
+    shown_header,
+)
+from app.services.resume_render.fields import (
+    dates,
+    degree_leads,
+    gpa,
+    heading,
+    heading_fields,
+    one_row,
+    page_heading,
+    phone_text,
+    skill_lines,
 )
 from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
-from app.services.resume_view import ResumeView, ViewBullet, ViewEntry, ViewSection
+from app.services.resume_view import (
+    ResumeView,
+    ViewBullet,
+    ViewEntry,
+    ViewSection,
+    ViewSkill,
+)
 
 # jakes.tex from the KAN-176 prototype, byte for byte. A change here is a
 # change to Jake's template itself: don't
@@ -96,7 +121,7 @@ def test_jakes_sample_renders_as_one_page_with_its_text() -> None:
         "Southwestern University",
         "Bachelor of Arts in Computer Science, Minor in Business",
         "Aug. 2018 – May 2021",
-        "GPA: 3.8/4.0",
+        "GPA: 3.80/4.00",
         "Undergraduate Research Assistant",
         "June 2020 – Present",
         "Texas A&M University",
@@ -203,7 +228,85 @@ def _long_view() -> ResumeView:
                                          location="Georgetown, TX", bullets=bullets))
 
 
-@pytest.mark.parametrize("view", [VIEW, _long_view()], ids=["one page", "two pages"])
+def _tools_view() -> ResumeView:
+    '''Jake's sample with a project that keeps its stack as tools (KAN-738),
+    as an upload now reads "workitjobs.ai | AI Job Search Platform" over a
+    line of tools.'''
+    project = ViewEntry(uuid.uuid4(), "projects", "workitjobs.ai", organization="AI Job Search Platform",
+                        tools=("Next.js", "TypeScript", "Tailwind CSS", "FastAPI", "PostgreSQL"),
+                        bullets=(ViewBullet(uuid.uuid4(), "Lead design and front-end on a 5-person team"),))
+    sections = tuple(replace(s, entries=(project, *s.entries)) if s.section == "projects" else s
+                     for s in VIEW.sections)
+    return replace(VIEW, sections=sections)
+
+
+def _one_row_view() -> ResumeView:
+    '''Jake's sample with a school that has no degree line and a job with no
+    organization (KAN-503): each heading has nothing at the left of its
+    second row.'''
+    lab = ViewEntry(uuid.uuid4(), "education", "Signal Processing Lab", location="Hillcrest, NY",
+                    end_month=datetime.date(2025, 5, 1), end_kind="month",
+                    bullets=(ViewBullet(uuid.uuid4(), "Built a search index for lab notes"),))
+    job = ViewEntry(uuid.uuid4(), "experience", "Freelance Web Developer", location="Remote",
+                    start_month=datetime.date(2024, 6, 1), end_kind="present",
+                    bullets=(ViewBullet(uuid.uuid4(), "Built sites for three local businesses"),))
+    sections = tuple(
+        replace(s, entries=(lab, *s.entries)) if s.section == "education"
+        else replace(s, entries=(job, *s.entries)) if s.section == "experience"
+        else s
+        for s in VIEW.sections)
+    return replace(VIEW, sections=sections)
+
+
+def test_a_heading_with_an_empty_second_row_is_one_row_place_then_dates() -> None:
+    # KAN-503: the second row's right side sat alone on a line. One row
+    # shows the place, then the dates, whichever row each came from
+    lab, job = (s.entries[0] for s in _one_row_view().sections[:2])
+    for entry in (lab, job):
+        h = heading(entry)
+        rights = one_row(h, heading_fields(entry.section))
+        assert [heading_fields(entry.section)[name] for name in rights] == ["location", "dates"]
+    # With no place, the dates alone
+    bare = replace(lab, location=None)
+    assert one_row(heading(bare), heading_fields("education")) == ["subright"]
+    # A second row with words at its left stays two rows
+    school = VIEW.sections[0].entries[0]
+    assert one_row(heading(school), heading_fields("education")) is None
+
+
+def test_a_school_with_no_degree_prints_its_heading_on_one_row() -> None:
+    _tectonic_or_skip()
+    view = _one_row_view()
+    rendered = render(view, IDENTITY, "jakes")
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+    for entry in (view.sections[0].entries[0], view.sections[1].entries[0]):
+        title, place, when = (boxes[(str(entry.id), kind)] for kind in ("title", "location", "dates"))
+        # One row: the place and the dates sit on the title's line, the
+        # dates at the right edge, after the place
+        assert abs(place.y1 - title.y1) < 2 and abs(when.y1 - title.y1) < 2
+        assert title.x1 < place.x0 < place.x1 < when.x0
+        # and the first bullet follows at once, with no line between
+        bullet = boxes[(str(entry.bullets[0].id), "bullet")]
+        assert 0 <= bullet.y0 - title.y1 < 8
+    assert (str(view.sections[0].entries[0].id), "degree") not in boxes
+    lines = _text_lines(rendered.pdf)
+    assert any("Hillcrest, NY | May 2025" in t for t, _, _ in lines)
+
+
+def test_the_word_file_prints_an_empty_second_row_heading_on_one_row() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    texts = [p.text for p in Document(io.BytesIO(render_docx(_one_row_view(), IDENTITY))).paragraphs]
+    at = texts.index("Signal Processing Lab\tHillcrest, NY | May 2025")
+    assert texts[at + 1] == "Built a search index for lab notes"
+    at = texts.index("Freelance Web Developer\tRemote | June 2024 – Present")
+    assert texts[at + 1] == "Built sites for three local businesses"
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view(), _one_row_view()],
+                         ids=["one page", "two pages", "tools", "one row"])
 def test_position_markers_leave_the_page_unchanged(view) -> None:
     # The preview must be the file that downloads (ADR 0002): the markers
     # that place the editor's click targets may not move one glyph
@@ -215,6 +318,25 @@ def test_position_markers_leave_the_page_unchanged(view) -> None:
 
     assert marked.boxes and not plain.boxes
     assert _content_streams(marked.pdf) == _content_streams(plain.pdf)
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view(), _one_row_view()],
+                         ids=["one page", "two pages", "tools", "one row"])
+def test_one_pass_prints_the_same_page_without_bookmarks(view) -> None:
+    # KAN-919: the editor's live page runs TeX once. The second pass only
+    # adds the PDF's outline, so the page itself, every box and the page
+    # count must match the two-pass file that downloads
+    from pypdf import PdfReader
+
+    _tectonic_or_skip()
+    both = render(view, IDENTITY, "jakes")
+    once = render(view, IDENTITY, "jakes", bookmarks=False)
+
+    assert _content_streams(once.pdf) == _content_streams(both.pdf)
+    assert once.boxes == both.boxes and once.page_count == both.page_count
+    assert once.points == both.points and once.area == both.area and once.shrinks == both.shrinks
+    assert PdfReader(io.BytesIO(both.pdf)).outline
+    assert not PdfReader(io.BytesIO(once.pdf)).outline
 
 
 def _text_lines(pdf: bytes) -> list[tuple[str, int, tuple[float, float, float, float]]]:
@@ -280,6 +402,33 @@ def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
     assert _inside(bbox, boxes[(str(first.id), "bullet")])
 
 
+def test_a_projects_tools_print_on_their_own_line_under_its_heading() -> None:
+    # KAN-738: the heading's first line stays as it was (name, organization,
+    # dates), and the tools take a line of their own, as the student's own
+    # resume prints them; the editor gets a "tools" box for that line
+    _tectonic_or_skip()
+    view = _tools_view()
+    rendered = render(view, IDENTITY, "jakes")
+    project = view.sections[2].entries[0]
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+
+    assert rendered.missing_characters == ()
+    assert {kind for item, kind in boxes if item == str(project.id)} == {"title", "organization", "tools"}
+    tools = boxes[(str(project.id), "tools")]
+    assert tools.text == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    title, bullet = boxes[(str(project.id), "title")], boxes[(str(project.bullets[0].id), "bullet")]
+    assert title.y1 <= tools.y0 and tools.y1 <= bullet.y0
+    assert abs(tools.x0 - title.x0) < 1  # under the name, not indented
+
+    lines = _text_lines(rendered.pdf)
+    assert any(t.startswith("workitjobs.ai | AI Job Search Platform") for t, _, _ in lines)
+    _, bbox = _line(lines, "Next.js, TypeScript")
+    assert _inside(bbox, tools)
+    # A project with no tools keeps one line, as before
+    gitlytics = view.sections[2].entries[1]
+    assert (str(gitlytics.id), "tools") not in boxes
+
+
 def test_the_header_gives_a_box_for_each_profile_field() -> None:
     _tectonic_or_skip()
     rendered = render(VIEW, IDENTITY, "jakes")
@@ -303,7 +452,7 @@ def test_the_header_gives_a_box_for_each_profile_field() -> None:
 def test_the_header_says_us_citizen_only_when_checked() -> None:
     assert "U.S. Citizen" not in jakes_body(VIEW, IDENTITY)
     # First on the contact line, before the phone
-    assert r"\small U.S. Citizen $|$ 123-456-7890 $|$ " in jakes_body(
+    assert r"\small U.S. Citizen $|$ +1 123-456-7890 $|$ " in jakes_body(
         VIEW, replace(IDENTITY, us_citizen=True), marks=False)
     _tectonic_or_skip()
     rendered = render(VIEW, replace(IDENTITY, us_citizen=True), "jakes")
@@ -311,6 +460,58 @@ def test_the_header_says_us_citizen_only_when_checked() -> None:
     # No box: the editor cannot type it
     assert {b.kind for b in rendered.boxes if b.item_id == "header"} == {
         "full_name", "phone_number", "email", "linkedin_url", "github_url"}
+
+
+def test_the_header_prints_the_location_after_the_email() -> None:
+    # KAN-436: U.S. Citizen | phone | email | location | links
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    assert r"\underline{jake@su.edu}} $|$ Stony Brook, NY $|$ \href{https://linkedin.com/in/jake}" in jakes_body(
+        VIEW, identity, marks=False)
+    _tectonic_or_skip()
+    rendered = render(VIEW, identity, "jakes")
+    box = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "location")
+    assert box.text == "Stony Brook, NY"
+
+
+def test_a_hidden_header_field_does_not_print_on_that_resume() -> None:
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    page = PageSettings(hidden_header=("location", "phone_number", "github_url"))
+    tex = jakes_body(VIEW, shown_header(identity, page), marks=False)
+    assert "Stony Brook" not in tex and "123-456-7890" not in tex and "github.com/jake" not in tex
+    assert "jake@su.edu" in tex and "linkedin.com/in/jake" in tex
+    # render() and latex() hide them with no help from the caller
+    assert "Stony Brook" not in resume_render.latex(VIEW, identity, "jakes", page)
+    assert "Stony Brook" in resume_render.latex(VIEW, identity, "jakes")
+
+
+def test_the_additional_line_prints_under_the_contact_line() -> None:
+    # KAN-436: its own line, in the contact line's type, with a box the
+    # editor types into the profile
+    identity = replace(IDENTITY, extra="Secret clearance | Open to relocation")
+    tex = jakes_body(VIEW, identity, marks=False)
+    assert r"\underline{github.com/jake}} \\" + "\n" + r"\small Secret clearance \textbar{} Open to relocation" in tex
+    assert "Secret clearance" not in jakes_body(
+        VIEW, shown_header(identity, PageSettings(hidden_header=("resume_header_extra",))), marks=False)
+    # With no contact line it stands alone, with no empty line above it
+    bare = replace(identity, phone=None, email=None, links=())
+    assert r"\vspace{1pt}" + "\n" + r"\small Secret" in jakes_body(VIEW, bare, marks=False)
+    _tectonic_or_skip()
+    rendered = render(VIEW, identity, "jakes")
+    box = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "resume_header_extra")
+    contact = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "phone_number")
+    assert box.text == "Secret clearance | Open to relocation"
+    assert box.y0 >= contact.y1 - 1
+    assert rendered.page_count == 1 and rendered.missing_characters == ()
+
+
+def test_the_hidden_header_fields_are_kept_in_one_order_and_checked() -> None:
+    assert PageSettings(hidden_header=["github_url", "phone_number"]).hidden_header == ("phone_number", "github_url")
+    with pytest.raises(ValueError):
+        PageSettings(hidden_header=("full_name",))
+    fields = ApiPageSettings.model_fields
+    assert set(get_args(get_args(fields["hidden_header"].annotation)[0])) == set(HEADER_FIELDS)
+    with pytest.raises(ValueError):
+        ApiPageSettings(hidden_header=["us_citizen"])
 
 
 def test_a_wrapped_bullet_box_covers_both_lines() -> None:
@@ -409,7 +610,40 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
 
     doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
     assert doc.paragraphs[1].text == (
-        "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
+        "U.S. Citizen | +1 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
+
+
+def test_the_word_file_prints_the_location_and_leaves_out_hidden_fields() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    doc = Document(io.BytesIO(render_docx(VIEW, identity)))
+    assert doc.paragraphs[1].text == (
+        "+1 123-456-7890 | jake@su.edu | Stony Brook, NY | linkedin.com/in/jake | github.com/jake")
+    page = PageSettings(hidden_header=("email", "linkedin_url"))
+    doc = Document(io.BytesIO(render_docx(VIEW, identity, page)))
+    assert doc.paragraphs[1].text == "+1 123-456-7890 | Stony Brook, NY | github.com/jake"
+    doc = Document(io.BytesIO(render_docx(VIEW, replace(identity, extra="Open to relocation"))))
+    assert doc.paragraphs[2].text == "Open to relocation"
+    page = PageSettings(hidden_header=("resume_header_extra",))
+    doc = Document(io.BytesIO(render_docx(VIEW, replace(identity, extra="Open to relocation"), page)))
+    assert "Open to relocation" not in [p.text for p in doc.paragraphs]
+
+
+def test_the_word_file_prints_a_projects_tools_under_its_heading() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    texts = [p.text for p in Document(io.BytesIO(render_docx(_tools_view(), IDENTITY))).paragraphs]
+    heading = next(i for i, t in enumerate(texts) if t.startswith("workitjobs.ai | AI Job Search Platform"))
+    assert texts[heading + 1] == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    assert texts[heading + 2] == "Lead design and front-end on a 5-person team"
+    # A project with no tools goes straight to its bullets
+    gitlytics = next(i for i, t in enumerate(texts) if t.startswith("Gitlytics"))
+    assert texts[gitlytics + 1].startswith("Developed a full-stack web application")
 
 
 def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:
@@ -468,6 +702,8 @@ def test_page_settings_go_after_jakes_preamble_and_only_when_they_differ() -> No
 @pytest.mark.parametrize("settings", [
     {"font_family": "Comic Sans"}, {"name_size": 99}, {"heading_size": 99}, {"title_size": 99}, {"body_size": 99},
     {"body_size": 10.25}, {"body_size": 7.5}, {"body_size": float("nan")}, {"body_size": "10"},
+    {"date_format": "roman"}, {"education_first": "gpa"}, {"experience_first": "date"},
+    {"project_tools": "above"},
     {"font_size": 13}, {"line_spacing": 2.0}, {"side_margin": 0.1}, {"top_margin": 2.0}, {"alignment": r"\\input{/etc/passwd}"},
 ])
 def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
@@ -481,6 +717,9 @@ def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
     PageSettings(name_size=NAME_SIZES[0], heading_size=HEADING_SIZES[0], title_size=TITLE_SIZES[0], body_size=BODY_SIZES[0]),
     PageSettings(name_size=NAME_SIZES[-1], heading_size=HEADING_SIZES[-1], title_size=TITLE_SIZES[-1], body_size=BODY_SIZES[-1]),
     PageSettings(name_size=31.5, heading_size=15.5, title_size=13.5, body_size=8.5),
+    *(PageSettings(date_format=date_format) for date_format in DATE_FORMATS),
+    PageSettings(education_first="degree"),
+    PageSettings(experience_first="company", project_tools="after_name"),
     *(PageSettings(line_spacing=spacing) for spacing in LINE_SPACINGS),
     *(PageSettings(side_margin=margin, top_margin=margin) for margin in MARGINS),
     *(PageSettings(alignment=alignment) for alignment in ALIGNMENTS),
@@ -652,8 +891,12 @@ def test_every_kind_of_text_changes_the_page_it_prints() -> None:
 
 
 def test_the_api_takes_exactly_what_the_page_can_print() -> None:
-    family = ApiPageSettings.model_fields["font_family"].annotation
-    assert set(get_args(family)) == {"latin_modern", *FONT_FAMILIES}
+    fields = ApiPageSettings.model_fields
+    assert set(get_args(fields["font_family"].annotation)) == {"latin_modern", *FONT_FAMILIES}
+    assert set(get_args(fields["date_format"].annotation)) == set(DATE_FORMATS)
+    assert set(get_args(fields["education_first"].annotation)) == set(EDUCATION_FIRST)
+    assert set(get_args(fields["experience_first"].annotation)) == set(EXPERIENCE_FIRST)
+    assert set(get_args(fields["project_tools"].annotation)) == set(PROJECT_TOOLS)
     scales = {"name_size": NAME_SIZES, "heading_size": HEADING_SIZES, "title_size": TITLE_SIZES, "body_size": BODY_SIZES}
     for field, (low, high) in scales.items():
         for size in (low, low + 0.5, high):
@@ -663,3 +906,306 @@ def test_the_api_takes_exactly_what_the_page_can_print() -> None:
             for settings in (ApiPageSettings, PageSettings):
                 with pytest.raises(ValueError):
                     settings(**{field: size})
+
+
+def test_a_compile_gets_windows_own_folders_and_no_secret(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("SYSTEMROOT", "C:/Windows")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://secret")
+    monkeypatch.setattr(resume_render.os, "name", "nt")
+    env = resume_render._env(tmp_path, "work")
+    assert env["SYSTEMROOT"] == "C:/Windows"
+    assert "DATABASE_URL" not in env
+    # Off Windows the compile gets no Windows folder, even when one is set
+    monkeypatch.setattr(resume_render.os, "name", "posix")
+    assert "SYSTEMROOT" not in resume_render._env(tmp_path, "work")
+
+
+def _education():
+    return next(s for s in VIEW.sections if s.section == "education").entries[0]
+
+
+@pytest.mark.parametrize("date_format, expected", [
+    ("short", "Aug. 2018 – May 2021"), ("long", "August 2018 – May 2021"),
+    ("year", "2018 – 2021"), ("numeric", "08/2018 – 05/2021"),
+])
+def test_a_date_format_reads_as_it_says(date_format, expected) -> None:
+    assert dates(_education(), date_format) == expected
+
+
+def test_year_only_prints_one_year_once() -> None:
+    entry = replace(_education(), end_month=_education().start_month)
+    assert dates(entry, "year") == "2018"
+    # one month in any format prints once
+    assert dates(entry, "short") == "Aug. 2018"
+
+
+def test_degree_first_swaps_educations_rows_and_their_click_targets() -> None:
+    school = _education()
+    first = heading(school, "short", "degree")
+    assert (first.title, first.subtitle) == (heading(school).subtitle, school.title)
+    assert heading_fields("education", degree_leads(school, "degree"))["subtitle"] == "title"
+
+    nothing = replace(school, degree=None, field_of_study=None, organization=None)
+    assert heading(nothing, "short", "degree").title == school.title
+    assert not degree_leads(nothing, "degree")
+
+
+def test_degree_first_leaves_every_other_section_alone() -> None:
+    job = next(s for s in VIEW.sections if s.section == "experience").entries[0]
+    assert heading(job, "short", "degree") == heading(job)
+
+
+def test_a_box_keeps_its_field_when_degree_first_moves_it() -> None:
+    _tectonic_or_skip()
+    page = PageSettings(education_first="degree")
+    boxes = render(VIEW, IDENTITY, "jakes", page).boxes
+    school = _education()
+    title = next(b for b in boxes if b.item_id == str(school.id) and b.kind == "title")
+    degree = next(b for b in boxes if b.item_id == str(school.id) and b.kind == "degree")
+    assert title.text == school.title
+    assert degree.y0 < title.y0
+
+
+def test_the_word_file_follows_the_date_format_and_the_education_order() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    page = PageSettings(date_format="year", education_first="degree")
+    rows = [p.text for p in Document(io.BytesIO(render_docx(VIEW, IDENTITY, page))).paragraphs]
+    school = next(i for i, row in enumerate(rows) if row.startswith(_education().title))
+    assert heading(_education()).subtitle in rows[school - 1]
+    assert rows[school].endswith("2018 – 2021")
+
+
+# --- Experience order and project tools (2026-11-17) ------------------------
+
+def _job():
+    return next(s for s in VIEW.sections if s.section == "experience").entries[0]
+
+
+def _project(**changes):
+    project = next(s for s in VIEW.sections if s.section == "projects").entries[0]
+    return replace(
+        project,
+        **{"organization": "CSE 316", "tools": ("Python", "Flask"), "link": "https://github.com/jd/gitlytics", **changes},
+    )
+
+
+def test_company_first_puts_the_company_and_its_place_over_the_role_and_its_dates() -> None:
+    job = _job()
+    h, kinds = page_heading(job, PageSettings(experience_first="company"))
+    assert (h.title, h.right, h.subtitle) == (job.organization, job.location or "", job.title)
+    assert h.subright == heading(job).right  # the dates move to the role's row
+    assert kinds == {"title": "organization", "right": "location", "subtitle": "title", "subright": "dates"}
+
+
+def test_a_job_with_no_company_keeps_its_role_on_top() -> None:
+    job = replace(_job(), organization=None)
+    assert page_heading(job, PageSettings(experience_first="company"))[0] == heading(job)
+
+
+def test_tools_after_the_name_move_the_context_under_it() -> None:
+    project = _project()
+    plain, plain_kinds = page_heading(project, DEFAULT_PAGE)
+    assert (plain.tag, plain.subtitle) == ("CSE 316 | github.com/jd/gitlytics", "Python, Flask")
+    h, kinds = page_heading(project, PageSettings(project_tools="after_name"))
+    assert (h.tag, h.subtitle) == ("Python, Flask | github.com/jd/gitlytics", "CSE 316")
+    assert (kinds["tag"], kinds["subtitle"]) == ("tools", "organization")
+    assert (plain_kinds["tag"], plain_kinds["subtitle"]) == ("organization", "tools")
+
+
+def test_a_project_with_no_tools_keeps_its_context_after_the_name() -> None:
+    project = _project(tools=())
+    assert page_heading(project, PageSettings(project_tools="after_name"))[0] == heading(project)
+
+
+def test_each_choice_leaves_the_other_sections_alone() -> None:
+    page = PageSettings(experience_first="company", project_tools="after_name")
+    school = _education()
+    assert page_heading(school, page) == page_heading(school, DEFAULT_PAGE)
+    assert page_heading(_project(), PageSettings(experience_first="company"))[0] == heading(_project())
+    assert page_heading(_job(), PageSettings(project_tools="after_name"))[0] == heading(_job())
+
+
+def test_the_word_file_follows_both_choices() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    view = replace(
+        VIEW,
+        sections=tuple(
+            replace(s, entries=(_project(), *s.entries[1:])) if s.section == "projects" else s
+            for s in VIEW.sections
+        ),
+    )
+    page = PageSettings(experience_first="company", project_tools="after_name")
+    rows = [p.text for p in Document(io.BytesIO(render_docx(view, IDENTITY, page))).paragraphs]
+    job = _job()
+    top = next(i for i, row in enumerate(rows) if row.startswith(job.organization))
+    assert rows[top + 1].startswith(job.title)
+    assert any(row.startswith("Gitlytics") and "Python, Flask" in row for row in rows)
+    assert "CSE 316" in rows
+
+
+def test_a_box_keeps_its_field_when_the_company_leads() -> None:
+    _tectonic_or_skip()
+    boxes = render(VIEW, IDENTITY, "jakes", PageSettings(experience_first="company")).boxes
+    job = _job()
+    role = next(b for b in boxes if b.item_id == str(job.id) and b.kind == "title")
+    company = next(b for b in boxes if b.item_id == str(job.id) and b.kind == "organization")
+    assert role.text == job.title
+    assert company.y0 < role.y0
+
+
+# --- Text the PDF printed wrong (2026-11-12 audit) ---------------------------
+
+@pytest.mark.parametrize(("typed", "printed"), [
+    ("16465550142", "+1 646-555-0142"),
+    ("1234567890", "+1 123-456-7890"),
+    ("(516)-555-0187", "+1 516-555-0187"),
+    ("+44 7911 123456", "+44 7911 123456"),
+    ("555-0100 ext 12", "555-0100 ext 12"),
+])
+def test_a_phone_prints_as_the_profile_shows_it(typed, printed):
+    # The resume printed the saved value bare ("16465550142")
+    assert phone_text(typed) == printed
+
+
+@pytest.mark.parametrize(("score", "scale", "printed"), [
+    ("90", "100", "GPA: 90/100"),
+    ("85.0", "100.0", "GPA: 85/100"),
+    ("3.80", "4.00", "GPA: 3.80/4.00"),
+    ("3.8", "4.0", "GPA: 3.80/4.00"),
+    ("4", "4", "GPA: 4.00/4.00"),
+    ("8.5", "10", "GPA: 8.50/10"),
+    ("92.5", "100", "GPA: 92.5/100"),
+    ("3.81", "4", "GPA: 3.81/4.00"),
+])
+def test_a_gpa_keeps_its_zeros(score, scale, printed):
+    # "90/100" printed "9/100": zeros came off a number with no decimal point
+    entry = ViewEntry(uuid.uuid4(), "education", "Riverside State University",
+                      gpa=Decimal(score), gpa_scale=Decimal(scale))
+    assert gpa(entry) == printed
+
+
+def test_a_field_the_degree_names_prints_once():
+    entry = ViewEntry(uuid.uuid4(), "education", "Riverside State University",
+                      degree="B.S. in Computer Science", field_of_study="Computer Science")
+    assert heading(entry).subtitle == "B.S. in Computer Science"
+
+
+def test_typed_quotes_dashes_and_backticks_print_as_typed():
+    # TeX's ligatures made "--dry-run" print "–dry-run", "reviews!`" print
+    # "reviews¡", and both ends of "smart" closing quotes
+    _tectonic_or_skip()
+    bullet = 'Ran "smart" --dry-run checks with `git bisect`; reviews!` came back'
+    view = _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "Tutor", organization="Learning Center",
+                                         bullets=(ViewBullet(uuid.uuid4(), bullet),)))
+    rendered = render(view, IDENTITY, "jakes")
+    assert "Ran “smart” --dry-run checks with `git bisect`; reviews!` came back" in _text(rendered.pdf).replace("\n", " ")
+    assert rendered.missing_characters == ()
+
+
+def test_a_projects_link_prints_short_and_clicks_through():
+    _tectonic_or_skip()
+    project = ViewEntry(uuid.uuid4(), "projects", "Maze Robot", organization="HackSBU",
+                        link="https://github.com/jd/maze-robot")
+    view = _with_entries(VIEW, project)
+    rendered = render(view, IDENTITY, "jakes")
+    assert any(t.startswith("Maze Robot | HackSBU | github.com/jd/maze-robot") for t, _, _ in _text_lines(rendered.pdf))
+    assert "https://github.com/jd/maze-robot" in _link_targets(rendered.pdf)
+
+
+def _skills(*pairs: tuple[str, str | None]) -> list[ViewSkill]:
+    return [ViewSkill(uuid.uuid4(), name, group) for name, group in pairs]
+
+
+def test_groups_that_differ_only_in_case_or_and_print_as_one_line():
+    # KAN-810: "Frameworks" and "frameworks" printed as two lines, and an
+    # upload's lowercase "other" beside the real "Other"
+    skills = _skills(("React", "Frameworks"), ("Python", "Languages"), ("Django", "frameworks"),
+                     ("Git", "tools and platforms"), ("Docker", "Tools & Platforms"), ("Figma", "other"),
+                     ("Excel", None))
+    assert [(label, [s.name for s in members]) for label, members in skill_lines(skills)] == [
+        ("Frameworks", ["React", "Django"]), ("Languages", ["Python"]),
+        ("Tools & Platforms", ["Git", "Docker"]), ("Other", ["Figma", "Excel"])]
+
+
+def test_a_group_named_only_in_lower_case_prints_in_title_case():
+    skills = _skills(("AWS", "cloud and devops"), ("Python", "Languages"))
+    assert [label for label, _ in skill_lines(skills)] == ["Cloud and Devops", "Languages"]
+
+
+def test_a_lone_group_named_other_prints_unlabeled():
+    skills = _skills(("Excel", "other"), ("Word", None))
+    assert skill_lines(skills) == [("", tuple(skills))]
+
+
+# --- A long heading wraps before its dates (KAN-807) ---------------------------
+
+def _long_heading_view() -> ResumeView:
+    month = datetime.date
+    return ResumeView(sections=(
+        ViewSection("education", (
+            ViewEntry(uuid.uuid4(), "education", "Lakeside Global Campus Signal Processing and Machine Learning Program",
+                      location="Lakeside, NY", end_month=month(2025, 8, 1), end_kind="month"),
+        )),
+        ViewSection("experience", (
+            ViewEntry(uuid.uuid4(), "experience",
+                      "Undergraduate Research Assistant, Autonomous Systems and Robotics Laboratory",
+                      organization="Hillcrest State University", location="Hillcrest, NY",
+                      start_month=month(2024, 9, 1), end_kind="present",
+                      bullets=(ViewBullet(uuid.uuid4(), "Tuned the PD loop"),)),
+        )),
+        ViewSection("projects", (
+            ViewEntry(uuid.uuid4(), "projects", "Maze Robot: Autonomous Navigation with A* Planning and Sensor Fusion",
+                      organization="IEEE Student Branch", start_month=month(2025, 1, 1),
+                      end_month=month(2025, 4, 1), end_kind="month"),
+        )),
+    ), skills=())
+
+
+def test_a_long_heading_wraps_before_its_dates_and_stays_on_the_page():
+    # KAN-807: Jake's `l` column never breaks, so a long title ran under the
+    # dates and past the margin ("Present" and "Apr. 2025" were cut off)
+    _tectonic_or_skip()
+    rendered = render(_long_heading_view(), IDENTITY, "jakes")
+    edge = 576  # Jake's text area ends half an inch in from the letter page's 612 pt
+    for entry_id in {b.item_id for b in rendered.boxes if b.kind == "title"}:
+        boxes = {b.kind: b for b in rendered.boxes if b.item_id == entry_id}
+        title = boxes["title"]
+        right = min((b for b in boxes.values() if b.x0 > title.x0 and abs(b.y0 - title.y0) < 1), key=lambda b: b.x0)
+        # Its words stop short of the right side on the title's first line,
+        # and the right side ends inside the text area
+        assert title.x1 < right.x0 and right.x1 <= edge + 1
+    assert all(t.rstrip() for t, _, _ in _text_lines(rendered.pdf))
+    titles = [b for b in rendered.boxes if b.kind == "title"]
+    assert sum(1 for b in titles if b.y1 - b.y0 > 20) == 2  # two titles wrap; the project's tag does
+
+
+def test_a_heading_that_fits_keeps_jake_s_own_table():
+    # Only a heading wider than its row wraps: set with a wrapping column,
+    # two one-row headings in a row stood 13.5 pt further apart
+    _tectonic_or_skip()
+    month = datetime.date
+    schools = tuple(ViewEntry(uuid.uuid4(), "education", f"Program {n}", location="Lakeside, NY",
+                              end_month=month(2025, 8, 1), end_kind="month") for n in (1, 2))
+    rendered = render(ResumeView((ViewSection("education", schools),), ()), IDENTITY, "jakes")
+    first, second = sorted((b for b in rendered.boxes if b.kind == "title"), key=lambda b: b.y0)
+    assert second.y0 - first.y0 < 15
+    assert r"\else" + "\n" + r"\vspace{-2pt}\item" in jakes_body(
+        ResumeView((ViewSection("education", schools),), ()), IDENTITY, marks=False)
+
+
+def test_a_date_given_as_a_year_alone_prints_as_the_year():
+    # KAN-808: it is January of the year, and printed "Jan. 2019 – Jan. 2023"
+    entry = ViewEntry(uuid.uuid4(), "education", "Hillcrest State University",
+                      start_month=datetime.date(2019, 1, 1), end_month=datetime.date(2023, 1, 1),
+                      end_kind="month", year_only=("start_month", "end_month"))
+    assert dates(entry) == "2019 – 2023"
+    assert dates(replace(entry, end_kind="expected", year_only=("end_month",))) == "Jan. 2019 – Expected 2023"
+    award = ViewEntry(uuid.uuid4(), "awards", "Dean's List", award_date=datetime.date(2024, 1, 1),
+                      year_only=("award_date",))
+    assert dates(award) == "2024"

@@ -61,6 +61,22 @@ def _spellings() -> dict[str, tuple[str, ...]]:
     return lines
 
 
+@functools.cache
+def _cases() -> dict[str, str]:
+    """Every spelling in lower case -> the spelling as the catalog writes it."""
+    cases: dict[str, str] = {}
+    for spellings_ in _spellings().values():
+        for spelling in spellings_:
+            cases.setdefault(spelling.lower(), spelling)
+    return cases
+
+
+def spelled(name: str) -> str | None:
+    """The catalog's own spelling of exactly this name, case aside ("numpy"
+    -> "NumPy", "grpc" -> "gRPC"), or None. Never another name for it."""
+    return _cases().get(" ".join(name.lower().split()))
+
+
 def spellings(name: str) -> tuple[str, ...]:
     """The name and every other spelling of it the catalog knows ("React",
     "ReactJS", "React.js"), for a check that looks for the skill in text.

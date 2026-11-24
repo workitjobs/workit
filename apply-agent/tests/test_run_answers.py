@@ -315,18 +315,19 @@ def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_no
     assert planned.add([KNOWS, IF_YES]) is None  # no Missing fact
     assert planned.answers == {"knows": "No"} and planned.missing == ()
     assert planned.written == [] and "if_yes" in planned.left  # never an essay: blank on purpose
-    assert "your relationship" not in json.dumps(claude.calls)  # nor sent to Claude to draft
+    assert "your relationship" not in json.dumps(claude.asked, default=str)  # nor sent to Claude to draft
 
 
 def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):
     posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
     claude = FakeClaude(drafts={"Do you have a friend": "Yes"})
-    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
                               AnswerBank(), date(2026, 11, 4))
 
-    result = planned.add([KNOWS, IF_YES])
+    # Asked in Needs you, optional: it never stops the form (KAN-759).
+    assert planned.add([KNOWS, IF_YES]) is None
     label = IF_YES.label.strip()
-    assert (result.missing_fact, result.required) == (label, {label: False})  # a Missing fact, never an Essay fact
+    assert (planned.missing, planned.required) == ((label,), {label: False})  # a Missing fact, never an Essay fact
     assert planned.written == []
 
 

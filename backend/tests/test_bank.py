@@ -1,12 +1,14 @@
 """
 Seam-1 tests for the experience bank (KAN-206): entries, bullets and skills
 through the API on real Postgres, the ownership check, the duplicate check,
-and the clearing of the bank embedding. backend/CLAUDE.md's Tests section
+and the bank embedding marked stale on every change. backend/CLAUDE.md's Tests section
 has the setup.
 """
 
+import asyncio
 import uuid
 
+import asyncpg
 import httpx
 import pytest
 from sqlalchemy import text
@@ -14,6 +16,8 @@ from sqlalchemy import text
 from app.deps import get_current_account
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.scripts import embed_banks
+from app.services.bank import BANK_CHANNEL
 
 pytestmark = pytest.mark.anyio
 
@@ -156,35 +160,42 @@ async def test_a_different_section_or_organization_is_not_a_duplicate(student):
 
 
 async def _mark_embedded(database, applicant_id: uuid.UUID) -> None:
+    """A fresh vector: made from the bank as it is now (embedded_at is the
+    version it was made from, services/matching/bank_vectors.py)."""
     vector = "[" + ",".join(["0.1"] * 768) + "]"
     async with database() as session:
         await session.execute(
             text(
-                "INSERT INTO experience_banks (applicant_id, embedding, embedded_at)"
-                " VALUES (:id, CAST(:v AS extensions.vector), now())"
+                "INSERT INTO experience_banks (applicant_id, embedding, embedded_at, updated_at)"
+                " VALUES (:id, CAST(:v AS extensions.vector), now(), now())"
                 " ON CONFLICT (applicant_id) DO UPDATE"
-                " SET embedding = excluded.embedding, embedded_at = excluded.embedded_at"
+                " SET embedding = excluded.embedding, embedded_at = experience_banks.updated_at"
             ),
             {"id": applicant_id, "v": vector},
         )
         await session.commit()
 
 
-async def _is_embedded(database, applicant_id: uuid.UUID) -> bool:
-    # Reads the row the next recommendations request reads
-    # (test_recommended.py drives that request itself).
+async def _vector_state(database, applicant_id: uuid.UUID) -> tuple[bool, bool]:
+    """(has a vector, is stale), read as the bank job reads it
+    (test_recommended.py drives the recommendations request itself)."""
     async with database() as session:
         row = (
             await session.execute(
-                text("SELECT embedding IS NOT NULL, embedded_at IS NOT NULL FROM experience_banks WHERE applicant_id = :id"),
+                text(
+                    "SELECT embedding IS NOT NULL,"
+                    " embedding IS NULL OR embedded_at IS NULL OR embedded_at <> updated_at"
+                    " FROM experience_banks WHERE applicant_id = :id"
+                ),
                 {"id": applicant_id},
             )
         ).one()
-    assert row[0] == row[1]
-    return row[0]
+    return row[0], row[1]
 
 
-async def test_every_bank_change_clears_the_bank_embedding(student, database):
+async def test_every_bank_change_marks_the_vector_stale_and_keeps_it(student, database):
+    # KAN-726: the old vector serves recommendations until the bank job
+    # replaces it; clearing it scored the student with no semantic part.
     client, bank = student
     applicant_id = uuid.UUID(bank.split("/")[2])
     created = {}
@@ -217,12 +228,13 @@ async def test_every_bank_change_clears_the_bank_embedding(student, database):
     ]
     for change in changes:
         await _mark_embedded(database, applicant_id)
+        assert await _vector_state(database, applicant_id) == (True, False)
         res = await change()
         assert res.status_code < 300, res.text
-        assert not await _is_embedded(database, applicant_id), res.request.url
+        assert await _vector_state(database, applicant_id) == (True, True), res.request.url
 
 
-async def test_a_refused_change_keeps_the_bank_embedding(student, database):
+async def test_a_refused_change_keeps_the_vector_fresh(student, database):
     client, bank = student
     applicant_id = uuid.UUID(bank.split("/")[2])
     entry = {"section": "projects", "title": "WorkIt"}
@@ -230,7 +242,29 @@ async def test_a_refused_change_keeps_the_bank_embedding(student, database):
     await _mark_embedded(database, applicant_id)
 
     assert (await client.post(f"{bank}/entries", json=entry)).status_code == 409
-    assert await _is_embedded(database, applicant_id)
+    assert await _vector_state(database, applicant_id) == (True, False)
+
+
+async def test_a_bank_change_notifies_the_bank_job_on_commit(student):
+    # The bank job listens on this channel (app/scripts/embed_banks.py); a
+    # refused change commits nothing, so it notifies nothing.
+    client, bank = student
+    applicant_id = bank.split("/")[2]
+    conn = await asyncpg.connect(embed_banks._listen_dsn())
+    heard: list[str] = []
+    try:
+        await conn.add_listener(BANK_CHANNEL, lambda _c, _pid, _channel, payload: heard.append(payload))
+        entry = {"section": "projects", "title": "Listened"}
+        assert (await client.post(f"{bank}/entries", json=entry)).status_code == 201
+        assert (await client.post(f"{bank}/entries", json=entry)).status_code == 409
+        for _ in range(50):
+            if heard:
+                break
+            await asyncio.sleep(0.05)
+        await asyncio.sleep(0.2)
+    finally:
+        await conn.close()
+    assert heard == [applicant_id]
 
 
 async def test_each_section_keeps_its_own_fields(student):
@@ -405,7 +439,7 @@ async def test_clear_all_deletes_the_entries_sent_and_their_choice_rows(student,
 
     assert (await client.post(f"{bank}/entries/delete", json={"ids": ids[:2]})).status_code == 204
     assert [e["title"] for e in (await client.get(bank)).json()["entries"]] == ["Micromouse"]
-    assert not await _is_embedded(database, applicant_id)
+    assert await _vector_state(database, applicant_id) == (True, True)
     async with database() as session:
         shown = await session.scalar(text("SELECT count(*) FROM built_resume_entries"))
         bullets = await session.scalar(text("SELECT count(*) FROM bank_bullets"))
@@ -441,4 +475,147 @@ async def test_clear_all_removes_the_skills_sent(student, database):
     # The same id twice is one skill.
     assert (await client.post(f"{bank}/skills/delete", json={"ids": [ids[0], ids[1], ids[1]]})).status_code == 204
     assert [s["name"] for s in (await client.get(bank)).json()["skills"]] == ["Rust"]
-    assert not await _is_embedded(database, applicant_id)
+    assert await _vector_state(database, applicant_id) == (True, True)
+
+
+# --- the student's order of skills (KAN-816) --------------------------------------
+
+
+async def _skills(client, bank) -> list[tuple[str, str | None]]:
+    return [(s["name"], s["group"]) for s in (await client.get(bank)).json()["skills"]]
+
+
+async def _add_skills(client, bank, *skills: tuple[str, str | None]) -> dict[str, str]:
+    ids = {}
+    for name, group in skills:
+        res = await client.post(f"{bank}/skills", json={"name": name, "group": group})
+        assert res.status_code == 201
+        ids[name] = res.json()["id"]
+    return ids
+
+
+async def test_skills_take_the_order_and_groups_sent_and_a_new_one_goes_last(student, database):
+    client, bank = student
+    applicant_id = uuid.UUID(bank.split("/")[2])
+    ids = await _add_skills(client, bank, ("Python", "Languages"), ("Docker", None), ("Go", "Languages"),
+                            ("Git", "Tools"))
+    # Never ordered: by group, no group last, then by name
+    assert await _skills(client, bank) == [
+        ("Go", "Languages"), ("Python", "Languages"), ("Git", "Tools"), ("Docker", None)]
+    await _mark_embedded(database, applicant_id)
+
+    # Tools first, Docker into it, Python before Go
+    order = [("Git", "Tools"), ("Docker", "Tools"), ("Python", "Languages"), ("Go", "Languages")]
+    body = {"skills": [{"id": ids[name], "group": group} for name, group in order]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _skills(client, bank) == order
+    assert await _vector_state(database, applicant_id) == (True, True)
+
+    # The same order again changes nothing, so the vector stays fresh
+    await _mark_embedded(database, applicant_id)
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _vector_state(database, applicant_id) == (True, False)
+
+    # A rename is the group's skills under the new name; a skill added after
+    # goes to its group's end, even when the group sorts first by name
+    renamed = {"skills": [{**s, "group": "Dev Tools" if s["group"] == "Tools" else s["group"]}
+                          for s in body["skills"]]}
+    assert (await client.put(f"{bank}/skills/order", json=renamed)).status_code == 204
+    await _add_skills(client, bank, ("Ada", "Languages"))
+    assert await _skills(client, bank) == [
+        ("Git", "Dev Tools"), ("Docker", "Dev Tools"), ("Python", "Languages"), ("Go", "Languages"),
+        ("Ada", "Languages")]
+
+
+async def test_a_merge_is_one_groups_skills_under_the_others_name(student):
+    client, bank = student
+    ids = await _add_skills(client, bank, ("React", "Frameworks & Libraries"), ("Vue", "Frameworks and Libraries"),
+                            ("Make", "Other"), ("Bash", None))
+    merged = [("React", "Frameworks & Libraries"), ("Vue", "Frameworks & Libraries"), ("Bash", None), ("Make", None)]
+    body = {"skills": [{"id": ids[name], "group": group} for name, group in merged]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _skills(client, bank) == merged
+
+
+async def test_a_partial_order_moves_only_the_skills_sent(student):
+    # A resume pick lists its own skills: they swap among the places they
+    # held, and the skills it does not show keep theirs
+    client, bank = student
+    ids = await _add_skills(client, bank, ("A", "G"), ("B", "G"), ("C", "G"), ("D", "G"))
+    body = {"skills": [{"id": ids["D"], "group": "G"}, {"id": ids["B"], "group": "G"}]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert [name for name, _ in await _skills(client, bank)] == ["A", "D", "C", "B"]
+
+
+async def test_an_order_with_a_skill_not_mine_or_twice_changes_nothing(student, database):
+    client, bank = student
+    ids = await _add_skills(client, bank, ("Python", "Languages"), ("Go", "Languages"))
+    before = await _skills(client, bank)
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = f"/applicants/{other}/bank"
+    their_skill = (await client.post(f"{theirs}/skills", json={"name": "Rust"})).json()["id"]
+    _sign_in(uuid.UUID(bank.split("/")[2]))
+
+    mine = [{"id": ids["Go"], "group": "Tools"}, {"id": ids["Python"], "group": "Tools"}]
+    for stray in (their_skill, str(uuid.uuid4())):
+        res = await client.put(f"{bank}/skills/order", json={"skills": [*mine, {"id": stray, "group": None}]})
+        assert res.status_code == 404
+    twice = {"skills": [*mine, mine[0]]}
+    assert (await client.put(f"{bank}/skills/order", json=twice)).status_code == 422
+    # The group must be sent, so leaving it out never clears one
+    assert (await client.put(f"{bank}/skills/order", json={"skills": [{"id": ids["Go"]}]})).status_code == 422
+    assert (await client.put(f"{bank}/skills/order", json={"skills": []})).status_code == 422
+    assert await _skills(client, bank) == before
+    assert (await client.put(f"{theirs}/skills/order", json={"skills": mine})).status_code == 403
+
+
+# --- a project's tools (KAN-738) -------------------------------------------------
+
+
+async def test_a_projects_tools_are_saved_edited_and_cleared(student):
+    client, bank = student
+    res = await client.post(f"{bank}/entries", json={
+        "section": "projects", "title": "Maze Robot", "tools": [" C++ ", "Python", "ROS"]})
+    assert res.status_code == 201
+    entry = res.json()
+    assert entry["tools"] == ["C++", "Python", "ROS"]  # in order, trimmed
+
+    res = await client.patch(f"{bank}/entries/{entry['id']}", json={"tools": ["Python", "C++"]})
+    assert res.json()["tools"] == ["Python", "C++"]
+    # null clears a list, as it clears any field
+    res = await client.patch(f"{bank}/entries/{entry['id']}", json={"tools": None})
+    assert (res.status_code, res.json()["tools"]) == (200, [])
+    assert (await client.get(bank)).json()["entries"][0]["tools"] == []
+
+
+async def test_only_a_project_holds_tools(student):
+    client, bank = student
+    res = await client.post(f"{bank}/entries", json={"section": "experience", "title": "Intern", "tools": ["Go"]})
+    assert res.status_code == 422
+    job = (await client.post(f"{bank}/entries", json={"section": "experience", "title": "Intern"})).json()
+    assert job["tools"] == []
+    res = await client.patch(f"{bank}/entries/{job['id']}", json={"tools": ["Go"]})
+    assert res.status_code == 422
+    # A tool is a name: 60 characters at most, 30 tools at most
+    project = {"section": "projects", "title": "Robot"}
+    assert (await client.post(f"{bank}/entries", json={**project, "tools": ["x" * 61]})).status_code == 422
+    assert (await client.post(f"{bank}/entries", json={**project, "tools": ["Go"] * 31})).status_code == 422
+
+
+async def test_a_year_alone_stays_a_year_until_its_date_changes(student):
+    # KAN-808: the edit form sends every field on each save, so a date sent
+    # again keeps its mark, and only a new month takes it off
+    client, bank = student
+    school = {"section": "education", "title": "Hillcrest State University", "start_month": "2019-01",
+              "end_month": "2023-01", "year_only": ["start_month", "end_month"]}
+    created = (await client.post(f"{bank}/entries", json=school)).json()
+    assert created["year_only"] == ["start_month", "end_month"]
+
+    same = {"title": "Hillcrest State University", "start_month": "2019-01", "end_month": "2023-01"}
+    saved = (await client.patch(f"{bank}/entries/{created['id']}", json=same)).json()
+    assert saved["year_only"] == ["start_month", "end_month"]
+
+    moved = (await client.patch(f"{bank}/entries/{created['id']}", json={**same, "end_month": "2023-05"})).json()
+    assert moved["year_only"] == ["start_month"]

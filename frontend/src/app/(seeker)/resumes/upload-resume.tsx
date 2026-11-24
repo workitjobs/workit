@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { PdfIcon, UploadIcon } from "@/components/icons";
-import { RESUME_ROW, ROW_MARK, ResumeRow } from "@/components/resume-row";
+import { PendingResumeCard, ResumeRow, type RowPick } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
-import { Button } from "@/components/ui/button";
 import { type ImportResponse } from "@/lib/bank-actions";
-import { importSummary } from "@/lib/import-summary";
+import { HeaderOffers } from "@/components/header-offers";
+import { headerSummary, importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
 import {
@@ -19,8 +18,6 @@ import {
   uploadResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
-
-import { RenameForm } from "./built-resume-row";
 
 // The API's limit, on uploads alone (lib/resume-limits.ts), so the count
 // here matches the API's 409.
@@ -38,8 +35,10 @@ const MAX_RESUMES = MAX_UPLOADS;
  *
  * The picked file uploads at once, with the dropzone's checks
  * (`resumeFileError`); the API reads it into the experience bank (ADR
- * 0003), and the note says what went in. The model never reads an upload:
- * Read It With AI sat beside the note until KAN-353.
+ * 0003), with AI first and the parser behind it (KAN-732, ADR 0007), so the
+ * card says "Reading your resume…" for the few seconds that takes, and the
+ * note says what went in and whether AI read it. Read It With AI, a button
+ * beside the note, went with KAN-353.
  * A file whose text the student already uploaded keeps nothing and opens
  * the duplicate pop-up (`onDuplicate`, ./duplicate-resume-dialog.tsx,
  * KAN-267), the one Generate opens. A newer version of a file is a delete
@@ -58,7 +57,8 @@ export function useResumeUpload({
 }: {
   uploaded: ResumeItem[];
   reload: () => Promise<void>;
-  onDuplicate: (message: string | null) => void;
+  /** A file whose text an upload already has: that upload's id and name. */
+  onDuplicate: (id: string, name: string) => void;
 }) {
   // The name of the file in flight, or null.
   const [uploading, setUploading] = useState<string | null>(null);
@@ -79,8 +79,8 @@ export function useResumeUpload({
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { resume, error, duplicateOf } = await uploadResume(fd);
-      if (duplicateOf) return onDuplicate(error);
+      const { resume, error, duplicateOf, duplicateName } = await uploadResume(fd);
+      if (duplicateOf) return onDuplicate(duplicateOf, duplicateName ?? "Uploaded resume");
       if (error) return setUploadError(error);
       if (resume?.bank) {
         setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
@@ -106,19 +106,13 @@ export function useResumeUpload({
   const shownImport =
     imported && uploaded.some((resume) => resume.id === imported.resume_id) ? imported : null;
 
-  const button = (
-    <>
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled={uploading !== null}
-        onClick={() => inputRef.current?.click()}
-      >
-        <UploadIcon className="size-4" />
-        {uploading ? "Uploading…" : <ShortLabel verb="Upload" />}
-      </Button>
-      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
-    </>
+  // The file picker, opened by Generate Resume's Upload a Resume
+  // (./new-resume-dialog.tsx). Upload Resume was its own button beside
+  // Generate until 2026-11-11. The input lives on the page, so it outlasts
+  // the dialog that opened it.
+  const pick = () => inputRef.current?.click();
+  const input = (
+    <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
   );
 
   const notes = (uploadError || shownImport) && (
@@ -131,26 +125,32 @@ export function useResumeUpload({
       {shownImport && (
         <p className="text-note text-ink-muted" aria-live="polite">
           {importSummary(shownImport, shownImport.filename)}{" "}
+          {/* What its header filled on the profile (KAN-436) */}
+          {headerSummary(shownImport.header) && `${headerSummary(shownImport.header)} `}
           <Link href="/experiences" className="text-brand hover:text-brand-hover underline">
             Open Experiences
           </Link>
         </p>
       )}
+      {shownImport && <HeaderOffers header={shownImport.header} />}
     </>
   );
 
-  // The file in flight, as the list's first card.
-  const pending = uploading !== null && (
-    <li className={RESUME_ROW}>
-      <PdfIcon className={ROW_MARK} />
-      <div className="min-w-0 flex-1">
-        <p className="text-label text-ink truncate">{uploading}</p>
-        <p className="text-note text-ink-meta">Uploading…</p>
-      </div>
-    </li>
-  );
+  // The file in flight, as the table's first row or the grid's first card.
+  const pending = (layout: "list" | "grid" = "list") => {
+    if (uploading === null) return false;
+    const card = <PendingResumeCard name={uploading} note="Reading your resume…" layout={layout} />;
+    return layout === "list" ? card : <li>{card}</li>;
+  };
 
-  return { button, notes, pending, uploading: uploading !== null };
+  return {
+    pick,
+    input,
+    notes,
+    pending,
+    uploading: uploading !== null,
+    full: uploaded.length >= MAX_RESUMES,
+  };
 }
 
 /**
@@ -176,16 +176,21 @@ export function UploadedRow({
   resume,
   reload,
   onDelete,
+  layout = "list",
+  pick,
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
+  /** The Resumes tab's layout (KAN-766). */
+  layout?: "list" | "grid";
+  /** The row's select box, in the list (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const name = resume.original_filename ?? "Resume";
 
   // The form stays open until the list has the new name, so the old one
   // never flashes back.
@@ -219,31 +224,33 @@ export function UploadedRow({
     onDelete(() => deleteResume(resume.id));
   }
 
-  return (
+  const notes = error && (
+    <p role="alert" className="text-note text-danger mt-2">
+      {error}
+    </p>
+  );
+  const row = (
+    <ResumeRow
+      resume={resume}
+      href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
+      page
+      layout={layout}
+      notes={layout === "list" ? notes : undefined}
+      pick={pick}
+      rename={renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined}
+      onMakePrimary={makePrimary}
+      onRename={() => setRenaming(true)}
+      onDownload={download}
+      onDelete={remove}
+    />
+  );
+  // A table row prints its error under its name; a grid card under itself.
+  return layout === "list" ? (
+    row
+  ) : (
     <li>
-      {renaming ? (
-        <RenameForm
-          id={resume.id}
-          name={name}
-          saving={saving}
-          onSave={rename}
-          onCancel={() => setRenaming(false)}
-        />
-      ) : (
-        <ResumeRow
-          resume={resume}
-          href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
-          onMakePrimary={makePrimary}
-          onRename={() => setRenaming(true)}
-          onDownload={download}
-          onDelete={remove}
-        />
-      )}
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
-        </p>
-      )}
+      {row}
+      {notes}
     </li>
   );
 }

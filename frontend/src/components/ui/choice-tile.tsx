@@ -38,7 +38,7 @@ export function ChoiceTile({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        "text-subtitle rounded-control focus-visible:ring-brand-ring flex min-h-11 w-full items-center gap-2.5 border px-3 py-2 text-left font-medium transition-[background-color,border-color,color,scale] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-98 lg:min-h-14 lg:gap-3 lg:px-4",
+        "text-subtitle rounded-control focus-visible:ring-brand-ring short:lg:min-h-12 flex min-h-11 w-full items-center gap-2.5 border px-3 py-2 text-left font-medium transition-[background-color,border-color,color,scale] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-98 lg:min-h-14 lg:gap-3 lg:px-4",
         pressed
           ? "border-brand bg-brand-tint text-brand-ink"
           : "bg-well text-ink hover:border-ink-meta border-transparent",

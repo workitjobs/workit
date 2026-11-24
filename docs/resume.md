@@ -16,7 +16,7 @@ applicant_profiles
   ├── experience_banks   one row per student: the bank embedding and when it was made, and the skills the student removed
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
-  └── bank_skills        a plain list, each with an optional group
+  └── bank_skills        a plain list, each with an optional group, in the student's order (KAN-816)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -26,7 +26,8 @@ applicant_profiles
   location, start month, and an end that is a month, Present or expected.
   The few fields one section needs are columns on the same row and stay null
   elsewhere: Education's degree, field of study, GPA and scale, coursework
-  and honors; Projects' link; Certifications' issuer; Awards' one date.
+  and honors; Projects' link and tools (the project's stack, KAN-738);
+  Certifications' issuer; Awards' one date.
   `backend/app/schemas/bank.py` decides which section owns which field.
 - **Months are dates on the first of the month**, sent as `YYYY-MM`: a
   resume shows a month, never a day.
@@ -51,7 +52,8 @@ applicant_profiles
   at most one per bullet and built resume, updated in place as the student
   types, and deleted when they type the original back. The bank's bullet
   never changes there; an entry's title, organization, location, GPA,
-  coursework and honors typed in the editor do change the bank, so those
+  coursework, honors and a project's tools typed in the editor do change
+  the bank, so those
   facts match on every resume. The header's name, phone and links typed
   there change the profile, for the same reason.
   Rules: `backend/app/services/built_resumes.py`'s `update_choices`.
@@ -93,13 +95,15 @@ review, so the bank stayed empty. The parser's own copy,
 `resumes.parsed_json`, was dropped with it: two stores of the same facts
 drift apart.
 
-**Model parsing** (KAN-222): Import Again with `read_with_ai` reads the
-resume with the model and replaces the upload's entries the same way.
-Nothing falls back to it. The model gets the text with identity data
-removed, and each entry it returns is checked against the entry schema. It
-costs one AI reading a day (the parsing cap), counted only when it works.
-"Read It With AI" ran it from the upload note and intake's import card
-until KAN-353 took the button off both; no screen calls it now.
+**Model parsing** (KAN-222, KAN-732, ADR 0007): every reading of an
+upload asks the model first and keeps the parser's reading when the model
+cannot give one: upload, the parse preview, Import Updated Resume and
+Import Again. The model gets the text from the first section heading on,
+with identity data removed; each entry it returns is checked against the
+entry schema, and each field against the resume's words. It costs one AI
+reading a day (the parsing cap), counted only when the model's reading is
+saved; past it, the parser reads. "Read It With AI" asked for it by hand
+until KAN-353 took the button off; KAN-732 made it the default.
 
 ## Built resumes (KAN-207)
 
@@ -110,7 +114,7 @@ applicant_profiles
   └── built_resumes            name, template id, optional job posting
         ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
         ├── built_resume_bullets   bullet: shown, position in its entry, variant (null: the original)
-        └── built_resume_skills    skill: shown, position
+        └── built_resume_skills    skill: shown, position, its group on this resume (null: the bank's)
 ```
 
 - **No text on a built resume.** The view (`backend/app/services/resume_view.py`)

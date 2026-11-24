@@ -9,6 +9,7 @@ import { PencilIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading, SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import type { Bank } from "@/lib/bank-actions";
 import type { Result } from "@/lib/applicant-call";
@@ -22,6 +23,7 @@ import {
   type FeedFilters,
 } from "../jobs/filter-query";
 import { SECTION_CARD } from "./field-styles";
+import { SectionActionLink } from "./section-action-link";
 
 /**
  * What My Profile reads on the server (KAN-550), each streamed into the
@@ -164,7 +166,11 @@ function JobPreferences({
     list.find((option) => option.value === value)?.label ?? value;
   const rows = saved
     ? [
-        { label: "Roles", value: saved.roles.map((role) => name(options.roles, role)) },
+        {
+          label: "Roles",
+          // The listed roles, then the student's own typed ones.
+          value: [...saved.roles.map((role) => name(options.roles, role)), ...saved.customRoles],
+        },
         { label: "Job Type", value: saved.jobTypes.map((type) => name(JOB_TYPE_OPTIONS, type)) },
         {
           label: "Workplace",
@@ -176,7 +182,7 @@ function JobPreferences({
         },
         { label: "Locations", value: saved.places.map((place) => name(options.places, place)) },
         { label: "Start", value: saved.startTerms.map(seasonLabel) },
-        { label: "Pay", value: payRange(saved) },
+        { label: "Salary", value: payRange(saved) },
       ].filter((row) => row.value.length > 0)
     : [];
 
@@ -184,15 +190,13 @@ function JobPreferences({
     <Card as="section" padding="none" aria-labelledby="job-preferences" className={SECTION_CARD}>
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="job-preferences">Job Preferences</SectionHeading>
-        <ButtonLink
+        <SectionActionLink
           href="/settings/preferences"
-          variant="section"
-          size="section"
-          aria-label="Edit in Settings: Job Preferences"
+          label="Edit Job Preferences in Settings"
+          tooltip="Edit in Settings"
         >
           <PencilIcon />
-          Edit in Settings
-        </ButtonLink>
+        </SectionActionLink>
       </div>
       {rows.length > 0 ? (
         <dl className="mt-4 flex flex-col gap-3">
@@ -258,9 +262,9 @@ function TopSkills({ skills, failed }: { skills: string[] | null; failed: boolea
         )}
       </div>
       {failed ? (
-        <p className="text-body text-ink-meta mt-4">
-          Your skills didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed compact title="Your Skills Aren't Loading Right Now" className="mt-4">
+          We couldn&apos;t reach your experience bank. Try again in a few minutes.
+        </LoadFailed>
       ) : shown.length > 0 ? (
         <ul className="mt-4 flex flex-wrap gap-2">
           {shown.map((skill) => (

@@ -7,25 +7,54 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 `src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
 call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 
-- `uv run apply login` opens WorkIt's sign-in page (`/login`) in a new
-  Chrome with an empty, temporary profile. The student signs in there
-  (password, Google or LinkedIn). Apply never types into it. Apply reads the
-  web app's session cookie through Chrome's DevTools port, as the extension
-  reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
-  Apply closes that Chrome and deletes its profile. Chrome starts as a plain
-  process, not from Playwright. Its DevTools port alone sets
-  `navigator.webdriver`, and Google's sign-in then refuses it (2026-11-03),
-  so it starts with `--disable-blink-features=AutomationControlled` too.
-- Because that browser is gone, only Apply has the session. Apply refreshes
+- `uv run apply login` signs in through the student's own browser, with no
+  port (KAN-723, W5 of `../docs/desktop_application_auto_apply.md`, D12).
+  Apply makes a PKCE verifier (`workit.pkce`) and opens WorkIt's
+  `/app-sign-in?challenge=...` page in the default browser. The student
+  signs in there as on the website (password, Google or LinkedIn) and
+  presses Sign In to the App, and the page shows a one-time code, which
+  they paste into the terminal. `WorkIt.trade` sends the code and the
+  verifier to `POST /apply-app/session`, which answers a new Supabase
+  session of Apply's own (`backend/app/services/app_sign_in.py`). A code
+  works once, for 5 minutes, and only with the verifier its challenge was
+  made from; a refused one is `SignInOver`. Pasting is `apply login`'s
+  way, since macOS hands the page's `workit-auto-apply://` link only to
+  an app bundle that claims the scheme, and the page shows the code only
+  to WorkIt's admins (`WORKIT_ADMINS`; `../docs/auth.md` says why). The
+  link itself, pasted in place of the code, works too. The window
+  (`apply app`) needs no paste (KAN-883): before the page opens, a
+  checkout's window makes and registers a small helper applet in the data
+  folder (`sign_in_link.py`, `WorkIt Auto Apply Sign-In.app`) that claims
+  the scheme and writes the link to `sign-in-link`, readable by this user
+  alone, and the window trades it (`apply-window.md`). The built app (W8)
+  claims the scheme in its own `Info.plist`. The line with the page's
+  link goes straight to the terminal, past the shell's mask
+  (`apply.masked` hides the challenge, a long opaque value): a developer
+  whose browser doesn't open needs it, and the challenge is no secret.
+  This replaced a new Chrome with a debugging port that read the
+  website's cookie (KAN-541): D11 forbids the port, and Chrome refuses one
+  on the student's own profile.
+- The session is Apply's alone, never the website's. Apply refreshes
   the access token itself at Supabase Auth
   (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
   keeps the new refresh token: Supabase rotates it on each use. The
   extension must not do this (its CLAUDE.md, KAN-465), but Apply's session
   is not shared with a web app. A lock file (`workit-login.lock`) stops two
   processes from using one refresh token.
-- The session is in `APPLY_HOME/workit-login.json` (mode 0600), with the
-  Supabase URL that it belongs to. Never print it, log it or put it in a
-  Record. To log out, delete the file.
+- The session's refresh token is in the system's keychain (`keyring`:
+  Keychain on a Mac, Credential Manager on Windows), item `apply-workit`,
+  its account the Supabase URL it belongs to, so a local stack's login is
+  its own. The access token lives only in memory (`workit._ACCESS`),
+  shared by every client in the process, so a new process refreshes once:
+  Windows keeps at most 2,560 bytes an item, less than an access token can
+  be. Tests start with it empty (`conftest.py`). **A keychain that won't
+  answer** (a locked one, a Deny on macOS's prompt) is `NotLoggedIn` on a
+  read and `LoginExpired` on a save, never a plain `WorkItError`, and
+  `logged_in()` is False: the writes and the Answer bank sync keep what
+  waits on those, and drop only what WorkIt refused. Never print, log or put either in a
+  Record. To log out, delete the item in Keychain Access. The file Apply
+  kept before 2026-11-15 (`workit-login.json`) goes at the next save.
+  Tests give `WorkIt` a keychain (`fake.keychain`, `InMemoryKeychain`).
 - The API checks the bearer token (`backend/app/deps.py`, `security.py`).
   `call(method, path, body)` sends one request as the student. On a 401 it
   refreshes one time and tries again. `applicant_id()` is the student's id
@@ -38,14 +67,25 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).
-- `apply doctor` has a "WorkIt" line. It is optional, as Gmail is: no
-  login, an expired login, WorkIt that cannot be reached, and a company
-  account are each a warn with a fix line, never a fail. A user with no
-  WorkIt account still rehearses. When the access token expired, doctor
-  refreshes it and saves the login again. This is the only write that
-  doctor makes.
+- `apply doctor` has a "WorkIt" line. With `ask_model: workit`, the
+  default, the login is needed: no login, an expired login and a company
+  account each fail, since a rehearsal then stops at its first written
+  answer. The fix names `apply login` and the window's sign-in (`apply
+  app`), which needs no code to paste. With another `ask_model` the login
+  is optional, as Gmail is, and each of those is a warn. WorkIt that
+  cannot be reached is always a warn: the login is still kept. Doctor, as
+  a new process, refreshes the
+  access token once and saves the rotated refresh token in the keychain.
+  This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
   front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
+- A request to the live API, and the session's refresh at the live
+  Supabase Auth, trust only Cloudflare's certificate authorities, never the
+  computer's store (`workit.PINNED`, D28, KAN-836): a proxy the computer
+  trusts can't read the session or the Fill engine's download. Supabase is
+  behind Cloudflare too. Pinning the API alone left the refresh token
+  readable, and with it the download. A local stack is not pinned. The set and when to change it:
+  `docs/fill-engine.md`, "The connection is pinned".
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
   public values as `autofiller_extension/src/shared/config.js`, and
   `test_workit_login.py` checks this. For a local WorkIt stack, set
@@ -55,13 +95,14 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 **Tests.** `tests/fake_workit.py` is a fake WorkIt: one local HTTP server
 that answers as Supabase Auth and WorkIt's API, and records each request
 (`fake.requests`). Use `with FakeWorkIt() as fake:` and
-`WorkIt(fake.site, tmp_path / "workit-login.json")`. `fake.session()` makes
-a session, `fake.cookies(session)` gives the web app's cookie for it,
+`WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)`, and
+`workit.login(client, fake.browser)` to sign in: `fake.browser` is the
+student on `/app-sign-in`, giving a code bound to the page's challenge.
+`fake.session()` makes a session (`fake.lifetime` seconds),
 `fake.expire()` lets the access tokens expire, `fake.revoke()` signs out
 every session, and `fake.stop()` makes WorkIt unreachable. Add a WorkIt
 route with `fake.route(method, path, handler)`. `test_workit_login.py` needs
-no browser and is in CI. `test_workit_sign_in_browser.py` opens Chromium
-against the fake's `/login`, so run it on your Mac.
+no browser and is in CI.
 
 ## `apply import-sheet`: the Tracker Sheet into the Applications Tracker (KAN-545)
 
@@ -207,6 +248,63 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
+## The Answer bank's sync to WorkIt (KAN-746)
+
+`src/apply/answer_sync.py`. Before, the backend's import
+(`backend/app/scripts/import_apply_profile.py`) copied the Answer bank into
+WorkIt one time, and a later answer reached the extension only with the
+import run again.
+
+- **Opt-in, off by default.** `policies.yaml`: `workit_sync: {answers:
+  true}`, with `apply login`. Off, the bank writes no `edited_at` and sends
+  nothing. A user with no WorkIt account leaves it off.
+- **Each change goes.** `cli._answer_bank` builds every live Answer bank
+  through `answer_sync.bank`, which gives it an `on_change`. A write that
+  changes an entry's question, answer, options, source, reviewed, first
+  seen or none stamps the entry `edited_at` (UTC) in the file and sends it
+  after the file is saved; a delete sends a delete. A counted use sends
+  nothing. A sync that fails never fails the bank's write.
+- **The route.** `WorkIt.sync_answers`: `PATCH
+  /applicants/{id}/fill-answers` with `{"answers": [...], "deleted":
+  [...]}`, at most 200 of each a call. Apply sends each entry as filed;
+  WorkIt maps it with the import's rules (`backend/app/services/apply_answers.py`).
+- **Never Claude's draft as the student's own.** WorkIt marks an entry own
+  only with `source: lisul`, and never one marked `reviewed: false`. Apply
+  sends `source` and `reviewed` as the bank has them and never an `own`, so
+  a draft Claude wrote goes as Claude's, as the import brings it.
+- **Conflicts: a newer edit wins.** WorkIt keeps its stored entry when its
+  `edited_at` is newer than the change's, and names the question in
+  `kept`. An entry with no `edited_at` (changed before the sync was on)
+  never replaces one WorkIt has a time for. The sync never writes the
+  answers the student saved on WorkIt's own pages (`written_answers`), and
+  WorkIt serves the student's own words newest first, so an older Apply
+  answer never beats one the student edited on the site, and a newer one does.
+- **WorkIt down, no login, or the cap.** The change waits in
+  `APPLY_HOME/workit-answers-queue.json`, the newest per question, and goes
+  with the next change or `apply sync-answers`. A refusal (a 4xx) drops
+  that batch and says so on stderr, with the status only: a refusal's
+  detail can quote the answer.
+- **WorkIt's caps are checked here first** (`payload`), so one entry
+  never sinks a batch: an option list is cut to 200 (WorkIt reads only that
+  there are options), and a question over 1000 characters or an answer over
+  20000 stays on this Mac, counted in the report.
+- **WorkIt's clock decides.** A time ahead of WorkIt's clock counts as
+  WorkIt's now, so a fast Mac never puts an Apply answer above a later
+  edit on the site.
+- **Edits made while the sync was off carry no time**, so catch-up never
+  replaces an entry WorkIt has a time for. Edit the answer again in Apply
+  to send it as the newer one.
+- **`apply sync-answers`** sends the whole bank one time, for catch-up: after
+  turning the sync on, or after hand edits to `answer-bank.yaml`. It prints
+  counts and the questions WorkIt kept, never an answer, and exits 1 while
+  any change still waits. It works with the sync off too, and then says how
+  to turn it on.
+
+**Tests.** `tests/test_answer_sync.py` (in CI) runs the bank and the command
+against `tests/fake_workit.py`, with fixture banks only. The backend's
+`backend/tests/test_fill_answers_sync.py` runs the route and the conflict
+rule on Postgres.
+
 ## Already applied: no form is opened again (KAN-621)
 
 On 2026-11-04 a rehearsal filled Astranis, which Lisul had applied to. The
@@ -285,3 +383,39 @@ tailored_resume` (the form gets the tailored file) and
 Sent resume) open Chromium. The backend test
 `backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
 runs the same routes on Postgres.
+
+## Send report (D26, KAN-837)
+
+The window's support form, "Report a problem": from Settings, or from an
+Application's card or row on the student page, which picks that Application. The student chooses what
+it is about (`report.CATEGORIES`), writes what happened, says whether WorkIt
+may email them, and, with an Application picked, whether to include its
+record and log. Nothing is sent without their press. The form is W5's
+(`app_window.Bridge.review_report`, then `send_report`); it calls three
+functions in `apply/report.py`:
+
+- `build(category, note, profile, row=None, include=True, contact_ok=False)`
+  makes the report. With `row` and `include`, it reads the Record's own
+  files from its folder (answers, essays, verification, the questions asked
+  of Claude, the page's HTML and the form's screenshots) and the
+  Application's Trace, masked here first (`masked.Known`, from the Applicant
+  profile and the Answer bank beside it, and every email, phone and id in a
+  link); a long Trace keeps its first line and its last `TRACE_MAX`
+  characters. A general question (`row` None) is the student's words alone.
+  `profile` is the Applicant profile's file (`home.HOME /
+  "applicant-profile.yaml"`), never its folder: the mask reads a file it
+  can't as no values, and a folder passed in its place sent the name in
+  the log, so `build` raises ValueError when a log goes and `profile` is
+  not a file.
+- `parts(report)` lists what it holds, a line each with its size, for the
+  form to show before Send.
+- `send(report)` posts that same report through `WorkIt.send_report` to
+  `POST /apply-app/reports` and answers its id.
+
+WorkIt keeps a report until the team fixes its problem, then deletes it
+(`backend/app/routers/apply_reports.py`), as `/privacy` says. A pushed
+Record's link is a web page, so a Developer checkout's report holds no
+files, only the Trace.
+
+**Tests.** `tests/test_report.py` (in CI) and
+`backend/tests/test_apply_reports.py`.

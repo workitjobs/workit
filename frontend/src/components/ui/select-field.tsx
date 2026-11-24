@@ -52,6 +52,9 @@ type SelectFieldProps = {
   describedBy?: string;
   /** Greys the field and takes no pick (Create Event's times under All Day). */
   disabled?: boolean;
+  /** The trigger's own look over the field's (a table's stage pill,
+   *  app/(seeker)/applications/[jobId]/tracker-controls.tsx). */
+  triggerClassName?: string;
   className?: string;
 };
 
@@ -88,6 +91,7 @@ export function SelectField({
   describedBy,
   disabled,
   className,
+  triggerClassName,
 }: SelectFieldProps) {
   const items = options.map((option) =>
     typeof option === "string" ? { value: option, label: option } : option,
@@ -147,6 +151,7 @@ export function SelectField({
             "h-auto data-[size=default]:h-auto",
             "data-placeholder:text-ink-meta py-2.5 pr-3 pl-3.5",
             "focus-visible:aria-invalid:ring-brand-ring aria-invalid:ring-0 focus-visible:aria-invalid:ring-[3px]",
+            triggerClassName,
           )}
         >
           {glyphs ? (

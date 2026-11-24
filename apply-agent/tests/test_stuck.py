@@ -46,10 +46,10 @@ class WaitingClaude(FakeClaude):
             time.sleep(0.05)
         pytest.fail("Resume never came while Apply waited on Claude")
 
-    def ask(self, *, model, system, prompt, schema):
-        if "essays" in schema["properties"] or "plan" in schema["properties"]:
-            self._waits(prompt + json.dumps(schema))
-        return super().ask(model=model, system=system, prompt=prompt, schema=schema)
+    def ask_kind(self, kind, data):
+        if kind in ("essays.plan", "essays.write"):  # WorkIt kinds (D5): the essay's plan and its draft
+            self._waits(json.dumps(data))
+        return super().ask_kind(kind, data)
 
     def research(self, **call):
         self._waits(call["prompt"])

@@ -388,7 +388,7 @@ def test_a_fit_render_that_fails_once_is_tried_again(monkeypatch):
 
     calls = []
 
-    def flaky(view, identity, template, page):
+    def flaky(view, identity, template, page, **_):
         calls.append(view)
         if len(calls) == 1:
             raise TectonicUnavailable("tectonic timed out")
@@ -399,7 +399,7 @@ def test_a_fit_render_that_fails_once_is_tried_again(monkeypatch):
     assert len(calls) == 2
 
     # A render that fails twice is a 503
-    def broken(view, identity, template, page):
+    def broken(view, identity, template, page, **_):
         calls.append(view)
         raise TectonicUnavailable("tectonic failed")
 

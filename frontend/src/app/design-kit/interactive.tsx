@@ -1,20 +1,26 @@
 "use client";
 
-import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
-import { useState } from "react";
+import { FileArrowUpIcon, GearIcon, NotePencilIcon } from "@phosphor-icons/react/ssr";
+import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { DateField } from "@/components/date-field";
 import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
+import { ChoiceCard } from "@/components/ui/choice-card";
+import { SuggestField } from "@/components/ui/suggest-field";
+import { suggestDegrees } from "@/lib/degrees";
 import { ChoiceTile } from "@/components/ui/choice-tile";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
+import { StepsDialog } from "@/components/steps-dialog";
+import { useShallowParams } from "@/components/shallow-routing";
+import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -52,24 +58,61 @@ import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-color
  */
 
 export function DialogSpecimen() {
+  const [open, setOpen] = useState(false);
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            Withdraw This Application?
-          </DialogTitle>
+          <DialogTitle>Withdraw This Application?</DialogTitle>
           <DialogDescription>
             Northwind will no longer see your profile for this role. You can apply again later.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-          <DialogClose render={<Button variant="destructive">Withdraw</Button>} />
+          <ConfirmButtons
+            act="Withdraw"
+            onKeep={() => setOpen(false)}
+            onAct={() => setOpen(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const KIT_STEPS = {
+  reading: "Reading your experience bank",
+  checking: "Checking your resumes for a copy",
+  saving: "Saving your new resume",
+  opening: "Opening your resume",
+} as const;
+type KitStep = keyof typeof KIT_STEPS;
+
+/** The steps dialog (KAN-444) walking through Generate's steps on a timer,
+ *  then closing: the app moves it by what the API streams, never a timer. */
+export function StepsDialogSpecimen() {
+  const [at, setAt] = useState<KitStep | null>(null);
+  useEffect(() => {
+    if (at === null) return;
+    const keys = Object.keys(KIT_STEPS) as KitStep[];
+    const next = keys[keys.indexOf(at) + 1] ?? null;
+    const timer = setTimeout(() => setAt(next), 900);
+    return () => clearTimeout(timer);
+  }, [at]);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setAt("reading")}>
+        Show the Steps
+      </Button>
+      <StepsDialog
+        open={at !== null}
+        title="Generating Your Resume"
+        art={<div aria-hidden className="bg-brand-tint h-24" />}
+        steps={KIT_STEPS}
+        at={at ?? "reading"}
+      />
+    </>
   );
 }
 
@@ -107,6 +150,35 @@ export function DropdownSpecimen() {
         <DropdownMenuItem>Reset to Default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Tabs (KAN-766), in a bar and ruled under a page's top. They move in
+ *  place here (`shallow`), as the job page's do. */
+export function TabsSpecimen() {
+  const tab = useShallowParams().get("tab") === "company" ? "company" : "overview";
+  return (
+    <div className="flex w-full max-w-md flex-col gap-6">
+      <TabLinks
+        shallow
+        label="Job Tabs"
+        value={tab}
+        options={[
+          { value: "overview", label: "Overview", href: "/design-kit/forms" },
+          { value: "company", label: "Company", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+      <TabLinks
+        ruled
+        shallow
+        label="Documents"
+        value={tab === "company" ? "cover-letters" : "resumes"}
+        options={[
+          { value: "resumes", label: "Resumes", href: "/design-kit/forms" },
+          { value: "cover-letters", label: "Cover Letters", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+    </div>
   );
 }
 
@@ -211,6 +283,56 @@ export function MonthFieldSpecimen() {
         value={value}
         onValueChange={setValue}
         clearable
+      />
+    </div>
+  );
+}
+
+/** A field that suggests as you type and keeps what is typed, as the
+ *  Education form's Degree draws it (the list is lib/degrees.ts). */
+export function SuggestFieldSpecimen() {
+  const [degree, setDegree] = useState("");
+  return (
+    <div className="w-72">
+      <SuggestField
+        id="dk-degree"
+        label="Degree"
+        placeholder="Bachelor of Science"
+        openOnFocus
+        browse
+        value={degree}
+        onValueChange={setDegree}
+        suggest={(typed) => suggestDegrees(typed).map((name) => ({ name }))}
+      />
+    </div>
+  );
+}
+
+/** Two big answers side by side, as onboarding's "Do you have a resume?"
+ *  draws them: each its own tint, a check badge and a bounce on the pick. */
+export function ChoiceCardSpecimen() {
+  const [plan, setPlan] = useState<"upload" | "build">("build");
+  return (
+    <div
+      role="group"
+      aria-label="Do You Have a Resume?"
+      className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2"
+    >
+      <ChoiceCard
+        pressed={plan === "upload"}
+        onClick={() => setPlan("upload")}
+        Icon={(props) => <FileArrowUpIcon weight="duotone" {...props} />}
+        tone="bg-brand-tint text-brand"
+        title="Yes, I have one"
+        line="Upload a PDF or Word file."
+      />
+      <ChoiceCard
+        pressed={plan === "build"}
+        onClick={() => setPlan("build")}
+        Icon={(props) => <NotePencilIcon weight="duotone" {...props} />}
+        tone="bg-positive-tint text-positive-ink"
+        title="No, build one for me"
+        line="Answer three short questions."
       />
     </div>
   );
@@ -322,9 +444,10 @@ export function ResumeUploadSpecimen() {
   );
 }
 
+/** The seeker menu's rows as the app draws them: Help is hidden until its
+ *  page exists (`HELP_LIVE` in (seeker)/account-status.tsx). */
 const ACCOUNT_ROWS: AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

@@ -18,9 +18,10 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
 from app.models import dto
+from app.queries.jobs import kept_options
 from app.queries.jobs.facets import location_options
 from app.queries.jobs.filters import YEARLY, JobFilters, matching, offered_in
-from app.queries.jobs.listings import to_listing
+from app.queries.jobs.listings import listing_page, to_listing
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
@@ -74,7 +75,13 @@ def no_database(monkeypatch):
         return companies
 
     monkeypatch.setattr("app.queries.jobs.search.company_resolver", company_resolver)
+    # The facets and places are kept per process (kept_options.py); with no
+    # database, every version reads as the same, and nothing is kept across
+    # tests.
+    kept_options.forget()
+    monkeypatch.setattr("app.queries.jobs.kept_options.feed_version", AsyncMock(return_value=None))
     yield
+    kept_options.forget()
     app.dependency_overrides.clear()
 
 
@@ -686,6 +693,40 @@ def test_role_keeps_jobs_tagged_with_any_of_the_roles_asked_for():
     assert "job_role_tags.role_slug IN ('quantitative_analyst', 'data_scientist')" in sql
 
 
+def test_a_custom_role_is_found_in_titles_beside_the_picked_roles():
+    # One Role filter, any of: the picked roles' tags or a custom role's words
+    # in the title, in order (2026-11-16). No job_roles row names a custom
+    # role, so it has no tag to match.
+    (clause,) = matching(JobFilters(
+        roles=["software_engineer"], custom_roles=[("ux", "researcher")]
+    ))
+    sql = str(clause.compile(dialect=postgresql.dialect()))
+    assert sql.startswith("(EXISTS (SELECT *")
+    assert ") OR job_postings.title ~* %(title_1)s" in sql
+
+
+def test_a_custom_role_alone_is_a_title_match():
+    (clause,) = matching(JobFilters(custom_roles=[("game", "designer"), ("quant",)]))
+    sql = str(clause.compile(dialect=postgresql.dialect()))
+    assert "job_role_tags" not in sql
+    assert sql.count("job_postings.title ~*") == 2
+
+
+def test_route_reads_custom_roles_as_title_words(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    res = client.get("/jobs", params=[("custom_role", "UX Researcher"), ("custom_role", "C++ Dev")])
+    assert res.status_code == 200
+    assert seen[0].custom_roles == (("ux", "researcher"), ("c", "dev"))
+    assert client.get("/jobs", params=[("custom_role", "--")]).status_code == 422
+
+
 def test_route_reads_roles(no_database, monkeypatch):
     seen = []
 
@@ -1041,3 +1082,124 @@ def test_recommended_route_passes_min_match_and_answers_404(no_database, monkeyp
     assert (res.status_code, res.json()["detail"]) == (404, "Your experience bank is empty")
     assert (seen["account"], seen["min_match"]) == (account, 60)
     assert TestClient(app).get(url, params={"min_match": 101}).status_code == 422
+
+
+# GET /jobs/{job_id}/match: one job's score for its own page (2026-11-10).
+
+
+def _applicant() -> AuthenticatedAccount:
+    return AuthenticatedAccount(
+        id=uuid.uuid4(),
+        email="seeker@example.com",
+        full_name="Sam Seeker",
+        account_type=AccountType.APPLICANT,
+        onboarding_completed=True,
+    )
+
+
+def _signed_in(account):
+    from app.deps import get_signed_in_applicant
+
+    app.dependency_overrides[get_signed_in_applicant] = lambda: account
+
+
+def test_job_match_is_empty_signed_out(no_database):
+    _signed_in(None)
+    res = TestClient(app).get(f"/jobs/{uuid.uuid4()}/match")
+    assert res.status_code == 200
+    assert res.json() == {"match": None, "highlights": []}
+
+
+def test_job_match_scores_the_one_job_as_the_feed_does(no_database, monkeypatch):
+    account = _applicant()
+    _signed_in(account)
+    job_id = uuid.uuid4()
+    seen = {}
+
+    async def load_bank(db, applicant_id):
+        return SimpleNamespace(entries=[object()], skills=[])
+
+    async def score_jobs(db, who, bank, filters):
+        seen["filters"], seen["who"] = filters, who
+        return [
+            SimpleNamespace(
+                id=str(job_id),
+                match=72,
+                highlights=[{"text": "Uses 5 of your skills", "detail": None, "met": True}],
+            )
+        ]
+
+    monkeypatch.setattr("app.routers.jobs.load_bank", load_bank)
+    monkeypatch.setattr("app.routers.jobs.score_jobs", score_jobs)
+    res = TestClient(app).get(f"/jobs/{job_id}/match")
+    assert res.json() == {
+        "match": 72,
+        "highlights": [{"text": "Uses 5 of your skills", "detail": None, "met": True}],
+    }
+    assert seen["filters"].job_ids == [job_id]
+    assert seen["who"] == account
+
+
+def test_job_match_is_empty_for_an_empty_bank_or_a_failure(no_database, monkeypatch):
+    _signed_in(_applicant())
+    url = f"/jobs/{uuid.uuid4()}/match"
+
+    async def empty_bank(db, applicant_id):
+        return SimpleNamespace(entries=[], skills=[])
+
+    monkeypatch.setattr("app.routers.jobs.load_bank", empty_bank)
+    assert TestClient(app).get(url).json() == {"match": None, "highlights": []}
+
+    async def a_bank(db, applicant_id):
+        return SimpleNamespace(entries=[object()], skills=[])
+
+    async def fails(db, who, bank, filters):
+        raise RuntimeError("no vectors")
+
+    monkeypatch.setattr("app.routers.jobs.load_bank", a_bank)
+    monkeypatch.setattr("app.routers.jobs.score_jobs", fails)
+    assert TestClient(app).get(url).json() == {"match": None, "highlights": []}
+
+
+def test_job_match_is_empty_for_an_id_that_is_no_job(no_database):
+    _signed_in(_applicant())
+    res = TestClient(app).get("/jobs/not-a-uuid/match")
+    assert res.json() == {"match": None, "highlights": []}
+
+
+def _page_sql(filters: JobFilters = JobFilters()) -> tuple[str, str]:
+    """listing_page's SQL, split at its inner page: (the page, the rest)."""
+    sql = str(listing_page(51, filters).compile(dialect=postgresql.dialect()))
+    inner = sql[sql.index("(SELECT"):sql.index(") AS page")]
+    return inner, sql.replace(inner, "")
+
+
+def test_a_feed_page_reads_its_form_urls_for_its_own_rows_only():
+    # KAN-916: FORM_URL's regular expressions ran on every listed job before
+    # the sort cut them to a page (1.2 s a page). The page is picked first,
+    # by id and posted_at alone, and the columns read for its rows.
+    inner, outer = _page_sql()
+    assert "~*" not in inner
+    assert "ORDER BY job_postings.posted_at DESC NULLS LAST, job_postings.id" in inner
+    assert "LIMIT" in inner
+    assert "~*" in outer and "AS form_url" in outer
+    assert "ORDER BY page.posted_at DESC NULLS LAST, page.id" in outer
+
+
+def test_the_auto_apply_filter_still_narrows_the_page():
+    inner, _ = _page_sql(JobFilters(auto_apply_only=True))
+    assert "~*" in inner
+
+
+def test_the_feed_index_holds_the_listed_rule():
+    # job_postings_feed_idx serves a query only when its WHERE implies the
+    # index's; the index spells out LISTED, so the two must stay the same.
+    from app.models.jobs import Job_Post
+    from app.services.postings import LISTED
+
+    index = next(i for i in Job_Post.__table__.indexes if i.name == "job_postings_feed_idx")
+    where = str(index.dialect_options["postgresql"]["where"])
+    listed = str(LISTED.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    for part in ("company_id IS NULL", "status = 'published'", "added_by_student IS false"):
+        assert part in where
+        assert part in listed.replace("job_postings.", "")

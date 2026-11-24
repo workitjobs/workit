@@ -48,7 +48,8 @@ test("reads a TikTok form's questions off the page, and asks no job API for them
   };
   const prepared = await planFill({ url: TIKTOK_FORM, profile: STUDENT, today: "2026-10-26", call, fetchText });
 
-  expect(asked[0]).toEqual(["readQuestions", "tiktok"]);
+  // The first read of the page (after asking whether its engine has TikTok's data: the Store package's may not).
+  expect(asked.filter(([name]) => name !== "supported")[0]).toEqual(["readQuestions", "tiktok"]);
   expect(prepared).toMatchObject({ covered: true, site: "tiktok", answers: { name: "Test Person" } });
   expect(fetched.every((url) => url.startsWith("https://lifeattiktok.com/search/"))).toBe(true); // only the posting's names and text
   expect(readJobAhead(TIKTOK_FORM, fetchText)).toBe(false);

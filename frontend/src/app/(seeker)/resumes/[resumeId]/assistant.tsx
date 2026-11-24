@@ -201,7 +201,7 @@ export function Assistant({
                 {m.shorter && (
                   <>
                     <span className="text-note text-ink-meta line-through">{m.shorter.before}</span>
-                    <span className="text-note bg-brand-tint rounded-lg p-2">
+                    <span className="text-note bg-brand-tint rounded-control p-2">
                       {m.shorter.after}
                     </span>
                     {!m.done && (
@@ -266,7 +266,7 @@ export function Assistant({
 
       <div className="flex flex-col gap-1.5 px-3 pb-3">
         {line && (
-          <span className="text-note bg-brand-tint text-brand max-w-full self-start truncate rounded-lg px-2 py-1">
+          <span className="text-note bg-brand-tint text-brand rounded-control max-w-full self-start truncate px-2 py-1">
             {lineText(line, choices)}
           </span>
         )}

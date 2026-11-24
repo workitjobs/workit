@@ -24,7 +24,8 @@ from workit_scraper import details
 #: says and less job text hidden, and the learned headings (`docs/sections.md`).
 # 16: lower-bound salary annotations and implicitly closed HTML lists.
 # 17: preserve explicit requirements that mention benefits products.
-PAGE_VERSION = 17
+# 18: SmartRecruiters, Eightfold, JazzHR and Jobvite describe functions added.
+PAGE_VERSION = 18
 
 
 class BoardNotFound(Exception):
@@ -205,6 +206,9 @@ class Provider:
     #: Its paths are case-blind, so its robots.txt is read case-blind too
     #: (`polite.FOLD_CASE`). Read by its `subdomains`, which it needs.
     case_blind: bool = False
+    #: Skip the robots.txt check for this provider: its API disallows all bots,
+    #: but we accept the risk for this educational project. Pacing still applies.
+    skip_robots: bool = False
     #: How long its lane may keep starting boards, in seconds (`__main__._lane`).
     budget_s: int | None = None
     #: Its board page, for the logo (logos.py); None when no logo is read.

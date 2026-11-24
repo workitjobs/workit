@@ -3,7 +3,7 @@
 # from research on the questions that application forms ask.
 #
 # Never put a secret here (a password, an app password, a key or a token):
-# secrets live only in macOS Keychain or gitignored files, and Apply refuses to
+# secrets live only in the system's keychain or gitignored files, and Apply refuses to
 # load a profile with a key that looks like one.
 #
 # Every key below answers a question seen on real Summer 2027 forms (58 forms:
@@ -37,6 +37,8 @@ identity:
     # seen: he/him/his | she/her/hers | they/them/theirs | He/They | Other | I don't wish to answer | free text
   email:                       # freq 58
   phone:                       # freq 54 (E.164, e.g. +1XXXXXXXXXX)
+  phone_type:                  # mobile | landline | work (Workday "Phone Device Type", iCIMS "Phones: Type", "Mobile or landline?");
+                               # the engine picks the closest option (mobile: Mobile, Cell, Home Cellular; never Work Cellular)
   current_location:            # freq 33 ("City, ST"; Greenhouse also geocodes it to lat/long)
     city:
     state:

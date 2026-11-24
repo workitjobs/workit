@@ -1,7 +1,7 @@
 """Request/response shapes for built resumes (KAN-207)."""
 
 import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from uuid import UUID
 
 from pydantic import (
@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.bank import EntryResponse, SkillResponse
+from app.schemas.bank import CustomSectionResponse, EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
@@ -21,9 +21,31 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 class BuiltResumeCreate(BaseModel):
     """POST body for Generate. With no name the resume is "Resume #N"
     (`services/built_resumes.next_name`, KAN-258); every one made with no
-    name was "Base Resume" before."""
+    name was "Base Resume" before. `allow_duplicate`: the student confirmed
+    a copy of a resume they have, so Generate skips the duplicate check
+    (KAN-444: the Resumes page asks "You Already Have This Resume" first)."""
 
     name: Name | None = None
+    allow_duplicate: bool = False
+    # Start from scratch (2026-11-18, onboarding's build): the header alone,
+    # every bank entry and skill hidden (`services/built_resumes.blank_choices`),
+    # with no duplicate check.
+    blank: bool = False
+
+
+class BuiltResumeCopy(BaseModel):
+    """POST body for Start From a Resume You Have (2026-11-11): exactly one
+    source, a built resume to copy or an upload whose own entries the new
+    resume shows (`services/built_resumes.copy_resume`, `from_upload`)."""
+
+    built_resume_id: UUID | None = None
+    uploaded_resume_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_source(self) -> "BuiltResumeCopy":
+        if (self.built_resume_id is None) == (self.uploaded_resume_id is None):
+            raise ValueError("Name one source: built_resume_id or uploaded_resume_id")
+        return self
 
 
 class BuiltResumeRename(BaseModel):
@@ -49,13 +71,47 @@ class BuiltResumeResponse(BaseModel):
     # it (KAN-268). Null on a base resume.
     posting_title: str | None = None
     posting_company: str | None = None
+    # Its company's logo and website, for the Resumes page card's logo tile
+    # (2026-11-10), as a job card draws a company (`jobLogo`)
+    posting_logo_url: str | None = None
+    posting_company_domain: str | None = None
+
+
+class GenerateStep(BaseModel):
+    """A streamed Generate's progress line (KAN-444): `checking` before the
+    duplicate check, `saving` before the writes."""
+
+    type: Literal["phase"] = "phase"
+    phase: Literal["checking", "saving"]
+
+
+class GenerateDone(BaseModel):
+    """A streamed Generate's last line when it saved: what `POST
+    .../built-resumes` answers."""
+
+    type: Literal["done"] = "done"
+    resume: BuiltResumeResponse
+
+
+class GenerateFailed(BaseModel):
+    """A streamed Generate's last line when it failed: the status and
+    message the JSON route would have answered, and on a duplicate (409)
+    the resume it would print the same as."""
+
+    type: Literal["error"] = "error"
+    status: int
+    message: str
+    built_resume_id: UUID | None = None
+    # The matching resume's name, on a duplicate
+    name: str | None = None
 
 
 class RenderBox(BaseModel):
     """Where one line sits on the PDF, for the editor's click target
     (KAN-209). `item_id` is the bank id of the bullet, skill or entry the line
     shows; `kind` is "bullet", "skill" or the entry field (title,
-    organization, location, dates, degree, gpa, coursework, honors). The
+    organization, location, dates, degree, gpa, coursework, honors, and a
+    project's tools line, `tools`, KAN-738). The
     header's lines have `item_id` "header" and the profile column as `kind`
     (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
@@ -84,9 +140,19 @@ class IdentityCopy(BaseModel):
     phone: str | None = None
     links: list[tuple[str, str]] = []
     us_citizen: bool = False
+    location: str | None = None
+    # The Additional line (KAN-436)
+    extra: str | None = None
 
 
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+
+
+HeaderField = Literal[
+    "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+    "resume_header_extra",
+]
+HEADER_FIELD_NAMES = get_args(HeaderField)
 
 
 class PageSettings(BaseModel):
@@ -106,7 +172,9 @@ class PageSettings(BaseModel):
     bullet: Literal["dot", "dash"] = "dot"
     show_divider: bool = True
     header_alignment: Literal["left", "center", "right"] = "center"
-    section_order: list[str] = list(SECTION_ORDER)
+    # Every fixed section once, then the custom sections the student moved
+    # (KAN-498), each as resume_view.custom_key ("custom:<name>")
+    section_order: list[str] = Field(list(SECTION_ORDER), max_length=40)
     font_family: Literal[
         "latin_modern", "tinos", "caladea", "eb_garamond", "charter", "arimo", "carlito", "open_sans", "lato",
     ] = "latin_modern"
@@ -115,10 +183,22 @@ class PageSettings(BaseModel):
     heading_size: Annotated[float, Field(ge=9, le=18, multiple_of=0.5)] | None = None
     title_size: Annotated[float, Field(ge=8, le=16, multiple_of=0.5)] | None = None
     body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
+    date_format: Literal["short", "long", "year", "numeric"] = "short"
+    education_first: Literal["school", "degree"] = "school"
+    # A job's two rows, role over company or company over role, and where a
+    # project's tools print (2026-11-17; resume_render's EXPERIENCE_FIRST and
+    # PROJECT_TOOLS)
+    experience_first: Literal["role", "company"] = "role"
+    project_tools: Literal["below", "after_name"] = "below"
+    # The header fields this resume leaves out (KAN-436, resume_render's
+    # HEADER_FIELDS): checked off in the editor's Header panel
+    hidden_header: list[HeaderField] = Field([], max_length=len(HEADER_FIELD_NAMES))
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":
-        if sorted(self.section_order) != sorted(SECTION_ORDER):
+        from app.services.resume_render import valid_order
+
+        if not valid_order(self.section_order):
             raise ValueError("Send every section once")
         return self
 
@@ -223,9 +303,13 @@ class VariantResponse(BaseModel):
 
 
 class SkillChoiceResponse(BaseModel):
+    """`group` is the group the skill prints under on this resume
+    (KAN-586): null the bank's, "" no group, any other text that group."""
+
     skill_id: UUID
     shown: bool
     position: int
+    group: str | None = None
 
 
 class ChoicesResponse(BaseModel):
@@ -265,9 +349,13 @@ class BulletChoiceUpdate(BaseModel):
 
 
 class SkillChoiceUpdate(BaseModel):
+    """`group` moves the skill to that group on this resume alone (KAN-586):
+    "" is no group. Null keeps it; the bank's group never changes here."""
+
     skill_id: UUID
     shown: bool | None = None
     position: int | None = None
+    group: Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)] | None = None
 
 
 class ChoicesUpdate(BaseModel):
@@ -291,6 +379,9 @@ class ResumeCopy(BaseModel):
 
     entries: list[EntryResponse] = Field(max_length=500)
     skills: list[SkillResponse] = Field(max_length=1000)
+    # The sections the student named (KAN-498), as GET /bank sent them: a
+    # custom entry prints under its section's name and layout
+    sections: list[CustomSectionResponse] = Field([], max_length=200)
     choices: ChoicesResponse
     identity: IdentityCopy
     # From the last render, so a render of the copy reads no resume row

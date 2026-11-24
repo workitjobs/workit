@@ -332,8 +332,11 @@ def test_http_keeps_identifying_agent_and_auth_headers(monkeypatch):
         def __exit__(self, *_):
             pass
 
-        def read(self):
-            return b"{}"
+        _body = b"{}"
+
+        def read(self, size=-1):
+            data, self._body = self._body, b""
+            return data
 
     def open_request(request, *, timeout):
         assert request.get_header("Authorization") == "Bearer test"
@@ -797,3 +800,80 @@ def test_resolution_deadline_keeps_successes_and_continues_validation(
     resolution = json.loads(report.read_text())["resolution"]
     assert resolution["timed_out"] is True
     assert resolution["deferred"] == 1
+
+
+# --- Common Crawl channel --------------------------------------------------
+
+
+def test_commoncrawl_channel_reads_local_file(tmp_path, monkeypatch, swap_provider):
+    """The commoncrawl channel reads commoncrawl-boards.json and emits pool evidence."""
+    from workit_scraper import discovery_channels
+
+    pool_file = tmp_path / "commoncrawl-boards.json"
+    pool_file.write_text(
+        json.dumps(
+            {
+                "crawl": "CC-MAIN-2026-43",
+                "harvested_at": "2026-10-26T00:00:00+00:00",
+                "ats": {
+                    "greenhouse": ["acme", "stripe"],
+                    "lever": ["delta"],
+                    "ashby": ["openai"],
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(discovery_channels, "COMMONCRAWL_PATH", pool_file)
+    result = discovery_channels.commoncrawl()
+    assert len(result.evidence) == 4
+    urls = {e.url for e in result.evidence}
+    assert "https://job-boards.greenhouse.io/acme" in urls
+    assert "https://job-boards.greenhouse.io/stripe" in urls
+    assert "https://jobs.lever.co/delta" in urls
+    assert "https://jobs.ashbyhq.com/openai" in urls
+    assert all(e.source == "commoncrawl:CC-MAIN-2026-43" for e in result.evidence)
+    assert all(e.company == "" for e in result.evidence)
+
+
+def test_commoncrawl_channel_missing_file_raises(tmp_path, monkeypatch):
+    from workit_scraper import discovery_channels
+    from workit_scraper.discovery_channels import DiscoveryError
+
+    monkeypatch.setattr(discovery_channels, "COMMONCRAWL_PATH", tmp_path / "missing.json")
+    with pytest.raises(DiscoveryError, match="not found"):
+        discovery_channels.commoncrawl()
+
+
+def test_commoncrawl_channel_skips_unknown_ats(tmp_path, monkeypatch):
+    """ATS names not in POOL_PAGES are silently skipped (no read_name for them)."""
+    from workit_scraper import discovery_channels
+
+    pool_file = tmp_path / "commoncrawl-boards.json"
+    pool_file.write_text(
+        json.dumps({"crawl": "CC-MAIN-2026-43", "ats": {"workday": ["acme.wd5/ext"]}})
+    )
+    monkeypatch.setattr(discovery_channels, "COMMONCRAWL_PATH", pool_file)
+    result = discovery_channels.commoncrawl()
+    assert result.evidence == []
+
+
+def test_commoncrawl_pool_boards_go_through_validate_pooled():
+    """Commoncrawl evidence with no company name is recognized as a pool board."""
+    row = discovery.Candidate(
+        "greenhouse",
+        "acme",
+        [],
+        [Evidence("https://job-boards.greenhouse.io/acme", "", "commoncrawl:CC-MAIN-2026-43")],
+    )
+    assert discovery.pooled(row)
+
+
+def test_commoncrawl_named_board_is_not_pooled():
+    """A commoncrawl board with a company name goes through normal validation."""
+    row = discovery.Candidate(
+        "greenhouse",
+        "acme",
+        ["Acme Corp"],
+        [Evidence("https://job-boards.greenhouse.io/acme", "Acme Corp", "other-source")],
+    )
+    assert not discovery.pooled(row)

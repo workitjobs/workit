@@ -40,6 +40,9 @@ build/
 __pycache__/
 *.py[cod]
 .venv/
+# Written into scraper/ and scout/ when the backend builds them as path
+# dependencies (uv sync); build output, never source.
+*.egg-info/
 
 # misc
 .DS_Store
@@ -95,3 +98,9 @@ backend/fill-reports/
 
 # The Chrome Web Store package (autofiller_extension/store/build.mjs, KAN-463).
 autofiller_extension/.store-build/
+
+# The resume reading score (KAN-900, backend app.scripts.reading_score): the
+# model's saved replies, and real resumes with their answer keys. Real
+# people's resumes are never committed.
+backend/.reading_cache/
+backend/reading_set_private/

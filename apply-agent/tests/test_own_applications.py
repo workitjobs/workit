@@ -35,14 +35,14 @@ JOB_PAGE = "https://careers.cisco.com/global/en/job/2026800"
 
 
 class Reads:
-    """Plays Claude reading a link: gives `found` (else nothing) and keeps every prompt."""
+    """Plays WorkIt's own_application.find kind: gives `found` (else nothing) and keeps the data of every call."""
 
     def __init__(self, **found: str):
         self.found = {"company": "", "role": "", "job_id": "", "posting_link": ""} | found
-        self.prompts: list[str] = []
+        self.sent: list[dict] = []
 
-    def ask(self, *, model, system, prompt, schema):
-        self.prompts.append(prompt)
+    def ask_kind(self, kind, data):
+        self.sent.append(data)
         return dict(self.found)
 
 
@@ -67,7 +67,7 @@ def test_a_thank_you_link_becomes_a_submitted_row_for_the_posting_it_names(capsy
     assert (row.company, row.role, row.posting_url) == ("Cisco", ROLE, JOB_PAGE)
     assert (row.status, row.date_applied, row.reason) == (Status.SUBMITTED, date(2026, 10, 15), REASON)
     assert row.application_id == own_id(JOB_PAGE)
-    assert ROLE in claude.prompts[0]  # the link's parameters, decoded
+    assert claude.sent[0]["url"] == THANK_YOU  # WorkIt decodes its parameters
     assert "Added Cisco" in capsys.readouterr().out
 
 
@@ -156,3 +156,27 @@ def test_without_a_tracker_to_add_to_the_window_shows_no_paste_box(board, window
     window.goto(board.url + "/#history")
 
     assert window.locator("#applied-link").count() == 0
+
+
+MICROSOFT = "https://apply.careers.microsoft.com/careers/job/1970393557037859"
+MICROSOFT_API = ("https://apply.careers.microsoft.com/api/pcsx/position_details?position_id=1970393557037859"
+                 "&domain=microsoft.com&hl=en")
+
+
+def test_a_microsoft_posting_is_named_from_eightfolds_api_with_no_claude_call():
+    """Microsoft's careers page is a script shell (KAN-770): the Fill engine names it from Eightfold's API."""
+    claude = Reads()  # a Claude that could tell nothing, as it couldn't live
+    tracker = applied(MICROSOFT, claude=claude, pages={MICROSOFT_API: b'{"status": 200, "data": {"name": "Software Engineer:'
+                                                                       b' Internship Opportunities", "displayJobId": "200061280"}}'})
+
+    [row] = tracker.rows()
+    assert (row.company, row.role, row.posting_url) == ("Microsoft", "Software Engineer: Internship Opportunities", MICROSOFT)
+    assert claude.sent == []
+
+
+def test_an_engine_posting_its_api_wont_name_is_read_by_claude():
+    claude = Reads(company="Microsoft", role="Software Engineer")
+    tracker = applied(MICROSOFT, claude=claude)  # the API answers nothing here
+
+    assert [(r.company, r.role) for r in tracker.rows()] == [("Microsoft", "Software Engineer")]
+    assert len(claude.sent) == 1

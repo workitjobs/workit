@@ -83,7 +83,7 @@ test("an access token that expires mid-batch is refreshed through the webapp, an
   expect(forms.submissions).toEqual([]);
 });
 
-test("signed out for real (no valid refresh token), the panel shows Sign in to WorkIt, not an error", async () => {
+test("signed out for real (no valid refresh token), the panel shows Sign in to WorkIt, not an error", { tag: "@nightly" }, async () => {
   test.setTimeout(90_000);
   const forms = new SavedForms(["greenhouse-anduril"]);
   const api = new FakeApi();

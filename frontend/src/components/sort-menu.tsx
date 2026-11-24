@@ -13,9 +13,11 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 
 /**
- * A list's Sort dropdown (the Resumes page, KAN-366; the Jobs page, KAN-519):
- * drawn as a filter's dropdown is (`facetClasses`), its button naming the order
- * in force. It never takes the filter's brand tint, which marks a filter
+ * A list's Sort dropdown (the Resumes page, KAN-366; the Jobs page, KAN-519;
+ * the Tracker and Up Next, KAN-827): drawn as a filter's dropdown is
+ * (`facetClasses`), its button naming the order in force. It sits first in
+ * every page toolbar's filter row (docs/design.md, "Every page table has one
+ * toolbar"). It never takes the filter's brand tint, which marks a filter
  * holding a pick: an order is always in force. A dropdown, not pills: pills in
  * a header beside another switch read as one kind of choice.
  */
@@ -38,7 +40,7 @@ export function SortMenu<T extends string>({
         className={facetClasses(false, className ?? "min-w-36")}
       >
         <FacetLabel Icon={ArrowsDownUpIcon} label={current.label} active={false} count={0} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-max min-w-(--anchor-width)">
         <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as T)}>

@@ -22,7 +22,12 @@ def generate_highlights(
     matched_skills: Sequence[str] = (),
     has_titles: bool = False,
 ) -> list[dict]:
-    """Up to 3 highlights, each ``{"text": str, "met": bool}``.
+    """Up to 3 highlights, each ``{"text": str, "detail": str, "met": bool}``.
+
+    `text` is a label of a few words, one line on a card's match rail;
+    `detail` is the whole sentence, the label's tooltip (2026-11-09). The
+    rail was all sentences, which wrapped to four lines and were cut short
+    once it limited each to two.
 
     `has_titles`: the bank has Experience titles or a field of study for the
     title check to compare, so a low title fit is a finding, not a blank.
@@ -32,21 +37,39 @@ def generate_highlights(
     # --- positive ---
     if matched_skills:
         top_skills = ", ".join(matched_skills[:3])
-        candidates.append({"text": f"Posting mentions your skills: {top_skills}", "met": True})
+        count = len(matched_skills)
+        candidates.append({
+            "text": f"Uses {count} of your skills" if count > 1 else f"Uses your {matched_skills[0]} skill",
+            "detail": f"Posting mentions your skills: {top_skills}",
+            "met": True,
+        })
 
     if title_fit > 0.3:
         if field_of_study:
-            candidates.append({"text": f"Aligns with your {field_of_study} background", "met": True})
+            candidates.append({
+                "text": "Fits your major",
+                "detail": f"Aligns with your {field_of_study} background",
+                "met": True,
+            })
         else:
-            candidates.append({"text": "Aligns with your experience", "met": True})
+            candidates.append({
+                "text": "Fits your experience",
+                "detail": "Aligns with your experience",
+                "met": True,
+            })
 
     if semantic is not None and semantic > 0.6:
-        candidates.append({"text": "Strong overall fit with your experience", "met": True})
+        candidates.append({
+            "text": "Strong overall fit",
+            "detail": "Strong overall fit with your experience",
+            "met": True,
+        })
 
     # --- negative ---
     if job_min_years is not None and eligibility < 1.0:
         candidates.append({
-            "text": f"Asks for {job_min_years}+ years experience",
+            "text": f"Asks for {job_min_years}+ years",
+            "detail": f"Asks for {job_min_years}+ years experience",
             "met": False,
         })
 
@@ -61,9 +84,17 @@ def generate_highlights(
     # (matching/CLAUDE.md): they say only what of the bank the posting lacks.
     if not candidates:
         if skills and not matched_skills:
-            candidates.append({"text": "None of your skills appear in this posting", "met": False})
+            candidates.append({
+                "text": "No skills in common",
+                "detail": "None of your skills appear in this posting",
+                "met": False,
+            })
         if has_titles and title_fit <= 0.3:
-            candidates.append({"text": "Title isn't close to your past roles", "met": False})
+            candidates.append({
+                "text": "Unlike your past roles",
+                "detail": "Title isn't close to your past roles",
+                "met": False,
+            })
 
     # Positive first, then negative, capped at 3
     positives = [c for c in candidates if c["met"]]

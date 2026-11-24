@@ -53,6 +53,10 @@ def test_a_keyword_reads_as_a_resume_prints_it():
         ("c++", "C++"), ("node.js", "Node.js"),
         # A word the posting capitalized its own way stays
         ("iOS", "iOS"), ("McKinsey consulting", "McKinsey Consulting"),
+        # A skill the catalog spells, as it spells it: "Numpy", "Html5" and
+        # "Matlab" printed on tailored resumes (2026-11-12 audit)
+        ("numpy", "NumPy"), ("html5", "HTML5"), ("matlab", "MATLAB"), ("grpc", "gRPC"), ("jquery", "jQuery"),
+        ("gpu programming", "GPU Programming"),
     ]:
         assert keywords.resume_case(typed) == printed
 
@@ -63,6 +67,46 @@ def test_keywords_cached_in_lower_case_read_as_a_resume_prints_them():
     job.keywords_hash = keywords.posting_hash(job)
 
     assert [k.keyword for k in keywords.cached(job)] == ["User Research"]
+
+
+@pytest.mark.parametrize("keyword", [
+    "Bachelor's Degree", "Bachelor of Science", "Bachelors", "BS/MS in Computer Science", "B.S.", "MBA",
+    "Master's Degree", "Master of Science", "Associate Degree", "PhD", "Ph.D.", "Computer Science degree",
+])
+def test_a_degree_is_never_a_keyword(keyword):
+    # KAN-811: a picked "Bachelor's Degree" joined a tailored resume's skills
+    assert keywords.is_degree(keyword)
+
+
+@pytest.mark.parametrize("keyword", [
+    "Scrum Master", "Master Data Management", "MS Office", "360-degree Feedback", "Python", "Business Analysis",
+])
+def test_a_skill_that_shares_a_word_with_a_degree_stays_a_keyword(keyword):
+    assert not keywords.is_degree(keyword)
+
+
+def test_a_cached_degree_keyword_is_neither_matched_nor_missing():
+    from app.schemas.keywords import Keyword
+    from app.services.resume_view import ResumeView, ViewSkill
+
+    view = ResumeView(sections=(), skills=(ViewSkill(uuid.uuid4(), "Python"),))
+    found = [Keyword(keyword="Bachelor's Degree", kind="required"), Keyword(keyword="Python", kind="required"),
+             Keyword(keyword="Go", kind="preferred")]
+
+    matched, missing = keywords.match(view, found)
+
+    assert [k.keyword for k in matched] == ["Python"] and [k.keyword for k in missing] == ["Go"]
+
+
+def test_a_fresh_reading_drops_a_degree_keyword():
+    from app.schemas.keywords import KeywordReading
+
+    reading = KeywordReading.model_validate({"keywords": [
+        {"keyword": "bachelor's degree in computer science", "kind": "required"},
+        {"keyword": "python", "kind": "required"},
+    ]})
+
+    assert [k.keyword for k in keywords._cleaned(reading)] == ["Python"]
 
 
 def rate_limited() -> RateLimitError:
@@ -510,6 +554,41 @@ async def test_the_import_pass_keeps_to_its_limit(database):
 
     assert await _prefill(fake, limit=2) == 2
     assert len(fake.prompts) == 2
+
+
+async def test_a_scheduled_run_reads_only_its_own_jobs_and_leaves_the_backlog(database):
+    # KAN-726: two jobs from an earlier run, still without keywords, are the
+    # backlog; the next feed adds one job, the only one the run touches.
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(3)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert len(report.touched) == 1
+    new = str(report.touched[0])
+
+    fake = ScriptedLLM(reading(KEYWORDS))
+    async with get_engine().connect() as conn:
+        assert await _extract_keywords(conn, fake, limit=10, ids=report.touched) == 1
+    assert len(fake.prompts) == 1
+    assert await _stored(new) == KEYWORDS
+
+    # The backfill (no ids) reads the two left behind.
+    assert await _prefill(ScriptedLLM(reading(KEYWORDS))) == 2
+
+
+async def test_an_unchanged_feed_touches_no_job(database):
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(2)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert report.touched == []
+
+
+async def test_a_changed_description_is_touched_again(database):
+    posting = await _import(DESCRIPTION)
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION + " Rust too.")])
+    assert [str(i) for i in report.touched] == [posting]
 
 
 async def _import_many(n: int) -> list[str]:

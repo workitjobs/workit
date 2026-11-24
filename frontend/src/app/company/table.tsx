@@ -31,6 +31,7 @@ import { FieldFacet, type Glyph } from "@/components/field-facet";
 import { SortIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
+import { TEXT } from "@/components/ui/text-roles";
 import { cn } from "@/lib/cn";
 
 /* Re-exported so jobs-table.tsx's existing `import { formatDate } from
@@ -209,7 +210,8 @@ export function SortHeader({
       type="button"
       onClick={column.getToggleSortingHandler()}
       className={cn(
-        "text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex w-full items-center gap-1 rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none",
+        TEXT.columnHeader,
+        "hover:text-ink focus-visible:ring-brand-ring flex w-full items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none",
         align === "center" && "justify-center",
       )}
     >
@@ -377,7 +379,7 @@ export function DataTable<T extends RowData>({
     /* overflow-hidden, not overflow-x-auto: shadcn's <Table> already wraps
      * itself in a scroller, and a second one here would nest two scrollbars.
      * This wrapper only needs to clip the rounded corners. */
-    <div className="border-border-control bg-panel rounded-card overflow-hidden border">
+    <div className="border-border-surface bg-panel rounded-card overflow-hidden border">
       {/* AUTO LAYOUT, WIDTHS FROM CONTENT, TITLES CAPPED.
 
           Three ways to size these columns, two of them wrong.

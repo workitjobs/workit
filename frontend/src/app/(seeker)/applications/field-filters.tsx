@@ -1,15 +1,10 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 
-import {
-  BriefcaseIcon,
-  CompanyIcon,
-  ExternalLinkIcon,
-  SearchIcon,
-  workStyleIcon,
-} from "@/components/icons";
+import { AllFiltersBody, AllFiltersDialog, FilterSection } from "@/components/all-filters-dialog";
+import { JobTypeIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
 import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import {
@@ -18,10 +13,7 @@ import {
   ComboboxEmpty,
   ComboboxTrigger,
 } from "@/components/shadcn/combobox";
-import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
-import { Button } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
-import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StatusIcon } from "./icons";
@@ -48,7 +40,7 @@ import {
  * (asked for 2026-10-19).
  *
  * COMPANY HAS A SEARCH FIELD at the top of its list, as the Jobs page's
- * Role dropdown does (RoleFacetOptions there), since its list grows with
+ * Role dropdown does (both are `SearchFacet`), since its list grows with
  * every application: typing narrows it, and a pick keeps the search.
  *
  * ALL FILTERS holds Status and every field, each a section of option chips
@@ -63,13 +55,12 @@ import {
 
 export type Picks = { stages: StageKey[]; filters: Filters };
 
-/** Each field's glyph: the one its list cell draws. Work Model's is the
+/** Each field's glyph: the one its list cell draws. Workplace's is the
  *  Jobs page's Workplace glyph. */
 export const FIELD_ICON: Record<FilterKey, Glyph> = {
   company: CompanyIcon,
-  track: BriefcaseIcon,
+  track: JobTypeIcon,
   workModel: workStyleIcon("On-Site"),
-  source: ExternalLinkIcon,
 };
 
 /** Status's options: each stage with its glyph in its own colour, as the
@@ -83,9 +74,9 @@ export const STATUS_OPTIONS: FacetOption[] = STAGE_ORDER.map((stage) => ({
 }));
 
 /**
- * Company's dropdown: the same button and checkbox rows, with a search field
- * at the top of the list, built as the Jobs page's Role dropdown is: a Base
- * UI Combobox, whose arrow keys and Enter work from its field (a menu's
+ * Company's dropdown, and the Jobs page's Role (KAN-823): the same button
+ * and checkbox rows, with a search field at the top of the list: a Base UI
+ * Combobox, whose arrow keys and Enter work from its field (a menu's
  * cannot hold one). A pick while searching keeps the search, so "acme"
  * stays narrowed while two of its names are ticked; each opening starts
  * with an empty field.
@@ -96,6 +87,7 @@ export function SearchFacet({
   searchLabel,
   empty,
   options,
+  labelOf,
   values,
   onChange,
   className,
@@ -107,6 +99,9 @@ export function SearchFacet({
   /** What the list says when the search matches nothing. */
   empty: string;
   options: string[];
+  /** An option's name, where it is not its value (a role's slug); the
+   *  search matches the name. */
+  labelOf?: (value: string) => string;
   values: string[];
   onChange: (values: string[]) => void;
   className?: string;
@@ -120,6 +115,7 @@ export function SearchFacet({
   return (
     <Combobox
       items={options}
+      itemToStringLabel={labelOf}
       multiple
       value={values}
       onValueChange={(next: string[]) => {
@@ -160,7 +156,7 @@ export function SearchFacet({
         <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-none p-1 empty:p-0">
           {(value: string) => (
             <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
-              <span className="truncate">{value}</span>
+              <span className="truncate">{labelOf ? labelOf(value) : value}</span>
               <CheckRowBox />
             </ComboboxPrimitive.Item>
           )}
@@ -192,25 +188,18 @@ export function AllFiltersPanel({
   onApply: (picks: Picks) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <div className="border-border-subtle flex items-center border-b px-5 py-3.5 pr-12">
-          <DialogTitle className="text-subtitle font-semibold">All Filters</DialogTitle>
-        </div>
-        {open && (
-          <PanelBody
-            picks={picks}
-            apps={apps}
-            q={q}
-            options={options}
-            onApply={(next) => {
-              onApply(next);
-              onOpenChange(false);
-            }}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <AllFiltersDialog open={open} onOpenChange={onOpenChange}>
+      <PanelBody
+        picks={picks}
+        apps={apps}
+        q={q}
+        options={options}
+        onApply={(next) => {
+          onApply(next);
+          onOpenChange(false);
+        }}
+      />
+    </AllFiltersDialog>
   );
 }
 
@@ -253,58 +242,44 @@ function PanelBody({
     }));
 
   return (
-    <>
-      {/* overscroll-none: a fling past the end stops here instead of
-          scrolling the page behind. */}
-      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-none px-5">
-        <Section Icon={StatusIcon} label="Status" first>
-          {STAGE_ORDER.map((stage) => (
-            <Chip
-              key={stage}
-              Icon={STAGE_ICON[stage]}
-              pressed={draft.stages.includes(stage)}
-              onClick={() => toggleStage(stage)}
-            >
-              {STAGE_LABEL[stage]}
-            </Chip>
-          ))}
-        </Section>
+    <AllFiltersBody
+      onClear={() => {
+        setDraft({ stages: [], filters: NO_FILTERS });
+        setCleared((n) => n + 1);
+      }}
+      onShow={() => onApply(draft)}
+      showLabel={`Show ${count} ${count === 1 ? "Application" : "Applications"}`}
+    >
+      <FilterSection Icon={StatusIcon} label="Status" first>
+        {STAGE_ORDER.map((stage) => (
+          <Chip
+            key={stage}
+            Icon={STAGE_ICON[stage]}
+            pressed={draft.stages.includes(stage)}
+            onClick={() => toggleStage(stage)}
+          >
+            {STAGE_LABEL[stage]}
+          </Chip>
+        ))}
+      </FilterSection>
 
-        <Section Icon={FIELD_ICON.company} label="Company">
-          <SearchPicker
-            key={`company-${cleared}`}
-            label="Companies"
-            placeholder="Search a company"
-            empty="No company by that name in your applications."
-            options={options.company.map((value) => ({ value, label: value, nested: false }))}
-            values={draft.filters.company}
-            onChange={(values) => setField("company", values)}
-          />
-        </Section>
+      <FilterSection Icon={FIELD_ICON.company} label="Company">
+        <SearchPicker
+          key={`company-${cleared}`}
+          label="Companies"
+          placeholder="Search a company"
+          empty="No company by that name in your applications."
+          options={options.company.map((value) => ({ value, label: value, nested: false }))}
+          values={draft.filters.company}
+          onChange={(values) => setField("company", values)}
+        />
+      </FilterSection>
 
-        <div className="grid gap-x-6 sm:grid-cols-2">
-          {chipSection("track", "Job Type")}
-          {chipSection("workModel", "Work Model")}
-        </div>
-        {chipSection("source", "Source")}
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        {chipSection("track", "Job Type")}
+        {chipSection("workModel", "Workplace")}
       </div>
-
-      <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setDraft({ stages: [], filters: NO_FILTERS });
-            setCleared((n) => n + 1);
-          }}
-        >
-          Clear All
-        </Button>
-        <Button size="sm" onClick={() => onApply(draft)}>
-          {`Show ${count} ${count === 1 ? "Application" : "Applications"}`}
-        </Button>
-      </div>
-    </>
+    </AllFiltersBody>
   );
 
   /** A field whose values are few enough to show as chips. A function, not
@@ -312,7 +287,7 @@ function PanelBody({
    *  the pressed chip's focus. */
   function chipSection(field: FilterKey, label: string) {
     return (
-      <Section Icon={FIELD_ICON[field]} label={label}>
+      <FilterSection Icon={FIELD_ICON[field]} label={label}>
         {options[field].length === 0 ? (
           <p className="text-note text-ink-meta">None of your applications says.</p>
         ) : (
@@ -327,31 +302,7 @@ function PanelBody({
             </Chip>
           ))
         )}
-      </Section>
+      </FilterSection>
     );
   }
-}
-
-/** One field's section: its glyph and name over its options, as in the Jobs
- *  page's panel. */
-function Section({
-  Icon,
-  label,
-  first = false,
-  children,
-}: {
-  Icon: Glyph;
-  label: string;
-  first?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className={cn("py-4", !first && "border-border-subtle border-t")}>
-      <h3 className="text-body text-ink mb-2.5 flex items-center gap-2 font-semibold">
-        <Icon aria-hidden className="text-ink-meta size-4 shrink-0" />
-        {label}
-      </h3>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-    </section>
-  );
 }

@@ -5,18 +5,22 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { BellIcon } from "@/components/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/shadcn/popover";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
+import { groupRepeats } from "@/lib/notification-groups";
 
 /** One row the bell can show — kept generic (never ATS- or job-alert-
  *  specific) so a company's own future notification type fits the same
  *  shape. `href` is the whole row's link, since every notification this
- *  feature has today points somewhere. */
+ *  feature has today points somewhere. `kind` is the API's `type`
+ *  ("job_alert"): neighbouring items of one kind show as one row. */
 export type NotificationItem = {
   id: string;
+  kind: string;
   title: string;
   body: string;
   href: string;
@@ -29,7 +33,7 @@ export type NotificationItem = {
  * passes nothing but `children` (the empty-state line) — nothing feeds its
  * bell yet, so it behaves exactly as before. The seeker shell
  * ((seeker)/seeker-notifications-bell.tsx) is the one caller that passes
- * `items`/`unreadCount`/`onOpenChange` (KAN-298), fetched there rather
+ * `items`/`unreadCount`/`onRead`/`onMarkAllRead` (KAN-298, KAN-829), fetched there rather
  * than in this shared component, which stays presentational.
  *
  * A 32px circle with a 16px glyph and the hover fill, unless the shell passes
@@ -39,9 +43,18 @@ export type NotificationItem = {
  * read a notification, so the seeker's phone bar dropped its logo mark for
  * the room instead.
  *
- * The popup is named "Notifications" with aria-label, because Base UI names
- * it only from a Popover.Title and this one has none; without it a screen
- * reader announces a bare "dialog".
+ * The popup opens on its title, "Notifications" (a Popover.Title, which
+ * also names it for a screen reader), with Mark All Read on its right while
+ * anything is unread (KAN-829). Opening the bell marked everything read
+ * until then, so the list had no title and nothing to mark. Now opening a
+ * row marks it read (`onRead`), and the unread dot stays until every row
+ * is read or Mark All Read is pressed (`onMarkAllRead`).
+ *
+ * REPEATS ARE ONE ROW (KAN-829, lib/notification-groups.ts): a run of
+ * neighbouring items of one kind shows its newest, with a line that counts
+ * the earlier ones. A week of daily job alerts stacked seven near-identical
+ * "Your 4 Best Matches Today" rows, each opening the same page. The row is
+ * unread while any of its items is, and opening it marks them all read.
  *
  * Each item is a `Link` with IconButton's focus ring (inset, since the list
  * clips what reaches past it) and its time ("5 minutes ago") beside the
@@ -62,7 +75,8 @@ export function NotificationsMenu({
   className,
   items = [],
   unreadCount = 0,
-  onOpenChange,
+  onRead,
+  onMarkAllRead,
 }: {
   children: ReactNode;
   /** The seeker bar draws it as a grey-filled 40px circle (see
@@ -71,20 +85,19 @@ export function NotificationsMenu({
   className?: string;
   items?: NotificationItem[];
   unreadCount?: number;
-  onOpenChange?: (open: boolean) => void;
+  /** A row was opened: its items' ids, the earlier repeats included. */
+  onRead?: (ids: string[]) => void;
+  /** Mark All Read; the button shows only with this and something unread. */
+  onMarkAllRead?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
-  function changeOpen(next: boolean) {
-    setOpen(next);
-    onOpenChange?.(next);
-  }
-
   return (
-    <Popover open={open} onOpenChange={changeOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <IconButton
+            tooltip={false}
             label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
             className={cn("group/bell hover:bg-hover relative size-8 rounded-full", className)}
           >
@@ -100,33 +113,52 @@ export function NotificationsMenu({
           </IconButton>
         }
       />
-      <PopoverContent align="end" sideOffset={8} aria-label="Notifications" className="w-72 p-0">
+      <PopoverContent align="end" sideOffset={8} className="w-72 gap-0 p-0">
+        <div className="border-border-subtle flex items-baseline justify-between gap-4 border-b px-3 py-2.5">
+          <PopoverTitle className="text-subtitle text-ink">Notifications</PopoverTitle>
+          {onMarkAllRead && unreadCount > 0 && (
+            <Button variant="section" onClick={onMarkAllRead}>
+              Mark All Read
+            </Button>
+          )}
+        </div>
         {items.length === 0 ? (
           <EmptyState Icon={BellIcon} title="You're All Caught Up" className="border-0">
             {children}
           </EmptyState>
         ) : (
           <ul className="divide-border-subtle max-h-80 divide-y overflow-y-auto py-1">
-            {items.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  onClick={() => changeOpen(false)}
-                  className={cn(
-                    "hover:bg-hover focus-visible:ring-brand-ring flex flex-col gap-0.5 px-3 py-2.5 no-underline transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
-                    item.unread && "bg-brand/5",
-                  )}
-                >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="text-label text-ink font-medium">{item.title}</span>
-                    <Badge variant="tag" tone="inert">
-                      {formatDistanceToNowStrict(new Date(item.createdAt), { addSuffix: true })}
-                    </Badge>
-                  </span>
-                  <span className="text-note text-ink-muted">{item.body}</span>
-                </Link>
-              </li>
-            ))}
+            {groupRepeats(items).map(([item, ...earlier]) => {
+              const unread = item.unread || earlier.some((repeat) => repeat.unread);
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    onClick={() => {
+                      setOpen(false);
+                      if (unread) onRead?.([item, ...earlier].map(({ id }) => id));
+                    }}
+                    className={cn(
+                      "hover:bg-hover focus-visible:ring-brand-ring flex flex-col gap-0.5 px-3 py-2.5 no-underline transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+                      unread && "bg-brand/5",
+                    )}
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="text-label text-ink font-medium">{item.title}</span>
+                      <Badge variant="tag" tone="inert">
+                        {formatDistanceToNowStrict(new Date(item.createdAt), { addSuffix: true })}
+                      </Badge>
+                    </span>
+                    <span className="text-note text-ink-muted">{item.body}</span>
+                    {earlier.length > 0 && (
+                      <span className="text-note text-ink-meta">
+                        {earlier.length} earlier {earlier.length === 1 ? "one" : "ones"} like this
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </PopoverContent>

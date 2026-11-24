@@ -26,18 +26,27 @@ import { cn } from "@/lib/cn";
  * pads differently from a textarea, and an input with a leading glyph pads
  * differently again.
  *
- * White, with a --color-border-control outline (3:1 or better on white and on
- * the login card), because a grey field on a grey card was outlined by a
- * 1.12:1 hairline alone. Placeholders are --color-ink-meta, the same grey the
+ * White, with a --color-border-control outline (#929292, 3:1 or better on
+ * white and on the ground, WCAG 1.4.11), a step darker than the cards' and
+ * buttons' --color-border-surface: a field has no words inside its edge to
+ * say what it is, so its edge must hold 3:1. A grey field on a grey card was
+ * outlined by a 1.12:1 hairline alone, so a field stays white. Placeholders are --color-ink-meta, the same grey the
  * top bar's SearchField and an empty SelectField print. Type is 16px below
  * `sm` so iOS Safari does not zoom the page on focus; the line height stays
  * 20px, so the box is the same height at every width. `aria-invalid` turns the
  * outline red, and `disabled` fades it to half, the way the Select trigger and
  * Button fade themselves.
+ *
+ * **Focus is one 2px brand edge** (2026-11-11): the border turns brand and a
+ * 1px ring sits on it, so the two read as one line. A field shows its focus
+ * on every click, not only from the keyboard, so the 1px border plus a 3px
+ * ring it had read as a thick purple frame; 2px still holds 3:1 and more
+ * (docs/design.md, Accessibility). The hover grey stops at focus, or a
+ * field under the pointer showed a grey border inside its purple ring.
  */
 export const FIELD_CONTROL =
   "w-full rounded-control border-border-control bg-panel text-base/5 sm:text-body text-ink border " +
-  "placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-[3px] " +
+  "placeholder:text-ink-meta enabled:hover:not-focus-visible:border-ink-meta focus-visible:border-brand focus-visible:ring-1 " +
   "focus-visible:ring-brand-ring focus-visible:outline-none aria-invalid:border-danger " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 

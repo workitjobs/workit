@@ -2,10 +2,10 @@
 
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useSearchParams } from "next/navigation";
-import { Suspense, use, useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   ClockIcon,
   CoinIcon,
@@ -16,13 +16,17 @@ import {
   VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
-import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
+import {
+  AllFiltersBody,
+  AllFiltersDialog,
+  AllFiltersSkeleton,
+  FilterSection,
+} from "@/components/all-filters-dialog";
 import { OptionChip as Chip, SalaryPicker, SearchPicker } from "@/components/filter-controls";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
 
 import { countJobs } from "./actions";
 import {
+  addCustomRole,
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
   feedQuery,
@@ -30,7 +34,10 @@ import {
   NO_FILTERS,
   PAY_OPTIONS,
   payUnits,
+  roleOptions,
+  roleValues,
   seasonLabel,
+  splitRoleValues,
   statesNarrowCountries,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
@@ -53,6 +60,11 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * it changes (GET /jobs/count through ./actions), so the seeker sees an empty
  * result before committing to it. Closing without it discards the draft.
  *
+ * THE FRAME IS THE SHARED ONE (components/all-filters-dialog.tsx, KAN-823),
+ * as on the Tracker, Up Next and Documents: the dialog, its sections, its
+ * foot, and a skeleton while the places and roles load. This panel drew a
+ * copy of that frame until then, with a "Loading the filters…" line.
+ *
  * The body is mounted only while the panel is open, so each opening starts
  * from the filters the URL holds.
  */
@@ -72,30 +84,22 @@ export function AllFiltersPanel({
   onApply: (filters: FeedFilters) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <div className="border-border-subtle flex items-center border-b px-5 py-3.5 pr-12">
-          <DialogTitle className="text-subtitle font-semibold">All Filters</DialogTitle>
-        </div>
-        <Suspense
-          fallback={<p className="text-body text-ink-meta px-5 py-8">Loading the filters…</p>}
-        >
-          <PanelBody
-            filters={filters}
-            locations={locations}
-            facets={facets}
-            onApply={(next) => {
-              onApply(next);
-              onOpenChange(false);
-            }}
-          />
-        </Suspense>
-      </DialogContent>
-    </Dialog>
+    <AllFiltersDialog open={open} onOpenChange={onOpenChange}>
+      {/* Seven sections, as many as the panel's first screen shows. */}
+      <Suspense fallback={<AllFiltersSkeleton sections={7} />}>
+        <PanelBody
+          filters={filters}
+          locations={locations}
+          facets={facets}
+          onApply={(next) => {
+            onApply(next);
+            onOpenChange(false);
+          }}
+        />
+      </Suspense>
+    </AllFiltersDialog>
   );
 }
-
-type Glyph = ComponentType<{ className?: string }>;
 
 function PanelBody({
   filters,
@@ -119,177 +123,167 @@ function PanelBody({
   const set = (change: Partial<FeedFilters>) => setDraft((d) => ({ ...d, ...change }));
 
   return (
-    <>
-      {/* overscroll-none: a fling past the end stops here instead of
-          scrolling the page behind. */}
-      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-none px-5">
-        <Section Icon={PinIcon} label="Location" first>
-          <SearchPicker
-            key={`places-${cleared}`}
-            label="Places"
-            placeholder="Search a state or country"
-            empty="No place by that name has jobs."
-            options={places.map((p) => ({
-              value: p.code,
-              label: p.label,
-              nested: p.code.includes("-"),
-            }))}
-            values={draft.places}
-            onChange={(next) => set({ places: next })}
-          />
-        </Section>
+    <AllFiltersBody
+      onClear={() => {
+        setDraft(NO_FILTERS);
+        setCleared((n) => n + 1);
+      }}
+      onShow={() => onApply(statesNarrowCountries(draft))}
+      showLabel={
+        count == null
+          ? "Show Jobs"
+          : `Show ${count.toLocaleString("en-US")} ${count === 1 ? "Job" : "Jobs"}`
+      }
+    >
+      <FilterSection Icon={PinIcon} label="Location" first>
+        <SearchPicker
+          key={`places-${cleared}`}
+          label="Places"
+          placeholder="Search a state or country"
+          empty="No place by that name has jobs."
+          options={places.map((p) => ({
+            value: p.code,
+            label: p.label,
+            nested: p.code.includes("-"),
+          }))}
+          values={draft.places}
+          onChange={(next) => set({ places: next })}
+        />
+      </FilterSection>
 
-        {/* Full width, as Location: its names are long, and the row puts it
+      {/* Full width, as Location: its names are long, and the row puts it
             second. The job_roles that tag a job, in the database's order,
             from GET /jobs/facets (KAN-155). */}
-        <Section Icon={RoleIcon} label="Role">
-          <SearchPicker
-            key={`roles-${cleared}`}
-            label="Roles"
-            placeholder="Search a role"
-            empty="No role by that name."
-            options={facetOptions.role.map((o) => ({
-              value: o.value,
-              label: o.label,
-              nested: false,
-            }))}
-            values={draft.roles}
-            onChange={(next) => set({ roles: next })}
-          />
-        </Section>
+      <FilterSection Icon={RoleIcon} label="Role">
+        <SearchPicker
+          key={`roles-${cleared}`}
+          label="Roles"
+          placeholder="Search a role"
+          empty="No role by that name."
+          // The student's own typed roles ride beside the listed ones
+          // (filter-query's roleValues), and a role the list lacks can be
+          // added from the search (2026-11-16).
+          options={roleOptions(
+            facetOptions.role.map((o) => ({ value: o.value, label: o.label, nested: false })),
+            draft.customRoles,
+          )}
+          values={roleValues(draft)}
+          onChange={(next) => set(splitRoleValues(next))}
+          create={addCustomRole(draft.customRoles, (customRoles) => set({ customRoles }))}
+        />
+      </FilterSection>
 
-        <div className="grid gap-x-6 sm:grid-cols-2">
-          <Section Icon={BriefcaseIcon} label="Job Type">
-            {JOB_TYPE_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                pressed={draft.jobTypes.includes(o.value)}
-                onClick={() => set({ jobTypes: toggle(draft.jobTypes, o.value, JOB_TYPE_OPTIONS) })}
-              >
-                {o.label}
-              </Chip>
-            ))}
-          </Section>
-
-          <Section Icon={workStyleIcon("onsite")} label="Workplace">
-            {WORKPLACE_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                Icon={workStyleIcon(o.value)}
-                pressed={draft.workStyles.includes(o.value)}
-                onClick={() =>
-                  set({ workStyles: toggle(draft.workStyles, o.value, WORKPLACE_OPTIONS) })
-                }
-              >
-                {o.label}
-              </Chip>
-            ))}
-          </Section>
-
-          <Section Icon={LevelIcon} label="Experience Level">
-            {EXPERIENCE_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                Icon={levelIcon(o.value)}
-                pressed={draft.levels.includes(o.value)}
-                onClick={() => set({ levels: toggle(draft.levels, o.value, EXPERIENCE_OPTIONS) })}
-              >
-                {o.label}
-              </Chip>
-            ))}
-          </Section>
-
-          <Section Icon={ClockIcon} label="Date Posted">
-            <Chip pressed={draft.postedWithin == null} onClick={() => set({ postedWithin: null })}>
-              Any Time
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        <FilterSection Icon={JobTypeIcon} label="Job Type">
+          {JOB_TYPE_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              pressed={draft.jobTypes.includes(o.value)}
+              onClick={() => set({ jobTypes: toggle(draft.jobTypes, o.value, JOB_TYPE_OPTIONS) })}
+            >
+              {o.label}
             </Chip>
-            {DATE_POSTED_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                pressed={draft.postedWithin === o.value}
-                onClick={() =>
-                  set({ postedWithin: draft.postedWithin === o.value ? null : o.value })
-                }
-              >
-                {o.label}
-              </Chip>
-            ))}
-          </Section>
-        </div>
+          ))}
+        </FilterSection>
 
-        <Section Icon={CoinIcon} label="Salary">
-          <SalaryPicker
-            key={`pay-${cleared}`}
-            units={payUnits(draft.jobTypes)}
-            presets={PAY_OPTIONS}
-            minPay={draft.minPay}
-            maxPay={draft.maxPay}
-            payPer={draft.payPer}
-            onChange={(minPay, maxPay, payPer) => set({ minPay, maxPay, payPer })}
-          />
-        </Section>
+        <FilterSection Icon={workStyleIcon("onsite")} label="Workplace">
+          {WORKPLACE_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              Icon={workStyleIcon(o.value)}
+              pressed={draft.workStyles.includes(o.value)}
+              onClick={() =>
+                set({ workStyles: toggle(draft.workStyles, o.value, WORKPLACE_OPTIONS) })
+              }
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </FilterSection>
 
-        <div className="grid gap-x-6 sm:grid-cols-2">
-          <Section Icon={CalendarIcon} label="Start Date">
-            {facetOptions.start_term.length === 0 ? (
-              <p className="text-note text-ink-meta">No start dates in the feed yet.</p>
-            ) : (
-              <SearchPicker
-                key={`seasons-${cleared}`}
-                label="Start Dates"
-                placeholder="Search a season"
-                empty="No season by that name has jobs."
-                options={facetOptions.start_term.map((t) => ({
-                  value: t.value,
-                  label: seasonLabel(t.value),
-                }))}
-                values={draft.startTerms}
-                onChange={(next) => set({ startTerms: next })}
-              />
-            )}
-          </Section>
+        <FilterSection Icon={LevelIcon} label="Experience Level">
+          {EXPERIENCE_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              Icon={levelIcon(o.value)}
+              pressed={draft.levels.includes(o.value)}
+              onClick={() => set({ levels: toggle(draft.levels, o.value, EXPERIENCE_OPTIONS) })}
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </FilterSection>
 
-          <Section Icon={VisaIcon} label="Visa">
-            {VISA_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                pressed={draft.visa === o.value}
-                onClick={() => set({ visa: draft.visa === o.value ? null : o.value })}
-              >
-                {o.label}
-              </Chip>
-            ))}
-          </Section>
-        </div>
+        <FilterSection Icon={ClockIcon} label="Date Posted">
+          <Chip pressed={draft.postedWithin == null} onClick={() => set({ postedWithin: null })}>
+            Any Time
+          </Chip>
+          {DATE_POSTED_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              pressed={draft.postedWithin === o.value}
+              onClick={() => set({ postedWithin: draft.postedWithin === o.value ? null : o.value })}
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </FilterSection>
+      </div>
 
-        {/* Under the sidebar's Auto Apply glyph, as on a job's Auto Apply
+      <FilterSection Icon={CoinIcon} label="Salary">
+        <SalaryPicker
+          key={`pay-${cleared}`}
+          units={payUnits(draft.jobTypes)}
+          presets={PAY_OPTIONS}
+          minPay={draft.minPay}
+          maxPay={draft.maxPay}
+          payPer={draft.payPer}
+          onChange={(minPay, maxPay, payPer) => set({ minPay, maxPay, payPer })}
+        />
+      </FilterSection>
+
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        <FilterSection Icon={CalendarIcon} label="Start Date">
+          {facetOptions.start_term.length === 0 ? (
+            <p className="text-note text-ink-meta">No start dates in the feed yet.</p>
+          ) : (
+            <SearchPicker
+              key={`seasons-${cleared}`}
+              label="Start Dates"
+              placeholder="Search a season"
+              empty="No season by that name has jobs."
+              options={facetOptions.start_term.map((t) => ({
+                value: t.value,
+                label: seasonLabel(t.value),
+              }))}
+              values={draft.startTerms}
+              onChange={(next) => set({ startTerms: next })}
+            />
+          )}
+        </FilterSection>
+
+        <FilterSection Icon={VisaIcon} label="Visa">
+          {VISA_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              pressed={draft.visa === o.value}
+              onClick={() => set({ visa: draft.visa === o.value ? null : o.value })}
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </FilterSection>
+      </div>
+
+      {/* Under the sidebar's Auto Apply glyph, as on a job's Auto Apply
             button. One chip: on, only the job postings that button shows
             on (Greenhouse for now); off, every job posting. */}
-        <Section Icon={LightningRoundedIcon} label="Auto Apply">
-          <Chip pressed={draft.autoApply} onClick={() => set({ autoApply: !draft.autoApply })}>
-            Auto Apply Supported
-          </Chip>
-        </Section>
-      </div>
-
-      <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setDraft(NO_FILTERS);
-            setCleared((n) => n + 1);
-          }}
-        >
-          Clear All
-        </Button>
-        <Button size="sm" onClick={() => onApply(statesNarrowCountries(draft))}>
-          {count == null
-            ? "Show Jobs"
-            : `Show ${count.toLocaleString("en-US")} ${count === 1 ? "Job" : "Jobs"}`}
-        </Button>
-      </div>
-    </>
+      <FilterSection Icon={LightningRoundedIcon} label="Auto Apply">
+        <Chip pressed={draft.autoApply} onClick={() => set({ autoApply: !draft.autoApply })}>
+          Auto Apply Supported
+        </Chip>
+      </FilterSection>
+    </AllFiltersBody>
   );
 }
 
@@ -323,27 +317,4 @@ function useDraftCount(draft: FeedFilters): number | null {
 function toggle<T>(values: T[], value: T, options: readonly { value: T }[]): T[] {
   const next = values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
   return options.map((o) => o.value).filter((v) => next.includes(v));
-}
-
-/** One facet's section: its card glyph and name over its chips. */
-function Section({
-  Icon,
-  label,
-  first = false,
-  children,
-}: {
-  Icon: Glyph;
-  label: string;
-  first?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className={cn("py-4", !first && "border-border-subtle border-t")}>
-      <h3 className="text-body text-ink mb-2.5 flex items-center gap-2 font-semibold">
-        <Icon aria-hidden className="text-ink-meta size-4 shrink-0" />
-        {label}
-      </h3>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-    </section>
-  );
 }

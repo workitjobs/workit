@@ -37,6 +37,11 @@ never changes another's, and an import runs no duplicate check.
   intake, by Tailor's "Have you used X?", by Add under a built resume, or
   before this change. The Experiences view shows it under the built
   resumes that show it (below, "Unowned entries").
+- **A custom section is owned as an entry is** (KAN-498,
+  `custom_sections.md`): an import's sections belong to the upload and
+  are replaced with its entries; one added under a resume pick belongs to
+  that upload, or to the student. Its entries carry their own owner, which
+  may differ from the section's.
 - **Built resumes still point at entries** through their choice rows
   (`built_resume_entries`, `built_resume_skills`, KAN-207). A built resume
   holds what it shows, owns nothing and copies nothing (ADR 0001).
@@ -80,7 +85,7 @@ never changes another's, and an import runs no duplicate check.
 |---|---|---|
 | **Upload** | `POST /applicants/{id}/resumes` | Inserts every entry and skill the reading found, owned by the new row. Flush the `Resume` row first (the entries point at it). |
 | **Import Updated Resume** (the resume picker's replace at the limit; off the Resumes page's rows since KAN-362) | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
-| **Import Again** (with or without `read_with_ai`; no screen sends it since KAN-353) | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
+| **Import Again** (read like an upload: AI first, the parser behind it, KAN-732) | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
 | **Delete an upload** | `DELETE /applicants/{id}/resumes/{resume_id}` | Deletes its entries and skills (cascade). The confirm is unchanged. |
 | **Add an entry or skill** | the bank's create routes | Under an upload pick: owned by that upload. Under a built resume pick: unowned, and shown on that built resume (a shown choice row at the end of its section), so it stays in view. |
 | **Intake, Tailor's "Have you used X?"** | their own routes | Unowned, as today. |
@@ -133,9 +138,11 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     `copy_key`, so the rule stays in the API and the browser only groups by
     it (`holdings.ts`, `rowsOf`). The row is the primary resume's copy, else
     the first. Skills group by name in the browser. Nothing is merged.
-  - **A copy with other bullets is named** under the row ("Other bullets
-    on …"), a link to the resume that shows it, since All Experiences
-    shows one copy. A note on every copy repeated itself on every row of a
+  - **A copy with other bullets has no mark for now** (2026-11-09). A
+    line under the row, "Other bullets on …", named the resumes that show
+    it, and a "2 Other Versions" button replaced it in KAN-740; both read
+    as clutter. All Experiences shows one copy, so the others show by
+    picking their resume. `otherVersions` (`holdings.ts`) still finds them. A note on every copy repeated itself on every row of a
     Generated resume's bank, as the "Also on" pill did before KAN-363.
   - **An edit changes the one copy.** Deleting it leaves the next copy as
     the row. Clear All is off here, since a row stands for copies on several
@@ -144,6 +151,9 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     out of every view, as 96 entries of 8 students did on 2026-10-24. All
     Experiences holds them now. A copy no resume holds, with bullets the row
     does not show, stays a row of its own, so it cannot hide behind its twin.
+    Bullets compare in any order (KAN-815): a copy whose bullets the row
+    shows in another order hides nothing, and compared in order, a reorder
+    on the entry's form brought such a copy back as a second row.
   - **The rule is exact.** A copy with a month missing is a separate row
     (two "Stony Brook University" rows, one with no start date).
   - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
@@ -153,8 +163,25 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     page's far edge and Not From an Upload as a link under it; it looked
     like no resume anywhere else in the app (KAN-363, 2026-10-24).
 - **The section nav** (KAN-349) sits under the Showing card: a sticky row
-  of links to the seven section cards, each with its count under the
+  of links to every section card, each with its count under the
   pick, the card in view lit. A click glides to that card.
+- **Every section shows under every pick, empty too** (KAN-814), in one
+  order: Education, Work Experience, Projects, Leadership & Activities,
+  Awards, Certifications, Skills, then the student's own sections. An empty
+  section is a short card, its heading, + and pencil and one line on what
+  goes there: "No awards yet. Add scholarships, honors and prizes.", or
+  "No awards on this resume." under a pick. Its link in the section nav
+  shows a muted 0. A search still hides a card it finds nothing in.
+  - **This reverses KAN-440's quiet line.** KAN-440 put every empty
+    section on one line under the cards ("Nothing yet in Awards +
+    Certifications +"), since three "Nothing here yet" cards pushed Skills
+    off the screen. In small grey type at the page's foot, it went unseen,
+    so a student with no awards could not tell the bank had an Awards
+    section. A short card keeps the page compact and in view.
+  - **The section is "Work Experience" on every screen** (KAN-814): beside
+    the page's name, "Experience 14" in the section nav read as a count for
+    the whole Experiences page. A printed resume keeps the heading
+    "Experience"; its entries are still a "Job" ("Add Job").
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one) opens on All
   Experiences. With no
@@ -189,10 +216,13 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 - **The old-upload prompt** ("This resume has no entries in your bank
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
-- **Delete Entry** deletes that one row, from the foot of the entry's
-  editor (KAN-363), which the entry's pencil opens in its card's edit
-  mode. Its confirm still counts the built resumes that show it.
-- **Clear All** (KAN-352), in a card's edit mode, deletes every row a card shows, as Delete Entry
+- **Delete** deletes that one row, from the foot of the entry's form
+  (KAN-363, a dialog since KAN-740), which the entry's pencil opens in its
+  section's list (the card's heading pencil opens the list). Its question, across the form's foot,
+  still counts the built resumes that show it. An edit there changes the one
+  copy too, so under All Experiences an edited entry with a copy on another
+  resume comes back from the form as two rows.
+- **Clear All** (KAN-352), in the ⋯ of a section's list (KAN-740; a card's ⋯ from KAN-732), deletes every row the section shows under the pick, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switches to a resume that
@@ -211,8 +241,9 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the
 autofiller read the whole bank as today (`copy_key` stays in Generate and
-intake); upload reads with the parser only; the model reads only on
-`read_with_ai`, which no screen sends since KAN-353; one
+intake); every reading asks the model first, the parser behind it
+(KAN-732, ADR 0007, which replaced "the parser only, unless the student
+asks"); one
 transaction for the row and the bank writes; the 5-upload limit. The import
 summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
 

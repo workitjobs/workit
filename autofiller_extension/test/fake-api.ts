@@ -3,7 +3,7 @@
 // data, extension.ts's STUDENT) and an auto-apply queue held in memory, with
 // the stage rules of backend/app/auto_apply/pipeline.py.
 import { STUDENT } from "./extension";
-import { TEST_TOKEN, type Handler } from "./loaded-extension";
+import { TEST_TOKEN, type Handler, type Reply, type Request } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
@@ -59,6 +59,13 @@ function fillEventProblems(event: Record<string, unknown>, profile: object): str
   const text = JSON.stringify(event);
   for (const value of values) if (!/^(yes|no|none|declined)$/i.test(value) && text.includes(value)) problems.push(`holds the student's value ${value}`);
   return problems;
+}
+
+/** The job system of a posting link, as backend/app/auto_apply/hosts.py's job_system_of names it (the hosts the tests use). */
+function jobSystemOf(url: string): string | null {
+  const host = new URL(url).hostname;
+  const systems: [RegExp, string][] = [[/ashbyhq\.com$/, "ashby"], [/greenhouse\.io$/, "greenhouse"], [/lever\.co$/, "lever"], [/myworkdayjobs\.com$/, "workday"], [/workable\.com$/, "workable"], [/smartrecruiters\.com$/, "smartrecruiters"]];
+  return systems.find(([pattern]) => pattern.test(host))?.[1] ?? null;
 }
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
@@ -201,6 +208,48 @@ export class FakeApi {
     return this;
   }
 
+  /** The Rules table GET /extension/rules serves (backend routers/extension_rules.py, KAN-756), as is; null: neither
+   * rules route answers (a 404), as an API from before them. */
+  rules: object | null = null;
+  /** Set to answer POST /extension/rules/token, or GET /extension/rules, with this in place of the route's answer. */
+  rulesTokenReply: Reply | null = null;
+  rulesFetchReply: Reply | null = null;
+  /** The job system the token route names, when set; else the posting link's. */
+  rulesJobSystem: string | null = null;
+  /** A site token's life, in seconds (RULES_TOKEN_MINUTES). */
+  tokenSeconds = 300;
+  /** The site tokens given, in order, with the link each was asked for and when it expires (ms). */
+  readonly siteTokens: { token: string; url: string; until: number }[] = [];
+  /** The site token each GET /extension/rules came with, in order (null: none). */
+  readonly rulesFetches: (string | null)[] = [];
+
+  /** POST /extension/rules/token and GET /extension/rules, as extension_rules.py answers them. */
+  private rulesRoute(path: string, method: string, headers: Request["headers"], body: Buffer): Reply | undefined {
+    if (path === "/extension/rules/token" && method === "POST") {
+      if (this.rules === null) return undefined;
+      if (this.rulesTokenReply) return this.rulesTokenReply;
+      const { url } = JSON.parse(body.toString());
+      const system = this.rulesJobSystem ?? jobSystemOf(url);
+      if (!system) return { status: 422, json: { detail: "WorkIt doesn't fill this site." } };
+      const token = `site-${this.siteTokens.length}-${"x".repeat(30)}`;
+      this.siteTokens.push({ token, url, until: Date.now() + this.tokenSeconds * 1000 });
+      return {
+        headers: { "cache-control": "no-store" },
+        json: { token, job_system: system, expires_at: new Date(Date.now() + this.tokenSeconds * 1000).toISOString(), expires_in: this.tokenSeconds },
+      };
+    }
+    if (path === "/extension/rules" && method === "GET") {
+      if (this.rules === null) return undefined;
+      const given = (headers["x-workit-site-token"] as string | undefined) ?? null;
+      this.rulesFetches.push(given);
+      if (this.rulesFetchReply) return this.rulesFetchReply;
+      const token = this.siteTokens.find((t) => t.token === given);
+      if (!token || token.until <= Date.now()) return { status: 401, json: { detail: "This site token is missing or has expired. Ask for a new one." } };
+      return { headers: { "cache-control": "no-store" }, json: this.rules };
+    }
+    return undefined;
+  }
+
   /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
   token = TEST_TOKEN;
 
@@ -226,6 +275,8 @@ export class FakeApi {
       this.fillEventProblems.push(...fillEventProblems(event, this.profile));
       return { status: 201, json: { id: `event-${this.fillEvents.length}` } };
     }
+    const rules = this.rulesRoute(path, method, headers, body);
+    if (rules) return rules;
     if (path === "/job-system-requests" && method === "POST") {
       this.systemRequests.push(JSON.parse(body.toString()));
       return { status: 201, json: { id: "request-1" } };

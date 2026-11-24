@@ -11,18 +11,26 @@ Stripe (701 postings), OpenAI (829), Palantir (321), Genetec's Workable board (1
 and Hard Rock Digital's Recruitee board (58). Workday sends 20 postings a request,
 so `workday` pages, and paces every page (scraper/CLAUDE.md, "Workday").
 
-A slug that does not exist is a 404 everywhere but BambooHR, which redirects it
-to its own homepage (`bamboohr` turns that into the same answer). That is what
-makes `BoardNotFound` meaningful: a 200 carrying an empty list is a real board
-that simply has nothing open right now, and must never be confused with a typo.
+A slug that does not exist is a 404 everywhere but BambooHR and Jobvite, which
+redirect elsewhere (`bamboohr` and `jobvite` turn that into the same answer).
+That is what makes `BoardNotFound` meaningful: a 200 carrying an empty list is a
+real board that simply has nothing open right now, and must never be confused
+with a typo.
 
-Greenhouse, Workable, BambooHR and Workday list a board without its
-descriptions, so a kept posting's own page is read once more (`describe`); Ashby,
-Lever and Recruitee send the descriptions with the list.
+Greenhouse, Workable, BambooHR, SmartRecruiters, Eightfold and Workday list a
+board without its descriptions, so a kept posting's own page is read once more
+(`describe`); Ashby, Lever, Recruitee and Pinpoint send the descriptions with the list.
 
 TikTok, iCIMS's Jibe sites (`jibe`) and SuccessFactors were added in KAN-369:
 TikTok and Jibe page their lists, descriptions included; SuccessFactors pages a
 list of titles and reads each kept posting's page (docs/providers.md).
+SmartRecruiters pages its list 100 at a time; its robots.txt disallows all bots,
+so it sets ``skip_robots=True`` (accepted for this educational project).
+Eightfold pages 10 at a time; its robots.txt explicitly allows ``/api/pcsx``.
+Pinpoint returns every posting in one JSON response with descriptions.
+JazzHR lists titles and locations in HTML; each kept posting's JSON-LD has the
+description, date, pay and places. Jobvite is the same pattern on a single
+domain (``jobs.jobvite.com/{slug}``).
 """
 
 from __future__ import annotations
@@ -49,13 +57,21 @@ from workit_scraper.providers.registry import (
 )
 from workit_scraper.providers.systems.ashby import ashby
 from workit_scraper.providers.systems.bamboohr import bamboohr, describe_bamboohr
+from workit_scraper.providers.systems.eightfold import describe_eightfold, eightfold
 from workit_scraper.providers.systems.greenhouse import describe_greenhouse, greenhouse
 from workit_scraper.providers.systems.icims import describe_icims, icims
+from workit_scraper.providers.systems.jazzhr import describe_jazzhr, jazzhr
 from workit_scraper.providers.systems.jibe import jibe
+from workit_scraper.providers.systems.jobvite import describe_jobvite, jobvite
 from workit_scraper.providers.systems.lever import lever
 from workit_scraper.providers.systems.oracle import describe_oracle, oracle
+from workit_scraper.providers.systems.pinpoint import pinpoint
 from workit_scraper.providers.systems.recruitee import recruitee
 from workit_scraper.providers.systems.rippling import describe_rippling, rippling
+from workit_scraper.providers.systems.smartrecruiters import (
+    describe_smartrecruiters,
+    smartrecruiters,
+)
 from workit_scraper.providers.systems.successfactors import describe_successfactors, successfactors
 from workit_scraper.providers.systems.tiktok import tiktok
 from workit_scraper.providers.systems.workable import describe_workable, workable
@@ -80,6 +96,11 @@ PROVIDERS.update(
         # KAN-369's, after the rest.
         "tiktok": systems.tiktok.PROVIDER,
         "jibe": systems.jibe.PROVIDER,
+        "eightfold": systems.eightfold.PROVIDER,
+        "jazzhr": systems.jazzhr.PROVIDER,
+        "pinpoint": systems.pinpoint.PROVIDER,
+        "jobvite": systems.jobvite.PROVIDER,
+        "smartrecruiters": systems.smartrecruiters.PROVIDER,
         "successfactors": systems.successfactors.PROVIDER,
     }
 )
@@ -101,26 +122,35 @@ __all__ = [
     "cap",
     "describe",
     "describe_bamboohr",
+    "describe_eightfold",
     "describe_greenhouse",
     "describe_icims",
+    "describe_jazzhr",
+    "describe_jobvite",
     "describe_oracle",
     "describe_rippling",
+    "describe_smartrecruiters",
     "describe_successfactors",
     "describe_workable",
     "describe_workday",
+    "eightfold",
     "greenhouse",
     "icims",
+    "jazzhr",
     "jibe",
     "job_url",
+    "jobvite",
     "lever",
     "listing_url",
     "name_url",
     "oracle",
+    "pinpoint",
     "plain_lines",
     "plain_text",
     "recruitee",
     "rippling",
     "robots_urls",
+    "smartrecruiters",
     "successfactors",
     "tiktok",
     "workable",

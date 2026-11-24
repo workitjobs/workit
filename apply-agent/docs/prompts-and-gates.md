@@ -4,6 +4,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 ## Prompts and gates
 
+- **Every prompt Apply's `ask` used is on WorkIt's server** (KAN-723,
+  2026-11-14; W1's "Prompts on the server" in
+  `../docs/desktop_application_auto_apply.md`): each call sends a kind and
+  its data, and `../backend/app/apply_prompts/` builds the prompt. Change a
+  prompt there. **The answering guides have one copy, the server's**
+  (`answering/types/` there): the server lists slots and lengths in
+  prompts with their front matter, and Apply classifies questions and
+  checks plans with it, fetched from `GET /apply-app/types` into the data
+  folder (`apply.answering`, 2026-11-15). The rules below still hold for the prompts on the server and for
+  the ones Apply still sends to Claude (Claude fill, Rescue, Ask Claude).
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the
@@ -13,6 +23,15 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   they/them/theirs) to each system prompt. Without them, Claude guesses
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
+- A hosted model (`ask_model`, `docs/ask-model.md`) gets lean essay
+  prompts: the plan lists only the asked Question types, the writer gets
+  the rules' leads and each guide's Order and Rules (no quoted readers,
+  Pairs or model letters), and one-off questions go in their own call. A
+  new guide section that a lean prompt must keep joins
+  `answering.LEAN_SECTIONS`. `claude -p` always gets the full prompts.
+- A plan's quote holds when its words match the sources in order, whole:
+  punctuation, hyphen kinds and small number words ("five" for "5") don't
+  count (`essays._quotable`).
 - The length gate (`gates.bounds`) reads a limit that the form states,
   also a hyphenated one ("500-word limit") and one with the unit first
   ("Word limit: 260", `gates.LIMIT`). Keep it in step with
@@ -50,6 +69,28 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   "MongoDB Intelligent Workload Management" is the company and a brief
   name, and "Hitachi Rail's CTO" is two Story bank names. A one-word piece
   must be in the sources with its capital.
+- The truth check (`apply/truth.py`, KAN-748) reads each written essay
+  for claims that nothing Lisul gave holds (`essays.own_facts`: the
+  profile, the Story bank, the Stock and core answers, and the Answer
+  bank's answers in his own words, `source: lisul`: WorkIt's own-answer
+  rule, so a reviewed draft of Claude's is no fact of his). It finds numbers,
+  names (a single capitalized word inside a sentence, an acronym, and a
+  sentence's first word that no source uses in lower case),
+  a month or season outside his dates, and outcomes such as "adopted" or
+  "went into use". The posting, the Company material and the question
+  may also give a number or a name, never a date or an outcome. Its
+  numbers are `Essay.unsupported` and the rest `Essay.claims`: each holds
+  the Application with the claims named. Nothing is cut or rewritten,
+  and judgment stays with the editor's claim check and the Pre-submit
+  check. The file is WorkIt's `backend/app/auto_apply/truth.py`, byte for
+  byte (`tests/test_truth.py` compares them): change the backend's file,
+  then copy it here. An outcome counts as held only when a fact about the
+  same project states that kind of effect (KAN-750): the project the
+  sentence, or the nearest sentence before it, or the plan's story names,
+  matched to a Story bank heading (a tool two projects share tells
+  neither). One whose project it cannot tell is a claim. A Draft of a one-off question gets the same check (not the
+  date part: the profile keeps dates as values) and needs Lisul when it
+  finds a claim.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".

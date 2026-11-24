@@ -29,8 +29,10 @@ from app.models.dto import EMBEDDING_DIMENSIONS, bank_section, entry_end_kind
 class Experience_Bank(BaseModel):
     '''
     One row per applicant, made by the first change to their bank. Holds the
-    bank embedding; a null embedding means "remake it on the next
-    recommendations request", so every bank change sets it back to null.
+    bank embedding and `embedded_at`, the bank version (`updated_at`) it was
+    made from. Every bank change moves `updated_at` and keeps the vector, so
+    a vector is stale while the two differ; the bank job replaces it
+    (KAN-726, services/matching/bank_vectors.py).
     '''
     __tablename__ = "experience_banks"
 
@@ -43,6 +45,32 @@ class Experience_Bank(BaseModel):
     removed_skills: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
 
 
+class Bank_Custom_Section(BaseModel):
+    '''
+    A section the student named (KAN-498), such as Volunteering, Languages
+    or a Summary: its entries are `bank_entries` rows with section `custom`
+    pointing here. `layout` says how it prints: `entries` (each a title,
+    organization, dates and bullets, as a project prints) or `lines` (plain
+    lines with no heading: the bullets of its entries). Owned as an entry is
+    (`resume_id`, ADR 0005): an import's sections belong to that upload and
+    go with it. A name stands once per owner, ignoring case.
+    '''
+    __tablename__ = "bank_custom_sections"
+    __table_args__ = (
+        Index("bank_custom_sections_owner_name_key", "applicant_id", "resume_id", text("lower(name)"),
+              unique=True, postgresql_nulls_not_distinct=True),
+        CheckConstraint("layout IN ('entries', 'lines')", name="bank_custom_sections_layout_check"),
+    )
+
+    id: Mapped[_uuid.UUID] = mapped_column(
+        primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
+    applicant_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
+    resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    name: Mapped[str]
+    layout: Mapped[str]
+
+
 class Bank_Entry(BaseModel):
     '''
     One thing the applicant did, in one section. Months are stored as the
@@ -53,7 +81,13 @@ class Bank_Entry(BaseModel):
     or re-reading the upload deletes its entries. Null: the student made it.
     '''
     __tablename__ = "bank_entries"
-    __table_args__ = (Index("bank_entries_applicant_resume_idx", "applicant_id", "resume_id"),)
+    __table_args__ = (
+        Index("bank_entries_applicant_resume_idx", "applicant_id", "resume_id"),
+        CheckConstraint(
+            "year_only <@ ARRAY['start_month', 'end_month', 'award_date']::text[]",
+            name="bank_entries_year_only_check",
+        ),
+    )
 
     id: Mapped[_uuid.UUID] = mapped_column(
         primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
@@ -61,6 +95,11 @@ class Bank_Entry(BaseModel):
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
     resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
     section: Mapped[bank_section]
+    # The student's own section (KAN-498), set exactly when `section` is
+    # custom (bank_entries_custom_section_check). Deleting the section
+    # deletes its entries.
+    custom_section_id: Mapped[_uuid.UUID | None] = mapped_column(
+        ForeignKey("bank_custom_sections.id", ondelete="CASCADE"), index=True)
     title: Mapped[str]
     organization: Mapped[str | None]
     location: Mapped[str | None]
@@ -76,6 +115,12 @@ class Bank_Entry(BaseModel):
     honors: Mapped[str | None]
     # Projects
     link: Mapped[str | None]
+    # The project's stack as the resume names it ("Next.js, TypeScript"),
+    # printed on its own line under the heading (KAN-738). Also skills.
+    tools: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    # Which dates name a year alone (KAN-808): "start_month", "end_month",
+    # "award_date". The date is January of that year, which prints as the year
+    year_only: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     # Certifications
     issuer: Mapped[str | None]
     # Awards
@@ -135,6 +180,12 @@ class Bank_Skill(BaseModel):
     owner, ignoring case: once per upload, once per built resume, and once
     among the student's own (bank_skills_applicant_name_key, NULLS NOT
     DISTINCT).
+
+    `position` is the student's order of the bank's skills (KAN-816): the
+    Experiences page's Skills dialog sets it for every bank skill at once
+    (`services/bank.py`'s `order_skills`), and a group sits where its first
+    skill does. Null is a skill never placed (a reading's), listed after
+    the placed ones by group and name, as every skill was before.
     '''
     __tablename__ = "bank_skills"
     __table_args__ = (
@@ -153,4 +204,5 @@ class Bank_Skill(BaseModel):
     built_resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="CASCADE"))
     name: Mapped[str]
     group: Mapped[str | None]
+    position: Mapped[int | None]
 

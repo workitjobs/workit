@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { PenNibIcon } from "@phosphor-icons/react/ssr";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -56,18 +59,23 @@ export function WritingSamples() {
   const box = useRef<HTMLTextAreaElement>(null);
   const toast = useToast();
 
+  const read = useCallback(
+    () =>
+      getWritingSamples()
+        .then(({ samples: s, error: err }) => {
+          if (err) setLoadError(err);
+          else setSamples(s);
+          // The extension's ask lands here: open the box the student came for.
+          if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
+            setAdding(true);
+          }
+        })
+        .catch(() => setLoadError("Could not reach the server.")),
+    [],
+  );
   useEffect(() => {
-    getWritingSamples()
-      .then(({ samples: s, error: err }) => {
-        if (err) setLoadError(err);
-        else setSamples(s);
-        // The extension's ask lands here: open the box the student came for.
-        if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
-          setAdding(true);
-        }
-      })
-      .catch(() => setLoadError("Could not reach the server."));
-  }, []);
+    void read();
+  }, [read]);
 
   useEffect(() => {
     if (adding) box.current?.focus();
@@ -124,6 +132,35 @@ export function WritingSamples() {
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
+
+  // None yet, and none being written: the app's empty state with a bordered
+  // Add (2026-11-11), in place of the card's "No writing samples yet." line.
+  if (samples && samples.length === 0 && !adding) {
+    return (
+      <>
+        <EmptyState
+          Icon={PenNibIcon}
+          title="No Writing Samples Yet"
+          action={
+            <Button variant="secondary" size="sm" onClick={startAdding}>
+              <PlusIcon className="size-4" />
+              Add Writing Sample
+            </Button>
+          }
+        >
+          Up to three pieces of your own writing, such as a class essay or a cover letter. Your
+          Claude reads them so the answers it writes sound like you. Optional, and only your Claude
+          reads them.
+        </EmptyState>
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
+          </p>
+        )}
+      </>
+    );
+  }
+
   return (
     <Card
       as="section"
@@ -135,9 +172,8 @@ export function WritingSamples() {
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="writing-samples-heading">Writing Samples</SectionHeading>
         {room && !adding && (
-          <SectionAction aria-label="Add Writing Sample" onClick={startAdding}>
+          <SectionAction label="Add Writing Sample" onClick={startAdding} tooltip="Add">
             <PlusIcon />
-            Add
           </SectionAction>
         )}
       </div>
@@ -155,34 +191,39 @@ export function WritingSamples() {
         </div>
       )}
       {loadError && (
-        <p role="status" className="text-note text-ink-meta mt-4">
-          Your writing samples didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed
+          compact
+          title="Your Writing Samples Aren't Loading Right Now"
+          onRetry={() => {
+            setLoadError(null);
+            return read();
+          }}
+          className="mt-4"
+          detail={process.env.NODE_ENV === "development" ? loadError : undefined}
+        >
+          We couldn&apos;t reach your samples. Try again in a few minutes.
+        </LoadFailed>
       )}
 
+      {/* Rows ruled apart, as Settings' are, not a bordered box each: a
+          card holds no second card (docs/design.md, KAN-821). */}
       {samples && samples.length > 0 && (
-        <ul className="mt-5 flex flex-col gap-3">
+        <ul className="divide-border-subtle mt-4 flex flex-col divide-y">
           {samples.map((s, n) => (
-            <li
-              key={s.id}
-              className="bg-panel border-border-control rounded-card flex items-start gap-4 border p-4"
-            >
+            <li key={s.id} className="flex items-start gap-4 py-3 first:pt-0 last:pb-0">
               <p className="text-body text-ink-muted line-clamp-3 min-w-0 flex-1 whitespace-pre-line">
                 {s.text}
               </p>
               <SectionAction
-                aria-label={`Remove Writing Sample ${n + 1}`}
+                label={`Remove Writing Sample ${n + 1}`}
                 onClick={() => remove(s)}
+                tooltip="Remove"
               >
                 <TrashIcon />
-                Remove
               </SectionAction>
             </li>
           ))}
         </ul>
-      )}
-      {samples && samples.length === 0 && !adding && (
-        <p className="text-body text-ink-meta mt-4">No writing samples yet.</p>
       )}
 
       {adding && (

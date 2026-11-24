@@ -13,8 +13,9 @@ import { cn } from "@/lib/cn";
  * A row of mutually exclusive options on a pill-shaped track, with a white
  * thumb that slides to the chosen one: the Calendar's Month, Week and Agenda,
  * the Dashboard's range, the Applications layouts, the sign-in card's
- * Applicant or Company, the company chart's range, and Resumes &
- * Experiences' two views.
+ * Applicant or Company, and the company chart's range: looks of the same
+ * content, or one setting. Moving between different content is tabs
+ * (`ui/tabs.tsx`, KAN-766).
  *
  * WHY THE THUMB SLIDES. The options used to be squared-off segments that
  * swapped a white fill on and off, which read as sharp and abrupt. Now the
@@ -30,7 +31,8 @@ import { cn } from "@/lib/cn";
  *
  * THE TRACK IS A WASH OF INK, not a grey: 5% ink over whatever it sits on, so
  * it reads on the white page and on the sign-in card's off-white alike, with
- * a --color-border-control edge. Without the edge, as first drawn for a white
+ * a --color-border-surface edge (2026-11-09; the darker
+ * --color-border-control, 3:1, read as too strong). Without the edge, as first drawn for a white
  * page, the track was 1.1:1 on the seeker pages' grey ground, under WCAG
  * 1.4.11's 3:1 (KAN-556). The edge is an inset ring, so it takes no room:
  * the track keeps its 36px and the thumb its inset.
@@ -77,7 +79,7 @@ const SIZES: Record<
 };
 
 const TRACK =
-  "bg-ink/5 inset-ring-border-control inset-ring relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
+  "bg-ink/5 inset-ring-border-surface inset-ring relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
 
 // An option presses in a little on mouse-down, as every button does, while
 // its label's colour follows the thumb across.
@@ -141,9 +143,8 @@ export function SegmentedLinks({
   options: SegmentedLinkOption[];
   value: string;
   /** Move the URL in place rather than navigating: for content the browser
-   *  already holds, which then reads the choice from the URL itself. Every
-   *  current caller sets it but Resumes & Experiences' switcher, whose
-   *  options are two routes that each read their own data. */
+   *  already holds, which then reads the choice from the URL itself. A
+   *  choice between two routes is tabs (`ui/tabs.tsx`), not this. */
   shallow?: boolean;
   size?: Size;
   className?: string;
@@ -213,6 +214,10 @@ export type SegmentedToggleOption = {
   /** Draws the option as this glyph alone, sized by the caller (`size-4`);
    *  `label` is then its tooltip and, as text, its accessible name. */
   icon?: ReactNode;
+  /** Greyed and not pressable (onboarding's Pay: Yearly for an
+   *  internship). The caller says why near the control, since a disabled
+   *  option shows no tooltip. */
+  disabled?: boolean;
 };
 
 export function SegmentedToggle({
@@ -252,8 +257,12 @@ export function SegmentedToggle({
           <Toggle
             key={option.value}
             value={option.value}
+            disabled={option.disabled}
             aria-label={option.icon ? String(option.label) : option.ariaLabel}
-            className={itemClass(size, option.value === value, Boolean(option.icon))}
+            className={cn(
+              itemClass(size, option.value === value, Boolean(option.icon)),
+              "disabled:hover:text-ink-meta disabled:cursor-not-allowed disabled:opacity-40",
+            )}
           >
             {option.icon ?? option.label}
           </Toggle>

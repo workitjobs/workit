@@ -7,16 +7,13 @@
 // and, at some employers, a page of screening questions ("Questions"), as
 // the engine's successfactors.ts names them. The same face as workday.js
 // gives (see steps.js); loaded after oracle.js, as window.WIA.successfactors.
+// Its selectors and patterns are the Rules table's (site-data.js: SEL, PAT), read at each use.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
 
-  const GATE = "form#careerform input[type=password], input#username[name=username], #fbclc_createAccountButton";
-  const ROW = ".RCMFormField, table#fieldsContainer tr, ol#questions > li";
-  const ENTRIES = /education|employ|experience|work history/i;
-  const NEXT = 'span[role=button][id*="nextBtn"]';
-  const SUBMIT = 'span[role=button][id*="submitBtn"], button[name=fbja_apply], button[name=fbqa_apply], #fbqa_apply';
+  const { SEL, PAT } = window.WIA.site("successfactors");
   // How long a page must stop changing before it is read, and the longest wait for that.
   const STEP_QUIET = 600;
   const STEP_QUIET_MAX = 10_000;
@@ -28,22 +25,22 @@ window.WIA = window.WIA || {};
   const isOn = /(^|\.)(successfactors|sapsf)\.(com|eu)$/.test(location.hostname) && /^\/(career|careers|portalcareer)\/?$/.test(location.pathname);
 
   /** Whether the sign-in (or its Create an Account page) shows: the student's. */
-  const onGate = () => [...document.querySelectorAll(GATE)].some(shows);
+  const onGate = () => [...document.querySelectorAll(SEL.GATE)].some(shows);
 
   /** The page's field rows, as the engine reads them (its successfactors.ts rows). */
   function rows() {
-    return [...document.querySelectorAll(ROW)].filter((r) => shows(r)
-      && !r.parentElement?.closest(ROW)
-      && !ENTRIES.test(text(r.closest(".rcmFormSection")?.querySelector(".rcmFormSectionTopBar")))
+    return [...document.querySelectorAll(SEL.ROW)].filter((r) => shows(r)
+      && !r.parentElement?.closest(SEL.ROW)
+      && !PAT.ENTRIES.test(text(r.closest(SEL.SECTION)?.querySelector(SEL.SECTION_TITLE)))
       && (r.tagName !== "TR" || r.children.length >= 2));
   }
 
   /** The page shown, as the engine names it: "Questions" or "Application". "" on the sign-in or any other page. */
   function sfStep() {
     if (onGate()) return "";
-    const footer = [...document.querySelectorAll(`${NEXT}, ${SUBMIT}`)].some(shows);
+    const footer = [...document.querySelectorAll(`${SEL.NEXT}, ${SEL.SEND_BUTTONS}`)].some(shows);
     if (!rows().length && !footer) return "";
-    return [...document.querySelectorAll("ol#questions")].some(shows) ? "Questions" : "Application";
+    return [...document.querySelectorAll(SEL.QUESTIONS_PAGE)].some(shows) ? "Questions" : "Application";
   }
 
   const stepId = () => `${sfStep()}#${rows().map(labelOf).join("|").length}`;
@@ -107,7 +104,7 @@ window.WIA = window.WIA || {};
 
   /** A row's label, as the engine reads it (its successfactors.ts labelOf). */
   function labelOf(row) {
-    const own = row.querySelector(":scope > label, .rcmFormFieldLabel, .rcmFormQuestionLabel, .questionFieldLabel, :scope > td:first-child label, :scope > td:first-child");
+    const own = row.querySelector(SEL.LABEL);
     return text(own) || text(row.querySelector("label"));
   }
 
@@ -130,6 +127,7 @@ window.WIA = window.WIA || {};
 
   window.WIA.successfactors = {
     isOn,
+    site: "successfactors",
     name: "SuccessFactors",
     step: sfStep,
     stepId,
@@ -142,12 +140,12 @@ window.WIA = window.WIA || {};
     waiting: { title: "Sign in to SuccessFactors, then press Fill", reason: GATE_REASON },
     nextLabel: "Next",
     reviewName: "Apply",
-    // Fill to Review's view of the page (workday-walk.js).
+    // Fill to Review's view of the page (workday-walk.js), read at each use.
     walk: {
-      next: NEXT,
-      review: SUBMIT,
-      goesOn: /^next$/i,
-      banner: ".rcmErrorMessage, .errorMessage, .sfMessageStripError, [role=alert]",
+      get next() { return SEL.NEXT; },
+      get review() { return SEL.SEND_BUTTONS; },
+      get goesOn() { return PAT.GOES_ON; },
+      get banner() { return SEL.ERROR_BANNER; },
       wentWrong: () => false,
     },
   };

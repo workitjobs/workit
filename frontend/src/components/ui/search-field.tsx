@@ -12,7 +12,8 @@ import { cn } from "@/lib/cn";
  * it disappears the moment anyone types.
  *
  * A WHITE PILL WITH A CONTROL EDGE. It is a wide rounded-full field filled
- * --color-panel, as <TextField> is, and outlined in --color-border-control,
+ * --color-panel, as <TextField> is, and outlined in --color-border-control
+ * (#929292, 3:1, 2026-11-09), a step darker than the cards and buttons,
  * so it stands off the seeker pages' grey ground and still shows by its edge
  * inside a white card or dialog. It was filled a 5% see-through ink so it
  * would "read on white and on grey alike"; on the grey ground that was one
@@ -36,6 +37,13 @@ import { cn } from "@/lib/cn";
  * Escape-to-clear behaviour people expect, which matters more here than the
  * small cross-browser difference in how that button is drawn.
  */
+/** A page's search beside its controls, the same width on every page
+ * (2026-11-10): the Jobs page, Documents, the Tracker and Experiences. It
+ * fills its row below 512px of page and stops at 320px from there. The
+ * Jobs page's was 320px and the others 256px, so the bar changed length
+ * from one page to the next. */
+export const PAGE_SEARCH = "min-w-48 flex-1 @lg/main:max-w-80";
+
 type SearchFieldProps = {
   id: string;
   label: string;
@@ -52,7 +60,7 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <input
         id={id}
         type="search"
-        className="bg-panel border-border-control hover:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-panel border-border-control hover:not-focus-visible:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-1 focus-visible:outline-none"
         {...input}
       />
     </div>

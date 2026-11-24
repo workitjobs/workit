@@ -9,7 +9,15 @@ import { useSyncExternalStore } from "react";
  * `node autofiller_extension/store/extension-id.mjs --write`
  * (autofiller_extension/test/extension-id.spec.ts fails until this matches).
  */
-const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
+const EXTENSION_ID = "nejadaaigpkenldhafhhogbmhlfhabda";
+
+/** Where a student adds the extension: `NEXT_PUBLIC_EXTENSION_INSTALL_URL`
+ *  where it is set, else the Chrome Web Store's page for this id, which is
+ *  public (2026-11-10). With neither, Auto Apply's banner said "Its install
+ *  link is coming soon" and could not be clicked. */
+export const EXTENSION_INSTALL_URL =
+  process.env.NEXT_PUBLIC_EXTENSION_INSTALL_URL ||
+  `https://chromewebstore.google.com/detail/${EXTENSION_ID}`;
 
 /**
  * Sends one message to the extension and resolves to its answer, or to

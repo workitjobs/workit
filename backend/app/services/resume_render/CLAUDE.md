@@ -15,12 +15,47 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   `Rendered(pdf, page_count, missing_characters, boxes, wrapped_line)`. An unknown template
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
+- **The editor's live page runs TeX once; every file a student keeps runs
+  it twice** (`bookmarks`, KAN-919). Each compile starts in an empty
+  folder, so Tectonic always ran a second pass for the new `.aux`, and
+  that pass only adds hyperref's PDF outline (the section bookmarks a
+  viewer's sidebar lists): the page, its text, links, boxes, points and
+  shrinks are the same after one (`test_one_pass_prints_the_same_page_without_bookmarks`).
+  One pass is about 30% less compile time (175 against 255 ms on an
+  M-series Mac, 2026-11-18), and on the API's 1/4-vCPU container the
+  compile is nearly all of an edit's 4.5 to 5.4 s. So `POST .../render`
+  and `POST .../fit` pass `bookmarks=False`; `GET .../render` (the first
+  page, Download, Tailor's preview) and sent resumes keep the default. A
+  new caller whose PDF leaves the editor keeps it too. A template that
+  reads the `.aux` for its page (a `\pageref`, "page 1 of 2") would need
+  the second pass back: the test catches it.
 - **A template is a function from the view and identity to a LaTeX body**
   (`jakes.py`), registered by its stable id in `_document()`. The id is stored
   on `built_resumes.template`, so never rename one.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **Group names that differ only in case or "&" print as one line**
+  (`resume_view.grouped_skills`, `group_key`, KAN-810): "Frameworks" and
+  "frameworks", "Tools & Platforms" and "tools and platforms", and a group
+  named "other" with the skills that have none. The line takes the first
+  name with a capital letter, else the first in title case (`group_label`).
+  Tailor's prompt (`tailor.skill_groups`), Fit to One Page and the
+  editor's outline (`printedSkills`, `groupKey`) group the same way;
+  change them together.
+- **A heading wraps only when it is wider than its row leaves** (KAN-807,
+  `jakes.FIT`, `_fitted`): Jake's `l` column never breaks, so a long title
+  or organization ran under the dates and off the page. `\wifit` measures
+  each left side against what the right side leaves; a heading that fits
+  keeps Jake's own table (no fitting page moved: every box of a page with
+  each heading kind matched main, and Jake's sample pixel for pixel), and
+  one that does not puts its left sides in a `\parbox` 1em short of the
+  right side. Two traps, each found by a test: `\wiw` is a `\newdimen`,
+  since a `\newlength` glue assignment looks ahead for "plus" and ran the
+  next `\ifdim` early; and the `\wifit` line ends in `%`, since its line end
+  read as a space set two one-row headings 13.5 pt apart. A box over two
+  lines stops 4 pt short of its own item's next box on its first line
+  (`_short_of_beside`), so a wrapped title's box never covers its dates.
 - **The font and a size per kind of text are page settings too** (KAN-435):
   `font_family` from `FONT_FAMILIES`, and `name_size`, `heading_size`,
   `title_size` and `body_size`, each null until set, which follows `font_size`
@@ -42,11 +77,36 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   scripts/fetch_tectonic.py` again**, or that page answers 503 offline. The
   schema's `Literal` and `Field` limits repeat these, and a test holds them
   equal.
+- **Date format and Education order are page settings that change what
+  prints** (KAN-435): `date_format` from `DATE_FORMATS` and `education_first`
+  from `EDUCATION_FIRST`. Both act in `fields.py`, so the PDF and the Word file
+  say the same thing, and each defaults to Jake's own. Degree first swaps the
+  two rows' text and their box kinds (`degree_leads`, `heading_fields`), so
+  each box keeps its field; an entry with no degree line keeps the school on
+  top, or the top row would print empty. Dates are never typed in the editor,
+  so no format needs reading back.
+- **Experience order and project tools are page settings too** (2026-11-17):
+  `experience_first` from `EXPERIENCE_FIRST` ("role", Jake's, or "company":
+  the company and its place on the top row, the role and its dates under it,
+  as many career-center templates and finance and consulting resumes set a
+  job; Experience and Leadership) and `project_tools` from `PROJECT_TOOLS`
+  ("below", ours since KAN-738, or "after_name": "Gitlytics | Python, Flask",
+  Jake's own sample, the project's context then on the line under it). They
+  follow Education order's rule: the text and the box kinds move together
+  (`company_leads`, `tools_lead`, `heading_fields`), and an entry with no
+  company, or no tools, keeps the default look. Every layout choice is read
+  in one place, `fields.page_heading`, which the PDF and the Word file both
+  call. **Only two styles per heading**, the ones students use: each choice
+  doubles the layouts the PDF, the Word file and Fit must print, so a
+  one-line job or roles grouped under one company wait until students ask.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and
-  section order (`section_order`, every section once, which `jakes.body` and
-  the Word file both follow),
+  section order (`section_order`, every fixed section once, then any
+  custom section the student moved as its `resume_view.custom_key`, each
+  once: `valid_order`; `jakes.body` and the Word file both print by
+  `printed_order`, which puts a custom section the order does not name
+  first when its name reads as a summary, else last; KAN-498),
   each from a fixed list at the top of `__init__.py`, stored on
   `built_resumes.page_settings`. Section and entry spacing, the accent, the
   bullet and the rule are preamble lines; the accent on the name and the
@@ -68,11 +128,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   bank id (the entry's for its fields), and `kind` is `bullet`, `skill` or
   the field: `title`, `organization`, `location`, `dates`, `degree`
   (Education's subtitle, which also names the school), `gpa`, `coursework`,
-  `honors`. `fields.heading_fields()` says which field each heading slot
-  shows. The header's boxes have `item_id` `HEADER` ("header", not a
+  `honors`, and a project's `tools` line. `fields.heading_fields()` says
+  which field each heading slot shows. The header's boxes have `item_id` `HEADER` ("header", not a
   bank id) and the profile column as `kind`: `full_name`, `phone_number`,
-  `email`, `linkedin_url`, `github_url`, `portfolio_url`, `other_url`, which
-  is why `HeaderIdentity.links` carries each link's column. The `email` box
+  `email`, `location`, `linkedin_url`, `github_url`, `portfolio_url`,
+  `other_url`, which is why `HeaderIdentity.links` carries each link's
+  column. `location` is also an entry field's kind, so the box's item id
+  decides which it is (`resume_lines.parse(..., header=)`, KAN-436). The `email` box
   prints the profile's `email_for_employers`: the contact email, else the
   sign-in email (KAN-262). The editor never types it; My Profile sets it.
   **"U.S. Citizen"** (`fields.US_CITIZEN`) leads the contact line, PDF,
@@ -80,9 +142,33 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   answer bank's `work_authorization_status` is `us_citizen` (My Profile's
   Application Questions, onboarding's Profile step). It has
   no box, since the editor types only fields it can save. The line's
-  order is U.S. Citizen, phone, email, LinkedIn, GitHub, portfolio, other. A sent resume's
-  hash and snapshot leave `us_citizen` out while it is false
-  (`sent_resumes._identity`), so a resume sent before it still repeats.
+  order is U.S. Citizen, phone, email, location, LinkedIn, GitHub,
+  portfolio, other. **The location is the profile's** (`location`, KAN-436,
+  asked in onboarding and on My Profile): Simplify's header prints it, and
+  until KAN-436 a resume left it out though the profile held it. A sent
+  resume's hash and snapshot leave `us_citizen` out while it is false and
+  `location` while it is empty (`sent_resumes._identity`), so a resume sent
+  before either still repeats.
+  **A resume can hide any header field but the name and "U.S. Citizen"**
+  (`PageSettings.hidden_header`, from `HEADER_FIELDS`, KAN-436; the
+  editor's Header panel): the value stays on the profile for every other
+  resume. `shown_header(identity, page)` takes the hidden ones out, and
+  `_document()` and `word.render_docx` call it themselves, so no caller
+  can print a hidden field. The render still answers the whole identity
+  (`RenderResponse.identity`), so the editor's copy keeps a hidden value
+  and showing it again needs no read. A sent resume hashes and keeps only
+  the shown header, and leaves `hidden_header` out of its page: hiding a
+  field with no value changes nothing, and a hidden value never sits in a
+  snapshot. The list is kept in `HEADER_FIELDS`' order, so two resumes
+  hiding the same fields hash the same.
+  **The Additional line** (`HeaderIdentity.extra`, the profile's
+  `resume_header_extra`, KAN-436) prints on a line of its own under the
+  contact line, in its `\small` type, PDF, LaTeX and Word alike, with a
+  box of kind `resume_header_extra` the editor types into the profile. It
+  can be hidden as any other field. Fit to One Page never cuts a header
+  line: the header is part of the page it measures, not a cut. "U.S.
+  Citizen" stays on the contact line, never in this line, since
+  Application Questions owns it.
   The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`
@@ -184,6 +270,46 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   cache failed "couldn't get it from the internet" (2026-11-05).
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
+- **A project's tools print on a line of their own** (KAN-738), under the
+  heading's first line, in the italic `\small` of `\resumeSubheading`'s
+  second row, as a student's own resume printed them; `fields.heading`
+  puts them in a one-row section's `subtitle`, and the Word file adds an
+  italic row. Jake's `\resumeProjectHeading` has one row and `jakes.tex`
+  stays byte for byte, so `jakes._entry` writes that heading's tabular
+  itself with the second row; a project with no tools still uses the
+  macro, so its page is as before. The heading's first line keeps the
+  organization and link after the bar: Jake's sample puts the stack
+  there, but WorkIt already prints those, and the student chose the
+  second line (2026-11-09). Its box's kind is `tools`, which the editor
+  types as a list split at commas (`../resume_lines.py`). There is no
+  toggle on a built resume: emptying the project's tools takes the line
+  off every resume that shows it. Fit to One Page never cuts the line; it
+  is part of its entry's height.
+- **A two-row heading with nothing at the left of its second row prints
+  as one row** (KAN-503, `fields.one_row`): a school with no degree line,
+  a job or club role with no organization. Drawn as two rows, the second
+  row's place or dates sat alone on a line of their own, which read as a
+  stray blank line (an upload that read a lab as a school showed it most).
+  The one row is the title, then at the right the place and the dates
+  joined by Jake's `$|$`, the place first, so the dates keep the right
+  edge every other entry's dates sit on. Each value keeps the look its
+  row gave it (the second row's italic `\small`), so a school's place
+  stays upright and its dates italic, and the editor's field over each
+  still matches (`typeOf` in the editor). `jakes._entry` writes the
+  tabular itself, since `jakes.tex` stays byte for byte; the Word file
+  joins the two with " | " on the title's row. A second row with words at
+  its left keeps Jake's `\resumeSubheading`, so those pages are as
+  before.
+- **A custom section prints its own name** (`ViewSection.label`, KAN-498,
+  `../../../../docs/custom_sections.md`), escaped as any applicant text.
+  Its Entries print as a project's (`fields.heading`'s one-row branch).
+  **A Lines section prints its entries' bullets as plain lines**
+  (`jakes._lines`): no heading, no dot, each a `\resumeItem` with
+  `\ignorespaces` in the list the skills sit in (`label={}`), each with its
+  bullet box, and no section when it has no line. The Word file prints them
+  as plain paragraphs under the heading. A fixed section's `label` and
+  `layout` are None, and `sent_resumes.content_hash` leaves them out, so a
+  resume with no custom section hashes as before.
 - **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
   macro puts a space after its argument (`{#1 \vspace{-2pt}}`); when a
   bullet's last line was full, TeX broke at that space and printed an
@@ -213,9 +339,40 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   only `word.py` may use a dependency. `python3 -I -c "import sys;
   sys.path.insert(0, '.'); import app.services.resume_render.sample"` from
   `backend/` checks it.
-- **TeX's font mapping still applies to escaped text**: `'` prints as `’`,
-  `--` as `–`, ``` `` ``` as `“`. Harmless for a resume; a text test expects
-  the curly form.
+- **TeX's ligatures stay off typed text, but for quotes** (`escape()`,
+  2026-11-12): `--` prints as typed (`-{}-`), a backtick as a backtick
+  (`\textasciigrave{}`, which also breaks "!`" and "?`" from printing
+  "¡" and "¿"), and a straight `"` as an opening or closing curly quote by
+  its place (`_OPEN_QUOTE_RE`), as `'` prints `’`. TeX's mapping had printed
+  "--dry-run" as "–dry-run", "reviews!`" as "reviews¡", and both ends of
+  "smart" as closing quotes, which the Word file never did. A text test
+  expects the curly apostrophe. Tested in a real render: `-{}-` keeps two
+  hyphens under XeTeX's TeX mapping, and an empty group alone does not
+  stop a backtick from curling.
+- **A phone prints as the Profile shows it** (`fields.phone_text`, the web
+  app's `phoneText`): a U.S. number of 10 digits, or 11 starting with 1, as
+  "+1 646-555-0142" however it was typed; any other as typed. The profile
+  keeps what was typed, and the resume printed it bare ("16465550142"). PDF,
+  LaTeX and Word alike; the box's text is the printed form.
+- **A date given as a year alone prints as the year** (`dates`, the
+  entry's `year_only`, KAN-808): "2019 – 2023", "Expected 2027", never
+  "Jan. 2019". The Experiences view's `formatDates` shows it the same way.
+- **Numbers and dates print once and whole** (2026-11-12): a GPA keeps a
+  whole number's zeros ("90/100"; `_number` stripped them, so it printed
+  "9/100") and prints one of ten or more with no decimals ("85/100", not
+  "85.0/100.0"). **A GPA or scale under ten prints two decimals**
+  (`_grade`: "3.80/4.00", "8.50/10"), as career centers ask ("to two
+  decimal points", Concordia University Wisconsin's resume rubric) and a
+  transcript prints it: the database keeps two decimals and nothing of how
+  many were typed (the editor sends a number), so "3.80/4.00" printed
+  "3.8/4.0" until KAN-813. Printing each GPA as typed would need the typed
+  text kept: a migration, and the editor sending it as text; one month, or one year in the year format, names it once
+  ("June 2024", never "June 2024 – June 2024"); a field the degree already
+  names prints once (`_degree_line`).
+- **A project's link prints as the header's do** (`fields.heading`'s tag):
+  `link_text` ("github.com/jd/robot"), not the whole address, and the PDF
+  makes it clickable (`\href` in `jakes._entry`'s tag slot, one marker
+  around the organization and the link, kind `organization` as before).
 - **Read the PDF in plain mode** (pdfminer `extract_text`, pypdf plain). The
   PDF is untagged, and LaTeX places words rather than writing spaces. pdfminer
   reads the right-hand column (places, dates) as its own block, so the text
@@ -294,7 +451,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip in production, warm and cold** (KAN-209):
-  read it on a phone after a save ("Saved, 412 ms", KAN-218).
+  read it on a phone after a save, as the "resume edit round trip"
+  performance measure in Safari's Web Inspector (the phone's bar showed
+  "Saved, 412 ms" from KAN-218 until KAN-799).
   The team chose the HTML copy of the page for typing (research option 4)
   as step 1, with this package's PDF still the only output, and is
   considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).

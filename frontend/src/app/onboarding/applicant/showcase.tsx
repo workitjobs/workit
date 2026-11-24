@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 
 import { STAGE_COLOR, STAGE_LABEL, type StageKey } from "@/app/(seeker)/stage-colors";
-import { BriefcaseIcon, CalendarIcon, CheckIcon, FileIcon, SparkleIcon } from "@/components/icons";
+import { ListChecksIcon } from "@phosphor-icons/react/ssr";
+
+import { CalendarIcon, CheckIcon, FileIcon, SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { matchColor } from "@/lib/match";
 
 /**
- * The moving picture behind onboarding's question (./story-panel): a scene of
+ * The moving picture beside onboarding's extension track (./onboarding-form): a scene of
  * what WorkIt does, drawn as a small mock screen (a matched job, a resume, the
  * applications board) with the notification that screen would send tucked
  * over its corner.
@@ -69,7 +71,7 @@ const SCENES: { Icon: Glyph; label: string; Screen: ComponentType; notice: Notic
     },
   },
   {
-    Icon: BriefcaseIcon,
+    Icon: ListChecksIcon,
     label: "Manage Your Applications",
     Screen: BoardScreen,
     notice: {

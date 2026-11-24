@@ -3,17 +3,24 @@
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { answerIcon, PencilIcon } from "@/components/icons";
+import { PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Missing } from "@/components/ui/missing";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SelectField } from "@/components/ui/select-field";
 import { type AutofillAnswers, type ProfileQuestion } from "@/lib/autofill-answers";
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
-import { cn } from "@/lib/cn";
 
-import { FIELD_GRID, FIELD_HEADING, SECTION_CARD, VALUE_INDENT } from "../../profile/field-styles";
+import {
+  FACT_LABEL,
+  FACT_VALUE,
+  FIELD_GRID,
+  FIELD_LABEL,
+  SECTION_CARD,
+} from "../../profile/field-styles";
 import { SectionAction } from "../../profile/section-action";
+import { AnsweredCount } from "./answered-count";
 
 /** The picker's value for an unanswered question: Base UI's Select shows its
  *  placeholder for "", and clearing an answer needs an item to pick. */
@@ -30,9 +37,11 @@ const UNANSWERED = "unanswered";
  * save through the same PATCH, which merges only the answers sent, so no
  * screen erases what another saved, and neither card what the other saved.
  *
- * TWO MODES, AS CONTACT & LINKS HAS. Reading, each question is its answer or
- * "Not answered", and a card with no answer at all is one "Not answered"
- * line. Each question's glyph is grey (`ink-meta`): it only informs. Edit
+ * TWO MODES, AS CONTACT & LINKS HAS. Reading, each question is its name,
+ * small and grey, over its answer, or a faint dash (../../profile/
+ * field-styles.ts), with no glyph since 2026-11-11, and a card with no
+ * answer at all is one "Not answered" line; under the description, how
+ * many are answered, on every card. Edit
  * turns every answer into a picker in place, the first one focused, each
  * over the question as forms word it, with Cancel and Save under them;
  * Escape cancels. "Not Answered" in a picker clears that answer. A picker,
@@ -40,7 +49,8 @@ const UNANSWERED = "unanswered";
  * screen-long form on a page of settings.
  *
  * `concealed` CLOSES THE ANSWERS WHILE READING (KAN-550): the card says how
- * many are answered, and Show Answers opens them until the page is left.
+ * many are answered, as every card does, and Show Answers opens them until
+ * the page is left.
  * Self-identification in plain view on My Profile, a page students open often
  * and show on shared screens, told anyone looking their race and disability.
  */
@@ -130,23 +140,23 @@ export function ApplicationQuestions({
           <div className="flex shrink-0 items-baseline gap-4">
             {concealed && (
               <SectionAction
-                aria-label={`${shown ? "Hide" : "Show"} ${title} Answers`}
+                label={`${shown ? "Hide" : "Show"} ${title} Answers`}
                 aria-expanded={shown}
                 aria-controls={`${id}-answers`}
                 onClick={() => setShown((s) => !s)}
+                tooltip={shown ? "Hide Answers" : "Show Answers"}
               >
                 {shown ? <EyeSlashIcon /> : <EyeIcon />}
-                {shown ? "Hide Answers" : "Show Answers"}
               </SectionAction>
             )}
-            <SectionAction aria-label={`Edit ${title}`} onClick={startEditing}>
+            <SectionAction label={`Edit ${title}`} onClick={startEditing} tooltip="Edit">
               <PencilIcon />
-              Edit
             </SectionAction>
           </div>
         )}
       </div>
       <p className="text-body text-ink-meta mt-1">{description}</p>
+      <AnsweredCount answered={answered} total={questions.length} />
 
       {editing ? (
         <form
@@ -164,7 +174,6 @@ export function ApplicationQuestions({
         >
           <div className={FIELD_GRID}>
             {questions.map((q) => {
-              const Icon = answerIcon(q.key);
               const fieldId = `answer-${q.key}`;
               return (
                 <div key={q.key} className="min-w-0">
@@ -173,11 +182,10 @@ export function ApplicationQuestions({
                       Base UI trigger ignores a <label for>. This one makes
                       a click on the words open the picker's list, as a
                       click on the picker does (checked in Chromium). */}
-                  <label htmlFor={fieldId} className={FIELD_HEADING}>
-                    <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
+                  <label htmlFor={fieldId} className={FIELD_LABEL}>
                     {q.label}
                   </label>
-                  <div className={cn("mt-1.5", VALUE_INDENT)}>
+                  <div className="mt-1.5">
                     <SelectField
                       id={fieldId}
                       label={q.label}
@@ -228,25 +236,19 @@ export function ApplicationQuestions({
       ) : shown ? (
         <dl id={`${id}-answers`} className={FIELD_GRID}>
           {questions.map((q) => {
-            const Icon = answerIcon(q.key);
             const value = answers[q.key];
             const label = q.options.find((o) => o.value === value)?.label;
             return (
               <div key={q.key} className="min-w-0">
-                <dt className={FIELD_HEADING}>
-                  <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
-                  {q.label}
-                </dt>
-                <dd className={cn("text-body text-ink-muted mt-1.5 min-w-0", VALUE_INDENT)}>
-                  {label ?? <span className="text-ink-meta">Not answered</span>}
-                </dd>
+                <dt className={FACT_LABEL}>{q.label}</dt>
+                <dd className={FACT_VALUE}>{label ?? <Missing word="Not answered" />}</dd>
               </div>
             );
           })}
         </dl>
       ) : (
         <p id={`${id}-answers`} className="text-body text-ink-muted mt-4">
-          {answered} of {questions.length} answered. Hidden so they stay private on a shared screen.
+          Hidden so they stay private on a shared screen.
         </p>
       )}
     </Card>

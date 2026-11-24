@@ -5,7 +5,10 @@ is the source; change it in the PR that changes the protocol.
 
 Hard rule: never evade bot detection and never touch a captcha; hand those to
 the user. A plain Worker is a Chrome with no CDP, no automation flags and no
-headless mode.
+headless mode. No CDP client connects to it. Its extension's own `chrome.debugger`
+sends only trusted text, Backspace and Delete into the field Apply or Lisul's tile
+chose, and Apply's left click on a radio, checkbox or option in the top frame (KAN-716,
+`worker-extension/ops/typing.js`, guide "Trusted text and choices").
 
 ## Pieces
 
@@ -17,16 +20,19 @@ Apply process                                   Worker k (plain Chrome)
   apply.plain.launcher.PlainWorkers
 ```
 
-- **Extension:** `apply-agent/worker-extension/` in WorkIt. Private, never on the
-  Store. Its ID is fixed by `manifest.json`'s `key`: `apply.plain.extension.EXTENSION_ID`.
+- **Extension:** `apply-agent/worker-extension/` in WorkIt. A Developer checkout loads it
+  unpacked, with its ID fixed by `manifest.json`'s `key` (`apply.plain.extension.EXTENSION_ID`);
+  WorkIt Auto Apply's students add the Chrome Web Store copy, which `apply plain package` builds
+  (below) and whose ID the store gives (`extension.STORE_ID`, empty until the first upload). It asks
+  for no user scripts (KAN-839).
   Workers load a copy of it, `APPLY_PROFILES/worker-extension/` (KAN-645), which Apply replaces
   only while none of that folder's Workers runs. Its generated files are in `vendor/` and, for
   code at features 3, in a write-once set `vendor/sets/<id>/` that the welcome names (the
   extension then reads each `vendor/<file>` from the set: `ops/shared.js: vendor`). The launcher
   writes them before every launch (`apply plain prepare` writes the checkout's `vendor/`):
-  - `vendor/engine.js`: the Fill engine bundle, copied from the extension submodule's
-    `fill-engine/dist/engine.js` (the same build the WorkIt extension uses).
-  - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`.
+  - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`: the engine Apply hands
+    over. The bundle itself is never a file here (KAN-839): Apply sends it once per connection
+    (`cdp.keep`, `apply.plain.script.keep_engine`), and the extension holds it in memory.
   - `vendor/injected.js`: Playwright's own injected script (playwright-core's
     `injectedScriptSource`, Apache-2.0, taken from the installed Python package's driver),
     wrapped so it sets `globalThis.__applyPW = new InjectedScript(...)` in the
@@ -66,21 +72,28 @@ extension joins them before handling. The extension never needs to chunk.
    (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
 4. Extension → Apply:
    ```json
-   {"type": "hello", "protocol": 1, "extension": "0.2.0", "features": 2,
+   {"type": "hello", "protocol": 1, "extension": "0.3.0", "features": 5,
     "engine": {"version": "0.3.13+7a3a3fc", "sha256": "..."},
-    "userScripts": true, "webdriver": false,
+    "packaged": "3254a38b1604313f", "installType": "normal", "webdriver": false,
     "userAgent": "...", "brands": ["Google Chrome", "..."]}
    ```
+   `packaged` is the id of the generated files built into a package (`vendor/set.json`), null in an
+   unpacked copy Apply writes; `installType` is `chrome.management.getSelf()`'s (`development` for
+   an unpacked copy, `normal` for a store one).
 5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1, "vendor": "vendor/sets/<id>"}`
-   (`vendor` only for features 3 or more), or
+   (`vendor` only for features 3 or more), or, for a package whose `packaged` is the id of this
+   Apply's own packaged files (`Bridge.packaged`), `"vendor": "vendor"`: its built-in files, since
+   Apply can't write into a store copy's folder (KAN-839), or
    `{"type": "refuse", "reason": "..."}` and Apply closes the connection.
-   Apply refuses: a wrong origin, another protocol, or an engine whose version or
-   sha256 differs from Apply's own `fill_engine.ENGINE` (the reason names both and says
-   to run `apply plain prepare`).
+   Apply refuses: a wrong origin (neither ID), another protocol, a store copy (`installType` not
+   `development`) whose `packaged` isn't Apply's (it holds other guards Apply can't replace; Chrome
+   updates it from the store), or, from code before vendor sets, an engine whose version or sha256
+   differs from Apply's own `fill_engine.ENGINE` (the reason names both and says to run `apply plain prepare`).
    An extension at features 3 or more that gets a `vendor` set is never refused for its engine:
    the set holds Apply's own.
    `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
-   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); none (an
+   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); 4 is
+   `cdp.eval`, `cdp.load`, `cdp.keep` and `cdp.script` (KAN-839); none (an
    extension from before KAN-643) counts as 1. Raise
    `FEATURES` in `background.js` and `bridge.FEATURES` together with each new op or event.
    Chrome keeps running the code it loaded, so a Worker can be older than Apply. An older
@@ -114,7 +127,8 @@ Extension → Apply:
 Error names: `TimeoutError`, `Navigated` (the frame or tab went away mid-op: Apply retries
 like `fill_engine.NAVIGATED`), `NoTab`, `NoFrame`, `NotFound`, `Strict` (strict-mode
 violation: more than one element), `NotActionable` (hidden, disabled, covered; Apply's
-auto-wait retries it), `EvalError` (the page's code threw), `UserScriptsOff`,
+auto-wait retries it), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
+guard file), `NoEngine` (`engine.load` before Apply handed the engine over), `Refused`,
 `BadOp`, `Crash`. On the Python side every error raises `apply.plain.page.PortError`,
 a subclass of `playwright.sync_api.Error`, and `TimeoutError` raises
 `PortTimeoutError`, a subclass of `playwright.sync_api.TimeoutError`, so existing
@@ -128,22 +142,23 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 
 | Op | Params | Value |
 |---|---|---|
-| `ping` | | `{"pong": true, "userScripts": bool, "webdriver": bool, "tabs": n}` |
+| `ping` | | `{"pong": true, "webdriver": bool, "tabs": n}` |
 | `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window"}]` |
 | `tabs.create` | `url?`, `active?` | that tab's info |
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
 | `tabs.close` | `tab` | `null` |
 | `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
-| `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
+| `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}`; the tab's about:blank events (a tab `tabs.create` just made) don't count unless `url` is about:blank |
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
 | `tabs.activate` | `tab` | `null` (also focuses its window, never minimizes) |
+| `windows.focus` | | `null`: the Worker's last focused window comes to the front (`chrome.windows.update({focused: true})`). Only Lisul's Show calls it (`PlainWorkers.show`): on Windows and Linux, which have no FocusKeeper, and on the Mac when FocusKeeper can't (features 6, KAN-850) |
 | `tabs.screenshot` | `tab`, `format` (`png`/`jpeg`), `quality?` | `{"data": base64}`; activates the tab; waits out the ~2/s quota |
 | `frames` | `tab` | `[{"frame", "parent", "url"}]` |
-| `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the page's MAIN world through `chrome.userScripts.execute`. With user scripts off: `chrome.scripting.executeScript` in MAIN calling indirect `eval` (works where page CSP allows eval: the fakes; real sites need the seed's Allow User Scripts). The value must be JSON-serializable. |
+| `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the frame's MAIN world through the debugger (`cdp.eval`, below), which page CSP doesn't govern. The value must be JSON-serializable. |
 | `vendor.use` | `root` | `{root}`: read Apply's generated files from that vendor set from now (a new engine) |
-| `engine.load` | `tab`, `frame?` | `true`; injects `vendor/engine.js` into MAIN as a file (no CSP issue), unless `FillEngine` is there |
-| `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval, no user scripts needed); loads the engine first if the page lacks it |
+| `engine.load` | `tab`, `frame?` | `true`; runs the engine Apply handed over (`cdp.keep`, name `engine`) in MAIN through the debugger, unless `FillEngine` is there; `NoEngine` when none is held |
+| `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval); loads the engine first if the page lacks it |
 | `dom` | `tab`, `frame?`, `method`, `args` | `{"ok": value}` or `{"retry": reason}`; runs `page/dom.js`'s `method` in the extension's isolated world with Playwright's injected script (`__applyPW`); see below |
 
 `dom` methods (values below are inside `{"ok": ...}`; "retry" means `{"retry": reason}`, answered while the element is missing or not actionable; all take a Playwright selector string first; selectors are built the way
@@ -162,7 +177,8 @@ Playwright's Python client builds them, so `internal:role=...`, `internal:text=.
 | `check` | `selector`, `checked` | `null` / `{"retry"}` |
 | `select` | `selector`, `options` (`[{value?, label?, index?}]`) | the selected values, or `{"retry"}` |
 | `focus` / `blur` / `hover` / `scroll` | `selector` | `null` / `{"retry"}` |
-| `files` | `selector`, `files` (`[{name, mimeType, base64}]`) | `null`; sets `input.files` through `DataTransfer`, fires `input` and `change` |
+| `files` | `selector`, `files` (`[{name, mimeType, base64}]`), `rule?` (`{hosts, pinned?}`) | `null`; sets `input.files` through `DataTransfer`, fires `input` and `change`. First, in the same task, the frame's own origin and its ancestors' (`location`) must pass `apply.upload_origin`'s rule with `hosts` (none: the top frame's site only), else `UploadElsewhere` (its message: the frame's origin); with `pinned`, the input must be the one `pin` kept under that token, else `UploadSwapped` (KAN-795) |
+| `pin` | `selector`, `token` | `null`; keeps the element (a label's control) under `token` in the isolated world, for `files`' `pinned` |
 | `mark` | `selector`, `token` | n; puts `data-apply-mark="<token>"` on each match (for `evaluate` on elements) |
 | `unmark` | `token` | `null` |
 | `aria` | `selector`, `{mode?}` | Playwright's `ariaSnapshot` text |
@@ -175,10 +191,10 @@ In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.pla
 |---|---|---|
 | `tile.start` | `interval?` ms (500), `quality?` (88), `maxWidth?` (1280), `maxHeight?` (900), `native?` (false) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. With `native`, Apply films the window itself, and the Worker sends only `tile.shown` events, each time the shown window or tab changes. Calling it again restarts it with the new settings. |
 | `tile.stop` | | `null` |
-| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events; `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
+| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events, its `text` and `key` events' text trusted as `dom`'s (KAN-716); `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
 | `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
 | `chooser.get` | `tab` | `{"mode", "frame"}` of the file input a page asked for since the last watch or set, or `null` |
-| `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels) | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none) |
+| `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels), `hosts?` | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none). With `hosts` (Apply's own set; none is Lisul's pick from the tile), the service worker first checks the frame's URL and its ancestors' (webNavigation) against `apply.upload_origin`'s rule, else `UploadElsewhere`, and sets on that one document (`documentIds`), so a frame that navigated meanwhile takes nothing (KAN-795) |
 
 `tile.input` events are the Apply window's (`dashboard.Frames.input`): `{"type": "down"|"up", x, y,
 button, clicks}`, `{"type": "move", x, y}`, `{"type": "wheel", x, y, dx, dy}`, `{"type": "key", key,
@@ -205,8 +221,11 @@ Events (S2 sends these; later slices add their own):
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
-KAN-635: `{"event": "tile.shown", "tab", "url", "window": {left, top, width, height, state}, "viewport": {width, height}}`
-(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to.
+KAN-635: `{"event": "tile.shown", "tab", "url", "title", "window": {left, top, width, height, state}, "viewport": {width, height}}`
+(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to. `title` (KAN-717)
+is the tab's: Apply films the window only while macOS lists it, under the Worker Chrome's PID, with that title, and no
+other window of that PID has it (`window_capture.title_matches`). The extension sends it at once on a tab switch, and
+drops a `tile.frame` whose window switched tabs during its capture.
 
 ## Ops (S4: the submit and drive guards)
 
@@ -215,20 +234,21 @@ KAN-635: `{"event": "tile.shown", "tab", "url", "window": {left, top, width, hei
 `add_init_script`, `expose_binding` and `route`. A guard file is one of `vendor/guards/*.js`,
 written by `apply plain prepare` from `submit_guard`'s own scripts; an op that takes one refuses
 it (`Crash`, "run `uv run apply plain prepare`") unless its sha256 is the `sha256` Apply sends.
-A fresh service worker starts with no content scripts, rules or user scripts.
+A fresh service worker starts with no content scripts or rules.
 
 | Op | Params | Value |
 |---|---|---|
-| `guard.script` | `id`, and `file` + `sha256` (a guard file), or `code` | `{"file"}` / `{"code": true}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted), or the code through `chrome.userScripts` (`UserScriptsOff` when Allow User Scripts is off). Also registers `page/relay.js` |
+| `guard.script` | `id`, and `file` + `sha256` (a guard file) | `{"file"}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted). `code` instead of a file is refused (`NoCodeScripts`): there are no user scripts, and the guards' state goes by `guard.control`. Also registers `page/relay.js` |
 | `guard.inject` | `tab`, `file`, `sha256` | `null`; runs a guard file in every frame of the tab now |
-| `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive` | `{"rules": n}`; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled) |
-| `guard.unroute` | `key` | `null` |
+| `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive`, `workers?` | `{"rules": n}`; with `workers` (KAN-791), the rules hold on `tabIds` -1 alone (a service or shared worker's requests, never the tab's own), and the route goes when its tab closes; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Routes with the same `regexes`, `caseSensitive` and `workers` share those rules, on all of their tabs (KAN-793); a closed tab leaves every route, and a set whose last tab closed keeps its rules on -1 until `guard.reset` (a page's service worker outlives its tab). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled). When Chrome refuses the update, its rules and the route stay as they were and the op fails |
+| `guard.unroute` | `key` | `null`; fails, with the route kept, when Chrome refuses the update |
 | `guard.bind` | `tab` (null: every tab), `name` | `null`; `window[name](...args)` in MAIN, in every frame now and in each document the tab loads, sends a `binding` event |
-| `guard.lift` | `tab`, `again`, `warning`, `wrong`, `held` (KAN-629: what holds Submit, `""` for nothing), `onlyLifted?`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` page keeps its Submit blocked by the guard script under a red note whose Dismiss calls the `__applyDismissHold` binding. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
-| `guard.applied` | `tab`, `day` (null: dismissed), `sha256` (of `applied.js`) | `null`; KAN-621's "You already applied on <day>" note (`submit_guard.APPLIED_NOTE`) in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press calls `__applyDismissApplied`. `day: null` stops it and marks every frame dismissed |
-| `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
-| `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
-| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
+| `guard.tokens` | `touch` (event names), `tell` (an event name), `tells` (binding names) | `null`; this run's guard events (KAN-710, `apply.plain.guards.tokens`). Every frame's relay asks for them as it starts; the bindings in `tells` fire only on the guard's tell, never on `__apply_call` |
+| `guard.control` | `tab`, `events` (`[[type, detail], ...]`), `mark?` | `[result per frame]`; sends each control event from the isolated world, on the window or on the element marked `data-apply-press=<mark>` ("frame" when that element holds a frame). The guards' state is set by these alone (`submit_guard.control`): the lift, account, profile, upload and start allowances, and the drive guard's `asking`, `askTick` and `driving` (`PlainDriveGuard.asking` and its driving state, for the checks on trusted input since KAN-716). There is no `guard.flags` op and no window flag a page could set |
+| `guard.lift` | `tab`, `events` (the control events of `{"lift": note}`), `onlyLifted?` | `null`; the events in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` note keeps its Submit blocked by the guard script under a red note whose Dismiss tells `__applyDismissHold`. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
+| `guard.applied` | `tab`, `events` (null: dismissed), `dismissed?` (events) | `null`; KAN-621's "You already applied on <day>" note in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press tells `__applyDismissApplied`. `events: null` stops it and sends `dismissed` to every frame |
+| `guard.rearm` | `tab`, `events` | `null`; stops lifting the tab and sends the events (`{"lift": null}`) to its frames |
+| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches the token-named touch events in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
 | `guard.sync` | `tab`, `timeout?` ms | `null` once every frame's earlier `guard.said` messages have reached the service worker |
 | `guard.status` | `tab?` | `{"scripts": [ids], "rules": n, "lifted": bool}` |
 | `guard.reset` | | `null`; no guard left: every content script, rule, user script, lift and binding goes (`apply.plain.guards.reset(worker)`, for a Worker reused for another Application; a fresh service worker starts so) |
@@ -238,9 +258,14 @@ Events: `{"event": "guard.said", "tab", "frame", "text"}` (a guard's "Apply rehe
 "frame", "name", "args"}`, `{"event": "guard.touched", "tab", "frame", "by"}`.
 
 Page channel: the MAIN world and `page/relay.js` (the isolated world) talk through `CustomEvent`s
-with string `detail` on the document (`__apply_said`, `__apply_call`); the extension's touch is
-`__apply_touch` on window. `page/dom.js` dispatches `__apply_touch` (`by: apply`) before each
-`click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch.
+with string `detail` on the document (`__apply_said`, `__apply_call`, and the rehearsal guard's
+token-named tell); the extension's touch is a token-named event on window (`guard.tokens`), which
+no page can send. `page/dom.js` dispatches it (`by: apply`) before each
+`click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch. That
+touch on the window only shows the guard's note. A click counts as Apply's (or Lisul's) press only when
+the same touch comes on the clicked element itself right before it: `page/dom.js`'s `touch(element)`,
+between mouseup and click (and before an Enter's or Space's `click()`), and `page/tile.js` before each
+click it replays (KAN-710, PR 477's second review).
 
 ## Ops (S5: Records, Needs you, Resume, emailed code; KAN-611)
 
@@ -262,17 +287,45 @@ Events (S7, from a watched tab): `{"event": "request", "tab", "frame", "url", "m
 (a fetch or XHR comes from the page, with `requested` and, for a call that isn't a GET, its `body`, up
 to 256 K characters); `{"event": "requestfailed", ..., "error"}`; `{"event": "popup.blocked", "tab",
 "url", "popup"}`: the page's `window.open(url)` was refused, so the extension opened `url` in tab
-`popup`, with the page as its opener. An event field is never named `type` (`ctx.send` puts
+`popup`, with the page as its opener. The tab opens blank, takes the page's guard rules, then loads
+`url` (KAN-793), and the event comes after; a tab Chrome refuses the rules to is closed with no event. An event field is never named `type` (`ctx.send` puts
 `type: "event"` on each message, and a field of that name would replace it).
 
 A script call (`eval`, `dom`, `fixed.call`, any `inPage`) whose frame commits a new document before it
 answers fails as `Navigated` ("Execution context was destroyed..."), and as `NoTab` if its tab closes:
 Chrome never settles such a call by itself.
 
+## Ops (the debugger: page code with no user scripts; KAN-839)
+
+In `worker-extension/ops/cdp.js`, over the one debugger attachment per tab that it shares with
+`ops/typing.js` (`ops/debug.js`). For a Chrome Web Store copy of the extension, which may run code
+that isn't in its package only through the Debugger API (the User Scripts API is for the user's
+own code). `eval` and `engine.load` run on them (`apply.plain.script`); the guide's "Page code
+through the debugger" has what was measured.
+
+| Op | Params | Value |
+|---|---|---|
+| `cdp.eval` | `tab`, `frame` (default 0), `code` (one expression), `gesture` (tests only) | The expression's value in the frame's MAIN world, as `eval` gives it |
+| `cdp.load` | `tab`, `frame`, `source` or `name` (a script `cdp.keep` holds) | `{"loaded": true}`; the whole script ran in the frame's MAIN world |
+| `cdp.keep` | `name`, `source`, `sha256` | `{"name", "bytes"}`; the script is held in the service worker's memory, never on disk. Refused when `sha256` isn't the source's. Held as `engine`, it is what `engine.load` runs |
+| `cdp.script` | `tab`, `id`, `source` | `{"id", "frames"}`; an early script in every frame of the tab, and in each frame from another site as it starts, until `cdp.unscript` |
+| `cdp.unscript` | `tab`, `id` | `null` |
+| `cdp.status` | `tab` | `{"attached", "scripts", "children"}`: the frames from another site attached now |
+
+How each reaches a frame: the top frame takes `Runtime.evaluate`; a frame from another site (its
+own process) is a child session attached as it starts (`Target.setAutoAttach`, flat, frames
+only, each held until its early scripts are in); a same-site frame takes
+`Runtime.callFunctionOn` on its document, which `DOM.getFrameOwner`, `DOM.describeNode` and
+`DOM.resolveNode` give in the frame's main world. A frame is named by its webNavigation id and
+found in the debugger's frame tree by its URL and its parent's; two same-URL siblings answer
+`Ambiguous`. `cdp.js` sends only the commands on its list, and never `Runtime.enable`,
+`Debugger.enable` or `Console.enable`. `Page.enable` is on while a tab holds early scripts,
+since `Page.addScriptToEvaluateOnNewDocument` does nothing without it.
+
 ## Ops (S6: Claude fill and Rescue)
 
 KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve Apply's MCP server
-(below); fixed functions through `chrome.scripting`, so no eval and no user scripts.
+(below); fixed functions through `chrome.scripting`, so no eval.
 
 | Op | Params | Value |
 |---|---|---|
@@ -284,8 +337,11 @@ KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve A
 dismissed unless `mcp.answer` said otherwise (as Playwright dismisses a dialog no one handles).
 A file input that would open its picker (a click on it or its label, `input.click()`, or
 `showPicker()`, also when S3's tile hook kept it) is recorded as the open chooser and marked
-`data-apply-mcp-chooser="<token>"`; `dom` `files` on `[data-apply-mcp-chooser="<token>"]` then sets
-its files, and the tile's chooser mark is cleared. It adds no events of its own.
+`data-apply-mcp-chooser="<token>"`. When Apply first sees a chooser, `dom` `pin` keeps that input in
+the isolated world; `dom` `files` on `[data-apply-mcp-chooser="<token>"]`, pinned to it, then sets
+its files, and the tile's chooser mark is cleared. A page can write the mark and `modal.js`'s state,
+so neither decides where a file goes: the pin and `files`' origin check do (KAN-795). It adds no
+events of its own.
 
 ### Apply's MCP server
 
@@ -381,11 +437,24 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
-("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
-`fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
-native value setter plus `input`/`change`; `press` emulates the default of Enter, Tab,
+("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`), except
+text (KAN-716): `fill`, `type`/`press_sequentially`, `keyboard.type`/`insert_text`, a character key
+and Backspace/Delete in a text field go in trusted through the extension's `chrome.debugger`
+(`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
+the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
+with `aim` just before and `landed` after it; the op's answer to Apply stays `{"ok": null}`, or is an
+error (`KAN-716 trusted input: ...`) when the input missed. Text never goes in trusted with a line
+break: a lone `"\n"` is the Enter key. A `click` or `check` of a radio, checkbox or option in the top
+frame, with the choice alone under the point, is a trusted left press and release the same way
+(`{__applyClick}`, `Input.dispatchMouseEvent`); every other click is synthetic. Without the debugger they are
+as before: `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
+native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
-at the element's centre on the hit target, then `click`.
+at the element's centre on the hit target, then `click`. **Enter never sends a form** (KAN-716): in a field it makes no
+implicit submission, and on a focused submit button (`button` with no type or `type=submit`, `input[type=submit]`) it
+presses nothing; the page still hears its keydown and keyup. Enter adds a line in a textarea or editable content, and still
+follows a focused link or presses a `type=button`, checkbox or radio. On amazon.jobs a synthetic Enter in a box pressed the
+form's submit button and went on to Review; on a lifted last step it would have sent the application.
 
 ## How a Filler calls it
 
@@ -399,13 +468,22 @@ with workers.open(url, worker=0) as page:   # same shape as WorkerBrowsers.open:
 ```
 
 `fill_engine.call` uses `page.engine_call(name, args)` when the page has one (PortPage does): the
-`engine.call` op, which loads `vendor/engine.js` as a file. So the 1 MB message cap never meets
-the 440 KB bundle, page CSP never blocks it, and the engine needs no user scripts.
+`engine.call` op, which loads the engine Apply handed over (`cdp.keep`: the bundle crosses native
+messaging once per connection, in pieces) through the debugger, so page CSP never blocks it.
 
-User scripts: in Chrome for Testing (tests, dev) nobody can turn on Allow User Scripts, so `eval`
-falls back to an indirect eval in MAIN, which works on the fakes but not on a page whose CSP
-forbids eval (it raises `PortError` kind `UserScriptsOff`). Prefer a fixed extension function
-(like `engine.call` and `dom`) over `eval` for anything a slice runs on real sites.
+`eval` runs through the debugger on every page, its CSP or not. Prefer a fixed extension function
+(like `engine.call`, `dom` and `fixed.call`) over `eval` for what a held page runs on each turn:
+each `eval` is a round trip and a debugger command.
+
+The Chrome Web Store package (`apply plain package [--out dist]`, `extension.package`, KAN-839): a
+zip of the extension's code, `vendor/` with the generated files built in (the guards, `fixed.js`,
+`injected.js`; never the engine) and their id in `vendor/set.json`, `LICENSE`, `NOTICE` and
+Playwright's Apache-2.0 license, with `store.json`'s name, description and version and no
+manifest `key` (the store gives the ID). A guard change therefore needs a store release before the
+app that expects it: the bridge refuses a store copy whose files aren't Apply's
+(`tests/test_worker_extension_store.py` checks that `store.json` records what its version holds).
+Not usable yet: the guard files carry each Apply process's own tokens, so no package built once
+matches a student's app (`worker-extension-todo.md`, item 0).
 
 `PlainWorkers` (S1): `prepare()`, `launch(worker) -> PlainWorker` (pid, profile,
 connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
@@ -415,19 +493,21 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 `--load-extension=<worker-extension>`. Never `--remote-debugging-port`,
 `--enable-automation`, `--headless`. Workers are never minimized and sit on-screen.
 
-**Background launch (Lisul, 2026-11-04):** a Worker's Chrome starts through
+**Background launch (Lisul, 2026-11-04):** on the Mac, a Worker's Chrome starts through
 `/usr/bin/open -g -n -a <Chrome app> --args ...` (`launcher.start_in_background`), never by running
-the binary, which macOS brings to the front. Its PID is then read from the profile's
+the binary, which macOS brings to the front. (On Windows and Linux it starts as the binary itself, a
+plain background process in a session of its own, and its Popen is the process, KAN-850: those
+desktops keep it behind.) On the Mac its PID is then read from the profile's
 `SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). `open -g` alone is not enough: Chrome activates itself as it shows its first
 window, so it starts with `--no-startup-window` and, after the hello, the extension's
 `windows.create` op opens the Worker's window with `focused: false`. Windows are
 1280 x 900 at the top-left corner (KAN-635), shrunk to the main screen's visible area
 (`system.display` work area, `ops/core.js: onScreen`), staggered 20 px a Worker, wholly on-screen. Nothing may bring a
 Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
-true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
+true})` but its `windows.focus` op, no AppleScript focus but FocusKeeper's for that Show, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
 
-`policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
+`policies.yaml: worker_mode: cdp|plain|protected` (default `protected` since 2026-11-06, KAN-723) picks the Worker for each form (S8,
 `apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
 `plain_worker_hosts` (Lever, SmartRecruiters, Workable) and in `APPLY_HOME/plain-hosts.json` (written
 by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
@@ -468,8 +548,9 @@ stays. `close()` stops every Chrome it started, by PID, when the run or rehearsa
 `Dashboard(n, PortFrames(n, workers.bridge.connection))`. Its thread calls `tile.start` on each
 Worker's connection as it appears (again after a reconnect), keeps the newest `tile.frame` per Worker,
 replays the window's input with `tile.input` (the window sends events one at a time, in order),
-answers a file the tile picked with `chooser.set`, and reads the field error (`apply.stuck`) every 2 s
-over `eval`. With Screen Recording permission (KAN-635) it films each Worker's window instead
+answers a file the tile picked with `chooser.set` (only in the tab that asked), and reads the field error
+(`apply.stuck`) every 2 s over `eval`. It reads `tab.created`'s `opener`, `popup.blocked` and `tab.removed` to know
+each form's own pop-ups: a tile shows the one of its form's tabs that showed last (KAN-717). With Screen Recording permission (KAN-635) it films each Worker's window instead
 (`apply.plain.window_capture`: ScreenCaptureKit, by the window's ID, 30 fps at the screen's pixel scale), and
 the extension sends only `tile.shown`. Without it, every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
 extension (`shared.capture`), spaced 520 ms apart: Chrome allows about two a second per browser, so a

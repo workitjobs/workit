@@ -14,15 +14,23 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from app.services.resume_render import SECTION_ORDER, HeaderIdentity
+from app.services.resume_render import (
+    DEFAULT_PAGE,
+    HeaderIdentity,
+    PageSettings,
+    printed_order,
+    shown_header,
+)
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
     details,
-    heading,
     link_text,
+    one_row,
+    page_heading,
+    phone_text,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry
@@ -74,23 +82,28 @@ def _section_heading(doc, label: str) -> None:
     _rule_below(p)
 
 
-def _entry(doc, entry: ViewEntry) -> None:
-    h = heading(entry)
-    if entry.section in TWO_ROW:
+def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
+    h, kinds = page_heading(entry, page)
+    if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
+        # One row, as the PDF prints it (KAN-503): the place, then the dates
+        _row(doc, h.title, " | ".join(getattr(h, name) for name in rights), bold=True)
+    elif entry.section in TWO_ROW:
         _row(doc, h.title, h.right, bold=True)
-        if h.subtitle or h.subright:
-            _row(doc, h.subtitle, h.subright, italic=True)
+        _row(doc, h.subtitle, h.subright, italic=True)
     else:
         _row(doc, h.title, h.right, bold=True, tag=h.tag)
+        if h.subtitle:
+            # A project's tools (or, with tools after the name, its
+            # context), on their own line as the PDF prints them
+            _row(doc, h.subtitle, "", italic=True)
     for text in [line for _, line in details(entry)] + [b.text for b in entry.bullets]:
         p = doc.add_paragraph(text, style="List Bullet")
         p.paragraph_format.space_after = Pt(0)
     doc.paragraphs[-1].paragraph_format.space_after = Pt(4)
 
 
-def render_docx(
-    view: ResumeView, identity: HeaderIdentity, order: tuple[str, ...] = SECTION_ORDER
-) -> bytes:
+def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> bytes:
+    identity = shown_header(identity, page)
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = PAGE_WIDTH, PAGE_HEIGHT
@@ -105,14 +118,16 @@ def render_docx(
     name.font.size = Pt(20)
     contact = (
         ([US_CITIZEN] if identity.us_citizen else [])
-        + [x for x in (identity.phone, identity.email) if x]
+        + [x for x in (identity.phone and phone_text(identity.phone), identity.email, identity.location) if x]
         + [link_text(u) for _, u in identity.links]
     )
     if contact:
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))
+    if identity.extra:
+        _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(identity.extra)
 
     by_name = {section.section: section for section in view.sections}
-    for name in order:
+    for name in printed_order(page.section_order, view.sections):
         if name == "skills" and view.skills:
             _section_heading(doc, SKILLS_LABEL)
             for label, skills in skill_lines(view.skills):
@@ -121,9 +136,18 @@ def render_docx(
                     p.add_run(f"{label}: ").bold = True
                 p.add_run(", ".join(s.name for s in skills))
         elif name in by_name:
-            _section_heading(doc, SECTION_LABELS[name])
-            for entry in by_name[name].entries:
-                _entry(doc, entry)
+            section = by_name[name]
+            if section.layout == "lines":
+                # A Lines section (KAN-498): plain lines, no heading, no dot
+                lines = [b.text for entry in section.entries for b in entry.bullets]
+                if lines:
+                    _section_heading(doc, section.label or name)
+                for text in lines:
+                    _paragraph(doc).add_run(text)
+                continue
+            _section_heading(doc, section.label or SECTION_LABELS[name])
+            for entry in section.entries:
+                _entry(doc, entry, page)
 
     out = io.BytesIO()
     doc.save(out)

@@ -1,11 +1,13 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { TailorIcon } from "@/components/icons";
+import { AutoApplyChip } from "@/components/auto-apply-chip";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { TailoredChip } from "@/components/tailored-chip";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -17,12 +19,14 @@ import {
   formatPosted,
   formatSalary,
   formatWorkStyle,
+  placesOf,
 } from "./format";
 import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
-import { AutoApplyButton } from "../auto-apply/auto-apply-button";
+import { ApplySplitButton } from "./apply-split-button";
 import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
+import { JobMoreMenu } from "./job-more-menu";
 import { MatchRail } from "./match-rail";
 import { NotInterestedButton } from "./not-interested-button";
 import { SaveJobButton } from "./save-job-button";
@@ -105,10 +109,40 @@ export function ListingCard({
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
         ...listingFacts(job),
       }}
+      // The card's top right: Not Interested (while it is live) and Save, as
+      // bare glyphs on the white card, then "⋯" with Already Applied? and
+      // Share (./job-more-menu). Save sat in the action row beside Tailor
+      // and Apply until 2026-11-09; the user wanted the quick verdicts apart
+      // from the steps toward applying.
+      headerAction={
+        <div className="flex items-center gap-4">
+          <AskScoutButton id={job.id} title={job.title} company={job.company} quiet />
+          <NotInterestedButton title={job.title} quiet />
+          <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
+          <JobMoreMenu
+            jobId={job.id}
+            title={job.title}
+            company={job.company}
+            canMarkApplied={canMarkApplied}
+            applied={hasApplied(stage)}
+            onApplied={onApplied}
+          />
+        </div>
+      }
       rail={<MatchRail score={job.match ?? null} highlights={job.highlights ?? []} />}
       // A tailored job is saved, so it is rarely here: one auto apply holds
       // stays on the feed (./feed-stages), and the chip says it has a resume.
-      marks={tailored && <TailoredChip />}
+      // Status chips in the badge row beside the post date: Auto Apply on
+      // the jobs whose form it can fill (the same jobs that show its
+      // button), Tailored once the job has a tailored resume.
+      marks={
+        (job.auto_apply || tailored) && (
+          <>
+            {job.auto_apply && <AutoApplyChip />}
+            {tailored && <TailoredChip />}
+          </>
+        )
+      }
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
          too many. All sit at the row's right end, as on the mock cards: the
@@ -126,48 +160,49 @@ export function ListingCard({
          row is back. */
       actions={
         <>
-          <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:not-first:grow">
-            <div className="contents @max-xl:flex @max-xl:gap-2">
-              <NotInterestedButton title={job.title} />
-
-              <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
-
-              <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            </div>
-
-            {/* Only where auto apply can fill the form (Greenhouse for now). */}
-            {job.auto_apply && (
-              <AutoApplyButton
-                jobId={job.id}
-                title={job.title}
-                company={job.company}
-                stage={stage}
-              />
-            )}
-
-            <ButtonLink
+          <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:grow">
+            {/* On hover only, as the title (components/hover-prefetch-link):
+                Tailor's metadata reads GET /jobs/{id}, so five cards in
+                view cost five API calls on every filter change (KAN-916). */}
+            <HoverPrefetchLink
               href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-              variant="secondary"
-              size="sm"
+              className={buttonClasses({ variant: "secondary", size: "sm" })}
             >
               <TailorIcon className="size-4" />
               {tailored ? "Tailored Resume" : "Tailor My Resume"}
-            </ButtonLink>
+            </HoverPrefetchLink>
           </div>
 
           {/* The job posting page's own dialog (KAN-290): which resume to
               send, then "Did You Apply?". No new-tab glyph: the button opens
               the dialog, and the dialog's links to the employer carry it.
               An applied job is already gone from the seeker's feed. */}
-          <ApplyButton
-            jobId={job.id}
-            title={job.title}
-            applyUrl={job.apply_url}
-            canMarkApplied={canMarkApplied}
-            applied={hasApplied(stage)}
-            onApplied={onApplied}
-            className="@max-xl:basis-full"
-          />
+          {/* One Apply where auto apply can fill the form (Greenhouse for
+              now): Auto Apply, with Apply Manually under its arrow
+              (./apply-split-button.tsx); Apply Now everywhere else. */}
+          {job.auto_apply ? (
+            <ApplySplitButton
+              jobId={job.id}
+              title={job.title}
+              company={job.company}
+              applyUrl={job.apply_url}
+              stage={stage}
+              canMarkApplied={canMarkApplied}
+              applied={hasApplied(stage)}
+              onApplied={onApplied}
+              className="@max-xl:basis-full @max-xl:*:first:grow"
+            />
+          ) : (
+            <ApplyButton
+              jobId={job.id}
+              title={job.title}
+              applyUrl={job.apply_url}
+              canMarkApplied={canMarkApplied}
+              applied={hasApplied(stage)}
+              onApplied={onApplied}
+              className="@max-xl:basis-full"
+            />
+          )}
         </>
       }
     />
@@ -185,6 +220,8 @@ export function listingFacts(job: JobListing) {
     location:
       formatPlaces(job.location_label ?? job.location) ??
       (job.work_style === "remote" ? null : NOT_LISTED),
+    // Every place, for "+N more" to open (components/places-value.tsx).
+    places: placesOf(job.location_label ?? job.location),
     jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
@@ -262,9 +299,11 @@ export function ListingsSkeleton() {
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}
-                <div className="bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-52 @xl:border-t-0 @xl:border-l">
-                  <Skeleton className="size-16 rounded-full" />
-                  <Skeleton className="h-3 w-24" />
+                <div className="bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-60 @xl:border-t-0 @xl:border-l">
+                  <div className="flex items-center gap-3 self-stretch">
+                    <Skeleton className="size-16 rounded-full" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
                   <div className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
                     <Skeleton className="h-2 w-full" />
                     <Skeleton className="h-2 w-4/5" />

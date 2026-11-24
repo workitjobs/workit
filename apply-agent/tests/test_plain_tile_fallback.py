@@ -22,6 +22,7 @@ class OldExtension:
         self.hello, self.relay, self.stale = {"type": "hello", "protocol": 1}, {"host_pid": 1}, stale
         self.closed = threading.Event()
         self.started: list[dict] = []
+        self.unfilmed = threading.Event()  # a tile.start told it the tile isn't filmed (native false)
         self._handlers: dict[str, list] = {}
 
     def on(self, event, handler):
@@ -30,6 +31,8 @@ class OldExtension:
     def call(self, op, timeout=None, **params):
         if op == "tile.start":
             self.started.append(params)
+            if not params.get("native"):
+                self.unfilmed.set()
             threading.Thread(target=self._stream, args=(len(self.started),), daemon=True).start()
 
     def _stream(self, mine: int):
@@ -47,7 +50,7 @@ class NeverAimed:
     def __init__(self, pid, on_frame, **_):
         self.status, self.alive = {}, True
 
-    def aim(self, window, viewport):
+    def aim(self, window, viewport, title=""):
         raise AssertionError("aimed without a tile.shown")
 
     def close(self):
@@ -70,6 +73,9 @@ def test_a_filmed_tile_whose_extension_never_sends_tile_shown_shows_the_extensio
 
         assert filmed == ({0: True}, 0)
         assert frame.startswith(JPEG) and seen > 0
+        # The tile drops its filming, then tells the extension: this old one's frames can come between the two
+        # (CI, 2026-11-15), so wait for the tile.start rather than read the last one at once.
+        assert extension.unfilmed.wait(5)
         assert frames.native == {} and extension.started[-1]["native"] is False
 
 

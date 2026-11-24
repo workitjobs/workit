@@ -21,6 +21,9 @@ code, a captcha, and more than MAX_PAGES account pages in one Application.
 A page that carries a captcha, an invisible one too (captcha.CARRIED), is a
 Handoff before anything is typed or clicked: its button runs the captcha, so
 Lisul signs in himself (AMD's iCIMS email step, KAN-703).
+
+A reopened form (`apply reopen`, KAN-720) signs in as any form does (KAN-878): a rehearsal resets no password,
+so a stale one can't lock the account.
 """
 
 import json
@@ -33,7 +36,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Page
 
 from apply import captcha
-from apply.accounts import NO_PASSWORD, Accounts
+from apply.accounts import NEEDS_SIGN_IN, NO_PASSWORD, Accounts
 from apply.model import Handoff
 from apply.oracle import MAIL_SEARCH as ORACLE_MAIL_SEARCH
 
@@ -81,6 +84,12 @@ class _Click:
 
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_LOCK = threading.Lock()
+
+
+# A mailed link that resets a password ("/reset-password?token=", "forgotpassword"): Lisul's, never opened by Apply.
+RESETS = re.compile(r"reset|forgot|recover|change.?password|new.?password", re.IGNORECASE)
+RESET_LINK = (NEEDS_SIGN_IN + "The newest mail from {site} is a password reset, and Apply never opens one. Sign in "
+              "on the page yourself: Apply goes on by itself once you have.")
 
 
 class AccountPages:
@@ -160,8 +169,7 @@ class AccountPages:
         if clicked.page == "sign_up" and kind == "sign_up":
             if ALREADY.search(error):
                 raise Handoff(NO_PASSWORD.format(site=site, login=self._accounts.login))
-            raise Handoff(f"{site} refused the new account ({error or 'its create-account page came back'}). "
-                          "Make it and fill the form in yourself.")
+            raise self._accounts.refused(site, f"the site said: {error}" if error else "its create-account page came back")
         if clicked.page == "code" and kind == "code":
             raise Handoff(f"{site} refused the code from Gmail ({error or 'its code page came back'}): sign in yourself.")
         if clicked.new:
@@ -206,6 +214,8 @@ class AccountPages:
         self._hold(search)
         link = self._accounts.link(search, since, (site, *mail_domains(site)))
         self.release()
+        if RESETS.search(link):  # a reset's link, never Apply's to open (KAN-878's review: a reset can end the old
+            raise Handoff(RESET_LINK.format(site=site))  # password, and a reopened form now drives account pages)
         page.goto(link)
         _settle(page)
         page.goto(posting)
@@ -220,10 +230,12 @@ class AccountPages:
             raise Handoff(f"The button that signs in at {site} says it may send the application. "
                           "Sign in and fill the form in yourself.")
         before = _shown(page)
-        # The flag stays on until the page answers: iCIMS's Next runs an invisible hCaptcha and then
-        # posts its form from script, after the click has returned (AMD's, live, KAN-640).
-        if guard:
-            guard.let_account_click()
+        if guard and not guard.let_account_click(found[0], sign_in=True):  # a frame inside it: never pressed (KAN-710)
+            guard.arm()
+            raise Handoff(f"The {button!r} button at {site} holds a frame, where Apply's press could land on another "
+                          "form. Sign in yourself.")
+        # The allowance stays on until the page answers: a page may post its form from script after the click has
+        # returned (iCIMS's Next ran an invisible hCaptcha first, AMD's, live, KAN-640).
         try:
             found[0].click()
             self._clicked = clicked

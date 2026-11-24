@@ -9,6 +9,7 @@ import {
   CalendarIcon,
   GearIcon,
   MailIcon,
+  MatchIcon,
   PinIcon,
   PlusIcon,
 } from "@/components/icons";
@@ -19,7 +20,7 @@ import { MatchBadge } from "@/components/match-badge";
 import { TailoredChip } from "@/components/tailored-chip";
 import { SaveButton } from "@/components/save-button";
 import { Skyline, SKYLINE_SKY } from "@/components/skyline";
-import { StatTile } from "@/components/stat-tile";
+import { StatTile, StatTileSkeleton } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,12 +28,14 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Fact } from "@/components/ui/fact";
 import { IconButton } from "@/components/ui/icon-button";
+import { LoadFailed } from "@/components/ui/load-failed";
+import { NoMatches } from "@/components/ui/no-matches";
 import { Points, Section } from "@/components/ui/section";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
 import { MatchRail } from "../../(seeker)/jobs/match-rail";
-import { ToastSpecimen } from "../interactive";
+import { StepsDialogSpecimen, ToastSpecimen } from "../interactive";
 import { STAGE_TONE } from "../../company/applicants/data";
 import { STATUS_TONE } from "../../company/jobs/data";
 import { SECTIONS } from "../data";
@@ -87,8 +90,87 @@ export default function DisplayPage() {
       </Group>
 
       <Group
+        title="Stat Tiles"
+        note="One tile for a number (KAN-828): its label, the figure with its unit, and a line under it that is always drawn, so a row keeps one height. `on` sets only the fill, by what the tile stands on. Hover a linked tile: it lifts, and its chip's glyph turns into an arrow."
+      >
+        <Row
+          name='<StatTile on="page" href Icon tone>'
+          role="Home's four numbers: a raised tile on the page ground, the whole tile a link"
+        >
+          {/* 224px each, so the chip shows: it hides below 10.5rem of tile. */}
+          <div className="flex flex-wrap gap-4 *:w-56">
+            <StatTile
+              href="/design-kit/display"
+              label="Excellent Matches"
+              Icon={MatchIcon}
+              tone="bg-kpi-match-chip text-kpi-match"
+              value={14}
+              delta={{ value: 3, period: "last week", upIsGood: true }}
+            />
+            <StatTile
+              href="/design-kit/display"
+              label="Saved"
+              Icon={BookmarkIcon}
+              value={6}
+              note="Not applied to yet"
+            />
+          </div>
+        </Row>
+        <Row
+          name='<StatTile on="card">'
+          role="Activity's numbers: a grey well inside a white card, its dates in a pill"
+        >
+          <Card padding="md" className="grid w-full grid-cols-2 gap-3">
+            <StatTile
+              on="card"
+              label="Past Year"
+              value={42}
+              unit="applications"
+              note={
+                <Badge variant="tag" pill>
+                  Since Nov 2025
+                </Badge>
+              }
+            />
+            <StatTile
+              on="card"
+              label="Current Streak"
+              value={0}
+              unit="days"
+              note={
+                <Badge variant="tag" pill>
+                  Apply today
+                </Badge>
+              }
+            />
+          </Card>
+        </Row>
+        <Row
+          name='<StatTile on="tint">'
+          role="An application's Open and Days Since: a white box on its tinted card"
+        >
+          <div className="bg-brand-tint border-brand/20 rounded-card grid w-full grid-cols-2 gap-3 border p-4">
+            <StatTile on="tint" label="Posting" value="Open" note="Still taking applications" />
+            <StatTile
+              on="tint"
+              label="Since You Applied"
+              value={5}
+              unit="days"
+              note="Applied Nov 7"
+            />
+          </div>
+        </Row>
+        <Row name="<StatTileSkeleton>" role="Any tile while its number loads, in its own box">
+          <div className="grid w-full grid-cols-2 gap-4">
+            <StatTileSkeleton chip />
+            <StatTileSkeleton on="card" />
+          </div>
+        </Row>
+      </Group>
+
+      <Group
         title="Overview"
-        note="The company Overview opens on plain tiles and one violet hero, so the numbers and the next step are the first places to look. The seeker's Home draws its own tiles."
+        note="The company Overview opens on plain tiles and one violet hero, so the numbers and the next step are the first places to look."
       >
         <Row name="<StatTile plain>" role="The company Overview's headline row">
           <div className="grid w-full max-w-md grid-cols-2 gap-6">
@@ -102,15 +184,11 @@ export default function DisplayPage() {
             <StatTile plain label="Replies" Icon={MailIcon} value={4} note="Since Aug 4" />
           </div>
         </Row>
-        <Row name="<StatTile>" role="The card form, which has no caller today">
-          <div className="w-full max-w-56">
-            <StatTile
-              label="Interviews"
-              Icon={CalendarIcon}
-              value={2}
-              delta={{ value: -1, period: "last week", upIsGood: true }}
-            />
-          </div>
+        <Row
+          name="<StepsDialog>"
+          role="A wait shown step by step as the API streams it: Tailor's run and Generate"
+        >
+          <StepsDialogSpecimen />
         </Row>
         <Row name="<HeroArcs>" role="The corner arcs on the company Overview's violet hero">
           <div className="from-brand to-brand-active text-on-brand rounded-shell relative h-28 w-full max-w-sm overflow-hidden bg-linear-to-br p-5">
@@ -243,11 +321,38 @@ export default function DisplayPage() {
           <Card padding="none" className="w-full max-w-md">
             <EmptyState
               Icon={BriefcaseIcon}
-              title="No Roles Yet"
+              title="No Jobs Yet"
               action={<Button variant="secondary">Refresh</Button>}
             >
-              New roles show up here as soon as they&apos;re posted.
+              New jobs show up here as soon as they&apos;re posted.
             </EmptyState>
+          </Card>
+        </Row>
+        <Row
+          name="<LoadFailed>"
+          role="A read that failed: what did not load, then Try Again (ui/load-failed.tsx, KAN-819)"
+        >
+          <LoadFailed
+            title="Your Applications Aren't Loading Right Now"
+            className="w-full max-w-md"
+          >
+            We couldn&apos;t reach your applications. Try again in a few minutes.
+          </LoadFailed>
+        </Row>
+        <Row
+          name="<LoadFailed compact>"
+          role="The same inside a card, a tile or a dialog that has its own heading"
+        >
+          <Card className="w-full max-w-md">
+            <SectionHeading as="h3">Transcript</SectionHeading>
+            <LoadFailed compact title="Your Transcript Isn't Loading Right Now" className="mt-3">
+              We couldn&apos;t reach your file. Try again in a few minutes.
+            </LoadFailed>
+          </Card>
+        </Row>
+        <Row name="<NoMatches>" role="A picker's search or filters left no row (ui/no-matches.tsx)">
+          <Card className="w-full max-w-md">
+            <NoMatches>None of your resumes match these filters.</NoMatches>
           </Card>
         </Row>
         <Row name="<Section> and <Points>" role="A job's long-form copy, on its detail page">

@@ -14,6 +14,11 @@ import { rememberStage } from "../jobs/shown-list";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
+/** Taking a queued job out, by one name wherever it shows: the Queued
+ *  toggle's hover, the combined Apply button's menu (../jobs/
+ *  apply-split-button.tsx) and Up Next's ⋯ and pick bar (KAN-818). */
+export const REMOVE_FROM_QUEUE = "Remove From Queue";
+
 /** What the button says once the job posting has an application. */
 const STAGE_LABEL: Record<RunStage, string> = {
   queued: "Queued",
@@ -31,16 +36,21 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * `stage` is the application the server read as it drew the page (null:
  * none). A saved job (its Save button, KAN-261) counts as none: a click
  * queues it. With one, the button names its stage. Queued is a toggle: a second
- * click takes the job out of the queue (dequeueJob) and the button reads
- * Auto Apply again. Any later stage is off: needs you, skipped and applied
+ * click is Remove From Queue, the one name it has everywhere (KAN-818): it
+ * takes the job out of the queue (dequeueJob) and the button reads Auto
+ * Apply again. Any later stage is off: needs you, skipped and applied
  * are what happened, not a plan, so the button never undoes them. A stale
  * `stage` is harmless: a click answers the real one.
  *
- * Queueing raises a toast (components/ui/toast.tsx), "<title> from <company>
- * is queued for Auto Apply.", with Undo, which takes the job out again
- * (dequeueJob) and turns the button back to Auto Apply: the same as Live
- * Activity's cross and its Undo, the other way round. Only a new queueing
- * raises one; a click that finds an earlier stage just shows it.
+ * Both ways raise a toast (components/ui/toast.tsx) with Undo, so neither
+ * asks first (docs/design.md, "A write that cannot be taken back asks first
+ * or offers Undo"). Queueing says "<title> from <company> is queued for Auto
+ * Apply.", and its Undo takes the job out again (dequeueJob). Removing says
+ * "<title> from <company> is removed from the queue.", as Up Next's Remove
+ * does, and its Undo queues it again (queueJob), at the queue's end. Only a
+ * new queueing raises one; a click that finds an earlier stage just shows it.
+ * Each toast closes the job's last one (`say`): a queued toast left beside
+ * the removal offered an Undo that could only fail.
  *
  * Every stage it sets goes to the shown list (`rememberStage`, KAN-217), so
  * the job's other buttons and every list follow: a saved job queued here
@@ -56,7 +66,12 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * page load; only a failure shows (no extension stays silent: most
  * visitors have none).
  */
-export function AutoApplyButton({
+/** What a job's Auto Apply knows and does, shared by AutoApplyButton and the
+ *  Jobs page's combined Apply button (../jobs/apply-split-button.tsx), so
+ *  the two queue, take out, toast and open the extension's tab the same way.
+ *  `done` is a stage past queued (Needs You, Skipped, Applied): what
+ *  happened, not a plan, so nothing undoes it. */
+export function useAutoApply({
   jobId,
   title,
   company,
@@ -78,19 +93,13 @@ export function AutoApplyButton({
   // One click at a time: `disabled={pending}` lands a render late, so a
   // fast double click queued twice, raising two toasts and two opens.
   const busy = useRef(false);
+  // This job's last toast: a new one closes it, so a queued toast's Undo
+  // never shows beside the removal it would contradict.
+  const shown = useRef<number | null>(null);
   const inBrowser = useBrowserJobs().has(jobId);
 
-  if (stage && stage !== "queued") {
-    return (
-      <Button variant="secondary" size="sm" disabled>
-        <CheckIcon className="size-4" />
-        {STAGE_LABEL[stage]}
-      </Button>
-    );
-  }
-
-  /** The toast's Undo. A failure (a fill that began meanwhile) says so in a
-   *  toast and leaves the button Queued. */
+  /** The queueing toast's Undo. A failure (a fill that began meanwhile)
+   *  says so in a toast and leaves the button Queued. */
   async function undo() {
     const result = await dequeueJob(jobId);
     if (result.error) {
@@ -101,18 +110,31 @@ export function AutoApplyButton({
     rememberStage(jobId, null);
   }
 
-  if (stage === "queued" && inBrowser) {
-    return (
-      <Button
-        variant="secondary"
-        size="sm"
-        title="Go to the tab"
-        onClick={() => void showRunTab(jobId)}
-      >
-        <AppWindowIcon aria-hidden className="size-4" />
-        Working in Browser
-      </Button>
-    );
+  /** The removal toast's Undo: the job joins the queue again, at its end. A
+   *  failure says so in a toast and leaves the button at Auto Apply. */
+  async function requeue() {
+    const result = await queueJob(jobId);
+    if (!result.stage) {
+      toast.show({ message: `Couldn't put ${title} back in the queue. ${result.error}` });
+      return;
+    }
+    setStage(hasApplied(result.stage) ? "applied" : result.stage);
+    rememberStage(jobId, result.stage);
+  }
+
+  /** "<title> from <company> <said>" in a toast with Undo, the job's
+   *  names in medium, in place of this job's last toast. */
+  function say(said: string, onUndo: () => Promise<void>) {
+    if (shown.current !== null) toast.dismiss(shown.current);
+    shown.current = toast.show({
+      message: (
+        <>
+          <span className="font-medium">{title}</span> from{" "}
+          <span className="font-medium">{company}</span> {said}
+        </>
+      ),
+      action: { label: "Undo", onClick: onUndo },
+    });
   }
 
   /** The tab opens in the background; only a failure is worth a line. */
@@ -124,67 +146,102 @@ export function AutoApplyButton({
   }
 
   const queued = stage === "queued";
+
+  /** Queues the job, or takes a queued one out: Queued is a toggle. */
+  function toggle() {
+    if (busy.current) return;
+    busy.current = true;
+    start(async () => {
+      try {
+        if (queued) {
+          const result = await dequeueJob(jobId);
+          setError(result.error);
+          if (result.error) return;
+          setStage(null);
+          rememberStage(jobId, null);
+          say("is removed from the queue.", requeue);
+          return;
+        }
+        const result = await queueJob(jobId);
+        setError(result.error);
+        if (!result.stage) return;
+        // The job may have moved past applied in another tab since
+        // this page was drawn; it reads as Applied, as on first draw.
+        setStage(hasApplied(result.stage) ? "applied" : result.stage);
+        // Every other button for this job follows (KAN-217): a saved
+        // job's bookmark empties once it is queued.
+        rememberStage(jobId, result.stage);
+        if (result.stage === "queued") {
+          void openInBrowser();
+          say("is queued for Auto Apply.", undo);
+        }
+      } finally {
+        busy.current = false;
+      }
+    });
+  }
+
+  return {
+    stage,
+    queued,
+    /** Queued and open in the extension's tab right now. */
+    inBrowser: queued && inBrowser,
+    done: stage != null && stage !== "queued" ? STAGE_LABEL[stage] : null,
+    pending,
+    error,
+    toggle,
+    goToTab: () => void showRunTab(jobId),
+  };
+}
+
+export function AutoApplyButton(props: {
+  jobId: string;
+  title: string;
+  company: string;
+  stage: ApplicationStage | null;
+}) {
+  const auto = useAutoApply(props);
+
+  if (auto.done) {
+    return (
+      <Button variant="secondary" size="sm" disabled>
+        <CheckIcon className="size-4" />
+        {auto.done}
+      </Button>
+    );
+  }
+
+  if (auto.inBrowser) {
+    return (
+      <Button variant="secondary" size="sm" title="Go to the tab" onClick={auto.goToTab}>
+        <AppWindowIcon aria-hidden className="size-4" />
+        Working in Browser
+      </Button>
+    );
+  }
+
   return (
     <>
-      {error && (
+      {auto.error && (
         <p role="alert" className="text-note text-ink-meta">
-          {error}
+          {auto.error}
         </p>
       )}
       <Button
         variant="secondary"
         size="sm"
-        disabled={pending}
+        disabled={auto.pending}
         // A toggle: pressed while queued, and the hover says what a click does.
-        aria-pressed={queued}
-        title={queued ? "Remove from the queue" : undefined}
-        onClick={() => {
-          if (busy.current) return;
-          busy.current = true;
-          start(async () => {
-            try {
-              if (queued) {
-                const result = await dequeueJob(jobId);
-                setError(result.error);
-                if (!result.error) {
-                  setStage(null);
-                  rememberStage(jobId, null);
-                }
-                return;
-              }
-              const result = await queueJob(jobId);
-              setError(result.error);
-              if (!result.stage) return;
-              // The job may have moved past applied in another tab since
-              // this page was drawn; it reads as Applied, as on first draw.
-              setStage(hasApplied(result.stage) ? "applied" : result.stage);
-              // Every other button for this job follows (KAN-217): a saved
-              // job's bookmark empties once it is queued.
-              rememberStage(jobId, result.stage);
-              if (result.stage === "queued") {
-                void openInBrowser();
-                toast.show({
-                  message: (
-                    <>
-                      <span className="font-medium">{title}</span> from{" "}
-                      <span className="font-medium">{company}</span> is queued for Auto Apply.
-                    </>
-                  ),
-                  action: { label: "Undo", onClick: undo },
-                });
-              }
-            } finally {
-              busy.current = false;
-            }
-          });
-        }}
+        aria-pressed={auto.queued}
+        title={auto.queued ? REMOVE_FROM_QUEUE : undefined}
+        onClick={auto.toggle}
       >
-        {queued ? (
+        {auto.queued ? (
           <CheckIcon className="size-4" />
         ) : (
           <LightningRoundedIcon aria-hidden className="size-4" />
         )}
-        {queued ? STAGE_LABEL.queued : "Auto Apply"}
+        {auto.queued ? STAGE_LABEL.queued : "Auto Apply"}
       </Button>
     </>
   );

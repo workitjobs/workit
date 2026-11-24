@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ExternalLinkIcon } from "@/components/icons";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -15,6 +16,8 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { Radio } from "@/components/ui/radio-row";
+import { cn } from "@/lib/cn";
 import { type ResumeItem } from "@/lib/resume-actions";
 import { applyWithResume } from "@/lib/sent-resume-actions";
 
@@ -23,6 +26,7 @@ import { useResumeFileDownload } from "./resume-download";
 import {
   firstChoice,
   loadChoices,
+  pickRowClasses,
   ResumeLists,
   ResumeListsSkeleton,
   type Choice,
@@ -84,11 +88,16 @@ export function ApplyButton({
   applied = false,
   // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
+  variant = "default",
   className,
 }: {
   jobId: string;
   title: string;
   applyUrl: string;
+  /** Filled by default. Secondary in a list of jobs that each have one
+   *  (Home's Top Matches): a filled button on every row is a wall of
+   *  violet, and a view has one primary action (frontend/docs/design.md). */
+  variant?: "default" | "secondary";
   /** A signed-in applicant, who can mark a job applied. */
   canMarkApplied?: boolean;
   /** Marked applied already: the dialog never asks again. */
@@ -124,7 +133,7 @@ export function ApplyButton({
         href={applyUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className={buttonClasses({ size: "sm", className })}
+        className={buttonClasses({ size: "sm", variant, className })}
         onClick={() => {
           if (canMarkApplied && !applied) setOpen(true);
         }}
@@ -133,24 +142,54 @@ export function ApplyButton({
         <ExternalLinkIcon className="size-4" />
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
-      <Dialog open={open} onOpenChange={setOpen}>
-        {/* Wide on a full-screen window, with the two resume lists side by
-            side, so it fits without a scrollbar: at the dialog's default
-            width (sm:max-w-sm) the lists and the upload stacked into a
-            narrow column taller than the window. It still scrolls inside
-            itself on a short or narrow window. */}
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          {open && (
-            <DidYouApply
-              jobId={jobId}
-              title={title}
-              onClose={() => setOpen(false)}
-              onApplied={marked}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <ApplyDialog
+        jobId={jobId}
+        title={title}
+        open={open}
+        onOpenChange={setOpen}
+        onApplied={marked}
+      />
     </>
+  );
+}
+
+/** "Did You Apply?" in its dialog, for any control that opens it: Apply
+ *  Now, the combined Apply button's Apply Manually, and I Already Applied
+ *  in a job's ⋯ and in Up Next's (./apply-split-button.tsx,
+ *  ./job-more-menu.tsx, ../auto-apply/row-menu.tsx). */
+export function ApplyDialog({
+  jobId,
+  title,
+  open,
+  onOpenChange,
+  onApplied,
+}: {
+  jobId: string;
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** After Yes has saved. */
+  onApplied: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Wide on a full-screen window, with the two resume lists side by
+          side, so it fits without a scrollbar: at the dialog's default
+          width (sm:max-w-sm) the lists and the upload stacked into a
+          narrow column taller than the window. On a short or narrow window
+          its middle scrolls (`DialogBody`), under the title and over the
+          buttons. */}
+      <DialogContent className="sm:max-w-3xl">
+        {open && (
+          <DidYouApply
+            jobId={jobId}
+            title={title}
+            onClose={() => onOpenChange(false)}
+            onApplied={onApplied}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -244,58 +283,77 @@ export function DidYouApply({
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
+        <DialogTitle>Did You Apply?</DialogTitle>
         <DialogDescription>
           If you sent your application for {title}, check the resume you sent and mark it applied.
           WorkIt moves it to your Tracker.
         </DialogDescription>
       </DialogHeader>
-      {/* The pick, to attach on the employer's form (KAN-217). */}
-      {picked && (
-        <div className="rounded-control border-border-control flex flex-wrap items-center justify-between gap-3 border px-3 py-2">
-          <p className="text-note text-ink min-w-0">
-            Attach <span className="font-medium">{picked.label}</span> on the employer&apos;s form.
+      <DialogBody>
+        {/* The pick, to attach on the employer's form (KAN-217). */}
+        {picked && (
+          <div className="rounded-control border-border-surface flex flex-wrap items-center justify-between gap-3 border px-3 py-2">
+            <p className="text-note text-ink min-w-0">
+              Attach <span className="font-medium">{picked.label}</span> on the employer&apos;s
+              form.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={file.busy}
+              onClick={() => void file.download(picked.source)}
+            >
+              <FileArrowDownIcon aria-hidden /> {file.busy ? "Downloading…" : "Download"}
+            </Button>
+            {file.error && (
+              <p role="alert" className="text-note text-danger basis-full">
+                {file.error}
+              </p>
+            )}
+          </div>
+        )}
+        {/* One radio group (`applied-with`): every resume in the
+            list, a file they sent instead (Upload Resume in its row),
+            or none. */}
+        {choices == null ? (
+          <ResumeListsSkeleton />
+        ) : (
+          <ResumeLists
+            name="applied-with"
+            choices={choices}
+            empty="None yet. Upload the file you sent."
+            picked={appliedWith}
+            onPick={setAppliedWith}
+            upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
+          />
+        )}
+        {/* No Resume is one more card of the list's radio group, drawn as
+            its cards are (`pickRowClasses`), as Experiences' All
+            Experiences row is: picked, Yes marks the job applied with no
+            resume. It was a full-width button that filled brand once
+            picked, a second filled button beside Yes, I Applied (KAN-820). */}
+        {choices != null && (
+          <label className={cn(pickRowClasses(appliedWith === NO_RESUME), "mt-0")}>
+            <Radio
+              name="applied-with"
+              value={NO_RESUME}
+              checked={appliedWith === NO_RESUME}
+              onChange={() => setAppliedWith(NO_RESUME)}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="text-label text-ink block">No Resume</span>
+              <span className="text-note text-ink-meta block">
+                You sent this application without a resume.
+              </span>
+            </span>
+          </label>
+        )}
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
           </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={file.busy}
-            onClick={() => void file.download(picked.source)}
-          >
-            <FileArrowDownIcon aria-hidden /> {file.busy ? "Downloading…" : "Download"}
-          </Button>
-          {file.error && <p className="text-note text-danger basis-full">{file.error}</p>}
-        </div>
-      )}
-      {/* One radio group (`applied-with`): every resume in the
-          list, a file they sent instead (Upload Resume in its row),
-          or none. */}
-      {choices == null ? (
-        <ResumeListsSkeleton />
-      ) : (
-        <ResumeLists
-          name="applied-with"
-          choices={choices}
-          empty="None yet. Upload the file you sent."
-          picked={appliedWith}
-          onPick={setAppliedWith}
-          upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
-        />
-      )}
-      {/* No Resume is a button, not a section of its own: pressed, it
-          is the pick (every radio above clears), and Yes then marks
-          the job applied with no resume. */}
-      {choices != null && (
-        <Button
-          variant={appliedWith === NO_RESUME ? "default" : "secondary"}
-          aria-pressed={appliedWith === NO_RESUME}
-          onClick={() => setAppliedWith(NO_RESUME)}
-          className="w-full"
-        >
-          No Resume
-        </Button>
-      )}
-      {error && <p className="text-note text-danger">{error}</p>}
+        )}
+      </DialogBody>
       <DialogFooter>
         <Button variant="secondary" onClick={onClose}>
           Not Yet
@@ -356,7 +414,7 @@ export function DidYouApply({
 //           ) : sent ? (
 //             <>
 //               <DialogHeader>
-//                 <DialogTitle className="text-subtitle font-semibold">
+//                 <DialogTitle>
 //                   Your Resume Is Ready
 //                 </DialogTitle>
 //                 <DialogDescription>
@@ -395,7 +453,7 @@ export function DidYouApply({
 //           ) : (
 //             <>
 //               <DialogHeader>
-//                 <DialogTitle className="text-subtitle font-semibold">Pick a Resume</DialogTitle>
+//                 <DialogTitle>Pick a Resume</DialogTitle>
 //                 <DialogDescription>
 //                   WorkIt keeps the exact file you send, so you can see later what {title} received.
 //                 </DialogDescription>

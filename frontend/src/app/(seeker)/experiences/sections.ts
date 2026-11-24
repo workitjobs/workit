@@ -1,20 +1,49 @@
-import type { BankEntry, EntryFields, Section } from "@/lib/bank-actions";
+import type {
+  BankEntry,
+  EndKind,
+  EntryFields,
+  EntrySection,
+  Section,
+  SectionLayout,
+} from "@/lib/bank-actions";
 
 /**
  * The experience bank's sections in the order every screen and resume shows
  * them. Skills, the seventh, is a plain list with its own card, not entries.
  * `title` and `organization` name those two fields for the section: one
  * entry shape, worded the way a student thinks of each kind.
+ *
+ * `experience` is "Work Experience" on every screen (KAN-814): beside the
+ * page's name, Experiences, "Experience 14" in the section nav read as a
+ * count for the whole page. The printed resume keeps the heading
+ * "Experience" (`SECTION_LABELS` in `resumes/[resumeId]/model.ts`, and the
+ * API's `fields.py`).
  */
 export const SECTIONS: readonly {
   id: Section;
   label: string;
   title: string;
   organization: string;
+  /** The organization box's placeholder, where its label alone doesn't say
+   *  what goes there. */
+  organizationHint?: string;
 }[] = [
   { id: "education", label: "Education", title: "School", organization: "College or Department" },
-  { id: "experience", label: "Experience", title: "Job Title", organization: "Company" },
-  { id: "projects", label: "Projects", title: "Project Name", organization: "Team or Course" },
+  { id: "experience", label: "Work Experience", title: "Job Title", organization: "Company" },
+  // A project's second field is its context: a course, a hackathon, a few
+  // words on what it is (2026-11-17). Named by what it means, never where it
+  // prints, since the resume's Format moves it (after the name, or under it
+  // once the tools take that place), with general kinds of answer as its
+  // hint, never one example: "Team or Course" named one use, "After the
+  // Name" broke once tools could print there, and a specific example read
+  // as the only right answer.
+  {
+    id: "projects",
+    label: "Projects",
+    title: "Project Name",
+    organization: "Context",
+    organizationHint: "Course, hackathon or personal project",
+  },
   {
     id: "leadership",
     label: "Leadership & Activities",
@@ -30,20 +59,135 @@ export const SECTIONS: readonly {
   },
 ];
 
-export function sectionOf(id: Section) {
-  return SECTIONS.find((s) => s.id === id)!;
+/** A section the student named (KAN-498): its entries' two fields, worded
+ *  for any kind of thing (Volunteering, Publications). */
+export const CUSTOM_FIELDS = {
+  id: "custom" as const,
+  label: "Your Section",
+  title: "Title",
+  organization: "Organization",
+};
+
+/**
+ * What one entry of a section is called, and many: the entry form's title
+ * ("Edit Project", "Add School") and a card's "Show All 17 Projects". Each
+ * is the thing the title field names (a school, a job title's job, a club
+ * role), so no section reads "Edit Education" or "Show All 4 Educations".
+ */
+export const NOUNS: Record<EntrySection, readonly [string, string]> = {
+  education: ["School", "Schools"],
+  experience: ["Job", "Jobs"],
+  projects: ["Project", "Projects"],
+  leadership: ["Role", "Roles"],
+  awards: ["Award", "Awards"],
+  certifications: ["Certification", "Certifications"],
+  custom: ["Entry", "Entries"],
+};
+
+/**
+ * What goes in each section, as its empty card says it (KAN-814): "No
+ * awards yet. Add scholarships, honors and prizes." A section the student
+ * named has none, since its name already says it.
+ */
+export const WHAT_GOES_HERE: Record<Section | "skills", string> = {
+  education: "Add your college, degree and graduation date.",
+  experience: "Add internships, part-time jobs and research positions.",
+  projects: "Add class, personal and hackathon projects.",
+  leadership: "Add clubs, teams and student groups you lead or belong to.",
+  awards: "Add scholarships, honors and prizes.",
+  certifications: "Add licenses and certificates you have earned.",
+  skills: "Add languages, tools and frameworks.",
+};
+
+/**
+ * An empty section card's one line (KAN-814): what it lacks, under the
+ * pick, then what goes there. `items` is the plural, "Awards" or "Lines".
+ */
+export function emptyLine(items: string, picked: boolean, hint?: string): string {
+  const none = `No ${items.toLowerCase()} ${picked ? "on this resume" : "yet"}.`;
+  return hint ? `${none} ${hint}` : none;
+}
+
+export function sectionOf(id: EntrySection) {
+  return id === "custom" ? CUSTOM_FIELDS : SECTIONS.find((s) => s.id === id)!;
+}
+
+/**
+ * Names Add Section offers, each with the layout it usually takes: a
+ * Summary or a list of languages is lines, volunteering is entries. A
+ * Summary prints first on a resume (`resume_render.printed_order`).
+ */
+export const SUGGESTED_SECTIONS: readonly { name: string; layout: SectionLayout }[] = [
+  { name: "Summary", layout: "lines" },
+  { name: "Volunteering", layout: "entries" },
+  { name: "Languages", layout: "lines" },
+  { name: "Interests", layout: "lines" },
+  { name: "Publications", layout: "entries" },
+];
+
+/** An entry of a fixed section: what intake and its questions read. */
+export function isFixed(entry: BankEntry): entry is BankEntry<Section> {
+  return entry.section !== "custom";
+}
+
+/** The sections whose entries list the tools they used (KAN-738): a
+ *  project's stack, which a resume prints in italic on its own line under
+ *  the heading. The API's `SECTION_FIELDS` keeps the same list and refuses
+ *  tools on any other section, so the two change together. */
+const TOOL_SECTIONS = new Set<EntrySection>(["projects"]);
+
+export function holdsTools(section: EntrySection): boolean {
+  return TOOL_SECTIONS.has(section);
+}
+
+/** A comma outside parentheses, where the API splits a tools line typed on
+ *  a resume: "Supabase (PostgreSQL, pgvector)" stays one tool. */
+export const TOOL_COMMA = /,(?![^()]*\))/;
+
+/** A list typed as text, as the bank keeps it: split at each `separator`
+ *  (a comma, unless given), each item trimmed, empty ones dropped. */
+export function splitList(text: string, separator: RegExp | string = ","): string[] {
+  return text
+    .split(separator)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/** "Next.js, TypeScript, FastAPI": a project's tools as the resume prints
+ *  them, or null when it lists none. Every row reads it, so it reads a
+ *  missing list as none: deploy.yml ships the web and the API side by side,
+ *  and a web live before the API that sends `tools` broke every row. */
+export function toolsLine(entry: Pick<EntryFields, "tools">): string | null {
+  return entry.tools?.length ? entry.tools.join(", ") : null;
 }
 
 /** What the editor edits: an entry's fields, plus its bullets, which carry
  *  an id once saved. A draft from intake or import has no ids at all. */
-export type EntryDraft = EntryFields & { bullets: { id?: string; text: string }[] };
+export type EntryDraft<S extends EntrySection = EntrySection> = EntryFields<S> & {
+  /** `off`: in the resume editor's form only (KAN-586), a bullet this
+   *  resume leaves out; the bank keeps it. */
+  bullets: { id?: string; text: string; off?: boolean }[];
+};
+
+/** A school's Graduation Date (2026-11-17): one month and year, as a
+ *  student thinks of it, in place of End's four kinds. A month after `today`
+ *  ("yyyy-MM") is Expected, this month or before is Ended, and no month is
+ *  no end. A school still "Present" from an import keeps its kind until the
+ *  student picks a date. */
+export function graduationEnd(
+  month: string,
+  today: string,
+): { end_kind: EndKind | null; end_month: string | null } {
+  if (month === "") return { end_kind: null, end_month: null };
+  return { end_kind: month > today ? "expected" : "month", end_month: month };
+}
 
 /** A draft as the API takes it: no empty bullet box, which makes the API
  *  refuse the whole entry, and no end month on an entry that runs to
  *  Present. Every save goes through it: the form's own Save, and the stage
  *  card's Save Entry, which hands over the kept draft as it stands (Enter on
  *  the last bullet leaves an empty box in it, KAN-249). */
-export function savable(draft: EntryDraft): EntryDraft {
+export function savable<S extends EntrySection>(draft: EntryDraft<S>): EntryDraft<S> {
   return {
     ...draft,
     end_month: draft.end_kind === "present" ? null : draft.end_month,
@@ -51,9 +195,14 @@ export function savable(draft: EntryDraft): EntryDraft {
   };
 }
 
-export function emptyDraft(section: Section): EntryDraft {
+/** A new entry's draft; a custom section's names its section. */
+export function emptyDraft<S extends EntrySection>(
+  section: S,
+  customSectionId: string | null = null,
+): EntryDraft<S> {
   return {
     section,
+    custom_section_id: customSectionId,
     title: "",
     organization: null,
     location: null,
@@ -67,6 +216,7 @@ export function emptyDraft(section: Section): EntryDraft {
     coursework: [],
     honors: null,
     link: null,
+    tools: [],
     issuer: null,
     award_date: null,
     bullets: [],
@@ -80,16 +230,34 @@ function without<T extends object, K extends keyof T>(source: T, ...keys: K[]): 
   ) as Omit<T, K>;
 }
 
-export function draftOf(entry: BankEntry): EntryDraft {
+/**
+ * An entry's own fields, picked by name as `emptyDraft` lists them, never
+ * "everything but the id": a bank entry also carries what only the page
+ * reads (`resume_ids`, `copy_group`), and the entry PATCH refuses any key it
+ * does not declare. Copied whole, every edit in the Experiences view and
+ * every Scout visit to a saved entry answered 422 "Extra inputs are not
+ * permitted" and saved nothing, its new bullets included (KAN-505). A custom
+ * section's entry keeps `custom_section_id` (KAN-498).
+ */
+function fieldsOf<S extends EntrySection>(source: EntryFields<S>): EntryFields<S> {
+  const names = Object.keys(emptyDraft(source.section)).filter((key) => key !== "bullets");
+  return Object.fromEntries(
+    names.map((key) => [key, source[key as keyof EntryFields<S>]]),
+  ) as EntryFields<S>;
+}
+
+export function draftOf<S extends EntrySection>(entry: BankEntry<S>): EntryDraft<S> {
   return {
-    ...without(entry, "id", "bullets"),
+    ...fieldsOf(entry),
     bullets: entry.bullets.map((b) => ({ id: b.id, text: b.text })),
   };
 }
 
-/** An edit's PATCH body: every field but the section, which is fixed. */
-export function changesOf(draft: EntryDraft): Omit<EntryFields, "section"> {
-  return without(draft, "section", "bullets");
+/** An edit's PATCH body: every field but the section and its custom
+ *  section, which are fixed. By name, so a draft kept in the browser from
+ *  before KAN-505 still saves. */
+export function changesOf(draft: EntryDraft): Omit<EntryFields, "section" | "custom_section_id"> {
+  return without(fieldsOf(draft), "section", "custom_section_id");
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -102,14 +270,19 @@ export function formatMonth(month: string): string {
 
 /** The dates line an entry shows: "Jun 2025 – Present", "Expected May 2027". */
 export function formatDates(entry: EntryFields): string | null {
-  if (entry.section === "awards") return entry.award_date ? formatMonth(entry.award_date) : null;
+  // A date given as a year alone shows as the year, as the resume prints it
+  // (KAN-808): it is January of it
+  const when = (field: "start_month" | "end_month" | "award_date", month: string) =>
+    entry.year_only?.includes(field) ? month.slice(0, 4) : formatMonth(month);
+  if (entry.section === "awards")
+    return entry.award_date ? when("award_date", entry.award_date) : null;
   const end =
     entry.end_kind === "present"
       ? "Present"
       : entry.end_month
-        ? `${entry.end_kind === "expected" ? "Expected " : ""}${formatMonth(entry.end_month)}`
+        ? `${entry.end_kind === "expected" ? "Expected " : ""}${when("end_month", entry.end_month)}`
         : null;
-  const start = entry.start_month ? formatMonth(entry.start_month) : null;
+  const start = entry.start_month ? when("start_month", entry.start_month) : null;
   if (start && end) return `${start} – ${end}`;
   return start ?? end;
 }
@@ -143,7 +316,7 @@ export function entryDetails(entry: EntryFields): string[] {
 }
 
 /** Sections whose entries a resume reads as "at" someone: a job, a club role. */
-const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
+const NEEDS_ORGANIZATION = new Set<EntrySection>(["experience", "leadership"]);
 
 /**
  * Sections whose dates application forms ask for: Greenhouse requires a
@@ -151,7 +324,7 @@ const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
  * a project's, club role's or award's dates, so the bank never asks for them
  * either. The backend's intake `_NEEDS` keeps the same list.
  */
-const NEEDS_DATES = new Set<Section>(["education", "experience"]);
+const NEEDS_DATES = new Set<EntrySection>(["education", "experience"]);
 
 /** A start, and an end or "still going": the dates a form takes. */
 function hasDates(entry: EntryFields): boolean {
@@ -191,7 +364,7 @@ export function missingFacts(entry: EntryFields): string[] {
 }
 
 /** Sections whose entries read as things the student did, so want bullets. */
-const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"]);
+const NEEDS_BULLETS = new Set<EntrySection>(["experience", "projects", "leadership"]);
 
 /**
  * Intake's questions about an entry already in the bank, an imported one
@@ -243,4 +416,28 @@ export function neededFacts(entry: EntryFields & { bullets: readonly { text: str
     needed.push("Bullets");
   }
   return needed;
+}
+
+type WithBullets = EntryFields & { bullets: readonly { text: string }[] };
+
+/**
+ * What a bank row flags (KAN-740), each as a badge after its title ("No
+ * Start Date"): the facts a resume would miss (`missingFacts`), and the
+ * bullets of a job, project or role, which a resume prints as a bare heading
+ * without them. Title Case, as a badge is. They were a sentence on every row
+ * ("No start date yet. Add it before you Generate a resume.") that read as
+ * one more line of the entry, and the bullet count beside it said nothing
+ * of an entry with none.
+ */
+export function rowGaps(entry: WithBullets): string[] {
+  const gaps: string[] = [];
+  const dates = missingDates(entry);
+  if (dates) gaps.push(DATES_LABEL[dates]);
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    gaps.push(sectionOf(entry.section).organization);
+  }
+  if (NEEDS_BULLETS.has(entry.section) && !entry.bullets.some((b) => b.text.trim())) {
+    gaps.push("Bullets");
+  }
+  return gaps;
 }

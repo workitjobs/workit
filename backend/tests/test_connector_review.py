@@ -201,3 +201,39 @@ async def test_rewrite_hands_any_claude_answer_back_with_what_the_student_asked(
     plain = await _tab_posts(me, job, "redo", {"name": "question_8"})
     assert plain.status_code == 204, plain.text
     assert (await _tab_posts(me, job, "redo", {"name": "question_7"})).status_code == 422
+
+
+# The truth check (KAN-748): flagged in code on save, saved as written, never refused.
+MADE_UP = "It went into use across campus."
+INVENTED = f"I built a resume builder with FastAPI and Kafka. {MADE_UP}"
+
+
+async def test_an_answer_with_claims_no_source_holds_is_saved_as_written_and_flagged_for_the_student(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY, PROUD)
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": WHY_ACME, **WRITTEN}, {"name": "question_8", "answer": INVENTED, **WRITTEN}]})
+        task = (await client.call_tool("get_review_task", {})).structured_content
+        # Their Claude's review finds nothing: the code's flag stays.
+        await client.call_tool("save_review", {"job_id": job, "versions": _versions(task), "problems": []})
+
+    assert saved.is_error is False, saved.content
+    rows = await _tab_asks(me, job)
+    assert [(r["answer"], r["flag"], r["flag_quote"], r["flag_hard"]) for r in rows] == [
+        (WHY_ACME, None, None, False),
+        (INVENTED, ('Not in your experience or the posting: "Kafka" (a name); "went into use" (an outcome). '
+                    "Make sure each one is true before you submit."), "I built a resume builder with FastAPI and Kafka.", False),
+    ]
+
+    # The student keeps it: the flag clears. A fixed answer saved later has none.
+    assert (await _tab_posts(me, job, "keep", {"name": "question_8"})).status_code == 204
+    assert [r["flag"] for r in await _tab_asks(me, job)] == [None, None]
+    async with claude(applicant) as client:
+        await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_8", "answer": f"I built a resume builder with FastAPI and Kafka. {MADE_UP} Twice.", **WRITTEN}]})
+    assert (await _tab_asks(me, job))[1]["flag"] is not None
+    async with claude(applicant) as client:
+        await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_8", "answer": PROJECT, **WRITTEN}]})
+    assert [r["flag"] for r in await _tab_asks(me, job)] == [None, None]

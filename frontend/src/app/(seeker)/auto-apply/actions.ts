@@ -4,6 +4,8 @@ import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import type { SentResume } from "@/lib/sent-resume-actions";
 import { getApplicantSession } from "@/lib/session";
 
+import { getQueueCount } from "./applications";
+
 /**
  * Auto apply's writes, through the API's routes
  * (backend/app/routers/auto_apply.py). Every export of a "use server" file
@@ -141,26 +143,9 @@ export async function chooseResume(
   }
 }
 
-/** "Mark applied" on a Live Activity row (KAN-369): the student sent this
- *  application and WorkIt's extension didn't see it. Finishes it as
- *  submitted (POST .../applications/{job_id}/finish), which dates it now.
- *  One already applied or skipped answers the API's 409, which says why. */
-export async function markSubmitted(jobId: string): Promise<{ error: string | null }> {
-  let session;
-  try {
-    session = await getApplicantSession();
-  } catch {
-    return { error: SIGNED_OUT };
-  }
-  try {
-    const res = await apiFetch(
-      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
-      { method: "POST", body: JSON.stringify({ outcome: "submitted" }) },
-      session.token,
-    );
-    if (res.ok) return { error: null };
-    return { error: await extractErrorMessage(res) };
-  } catch {
-    return { error: UNREACHABLE };
-  }
+/** The queue's count again, for the sidebar's Auto Apply badge
+ *  (../queue-badge.tsx) once a card's Auto Apply, Save or Undo changes a
+ *  stage: none of them reloads the page. */
+export async function readQueueCount(): Promise<number | null> {
+  return getQueueCount();
 }

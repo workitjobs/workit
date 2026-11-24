@@ -56,12 +56,14 @@ import json
 import re
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply import feed, fill_engine, trace
+from apply import feed, fill_engine, google_sign_in, submit_guard, trace
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
@@ -74,6 +76,7 @@ from apply.model import (
     Question,
     QuestionSet,
     Readback,
+    one_line,
 )
 
 if TYPE_CHECKING:
@@ -95,6 +98,9 @@ SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
+# The engine's FillError when Workday answers Save and Continue with its error page ("Something went wrong. Please refresh
+# the page and then try again."): its React error boundary, shown when the page's own script throws (KAN-758).
+WENT_WRONG = "showed its error page"
 REFILL_WAIT = 1_000  # ms for a step Workday refused to settle before it is filled again
 SEND_WAIT = 10.0  # s for an auth form's click to send it, before it is clicked again
 SEND_CLICKS = 3  # clicks on an auth form's button at most
@@ -109,6 +115,7 @@ UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-
 VERIFY_LOOKBACK = timedelta(days=1)
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
+ENTRIES = re.compile(r"\(entries\)\s*$")  # a repeating section's Question: "Work Experience (entries)", answered with how many
 
 
 def site_of(url: str) -> str:
@@ -154,6 +161,17 @@ def next_step(page: Page, step: str) -> None:
         raise Handoff(f"{handoff}. Apply didn't click it: check the form and submit it yourself.") from None
 
 
+def _naming(page: Page, names: list[str]) -> list[str]:
+    """Which of `names` name an entry of a repeating section, by the engine (`workdayEntries.naming`); none on an engine
+    without the call (a plain Worker seeded before it), which deletes the last panels as it always did."""
+    try:
+        return fill_engine.call(page, "workdayEntries.naming", names) or []
+    except FillError as error:
+        if "has no function" not in str(error):
+            raise
+        return []
+
+
 def confirmed(page: Page) -> bool:
     """Whether Workday shows its notice of a submitted application: any of its
     words in sight, not only the first (a hidden live region can say them first)."""
@@ -180,6 +198,10 @@ class WorkdayFiller:
         self._known: QuestionSet = []  # the questions fill() was given, which the engine fills against
         self._state: dict = {}  # the engine's memory of this Application, kept between its calls
         self._his: tuple[str, set[str]] = ("", set())  # (step, fields) Lisul filled before Resume: not filled again
+        # The step a fill stopped on for Lisul, and what its fields showed then: on Resume, only a value he changed
+        # from it is his (KAN-676). An untouched box (read "No") or one the page pre-ticked stays the page's.
+        self._paused_step = ""
+        self.paused: dict | None = None
         self._link_opened = False  # a verification link was opened: one that didn't verify is never opened again
 
     # --- The Filler ------------------------------------------------------------------
@@ -191,10 +213,31 @@ class WorkdayFiller:
             return self._shown(page)["questions"]
 
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        try:
+            return self._fill_steps(page, questions, answers)
+        except Handoff:
+            self._read_pause(page)  # what the step shows as it stops for Lisul, to tell what he changes before Resume
+            raise
+
+    def _read_pause(self, page: Page) -> None:
+        try:
+            shown = self._shown(page)
+            self._paused_step, self.paused = shown["step"], self._values(page, shown)
+        except Exception:
+            self._paused_step, self.paused = "", None  # unread: on Resume no attestation counts as his
+
+    def _values(self, page: Page, shown: dict) -> dict:
+        """What each field of the step shown holds, by Question name (no file, no section)."""
+        names = [q.name for q in shown["questions"] if q.kind != "file" and q.name not in shown["sections"]]
+        return fill_engine.call(page, "readback", "workday", [], names, self._engine_state()) if names else {}
+
+    def _fill_steps(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
         known = {q.name for q in questions}
         self._known = list(questions)
         self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
+        crashed: set[str] = set()  # the steps whose Save and Continue showed Workday's error page once
+        attests = {name for name in fill_engine.attestations(questions) if name not in answers}  # Lisul's to tick
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
         while not (shown := self._shown(page))["review"] and not (shown["sends"] and not shown["questions"]):
@@ -203,8 +246,14 @@ class WorkdayFiller:
             if new:
                 raise MoreQuestions(new)
             kept = self._his[1] if shown["step"] == self._his[0] else set()
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
-                self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
+            sections = {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}
+            # Each entry's naming answers (company, title) go with the count, so a panel holding one is never deleted
+            # (KAN-775). One Lisul changed before Resume leaves the panels as he left them: his entry is told by none.
+            naming = _naming(page, [q.name for q in fields if q.name in answers]) if sections else []
+            if sections and not kept.intersection(naming):
+                self._fill(page, sections | {name: answers[name] for name in naming})  # new panels' fields: MoreQuestions
+                # Panels added for questions known already (a step filled again, KAN-775): their fields as shown now.
+                fields = self._shown(page)["questions"]
             for q in fields:
                 if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])
@@ -215,8 +264,12 @@ class WorkdayFiller:
                 continue  # an answer brought up a follow-up question (Snap's H-4 one, live)
             if shown["sends"]:
                 break
+            # A required attestation or signature on this step is Lisul's (KAN-676): Save and Continue would refuse
+            # it blank, so the form stops here for him to tick it. Resume goes on with what he put on the step.
+            if unticked := [q.label for q in fields if q.required and q.name in attests and q.name not in kept]:
+                raise Handoff(fill_engine.tick_ask(unticked))
             try:
-                next_step(page, shown["step"])
+                self._save_and_continue(page, shown["step"], crashed)
             except Handoff as refused:
                 # Workday may drop a step's picks as it loads the step's questions again: ASML's Application
                 # Questions showed each pick, yet Save and Continue found two required answers empty, while the
@@ -225,7 +278,42 @@ class WorkdayFiller:
                     raise
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
+        if shown["review"]:
+            self._readback |= self._reviewed(page, questions, answers)
         return dict(self._readback)
+
+    def _save_and_continue(self, page: Page, step: str, crashed: set[str]) -> None:
+        """Save and Continue on `step`. Workday's error page in its place (NVIDIA's My Experience, live, KAN-758) is
+        reloaded, as it asks: the fill goes on from the step the reload shows, and fills that step again if it is the
+        same one. A second error page on the step is Lisul's."""
+        try:
+            next_step(page, step)
+        except FillError as error:
+            if WENT_WRONG not in str(error):
+                raise
+            if step in crashed:
+                raise Handoff(f"Workday showed its error page (\"Something went wrong\") after Save and Continue on its "
+                              f"'{step}' step twice. Refresh the page, check the step and press Save and Continue "
+                              "yourself") from None
+            crashed.add(step)
+            page.reload()
+
+    def _reviewed(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        """Each repeating section's entries as Review shows them, read back under the plan's names (the engine's
+        `workdayEntries.reviewed`, KAN-775): the section's count, and an entry Review lacks as blank. NVIDIA's keeps only
+        the entries changed on a step's last visit, so an entry read back on My Experience can be gone by Review
+        (Ask changed one date there and saved, live 2026-11-10): verifying then holds the form, and the next fill
+        goes back to put it again (`_back_to_changed`). An engine without the call (a plain Worker seeded before it)
+        reads nothing here."""
+        if not any(ENTRIES.search(q.label) and q.name in answers for q in questions):
+            return {}
+        named = {name: answer for name, answer in answers.items() if not isinstance(answer, Path)}
+        try:
+            return fill_engine.call(page, "workdayEntries.reviewed", fill_engine.questions_arg(questions), named) or {}
+        except FillError as error:
+            if "has no function" not in str(error):
+                raise
+            return {}
 
     def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
         """Back to the first step holding an answer other than the one the last fill was given there (the
@@ -234,17 +322,34 @@ class WorkdayFiller:
         again opens past them."""
         changed = [q for q in questions if q.name in answers and q.name in self._given and q.name in self._readback
                    and answers[q.name] != self._given[q.name]]
+        # A section Review showed with fewer entries than planned (`_reviewed`): its step is filled again, every entry
+        # typed anew, so Workday keeps them all (KAN-775).
+        short = [q for q in questions if ENTRIES.search(q.label) and q.name in answers and q.name in self._readback
+                 and str(self._readback[q.name]).strip() != str(answers[q.name]).strip()]
+        changed = short + changed
         self._given = dict(answers)
         if not changed:
             return
         wanted = changed[0].name.split(" / ", 1)[0]  # a Question's name starts with its step
+        if self._back_to(page, wanted):
+            # Back draws each step from what the page kept of it, not from Workday's server. Filled again on that
+            # page, NVIDIA's My Experience answered Save and Continue with Workday's error page (live, KAN-758). Once
+            # reloaded, the page loads the step from Workday, as a fill on the draft's first visit does.
+            page.reload()
+            self._back_to(page, wanted)
+
+    def _back_to(self, page: Page, wanted: str) -> bool:
+        """Press Back until the page shows `wanted` (or has no Back): whether it pressed it."""
+        pressed = False
         for _ in range(MAX_BACK):
             step = self._shown(page)["step"]
             back = page.locator(BACK_BUTTON).first
             if step == wanted or not back.count() or not back.is_visible():
-                return
+                break
             back.click()
+            pressed = True
             _until(page, lambda: _on_step(page) and _step(page) != step)
+        return pressed
 
     def resume_blocked(self, page: Page) -> str:
         """Why Resume can't go on from the page now, or "": only from an
@@ -263,13 +368,19 @@ class WorkdayFiller:
         return _on_step(page)
 
     def resumed(self, page: Page) -> dict:
-        """The values on the step shown, as Lisul left it before pressing
-        Resume, by Question name: fill() leaves those fields as they are."""
+        """The values on the step shown that Lisul changed before pressing Resume, by Question name: fill() leaves
+        those fields as they are. Only a value other than the one the step showed when the fill stopped is his: an
+        untouched box reads "No", and a box the page ticked reads "Yes", and neither is his (KAN-676). With no read of
+        the pause on this step, every value counts but an attestation's, which stays his to tick."""
         shown = self._shown(page)
-        names = [q.name for q in shown["questions"] if q.kind != "file" and q.name not in shown["sections"]]
-        values = fill_engine.call(page, "readback", "workday", [], names, self._engine_state()) if names else {}
-        kept = {name: value for name, value in values.items() if value not in (None, "", [])}
+        values = self._values(page, shown)
+        at_pause = self.paused if self.paused is not None and self._paused_step == shown["step"] else None
+        attests = fill_engine.attestations(shown["questions"]) if at_pause is None else set()
+        kept = {name: value for name, value in values.items() if value not in (None, "", [])
+                and (value != at_pause.get(name) if at_pause is not None else name not in attests)}
         self._his = (shown["step"], set(kept))
+        if at_pause is None:
+            self.paused = None
         return kept
 
     def submit(self, page: Page) -> None:
@@ -376,7 +487,7 @@ class WorkdayFiller:
                     self._accounts.not_made(site)
                     raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
-            raise Handoff(f"Workday at {site} refused the new account: '{error}'")
+            raise self._accounts.refused(site, f"Workday said: '{error}'")
         if outcome == "sign in" or outcome == "unanswered" and made():
             # Workday's code goes to Sign In only when its answer made the account (a root widget), and then the
             # new password signs in, or is refused as not verified yet (Visa's, Northrop's, live). It answers an
@@ -426,7 +537,7 @@ class WorkdayFiller:
         reset not finish, that password is never tried (a sign-in failure). Both
         forms go through _send, since Workday may drop a click that comes
         straight after typing (Visa's and Northrop's, live)."""
-        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here
+        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here (Handoff)
         form = _auth_form(page, "signInLink", create=False)
         page.locator("[data-automation-id=forgotPasswordLink]").click()
         _until(page, lambda: form.locator("[data-automation-id=resetPasswordButton]").count() > 0)
@@ -455,31 +566,31 @@ class WorkdayFiller:
 
     def _google(self, page: Page, button: Locator) -> None:
         button.click()
-        account = page.locator(f'[data-identifier="{self._accounts.login}"], [data-email="{self._accounts.login}"]')
+        account = google_sign_in.account(page, self._accounts.login)
         # A Worker profile that used it before may come straight back, signed in, without the
         # chooser; and Workday may take its time over that (over 20 s on Snap's tenant, live).
-        on_google = lambda: page.url.startswith("https://accounts.google.com/")
+        on_google = lambda: google_sign_in.on_google(page)
         try:
             shown = _until(page, lambda: _on_step(page) and "in" or account.first.is_visible() and "chooser"
-                           or on_google() and _google_asks(page) and "asks" or _google_rejected(page) and "rejected",
+                           or on_google() and google_sign_in.asks(page) and "asks" or google_sign_in.rejected(page) and "rejected",
                            GOOGLE_WAIT)
         except TimeoutError:
             if on_google():
-                raise Handoff(_google_wants(page)) from None
+                raise Handoff(google_sign_in.wants(page)) from None
             raise Handoff(f"Workday didn't come back signed in from Sign in with Google within {GOOGLE_WAIT:.0f} s "
                           f"({page.url}): finish the application yourself.") from None
         if shown == "asks":
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         if shown == "rejected":
             raise Handoff(GOOGLE_REJECTED)
         if shown == "in":
             return
         account.first.click()
-        _until(page, lambda: not on_google() or _google_asks(page) or _google_rejected(page))
-        if _google_rejected(page):
+        _until(page, lambda: not on_google() or google_sign_in.asks(page) or google_sign_in.rejected(page))
+        if google_sign_in.rejected(page):
             raise Handoff(GOOGLE_REJECTED)
         if on_google():
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         _until(page, lambda: _on_step(page))
 
     # --- Steps, through the engine ---------------------------------------------------
@@ -525,9 +636,15 @@ class WorkdayFiller:
     def _put_or_rescue(self, page: Page, q: Question, box: Locator | None, value) -> None:
         try:
             self._put(page, q, box, value)
-        except FillError as error:
-            if not (self._rescue and self._rescue.field(page, q.label, value, error)):
+        except (FillError, PlaywrightTimeoutError) as error:
+            # An engine call a plain Worker didn't answer in time (PortTimeoutError, NVIDIA's My Information, live,
+            # KAN-702) is this field's failure, not the fill's: rescued, or else a FillError naming the field, which
+            # a rehearsal skips and goes on without.
+            if self._rescue and self._rescue.field(page, q.label, value, error):
+                return
+            if isinstance(error, FillError):
                 raise
+            raise FillError(f"{q.label}: the Fill engine didn't finish it in time ({one_line(str(error))[:200]})") from error
 
     def _put(self, page: Page, q: Question, box: Locator | None, value, fresh: bool = False) -> None:
         """Fill one field through the engine."""
@@ -619,10 +736,7 @@ def _let_account_click(page: Page, let: bool = True) -> None:
     guard (apply.submit_guard), which would take Workday's "Submit" (its
     label in the Sign in with email view, Sonos's, live) for the application's;
     `let=False` puts the guard back."""
-    try:
-        page.evaluate(f"window.__applyAccountClick = {'true' if let else 'false'}")
-    except Exception:
-        pass  # the page navigating: its next document has no guard state to set yet
+    submit_guard.let_account_click(page, let)  # KAN-710: by the guards' own control, which no page can send
 
 
 def _by_email(page: Page) -> None:
@@ -700,46 +814,16 @@ def _alert(page: Page) -> str:
     return alerts.first.inner_text().strip() if alerts.count() and alerts.first.is_visible() else ""
 
 
-def _google_asks(page: Page) -> bool:
-    """Whether Google's page asks for something typed (a password, a code, a phone number), or is one of
-    its challenges, such as a passkey, which has no box to type in (KLA, 2026-11-03)."""
-    return _google_challenge(page) or \
-        page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
-
-
-def _google_challenge(page: Page) -> bool:
-    url = urlsplit(page.url)
-    return url.hostname == "accounts.google.com" and "/signin/challenge/" in url.path
-
-
-def _google_rejected(page: Page) -> bool:
-    """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
-    return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
-
-
 # Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
 MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
-             "save it with security add-generic-password -U -s apply-ats -a {site} -w, then apply yourself.")
+             "save it with uv run keyring set apply-ats {site} (in apply-agent/), then apply yourself.")
 
 # An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
 MADE_WITH_GOOGLE = (
     f"{NEEDS_SIGN_IN}{{company}}'s Workday account was made with Google; sign in once yourself, or reset its password"
 )
 
-GOOGLE_REJECTED = (
-    f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "
-    "secure\"). Sign in with Google in your own Chrome and apply yourself."
-)
-
-
-def _google_wants(page: Page) -> str:
-    asked = "a password" if page.locator("input[type=password]").count() else "a passkey" if (
-        "/signin/challenge/pk" in urlsplit(page.url).path) else (
-        page.locator("h1").first.inner_text().strip() if page.locator("h1").count() else page.url)
-    return (
-        f"Google asked for more than an account pick ({asked}). Agents never type Google credentials: "
-        "sign the Worker profiles in to Google again by hand (see the setup checklist), then apply yourself."
-    )
+GOOGLE_REJECTED = google_sign_in.REJECTED
 
 
 def _until(page: Page, done, timeout: float = TIMEOUT):

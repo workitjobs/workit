@@ -1,6 +1,7 @@
 """Request/response shapes for the applicant profile (GET + PATCH)."""
 
-from typing import Any
+from datetime import datetime
+from typing import Annotated, Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
 )
@@ -35,6 +37,8 @@ class ApplicantProfileResponse(BaseModel):
     github_url: str | None
     other_url: str | None
     location: str | None = None
+    # The resume header's Additional line (KAN-436)
+    resume_header_extra: str | None = None
     # KAN-298: the Settings opt-in for the daily job-match digest (bell and
     # email alike). Off until the student turns it on.
     job_alerts_enabled: bool
@@ -57,7 +61,54 @@ class FillProfile(BaseModel):
     policies: dict[str, Any]
 
 
+# Size caps on what Apply's sync sends (routers/CLAUDE.md: client JSON stored as-is is capped).
+Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+Option = Annotated[str, StringConstraints(max_length=1000)]
+
+
+class ApplyAnswer(BaseModel):
+    """One Answer bank entry as Apply keeps it (apply-agent answer_bank.py),
+    sent when Apply saves or changes it (KAN-746). WorkIt decides `own` from
+    `source` and `reviewed` (services/apply_answers.py), never the caller.
+    An empty answer (or none of a multi-select's options) deletes the entry."""
+
+    question: Question
+    answer: Annotated[str, StringConstraints(max_length=20000)] | Annotated[list[Option], Field(max_length=100)]
+    options: Annotated[list[Option], Field(max_length=200)] = []
+    source: Annotated[str, StringConstraints(max_length=20)] = "claude"
+    reviewed: bool | None = None
+    company: Annotated[str, StringConstraints(max_length=200)] | None = None
+    # when Apply last changed it; none for an entry changed before the sync was on
+    edited_at: datetime | None = None
+
+
+class ApplyAnswerDeleted(BaseModel):
+    """An entry Apply took out of its bank, and when."""
+
+    question: Question
+    edited_at: datetime | None = None
+
+
+class FillAnswersChange(BaseModel):
+    """PATCH .../fill-answers: entries to save and entries to delete, at most 200 each."""
+
+    answers: Annotated[list[ApplyAnswer], Field(max_length=200)] = []
+    deleted: Annotated[list[ApplyAnswerDeleted], Field(max_length=200)] = []
+
+
+class FillAnswersMerged(BaseModel):
+    """What the merge did: `kept` names each change left out because WorkIt's
+    entry is newer (services/apply_answers.py, `merge`)."""
+
+    saved: int
+    deleted: int
+    kept: list[str]
+
+
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
+# The resume header's Additional line fits one line of the contact line's
+# small type (KAN-436): longer, it wraps and the header grows
+RESUME_HEADER_EXTRA_MAX = 100
 
 
 def web_link(value: str | None) -> str | None:
@@ -104,10 +155,13 @@ class ApplicantProfileUpdate(BaseModel):
     other_url: str | None = Field(None, max_length=500)
     # Where the student lives (KAN-372), as forms ask it: "Stony Brook, NY".
     location: str | None = Field(None, max_length=100)
+    # The resume header's Additional line (KAN-436): one short line
+    resume_header_extra: str | None = Field(None, max_length=RESUME_HEADER_EXTRA_MAX)
     job_alerts_enabled: bool | None = None
 
     @field_validator(
-        "contact_email", "phone_number", "headline", "middle_name", "location", *LINK_FIELDS, mode="before"
+        "contact_email", "phone_number", "headline", "middle_name", "location", "resume_header_extra", *LINK_FIELDS,
+        mode="before",
     )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
@@ -117,3 +171,22 @@ class ApplicantProfileUpdate(BaseModel):
     @classmethod
     def _web_link(cls, value: str | None) -> str | None:
         return web_link(value)
+
+
+class HeaderOffer(BaseModel):
+    """A value the header has that differs from the profile's: the note's
+    Use This saves it (PATCH .../profile)."""
+
+    field: str
+    value: str
+
+
+class HeaderFill(BaseModel):
+    """What an upload's header did to the profile: each field it filled,
+    with the value; what it offers in place of a value the profile already
+    has; and whether free text was left that the Additional line could not
+    take."""
+
+    added: dict[str, str] = {}
+    offers: list[HeaderOffer] = []
+    overflow: bool = False

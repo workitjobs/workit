@@ -15,6 +15,8 @@ from pathlib import Path
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 API = re.compile(r"https://ats\.rippling\.com/api/v1/board/([^/]+)/jobs/([0-9a-f-]{36})")
 # What the fake parser reads from any résumé.
 PARSED = {"first_name": "Parsed", "last_name": "Person", "email": "parsed@example.com",
@@ -225,6 +227,8 @@ class FakeRipplingServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

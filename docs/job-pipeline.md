@@ -52,6 +52,16 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
 The scraper never touches the database, and the website never touches the
 database. Each hands its output to the next stage.
 
+**Two pipelines, one import.** Jobs enter the database through two paths:
+the **CLI scraper** (`python3 -m workit_scraper`) writes `feed.json` and a
+separate `import_jobs.py` run loads it, while the **backend worker**
+(`backend/app/scraper/worker.py`) reads boards as a library and calls
+`import_feed` directly, with no feed file. Both paths converge at
+`import_feed` (`backend/app/scripts/import_jobs.py`), which owns the upsert,
+location resolution and role tagging. The CLI path is
+simpler and useful for development and offline testing; the worker is the
+production path with per-board checkpoint resilience (section 3.3).
+
 ---
 
 ## 2. Finding companies
@@ -63,7 +73,7 @@ its company job boards, so we keep our own list.
 | | |
 |---|---|
 | **The list** | `scraper/boards.csv`: about 3,830 company job boards (table below) |
-| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, and open-jobs' frozen list of company job boards (ADR 0007), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
+| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, open-jobs' frozen list of company job boards (ADR 0007), and boards harvested from Common Crawl's CDX index (`harvest_commoncrawl.py`), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
 | **How often it's refreshed** | When a person merges the discovery pull request. The 3-hour scrape reads only the `boards.csv` on main |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
 
@@ -122,6 +132,16 @@ hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
 on it). A run takes about 15 minutes: 12 of them are Workday's share, and the
 other hiring systems finish inside it (about 3 minutes without Workday).
 
+Scheduled and manual runs run on a team computer, not on GitHub's servers
+(KAN-726, `docs/scraper_gh_action/plan.md`). GitHub keeps the schedule and
+the logs; the computer does the work, and reads each job posting's keywords
+with a model of its own. A pull request's test run stays on GitHub's
+servers. The computer also embeds each new job posting, and every
+experience bank, with one model of its own, the only machine that does.
+A run reads keywords and embeds only the job postings it added or changed;
+older ones missing either are filled by one-time backfills a person runs
+on the computer.
+
 ### What one run does
 
 | Step | What happens |
@@ -133,6 +153,39 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+### 3.3 The backend worker
+
+The **backend worker** (`backend/app/scraper/worker.py`, KAN-733) runs the
+same scraper as a library and publishes directly to the database through
+`import_feed`, with no feed file. It is the production path; the CLI scraper
+above is for development and offline testing.
+
+| | CLI scraper | Backend worker |
+|---|---|---|
+| **State** | `jobs.json` (flat file) | `scraper_schedules`, `scraper_tasks`, `job_sources` (database tables) |
+| **Output** | `feed.json` → `import_jobs.py` as a script | Calls `import_feed` directly per board |
+| **Checkpoint** | All boards finish, then one feed, one import | Each board publishes independently |
+| **Closures** | Feed diff: a job not in the feed is closed | Two-complete-read rule on `job_sources` |
+
+**Phase 1** reads each board's listing through `asyncio.to_thread`, filters
+by `classify(title)` alone (no page fetches) and publishes each board's kept
+jobs through `import_feed` as soon as it finishes. A failed board logs and
+continues; it never stalls the rest. Providers that return descriptions
+inline (Lever, Ashby, Recruitee) stamp them during phase 1.
+
+**Phase 2**, after all boards finish, fetches description pages for postings
+that need them: up to 500 per cycle, ordered by board and first-seen time,
+in 8 threads. A description is enrichment only: it updates the posting's
+page-derived fields (description, salary, job type, work style, experience
+level, start term, sponsorship) but never filters a posting out. Version
+tracking on `job_sources.description_version` means only new or stale
+descriptions are fetched, and a failure is retried only on the next
+`PAGE_VERSION` bump.
+
+**Closure detection** runs globally after phase 2. A job stale on every
+enabled board (two complete reads without it, tracked in `job_sources`) is
+closed with reason `gone_from_board`.
 
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
@@ -148,7 +201,8 @@ which also covers boards that name none). A board with still none is checked
 once by its own address: a careers site such as `careers.garmin.com`, or a
 Workday account name proved on the company's home page. Each run's
 `metrics.json` lists the boards still without a domain, most jobs first, for a
-person to add to the checked list. The browser loads Brandfetch's sharp
+person to add to the checked list; a daily job proposes rows for it from
+Wikidata's official websites, in a pull request a person reviews. The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
 image or favicon, and then to the company's initials.
 
@@ -276,6 +330,13 @@ transaction**: if any step fails, nothing changes.
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
 | 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens. A job a student added from its form (KAN-515, `added_by_student`) is never closed, since the feed never had it; a feed that lists its link makes it an ordinary scraped job, keeping its applications. A student can't reopen a closed job by adding its form: that link is refused. Apply's tracking (`track_only`) puts the student's application on the closed job and leaves it closed |
 
+**Repost detection.** The scraper's feed.json carries a `repost` boolean
+for offline inspection: a job whose `posted_at` is more than 7 days after
+its `first_seen_at` (`_REPOST_DAYS` in `shortlist.py`). The database stores
+no repost column; a consumer that needs it computes
+`posted_at::date - created_at::date > 7` from the two dates already on the
+row.
+
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.
 
@@ -306,7 +367,7 @@ table. Scraped ones have no `company_id`.
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up. The type also has `unlisted` (KAN-542), which nothing writes: a job a student added is `added_by_student` (ADR 0008), and a later migration removes the value |
 | `added_by_student` | A job WorkIt does not list that a student added by its link (`POST /jobs/added-by-link`, KAN-515): only the company, the title and the link, published. The Jobs page, search and Scout never show it, and the import makes it an ordinary scraped job when the scraper finds the same job |
-| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Best Match order ranks by them (KAN-231, KAN-288). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
+| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Best Match order ranks by them (KAN-231, KAN-288). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229). An HNSW index over it, as a halfvec, picks each student's 500 nearest jobs (KAN-915) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read by the model, with a hash of what the model read: the title and the job's own sections of the description, not its perks (`posting_text_hash`, which the import and Tailor's check share). The import reads them after it commits, for new and changed job postings, at most 100 a run (KAN-392); a company's job posting is read when it is saved as published. A job posting neither has reached yet is read the first time a student's resume is matched against it. A change to the title or the job's sections makes them stale, and the import clears them when the description changes |
 
 ### 5.2 `job_locations`, one row per place a job posting is in
@@ -409,6 +470,7 @@ queue take only those job postings (`backend/app/auto_apply/hosts.py`).
 | `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
+| `GET /jobs/{id}/match` | Signed-in applicants: its match score and reasons, as the feed's card shows them, for the job's own page; empty for anyone else |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
 | `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued or saved one too; a second mark keeps the first date |
 | `POST /jobs/{id}/saved` | Applicants only: saves it, and answers its stage; one already queued or applied keeps that stage |
@@ -498,7 +560,7 @@ browser can't restore your place by itself. The app does it instead:
 | No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
-| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; next, proved guesses from company names (`scraper/docs/coverage.md`). Common Crawl's `robots.txt` disallows every bot |
+| A company only arrives once a GitHub list or Common Crawl names it | Curated lists and Common Crawl's CDX index are the discovery sources | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; `harvest_commoncrawl.py` harvests board slugs from Common Crawl's CDX index (~every 5 weeks) |
 | A new posting on a board that has not changed can be up to about 27 hours late; a closed one can stay about 30 hours | A board whose kept postings are unchanged rests up to 24 hours (KAN-502), and the 3-hour run gap adds to it; a close needs two reads | `--full` overrides fingerprint rest; a shorter cap in `FINGERPRINT_LONGEST` trades freshness for more requests |
 | A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 

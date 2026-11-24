@@ -1,5 +1,8 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Fix from the window (S3, KAN-609): one of Lisul's tile events replayed on this frame, in the
-// worker extension's isolated world, as synthetic DOM events (isTrusted: false).
+// worker extension's isolated world, as synthetic DOM events (isTrusted: false). The text he types
+// goes in trusted where it can (KAN-716): page/dom.js's keys and inserts answer a request that
+// ops/typing.js types.
 //
 // Loaded after vendor/injected.js and page/dom.js, whose key presses and inserts it reuses.
 // A point is in CSS pixels of this frame's viewport; a tile's point comes scaled from the
@@ -96,8 +99,10 @@
     mouse(target, "pointerdown", at, { button, buttons: HELD[event.button] ?? 1, detail });
     if (mouse(target, "mousedown", at, { button, buttons: HELD[event.button] ?? 1, detail }) && button === 0) {
       const focusable = target.closest?.(FOCUSABLE);
+      // Each focus move through page/dom.js's leaving: an unfocused window tells the box left nothing (KAN-709).
+      const { leaving } = globalThis.__applyDom;
       if (focusable && document.activeElement !== focusable) {
-        focusable.focus();
+        leaving(() => focusable.focus());
         // A real click puts the caret where it lands; the end of the text is the nearest a script can say.
         if (focusable.matches("textarea") || (focusable.matches("input") && TEXTY.test(focusable.type))) {
           try {
@@ -105,7 +110,7 @@
           } catch {}
         }
       } else if (!focusable && document.activeElement && document.activeElement !== document.body) {
-        document.activeElement.blur(); // a press on nothing focusable takes the focus away, as a real one does
+        leaving(() => document.activeElement.blur()); // a press on nothing focusable takes the focus away, as a real one does
       }
     }
     const pick = button === 0 ? target.closest?.("select") : null;
@@ -134,6 +139,7 @@
       return null;
     }
     document.documentElement.removeAttribute("data-apply-chooser");
+    globalThis.__applyDom?.touch?.(clicked);  // Lisul's press: the click right after the touch on that element counts
     mouse(clicked, "click", at, { button, detail });
     if (detail === 2) mouse(clicked, "dblclick", at, { button, detail });
     // A click that asked for a file opens no picker without user activation: the tile asks Lisul instead.
@@ -180,10 +186,12 @@
     return null;
   }
 
-  const keys = (method, value) => {
-    const answer = globalThis.__applyDom.run(method, [value]);
+  // A key or text through page/dom.js. With `trusted`, its answer may ask the service worker to type
+  // the text trusted (ops/typing.js, KAN-716): that request is the tile's answer, and it does.
+  const keys = (method, value, trusted) => {
+    const answer = globalThis.__applyDom.run(method, [value], { trusted });
     if (answer.err) throw Object.assign(new Error(answer.err.message), { name: answer.err.name });
-    return null;
+    return answer.ok ?? null;
   };
 
   function run(event) {
@@ -205,8 +213,8 @@
     }
     // Keys, text and copy go where the focus is: into a focused iframe, its own frame.
     if (kind !== "choose" && isFrame(document.activeElement)) return { descend: { child: child(document.activeElement) } };
-    if (kind === "text") return String(event.text).length === 1 ? keys("keys", event.text) : keys("insert", event.text);
-    if (kind === "key") return keys("keys", [...(event.modifiers || []), event.key].join("+"));
+    if (kind === "text") return String(event.text).length === 1 ? keys("keys", event.text, event.trusted) : keys("insert", event.text, event.trusted);
+    if (kind === "key") return keys("keys", [...(event.modifiers || []), event.key].join("+"), event.trusted);
     if (kind === "copy") return { text: selected() };
     if (kind === "choose") return choose(event.index);
     throw Object.assign(new Error(`no tile event ${kind}`), { name: "BadOp" });

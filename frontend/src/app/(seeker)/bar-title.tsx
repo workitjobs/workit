@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
 
+import { INFO_ROOT, infoSection } from "./auto-apply/info/sections";
 import { BAR_TITLE } from "./bar";
 
 /** Each section's title, the first match of a page's path. A nested path sits
@@ -12,8 +13,10 @@ const TITLES = [
   ["/auto-apply/answers", "Written Answers"],
   ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
+  ["/auto-apply-desktop", "Auto Apply Desktop"],
   ["/applications", "Tracker"],
-  ["/resumes", "Resumes"],
+  ["/resumes", "Documents"],
+  ["/cover-letters", "Documents"],
   ["/experiences", "Experiences"],
   ["/calendar", "Calendar"],
   ["/profile", "Profile"],
@@ -59,9 +62,19 @@ export function BarTitle({ home }: { home: ReactNode }) {
   const found = TITLES.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
   if (!found) return null;
   const [path, title] = found;
-  const Tag = pathname === path ? "h1" : "p";
+  const Tag = pathname === path || isInfoPart(pathname) ? "h1" : "p";
   return <Tag className={BAR_TITLE}>{title}</Tag>;
 }
+
+/**
+ * Application Info's parts are pages of one page (./auto-apply/info), each
+ * under its menu with its card's title as an h2, so the bar's "Application
+ * Info" is the h1 on each, as on a section's own page. It was a plain line
+ * there, and the parts had no h1 (KAN-822). An unknown part is a 404, which
+ * is its own h1.
+ */
+const isInfoPart = (pathname: string) =>
+  pathname.startsWith(`${INFO_ROOT}/`) && infoSection(pathname.slice(INFO_ROOT.length + 1)) != null;
 
 /** Apart from the rest because useSearchParams suspends on a prerendered route
  *  (./search/query-field.tsx). */

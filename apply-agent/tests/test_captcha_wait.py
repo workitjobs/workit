@@ -4,6 +4,8 @@ the wait ends by itself once the challenge is gone, or on his Resume. Opens
 Chromium: run it on your Mac."""
 
 import threading
+import time
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import sync_playwright
@@ -172,3 +174,67 @@ def test_a_form_page_is_no_bot_block(page):
 
     page.set_content("<form><label>Name <input></label><button>Submit application</button></form>")
     assert captcha.blocks(page) == ""
+
+
+# An invisible hCaptcha on an Oracle Recruiting step (JPMorgan's, 2026-11-10, KAN-760): its challenge's frame stays in
+# the page while it is closed, and its words still read in a snapshot. Only a challenge that shows to a person, by
+# Apply's own check, is a captcha to wait for.
+HCAPTCHA_PAGE = (Path(__file__).parent / "fixtures" / "captcha" / "invisible-hcaptcha.html").read_text()
+CLOSED = "visibility: hidden; position: absolute; width: 100%; top: -10000px; left: 0px; right: 0px; opacity: 0;"
+OPEN = "visibility: visible; position: absolute; width: 100%; top: 0px; left: 0px; right: 0px; opacity: 1;"
+FRAME = "iframe[title='Main content of the hCaptcha challenge']"
+# How each kind of hidden keeps the challenge from a person: its box's style, and any change to the page after.
+HIDDEN = {
+    "closed, as hCaptcha keeps it": (CLOSED, ""),
+    "visibility hidden": ("visibility: hidden;", ""),
+    "see-through": ("opacity: 0;", ""),
+    "parked off the page": ("position: absolute; top: -10000px; left: 0px;", ""),
+    "display none": ("display: none;", ""),
+    "aria-hidden": (OPEN, "document.getElementById('challenge-box').setAttribute('aria-hidden', 'true')"),
+    "no size": (OPEN, f"document.querySelector(\"{FRAME}\").style.cssText = 'width: 0px; height: 0px; border: 0'"),
+}
+
+
+def hcaptcha_form(page, style: str, then: str = "") -> None:
+    """The fake Oracle step on `page`, its challenge's box styled `style`. hCaptcha's frames say what JPMorgan's
+    snapshot read; nothing goes past loopback."""
+    page.route("**/*hcaptcha.com/**", lambda route: route.fulfill(
+        content_type="text/javascript" if route.request.resource_type == "script" else "text/html",
+        body="" if route.request.resource_type == "script" else "<p>Please try again.</p><button>Verify</button>"))
+    page.set_content(HCAPTCHA_PAGE.replace("{{CHALLENGE}}", style))
+    if then:
+        page.evaluate(f"() => {{ {then}; }}")
+
+
+@pytest.mark.parametrize("hidden", HIDDEN)
+def test_an_invisible_hcaptchas_closed_challenge_is_no_captcha_and_never_holds_a_fill(page, hidden):
+    from apply import captcha
+
+    hcaptcha_form(page, *HIDDEN[hidden])
+    assert captcha.carried(page)  # it is there: a sign-in's button on this page still runs it (KAN-703)
+    assert not captcha.shows(page) and not captcha.pending(page)
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **CAPTION, status="filling")
+        waits = Waiter(board, 0, None, Profile(), lambda: CAPTION)
+        began = time.monotonic()
+
+        assert waits("Claude fill can't finish this form: an hCaptcha challenge (\"Please try again\", Verify)", page)
+
+    assert time.monotonic() - began < 5  # at once: never the 15 minutes' wait for Resume
+
+
+def test_an_open_hcaptcha_challenge_is_the_wait_and_it_ends_once_the_challenge_closes(page):
+    from apply import captcha
+
+    hcaptcha_form(page, OPEN)
+    assert captcha.shows(page)
+    page.evaluate(f"() => setTimeout(() => document.getElementById('challenge-box').style.cssText = {CLOSED!r}, 1500)")
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **CAPTION, status="filling")
+        waits = Waiter(board, 0, None, Profile(), lambda: CAPTION)
+        began = time.monotonic()
+
+        assert waits("A captcha's challenge covers the form", page)
+
+    assert time.monotonic() - began >= 1  # it waited for Lisul while the challenge showed
+    assert not captcha.shows(page)

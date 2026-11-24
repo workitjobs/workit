@@ -18,16 +18,14 @@ export function apiUpload(
   });
 }
 
-/** `revalidate` (seconds) lets Next keep a public, slow-changing answer in its
- *  data cache and reuse it until then; never pass it with a token. */
-export function apiGet(
-  path: string,
-  accessToken?: string,
-  { revalidate }: { revalidate?: number } = {},
-): Promise<Response> {
+/** A GET to the API. Next keeps no answer between requests: production's
+ *  data cache is off (open-next.config.ts), so a `revalidate` here reached
+ *  the API every time and was taken out (KAN-916). A public answer that is
+ *  slow to make is kept by the API (backend app/queries/jobs/kept_options.py)
+ *  or read once per visit in a layout. */
+export function apiGet(path: string, accessToken?: string): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-    ...(revalidate != null ? { next: { revalidate } } : {}),
   });
 }
 

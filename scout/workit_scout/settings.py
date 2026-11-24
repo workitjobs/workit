@@ -14,7 +14,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # A feature asks for a size, never a model by name, so a provider's renamed
 # or retired model is an env change. "large" is for writing and judgment
-# (Tailor, Read It With AI, the editor assistant), "small" for plain
+# (Tailor, the editor assistant), "small" for plain
 # extraction at volume (a job posting's keywords).
 Size = Literal["large", "small"]
 

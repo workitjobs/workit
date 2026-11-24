@@ -22,6 +22,8 @@ from contextlib import contextmanager
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 URL = "https://recruiting.paylocity.com/Recruiting/Jobs/Apply/4450421"
 SEND_URL = "https://recruiting.paylocity.com/Recruiting/Jobs/Apply/4450421/Send"
 DONE_URL = "https://recruiting.paylocity.com/Recruiting/Jobs/Applied/4450421"
@@ -133,6 +135,8 @@ class FakePaylocityServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

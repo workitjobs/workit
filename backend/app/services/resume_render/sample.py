@@ -86,8 +86,10 @@ VIEW = ResumeView(
                       )),
         )),
         ViewSection("projects", (
-            # The bank has no technologies field; the organization slot
-            # carries Jake's list here, as a team or course would
+            # Jake's own sample prints the list after the bar, where WorkIt
+            # prints the organization; it stays there, so the sample stays
+            # his one page. A project's tools field (KAN-738) prints on a
+            # line of its own: tests/test_resume_render.py's _tools_view
             ViewEntry(next(_ids), "projects", "Gitlytics", organization="Python, Flask, React, PostgreSQL, Docker",
                       start_month=_month(2020, 6), end_kind="present", bullets=_bullets(
                           "Developed a full-stack web application using with Flask serving a REST API with React as the frontend",

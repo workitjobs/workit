@@ -75,9 +75,20 @@ class Settings(BaseSettings):
     turnstile_secret_key: str | None = None
 
     gemini_api_key: str | None = None
-    embedding_provider: Literal["gemini", "ollama"] = "ollama"
+    # Only the team computer makes vectors (KAN-726,
+    # docs/scraper_gh_action/plan.md, Decision 3): its bank job and its
+    # scheduled import set "ollama". Everywhere else, the deployed API, job
+    # alerts and laptops, the default "none" embeds nothing and calls
+    # nothing, so no other machine can write another model's vectors into
+    # the shared columns.
+    embedding_provider: Literal["gemini", "ollama", "none"] = "none"
     ollama_embedding_url: str = "http://localhost:11434"
-    ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
+    ollama_embedding_model: str = Field(default="qwen3-embedding:4b", min_length=1)
+    # Put before a bank's text, never a posting's: Qwen3 embeds the asking
+    # side (the bank) better with a one-line task. Empty sends none.
+    ollama_embedding_query_prefix: str = (
+        "Instruct: Given a candidate's experience and skills, retrieve job postings that fit them\nQuery:"
+    )
     embedding_timeout_seconds: float = Field(default=120, gt=0)
 
     # AI usage limits (app/services/usage.py). A use counts only when the
@@ -128,11 +139,51 @@ class Settings(BaseSettings):
     # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
     fill_report_daily_cap: int = 30
+    # WorkIt Auto Apply's Send report (KAN-837): a report is up to 24 MB, mostly screenshots.
+    apply_report_daily_cap: int = 10
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000
     # Jobs a student added from a form WorkIt doesn't list (KAN-515): one per form they ask their Claude to write for.
     added_job_daily_cap: int = 50
+    # The Fill engine's Rules table, one job system at a time (KAN-756, routers/extension_rules.py): a
+    # site token per posting opened, and a fetch per token. A student opening 100 postings a day, five
+    # batch tabs at a time, stays far below; a scraper pulling the table over and over doesn't.
+    rules_token_daily_cap: int = 400
+    rules_fetch_daily_cap: int = 400
+
+    # WorkIt Auto Apply's Model route (KAN-723, routers/apply_app.py): each student's model use a
+    # day (UTC) in tokens, the Usage cap the app shows, and calls a minute, which keep one student
+    # from taking the free tiers' daily limits every student shares. 80,000 is about thirteen calls,
+    # about three forms with essays. Either changes with no app update.
+    apply_app_daily_tokens: int = Field(default=80_000, ge=0)
+    apply_app_calls_per_minute: int = Field(default=20, ge=1)
+
+    # How long a site token fetches its job system's rules (KAN-756): long enough for the extension's
+    # prefetch on posting open, short enough that a copied one dies quickly.
+    rules_token_minutes: int = 5
+
+    # When the admins' anomaly report flags an account's Rules table fetches (KAN-772,
+    # services/rules_anomalies.py, GET /admin/rules-anomalies). Each flag is a lead to read, never
+    # a block: a student opening postings from a list crosses job systems quickly, and one who
+    # turned Send fill numbers off shows no fills at all.
+    # Many job systems in a short window: this many different ones within this many minutes.
+    rules_anomaly_systems: int = Field(default=6, ge=2)
+    rules_anomaly_systems_minutes: int = Field(default=30, ge=1)
+    # Fetching without filling: at least this many fetches, and this many per fill (fill events,
+    # counted per account a day in daily_counts) or more.
+    rules_anomaly_min_fetches: int = Field(default=30, ge=1)
+    rules_anomaly_fetches_per_fill: float = Field(default=5, gt=0)
+    # Bot-like timing: at least this many gaps between fetches, and this share of them within
+    # this fraction of the median gap (a person's gaps scatter; a timer's don't).
+    rules_anomaly_min_gaps: int = Field(default=20, ge=2)
+    rules_anomaly_regular_share: float = Field(default=0.8, gt=0, le=1)
+    rules_anomaly_regular_tolerance: float = Field(default=0.1, ge=0)
+    # Hitting the cap: RULES_TOKEN_DAILY_CAP or RULES_FETCH_DAILY_CAP reached on this many days.
+    rules_anomaly_capped_days: int = Field(default=2, ge=1)
+    # The Fill engine's bundled Rules table as JSON, which its build writes into its own dist/
+    # (services/rules_table.py). The image copies it to the same place beside backend/.
+    rules_table_path: Path = ENV_FILE.parent / "autofiller_extension" / "fill-engine" / "dist" / "rules-table.json"
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the

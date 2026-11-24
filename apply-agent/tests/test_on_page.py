@@ -23,7 +23,7 @@ from test_rehearse import (
 )
 from test_run_answers import profile_with
 
-from apply import cli, essays, on_page, rehearsal
+from apply import ask, cli, essays, on_page, rehearsal
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
 from apply.dashboard import Dashboard
@@ -134,8 +134,8 @@ def test_what_ask_claude_changed_on_the_held_form_is_never_taken_as_his_answer(m
     def claude_fixes(claude, page, message, *args, **kwargs):  # Claude types into the waiting field, and leaves it
         page.fill("#email", "claude@example.com")
         page.keyboard.press("Tab")
-        return rehearsal.ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
-    monkeypatch.setattr(rehearsal.ask, "ask", claude_fixes)
+        return ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
+    monkeypatch.setattr(ask, "ask", claude_fixes)
     with FakeJobServer(ARC_FORM) as fake:
         rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
                            ApplicantProfile.load(profile), 1, keep_open=True, out=lambda line: None)
@@ -211,6 +211,29 @@ def test_a_field_in_a_section_reads_only_its_own_value_never_the_section_s(page)
     assert read(Question("other", "If your school is not listed, enter it here", "text")).get("value", "") == ""
     page.fill("#alt", "555-0100")
     assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == "555-0100"
+# Microsoft Careers' contact section (live 2026-11-06): a field whose control the page script can't see (a
+# dropdown drawn as a plain div, an input in a shadow root) sits among inputs labelled by divs. Going up from its
+# label reached the whole section: "Alternate Phone Number" read every answer in it joined, then (KAN-693) the
+# first name, another field's.
+CONTACT = """<div class="section">
+  <div class="field"><div class="label">Preferred First Name</div><input id="first" value="Ada"></div>
+  <div class="field"><div class="label">Email</div><input id="email" value="ada@example.com"></div>
+  <div class="field"><div class="label">Alternate Phone Number</div><div class="phone-host"></div></div>
+  <div class="field"><div class="label">Is your legal name the same as your preferred name?</div><div class="dropdown">Select</div></div>
+</div>"""
+
+
+def test_a_field_with_no_control_of_its_own_never_reads_the_sections_other_answers(page):
+    page.set_content(CONTACT)
+    clock = [0.0]
+    watch = on_page.Watch("claude", now=lambda: clock[0])
+    asked = [Question("q9", "Alternate Phone Number", "text"), Question("q5", "Is your legal name the same as your preferred name?", "select")]
+
+    assert [on_page._in_frames(page, q, "read").get("value", "") for q in asked] == ["", ""]
+    assert watch.tick(page, asked) == []
+    page.fill("#email", "ada@example.org")  # another field changed: never an answer to these
+    clock[0] = 1 + on_page.TYPING_S
+    assert watch.tick(page, asked) == []
 
 
 def test_a_field_on_another_workday_step_is_named_and_nothing_moves(page):

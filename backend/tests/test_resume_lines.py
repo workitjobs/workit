@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.resume_lines import LineError, parse
+from app.services.resume_lines import Line, LineError, parse
 
 
 @pytest.mark.parametrize(("kind", "text", "target", "changes"), [
@@ -40,3 +40,20 @@ def test_a_typed_line_becomes_its_change(kind, text, target, changes):
 def test_a_line_that_cannot_be_saved_says_why(kind, text):
     with pytest.raises(LineError):
         parse(kind, text)
+
+
+def test_the_headers_location_goes_to_the_profile_and_an_entrys_to_the_bank():
+    # KAN-436: "location" is both, and the box's item id decides
+    assert parse("location", " Stony Brook, NY ", header=True) == Line("header", {"location": "Stony Brook, NY"})
+    assert parse("location", "", header=True) == Line("header", {"location": None})
+    assert parse("location", "Albany, NY") == Line("entry", {"location": "Albany, NY"})
+    with pytest.raises(LineError):
+        parse("title", "x", header=True)
+    with pytest.raises(LineError):
+        parse("full_name", "", header=True)
+
+
+def test_the_additional_line_is_typed_as_written():
+    assert parse("resume_header_extra", " Open to relocation ", header=True) == Line(
+        "header", {"resume_header_extra": "Open to relocation"})
+    assert parse("resume_header_extra", "", header=True) == Line("header", {"resume_header_extra": None})

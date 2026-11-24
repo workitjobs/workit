@@ -19,10 +19,18 @@ and nowhere else:
 - **Bold and italic live in the resume's own wording** (KAN-435), as `**` and
   `*` around the words. `ViewBullet.text` is always the plain words, for every
   reader (Tailor, keywords, Word); only the PDF reads `marked`.
-- **Order:** sections in `SECTIONS` order, each entry by its choice's
-  position within its section, each bullet by its position within its
-  entry, skills by position. Ties keep the bank's order. An empty section is
-  dropped. The GPA and coursework toggles blank those fields.
+- **Order:** sections in `SECTIONS` order, then the sections the student
+  named (KAN-498) in the bank's order, each entry by its choice's position
+  within its section, each bullet by its position within its entry, skills
+  by position, each under its choice's group when the resume has one
+  (KAN-586), else the bank's. Ties keep the bank's order. An empty section is dropped. The
+  GPA and coursework toggles blank those fields. Where the page prints each
+  section is the page's (`resume_render.printed_order`), not the view's.
+- **Custom sections group by name** (`custom_key`): two uploads that each
+  hold a "Languages" section print one Languages heading. The section's
+  `label` is its name as typed and `layout` how it prints ("entries" or
+  "lines"), the first section's when names repeat. A custom entry is
+  `section="custom"`, whichever section holds it.
 
 Stdlib only, like the renderer: scripts/fetch_tectonic.py renders a fixed
 view to warm Tectonic's cache before Vercel's build installs anything. So
@@ -44,6 +52,14 @@ from typing import Any
 # The bank's sections in resume order: models/dto.py's bank_section, whose
 # members compare equal to these strings. Skills come last, as their own list.
 SECTIONS = ("education", "experience", "projects", "leadership", "awards", "certifications")
+# A section the student named (KAN-498): bank_section's `custom`
+CUSTOM = "custom"
+
+
+def custom_key(name: str) -> str:
+    """A custom section's key in a view and in `PageSettings.section_order`:
+    its name, ignoring case and spacing, so one name is one printed section."""
+    return f"{CUSTOM}:{' '.join(name.casefold().split())}"
 
 # The same pattern as the editor's text-marks.ts. A marker needs a letter
 # beside it, so "5 * 3" and a lone "*" stay what they are
@@ -93,6 +109,8 @@ class BulletChoice:
 class SkillChoice:
     shown: bool = True
     position: int = 0
+    # The group on this resume (KAN-586): None the bank's, "" no group
+    group: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,15 +146,22 @@ class ViewEntry:
     coursework: tuple[str, ...] = ()
     honors: str | None = None
     link: str | None = None
+    tools: tuple[str, ...] = ()  # a project's stack (KAN-738)
     issuer: str | None = None
     award_date: datetime.date | None = None
+    # The dates given as a year alone (KAN-808), printed as the year
+    year_only: tuple[str, ...] = ()
     bullets: tuple[ViewBullet, ...] = ()
 
 
 @dataclass(frozen=True)
 class ViewSection:
-    section: str
+    section: str  # a fixed section, or a custom one's `custom_key`
     entries: tuple[ViewEntry, ...]
+    # A custom section's name as the student typed it, and how it prints;
+    # None on the fixed sections, which keeps their content hash as it was
+    label: str | None = None
+    layout: str | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +169,43 @@ class ViewSkill:
     id: uuid.UUID
     name: str
     group: str | None = None
+
+
+_GROUP_SMALL = frozenset({"a", "an", "and", "for", "in", "of", "on", "or", "the", "to", "with", "&"})
+
+
+def group_key(name: str | None) -> str:
+    '''Which printed group a skill's group name is: case, spacing and "&"
+    for "and" aside, and "Other" is the skills with no group, which print
+    as "Other" beside named groups (KAN-810). "Frameworks" and "frameworks",
+    "Tools & Platforms" and "tools and platforms" printed as two lines, and
+    an upload's lowercase "other" group beside the real "Other". The
+    editor's outline has the same rule (`groupKey` in the editor's
+    model.ts); change both together.'''
+    key = " ".join((name or "").lower().replace("&", " and ").split())
+    return "" if key == "other" else key
+
+
+def group_label(names: Iterable[str | None]) -> str | None:
+    '''A printed group's name: the first of its names with a capital letter
+    ("Frameworks" over "frameworks"), else the first in title case, small
+    words aside; None for the skills with no group (`groupLabel`).'''
+    named = [n for n in names if n and group_key(n)]
+    if not named:
+        return None
+    if cased := next((n for n in named if n != n.lower()), None):
+        return " ".join(cased.split())
+    words = named[0].split()
+    return " ".join(w if i and w in _GROUP_SMALL else w[:1].upper() + w[1:] for i, w in enumerate(words))
+
+
+def grouped_skills(skills: Iterable[ViewSkill]) -> list[tuple[str | None, list[ViewSkill]]]:
+    '''The skills by printed group, each group where its first skill
+    prints: (its label, its skills), None for those with no group.'''
+    groups: dict[str, list[ViewSkill]] = {}
+    for skill in skills:
+        groups.setdefault(group_key(skill.group), []).append(skill)
+    return [(group_label(s.group for s in members) if key else None, members) for key, members in groups.items()]
 
 
 @dataclass(frozen=True)
@@ -164,6 +226,14 @@ def _ordered(items: Iterable[Any], key: Mapping[uuid.UUID, Any]) -> list[Any]:
     return sorted(chosen, key=lambda item: key[item.id].position)
 
 
+def _group(skill: Any, choice: SkillChoice) -> str | None:
+    '''The group a skill prints under on this resume: its choice's, when the
+    student moved it there (KAN-586; "" is no group), else the bank's.'''
+    if choice.group is None:
+        return skill.group
+    return choice.group or None
+
+
 def _bullet(bullet: Any, wording: str | None) -> ViewBullet:
     # Only the resume's own wording is read for markers: the bank's text is
     # what the student or an upload wrote, stars and all
@@ -177,16 +247,31 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
     '''`bank` has `.entries` (each with `.row` and `.bullets`) and `.skills`,
     in the bank's order (services/bank.py's load_bank).'''
     by_id = {entry.row.id: entry for entry in bank.entries}
+    # The custom sections, by key, in the bank's order: (name, layout, rows).
+    # `sections` is duck-typed too, and absent from an older caller's bank.
+    named = {s.id: s for s in getattr(bank, "sections", ())}
+    groups: dict[str, tuple[str, str, list[Any]]] = {}
+    for custom in named.values():
+        groups.setdefault(custom_key(custom.name), (custom.name, custom.layout, []))
+    for entry in bank.entries:
+        custom = named.get(getattr(entry.row, "custom_section_id", None))
+        if _str(entry.row.section) == CUSTOM and custom is not None:
+            groups[custom_key(custom.name)][2].append(entry.row)
     sections = []
-    for section in SECTIONS:
-        rows = [e.row for e in bank.entries if _str(e.row.section) == section]
+    every = [
+        *((section, [e.row for e in bank.entries if _str(e.row.section) == section], None, None)
+          for section in SECTIONS),
+        *((key, rows, label, layout) for key, (label, layout, rows) in groups.items()),
+    ]
+    for section, rows, label, layout in every:
+        kind = CUSTOM if label is not None else section
         entries = []
         for row in _ordered(rows, choices.entries):
             choice = choices.entries[row.id]
             bullets = _ordered(by_id[row.id].bullets, choices.bullets)
             entries.append(ViewEntry(
                 id=row.id,
-                section=section,
+                section=kind,
                 title=row.title,
                 organization=row.organization,
                 location=row.location,
@@ -200,13 +285,16 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 coursework=tuple(row.coursework or ()) if choice.show_coursework else (),
                 honors=row.honors,
                 link=row.link,
+                tools=tuple(row.tools or ()),
                 issuer=row.issuer,
                 award_date=row.award_date,
+                # A row from before the column, or a test's, reads as none
+                year_only=tuple(getattr(row, "year_only", None) or ()),
                 bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
             ))
         if entries:
-            sections.append(ViewSection(section, tuple(entries)))
-    skills = tuple(ViewSkill(s.id, s.name, s.group) for s in _ordered(bank.skills, choices.skills))
+            sections.append(ViewSection(section, tuple(entries), label, layout))
+    skills = tuple(ViewSkill(s.id, s.name, _group(s, choices.skills[s.id])) for s in _ordered(bank.skills, choices.skills))
     return ResumeView(tuple(sections), skills)
 
 
@@ -244,12 +332,17 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
+            # A snapshot kept before KAN-738 has no "tools", one before KAN-808 no "year_only"
+            "tools": tuple(e.get("tools", ())),
+            "year_only": tuple(e.get("year_only", ())),
             # A snapshot kept before KAN-435 has no "marked"
             "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
 
     return ResumeView(
-        tuple(ViewSection(s["section"], tuple(entry(e) for e in s["entries"])) for s in data["sections"]),
+        # A snapshot kept before KAN-498 has no "label" or "layout"
+        tuple(ViewSection(s["section"], tuple(entry(e) for e in s["entries"]), s.get("label"), s.get("layout"))
+              for s in data["sections"]),
         tuple(ViewSkill(uuid.UUID(k["id"]), k["name"], k["group"]) for k in data["skills"]),
     )
 
@@ -263,20 +356,30 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
     always gives the same view.'''
     ids = (uuid.UUID(int=n) for n in itertools.count(1))
     by_section: dict[str, list[ViewEntry]] = {}
+    labels: dict[str, str] = {}
     for d in entries:
         section = _str(d.section) or ""
-        by_section.setdefault(section, []).append(ViewEntry(
+        key = section
+        # A heading the bank has no section for (KAN-498): a Lines section
+        if section == CUSTOM:
+            name = getattr(d, "section_name", None)
+            if not name:
+                continue
+            key = custom_key(name)
+            labels.setdefault(key, name)
+        by_section.setdefault(key, []).append(ViewEntry(
             id=next(ids), section=section, title=d.title, organization=d.organization, location=d.location,
             start_month=d.start_month, end_month=d.end_month, end_kind=_str(d.end_kind),
             degree=d.degree, field_of_study=d.field_of_study,
             # The draft's GPA is a float; a view's is a Decimal, as the bank's.
             gpa=None if d.gpa is None else Decimal(str(d.gpa)),
             gpa_scale=None if d.gpa_scale is None else Decimal(str(d.gpa_scale)),
-            coursework=tuple(d.coursework), honors=d.honors, link=d.link, issuer=d.issuer,
-            award_date=d.award_date,
+            coursework=tuple(d.coursework), honors=d.honors, link=d.link, tools=tuple(d.tools), issuer=d.issuer,
+            award_date=d.award_date, year_only=tuple(d.year_only),
             bullets=tuple(ViewBullet(next(ids), text) for text in d.bullets),
         ))
     return ResumeView(
-        tuple(ViewSection(s, tuple(by_section[s])) for s in SECTIONS if s in by_section),
+        (*(ViewSection(s, tuple(by_section[s])) for s in SECTIONS if s in by_section),
+         *(ViewSection(key, tuple(by_section[key]), name, "lines") for key, name in labels.items())),
         tuple(ViewSkill(next(ids), name, group) for name, group in skills),
     )

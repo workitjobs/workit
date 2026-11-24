@@ -6,6 +6,7 @@ OracleDriver plays Haiku there."""
 
 import json
 import re
+import time
 from datetime import timedelta
 
 from conftest import FIXTURES, FORMS
@@ -96,7 +97,7 @@ def test_a_code_sent_by_text_message_is_a_handoff_before_claude_spends_a_token()
 
     assert row.status == "handoff"
     assert "text message" in row.reason
-    assert claude.calls == [] and server.submissions == []
+    assert claude.asked == [] and server.submissions == []
 
 
 def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is_never_clicked():
@@ -110,7 +111,7 @@ def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is
     assert "Type the emailed code: no verification code" in row.reason
     assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
-    assert server.tried_codes == [] and claude.calls == []
+    assert server.tried_codes == [] and claude.asked == []
 
 
 def test_the_cookie_banner_over_the_email_step_is_declined_before_next():
@@ -149,6 +150,28 @@ def test_a_form_lisul_signed_in_to_himself_is_not_signed_in_to_again():
         page.set_content('<label>Email <input type="email" value="lisul@example.com" readonly></label>'
                          '<button>Next</button>')
         oracle.sign_in(page, NoAccounts(), "Elvitigala", agree_to_terms=True)
+        browser.close()
+
+
+def test_resume_on_a_form_section_goes_on_at_once():
+    """JPMorgan (live): Resume on section 4 waited 30 s for an email box or an Apply button, then failed (KAN-680)."""
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    class NoAccounts:
+        @property
+        def login(self):
+            raise AssertionError("no sign-in on a form already open")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("**/*", lambda route: route.fulfill(content_type="text/html", body="<h1>More About You</h1><button>Next</button>"))
+        page.goto("https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/1/apply/section/4")
+        began = time.monotonic()
+        oracle.sign_in(page, NoAccounts(), "Elvitigala", agree_to_terms=True)
+        assert time.monotonic() - began < 5
         browser.close()
 
 

@@ -23,11 +23,14 @@
 /apply-records/
 /default-probes/
 /answer-ledger.jsonl
+/question-types.json
 /workday-trees.json
 /sheet-id
 /workit-login.*
 /tracker.*
 /workit-queue.*
+/workit-answers-queue.*
+/open-forms.*
 
 # The privacy gate's identifier list. It stays outside the repo; this line
 # stops a copy in this folder from being committed.
@@ -35,3 +38,5 @@ private-identifiers.txt
 
 .venv/
 .pytest_cache/
+# The Chrome Web Store package `apply plain package` builds (KAN-839).
+/dist/

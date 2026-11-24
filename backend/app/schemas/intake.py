@@ -38,7 +38,9 @@ class IntakeDraft(EntryCreate):
     gpa: float | None = Field(None, gt=0, le=100)
     gpa_scale: float | None = Field(None, gt=0, le=100)
 
-    @field_validator("coursework", "bullets", mode="before")
+    # Named as EntryFields' validator, so it replaces that one: it must
+    # cover every list EntryFields' covers (coursework, tools)
+    @field_validator("coursework", "tools", "bullets", mode="before")
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         # A live model sends null for a list it has nothing for, most often
@@ -87,6 +89,10 @@ class IntakeTurnRequest(BaseModel):
 
     @model_validator(mode="after")
     def _draft_in_section(self) -> "IntakeTurnRequest":
+        # Intake asks about the six fixed sections; a section the student
+        # named (KAN-498) has no questions, openers or needs of its own
+        if self.section is bank_section.custom:
+            raise ValueError("Scout fills the fixed sections only")
         if self.draft is not None and self.draft.section != self.section:
             raise ValueError("The draft belongs to another section")
         return self

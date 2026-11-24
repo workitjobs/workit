@@ -20,6 +20,7 @@ from workit_scout.schemas import ChatMessage
 from app.models.dto import bank_section
 from app.schemas.intake import IntakeDraft, IntakeReply
 from app.services.bank import Bank, Entry, copy_key
+from app.utils.resume_parser import is_degree_level
 
 # Follow-up questions for each entry (spec). Counted from the chat the browser
 # sends, which starts afresh with every entry; the opening question is not
@@ -44,7 +45,10 @@ SECTION_NAMES = {
 FIELD_MEANINGS = {
     bank_section.education: ("the school, such as a university", "a college or department in it"),
     bank_section.experience: ("the job title", "the company"),
-    bank_section.projects: ("the project name", "the team or course"),
+    bank_section.projects: (
+        "the project name",
+        "its context: a course, a hackathon or personal project",
+    ),
     bank_section.leadership: ("the role", "the club or organization"),
     bank_section.awards: ("the award", "who gave it"),
     bank_section.certifications: ("the certification", "the organization"),
@@ -88,7 +92,8 @@ no end_month) or "expected" (an expected end, such as graduation).
 Write them as soon as the student says what they did or what came of it, the \
 first answer included, rather than asking for a bullet.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
-Projects only: link. Certifications only: issuer. Awards only: award_date, in \
+Projects only: link, and tools (the tools the student names for the project, \
+each as said, such as "React, FastAPI"). Certifications only: issuer. Awards only: award_date, in \
 place of start and end. Leave other sections' fields empty.
 - Text like [name], [email], [phone] or [link] stands for something removed \
 for privacy. Never put it in the draft.
@@ -144,8 +149,19 @@ def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> st
     current = draft.model_dump(mode="json") if draft else {"section": section.value}
     title, organization = FIELD_MEANINGS[section]
     needs = _NEEDS[section]
-    have = [fact for fact in needs if _has(draft, fact)]
-    missing = [fact for fact in needs if not _has(draft, fact)]
+    # "Bachelor's" alone names no degree (KAN-812): listed as missing, so the
+    # model asks once which one. `_has` still counts it, so a student who
+    # does not know is never asked again (the READY guard ends the visit).
+    level = draft is not None and is_degree_level(draft.degree)
+
+    def named(fact: str) -> str:
+        if fact == "degree" and level:
+            return (f"degree (\"{draft.degree}\" is only its level: ask which one, such as Bachelor of "
+                    "Science or Bachelor of Arts, and keep it if the student does not know)")
+        return fact
+
+    have = [fact for fact in needs if _has(draft, fact) and not (fact == "degree" and level)]
+    missing = [named(fact) for fact in needs if not _has(draft, fact) or (fact == "degree" and level)]
     return (
         f"Section: {SECTION_NAMES[section]} (section value \"{section.value}\").\n"
         f"In this section, title is {title} and organization is {organization}.\n"

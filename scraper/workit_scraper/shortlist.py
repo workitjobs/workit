@@ -27,6 +27,7 @@ import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from datetime import date
 from enum import StrEnum
 
 from workit_scraper.details import Facts, min_years
@@ -1093,6 +1094,9 @@ class Role:
     posted_at: str | None
     #: No posting behind this role was known to us before today. See `Store.is_new`.
     new: bool
+    #: The employer refreshed this listing: `posted_at` is more than
+    #: `_REPOST_DAYS` after `first_seen_at`.
+    repost: bool
     department: str | None
     locations: tuple[str, ...]
     description: str | None
@@ -1163,6 +1167,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 tags=tags,
                 posted_at=min((job.posted_at for job in postings if job.posted_at), default=None),
                 new=is_new(oldest),
+                repost=_is_repost(oldest),
                 department=next((job.department for job in postings if job.department), None),
                 locations=locations,
                 description=next((job.description for job in postings if job.description), None),
@@ -1177,6 +1182,19 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
     return sorted(
         roles, key=lambda role: (role.posted_at is not None, role.posted_at or ""), reverse=True
     )
+
+
+_REPOST_DAYS = 7
+
+
+def _is_repost(job: Job) -> bool:
+    """The employer refreshed this listing: `posted_at` is more than
+    `_REPOST_DAYS` after `first_seen_at`."""
+    if not job.posted_at or not job.first_seen_at:
+        return False
+    posted = date.fromisoformat(job.posted_at[:10])
+    seen = date.fromisoformat(job.first_seen_at[:10])
+    return (posted - seen).days > _REPOST_DAYS
 
 
 def _age(job: Job) -> tuple[bool, str]:

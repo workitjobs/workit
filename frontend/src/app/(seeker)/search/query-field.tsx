@@ -12,7 +12,9 @@ import { restoreScrollOn } from "../scroll-memory";
  * The job search field, holding the query this page was searched with
  * (./job-search.tsx), so on a results page the field still says what was
  * searched for and a second search starts from the first rather than from
- * nothing. On the Jobs page it is empty.
+ * nothing. On the Jobs page it is empty. Beside a job opened from a search's
+ * results in the split view, it holds that search (`query`, KAN-917), since
+ * the job's address has no ?q.
  *
  * Its own client component because the Jobs page's split frame is drawn by a
  * layout, and a layout receives no searchParams.
@@ -22,30 +24,47 @@ import { restoreScrollOn } from "../scroll-memory";
  * /search the field the seeker just pressed Enter in keeps its focus and caret
  * while the results arrive.
  *
- * Clearing it on /search with the field's cross (or Escape) ends the search:
- * the page goes back to the Jobs list from before it, filters, Load More
- * pages and scroll place and all, as "Back to Jobs" does (asked for
- * 2026-10-13, KAN-228). Only the cross: it empties the field with an input
+ * Clearing it on /search, or beside a job opened from its results, with the
+ * field's cross (or Escape) ends the search: the page goes back to the Jobs
+ * list from before it, filters, Load More pages and scroll place and all, as
+ * "Back to Jobs" does (asked for 2026-10-13, KAN-228). Only the cross: it empties the field with an input
  * event that has no inputType, which typing and deleting always carry, so
  * backspacing to nothing to type a new search stays on the results.
  */
-export function QueryField({ id, autoFocus }: { id: string; autoFocus?: boolean }) {
+export function QueryField({
+  id,
+  autoFocus,
+  query,
+}: {
+  id: string;
+  autoFocus?: boolean;
+  /** The search to show where the address has none. */
+  query?: string;
+}) {
   /* useSearchParams suspends on a prerendered route, and a build fails without
      a boundary around it. Every seeker route renders per request today (the
      layout reads cookies), so the fallback, the same field empty, should
      never show; the boundary keeps the build safe if that changes. */
   return (
     <Suspense fallback={<Field id={id} autoFocus={autoFocus} />}>
-      <FieldWithQuery id={id} autoFocus={autoFocus} />
+      <FieldWithQuery id={id} autoFocus={autoFocus} query={query} />
     </Suspense>
   );
 }
 
-function FieldWithQuery({ id, autoFocus }: { id: string; autoFocus?: boolean }) {
+function FieldWithQuery({
+  id,
+  autoFocus,
+  query: given,
+}: {
+  id: string;
+  autoFocus?: boolean;
+  query?: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const query = pathname === "/search" ? (searchParams.get("q") ?? "") : "";
+  const query = pathname === "/search" ? (searchParams.get("q") ?? "") : (given ?? "");
 
   const [value, setValue] = useState(query);
   const [shown, setShown] = useState(query);
@@ -62,7 +81,7 @@ function FieldWithQuery({ id, autoFocus }: { id: string; autoFocus?: boolean }) 
       onChange={(event) => {
         setValue(event.target.value);
         const cleared = !(event.nativeEvent as InputEvent).inputType;
-        if (pathname === "/search" && event.target.value === "" && cleared) {
+        if ((pathname === "/search" || given) && event.target.value === "" && cleared) {
           const jobs = rememberedJobs();
           restoreScrollOn(jobs);
           router.push(jobs);

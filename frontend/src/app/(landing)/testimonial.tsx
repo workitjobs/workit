@@ -30,7 +30,7 @@ export function Testimonial() {
 
   return (
     <figure ref={ref} className="mx-auto max-w-3xl text-center">
-      <blockquote className="text-ink text-2xl leading-[1.3] font-medium tracking-tight text-balance sm:text-3xl">
+      <blockquote className="text-ink font-display text-2xl leading-[1.3] font-medium tracking-tight text-balance sm:text-3xl">
         <p>
           {words.map((word, i) => (
             <React.Fragment key={i}>

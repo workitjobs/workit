@@ -1,15 +1,5 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Helpers every slice's ops share.
-
-// Whether chrome.userScripts works here: Chrome hides it until the user turns
-// on Allow User Scripts for this extension (once, in the seed profile).
-export function userScriptsOn() {
-  try {
-    chrome.userScripts.getScripts();
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // Where Apply's generated files are: a write-once set, vendor/sets/<id>/, that the Apply process
 // driving this Worker wrote and named in its welcome (or with vendor.use), so two Apply processes
@@ -35,7 +25,7 @@ export function named(name, message) {
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// The target of chrome.scripting / chrome.userScripts for a tab and frame (0 = top).
+// The target of chrome.scripting for a tab and frame (0 = top).
 export const target = ({ tab, frame = 0 }) => ({ tabId: tab, frameIds: [frame] });
 
 // `running` (a script running in one frame), or Navigated as soon as that frame commits another

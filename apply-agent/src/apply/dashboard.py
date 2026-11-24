@@ -31,6 +31,7 @@ same Frames shape: apply.plain.tile.PortFrames, over each Worker's port.
 
 import base64
 import hmac
+import io
 import json
 import math
 import os
@@ -46,14 +47,16 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, masked, stuck
+from apply import bot_signals, captcha, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
+from apply.chrome_finder import NO_CHROME
 from apply.dashboard_page import (
     ACCOUNTS,
     ACCOUNTS_TAB,
@@ -92,6 +95,10 @@ FRAME_GAP = 0.015  # s between turns of /frames: at most about 60 frames a secon
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
 GO_TO_WAIT = 8.0  # s Go to question waits for the held form's hold loop to show the field
 ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
+
+
+# The window's address when it has no server (Dashboard(serve=False), apply.app_window).
+NO_PORT = "http://apply.window"
 
 
 def jpeg_size(frame: bytes) -> tuple[int, int] | None:
@@ -148,8 +155,8 @@ WORDS = {
                       "every job on that site."),
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
-    "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
-                "by itself once it's gone."),
+    "captcha": ("Do the captcha", "Apply never solves a captcha. Press Open in Chrome and do it in the form's own "
+                "browser window, which a captcha needs; Apply waits, and goes on by itself once it's gone."),
     "blocked": ("Finish it in your Chrome", "The job site refused Apply's Chrome as a bot. Open the posting in "
                 "your own Chrome: the WorkIt extension fills it there, and you press Submit."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
@@ -175,7 +182,10 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick", "Attested from sources")
+OPTIONAL_ASK = "Answer an optional question, or skip it"  # what no source holds, on a form that goes on without it
+TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
+ATTESTED_CHECK = "Check what Apply attested from your facts before it's sent"  # attest_from_sources (KAN-761)
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -185,7 +195,7 @@ HOLD_WORDS = [
 ]
 # Each job system by its proper name; any other is capitalised.
 JOB_SYSTEMS = {"greenhouse": "Greenhouse", "ashby": "Ashby", "lever": "Lever", "workday": "Workday",
-               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS",
+               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS", "amazon": "amazon.jobs",
                "bamboohr": "BambooHR"}
 # A reason that is a raw Python or Playwright error, "TimeoutError: Page.goto: ...", and the plain words for its kinds.
 RAW_ERROR = re.compile(r"^[A-Z]\w*(Error|Exception|Interrupt|Exit)\b:?")
@@ -224,6 +234,16 @@ def plain(why: str) -> str:
     return "; ".join(parts)
 
 
+# What names a queued job (app_window.Bridge.queue), in the student's queue and while it waits to start, as one
+# shape: its WorkIt job's company and title and its logo's sources. The window's own type is window/src/apply.ts's
+# QueuedJob.
+QUEUED_JOB = ("company", "title", "logo_url", "company_domain")
+LOGO = ("company_domain", "logo_url")  # what of it each tile and item of that job carries
+
+# Why a run is paused, in /state's run: a usage limit (the Usage cap in a Student build, the Max limit in a
+# Developer one) until paused_until.
+PAUSED_AT = "usage cap"
+
 def verdict(caption: dict) -> dict[str, str]:
     """What a tile says at a glance of how its Application went: a tone
     (idle, filling, ready, submitted, needs, failed, ended) and a short label;
@@ -235,7 +255,11 @@ def verdict(caption: dict) -> dict[str, str]:
     verification = caption.get("verification") or {}
     flags = [f for f in verification.get("flags") or [] if f.get("holds")]
     verified = verification.get("state") == "verified"
-    missing = "; ".join(caption.get("missing") or [])
+    # An optional question is asked with a Skip, and never makes the form wait on Lisul (KAN-759): only the required
+    # ones are a Missing fact's; the optional ones are asked after any real check.
+    required = caption.get("required") or {}
+    missing = "; ".join(q for q in caption.get("missing") or [] if required.get(q) is not False)
+    optional = [q for q in caption.get("missing") or [] if required.get(q) is False]
     company, system = str(caption.get("company") or ""), job_system(caption.get("job_system"))
     checks = [part for part in why.split("; ") if part.startswith(TO_CHECK)]
     cause, error = failure(why or status)
@@ -264,9 +288,18 @@ def verdict(caption: dict) -> dict[str, str]:
                  + (", then press Submit yourself if you want it sent" if status == "ready to submit"
                     else "; once every one is dismissed, approve it to send it")}
     elif checks:
-        needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
+        # Only attestations to tick (KAN-676): Lisul ticks or signs each himself; nothing of Apply's is wrong.
+        # An attestation the plan answered from his facts (KAN-761) is Apply's tick for him to check.
+        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) \
+            else ATTESTED_CHECK if all(part.startswith(("Yours to tick", "Attested from sources")) for part in checks) \
+            else "Fix an answer before it's sent"
+        needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
+    elif optional:
+        needs = {"kind": "missing fact", "do": OPTIONAL_ASK, "why": "; ".join(optional),
+                 "then": "Optional: nothing waits on it. Your answer is saved to your facts and filled in on this form; "
+                 "Skip leaves it blank, and Apply won't ask it again"}
     elif status == "ready to submit":
         tone, label, kind = "ready", f"{WORDS['verified'][0]} · {READY.lower()}" if verified else READY, "ready to submit"
         detail = "\n".join(filter(None, [
@@ -323,6 +356,8 @@ def verdict(caption: dict) -> dict[str, str]:
     if tone == "filling" and detail:
         shown["doing"] = detail  # its banner says it, small too
     shown |= needs
+    if optional:
+        shown["optional"] = optional  # their answer boxes show on the item, whatever else it needs
     if flags and needs.get("kind") == "check":
         shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
     if verified:
@@ -357,6 +392,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
 
 
 class Frames(Protocol):
+    """A Worker's frames, input and file requests. A plain Worker's source (apply.plain.tile.PortFrames) also takes
+    `tab=` on frame, wait, input, chooser and forget_chooser: that one form's tab of the Worker, never another (KAN-717)."""
+
     def frame(self, worker: int) -> bytes | None:
         """Worker `worker`'s page, as a JPEG, the latest taken; None before any."""
         ...
@@ -542,7 +580,9 @@ class Dashboard:
     `approve`, when given, approves a Hold from the Inbox (its Application ID, and
     `essay=` the Essay cell with his edit of its essays' text if he edited them), as
     editing the Essay cell and ticking Approve did in the retired Tracker Sheet (KAN-544),
-    and says how it went."""
+    and says how it went.
+    `serve=False` opens no port: the page reaches this window only through WorkIt Auto Apply's own window
+    (apply.app_window, D11), which answers its requests in this process."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
@@ -551,8 +591,10 @@ class Dashboard:
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
-                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None):
+                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
+                 back: Callable[[int], bool] | None = None, serve: bool = True):
         self._workers = workers
+        self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
         # Ask Claude (apply.ask): each Application's thread, by its posting URL, and the messages waiting for its Worker.
         self._threads: dict[str, list[dict]] = {}
@@ -561,10 +603,13 @@ class Dashboard:
         # Tile k shows Worker _shown[k]: one tile per Worker at first, and one more for each link sent into a
         # Worker already running (`apply rehearse --into`, KAN-645), which shows that Worker's window.
         self._shown = list(range(workers))
+        self._tile_tabs: dict[int, int] = {}  # tile -> the tab its form is on in its plain Worker (showing)
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
+        self._stop: Callable[[], None] | None = None  # ends the run (stopping)
+        self._remove: Callable[[str], bool] | None = None  # takes a job not started out of the run (removing)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
-        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password in Keychain
         self._sample = sample
         self._frames = _Shown(frames, self)
         self.answers = answers
@@ -589,9 +634,11 @@ class Dashboard:
         self._run: dict[str, object] = {}  # what the run as a whole is doing (Board.run)
         self._lock = threading.Lock()
         handler = type("Handler", (_Handler,), {"dashboard": self})
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self._server.daemon_threads = True  # an open stream never holds up the run's end
-        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler) if serve else None
+        if self._server:
+            self._server.daemon_threads = True  # an open stream never holds up the run's end
+        # With no server, the name app_window's requests give as their Host: an address nothing listens on.
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}" if self._server else NO_PORT
         # Proof that an edit comes from the page itself: a page of another site
         # in Lisul's browser can send requests here, but never read this.
         self.token = secrets.token_urlsafe(24)
@@ -600,21 +647,76 @@ class Dashboard:
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
+        self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
     def __enter__(self) -> Self:
-        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        if self._server:
+            threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
+
+    def come_back(self, tile: int) -> bool:
+        """Lisul did tile `tile`'s captcha in its Worker's own window (Open in Chrome), and Apply saw it done: this
+        window comes back to the front, only while that Worker's window is still the front one, so it never takes
+        him from another app (KAN-855). False when it stays where it is."""
+        return bool(self._back and self._back(self.worker_of(tile)))
 
     def worker_of(self, tile: int) -> int:
         """The Worker whose window tile `tile` shows."""
         return self._shown[tile] if 0 <= tile < len(self._shown) else tile
 
+    def showing(self, tile: int, tab: int | None) -> None:
+        """Tile `tile`'s form is on tab `tab` of its plain Worker (None: no tab of its own, or a CDP page): the
+        tile shows that tab's frames and sends its input there, never another form's in the same Worker (KAN-717)."""
+        with self._lock:
+            if tab is None:
+                self._tile_tabs.pop(tile, None)
+            else:
+                self._tile_tabs[tile] = tab
+
+    def tab_of(self, tile: int) -> int | None:
+        """The tab of its plain Worker that tile `tile`'s form is on, once `showing` said."""
+        return self._tile_tabs.get(tile)
+
+    def blind(self, tile: int) -> bool:
+        """Whether tile `tile` shares its Worker with another tile (`--into`) and doesn't know its form's tab yet (its
+        page still opening): it shows nothing and takes no input, since the Worker's shown tab may be another form's."""
+        with self._lock:
+            worker = self.worker_of(tile)
+            return tile not in self._tile_tabs and sum(shown == worker for shown in self._shown) > 1
+
     def taking(self, into: Callable[[str, int], dict]) -> None:
         """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
+
+    def stopping(self, stop: Callable[[], None]) -> None:
+        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop."""
+        self._stop = stop
+
+    def stop(self) -> None:
+        """Stop applying. Raises Refused when this window has no run to stop."""
+        if self._stop is None:
+            raise Refused("No run is going.", 409)
+        self._stop()
+
+    def removing(self, remove: Callable[[str], bool]) -> None:
+        """`remove(link)` takes the job of `link` out of the run before it starts, and says whether it could (False:
+        it started already): Remove in the student's window (KAN-874), through POST /remove."""
+        self._remove = remove
+
+    def remove(self, link: str) -> None:
+        """Remove the job of `link`, not started yet, from the run. Raises Refused when it can't be."""
+        if self._remove is None:
+            raise Refused("No run is going.", 409)
+        if not self._remove(link):
+            raise Refused("That job has started already: it isn't waiting any more.", 409)
+
+    def aim(self, workers: list[int]) -> None:
+        """Tile k shows Worker `workers[k]`: a reopened form's, whose profile holds its sign-in (KAN-720)."""
+        with self._lock:
+            self._shown[:len(workers)] = list(workers)
 
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
@@ -643,10 +745,10 @@ class Dashboard:
         return self._into(url, worker)
 
     def __exit__(self, *exc) -> None:
+        if not self._server:
+            return  # app_window's window closes with its own process
         self._server.shutdown()
         self._server.server_close()
-        if self.accounts:
-            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -689,7 +791,7 @@ class Dashboard:
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
-                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}}
+                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
@@ -697,6 +799,20 @@ class Dashboard:
                 self._end(worker, dict(tile), now)
         if ended and self._notify:
             self._tell()
+
+    def logos(self, by_link: dict[str, dict]) -> None:
+        """What WorkIt gave each queued job, by the link the run was given: its logo sources (`company_domain`,
+        `logo_url`), which each tile and item of that link carries, as the website draws its logo (KAN-871); and its
+        `company` and `title`, which name it while it waits to start (the run's `waiting`, KAN-874)."""
+        with self._lock:
+            self._logos = {link: {k: v for k, v in job.items() if k in QUEUED_JOB and v} for link, job in by_link.items()}
+
+    def _logo(self, shown: dict) -> dict:
+        """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave. A form that
+        hasn't read its company or role yet takes the queued job's, so its row names it."""
+        job = self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
+        names = {"company": job.get("company"), "role": job.get("title")}
+        return {key: job[key] for key in LOGO if key in job} | {k: v for k, v in names.items() if v and not shown.get(k)}
 
     def focused(self, front: bool) -> None:
         """The window's page says whether it is in front, with each poll."""
@@ -831,7 +947,11 @@ class Dashboard:
         with self._lock:
             if not 0 <= k < self._workers:
                 raise Refused("No such form.", 404)
-            if not self._captions[k].get("askable"):  # a rehearsal's held page, until he presses Submit (rehearsal._Ask)
+            # A rehearsal's held page, until he presses Submit (rehearsal._Ask); or one whose job site ended its
+            # session (`refill`, apply.keepalive): held no more, but Fill again is how it comes back; or any page
+            # its Worker holds once the fill stopped (`again`), a Student run's too, which has no Ask Claude.
+            caption = self._captions[k]
+            if not (caption.get("askable") or caption.get("refill") or caption.get("again")):
                 raise Refused("That form isn't held for you now: Fill again works once Apply has stopped on it, "
                               "before Submit.", 409)
             self._again.add(k)
@@ -1004,12 +1124,18 @@ class Dashboard:
             captions = [dict(caption) for caption in self._captions]
             items = [dict(item) for item in reversed(self._items)]
             run = dict(self._run)
+            if "waiting" in run:  # each link not started yet, named as the queue named it
+                run["waiting"] = [{"link": link} | self._logos.get(link, {}) for link in run["waiting"]]
+        # Paused until a usage limit resets (paused_until): the student's window says so, and when it goes on.
+        run["paused"] = bool(run.get("paused_until"))
+        if run["paused"]:
+            run["reason"] = PAUSED_AT
         for k, caption in enumerate(captions):
             caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
             if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \
                     and (why := stuck.why(caption, getattr(self._frames, "field_error", lambda k: "")(k), time.time())):
                 caption["resume"] = {"ok": True, "why": why}  # stuck or waiting: Resume goes on from the page
-            caption |= verdict(caption)
+            caption |= verdict(caption) | self._logo(caption)
             with self._lock:  # Ask Claude's thread for the form the tile holds
                 caption["thread"] = [dict(t) for t in self._threads.get(str(caption.get("posting_url") or ""), [])]
             if chooser := self._frames.chooser(k):
@@ -1031,7 +1157,7 @@ class Dashboard:
         filling = {c.get("posting_url") for c in captions if c.get("tone") in ("filling", "verifying") and c.get("posting_url")}
         for item in items:
             item |= verify.without_dismissed(item)
-            item |= verdict(item)
+            item |= verdict(item) | self._logo(item)
             if not item.get("live") and item.get("from") != "tracker" and item.get("posting_url") in filling:
                 item["answered"] = True
             if item.get("kind") == "held":
@@ -1039,13 +1165,14 @@ class Dashboard:
                 item["essays"] = [{"question": q, "text": t} for q, t in cell_texts(str(item.get("essay") or ""))]
             if item.get("kind") in ("held", "check") and item["id"] in approved:
                 item["answered"] = True  # approved here: it waits on Lisul no more
-            if item.get("kind") == "missing fact":
+            if item.get("kind") == "missing fact" or item.get("optional"):
                 item["questions"] = [q for q in _questions(item) if f"{item['id']}|{q}" not in answered
                                      and not (item.get("posting_url") and f"{item['posting_url']}|{q}" in answered)]
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
                 item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
-                if not item["questions"]:
+                item["planned"] = {q: a for q, a in (item.get("planned") or {}).items() if q in item["questions"]}
+                if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,
                 "context": self._context | context, "run": run}
@@ -1066,6 +1193,27 @@ class Dashboard:
         sent = sum(str(row.status) == "submitted" and row.date_applied == today for row in rows)
         return waiting, {"rows": len(rows), "sent_today": sent}
 
+    def respond(self, method: str, path: str, headers: dict[str, str], body: bytes = b"") -> tuple[int, str, bytes]:
+        """One of the page's requests answered in this process as the server answers it: (status, type, body). For
+        apply.app_window, whose window has no port (D11). Not the frame streams: the window asks new_frames."""
+        if urlsplit(path).path in ("/frames",) or path.startswith("/stream/"):
+            return 404, "text/plain", b"not found"
+        return _InProcess.serve(self, method, path, headers, body)
+
+    def new_frames(self, seen: dict[int, int]) -> list[tuple[int, int, bytes]]:
+        """Each tile's frame newer than the number `seen` has for it, as (tile, number, JPEG): the window's tiles, over
+        the port (/frames) or apply.app_window's bridge."""
+        found = []
+        for worker in range(self._workers):  # a tile added since (--into) has frames too
+            frame, number = self._frames.wait(worker, seen.get(worker, 0), 0)
+            if frame is not None and number != seen.get(worker, 0):
+                found.append((worker, number, frame))
+        return found
+
+    def listed(self, path: str) -> Path | None:
+        """The file the page's link `path` names (/file/k/i, /file/item/n/i), only if a tile or History lists it."""
+        return _InProcess.serve_listed(self, path)
+
     def page(self) -> str:
         columns, rows = grid(self._workers)
         tiles = "".join(
@@ -1073,6 +1221,7 @@ class Dashboard:
             f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {self.worker_of(k) + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
             f'<div class="capture" id="capture-{k}" hidden></div>'
+            f'<div class="session" id="session-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
             f'<div class="askclaude" id="ask-{k}" hidden><div class="thread"></div><form><input maxlength="4000" '
@@ -1221,6 +1370,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._fill_again()
         if parts.path == "/regenerate":
             return self._regenerate()
+        if parts.path == "/stop":
+            return self._stop()
+        if parts.path == "/remove":
+            return self._remove()
         if parts.path == "/goto":
             return self._go_to()
         if parts.path == "/rehearse":
@@ -1231,10 +1384,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._ask_remember()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
-        if parts.path == "/accounts/copy" and self.dashboard.accounts:
-            return self._account("copy a password", self.dashboard.accounts.copy)
         if parts.path == "/accounts/open" and self.dashboard.accounts:
             return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
+        if parts.path == "/accounts/show" and self.dashboard.accounts:
+            return self._account("show a password", self.dashboard.accounts.show, reply="password")
+        if parts.path == "/accounts/password" and self.dashboard.accounts:
+            return self._account("save your password", self.dashboard.accounts.choose, key="password")
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1242,6 +1397,11 @@ class _Handler(BaseHTTPRequestHandler):
         if parts.path.startswith("/reveal/"):
             return self._reveal(parts.path)
         if parts.path.startswith("/input/"):
+            # A press here counts as Lisul's own, so only the window itself may send one. The custom header also makes
+            # a page's request preflight, which this server never answers.
+            token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+            if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin != self.dashboard.url:
+                return self._send(403, "text/plain", b"forbidden")
             worker = int(parts.path.removeprefix("/input/"))
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             event = self.dashboard.to_page_event(worker, body)
@@ -1384,8 +1544,16 @@ class _Handler(BaseHTTPRequestHandler):
         if not answer:
             if (item.get("required") or {}).get(question) is not False:
                 return self._json(400, {"error": "Write an answer."})
-            # An optional question he has no answer to: left blank on this form, and not asked again here.
-            return self._in_place(item, key, question, None, "Skipped: it's optional, so the form leaves it blank.")
+            # An optional question he skips: left blank on this form, and his Skip is kept, so no later form asks it
+            # again (KAN-759).
+            message = "Skipped: it's optional, so the form leaves it blank."
+            try:
+                message = (self.dashboard.answer(item, question, "") if self.dashboard.answer else "") or message
+            except Refused as refused:
+                return self._json(refused.status, {"error": str(refused)})
+            except Exception as error:
+                return self._json(502, {"error": f"Not saved: {error}"})
+            return self._in_place(item, key, question, None, message)
         try:
             message = self.dashboard.answer(item, question, answer)
         except Refused as refused:
@@ -1539,6 +1707,31 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"Took {url} into Browser {taken['worker'] + 1} (tile {taken['tile'] + 1})")
         self._json(200, taken)
 
+    def _stop(self) -> None:
+        """Stop applying, from the page itself (KAN-874)."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may stop the run."})
+        try:
+            self.dashboard.stop()
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._send(204, "text/plain", b"")
+
+    def _remove(self) -> None:
+        """Remove one job that hasn't started from the run, from the page itself (KAN-874). Body {link}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may remove a job."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            link = str(body["link"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a job to remove."})
+        try:
+            self.dashboard.remove(link)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._send(204, "text/plain", b"")
+
     def _regenerate(self) -> None:
         """Lisul pressed Regenerate on an answer Claude wrote, from the page itself, with his context."""
         token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
@@ -1603,27 +1796,33 @@ class _Handler(BaseHTTPRequestHandler):
         item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key), None)
         if item is None or item.get("kind") != "blocked" or not item.get("posting_url"):
             return self._json(404, {"error": "That application no longer waits on your Chrome."})
-        self.dashboard.everyday(str(item["posting_url"]))
+        try:
+            self.dashboard.everyday(str(item["posting_url"]))
+        except FileNotFoundError:  # no Google Chrome on this computer (captcha.to_everyday_chrome)
+            return self._json(404, {"error": NO_CHROME})
         print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
 
-    def _account(self, does: str, press: Callable[[object], str]) -> None:
-        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
-        goes only to the clipboard: the reply, and the line printed, never hold it."""
+    def _account(self, does: str, press: Callable[[object], str], key: str = "site", reply: str = "message") -> None:
+        """Lisul pressed a button in the Accounts tab (KAN-591): Open sign-in page, Show password or Copy password
+        (the window writes the password it gets to the clipboard itself, D35), or Save on the password he chose
+        (KAN-838). `key` names what the page sent; `reply` names what goes back: a message, or the password he
+        asked for. The line printed never holds a password."""
         if not self._from_window():
             return self._json(403, {"error": f"Only the Apply window may {does}."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
-            site = body["site"]
+            given = body[key]
         except (ValueError, KeyError, TypeError):
-            return self._json(400, {"error": "Not an account."})
+            return self._json(400, {"error": "Not an account." if key == "site" else "Not a password."})
         try:
-            message = press(site)
+            answer = press(given)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Accounts tab, {site}: {message}")
-        self._json(200, {"message": message})
+        named = given if key == "site" else "the password you chose"  # never the password itself
+        print(f"Accounts tab, {named}: {answer if reply == 'message' else 'showed its password'}")
+        self._json(200, {reply: answer})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
@@ -1687,15 +1886,11 @@ class _Handler(BaseHTTPRequestHandler):
         seen: dict[int, int] = {}
         try:
             while True:
-                sent = False
-                for worker in range(self.dashboard._workers):  # a tile added since (--into) streams too
-                    seen.setdefault(worker, 0)
-                    frame, number = self.dashboard._frames.wait(worker, seen[worker], 0)
-                    if frame is not None and number != seen[worker]:
-                        seen[worker] = number
-                        self.wfile.write(struct.pack(">II", worker, len(frame)) + frame)
-                        sent = True
-                if sent:
+                found = self.dashboard.new_frames(seen)
+                for worker, number, frame in found:
+                    seen[worker] = number
+                    self.wfile.write(struct.pack(">II", worker, len(frame)) + frame)
+                if found:
                     self.wfile.flush()
                 time.sleep(FRAME_GAP)  # every tile changing at once is still frames the window can draw
         except (BrokenPipeError, ConnectionResetError):
@@ -1716,25 +1911,85 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
+class _InProcess(_Handler):
+    """_Handler with no socket (Dashboard.respond): a request from apply.app_window's bridge, its answer kept rather
+    than sent. The same routes, checks and token as the server's; the Host is the window's own."""
+
+    sent: tuple[int, str, bytes]
+
+    @classmethod
+    def made(cls, dashboard: Dashboard, path: str = "/", method: str = "GET", headers: dict[str, str] | None = None,
+             body: bytes = b"") -> "_InProcess":
+        handler = cls.__new__(cls)
+        handler.dashboard, handler.path, handler.command = dashboard, path, method
+        handler.headers = Message()
+        for name, value in (headers or {}).items():
+            if name.lower() not in ("host", "content-length", "origin"):  # the page names none of these itself
+                handler.headers[name] = value
+        handler.headers["Host"] = dashboard.url.removeprefix("http://")
+        handler.headers["Content-Length"] = str(len(body))
+        handler.rfile = io.BytesIO(body)
+        handler.sent = (500, "text/plain", b"no answer")
+        return handler
+
+    @classmethod
+    def serve(cls, dashboard: Dashboard, method: str, path: str, headers: dict[str, str], body: bytes
+              ) -> tuple[int, str, bytes]:
+        handler = cls.made(dashboard, path, method, headers, body)
+        handler.do_POST() if method == "POST" else handler.do_GET()
+        return handler.sent
+
+    @classmethod
+    def serve_listed(cls, dashboard: Dashboard, path: str) -> Path | None:
+        return cls.made(dashboard, path)._listed(path)
+
+    def _send(self, status: int, kind: str, body: bytes) -> None:
+        self.sent = (status, kind, body)
+
+
 class _Shown:
-    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input."""
+    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input, and, once the
+    tile's form has a tab of its own in that Worker (tab_of, a plain Worker's), that tab's only (KAN-717).
+    A tile that shares its Worker and has no tab yet (Dashboard.blind) gets nothing and sends nothing."""
 
     def __init__(self, frames: Frames, dashboard: Dashboard):
         self._frames, self._dashboard = frames, dashboard
 
+    def _at(self, tile: int) -> tuple[int, dict]:
+        tab = self._dashboard.tab_of(tile)
+        return self._dashboard.worker_of(tile), ({} if tab is None else {"tab": tab})
+
     def frame(self, tile: int) -> bytes | None:
-        return self._frames.frame(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.frame(worker, **tab)
 
     def wait(self, tile: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        return self._frames.wait(self._dashboard.worker_of(tile), after, timeout)
+        if self._dashboard.blind(tile):
+            time.sleep(timeout)
+            return None, after
+        worker, tab = self._at(tile)
+        return self._frames.wait(worker, after, timeout, **tab)
 
     def input(self, tile: int, event: dict) -> dict | None:
-        return self._frames.input(self._dashboard.worker_of(tile), event)
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.input(worker, event, **tab)
 
     def chooser(self, tile: int) -> str | None:
-        return self._frames.chooser(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.chooser(worker, **tab)
 
-    def __getattr__(self, name: str):  # field_error, notice, forget_chooser: by tile too, where the source has them
+    def forget_chooser(self, tile: int) -> None:
+        if (forget := getattr(self._frames, "forget_chooser", None)) and not self._dashboard.blind(tile):
+            worker, tab = self._at(tile)
+            forget(worker, **tab)
+
+    def __getattr__(self, name: str):  # field_error, notice: by tile too, where the source has them
         found = getattr(self._frames, name)
         return (lambda tile, *rest: found(self._dashboard.worker_of(tile), *rest)) if callable(found) else found
 
@@ -2008,6 +2263,10 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
                 raise_window(profile)
             return
         _quit(pid)
+    from apply import (
+        dock_app,  # a Developer checkout's (apply.build): W5's window replaces this one
+    )
+
     app = dock_app.install(profile.parent, dock_app.bundle_for(profile.parent))
     # The DevTools port lets the window's keeper (dock_app.keep) see its tabs (its port goes in the profile).
     command = ["open", "-na", str(app), "--args", f"--app={url}", f"--user-data-dir={profile}", "--remote-debugging-port=0"]

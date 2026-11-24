@@ -1,11 +1,10 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { Section } from "@/components/ui/section";
 import { apiGet } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -22,6 +21,7 @@ import {
   JobViewActions,
   JobViewBody,
   JobCardActions,
+  JobPanel,
   JobViewHeader,
   loadJobView,
   type KnownApplication,
@@ -73,8 +73,8 @@ async function getClosedApplication(jobId: string): Promise<Stored | null> {
  * row or card on /applications. It replaced the side panel there: the panel
  * had room for a timeline but not for the job itself.
  *
- * THE JOB'S OWN PAGE, WITH TWO TABS. The action bar, the header and the Job
- * Description tab are the job page's own parts (../../jobs/[jobId]/job-view),
+ * THE JOB'S OWN PAGE, WITH TWO TABS. The action bar, the header and the
+ * Overview tab are the job page's own parts (../../jobs/[jobId]/job-view),
  * so the role looks exactly as it does on /jobs/[jobId]; only Back goes to
  * Applications. No match rail, as on the job page. Two tabs, a URL each
  * (`?tab=job` for the second), so a tab can be linked to and survives a
@@ -83,15 +83,19 @@ async function getClosedApplication(jobId: string): Promise<Stored | null> {
  *
  *   Your Application  the default: the analytics, what was sent, the timing
  *                     and the timeline (./your-application.tsx)
- *   Job Description   About the Role alone (`descriptionOnly`): the job
+ *   Overview          About the Role alone (`descriptionOnly`): the job
  *                     page's sent and applied notes and its Key
  *                     Requirements card stay off, so the description reads as the
- *                     posting, not as the seeker's record
+ *                     posting, not as the seeker's record. The job page's
+ *                     name for its tab, open or closed (KAN-824): it was
+ *                     Job Description, and About the Role for a closed one
  *
- * THE BAR HOLDS THE TABS ONCE THERE IS NOTHING TO DO. An applied job, or a
- * closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the
- * bar shows the tabs beside Back instead. A saved job with an open posting
- * keeps the job page's actions, and its tabs sit under the header.
+ * THE TABS SIT BESIDE BACK, AS THE JOB PAGE'S DO (KAN-824), for every
+ * stage. A saved job with an open posting keeps the job page's actions at
+ * the bar's right end; an applied job, or a closed posting, has no use for
+ * Apply, Tailor, Save or Ask Scout, so that end is empty. The tabs moved
+ * by stage until then: into the bar's right end for an applied job, under
+ * the header for a saved one.
  *
  * The application comes from the tracker's own read (`getTracker`, cached per
  * request), so the score, the resume and the stage match the list's row
@@ -133,13 +137,12 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
     return (
       <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToApplications />
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="This Application Isn't Loading"
+        <LoadFailed
+          title="This Application Isn't Loading Right Now"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
-          We couldn&apos;t reach your saved and applied jobs. Refresh the page in a few minutes.
-        </EmptyState>
+          We couldn&apos;t reach your saved and applied jobs. Try again in a few minutes.
+        </LoadFailed>
       </div>
     );
   }
@@ -148,20 +151,27 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
   if (!app) notFound();
   const base = `/applications/${encodeURIComponent(jobId)}`;
   // Only a saved job with an open posting still has something to do: Apply,
-  // Tailor, Save. An applied job, or a closed posting, gets the tabs in the
-  // bar in their place.
+  // Tailor, Save. The tabs sit beside Back either way, as the job page's do.
   const actionable = job != null && app.stage === "saved";
 
   return (
     <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
-      <JobActionBar back={<BackToApplications className="group/back" />}>
-        {actionable ? <JobViewActions view={view} job={job} /> : <ApplicationTabs base={base} />}
+      <JobActionBar
+        back={<BackToApplications className="group/back" />}
+        tabs={<ApplicationTabs base={base} />}
+      >
+        {actionable && <JobViewActions view={view} job={job} />}
       </JobActionBar>
 
       {job ? (
-        <JobViewHeader
-          job={job}
-          actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+        <JobPanel
+          header={
+            <JobViewHeader
+              job={job}
+              actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+              match={view.match}
+            />
+          }
         />
       ) : (
         <JobDetailHeader
@@ -176,11 +186,17 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         />
       )}
 
-      {actionable && <ApplicationTabs base={base} className="mt-6" />}
-
       {/* Both panes, drawn once; the tab shows one (./tab-panes.tsx). */}
       <TabPanes
-        application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
+        application={
+          <YourApplication
+            app={app}
+            job={job}
+            sent={view.sent}
+            now={getNow()}
+            matchAbove={job != null && view.match != null}
+          />
+        }
         emails={
           INBOX_LIVE && (
             <EmailsTab
@@ -198,9 +214,11 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         }
         job={
           job ? (
-            <JobViewBody view={view} job={job} descriptionOnly />
+            <JobPanel className="mt-6">
+              <JobViewBody view={view} job={job} descriptionOnly />
+            </JobPanel>
           ) : (
-            <Section title="About the Role">
+            <Section title="Overview">
               <p className="text-body text-ink-meta mt-3">
                 This posting has closed, so its description is no longer on WorkIt.
               </p>

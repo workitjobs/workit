@@ -22,7 +22,7 @@ def test_the_file_is_named_like_the_resume():
     assert cover_letter.file_name(PROFILE) == "Test_Person_Cover_Letter.pdf"
 
 
-@pytest.mark.skipif(not cover_letter.CHROME.exists(), reason="needs Google Chrome")
+@pytest.mark.skipif(not (cover_letter.CHROME and cover_letter.CHROME.exists()), reason="needs Google Chrome")
 def test_chrome_prints_the_letter_as_a_one_page_pdf(tmp_path):
     path = tmp_path / "letter.pdf"
 
@@ -39,6 +39,17 @@ def test_printing_without_chrome_raises_so_the_worker_sends_text_instead(tmp_pat
 
     with pytest.raises(OSError):
         PRINT(LETTER, POSTING, PROFILE, tmp_path / "letter.pdf")
+
+
+def test_printing_with_no_chrome_found_raises_too(tmp_path, monkeypatch):
+    monkeypatch.setattr(cover_letter, "CHROME", None)  # the Chrome finder found none
+
+    with pytest.raises(RuntimeError, match="google.com/chrome"):
+        PRINT(LETTER, POSTING, PROFILE, tmp_path / "letter.pdf")
+
+
+def test_the_date_has_no_leading_zero_on_every_os():
+    assert cover_letter._dated(date(2026, 11, 4)) == "November 4, 2026"  # strftime's %-d fails on Windows
 
 
 def test_the_header_writes_phone_and_links_as_the_resume_does():

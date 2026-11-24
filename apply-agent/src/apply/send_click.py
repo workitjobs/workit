@@ -24,6 +24,8 @@ import shlex
 import sys
 from pathlib import Path
 
+from apply.natives import NATIVES
+
 # The words of a button that sends, as the drive guard reads them; Apply is left
 # out, since the posting's own Apply button opens the form.
 SENDS = re.compile(r"\b(submit|send|finish|complete)\b", re.IGNORECASE)
@@ -97,24 +99,32 @@ def _words(text: str) -> list[str]:
 
 # What the page says of the element a tool would act on, or an event hit: its own control (a label's input), the
 # words it shows and is named by, and its attributes. Run in the page (plain.tools, the drive guard's Ask section).
-ELEMENT = r"""(el) => {
-  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-  let box = (el.closest && el.closest('input, select, textarea, button, a, label, [role=checkbox], [role=switch], '
-    + '[role=radio], [role=button], [role=link], [role=textbox], [role=combobox], [contenteditable=true]')) || el;
-  if (box.tagName === 'LABEL' && box.control) box = box.control;
-  const by = (box.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-    .map((id) => clean((document.getElementById(id) || {}).innerText)).join(' ');
-  const labels = box.labels ? [...box.labels].map((l) => clean(l.innerText)).join(' ') : '';
-  const field = /^(INPUT|SELECT|TEXTAREA)$/.test(box.tagName);
-  const inner = field ? (/^(button|submit)$/.test(box.type) ? box.value : '') : clean(box.innerText || box.textContent);
+ELEMENT_BODY = r"""(el) => {
+  const clean = (s) => $trim($collapse(s));
+  let box = $up(el, 'input, select, textarea, button, a, label, [role=checkbox], [role=switch], '
+    + '[role=radio], [role=button], [role=link], [role=textbox], [role=combobox], [contenteditable=true]') || el;
+  if ($tag(box) === 'LABEL' && $control(box)) box = $control(box);
+  const ids = $words($attr(box, 'aria-labelledby'));
+  let by = '';
+  for (let i = 0; i < ids.length; i++) { const n = $byId(ids[i]); by += (i ? ' ' : '') + clean(n ? $text(n) : ''); }
+  const ls = $labels(box);
+  let labels = '';
+  if (ls) for (let i = 0; i < ls.length; i++) labels += (i ? ' ' : '') + clean($text(ls[i]));
+  const tag = $tag(box), type = $type(box);
+  const field = $re(/^(INPUT|SELECT|TEXTAREA)$/, tag);
+  const inner = field ? ($re(/^(button|submit)$/, type) ? $value(box) : '') : clean($text(box) || $textOf(box));
   // A box with no words of its own: the few words beside it, never a whole page's.
-  const beside = !box.getAttribute('aria-label') && !labels && !inner && !by && box.parentElement ? clean(box.parentElement.innerText) : '';
+  const parent = $parent(box);
+  const beside = !$attr(box, 'aria-label') && !labels && !inner && !by && parent ? clean($text(parent)) : '';
   const around = beside.length <= 300 ? beside : '';
-  const role = box.getAttribute('role') || (box.tagName === 'INPUT' ? (/^(checkbox|radio)$/.test(box.type) ? box.type : /^(button|submit)$/.test(box.type) ? 'button' : 'textbox')
-    : box.tagName === 'BUTTON' ? 'button' : box.tagName === 'A' ? 'link' : box.tagName === 'SELECT' ? 'combobox' : box.tagName === 'TEXTAREA' ? 'textbox' : 'generic');
-  return {role, type: String(box.type || ''), text: clean([box.getAttribute('aria-label'), by, labels, inner, around].filter(Boolean).join(' ')).slice(0, 500),
-          attrs: [box.id, box.getAttribute('name'), box.getAttribute('autocomplete'), box.getAttribute('placeholder')].filter(Boolean).join(' ')};
+  const role = $attr(box, 'role') || (tag === 'INPUT' ? ($re(/^(checkbox|radio)$/, type) ? type : $re(/^(button|submit)$/, type) ? 'button' : 'textbox')
+    : tag === 'BUTTON' ? 'button' : tag === 'A' ? 'link' : tag === 'SELECT' ? 'combobox' : tag === 'TEXTAREA' ? 'textbox' : 'generic');
+  return {role, type, text: $cut(clean($join([$attr(box, 'aria-label'), by, labels, inner, around], ' ')), 0, 500),
+          attrs: $join([$attr(box, 'id'), $attr(box, 'name'), $attr(box, 'autocomplete'), $attr(box, 'placeholder')], ' ')};
 }"""
+# What Ask Claude judges an act by: the element's role, type, words and attributes, read through the page's natives
+# (apply.natives, KAN-783). Evaluated on its own it takes them as it runs; the drive guard uses ELEMENT_BODY with its own.
+ELEMENT = "(el) => {" + NATIVES + "  return (" + ELEMENT_BODY + ")(el);\n}"
 # The same of the focused element, where a key would go.
 FOCUSED = "() => { const el = document.activeElement; return el && el !== document.body ? (" + ELEMENT + ")(el) : null; }"
 TYPES = ("type", "fill")

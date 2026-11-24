@@ -4,6 +4,7 @@ import argparse
 import imaplib
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -19,19 +20,20 @@ import yaml
 
 from apply import (
     already_applied,
+    answer_sync,
+    answering,
     ask,
+    batch,
     bot_signals,
     captcha,
     dashboard,
     data_command,
     doctor,
     employer_mail,
-    essays,
     home,
     into,
     masked,
     native_host,
-    on_page,
     orchestrator,
     own_application,
     preflight,
@@ -45,19 +47,24 @@ from apply import (
     trace,
     tracker_cleanup,
     walls,
+    worker_tiles,
     workit,
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
+from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.answers_tab import saving_answers as _answering
+from apply.applicant import as_applicant
+from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
 from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
 from apply.home import HOME
-from apply.keychain import GMAIL, MacKeychain
+from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
 from apply.plain.site import live_site
@@ -75,8 +82,6 @@ from apply.tracker import TRACKER, FileTracker, InMemoryTracker, WorkItTracker
 from apply.worker import SENT, sent_resume
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
-# The Answer bank's file, beside the Applicant profile.
-ANSWER_BANK = "answer-bank.yaml"
 # Where a rehearsal keeps its Records, one folder per day.
 REHEARSALS = HOME / "rehearsals"
 # Where a run keeps its Records while policies.yaml sets no records_remote.
@@ -111,7 +116,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     rehearse.add_argument("--force", action="store_true",
                           help="rehearse a link you already applied to anyway; its page keeps Submit blocked "
                                "under a red note until you dismiss it")
-    for command in (run, approve_pass, rehearse):
+    reopen = commands.add_parser(
+        "reopen", help="after a restart: reopen every form on the open-forms list in the Worker that held it, keeping "
+                       "what it held; at a sign-in it waits for you and goes on once you are in. It never submits")
+    reopen.add_argument("--list", action="store_true", help="print what it would reopen, and open nothing")
+    for command in (run, approve_pass, rehearse, reopen):
         command.add_argument("--profile", type=Path, default=DEFAULT_PROFILE, help="the Applicant profile (YAML)")
         command.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
     run.add_argument("--requests-only", action="store_true",
@@ -151,8 +160,16 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
-    commands.add_parser("login", help="log in to WorkIt one time, in a Chrome window that it opens, so Apply can "
-                                      "write to your Applications Tracker; Apply keeps the login in the data folder")
+    commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then the "
+                                    "Apply window with your answers")
+    commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
+                                      "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
+    sync_answers = commands.add_parser(
+        "sync-answers", help="send every answer in the Answer bank to your WorkIt account, so the extension fills "
+                             "them: a one-time catch-up. With workit_sync.answers on in policies.yaml, each change "
+                             "goes by itself after; WorkIt keeps any answer of its own that is newer")
+    sync_answers.add_argument("--profile", type=Path, default=DEFAULT_PROFILE,
+                              help="the Applicant profile (YAML); its Answer bank is beside it")
     import_sheet = commands.add_parser(
         "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
                              "Tracker. It lists every add and skip first, and writes only when you type yes")
@@ -211,8 +228,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     tiled.add_argument("--seconds", type=float, default=300, help="how long the tile stays up after the fill")
     tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
-    plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
-    plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
+    plain.add_parser("prepare", help="write the worker extension's generated files (the guards, the fixed page "
+                                     "functions, Playwright's injected script); never the engine")
+    packaged = plain.add_parser("package", help="build the worker extension's Chrome Web Store zip: its code, the "
+                                                "generated files built in, LICENSE and NOTICE; never the engine")
+    packaged.add_argument("--out", default="dist", help="the folder the zip and its unpacked copy go in (default: dist)")
+    plain.add_parser("seed", help="guided one-time setup: open branded Chrome on the seed profile, confirm each step, check a real Worker")
     asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
                                             "words; prints what Claude changed. It never submits")
     asked.add_argument("target", nargs="?", help="the form: its Application ID, or words of its company and role")
@@ -224,8 +245,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     checked = commands.add_parser(
         "preflight", help="before a batch: group the links by job system and site, say which sign-ins to do first, "
                           "and print the order and pacing plan. It opens no page and reads no job site")
-    checked.add_argument("urls", nargs="+", metavar="url")
+    checked.add_argument("urls", nargs="*", metavar="url")
     checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
+    checked.add_argument("--open", action="store_true", help="the open forms instead (apply reopen): which of their "
+                                                              "sites wait on your sign-in now, and in which Browser")
     data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
@@ -239,7 +262,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again",
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
                             "preflight", "data") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
@@ -255,21 +278,30 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             _refuse_busy_worker_profiles(args.command)
             _refuse_stale_resume(profile, args.command)
             _send_waiting_writes()
-            adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
+            adapters = live_adapters(profile, answer_bank=_answer_bank(args.profile.parent))
             WorkerBrowsers().seed(args.workers)
             try:
                 with _dashboard(adapters, args.workers, profile):
                     orchestrator.run(adapters, profile, args.workers, **kinds)
             finally:
-                _close_workers(adapters.site)
+                worker_tiles.close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "fill-again":
         sys.exit(_fill_again(args.target))
+    elif args.command == "preflight" and args.open:
+        print(preflight.open_report(batch.forms(), _tiles()))
     elif args.command == "preflight":
+        if not args.urls:
+            parser.error("preflight: give the links, or --open for the open forms")
         _preflight(args.urls, args.workers, adapters)
     elif args.command == "rehearse" and args.into:
         sys.exit(_send_into(args.into, args.urls))
-    elif args.command == "rehearse":
+    elif args.command in ("rehearse", "reopen"):
+        reopening = None
+        if args.command == "reopen":
+            reopening = _reopening(args, adapters)
+            if reopening is None:
+                return
         profile = ApplicantProfile.load(args.profile)
         live = adapters is None
         if live:
@@ -281,7 +313,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             # Employer accounts it makes (their passwords in Keychain).
             adapters = live_adapters(profile, tracker=InMemoryTracker(), records=FolderRecords(REHEARSALS),
                                      notifier=RecordingNotifier(), phone=RecordingNotifier(),
-                                     answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
+                                     answer_bank=_answer_bank(args.profile.parent))
             print(f"Rehearsing {len(args.urls)} links; Apply submits nothing, and each page is yours once it stops. "
                   f"Records go to {REHEARSALS}/; "
                   f"answers Claude drafts go to the Answer bank, {args.profile.parent / ANSWER_BANK}.")
@@ -294,14 +326,17 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                 kept = None
                 print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
             try:
-                with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
+                # A tile per link: each keeps its page open. A reopened tile follows its own Worker, whatever its number.
+                with _dashboard(adapters, len(args.urls), profile, max([len(args.urls), *(
+                        k + 1 for k in (reopening.workers if reopening else []))])):
                     rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                       submitted_to=kept, together=args.together, force=args.force)
+                                       submitted_to=kept, together=args.together, force=args.force,
+                                       reopening=reopening)
             finally:
-                _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
+                worker_tiles.close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
-                               together=args.together, force=args.force)
+                               together=args.together, force=args.force, reopening=reopening)
         if live:
             # A link still filling at Ctrl-C has a browser on a thread that won't stop: end every one now.
             sys.stdout.flush()
@@ -330,16 +365,21 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
+    elif args.command == "app":
+        from apply import student
+
+        student.app()
     elif args.command == "login":
         client = workit.WorkIt()
-        print(f"Sign in to WorkIt in the Chrome window that opens ({client.site.web}). Apply never sees your password.")
         try:
             account = workit.login(client)
         except workit.WorkItError as error:
             sys.exit(f"apply login: {error}")
-        print(f"Logged in to WorkIt as {account.email}. The login is in {client.login}.")
+        print(f"Logged in to WorkIt as {account.email}. Apply keeps the login in your keychain (apply-workit).")
         if account.account_type != "applicant":
             print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
+    elif args.command == "sync-answers":
+        sys.exit(_sync_answers(args.profile.parent / ANSWER_BANK))
     elif args.command == "import-sheet":
         client = workit.WorkIt()
         if not client.logged_in():
@@ -425,11 +465,30 @@ def _plain(args) -> None:
     elif args.action == "prepare":
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")
+    elif args.action == "package":
+        import json
+
+        from apply.plain import extension
+
+        archive = extension.package(Path(args.out))
+        print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
+        recorded, stamp = json.loads(extension.STORE.read_text()), extension.store_stamp()
+        if any(recorded.get(key) != value for key, value in stamp.items()):
+            print(f"store.json doesn't record what this package holds ({stamp}): bump its version and record these "
+                  "before uploading (tests/test_worker_extension_store.py says how).")
     elif args.action == "seed":
-        workers = PlainWorkers(kind="chrome")
-        workers.prepare()
-        print(f"Opened Google Chrome on {workers.seed}. Once, by hand:")
-        print("\n".join(f"  {n}. {step}" for n, step in enumerate(workers.seed_profile(), 1)))
+        from apply.adapters import SetupError
+        from apply.plain import seed_setup
+
+        try:
+            done = seed_setup.run()
+        except (SetupError, ProfileInUse) as error:
+            print(error)
+            done = False
+        if done:
+            print("Setup is done. Plain Workers start as copies of this seed.")
+        else:
+            sys.exit(1)
 
 
 def _ask(target: str | None, message: str | None, listed: bool, out: Callable[[str], None] = print,
@@ -513,7 +572,8 @@ def _story_map(args, claude) -> None:
         print("\n".join((story_map.check() if args.check else []) + (story_map.gaps() if args.gaps else [])) or
               ("No stale entries." if args.check else "No follow-ups the bank can't answer."))
         return
-    built = story_map.build(claude or ClaudeCLI())
+    answering.refresh(workit.WorkIt())  # the map tags stories by WorkIt's Question types
+    built = story_map.build(claude or as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE)))
     old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
@@ -583,12 +643,12 @@ def _stop(signum, frame) -> None:
 
 
 @contextmanager
-def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
+def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, workers: int | None = None):
     """Serve the dashboard (a live tile per Worker, and the Answers tab over
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with _frames(site, tiles) as frames, \
+    with worker_tiles.frames_for(site, workers or tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
@@ -596,7 +656,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
                                 quiet=getattr(site, "plain", None), remember=_remembering(adapters.answer_bank),
-                                **_window_context()) as board:
+                                back=_back_to_window(site, site.profiles / "dashboard"), **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -626,24 +686,28 @@ def _fill_again(target: str) -> int:
     print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")))
     return 0
 def _gmail_set_up() -> bool:
-    """Whether Keychain lists a Gmail app password: attributes only, never the password."""
+    """Whether Keychain holds a Gmail app password for the profile's email. It reads the password, as doctor's
+    Gmail check does, and never prints it."""
     try:
-        return bool(MacKeychain(GMAIL).sites())
-    except (OSError, subprocess.SubprocessError):
+        address = ApplicantProfile.load(DEFAULT_PROFILE).get("identity.email")
+        return bool(address) and SystemKeychain(GMAIL).password(address) is not None
+    except Exception:  # no profile yet, one that won't load, or no keychain to read: the report says no Gmail
         return False
 
 
 def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None:
-    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, Keychain's attributes and the
-    Worker profiles' notes. Nothing here opens a page or reads a job site."""
+    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, the Tracker's Employer accounts and
+    the Worker profiles' notes. Nothing here opens a page or reads a job site."""
     if wrong := [url for url in urls if not urlsplit(url).hostname or url.split() != [url]]:
         print(f"apply preflight: not a link: {wrong[0]}", file=sys.stderr)
         raise SystemExit(2)
-    keychain = adapters.keychain if adapters else MacKeychain()
+    # `keyring` can't list a keychain's items, so the sites with a password come from the Tracker, which lists
+    # each Employer account whose password Apply keeps (Accounts.created). No password is read.
+    tracker = adapters.tracker if adapters else FileTracker()
     try:
-        items = keychain.sites()
-    except (OSError, subprocess.SubprocessError):
-        items = None  # no Keychain here, or it would not list: the report says so
+        items = {account.site for account in tracker.employer_accounts()}
+    except (OSError, ValueError):
+        items = None  # the Tracker would not read: the report says so
     browsers = None if adapters else WorkerBrowsers()
     signed_in = adapters.site.signed_in() if adapters else browsers.signed_in()
     policies = load_policies()
@@ -651,6 +715,32 @@ def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None
                             policies.get("plain_worker_hosts") or ())
     print(preflight.report(sites, workers, _gmail_set_up(), policies.get("worker_mode") or "cdp",
                            policies.get("workday_sign_in") == "google"))
+
+
+def _reopening(args, adapters: Adapters | None) -> "rehearsal.Reopening | None":
+    """`apply reopen`: the open-forms list's plan for this profiles folder (KAN-720), printed; with `--list`, or
+    with nothing to reopen, None. Else the rehearsal's links, Workers and drafts are set from it."""
+    kept = batch.forms()
+    planned = batch.plan(kept, adapters.site.profiles if adapters else WorkerBrowsers().profiles)
+    print("\n".join(batch.lines(planned)))
+    if args.list or not planned.firsts:
+        return None
+    by_link = {form["link"]: form for form in kept}
+    links = planned.firsts + [link for later in planned.later.values() for link in later]
+    args.urls, args.workers, args.together, args.force = planned.firsts, len(planned.firsts), False, False
+    return rehearsal.Reopening(planned.workers, planned.later, {link: batch.draft(by_link[link]) for link in links},
+                               {link: str(by_link[link].get("opened") or "") for link in links})
+
+
+def _tiles() -> list[dict]:
+    """Every tile of every running Apply window of this profiles folder (into.windows), as its /state says."""
+    tiles = []
+    for window in into.windows():
+        try:
+            tiles += into._call(window, "/state", timeout=5).get("tiles") or []
+        except into.NoWindow:
+            continue  # a window going away
+    return tiles
 
 
 def _send_into(target: str, urls: list[str]) -> int:
@@ -686,34 +776,35 @@ def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     return remember
 
 
-def _frames(site, tiles: int):
-    """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
-    plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
-    from apply.plain.site import PlainSite, RoutedSite
-    from apply.plain.tile import EitherFrames, PortFrames
-
-    if isinstance(site, PlainSite):
-        return PortFrames(tiles, site.workers.bridge.connection)
-    if isinstance(site, RoutedSite):
-        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint), PortFrames(tiles, site.connection), site.plain)
-    return dashboard.CdpFrames(tiles, site.endpoint)
+# One attribute line of `security dump-keychain` (no -d, so it prints no secret).
+_ATTRIBUTE = re.compile(r'^\s*"(svce|acct)"<blob>="(.*)"$')
 
 
-def _close_workers(site) -> None:
-    """Stop the plain Workers' Chromes the run started (by PID). A CDP Worker's closes with its page."""
-    close = getattr(site, "close", None)
-    if close:
-        try:
-            close()
-        except Exception as error:
-            print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
+def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> list[str]:
+    """Each site with an Employer account password in the macOS login Keychain, from `security dump-keychain`
+    without -d: item attributes only, never a password, and no Keychain prompt. `keyring` can't list items, so
+    this one read stays macOS-only, for `_chrome_passwords`' backfill of the accounts that rehearsals made
+    before KAN-592 (2026-11-03) listed them in the Tracker. Elsewhere there are none. It goes with that
+    backfill."""
+    if sys.platform != "darwin":
+        return []
+    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True)
+    found, item = [], {}
+    for line in dumped.stdout.splitlines() + ["keychain: end"]:
+        if line.startswith("keychain:"):
+            if item.get("svce") == EMPLOYER_ACCOUNTS and item.get("acct") not in (None, "", CHOSEN):
+                found.append(item["acct"])
+            item = {}
+        elif attribute := _ATTRIBUTE.match(line):
+            item[attribute[1]] = attribute[2]
+    return found
 
 
 def _chrome_passwords(login: str) -> None:
     """Install the Apply accounts host for Lisul's everyday Chrome, and list each Employer account Keychain
     has in the Tracker, so the extension's Sign In button knows it (KAN-592). No password is read."""
     manifest = native_host.install()
-    added = native_host.adopt(MacKeychain(), FileTracker(), login, date.today())
+    added = native_host.adopt(_mac_keychain_sites(), FileTracker(), login, date.today())
     print(f"Installed the Apply accounts host: {manifest}, for the WorkIt extension only ({native_host.EXTENSION_ID}).")
     print(f"Listed {len(added)} more Employer accounts from Keychain in the Tracker" + (f": {', '.join(added)}." if added else "."))
     print("In Chrome, open the WorkIt extension's options page and turn on Use My Apply Accounts (Chrome asks once to "
@@ -730,12 +821,12 @@ def _answers_window(profile: Path, window: Path) -> None:
         sheet[:] = sheet or [live_tracker()]
         return sheet[0]
 
-    tab = AnswersTab(AnswerBank(profile.parent / ANSWER_BANK), profile, held=lambda: tracker().rows())
+    tab = AnswersTab(_answer_bank(profile.parent), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
                              everyday=captcha.to_everyday_chrome,
-                             accounts=_accounts_tab(tracker, MacKeychain(), captcha.to_everyday_chrome),
+                             accounts=_accounts_tab(tracker, SystemKeychain(), captcha.to_everyday_chrome),
                              **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
@@ -751,28 +842,6 @@ def _accounts_tab(tracker: Callable[[], object], keychain, everyday: Callable[[s
     return AccountsTab(lambda: tracker().employer_accounts(), keychain, rows=lambda: tracker().rows(), everyday=everyday)
 
 
-def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
-    """Save Lisul's answer typed in the Inbox where Apply reads it: a run's
-    Missing fact in its Tracker row's Answer cell, as if he typed it in the
-    Sheet, so the next check fills that Application again with it; a
-    rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after. A
-    bare date (From, To) is that form's alone: never saved by its label.
-    The same for his answer typed on the held form itself (Board.typed)."""
-    def answer(item: dict, question: str, text: str) -> str:
-        if item.get("status") == "missing fact" and item.get("application_id"):
-            tracker().answer(item["application_id"], text)
-            return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
-        if question.startswith(essays.ASK):
-            essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
-            return "Saved to your Story bank: the essay is written with it next time."
-        if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
-            return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
-        tab.save_answered(question, text)
-        return "Saved to your facts: every form that asks it gets this answer."
-    return answer
-
-
 def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
     """Approve a Hold from the Apply window, in Apply's Tracker (KAN-544): the next check sends it."""
     def approve(application_id: str, essay: str | None = None) -> str:
@@ -781,10 +850,42 @@ def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
     return approve
 
 
+def _back_to_window(site, window: Path) -> Callable[[int], bool] | None:
+    """The Apply window (its Chrome profile `window`) back in front of Worker `worker`'s own window, after a captcha
+    Lisul did there (Dashboard.come_back, KAN-855): only while that Worker's window is the front one."""
+    in_front = getattr(site, "in_front", None)
+    if in_front is None:
+        return None
+    # One try, at once after the check: a raise retried for a while came up over the app he had switched to meanwhile.
+    return lambda worker: in_front(worker) and dashboard.raise_window(window, timeout=0)
+
+
 def _window_context() -> dict:
     """What the Apply window links and says beyond the run: the student's Applications Tracker on WorkIt,
     and when the Daily sweep runs."""
     return {"tracker_url": f"{workit.site().web}/applications", "sweep_at": schedule.daily_sweep_at()}
+
+
+def _answer_bank(folder: Path) -> AnswerBank:
+    """The Answer bank in `folder`, which also sends each change to WorkIt once policies.yaml turns
+    workit_sync.answers on (answer_sync.py, KAN-746)."""
+    return answer_sync.bank(folder / ANSWER_BANK, load_policies())
+
+
+def _sync_answers(path: Path, client: workit.WorkIt | None = None, queue: Path = answer_sync.QUEUE) -> int:
+    """`apply sync-answers`: push the whole Answer bank to WorkIt. 1 when it could not all go."""
+    client = client or workit.WorkIt()
+    if not client.logged_in():
+        print("apply sync-answers: no WorkIt login. Run `uv run apply login` first.", file=sys.stderr)
+        return 1
+    if not path.is_file():
+        print(f"apply sync-answers: no Answer bank at {path}.", file=sys.stderr)
+        return 1
+    sent = answer_sync.AnswerSync(client, queue).push_all(AnswerBank(path))
+    print(answer_sync.report(sent))
+    if not answer_sync.enabled(load_policies()):
+        print(f"Later changes stay on this Mac: set workit_sync: {{answers: true}} in {OVERRIDE} to send each one.")
+    return 1 if sent.waiting or sent.problems else 0
 
 
 def live_tracker() -> WorkItTracker:
@@ -831,8 +932,8 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 def _applied_live(url: str) -> str:
     """An Own application pasted into the window with no run going, added to the live Tracker."""
-    return own_application.report(url, tracker=live_tracker(), claude=ClaudeCLI(), site=WorkerBrowsers(),
-                                  clock=SystemClock())
+    claude = as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE))  # apply.private
+    return own_application.report(url, tracker=live_tracker(), claude=claude, site=WorkerBrowsers(), clock=SystemClock())
 
 
 def _sign_in(url: str, browsers: WorkerBrowsers) -> None:
@@ -921,22 +1022,26 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     Gmail app password is read from Keychain for the Applicant profile's
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""
-    claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
     site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
+    answering.refresh(workit.WorkIt())  # WorkIt's Question types, for the run's essays
+    # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
+    claude = as_applicant(live_claude(profile.policies(), ClaudeCLI()), profile)
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
         claude=claude,
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
+        # The Max windows, off every claude -p call's rate-limit events, and with ask_model: workit also WorkIt's
+        # Usage cap (ask_model.WorkItAsk.reading).
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,
         notifier=MacNotifier() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
-        keychain=MacKeychain() if keychain is None else keychain,
+        keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),
-        answer_bank=AnswerBank(profile.folder / ANSWER_BANK) if answer_bank is None else answer_bank,
+        answer_bank=_answer_bank(profile.folder) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
         everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)

@@ -16,6 +16,7 @@ import { SectionLink } from "@/components/ui/section-link";
 import { cn } from "@/lib/cn";
 
 import type { Attention } from "./data";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * What is waiting on the company, in two halves: the longest wait as the
@@ -85,13 +86,15 @@ export function AttentionHero({ item }: { item: Attention | undefined }) {
             </p>
           )}
 
-          <Link
-            href="/company/applicants"
-            aria-label={item ? "Review in Applicants" : "Open Applicants"}
-            className="text-brand-ink ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none"
-          >
-            <ArrowRightIcon className="size-5" />
-          </Link>
+          <Tip label={item ? "Review in Applicants" : "Open Applicants"}>
+            <Link
+              href="/company/applicants"
+              aria-label={item ? "Review in Applicants" : "Open Applicants"}
+              className="text-brand-ink ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none"
+            >
+              <ArrowRightIcon className="size-5" />
+            </Link>
+          </Tip>
         </div>
       </div>
     </section>

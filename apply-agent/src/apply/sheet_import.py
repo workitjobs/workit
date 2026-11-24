@@ -20,11 +20,17 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import TextIO
-from urllib.parse import parse_qs, urlsplit
 
 from apply.attach import COVER, RESUME
 from apply.model import Outcome, Status
-from apply.workit import APPLIED_STAGES, Stage, Unreachable, WorkIt, WorkItError
+from apply.workit import (
+    APPLIED_STAGES,
+    Stage,
+    Unreachable,
+    WorkIt,
+    WorkItError,
+    job_key,
+)
 
 # The stage each Outcome sets. Every other Outcome, and a blank one, is applied. The import never changes an
 # application at applied or later (workit.APPLIED_STAGES).
@@ -131,21 +137,6 @@ def sent_resume(sent: Path, application_id: str, day: date | None) -> Path | Non
         if resumes:
             return resumes[0]
     return None
-
-
-def job_key(url: str) -> str:
-    """One job's key, as WorkIt matches links (KAN-542): the Greenhouse job ID, else the link without its
-    scheme, www., query, fragment and trailing slash, lower case."""
-    parts = urlsplit(url)
-    query = parse_qs(parts.query)
-    if (parts.hostname or "").lower().endswith("greenhouse.io"):
-        if m := re.match(r"/[\w-]+/jobs/(\d+)(?:/|$)", parts.path):
-            return f"greenhouse:{m[1]}"
-        if parts.path.startswith("/embed/job_app") and query.get("token", [""])[0].isdigit():
-            return f"greenhouse:{query['token'][0]}"
-    if query.get("gh_jid", [""])[0].isdigit():
-        return f"greenhouse:{query['gh_jid'][0]}"
-    return re.sub(r"^[a-z][a-z0-9+.-]*://(www\.)?", "", url, flags=re.IGNORECASE).split("#")[0].split("?")[0].rstrip("/").lower()
 
 
 def show(steps: list[Step], out: TextIO) -> None:

@@ -8,6 +8,8 @@
  * globals.css.
  */
 
+import type { TextRole } from "@/components/ui/text-roles";
+
 /**
  * The kit's sections, in the order the nav lists them.
  *
@@ -24,7 +26,7 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "One typeface, Plus Jakarta Sans, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
+    note: "Inter for every word in the app, Plus Jakarta Sans for the marketing pages' headlines only, and Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries tracking and weight 600 (a place that wants capitals adds them), meta carries neither. The Roles groups say which size each kind of text takes. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
   },
   shape: {
     slug: "shape",
@@ -35,6 +37,11 @@ export const SECTIONS = {
     slug: "motion",
     title: "Motion",
     note: "Three curves, the animations built on them, and the view transitions pages and views change through. Every specimen replays on demand. Under reduced motion all of it completes at once, so the replays land instantly.",
+  },
+  icons: {
+    slug: "icons",
+    title: "Icons",
+    note: "Every glyph the app draws, and the one thing it means. One glyph, one meaning: a glyph that means two things, or a meaning drawn with two glyphs, is flagged where it is listed and gathered under To Fix. Grouped by where the glyph is read; a glyph read in two places is listed in both. Before picking a glyph for something new, find it here.",
   },
   buttons: {
     slug: "buttons",
@@ -68,6 +75,7 @@ export const SECTION_ORDER = [
   SECTIONS.type,
   SECTIONS.shape,
   SECTIONS.motion,
+  SECTIONS.icons,
   SECTIONS.buttons,
   SECTIONS.forms,
   SECTIONS.display,
@@ -173,27 +181,30 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
       { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
-      { token: "--chart-3", role: "→ --color-match-strong · ended well (Offer) · 3.50:1 on app" },
+      {
+        token: "--chart-3",
+        role: "→ --color-match-excellent · ended well (Offer) · 3.50:1 on app",
+      },
       { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
       { token: "--chart-5", role: "Slate grey · inert, Other, de-emphasis · 3.25:1 on app" },
     ],
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, yellow and green, so a score says good or bad with no legend. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, orange, yellow and green, four bands, so a score says good or bad with no legend; red only under 40. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
-        role: "→ --color-positive-ink · Excellent Match, deep green · 5.35:1 on white",
+        role: "Excellent Match, 80 up, green · 3.81:1 on white",
       },
       {
-        token: "--color-match-strong",
-        role: "Strong Match, green · 3.81:1 on white",
+        token: "--color-match-good",
+        role: "Good Match, 65 to 79, dark yellow, the darkest that reads yellow at 3:1 · 3.24:1 on white",
       },
-      { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
+      { token: "--color-match-fair", role: "Fair Match, 40 to 64, orange · 3.68:1 on white" },
       {
         token: "--color-match-weak",
-        role: "→ --color-ink-muted · Weak Match, neutral until real cut-offs (KAN-569) · 10.70:1 on white",
+        role: "→ --color-danger · Weak Match, under 40, red · 5.77:1 on white",
       },
     ],
   },
@@ -236,11 +247,15 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     title: "Borders",
     tokens: [
-      { token: "--color-border", role: "Card outline, decoration only" },
+      { token: "--color-border", role: "A hairline, decoration only" },
+      {
+        token: "--color-border-surface",
+        role: "A card's outer edge and the shell's rules, 1.4:1 on panel",
+      },
       { token: "--color-border-subtle", role: "Secondary buttons, rules" },
       {
         token: "--color-border-control",
-        role: "The edge of any control or state: 3.37:1 on panel, 3.09:1 on the app ground",
+        role: "The edge of a field or a state: 3.11:1 on panel, 3.03:1 on the app ground",
       },
       {
         token: "--color-border-strong",
@@ -304,7 +319,11 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
-  { token: "--text-title", cls: "text-title", role: "Card and column headings" },
+  {
+    token: "--text-title",
+    cls: "text-title",
+    role: "Section and column headings, a job card's title; 600",
+  },
   { token: "--text-heading", cls: "text-heading", role: "Page name — Tracker" },
   { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
   {
@@ -315,9 +334,177 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-hero", cls: "text-hero", role: "Onboarding question from lg, 40px regular" },
 ];
 
-/** The faces themselves come from next/font in app/layout.tsx. */
+/** The faces themselves come from next/font: Inter and Geist Mono in
+ *  app/layout.tsx, Plus Jakarta Sans in app/fonts.ts (loaded by this kit's
+ *  layout and the marketing pages' only). */
+/**
+ * The Type page's Roles groups (KAN-927): each kind of text that several
+ * screens draw, by its job. A `text` row is a role in
+ * components/ui/text-roles.ts; a `part` row is drawn by the `ui/` part that
+ * owns it (type/page.tsx says how). `differs` repeats design.md's Still open
+ * line for a role whose value is not the Legibility table's, and goes when
+ * the size decision settles it.
+ */
+export type RolePart =
+  | "pageTitle"
+  | "sectionHeading"
+  | "fieldLabel"
+  | "button"
+  | "ghostButton"
+  | "sectionButton"
+  | "chip"
+  | "textLink";
+
+export type RoleRow = {
+  name: string;
+  role: string;
+  sample: string;
+  differs?: string;
+} & ({ text: TextRole } | { part: RolePart });
+
+export const ROLE_GROUPS: { title: string; note?: string; rows: RoleRow[] }[] = [
+  {
+    title: "Roles: Structure",
+    note: "Each kind of text by its job. A screen imports TEXT from components/ui/text-roles.ts, or draws the part a row names, and never copies the classes. The line under each sample is read from the stylesheet. An amber line marks a role whose value differs from design.md's Legibility table, until the size decision settles it.",
+    rows: [
+      {
+        name: "BAR_TITLE",
+        part: "pageTitle",
+        role: "A section's title in the top bar: 26px from md, 20px on a phone",
+        sample: "Tracker",
+      },
+      {
+        name: "<SectionHeading>",
+        part: "sectionHeading",
+        role: "A section's or a card's heading",
+        sample: "Interviews & Dates",
+      },
+    ],
+  },
+  {
+    title: "Roles: Reading",
+    rows: [
+      {
+        name: "TEXT.body",
+        text: "body",
+        role: "Body copy: a dialog's text, a message, Scout's answer",
+        sample: "Your resume covers most of what this posting asks for.",
+      },
+      {
+        name: "TEXT.longReading",
+        text: "longReading",
+        role: "Long reading: a job's description and requirements",
+        sample: "You will build the tools our support team uses every day.",
+        differs: "No 16px reading token yet: Tailwind's stock text-base.",
+      },
+      {
+        name: "TEXT.secondaryLine",
+        text: "secondaryLine",
+        role: "One line under a name: the employer, the place",
+        sample: "Stripe · Seattle, WA",
+      },
+      {
+        name: "TEXT.meta",
+        text: "meta",
+        role: "A date or a count beside other text, never a sentence",
+        sample: "Nov 18",
+      },
+    ],
+  },
+  {
+    title: "Roles: Tables",
+    rows: [
+      {
+        name: "TEXT.columnHeader",
+        text: "columnHeader",
+        role: "A table's column heading: every seeker table",
+        sample: "Location",
+      },
+      {
+        name: "TEXT.tableCell",
+        text: "tableCell",
+        role: "A fact in a row: a place, a date, a count",
+        sample: "Seattle, WA",
+        differs: "design.md: table cells are text-body, 14px.",
+      },
+      {
+        name: "TEXT.rowTitle",
+        text: "rowTitle",
+        role: "A row's name when it names a job",
+        sample: "Software Engineer Intern",
+        differs: "design.md has no 13px at 600; resume and letter rows draw 450.",
+      },
+    ],
+  },
+  {
+    title: "Roles: Forms",
+    rows: [
+      {
+        name: "<TextField> label",
+        part: "fieldLabel",
+        role: "A field's label, drawn by every field part",
+        sample: "School Email",
+      },
+      {
+        name: "TEXT.hint",
+        text: "hint",
+        role: "A sentence under a field that says what goes in it",
+        sample: "The line under your name on your Profile",
+      },
+      {
+        name: "TEXT.error",
+        text: "error",
+        role: "What went wrong, under the field or button that caused it",
+        sample: "Enter an email address with an @",
+      },
+    ],
+  },
+  {
+    title: "Roles: Controls",
+    rows: [
+      {
+        name: "<Button>",
+        part: "button",
+        role: "A button's label, sm and default",
+        sample: "Upload Resume",
+      },
+      {
+        name: '<Button variant="ghost">',
+        part: "ghostButton",
+        role: "A text button on what is already shown; link is the same size",
+        sample: "See More",
+        differs: "12px, where the section text button is 13px and design.md's buttons are 13px.",
+      },
+      {
+        name: '<Button variant="section">',
+        part: "sectionButton",
+        role: "A section heading's own action",
+        sample: "View All",
+      },
+      {
+        name: "<Chip>",
+        part: "chip",
+        role: "A choice made in place",
+        sample: "Remote",
+      },
+      {
+        name: "<TextLink>",
+        part: "textLink",
+        role: "A link inside a sentence; it takes the sentence's size",
+        sample: "Profile",
+        differs: "No underline; design.md: a link in running text is underlined.",
+      },
+    ],
+  },
+];
+
 export const TYPEFACES: { token: string; cls: string; role: string }[] = [
-  { token: "--font-sans", cls: "font-sans", role: "Plus Jakarta Sans · every word in the app" },
+  { token: "--font-sans", cls: "font-sans", role: "Inter · every word in the app" },
+  {
+    token: "font-display",
+    cls: "font-display",
+    role: "Plus Jakarta Sans · the marketing pages' headlines (every h1 to h3 there), never the app",
+  },
   {
     token: "--font-mono",
     cls: "font-mono",
@@ -326,7 +513,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-heading",
     cls: "font-heading",
-    role: "→ --font-sans · shadcn's title face, so a dialog title is Plus Jakarta Sans too",
+    role: "→ --font-sans · shadcn's title face, so a dialog title is Inter too",
   },
 ];
 
@@ -339,24 +526,24 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
  */
 export const WEIGHTS: { token: string; cls: string; role: string }[] = [
   {
-    token: "450 · font-normal",
+    token: "400 · font-normal",
     cls: "font-normal",
     role: "Reading: body copy, helper text, typed values in inputs, descriptions",
   },
   {
-    token: "500 · font-medium",
+    token: "450 · font-medium",
     cls: "font-medium",
-    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label)",
+    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label). A filter or sort trigger is 400",
   },
   {
     token: "600 · font-semibold",
     cls: "font-semibold",
-    role: "Names a block: card and dialog titles at --text-subtitle, a job's title, captions",
+    role: "Names a block: card and dialog titles at --text-subtitle, --text-title, a job's title, captions",
   },
   {
     token: "700 · font-bold",
     cls: "font-bold",
-    role: "Names a page: --text-title, --text-heading, --text-display",
+    role: "Names a page: --text-heading, --text-display; a job description's section heading",
   },
 ];
 
@@ -379,7 +566,7 @@ export const SHADCN_SIZES: { token: string; cls: string; role: string }[] = [
   {
     token: "text-base · stock 16px, unbound",
     cls: "text-base",
-    role: "Inputs below sm, where less makes iOS zoom on focus. A dialog or sheet title takes text-subtitle font-semibold instead",
+    role: "Inputs below sm, where less makes iOS zoom on focus. A dialog or sheet title is text-subtitle instead, set in the forked component",
   },
 ];
 

@@ -29,7 +29,7 @@ from apply.plain.bridge import (
     socket_path,
 )
 from apply.plain.extension import EXTENSION_DIR, EXTENSION_ORIGIN
-from apply.plain.launcher import PlainWorkers, seed_steps
+from apply.plain.launcher import PlainWorkers
 
 ENGINE = {"version": "0.3.13+test", "sha256": "abc"}
 
@@ -55,13 +55,15 @@ def bridge():
     bridge.stop()
 
 
-def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None) -> socket.socket:
+def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None, packaged=None,
+                install_type=None) -> socket.socket:
     """A relay plus extension: says relay and hello, as the host and the worker extension do."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(str(bridge.path))
     sock.sendall(frame({"type": "relay", "protocol": 1, "worker": worker, "origin": origin, "host_pid": 1}))
     sock.sendall(frame({"type": "hello", "protocol": protocol, "extension": "0.1.0", "engine": engine,
-                        "userScripts": False, "webdriver": False, **({} if features is None else {"features": features})}))
+                        "packaged": packaged, "installType": install_type, "webdriver": False,
+                        **({} if features is None else {"features": features})}))
     return sock
 
 
@@ -131,6 +133,31 @@ def test_an_extension_with_vendor_sets_gets_apply_s_own_set_whatever_its_folder_
     sock = fake_worker(bridge, engine={"version": "0.3.12+old", "sha256": "zzz"}, features=3)
     assert read(sock) == {"type": "welcome", "worker": 0, "protocol": 1, "vendor": "vendor/sets/0123456789abcdef"}
     assert bridge.wait_for(0, timeout=5).vendor == "vendor/sets/0123456789abcdef"
+
+
+def test_a_package_that_holds_apply_s_own_files_is_welcomed_to_them(bridge):
+    # A store copy (KAN-839): its folder is Chrome's, so no set is written there; its packaged files are Apply's.
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="3254a38b1604313f", install_type="normal")
+    assert read(sock) == {"type": "welcome", "worker": 0, "protocol": 1, "vendor": "vendor"}
+    assert bridge.wait_for(0, timeout=5).vendor == "vendor"
+
+
+def test_a_store_copy_that_holds_other_files_is_refused(bridge):
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="ffffffffffffffff", install_type="normal")
+    refused = read(sock)
+    assert refused["type"] == "refuse" and "Chrome Web Store" in refused["reason"]
+    assert "ffffffffffffffff" in refused["reason"] and "3254a38b1604313f" in refused["reason"]
+    with pytest.raises(Refused):
+        bridge.wait_for(0, timeout=5)
+
+
+def test_an_unpacked_package_with_other_files_reads_apply_s_own_set(bridge):
+    # A package a developer loaded unpacked can take Apply's vendor set, as any unpacked copy does.
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="ffffffffffffffff", install_type="development")
+    assert read(sock)["vendor"] == "vendor/sets/0123456789abcdef"
 
 
 def test_a_vendor_set_is_written_once_and_never_changed(tmp_path):
@@ -249,16 +276,6 @@ def test_a_second_apply_on_the_same_socket_is_told_so(bridge):
         Bridge(bridge.path, engine=ENGINE).start()
 
 
-def test_the_seeds_steps_are_lisuls_clicks_in_order():
-    steps = seed_steps(EXTENSION_DIR)
-    assert len(steps) == 5
-    assert steps[0].startswith("Turn on Developer mode")
-    assert steps[1].startswith('If a "Apply Worker (private)" card is there already') and "Remove" in steps[1]
-    assert steps[2].startswith("Click Load unpacked") and str(EXTENSION_DIR.resolve()) in steps[2]
-    assert steps[3] == 'On the "Apply Worker (private)" card, click Details, and turn on Allow User Scripts.'
-    assert steps[4].startswith("Quit that Chrome")
-
-
 def test_workers_load_their_profiles_folders_own_copy_which_changes_only_while_none_runs(tmp_path):
     source = tmp_path / "checkout" / "worker-extension"
     shutil.copytree(EXTENSION_DIR, source, ignore=shutil.ignore_patterns("vendor"))
@@ -286,7 +303,7 @@ def test_guards_match_reads_the_plain_guard_files(tmp_path):
         (tmp_path / "vendor/guards" / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / "vendor/guards" / name).write_text(text)
     assert extension.guards_match(tmp_path)
-    (tmp_path / "vendor/guards/lifted.js").write_text("another Apply's")
+    (tmp_path / "vendor/guards/rehearsal.js").write_text("another Apply's")
     assert not extension.guards_match(tmp_path)
 
 

@@ -1,0 +1,45 @@
+name: Propose company websites
+
+# Looks up, on Wikidata, the companies whose jobs go out with no
+# company_domain (the latest scrape's metrics.json), and proposes their
+# websites in one rolling PR that a person reviews (scraper/domain_pr.py,
+# scraper/docs/logos.md "Wikidata proposals"). It never pushes to main.
+on:
+  schedule:
+    # Daily, off the hour and away from discovery's 05:43.
+    - cron: "29 7 * * *"
+  workflow_dispatch:
+
+# One run at a time updates the rolling PR.
+concurrency:
+  group: company-domains
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  # To download the scrape's metrics.json artifact.
+  actions: read
+
+jobs:
+  propose:
+    # Only main's code may update the proposal branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # About 150 boards at two paced calls each: five minutes, ten if Wikidata
+    # asks us to wait.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Look up company websites and update the review PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scraper/domain_pr.py --publish

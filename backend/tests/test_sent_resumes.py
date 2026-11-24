@@ -795,7 +795,7 @@ async def test_apply_finds_the_tailored_resume_by_the_postings_link_and_keeps_th
         await session.commit()
     tailored_pdf = b"%PDF-1.7 the tailored resume"
     monkeypatch.setattr("app.routers.built_resumes.render",
-                        lambda view, identity, template, page: Rendered(pdf=tailored_pdf, page_count=1))
+                        lambda view, identity, template, page, **_: Rendered(pdf=tailored_pdf, page_count=1))
 
     job = (await client.post("/jobs/listed-by-link", json={"url": link})).json()["job_id"]
     [tailored] = [r for r in (await client.get(f"{me}/built-resumes")).json() if r["job_posting_id"] == job]
@@ -810,3 +810,27 @@ async def test_apply_finds_the_tailored_resume_by_the_postings_link_and_keeps_th
     assert kept == tailored_pdf
     opened = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()
     assert opened["url"] == f"https://storage.test/{path}?download=Lisul_Resume.pdf"
+
+
+def test_the_hash_counts_only_the_header_the_page_prints():
+    # KAN-436: a hidden field's value is neither hashed nor kept, a field
+    # with no value hashes as before it existed, and a shown one counts
+    from dataclasses import replace
+
+    from app.services.resume_render import DEFAULT_PAGE, PageSettings
+    from app.services.resume_render.sample import IDENTITY, VIEW
+    from app.services.sent_resumes import _snapshot, content_hash
+
+    hide = PageSettings(hidden_header=("location",))
+    here = replace(IDENTITY, location="Stony Brook, NY")
+    assert content_hash(VIEW, here, "jakes") != content_hash(VIEW, IDENTITY, "jakes")
+    assert content_hash(VIEW, here, "jakes", hide) == content_hash(VIEW, IDENTITY, "jakes")
+    assert content_hash(VIEW, here, "jakes", hide) == content_hash(VIEW, replace(here, location="Elsewhere"), "jakes", hide)
+    assert "location" not in _snapshot(VIEW, here, "jakes", hide)["identity"]
+    assert "page" not in _snapshot(VIEW, here, "jakes", hide)
+    assert content_hash(VIEW, replace(IDENTITY, extra="Open to relocation"), "jakes") != content_hash(
+        VIEW, IDENTITY, "jakes")
+    assert _snapshot(VIEW, IDENTITY, "jakes", DEFAULT_PAGE)["identity"] == {
+        "name": IDENTITY.name, "email": IDENTITY.email, "phone": IDENTITY.phone,
+        "links": IDENTITY.links,
+    }

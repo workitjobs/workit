@@ -18,6 +18,7 @@ from app.main import app
 from app.models.bank import Bank_Entry
 from app.models.resume import Resume
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.scripts import import_apply_profile
 from app.scripts.import_apply_profile import import_apply
 
 pytestmark = pytest.mark.anyio
@@ -177,6 +178,28 @@ async def test_the_import_gives_workit_s_own_fields_the_apply_identity(running, 
     assert float(school["gpa"]) == 3.71 and float(school["gpa_scale"]) == 4
 
 
+@pytest.mark.parametrize(("school", "degree"), [
+    ({"degree_type": "Bachelor of Science", "degree": "Bachelor's degree"}, "Bachelor of Science"),
+    ({"degree_type": "Bachelor's", "degree": "B.S."}, "B.S."),
+    ({"degree": "Bachelor's degree"}, None),
+    ({}, None),
+])
+def test_the_degree_is_apply_s_name_for_it_never_only_its_level(school, degree):
+    report = import_apply_profile.Report()
+    assert import_apply_profile._degree(school, report) == degree
+
+
+async def test_a_degree_apply_names_only_by_its_level_is_left_empty(running, applicant, database, apply_dir, local_files):
+    # KAN-812: with no degree_type, the import saved Apply's "Bachelor's degree"
+    (apply_dir / "applicant-profile.yaml").write_text(PROFILE.replace("  degree_type: Bachelor of Science\n", ""))
+
+    report = await _import(database, applicant, apply_dir)
+
+    [school] = [e for e in (await _get(applicant, "/bank")).json()["entries"] if e["section"] == "education"]
+    assert school["degree"] is None
+    assert any("only its level (Bachelor's degree)" in note for note in report.notes)
+
+
 async def test_the_fill_profile_holds_the_engine_s_facts_and_only_its_policies(running, applicant, database, apply_dir, local_files):
     await _import(database, applicant, apply_dir)
 
@@ -258,6 +281,11 @@ DRAFTS = """\
   answer: A tram timetable that rewrites itself when a line closes.
   source: lisul
   reviewed: true
+'what is your favourite tool?':
+  question: What is your favourite tool?
+  answer: A label maker.
+  source: lisul
+  reviewed: false
 """
 
 
@@ -276,12 +304,14 @@ async def test_only_the_student_s_answers_come_as_their_own_and_their_claude_s_d
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
 
     # As in Apply, only source lisul is the student's: a draft they marked
-    # reviewed is still their Claude's, so a form that bans AI text never takes it.
+    # reviewed is still their Claude's, so a form that bans AI text never takes it;
+    # and one marked unreviewed is never theirs, whatever its source says.
     assert bank == {
         "What is your dream project?": {"answer": "A tram timetable that rewrites itself when a line closes.", "own": True},
         "What drew you to logistics?": {"answer": "Watching a warehouse route its trucks.", "own": False},
         "What do you build on weekends?": {"answer": "Small robots that sort marbles by colour.", "own": False},
         "Which shifts can you work?": {"answer": ["Mornings", "Evenings"], "own": False},
+        "What is your favourite tool?": {"answer": "A label maker.", "own": False},
     }
 
 
@@ -506,6 +536,7 @@ async def test_with_no_apply_home_the_import_reads_the_config_folder(
 ):
     monkeypatch.delenv("APPLY_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     _test_person(tmp_path / "home" / ".config" / "apply")
 
     report = await _import(database, applicant, None)
@@ -521,6 +552,7 @@ async def test_absolute_and_home_file_paths_attach_their_files(
     (elsewhere / "Absolute_Resume.pdf").write_bytes(PDF)
     (elsewhere / "home-transcript.pdf").write_bytes(TRANSCRIPT)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     (apply_home / "applicant-profile.yaml").write_text(
         TEST_PERSON.replace("Test_Person_Resume.pdf", str(elsewhere / "Absolute_Resume.pdf"))
         .replace("records/transcript.pdf", "~/Documents/home-transcript.pdf"))
