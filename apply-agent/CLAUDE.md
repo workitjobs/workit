@@ -174,6 +174,7 @@ this folder's `CLAUDE.md` for its area.
   build's Filler for a job system with no Filler of its own.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
+- `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
@@ -588,6 +589,13 @@ so it opens on the Mac that built it and nowhere else. Signing and
 notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
 notices strict (above).
 
+- **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
+  in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
+  modules the Student path imports and every non-Python file in
+  `src/apply`. Remove a file from `INPUTS` only after the code stops
+  reading it, then launch the built app: the build doesn't check what the
+  code reads, and a missing input crashes the app when it runs. How to
+  change each list and how to test the built app: `docs/app-build.md`.
 - **A release builds from the commit, never the working tree** (KAN-833,
   2026-11-21). `--release` exports the current commit's files of this
   folder with `git archive` into `build/source` and builds from there, so
