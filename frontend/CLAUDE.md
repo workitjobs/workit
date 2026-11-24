@@ -3676,8 +3676,9 @@ are in `docs/auth.md`.
   rule decides what enters, so a save can come back kept out with its
   reason; the part shows it and keeps the text. Each change is one PATCH
   and the list changes from its reply: never read the bank again after a
-  save. WorkIt Auto Apply's window takes the same design, so a change to
-  this one goes there too.
+  save. WorkIt Auto Apply's window has the same design
+  (`apply-agent/window/src/answers.tsx`), so a change to this one goes
+  there too.
 - **Writing samples are edited in Application Info only**
   (`(seeker)/auto-apply/info/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387, KAN-550): the extension's ask

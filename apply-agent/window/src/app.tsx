@@ -1,8 +1,9 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, NotebookIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
+import { AnswerBank } from "./answers.tsx";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
@@ -16,7 +17,7 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied" | "add" | "find">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add" | "find" | "answers">("home");
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
   useEffect(
@@ -47,6 +48,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const first =
     !!app.queue &&
     page !== "applied" &&
+    page !== "answers" &&
     (page === "add" || page === "find" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
   // Find jobs (find.tsx) is where a student picks jobs, when the window can read their matches; the queue and a
@@ -76,6 +78,9 @@ export function App({ bridge }: { bridge: Bridge }) {
               Applied
             </Button>
           )}
+          <Button tone="quiet" className={cx("h-8 px-3", page === "answers" && "bg-hover text-ink")} onClick={() => setPage(page === "answers" ? "home" : "answers")}>
+            <NotebookIcon className="size-4" /> Answer Bank
+          </Button>
           {app.settings && (
             <Button tone="quiet" className="h-8 px-3" onClick={() => app.settings!().catch((e: Error) => setToast(e.message))}>
               <GearSixIcon className="size-4" /> Settings
@@ -90,7 +95,9 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {page === "applied" ? (
+        {page === "answers" ? (
+          <AnswerBank bridge={bridge} />
+        ) : page === "applied" ? (
           <Applied jobs={v.applied} app={app} />
         ) : first && finds ? (
           <Find app={app} queue={add} />

@@ -5,6 +5,7 @@
 // (slow: the first state after 2 s; down: no answer at all). Answers,
 // approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through. Report a problem
 // shows on the jobs with an application_id (Figma, Notion, Plaid) and sends nothing.
+import type { BankView } from "./bank.ts";
 import type { ApplyState, Shown, Waiting } from "./apply.ts";
 import type { Bridge, Match, Queued, Usage } from "./bridge.ts";
 
@@ -161,7 +162,26 @@ export function mock(
   const push = () => listeners.forEach((on) => on(structuredClone(state)));
   const later = (change: () => void, ms = 1500) => setTimeout(() => (change(), push()), ms);
   const find = (id: string) => state.items.find((i) => String(i.id) === id);
+  // The Answer bank, as the Answers tab shows it: a draft to review, the student's own, a list answer.
+  const bank: BankView = {
+    bank_note: "",
+    bank: [
+      { question: "How did you hear about this job?", answer: "From WorkIt's Jobs page.", reviewed: false },
+      { question: "Are you open to working in person?", answer: "Yes", reviewed: true },
+      { question: "Which of these tools have you used?", answer: ["Git", "Docker"], reviewed: true },
+    ],
+  };
   return {
+    bank: async () => structuredClone(bank),
+    async changeBank(edit, { question, answer }) {
+      await new Promise((done) => setTimeout(done, 400));
+      // WorkIt's rule keeps out an answer about one company (answer_bank.Rule.kept_out).
+      if (/Vercel/.test(`${question} ${answer ?? ""}`)) throw new Error("WorkIt keeps this out of your Answer bank. It names Vercel, so it stays on this form.");
+      const found = bank.bank.find((e) => e.question === question);
+      bank.bank = bank.bank.filter((e) => e.question !== question);
+      if (edit !== "delete") bank.bank.push({ question, answer: answer ?? found?.answer ?? "", reviewed: true });
+      return structuredClone(bank);
+    },
     watch(on, lost) {
       if (connect === "down") {
         const t = setTimeout(() => lost?.(), 1500);

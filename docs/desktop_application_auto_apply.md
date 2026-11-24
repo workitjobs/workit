@@ -1995,9 +1995,8 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       window, with one design. The website comes first, as Application
       Info's Answer Bank (built 2026-11-24: `frontend/docs/screens.md`,
       Answer Bank), since a student with only the extension has no app;
-      the app's window then takes the same design. Until then only a
-      Developer checkout's Apply window (`apply answers`) edits it in the
-      app.
+      the app's window takes the same design (built 2026-11-24:
+      `apply-agent/docs/apply-window.md`, Answer Bank).
     - **The Answers view's edits** go through the same sender, ahead of
       the drafts, and drop a waiting draft to the same question. The view
       waits up to 10 seconds, then says "Not saved: WorkIt didn't answer"

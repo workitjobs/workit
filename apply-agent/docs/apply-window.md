@@ -126,6 +126,17 @@ for a student, not from `dashboard_page.py`.
   student applied to on WorkIt before (`Bridge.applied`:
   `GET /applicants/{id}/applications?stage=applied`), each once by its link,
   form address, or company and role. Its button is on the start screen too.
+- **Answer Bank (W11, `src/answers.tsx`, `src/bank.ts`)** is the student's
+  Answer bank, with the website's design (Application Info's Answer Bank:
+  `../../frontend/docs/screens.md`): a change to one goes into the other.
+  It reads the Answers tab's view once (`Bridge.bank`, `GET /answers`) and
+  sends each change through its routes (`Bridge.changeBank`,
+  `POST /answers/bank/{save,add,review,delete}`), each of which waits for
+  WorkIt's reply and answers the new view. A save WorkIt's rule keeps out
+  says the rule's reason (`words.ts` keeps it, where every other "Not
+  saved" line reads "Your answer wasn't saved"). Remove has Undo for the
+  student's own answer only: a draft is drafted again by the next form.
+  The window has no danger colour, so its error lines use the warning ink.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't

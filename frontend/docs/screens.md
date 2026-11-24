@@ -2546,7 +2546,8 @@ with the other self-identification, and the extension never asks them.
 Answer bank: one answer to each one-off question a form asks, which the
 extension and WorkIt Auto Apply fill into every later form that asks it.
 It is the one screen for it on the website, and WorkIt Auto Apply's window
-takes the same design next (`docs/desktop_application_auto_apply.md`, W11).
+has the same design (`apply-agent/window/src/answers.tsx`): a change to one
+goes into the other.
 
 - **Read once, changed in place.** The part reads the whole bank (`GET
   .../answer-bank`) as it opens, and each change is one `PATCH
