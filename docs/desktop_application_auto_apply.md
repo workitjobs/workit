@@ -1990,6 +1990,14 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       the app no longer decides itself which draft is about the company.
       The pre-submit review's fix sends a delete, Regenerate a flagged
       draft, Ask Claude's saved offer the student's own answer.
+    - **Where the student sees and edits the bank** (decided
+      2026-11-24): both on WorkIt's website and in WorkIt Auto Apply's
+      window, with one design. The website comes first, as Application
+      Info's Answer Bank (built 2026-11-24: `frontend/docs/screens.md`,
+      Answer Bank), since a student with only the extension has no app;
+      the app's window then takes the same design. Until then only a
+      Developer checkout's Apply window (`apply answers`) edits it in the
+      app.
     - **The Answers view's edits** go through the same sender, ahead of
       the drafts, and drop a waiting draft to the same question. The view
       waits up to 10 seconds, then says "Not saved: WorkIt didn't answer"

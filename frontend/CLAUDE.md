@@ -3266,7 +3266,7 @@ are in `docs/auth.md`.
   `<Suspense>`; a server read added to My Profile goes there, not into
   `getProfilePage`, which the client screen calls. The work
   authorization and self-identification answers, Application Answers, the
-  Transcript and Writing Samples live in Application Info
+  Answer Bank (W11), the Transcript and Writing Samples live in Application Info
   (`/auto-apply/info`, `(seeker)/auto-apply/info/`), one white card each,
   under the feature that uses them: on My Profile they made a long form
   the student scrolled past to find their own name. A new fact that only
@@ -3670,6 +3670,14 @@ are in `docs/auth.md`.
   (KAN-572).
   The extension's add-Claude moment (KAN-387) already skips a student whose
   connector is added: keep that check there, not a flag set here.
+- **The Answer bank is edited in Application Info's Answer Bank only** on
+  the website (`(seeker)/auto-apply/info/answer-bank.tsx`,
+  `lib/answer-bank-actions.ts`; `docs/screens.md`, Answer Bank). WorkIt's
+  rule decides what enters, so a save can come back kept out with its
+  reason; the part shows it and keeps the text. Each change is one PATCH
+  and the list changes from its reply: never read the bank again after a
+  save. WorkIt Auto Apply's window takes the same design, so a change to
+  this one goes there too.
 - **Writing samples are edited in Application Info only**
   (`(seeker)/auto-apply/info/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387, KAN-550): the extension's ask

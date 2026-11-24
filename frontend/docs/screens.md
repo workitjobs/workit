@@ -2423,7 +2423,8 @@ header keeps its top right for a view switcher.
 
 **One part a page** (2026-11-11, the user's call: six cards down one
 page read as a long form): Work Authorization, Self-Identification,
-Application Answers, Transcript, Writing Samples and Workday Sign-Up, each
+Application Answers, Answer Bank, Transcript, Writing Samples and Workday
+Sign-Up, each
 at `/auto-apply/info/<part>` (`auto-apply/info/sections.ts`,
 `[section]/page.tsx`), beside a menu that stays in view: the shared side
 menu (`components/side-nav.tsx`), Settings' own, a glyph and a label per
@@ -2539,6 +2540,29 @@ which draws them at their `lg` size (KAN-572).
 Voluntary Self-Identification also lists the EEO extras (sexual orientation,
 transgender, pronouns), each with a decline answer; onboarding skips them
 with the other self-identification, and the extension never asks them.
+
+**Answer Bank (W11, 2026-11-24)** (`answer-bank.tsx`,
+`lib/answer-bank-actions.ts`, `lib/answer-bank.ts`) is the student's
+Answer bank: one answer to each one-off question a form asks, which the
+extension and WorkIt Auto Apply fill into every later form that asks it.
+It is the one screen for it on the website, and WorkIt Auto Apply's window
+takes the same design next (`docs/desktop_application_auto_apply.md`, W11).
+
+- **Read once, changed in place.** The part reads the whole bank (`GET
+  .../answer-bank`) as it opens, and each change is one `PATCH
+  .../answer-bank`; the list changes from its reply, never by reading the
+  bank again. A draft waiting for review shows Needs Review and comes
+  first.
+- **Edit, Add, Reviewed and Remove.** Edit opens the answer's box in its
+  row, and Add a Question and an Answer box above the list, each with
+  Cancel and Save; Escape cancels. A list answer (the options picked) is
+  edited as text, the options separated by semicolons, and an empty one is
+  "None of these". Reviewed takes a draft's flag off, its answer unchanged.
+  Remove deletes at once and its toast offers Undo, which saves the answer
+  back, as Writing Samples does.
+- **WorkIt's rule decides what enters.** A save it keeps out (a follow-up,
+  an answer about one company) says the rule's reason under the box and
+  keeps the text.
 
 **Writing Samples (KAN-384, KAN-387)** is the last card
 (`writing-samples.tsx`, at `#writing-samples`): up to three

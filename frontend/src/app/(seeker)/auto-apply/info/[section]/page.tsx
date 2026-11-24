@@ -5,6 +5,7 @@ import { LoadFailed } from "@/components/ui/load-failed";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getBank } from "@/lib/bank-actions";
 
+import { AnswerBank } from "../answer-bank";
 import { AnswersSection } from "../info-screen";
 import { infoSection } from "../sections";
 import { Transcript } from "../transcript";
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * Application Answers read the answer bank here, on the server, with the
  * experience bank, whose education entries give Application Answers'
  * School Year (a failed bank read leaves School Year unknown, not the
- * page); Transcript (../transcript.tsx), Writing Samples
+ * page); Answer Bank (../answer-bank.tsx), Transcript (../transcript.tsx), Writing Samples
  * (../writing-samples.tsx) and Workday Sign-Up (../workday-signup.tsx,
  * which opens the extension's own page) read their own. A failed answers
  * read shows the failed read's card with Try Again (KAN-819), never a card
@@ -38,6 +39,8 @@ export default async function InfoSectionPage({ params }: Props) {
   if (!section) notFound();
 
   switch (section.key) {
+    case "answer-bank":
+      return <AnswerBank />;
     case "transcript":
       return <Transcript />;
     case "writing-samples":

@@ -1,6 +1,7 @@
 import {
   ChatCenteredTextIcon,
   KeyIcon,
+  NotebookIcon,
   PenNibIcon,
   ScrollIcon,
   StampIcon,
@@ -41,6 +42,8 @@ export const INFO_SECTIONS = [
     Icon: ChatCenteredTextIcon,
     hash: "#section-application-answers",
   },
+  // W11's Answer bank: the one-off answers every later form takes. New, so its hash is no old address.
+  { key: "answer-bank", label: "Answer Bank", Icon: NotebookIcon, hash: "#section-answer-bank" },
   { key: "transcript", label: "Transcript", Icon: ScrollIcon, hash: "#section-transcript" },
   {
     key: "writing-samples",
