@@ -677,10 +677,9 @@ notices strict (above).
   folder, which the seed setup copies for Load unpacked, is there only for
   now: it shrinks to what the store copy needs once W6 ships it. The Test
   Person sample (`sample/`) is not in the app (2026-11-24): a student's app
-  has no Test Person, and its data comes from WorkIt (W11). Until W11 stops
-  `student.app` from copying it (`home.fill_from_sample`), a built app whose
-  data folder has no Applicant profile stops at launch, since the sample it
-  copies isn't there. A plain
+  has no Test Person, and its profile comes from WorkIt at each Start (W11,
+  `docs/workit.md`), so a first launch with an empty data folder opens
+  (`tests/test_profile_from_workit.py`). A plain
   Worker's wrapper starts the app's own program as the relay
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
   host.py`. It names that program with `psutil.Process().exe()`, never
