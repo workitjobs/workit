@@ -127,7 +127,8 @@ user to remind the team, with the steps in `backend/CLAUDE.md`
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
-the `CF_API_SECRETS_JSON` secret (`.github/CLAUDE.md`); each half's
+Infisical's `workit-prod/api`, which syncs to the `API_*` repo secrets that
+`deploy.yml` sends to the Worker (`docs/secrets.md`); each half's
 Deployment section has the rest.
 
 **Vercel is retired** (2026-10-29): set nothing up there and check nothing
@@ -283,6 +284,11 @@ with the failure it prevents.
   Info and Written Answers keep their addresses and never go back to
   Profile (KAN-550). Read it before changing the seeker sidebar, the
   Jobs page's layout or any `/auto-apply` address.
+- `docs/secrets.md` — KAN-899, being set up: every shared secret lives in
+  Infisical (`workit-dev` for everyone, `workit-prod` and `workit-logins`
+  for Admins), and GitHub and Cloudflare hold copies a sync or a workflow
+  writes; how to pull a `.env`, change a value and load the first values.
+  Read it before adding, changing or sharing any secret.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -307,7 +313,10 @@ with the failure it prevents.
   (`frontend/CLAUDE.md`) and Tectonic with its warm cache
   (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
   checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
-  gets them with `npm run worktree -- --env-only`.
+  gets them with `npm run worktree -- --env-only`. **The env files come
+  from Infisical:** `npm run env` pulls the root `.env` and `frontend/.env`
+  in any checkout, keeping the lines only that computer has
+  (`docs/secrets.md`).
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
   then `git submodule update --init` and, once the branch has Apply,

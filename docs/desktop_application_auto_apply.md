@@ -585,8 +585,9 @@ shapes and status codes.
     on the server"). Each kind runs on the size of the API's model chain
     it names: Apply's Haiku calls on the small one, its Sonnet and Opus
     calls on the large one (`app/services/models.py`). So the models and
-    their keys are the `SCOUT_ENDPOINTS*` settings already in
-    `CF_API_SECRETS_JSON`, and a model change is an env change. It answers
+    their keys are the `SCOUT_ENDPOINTS*` settings already in the API's
+    production secrets (Infisical's `workit-prod/api`, `secrets.md`), and a
+    model change is an env change. It answers
     `{answer, tokens, usage}`, with `usage` as below, so the window's cap
     line updates with each call. The free-form `POST /apply-app/model`,
     which took the app's own prompt and schema, went once every kind was

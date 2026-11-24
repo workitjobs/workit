@@ -480,16 +480,21 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
 
 // What the student submitted: this run's, then what WorkIt has from before (app_window.Bridge.applied), each once.
 function Applied({ jobs, app }: { jobs: Job[]; app: AppMethods }) {
-  const [earlier, setEarlier] = useState<AppliedJob[] | null>(null);
+  // undefined while WorkIt's list is still coming, so a slow read never says "Nothing submitted yet."
+  const [earlier, setEarlier] = useState<AppliedJob[] | null | undefined>(app.applied ? undefined : null);
   useEffect(() => {
     app.applied?.().then(setEarlier, () => setEarlier(null));
   }, [app]);
-  const all = appliedJobs(jobs, earlier);
+  const all = appliedJobs(jobs, earlier ?? null);
   return (
     <>
       <h1 className="text-heading">Applied</h1>
       <p className="mt-1 text-body text-ink-meta">Everything you submitted, today and before. It's in your Tracker on WorkIt too.</p>
-      <div className="mt-6">{all.length ? all.map((job) => <Row key={job.key} job={job} app={app} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
+      <div className="mt-6">{all.length ? (
+          all.map((job) => <Row key={job.key} job={job} app={app} />)
+        ) : (
+          <p className={cx("text-ink-meta", earlier === undefined && "animate-pulse")}>{earlier === undefined ? "Finding what you applied to…" : "Nothing submitted yet."}</p>
+        )}</div>
     </>
   );
 }

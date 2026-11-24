@@ -15,6 +15,7 @@
     "clean": "npm --prefix frontend run clean",
     "favicon": "npm --prefix frontend run favicon",
     "worktree": "npm --prefix frontend run worktree --",
+    "env": "npm --prefix frontend run env",
     "cf:build": "npm --prefix frontend run cf:build",
     "cf:preview": "npm --prefix frontend run cf:preview",
     "cf:deploy": "npm --prefix frontend run cf:deploy",

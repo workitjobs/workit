@@ -664,7 +664,7 @@ Find files with a directory listing; these are the rules for where code goes.
   fills none of them, with no Store release. The list lives in the database,
   not in config: the backend's small settings are env vars
   (`app/config.py`), but changing one needs a redeploy
-  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  (Infisical's `workit-prod/api`), and an admin must flip this in minutes. The queue
   reads the same list: the matches (`JobFilters.disabled_job_systems`, by
   `FORM_URL`, so a job board's posting naming a Workday form counts as
   Workday's) and `queue_applications` leave those postings out, and an Auto
@@ -1824,9 +1824,9 @@ Find files with a directory listing; these are the rules for where code goes.
 | `SUPABASE_URL`         | Storage, Auth | Project URL; also where the JWKS lives              |
 | `SUPABASE_SERVICE_KEY` | Storage, Auth | Service-role key: bypasses RLS, creates users       |
 
-- **`.env` lives at the repo root, not in `backend/`.** Start it from the root
-  `.env.example`; to fill a fresh worktree's, see the root `CLAUDE.md`'s
-  Conventions.
+- **`.env` lives at the repo root, not in `backend/`.** `npm run env` writes
+  it from Infisical (`../docs/secrets.md`, "Get your local `.env` files");
+  the root `.env.example` lists its keys with no values.
 - **`ENV_FILE` in `app/config.py` resolves the root path from `__file__`**,
   not the working directory. pydantic's default `env_file=".env"` would find it
   from the root and silently miss it from `backend/`, where uvicorn and alembic
@@ -1911,7 +1911,9 @@ go then. A change needs to work on Cloudflare only.
   container stays short; a hint places an object only when it is first
   made, so changing it needs new names (now `enam-N`).
 - **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
-  `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
+  `CLOUDFLARE_API_TOKEN`, from the `API_*` repo secrets that Infisical's
+  `workit-prod/api` sync writes; `../docs/secrets.md` lists every key),
+  never `wrangler.jsonc`, which is committed. The
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
@@ -1919,7 +1921,7 @@ go then. A change needs to work on Cloudflare only.
   so production's OAuth issuer and MCP address read `http://localhost:8000`
   and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
   value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
-  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  forwarded the same way; never also put its name in `workit-prod/api`,
   since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
@@ -1952,7 +1954,7 @@ go then. A change needs to work on Cloudflare only.
   business holding that connection. **The deployed API makes no
   embeddings** (KAN-726): its provider is the default `none`, and it reads
   the vectors the team computer stores (`app/services/matching/CLAUDE.md`).
-  `CF_API_SECRETS_JSON` must not set `EMBEDDING_PROVIDER`: the Worker
+  `workit-prod/api` must not hold `EMBEDDING_PROVIDER`: the Worker
   forwards it when set, and `gemini` there would write Gemini vectors beside
   the Qwen3 ones.
 - **The bank job does not deploy on merge** (KAN-726). It runs all the
@@ -1991,6 +1993,19 @@ go then. A change needs to work on Cloudflare only.
   each feed page still sorts every listed job (about 50 ms in Postgres) and
   the Auto Apply Supported filter runs its regular expressions on every
   listed job (1.25 s a page).
+- **The resume reading group's four migrations came to `main` ahead of
+  their code** (KAN-888 to KAN-898): `74b507514e4a` (`resume_readings`,
+  KAN-898), `d0f6c68dae1d` (`bank_entries.minors` and `.concentration`,
+  KAN-891), `e4bac6ea0c32` (`bank_entries.link_on_title`, KAN-892) and
+  `a9d4c2e7f893` (`bank_entries.organization_note`, KAN-893), one line on
+  `f45841235b98`. They were applied to the shared database on 2026-11-22
+  from the group's local branch, before any file was on `main`, so every
+  Alembic command from `main` failed with "Can't locate revision" until
+  this PR (`alembic/CLAUDE.md`, "Commit the migration in the same PR that
+  applies it"). No model maps the table or the columns yet, so `alembic
+  check` lists them until the group's code merges. The running code
+  ignores them; `d0f6c68dae1d` also moved each minor and specialization
+  out of a school's `field_of_study`, which then holds the major alone.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.

@@ -146,7 +146,7 @@ export function PageSkeleton() {
   return (
     <div
       role="status"
-      className="bg-panel border-border-subtle flex w-full flex-col items-center gap-2 overflow-hidden border px-[8%] pt-[7%] shadow-sm"
+      className="bg-panel ring-border-subtle shadow-panel flex w-full flex-col items-center gap-2 overflow-hidden px-[8%] pt-[7%] ring-1"
       style={{ aspectRatio: LETTER }}
     >
       <span className="sr-only">Drawing the PDF</span>
@@ -364,10 +364,12 @@ export function PdfPages({
             pageFrames.current[i] = node;
           }}
           className={cn(
-            "bg-panel border-border-subtle @container relative w-full border shadow-sm",
+            "bg-panel ring-border-subtle shadow-panel @container relative w-full ring-1",
             // A popup at a page's foot runs over the next page, not under it
             popupBox?.page === i + 1 && "z-10",
           )}
+          // The zoom keeps a line in place by its page (`useZoomTo`)
+          data-page-frame
           style={{ aspectRatio: `${size.width} / ${size.height}` }}
         >
           <PageCanvas
@@ -467,8 +469,8 @@ const POPUP_LEAST = 96;
 
 /**
  * A card by a line, under it or over it, whichever the student can see all
- * of. The room is measured against what shows: the scrolling `main` less the
- * sticky bar (`data-page-bar`), not the page, since a page runs far past the
+ * of. The room is measured against what shows: the desk's scroll box, or
+ * the scrolling `main` less the sticky bar (`data-page-bar`), not the page, since a page runs far past the
  * window. It stays on its side while that side still fits, so scrolling does
  * not flip it back and forth; with no room for it on either side, it takes
  * the roomier one and scrolls inside. A fixed rule, over the line in the
@@ -493,9 +495,12 @@ function LinePopup({
     const main = el?.closest("main");
     const page = el?.parentElement;
     if (!el || !main || !page) return;
+    // The desk's own scroll box where it has one (`DESK_SCROLL`), else main
+    const box = el.closest<HTMLElement>("[data-page-scroll]");
+    const view = box && /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : main;
     const fit = () => {
       const { top: pageTop, height } = page.getBoundingClientRect();
-      const shown = main.getBoundingClientRect();
+      const shown = view.getBoundingClientRect();
       const bar = main.querySelector("[data-page-bar]")?.getBoundingClientRect().bottom ?? 0;
       const rooms = {
         over: pageTop + height * top - Math.max(shown.top, bar) - 2 * POPUP_GAP,
