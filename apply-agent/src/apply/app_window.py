@@ -49,7 +49,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlencode
 
-from apply import first_run, report, sign_in_link, workit
+from apply import first_run, report, sign_in_link, updates, workit
 from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
@@ -737,6 +737,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     bridge._window = window
     closing(window)
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
+    updates.start()  # the built app's Sparkle updater (W8 step 3)
     webview.start()  # no http_server: the page is a string, so pywebview opens no port either
 
 

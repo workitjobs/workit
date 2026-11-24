@@ -696,6 +696,23 @@ notices strict (above).
   and stood about a quarter bigger). The build makes the `.icns` from it
   with `sips` and `iconutil` (`make_icon`). `src/apply/Apply.icns` is the
   developer's Dock icon (`dock_app`) and stays out of the app (`LEAVE_OUT`).
+- **Updates are Sparkle 2.10.1** (W8 step 3, KAN-941). The build
+  downloads the pinned release once into `build/sparkle-2.10.1/`, checked
+  against `SPARKLE_SHA256` (its `bin/` holds `generate_keys` and
+  `sign_update`). Once `SPARKLE_PUBLIC_KEY` is set, it puts
+  `Sparkle.framework` in `Contents/Frameworks` without the XPC services
+  (for sandboxed apps only), headers and module maps, and writes the
+  settings: `SUFeedURL` (`FEED`, `https://downloads.workitjobs.ai/appcast.xml`,
+  which every app keeps for good: never change it), `SUPublicEDKey`,
+  checks and installs with no question asked, and the EdDSA check before
+  unpacking. With no key, the app ships no updater, since Sparkle won't
+  start without one. `apply.updates` starts Sparkle's updater once the run
+  loop runs; it starts nothing with no framework or key. A new Sparkle
+  version changes `SPARKLE_SHA256` and `legal/licenses/Sparkle-LICENSE.txt`
+  in the same PR. Tested on 2026-11-24 (`docs/app-build.md`, "Test an
+  update"): with ad-hoc signatures, an older build found, downloaded and,
+  on quit, installed a newer one; one signed with another key was
+  downloaded and refused.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher
   than the app's, and `pyproject.toml`'s version, the one the student sees

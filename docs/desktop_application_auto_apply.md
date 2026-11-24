@@ -1615,7 +1615,15 @@ itself (D17, D18, D20).
    Workers' window capture helper, built by `swiftc` in the build, since a
    student's Mac has no `swiftc`. Step 1 is done.
 2. Sign with Developer ID and notarize, after the Apple enrollment.
-3. Sparkle: the framework in the bundle, the key, the feed on R2.
+3. Sparkle: the framework in the bundle, the key, the feed on R2. Sparkle
+   is in the build (KAN-941, 2026-11-24): the pinned 2.10.1, the feed at
+   `https://downloads.workitjobs.ai/appcast.xml`, checks and installs with
+   no question, and `apply.updates` to start it; tested end to end on one
+   Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
+   Decided 2026-11-24: the key lives in the publisher's Keychain with a
+   backup in Infisical, and a GitHub Actions workflow, not a Mac, uploads
+   to R2. Left: the key, the bucket and its domain, the publish workflow,
+   and a beta channel.
 4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
    app, a link to Applications, and the license and notices beside them;

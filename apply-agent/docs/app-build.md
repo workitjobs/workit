@@ -94,12 +94,47 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   app: there, `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto
   Apply.app"` lets it open for a test.
 
+## Test an update
+
+Sparkle can be tested on one Mac before the real key and feed exist, with a
+throwaway key and a local feed. Never commit any of it, and delete the test
+build afterwards: it allows plain HTTP.
+
+1. Make a throwaway Ed25519 key with Python's `cryptography`: write the
+   private key's 32 raw bytes, base64, to a file, and keep the public key's
+   32 bytes, base64. `build/sparkle-2.10.1/bin/sign_update --ed-key-file
+   <file>` takes that file; it never touches the Keychain.
+2. Build through a small driver that imports `scripts/build_app.py`, sets
+   `SPARKLE_PUBLIC_KEY` to the throwaway public key and `FEED` to
+   `http://127.0.0.1:8765/appcast.xml`, adds
+   `NSAppTransportSecurity: {NSAllowsArbitraryLoads: true}` to the
+   Info.plist it writes (macOS refuses plain HTTP without it), and calls
+   `main()`. Copy that app aside: it is version N.
+3. Build again a minute later (`CFBundleVersion` is the minute): version
+   N+1. Sign its DMG (`sign_update --ed-key-file <file> <dmg>` prints the
+   enclosure's `sparkle:edSignature` and `length`), write an
+   `appcast.xml` with one `<item>` for it, and serve the folder with
+   `python3 -m http.server 8765 --bind 127.0.0.1`.
+4. So that N checks at once instead of in a day: `defaults write
+   ai.workitjobs.autoapply SUHasLaunchedBefore -bool true` and `defaults
+   write ai.workitjobs.autoapply SULastCheckTime -date "2020-01-01 00:00:00
+   +0000"`. Start N with `APPLY_HOME` set to a data folder that has a
+   profile. Within 30 s it fetches the feed and the DMG. Quit it
+   (`kill -TERM`): N+1 replaces it in place.
+5. To see a refusal, offer a higher version signed with another key: it is
+   downloaded and never installed.
+6. Clean up: stop the server, delete every `SU*` key from the
+   `ai.workitjobs.autoapply` defaults, and delete the test app and DMG.
+
 ## Still open
 
 - Step 2: Developer ID signing with the hardened runtime and the
   entitlements for Node (JIT) and Apple events, then notarizing the app
   and the DMG.
-- Step 3: Sparkle, its EdDSA key, and the feed on R2.
+- Step 3: Sparkle is in the build, and waits on three things: the update
+  key (`generate_keys`, its public half in `SPARKLE_PUBLIC_KEY`), the R2
+  bucket at `downloads.workitjobs.ai`, and the publish workflow that puts
+  the DMG and `appcast.xml` there. A beta channel for testers is not built.
 - Step 4: the DMG's upload and `DOWNLOAD_URL`, after W0, W6 and W7.
 - `worker-extension/` leaves `INPUTS` with W6.
 - W11: `student.app` still copies the Test Person sample, which the app no
