@@ -1,11 +1,12 @@
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, RenderBox } from "@/lib/built-resume-actions";
 
-import { groupOf as groupKeyOf, HEADER, printedSections } from "./model.ts";
+import { groupOf as groupKeyOf, HEADER, printedSections, printedSkills } from "./model.ts";
 
 /**
  * The page as an outline (KAN-920): where each section, entry and bullet
- * sits on the PDF on screen, read from the line boxes, so the page itself
+ * sits on the PDF on screen, and each skill line (a group, "Design: Figma,
+ * Prototyping"), read from the line boxes, so the page itself
  * can be dragged and added to with no Sections panel. Pure; the page draws
  * the handles (./page-handles.tsx) and the editor makes the moves.
  *
@@ -19,13 +20,19 @@ import { groupOf as groupKeyOf, HEADER, printedSections } from "./model.ts";
 /** Where on the pages: a page number and PDF points from its top. */
 export type Spot = { page: number; y: number };
 
-export type BlockKind = "section" | "entry" | "bullet";
+export type BlockKind = "section" | "entry" | "bullet" | "group";
+
+/** Where a skill line starts, before its label: the render's `skillrow`
+ *  points, in PDF points. */
+export type RowStart = { page: number; x: number; y: number };
 
 export type OutlineBlock = {
   kind: BlockKind;
   id: string;
-  /** The section an entry sits in, the entry a bullet does; null for a
-   *  section. Blocks move only among siblings with the same parent. */
+  /** The section an entry sits in, the entry a bullet does, "skills" for a
+   *  skill line; null for a section. Blocks move only among siblings with
+   *  the same parent. A skill line's id is its printed label ("Other" for
+   *  the skills with no group), unique on a page. */
   parent: string | null;
   /** What it is called in the breadcrumb and a handle's label. */
   label: string;
@@ -90,12 +97,18 @@ function extent(
 /** Every block the page prints, in page order: each section, then its
  *  entries, each followed by its bullets. A section, entry or bullet with no
  *  box on the PDF on screen (a hidden one, or one the PDF does not print
- *  yet) is left out. */
+ *  yet) is left out. Skills print as lines, one per group, each a block
+ *  after the Skills section (2026-11-23). `rows` is where each skill line
+ *  starts, before its label: only the skills have boxes, and they start
+ *  after the label ("Design: "), so a line's or the Skills heading's
+ *  handle, placed from them, sat inside the words. A line starts 0.15in
+ *  in, as an entry does. */
 export function outlineOf(
   boxes: RenderBox[],
   bank: Bank,
   choices: Choices,
   order: string[],
+  rows: RowStart[] = [],
 ): OutlineBlock[] {
   const byItem = new Map<string, RenderBox[]>();
   for (const box of boxes) {
@@ -109,10 +122,28 @@ export function outlineOf(
     const inner: OutlineBlock[] = [];
     const own: RenderBox[] = [];
     if (section.id === "skills") {
-      const skills = (byItem.get("skill") ?? []).filter((b) =>
-        choices.skills.some((c) => c.skill_id === b.item_id && c.shown),
-      );
-      own.push(...skills);
+      const skills = byItem.get("skill") ?? [];
+      for (const group of printedSkills(bank, choices)) {
+        const ids = new Set(group.skills.map((k) => k.id));
+        const lines = skills.filter((b) => ids.has(b.item_id));
+        const at = extent(lines);
+        if (!at) continue;
+        own.push(...lines);
+        // Its start: the row point on its first line, a baseline under the
+        // line's top
+        const row = rows
+          .filter((r) => r.page === at.start.page && r.y >= at.start.y - 2)
+          .sort((a, b) => a.y - b.y)[0];
+        const x0 = row && row.y <= at.start.y + 16 ? Math.min(row.x, at.x0) : at.x0;
+        inner.push({
+          kind: "group",
+          id: group.label,
+          parent: "skills",
+          label: group.label,
+          ...at,
+          x0,
+        });
+      }
     }
     for (const entry of section.entries) {
       const fields = (byItem.get(entry.id) ?? []).filter((b) => b.kind !== "bullet");
@@ -146,6 +177,7 @@ export function outlineOf(
     }
     const at = extent(own);
     if (!at) continue;
+    if (section.id === "skills" && inner.length) at.x0 = Math.min(at.x0, ...inner.map((b) => b.x0));
     // The heading sits over the first line: from where the block above
     // ends, on the same page, else a heading's height over it
     const start: Spot =
@@ -223,8 +255,8 @@ export function bandOn(
   };
 }
 
-/** The deepest block under a point: a bullet, else an entry, else the
- *  section (its heading included). A point between blocks, within `slack`
+/** The deepest block under a point: a bullet or a skill line, else an
+ *  entry, else the section (its heading included). A point between blocks, within `slack`
  *  points of one, still finds it, so the handle stays while the pointer
  *  crosses the gap to it. */
 export function blockAt(
@@ -233,7 +265,7 @@ export function blockAt(
   height: number,
   slack = 3,
 ): OutlineBlock | null {
-  for (const kind of ["bullet", "entry", "section"] as const) {
+  for (const kind of ["bullet", "group", "entry", "section"] as const) {
     const hit = blocks.find((b) => {
       if (b.kind !== kind) return false;
       const band = bandOn(b, at.page, height);

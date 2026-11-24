@@ -173,9 +173,24 @@ Logs name the endpoint and the failed check, never the answer's text.
 
 ## How a failure behaves
 
+**An endpoint that answers 5xx is asked again** (`LLM.BUSY_PAUSES`): after
+one second, then after two more, before the chain moves on. Every call does
+this: `stream` (before any text only), `complete_json` and
+`complete_schema`. On 2026-11-23 Gemini's free tier answered about half of
+all posting-sized requests with 503 "This model is currently experiencing
+high demand", and the same request a second later went through; a laptop's
+`.env` and production (when last checked) name that one model with no
+fallback, so one 503 failed Tailor's keyword step outright ("Tailor can't
+reach WorkIt's AI right now"). A 429 is not asked again, since a daily
+quota does not lift in seconds, and neither is an unreachable endpoint (a
+laptop with no Ollama). The SDK's own retries stay off (`max_retries=0`):
+they would retry a 429 too. `complete_json`'s `wait` covers the tries
+too. `ScriptedLLM` asks again with no pause, so a scripted 5xx runs its
+script three times.
+
 `LLM.stream` tries the chain in order, and moves to the next endpoint only
-when one is rate-limited (429), erroring (5xx) or unreachable **before it has
-sent any text**. Once text has reached the user a retry would repeat it, so a
+when one is rate-limited (429), still erroring (5xx) after its tries, or
+unreachable **before it has sent any text**. Once text has reached the user a retry would repeat it, so a
 failure mid-reply ends the reply with an `error` event. A 4xx other than 429 is
 misconfiguration — wrong key, model name or parameter — and is not retried; the
 server log says which endpoint failed, by its status and code only:
@@ -294,7 +309,8 @@ address or a friend's link goes too. Rules:
 per endpoint in the chain (`ScriptedLLM(rate_limited(), ["reply"])`), records
 every prompt as the model received it, and joins a script's pieces as the
 answer to a structured call. It covers: moving down the chain on 429, 5xx,
-a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
+a dead endpoint and a request too large, a 5xx asked again after each pause
+(never a 429, a dead endpoint or a 5xx mid-reply), no move on misconfiguration or mid-reply, the structured call
 (checked object, chain, an endpoint slower than its `wait`, rejected
 replies, no identity data, a reply cut off at its cap), `complete_schema` (an answer outside the schema moves on and
 still costs, a 400 moves on, its tokens, no remote `$ref` fetched, an

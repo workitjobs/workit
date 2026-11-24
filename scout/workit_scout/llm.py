@@ -11,7 +11,7 @@ of this package.
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 Message = dict[str, str]
 T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R")
 
 OFFLINE = "Scout is offline right now. Try again in a minute."
 OUT_OF_QUOTA = "Scout has hit today's limit. Try again tomorrow."
@@ -114,6 +115,15 @@ def _worth_another_try(exc: Exception) -> bool:
     return isinstance(exc, APIConnectionError)
 
 
+def _busy(exc: Exception) -> bool:
+    """A 5xx: the provider is overloaded or down for a moment. Gemini's free
+    tier answered half of all requests with 503 "high demand" on 2026-11-23,
+    and the same request a second later went through. A 429 is a quota that a
+    pause does not lift, and an unreachable endpoint (a laptop with no Ollama)
+    does not start in a second, so neither is asked again."""
+    return isinstance(exc, APIStatusError) and exc.status_code >= 500
+
+
 def _user_message(exc: Exception) -> str:
     if _too_large(exc):
         return TOO_LARGE
@@ -161,18 +171,24 @@ def _deidentified(messages: Sequence[Message], identity: Identity) -> list[Messa
 
 class LLM:
     """
-    Asks the endpoint chain, in order, for one reply. It moves to the next
-    endpoint when one is rate-limited (429), erroring (5xx) or unreachable
-    *before it has said anything*. Once text has reached the user a retry would
-    repeat it, so a failure mid-reply ends the reply instead.
+    Asks the endpoint chain, in order, for one reply. An endpoint that answers
+    5xx is asked again after each pause in `BUSY_PAUSES`. It moves to the next
+    endpoint when one is rate-limited (429), still erroring (5xx) or
+    unreachable *before it has said anything*. Once text has reached the user a
+    retry would repeat it, so a failure mid-reply ends the reply instead.
     """
+
+    #: Seconds to wait before asking an endpoint that answered 5xx again, one
+    #: entry a try: two more tries, a second and then two seconds later.
+    BUSY_PAUSES: tuple[float, ...] = (1.0, 2.0)
 
     def __init__(self, endpoints: Sequence[Endpoint]):
         if not endpoints:
             raise ValueError("The endpoint chain is empty.")
         # Building a client opens no connection, so all are made up front.
         # max_retries=0: a daily cap does not lift after a backoff, and a
-        # laptop without Ollama will not start one. Fail over at once.
+        # laptop without Ollama will not start one. Fail over at once; only
+        # a 5xx is asked again, by `_again` (the SDK would retry a 429 too).
         self._endpoints = [
             (
                 endpoint,
@@ -189,6 +205,29 @@ class LLM:
     def from_settings(cls, s: ScoutSettings, size: Size | None = None) -> "LLM":
         return cls(s.chain(size))
 
+    async def _paused(self, endpoint: Endpoint, exc: Exception, tries: int) -> bool:
+        """Whether to ask `endpoint` again after its `tries`th failure,
+        `exc`: after the pause, when it was busy and pauses are left."""
+        if not _busy(exc) or tries > len(self.BUSY_PAUSES):
+            return False
+        _log_failure(endpoint, exc)
+        pause = self.BUSY_PAUSES[tries - 1]
+        logger.info("Asking %s again in %ss", endpoint.model, pause)
+        await asyncio.sleep(pause)
+        return True
+
+    async def _again(self, endpoint: Endpoint, ask: Callable[..., Awaitable[R]], *args: Any) -> R:
+        """`ask(*args)`, asked again after each pause while it fails busy
+        (5xx). The last failure is the caller's to log and handle."""
+        tries = 0
+        while True:
+            tries += 1
+            try:
+                return await ask(*args)
+            except APIStatusError as exc:
+                if not await self._paused(endpoint, exc, tries):
+                    raise
+
     async def stream(
         self, messages: Sequence[Message], *, identity: Identity
     ) -> AsyncIterator[str]:
@@ -196,18 +235,26 @@ class LLM:
         failure = OFFLINE
         for endpoint, client in self._endpoints:
             started = False
-            try:
-                async for delta in self._complete(client, endpoint, messages):
-                    started = True
-                    yield delta
-                return
-            except (APIConnectionError, APIStatusError) as exc:
-                _log_failure(endpoint, exc)
-                if started:
-                    raise ScoutUnavailable(CUT_OFF) from exc
-                if not _worth_another_try(exc):
-                    raise ScoutUnavailable(OFFLINE) from exc
-                failure = _user_message(exc)
+            tries = 0
+            while True:
+                tries += 1
+                try:
+                    async for delta in self._complete(client, endpoint, messages):
+                        started = True
+                        yield delta
+                    return
+                except (APIConnectionError, APIStatusError) as exc:
+                    # Before any text only: once some has reached the user,
+                    # asking again would send it twice.
+                    if not started and await self._paused(endpoint, exc, tries):
+                        continue
+                    _log_failure(endpoint, exc)
+                    if started:
+                        raise ScoutUnavailable(CUT_OFF) from exc
+                    if not _worth_another_try(exc):
+                        raise ScoutUnavailable(OFFLINE) from exc
+                    failure = _user_message(exc)
+                    break
         raise _unavailable(failure)
 
     async def complete_json(
@@ -233,8 +280,13 @@ class LLM:
         failure = OFFLINE
         for endpoint, client in self._endpoints:
             try:
+                # `wait` covers the tries after a 5xx too: it is the
+                # endpoint's whole time.
                 text = await asyncio.wait_for(
-                    self._complete_json(client, endpoint, messages, schema, max_tokens), wait
+                    self._again(
+                        endpoint, self._complete_json, client, endpoint, messages, schema, max_tokens
+                    ),
+                    wait,
                 )
             except TimeoutError as exc:
                 # A stalled provider is treated as a down one: the next may
@@ -287,7 +339,9 @@ class LLM:
         spent = Spent()
         for endpoint, client in self._endpoints:
             try:
-                text, used = await self._complete_schema(client, endpoint, messages, "answer", schema)
+                text, used = await self._again(
+                    endpoint, self._complete_schema, client, endpoint, messages, "answer", schema
+                )
             except ReplyCutOff as cut:
                 spent += cut.spent
                 failure = INVALID

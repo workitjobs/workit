@@ -22,8 +22,12 @@ class ScriptedLLM(LLM):
     """
     One script for each endpoint in the chain, in order. Each endpoint yields
     its scripted pieces of reply in order, raising any exception it reaches —
-    so a script can fail before a reply or halfway through one.
+    so a script can fail before a reply or halfway through one. An endpoint
+    is asked again after a 5xx as a real one is, with no pause, so its script
+    runs again and fails the same way.
     """
+
+    BUSY_PAUSES = (0.0, 0.0)
 
     def __init__(self, *scripts: Script):
         super().__init__([endpoint(n) for n in range(len(scripts))])

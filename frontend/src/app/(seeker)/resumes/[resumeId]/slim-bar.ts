@@ -25,3 +25,49 @@ export const SLIM_BAR = cn(
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-nowrap items-center gap-2 rounded-card px-2 py-1 ring-1 backdrop-blur",
   BAR_BUTTONS,
 );
+
+/**
+ * The desk (2026-11-23, the user's pick of three): the toolbar and the
+ * pages are one surface, as a Google Doc's are. The bar is the desk's top
+ * row (`DESK_BAR`), with a hairline under it and no outline of its own,
+ * and the pages lie on the desk's grey (`--color-well`) as paper, centred
+ * at every zoom (`DESK_PAGES`). Until then the bar was a rounded white card
+ * 8px over a square-cornered page on the near-white ground: two shapes
+ * with a gap too small to part them and too large to join them, edges that
+ * met only at 125%, an 8px strip of the page showing over the bar once it
+ * stuck (`top-2`), and white paper on a ground one shade off white.
+ * Editing, Tailor's review and an upload's page all draw it. The phone
+ * keeps `SLIM_BAR`: its page fills the screen, with no desk to stand on.
+ */
+// `overflow-clip`, not `hidden`: it rounds the bar's corners at rest and
+// makes no scroll box, so the bar still sticks, square once the desk's top
+// has scrolled away; a rounded bar of its own left notches beside the
+// desk's straight edges as it stuck
+export const DESK = "bg-well ring-border-surface rounded-card flex flex-col overflow-clip ring-1";
+
+/** The desk's top row: the slim bar, opaque, sticking at the very top, so
+ *  nothing scrolls into view over it. */
+export const DESK_BAR = cn(
+  "bg-panel border-border-subtle sticky top-0 z-20 flex min-h-11 flex-nowrap items-center gap-2 border-b px-2 py-1",
+  BAR_BUTTONS,
+);
+
+/** Room around the paper on the desk, wider where the column is wide. */
+export const DESK_PAGES = "px-3 py-4 @2xl/main:px-6 @2xl/main:py-6";
+
+/**
+ * From @4xl the desk is a window of its own, as a Google Doc's is
+ * (2026-11-23): it ends at the window's foot (`DESK_FIT`, its height from
+ * `useFitToWindow`, level with the review's panel) and the pages scroll
+ * inside it (`DESK_SCROLL`, marked `data-page-scroll`), under a bar that
+ * stays. So a zoom or a pinch scrolls the pages alone and never the
+ * website: the website scrolled with every zoom until then (the user),
+ * since keeping the line being read in place meant scrolling all of it,
+ * the title and Tailor's step bar with it. Below @4xl the website scrolls
+ * the pages, as before.
+ */
+export const DESK_FIT = "@4xl/main:h-(--fit-height)";
+// A scroll bar that takes room (Windows) keeps it at every zoom, so Fit
+// Width's room (`usePageZoom`) never changes as the pages' height does
+export const DESK_SCROLL =
+  "@4xl/main:min-h-0 @4xl/main:flex-1 @4xl/main:overflow-x-hidden @4xl/main:overflow-y-auto @4xl/main:[scrollbar-gutter:stable]";

@@ -1,7 +1,7 @@
 "use client";
 
 import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { FileIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,9 @@ import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { ResumeDelete, TitleRowProvider } from "../../[resumeId]/resume-menu";
 import { ResumeTitle } from "../../[resumeId]/resume-title";
-import { SLIM_BAR } from "../../[resumeId]/slim-bar";
-import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
+import { useFitToWindow } from "../../[resumeId]/fit-to-window";
+import { DESK, DESK_BAR, DESK_FIT, DESK_PAGES, DESK_SCROLL } from "../../[resumeId]/slim-bar";
+import { FIT, useZoomView, Zoom, zoomWidth } from "../../[resumeId]/zoom";
 
 /**
  * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
@@ -24,9 +25,9 @@ import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
  * star after it (filled on the primary, a Make Primary button on any
  * other), then at the right when it was uploaded, Download, the page's one
  * filled button, and Delete (`ResumeDelete`, the trash, which asks first;
- * a ⋯ with Rename, Make Primary and Delete until 2026-11-19); then a sticky bar in the editor's
- * own look (`SLIM_BAR`, ../../[resumeId]/slim-bar.ts) holding the zoom;
- * then the file. Until KAN-825 its title was larger, Make Primary, Rename
+ * a ⋯ with Rename, Make Primary and Delete until 2026-11-19); then the
+ * editor's desk (`DESK`, ../../[resumeId]/slim-bar.ts), its sticky bar
+ * holding the zoom over the file. Until KAN-825 its title was larger, Make Primary, Rename
  * and Delete were bordered buttons, and "★ Primary" sat under the name.
  *
  * A PDF is drawn page by page with the editor's pdf.js preview
@@ -42,7 +43,10 @@ import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
 export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: string | null }) {
   const name = resume.original_filename ?? "Resume";
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useZoom();
+  const pages = useRef<HTMLDivElement>(null);
+  const { zoom, shown: shownZoom, room: zoomRoom, zoomTo } = useZoomView(pages);
+  // The desk ends at the window's foot, and the page scrolls inside it
+  const fitDesk = useFitToWindow();
 
   async function download() {
     setError(null);
@@ -80,18 +84,6 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
       </div>
 
       <div className="mt-3 flex flex-col gap-4">
-        {/* The editor's bar (`SLIM_BAR`), holding this page's one tool, the
-            zoom, at its end where the editor's is. A DOCX has no page to
-            zoom, so no bar, and nor does a column under @md, where even the
-            50% step (408px) is wider than the page */}
-        {pdf && (
-          <div className={cn(SLIM_BAR, "@max-md/main:hidden")}>
-            <div className="ml-auto">
-              <Zoom zoom={zoom} onZoom={setZoom} />
-            </div>
-          </div>
-        )}
-
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -99,15 +91,29 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
         )}
 
         {pdf ? (
-          // The page's skeleton until pdf.js draws, as ./loading.tsx shows it.
-          <div className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
-            <PdfPages
-              pdf={pdf}
-              boxes={[]}
-              selected={null}
-              onSelect={() => {}}
-              placeholder={<PageSkeleton />}
-            />
+          // The editor's desk (`DESK`, ../../[resumeId]/slim-bar.ts): its bar
+          // holds this page's one tool, the zoom, at its end where the
+          // editor's is, and the page lies on its grey. A DOCX has no page to
+          // zoom, so no desk; nor a bar under @md, where even the 50% step
+          // (408px) is wider than the page. The page's skeleton shows until
+          // pdf.js draws, as ./loading.tsx shows it
+          <div ref={fitDesk} className={cn(DESK, DESK_FIT)}>
+            <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
+              <div className="ml-auto">
+                <Zoom zoom={zoom} shown={shownZoom} room={zoomRoom} onZoom={(to) => zoomTo(to)} />
+              </div>
+            </div>
+            <div data-page-scroll className={cn(DESK_SCROLL, zoom !== FIT && DESK_PAGES)}>
+              <div ref={pages} className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
+                <PdfPages
+                  pdf={pdf}
+                  boxes={[]}
+                  selected={null}
+                  onSelect={() => {}}
+                  placeholder={<PageSkeleton />}
+                />
+              </div>
+            </div>
           </div>
         ) : (
           <EmptyState

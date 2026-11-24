@@ -8,7 +8,9 @@ import {
   ArrowUpIcon,
   CircleNotchIcon,
   LightbulbIcon,
+  ListBulletsIcon,
   QuestionIcon,
+  TextAaIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
@@ -45,7 +47,7 @@ import { cn } from "@/lib/cn";
 import { FOLD, FoldButton } from "./bar-fold";
 import { overText } from "./fit-notice";
 import type { Line } from "./model";
-import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
+import { DESK_BAR, PRESSED_GLYPH } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar and the
@@ -72,7 +74,12 @@ export type ExperiencesTools = {
 
 /** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
  *  More's `ZoomSubmenu`. */
-export type ZoomTools = { zoom: number; onZoom: (zoom: number) => void };
+export type ZoomTools = {
+  zoom: number;
+  shown: number;
+  room: number | null;
+  onZoom: (zoom: number) => void;
+};
 
 /** The bar's page settings (./page-format.tsx). */
 export type FormatTools = {
@@ -80,9 +87,11 @@ export type FormatTools = {
   disabled: boolean;
   onChange: (next: PageSettings) => void;
   /** Whether the side panel is open, and its button (KAN-586): the panel
-   *  holds Sections and Format as tabs, so neither has a button of its own. */
+   *  holds Sections and Format as tabs, so neither has a button of its own.
+   *  No button on Tailor's review, whose views open from its own controls
+   *  beside the page (`ReviewTabs`, `ReviewRail`). */
   panelOpen: boolean;
-  onPanel: () => void;
+  onPanel?: () => void;
 };
 
 /** The side panel's tabs (KAN-586). */
@@ -347,7 +356,7 @@ export function Bar({
       data-keeps-selection
       data-page-bar
       data-tour="toolbar"
-      className={cn(SLIM_BAR, "@container/bar")}
+      className={cn(DESK_BAR, "@container/bar")}
       // A press on a button keeps focus in the open line's field, so it does
       // not blur and save first
       onMouseDown={(e) => {
@@ -440,7 +449,11 @@ export function Bar({
           className={cn("flex shrink-0 items-center", FOLD.away)}
         >
           <Divider />
-          {rendered ? <Zoom zoom={zoom.zoom} onZoom={zoom.onZoom} /> : <ZoomSkeleton />}
+          {rendered ? (
+            <Zoom zoom={zoom.zoom} shown={zoom.shown} room={zoom.room} onZoom={zoom.onZoom} />
+          ) : (
+            <ZoomSkeleton />
+          )}
         </span>
         {rendered && (
           <MoreMenu
@@ -472,7 +485,13 @@ export function Bar({
             <TooltipContent>Take the Tour</TooltipContent>
           </Tooltip>
         )}
-        <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
+        {format.onPanel && (
+          <PanelToggle
+            open={format.panelOpen}
+            disabled={format.disabled}
+            onToggle={format.onPanel}
+          />
+        )}
       </div>
     </div>
   );
@@ -736,7 +755,14 @@ function MoreMenu({
               <ScissorsIcon aria-hidden /> Cut From Resume
             </DropdownMenuCheckboxItem>
           )}
-          {away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}
+          {away.has("zoom") && (
+            <ZoomSubmenu
+              zoom={zoom.zoom}
+              shown={zoom.shown}
+              room={zoom.room}
+              onZoom={zoom.onZoom}
+            />
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
@@ -918,3 +944,87 @@ export function FitButton({
 function ZoomSkeleton() {
   return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
 }
+
+/**
+ * Tailor's review's views, as a rail of icons down the window's right edge
+ * (2026-11-23, after Gmail's; the user's pick of three trials): Suggestions
+ * with its count, Sections, Format and Original, each named by its
+ * tooltip. A press opens that view beside the rail and tints the icon, as
+ * a pressed bar button is tinted (`PRESSED_GLYPH`); a press on the open one
+ * closes it, and the page takes the room. The chevron at its foot folds the
+ * rail away to a tab at the window's edge, as Gmail's does.
+ *
+ * It has no box: the icons stand on the page's own ground, so the rail
+ * reads as the window's frame, not one more box beside the page. A boxed
+ * card of icons came first, short and floating, which read as content and
+ * could not be put away; tiles with names under the icons, as the left
+ * sidebar's, came second, and the user found them heavy (2026-11-23).
+ */
+export function ReviewRail({ review, onFold }: { review: ReviewTools; onFold: () => void }) {
+  const item = (
+    side: Exclude<Side, null>,
+    label: string,
+    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>,
+    count = 0,
+  ) => {
+    const open = review.side === side;
+    return (
+      <Tooltip key={side}>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-pressed={open}
+              aria-label={count > 0 ? `${label}, ${count}` : label}
+              onClick={() => review.onSide(open ? null : side)}
+              className={cn(
+                RAIL_ICON,
+                open ? "bg-brand-tint text-brand" : "text-ink-muted hover:bg-ink/5 hover:text-ink",
+              )}
+            />
+          }
+        >
+          <Icon aria-hidden className="size-5" />
+          {count > 0 && (
+            <span className="bg-brand text-on-brand text-caption absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
+              {count}
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="left">{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+  return (
+    <div className="flex h-full flex-col items-center gap-2 py-1">
+      {item("suggestions", "Suggestions", LightbulbIcon, review.count)}
+      {item("sections", "Sections", ListBulletsIcon)}
+      {item("format", "Format", TextAaIcon)}
+      {review.hasOriginal && (
+        <>
+          <span aria-hidden className="bg-border-surface h-px w-6" />
+          {item("original", "Original Resume", FileIcon)}
+        </>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Hide Side Panel"
+              onClick={onFold}
+              className={cn(RAIL_ICON, "text-ink-meta hover:bg-ink/5 hover:text-ink mt-auto")}
+            />
+          }
+        >
+          <ChevronRightIcon aria-hidden className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side="left">Hide Side Panel</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+/** A rail icon: 40px, round as Gmail's, its pressed tint the bar's. */
+const RAIL_ICON =
+  "focus-visible:ring-brand-ring relative flex size-10 shrink-0 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
