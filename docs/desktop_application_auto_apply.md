@@ -1945,8 +1945,8 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
      `fill_answers` (an own answer with no flag, the rest flagged) and
      from the answers saved on applications that rule 3 lets in (choices,
      and the student's words in fields the tab never sent), each through
-     rule 4. Until Apply writes the bank itself, `PATCH .../fill-answers`
-     and the import (`import_apply_profile`) write each entry into it too.
+     rule 4. The import (`import_apply_profile`) writes each entry of an
+     `answer-bank.yaml` into it too.
    - **`answer-bank.yaml` goes in every build** (decided 2026-11-20). The
      bank on WorkIt is the only one, and a Developer checkout uses it
      through the same code as the Student build. A Developer command sends
@@ -2050,8 +2050,10 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    retry, the entry, Test Person); the sender and every write; the version
    checks; `unreviewed_answers` and the Answers view; the upload and the
    removals in rule 9; ADR 0006, the glossary and the docs.
-5. Removal: `fill_answers` and `PATCH .../fill-answers`; the old route
-   once no Store extension calls it.
+5. Removal: `PATCH .../fill-answers` and the code behind it, removed
+   (2026-11-24; the import writes the bank itself); the `fill_answers`
+   column and the first read's use of it; the old route once no Store
+   extension calls it.
 
 The extension has no step: W11 changes no extension code.
 

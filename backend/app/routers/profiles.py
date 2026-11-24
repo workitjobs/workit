@@ -12,23 +12,7 @@ GET .../fill-profile is the Fill engine's own profile and policies for the
 student (`fill_profile`, `fill_policies`; models/CLAUDE.md, "The Fill
 engine's profile"), which the extension lays its own fields over. Only the
 owner reads it: it holds their self-identification. Only
-scripts/import_apply_profile.py writes the profile and policies; the answers
-are also written by the PATCH below.
-
-PATCH .../fill-answers {"answers": [...], "deleted": [...]} is Apply's sync of
-its Answer bank (KAN-746, apply-agent docs/workit.md): each entry as Apply
-keeps it (question, answer, options, source, reviewed, company, edited_at),
-at most 200 of each, merged into `fill_answers` key by key. WorkIt
-decides `own` (services/apply_answers.py: `source: lisul`, never one marked
-`reviewed: false`). A newer edit wins: a change older than the stored
-entry's `edited_at` is left out and named in `kept`. Every change not kept
-out goes into the student's Answer bank too (W11, auto_apply/answer_bank.py:
-the student's own as theirs, the rest flagged for review, each through the
-company rule), which the extension reads (GET .../answer-bank) with no
-import; there the last write to a question wins, whichever side made it.
-An empty answer deletes. Answers {saved, deleted, kept}. 404 with no
-profile, 422 past 2000 saved answers. It goes once Apply writes the bank
-itself (PATCH .../answer-bank).
+scripts/import_apply_profile.py writes the profile and policies.
 """
 
 import uuid
@@ -36,17 +20,13 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import answer_bank
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
-from app.queries.fill_answers import TooMany, merge_from_apply
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.profile import (
     ApplicantProfileResponse,
     ApplicantProfileUpdate,
-    FillAnswersChange,
-    FillAnswersMerged,
     FillProfile,
 )
 from app.services.names import join_name, name_columns, split_name
@@ -84,27 +64,6 @@ async def get_fill_profile(
         raise HTTPException(404, "Profile not found")
     return FillProfile(profile=profile.fill_profile or {}, policies=profile.fill_policies or {})
 
-
-@router.patch("/applicants/{applicant_id}/fill-answers", response_model=FillAnswersMerged)
-async def sync_fill_answers(
-    applicant_id: uuid.UUID,
-    body: FillAnswersChange,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session),
-) -> FillAnswersMerged:
-    assert_applicant_owns(account, applicant_id)
-    try:
-        merged = await merge_from_apply(session, applicant_id, body)
-    except TooMany as exc:
-        raise HTTPException(422, str(exc)) from exc
-    if merged is None:
-        raise HTTPException(404, "Profile not found")
-    # The same change into the Answer bank (W11), which the extension and the app read, until Apply writes it itself.
-    later = set(merged.kept)
-    kept, empty = answer_bank.from_apply(a for a in body.answers if a.question not in later)
-    await answer_bank.keep(session, applicant_id, kept, [*empty, *(d.question for d in body.deleted if d.question not in later)])
-    await session.commit()
-    return FillAnswersMerged(saved=merged.saved, deleted=merged.deleted, kept=merged.kept)
 
 # partial update
 @router.patch(

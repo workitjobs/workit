@@ -56,11 +56,10 @@ from app.auto_apply.stages import NotFound
 from app.queries import answer_banks
 from app.queries.answer_banks import MAX_BYTES, MAX_ENTRIES, Stored, TooBig
 from app.schemas.applications import BankEntry, SavedAnswer
-from app.schemas.profile import ApplyAnswer
-from app.services.apply_answers import is_own, wording
+from app.services.apply_answers import wording
 from app.services.bank import Bank, load_bank
 
-__all__ = ["Kept", "Rule", "Stored", "TooBig", "change", "drop", "from_apply", "keep", "key", "own_words", "read",
+__all__ = ["Kept", "Rule", "Stored", "TooBig", "change", "drop", "keep", "key", "own_words", "read",
            "rule_for", "served"]
 
 log = logging.getLogger(__name__)
@@ -345,7 +344,7 @@ async def keep(
     db: AsyncSession, applicant_id: uuid.UUID, entries: Collection[Kept], deleted: Collection[str] = (),
 ) -> dict[str, str]:
     """Another step's answers into the bank (an application's one-off
-    answers, Apply's sync): each through the rule, which answers why it kept
+    answers, Apply's import): each through the rule, which answers why it kept
     each one out, and the questions `deleted` out of it. A bank past its caps
     takes none of them, and says so in the log only: the step's own save
     goes on. Flushes; the step commits."""
@@ -356,22 +355,6 @@ async def keep(
     except TooBig:
         log.warning("answer bank full for %s: %d answers not banked", applicant_id, len(entries))
         return {}
-
-
-def from_apply(answers: Iterable[ApplyAnswer]) -> tuple[list[Kept], list[str]]:
-    """Apply's Answer bank entries (its sync, its import) as the bank keeps
-    them: a `lisul` entry not marked unreviewed as the student's, the rest
-    flagged (services/apply_answers.py, `is_own`), and the questions of the
-    empty ones (a multi-select's "none of these" among them), to delete."""
-    kept: list[Kept] = []
-    empty: list[str] = []
-    for a in answers:
-        if a.answer in ("", []) or (isinstance(a.answer, str) and not a.answer.strip()):
-            empty.append(a.question)
-            continue
-        kept.append(Kept(question=a.question, answer=a.answer, review=not is_own(a.source, a.reviewed),
-                         choice=isinstance(a.answer, list) or bool(a.options), company=a.company))
-    return kept, empty
 
 
 async def drop(db: AsyncSession, applicant_id: uuid.UUID, question: str, answer: str, *, own_only: bool = True) -> None:

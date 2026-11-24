@@ -903,7 +903,10 @@ so WorkIt fills forms as completely as Apply does.
   table already has RLS on): `fill_profile` (the engine's Profile shape,
   nested sections: identity, education, screeners, voluntary_self_id...),
   `fill_policies` (the engine's Policies, only the keys it reads) and
-  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
+  `fill_answers` (`{question: {answer, own, choice, company, edited_at?}}`),
+  what Apply's sync (KAN-746, gone) brought before the Answer bank moved to
+  WorkIt. Nothing writes it now; only a student's first read of their bank
+  takes it (below), and it goes in W11's step 5.
 - **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
   policies; the extension lays what it builds from WorkIt's fields
   (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
@@ -914,26 +917,19 @@ so WorkIt fills forms as completely as Apply does.
   true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`), and
   never one marked `reviewed: false`. A
   Claude draft (`source: claude`) comes as their Claude's even when
-  `reviewed`: Apply still calls it a draft. One rule for the import and
-  the sync: `services/apply_answers.py`. **No form reads `fill_answers`
-  any more**: the import and the sync write each entry into the student's
-  Answer bank too (`answer_banks`, below), the student's own as theirs and
-  the drafts flagged, and the bank's first read takes what `fill_answers`
-  holds. `choice` (an entry with options, or a list answer: the options
-  ticked) skips the writing checks. Not `written_answers`: those rows
-  belong to an application, and a brought answer has none.
-- **Apply keeps `fill_answers` in step** (KAN-746), once its student opts
-  in: `PATCH .../fill-answers` (routers/profiles.py) merges each entry Apply
-  saves, changes or deletes, key by key under a row lock, never the whole
-  column. Each synced entry carries `edited_at`, when Apply changed it. **A
-  newer edit wins** (`apply_answers.merge`): a change or delete older than
-  the stored entry's is left out and named in the answer's `kept`, and a
-  time ahead of the server's clock counts as now. The sync
-  never writes `written_answers`. In the Answer bank, which keeps no edit
-  times, the last write to a question wins, from the sync or from WorkIt.
-  The import still replaces the column whole; it is a local, one-time
-  tool. `fill_answers` and the sync go once Apply writes the bank itself
-  (W11's build order).
+  `reviewed`: Apply still calls it a draft (`services/apply_answers.py`,
+  `is_own`). **The import writes each entry of answer-bank.yaml straight
+  into the student's Answer bank** (`answer_banks`, below), the student's
+  own as theirs and the drafts flagged, each through WorkIt's rule with the
+  company it was first asked at; it no longer writes `fill_answers`.
+  `choice` (an entry with options, or a list answer: the options ticked)
+  skips the writing checks. Not `written_answers`: those rows belong to an
+  application, and a brought answer has none.
+- **Apply's sync is gone** (KAN-746's `PATCH .../fill-answers`, removed in
+  W11's step 5): WorkIt Auto Apply and a Developer checkout write the
+  Answer bank itself (`PATCH .../answer-bank`). An Apply checkout from
+  before W11 that still sends the sync gets a 404, and its queued changes
+  wait until it is updated.
 - **No `files` in `fill_profile`.** The files the profile names come over
   as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
   (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript

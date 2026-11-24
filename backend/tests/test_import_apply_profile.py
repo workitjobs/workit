@@ -92,6 +92,18 @@ ANSWERS = """\
   source: lisul
   reviewed: true
   first_seen: {date: 2026-10-18, company: Initech}
+'who referred you?':
+  question: Who referred you?
+  answer: A friend on Initech's printer team.
+  options: []
+  source: lisul
+  reviewed: true
+  first_seen: {date: 2026-10-19, company: Initech}
+'fax number':
+  question: Fax number
+  answer: ''
+  source: lisul
+  reviewed: true
 """
 
 
@@ -257,7 +269,8 @@ async def test_brought_answers_reach_later_forms_and_keep_to_their_company(
         },
     }
     assert bank == expected
-    # Asked at Initech, about Initech: it stays out of the bank (W11), so no form gets it, Initech's neither.
+    # Asked at Initech, about Initech, or naming Initech where it was asked: each stays out of the bank (W11), so no
+    # form gets it, Initech's neither. An empty answer is none.
     await _company(database, job, "Initech")
     assert (await _get(applicant, f"/applications/{job}/answer-bank")).json() == expected
 
