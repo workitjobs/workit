@@ -673,6 +673,12 @@ notices strict (above).
   Applications, and `License.txt` and `Third-Party Notices.txt` beside them
   (W10). The build mounts it read-only and refuses one whose app fails
   `codesign --verify` or has no Applications link.
+- **The app's icon is `assets/app-icon.png`**: WorkIt's logo at 1024 px on
+  Apple's macOS icon grid, an 824 px shape with a transparent margin, so it
+  shows at the size of other apps' icons (the logo filled the whole canvas
+  and stood about a quarter bigger). The build makes the `.icns` from it
+  with `sips` and `iconutil` (`make_icon`). `src/apply/Apply.icns` is the
+  developer's Dock icon (`dock_app`) and stays out of the app (`LEAVE_OUT`).
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher
   than the app's, and `pyproject.toml`'s version, the one the student sees

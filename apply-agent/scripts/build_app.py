@@ -55,7 +55,9 @@ REPORT = OUT / "report.xml"
 SOURCE = BUILD / "source"  # a release's own copy of the commit's files
 # Each build step reads these from its source folder: the checkout for a test build, SOURCE for a release.
 ENTRY = Path("scripts", "app_entry.py")
-ICON = Path("src", "apply", "Apply.icns")
+# The app's icon: WorkIt's logo at 1024 px, laid out on Apple's macOS icon grid (an 824 px shape, a transparent margin),
+# so it shows the size of other apps' icons. The build makes the .icns from it (`make_icon`).
+ICON = Path("assets", "app-icon.png")
 # The plain Workers' live tiles film a Worker's window with this Swift program (apply.plain.window_capture). A
 # checkout builds it with swiftc on first use; a student's Mac has no swiftc, so the app ships it, built here.
 CAPTURE_SOURCE = Path("src", "apply", "plain", "window_capture.swift")
@@ -88,7 +90,8 @@ SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 # drives a page with (apply.plain.mcp, which only `claude -p` starts: a developer part, W3), and Playwright's web UIs
 # (its trace viewer, HTML report, recorder and dashboard, 3.6 MB), which Apply never opens: its driver starts Chrome
 # and drives pages without them (checked 2026-11-21).
-LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json", "playwright/driver/package/lib/vite")
+LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json", "playwright/driver/package/lib/vite",
+             "apply/Apply.icns")  # the developer's Dock icon (dock_app): the app's own is ICON
 # Why the app sends Apple events, as macOS asks it: FocusKeeper (apply.focus) has System Events bring the student's
 # app back in front of a Worker's window. With no reason in Info.plist, macOS refuses the event and never asks.
 APPLE_EVENTS_REASON = ("WorkIt Auto Apply brings the app you were using back to the front when a Worker's Chrome "
@@ -204,6 +207,22 @@ def stage_inputs(source: Path, strict: bool) -> None:
          "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=source)
 
 
+def make_icon(source: Path) -> Path:
+    """ICON as an .icns file, at every size macOS asks for, made with macOS's own sips and iconutil."""
+    iconset = BUILD / "AppIcon.iconset"
+    shutil.rmtree(iconset, ignore_errors=True)
+    iconset.mkdir(parents=True)
+    for size in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            pixels = str(size * scale)
+            subprocess.run(["/usr/bin/sips", "-z", pixels, pixels, source / ICON, "--out",
+                            iconset / f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"], check=True,
+                           capture_output=True)
+    icns = BUILD / "AppIcon.icns"
+    run(["/usr/bin/iconutil", "-c", "icns", iconset, "-o", icns])
+    return icns
+
+
 def compile_app(source: Path, developer: list[str], version: str, scheme: str, capture: str, release: bool,
                 commit: str) -> None:
     def xcrun(*args: str) -> str:
@@ -221,7 +240,7 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
             else f"--include-data-files={DATA / name}={name}" for name in (*INPUTS, NOTICES)]
     run([PYTHON, "-m", "nuitka", "--mode=app", f"--output-dir={OUT}", f"--output-filename={NAME}",
          f"--macos-app-name={NAME}", f"--macos-signed-app-name={BUNDLE_ID}", f"--macos-app-version={version}",
-         f"--macos-app-icon={source / ICON}", "--macos-target-arch=arm64",
+         f"--macos-app-icon={make_icon(source)}", "--macos-target-arch=arm64",
          # The engine download names the app's version from Apply's metadata (W7): without it no build fits.
          "--include-distribution-metadata=apply", "--include-package-data=apply",
          *(f"--noinclude-data-files={path}" for path in LEAVE_OUT),
