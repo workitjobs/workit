@@ -7,6 +7,7 @@ import ast
 import json
 import os
 import plistlib
+import signal
 import subprocess
 import sys
 import threading
@@ -391,6 +392,33 @@ def test_a_hosts_chrome_is_its_parent_read_with_no_ps(monkeypatch):
     monkeypatch.setattr(window_capture.subprocess, "run", no_ps)
     assert window_capture.chrome_of(os.getpid()) == os.getppid()
     assert window_capture.chrome_of(None) is None
+
+
+def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(monkeypatch):
+    """Fault: launcher.Chrome polls and signals a bare PID. Its Chrome had ended, the OS gave the PID to another
+    program (played by this test's own process), and _stop sent that program SIGTERM, then SIGKILL (found in review,
+    2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises NoSuchProcess."""
+    sent = []
+    monkeypatch.setattr(launcher.os, "kill", lambda pid, number: sent.append((pid, number)))
+
+    class Reused:  # the Chrome's psutil.Process, after its PID went to another program
+        def is_running(self):
+            return False
+
+        def send_signal(self, number):
+            raise psutil.NoSuchProcess(os.getpid())
+
+        def kill(self):
+            raise psutil.NoSuchProcess(os.getpid())
+
+    monkeypatch.setattr(launcher.psutil, "Process", lambda pid: Reused())
+    chrome = launcher.Chrome(os.getpid())
+
+    assert chrome.poll() == 0
+    chrome.send_signal(signal.SIGTERM)
+    chrome.kill()
+    launcher._stop(chrome)
+    assert sent == []
 
 
 def _stops_windows(node: ast.AST) -> str | None:

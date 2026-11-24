@@ -72,7 +72,7 @@ proves which process it is, or it holds the live process object.
 
 | What | Where Apply keeps it | Why there |
 |---|---|---|
-| The Workers this Apply started | In memory: `PlainWorkers.running` and `_starting`, each with its `Popen` (on the Mac, a `launcher.Chrome`) | `stop` and `stop_all` stop exactly those |
+| The Workers this Apply started | In memory: `PlainWorkers.running` and `_starting`, each with its `Popen` (on the Mac, a `launcher.Chrome`, which keeps the `psutil.Process` it started with) | `stop` and `stop_all` stop exactly those |
 | A Worker's Chrome that outlives its Apply | On disk: `apply-owner.json` in its profile, with Apply's PID and start time (`launcher.own`, KAN-885) | Workers keep running after a crash. The next run stops one whose Apply is gone (`reclaim`) |
 | Which Chrome holds a profile | macOS and Linux: Chrome's own `SingletonLock`, which Chrome writes, not Apply. Windows: the process whose arguments name the profile (P3) | It covers any Chrome on the profile, also one that Apply didn't start |
 | The open Apply windows | On disk: a note for each window in `APPLY_PROFILES/windows/` | `apply ask` and `--into` find them from another process (`into.windows`) |
@@ -87,6 +87,13 @@ proves which process it is, or it holds the live process object.
   object that remembers it: a `Popen`, or a `psutil.Process`, whose
   `terminate` and `kill` refuse a reused PID (`_raise_if_pid_reused`, read
   in psutil's source). How to stop a Chrome cleanly on Windows is P7.
+- **`launcher.Chrome` held a bare PID** (found in review, 2026-11-24). A
+  Worker's Chrome that had ended, the student's quit or a crash, could have
+  its PID given to another program, which `_stop` then sent SIGTERM and
+  SIGKILL. It now keeps the `psutil.Process` and polls and signals through
+  it. Test: `tests/test_each_os.py`,
+  `test_a_chrome_whose_pid_went_to_another_program_is_never_signalled`
+  (fault: a bare PID).
 
 ## 3. Why Workers have their own profiles, and what the seed is
 
@@ -531,7 +538,9 @@ for each fix, section 6 the tests, and section 7 the order.
   yet (measured on the Mac).
 - **Where.** `Desk.terminate` (`plain/seed_setup.py:165-169`), the Mac's
   `launcher.Chrome` (`plain/launcher.py:412-440`), and `_stop`
-  (`plain/launcher.py:524-532`).
+  (`plain/launcher.py:524-532`). `launcher.Chrome` now signals through
+  psutil (section 2), which on Windows takes SIGTERM as TerminateProcess:
+  still no clean exit there.
 - **What breaks.** On Windows, `os.kill(pid, SIGTERM)` and
   `Popen.terminate()` both end the process at once, with no save.
   - For a Worker, that loses the session cookies that

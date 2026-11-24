@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -410,22 +410,30 @@ class PlainWorkers:
 
 
 class Chrome:
-    """A Chrome that `open` started (the Mac): its own PID (read from the profile's SingletonLock), not open's."""
+    """A Chrome that `open` started (the Mac), or one `reclaim` stops: its own PID (from chrome_pid), not open's.
+    It keeps the process as psutil saw it then, with its start time. A Chrome that has ended may have its PID given
+    to another program, and a bare PID would then be polled as running and sent SIGTERM, then SIGKILL (found in
+    review, 2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises."""
 
     def __init__(self, pid: int):
         self.pid = pid
+        try:
+            self._process: psutil.Process | None = psutil.Process(pid)
+        except psutil.Error:  # gone already
+            self._process = None
 
     def poll(self) -> int | None:
-        return None if psutil.pid_exists(self.pid) else 0
+        return None if self._process is not None and self._process.is_running() else 0
 
     def send_signal(self, number: int) -> None:
-        try:
-            os.kill(self.pid, number)
-        except ProcessLookupError:
-            pass
+        with suppress(psutil.Error):  # gone, or its PID went to another program
+            if self._process is not None:
+                self._process.send_signal(number)
 
     def kill(self) -> None:
-        self.send_signal(signal.SIGKILL)
+        with suppress(psutil.Error):
+            if self._process is not None:
+                self._process.kill()  # psutil's: SIGKILL, or TerminateProcess on Windows, which has no SIGKILL
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = time.monotonic() + (timeout if timeout is not None else 1e9)
