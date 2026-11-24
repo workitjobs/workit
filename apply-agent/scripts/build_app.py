@@ -19,6 +19,8 @@ build/out/WorkIt Auto Apply.app. In order:
    swiftc builds the plain Workers' window capture helper into the app beside the program.
 5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
    path left in the app, and a capture helper that runs.
+6. build/out/WorkIt Auto Apply.dmg, the download: the app, a link to Applications, and the license and notices
+   beside them. It checks that the DMG mounts and the app in it passes codesign's check.
 
 `--release` is a build for students. It builds from the current commit's own files (`git archive` into
 build/source), never the working tree: Apply installs from its folder with every untracked file in it, Nuitka ships
@@ -40,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]  # apply-agent/
@@ -66,6 +69,7 @@ NAME = "WorkIt Auto Apply"  # D19
 BUNDLE_ID = "ai.workitjobs.autoapply"
 MIN_MACOS = "13.0"  # D18
 APP = OUT / f"{NAME}.app"
+DMG = OUT / f"{NAME}.dmg"
 STUDENT_LINE = ("STUDENT = False\n", "STUDENT = True\n")
 
 # The checkout's inputs home.CODE names, staged as the app reads them. The Worker extension's vendor/ is what
@@ -232,6 +236,10 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
     info = APP / "Contents" / "Info.plist"
     plist = plistlib.loads(info.read_bytes())
     plist["LSMinimumSystemVersion"] = MIN_MACOS  # Finder refuses to open it on an older macOS
+    # The build number, which only grows: Sparkle offers an update only when the feed's is higher than the app's, and
+    # pyproject's version (CFBundleShortVersionString, the one the student sees) stays the same over many builds. The
+    # build time, not a commit count: a count drops when W0 moves Apply to its own repo, and differs between branches.
+    plist["CFBundleVersion"] = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")  # noqa: UP017 (UTC is 3.11's: macOS has 3.9)
     # WorkIt's sign-in page sends the student back with a workit-auto-apply:// link: macOS opens this app for it
     # and hands it the link (apply.sign_in_link.listen).
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
@@ -279,6 +287,30 @@ def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
           f"no home folder ({len(compiled)} modules).")
 
 
+def make_dmg() -> None:
+    """The download: the app, a link to Applications to drag it onto, and the license and notices beside them (W10)."""
+    stage = OUT / "dmg"
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir()
+    run(["/usr/bin/ditto", APP, stage / APP.name])  # ditto keeps the app's signatures, links and attributes
+    (stage / "Applications").symlink_to("/Applications")
+    shutil.copy2(DATA / "legal" / "EULA.txt", stage / "License.txt")
+    shutil.copy2(DATA / NOTICES, stage / "Third-Party Notices.txt")
+    run(["/usr/bin/hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-fs", "HFS+", "-format", "UDZO", "-ov",
+         DMG])
+    shutil.rmtree(stage)
+    mount = OUT / "dmg-check"  # mounted read-only, as a student's Mac opens it, and its app checked as it is there
+    run(["/usr/bin/hdiutil", "attach", DMG, "-readonly", "-nobrowse", "-mountpoint", mount])
+    try:
+        signed = subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", mount / APP.name],
+                                capture_output=True, check=False).returncode == 0
+        linked = (mount / "Applications").is_symlink()
+    finally:
+        run(["/usr/bin/hdiutil", "detach", mount])
+    if not (signed and linked):
+        sys.exit(f"The DMG's app fails codesign's check or it has no Applications link: {DMG}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--release", action="store_true",
@@ -304,8 +336,9 @@ def main() -> None:
     stage_inputs(source, strict=args.release)
     compile_app(source, developer, version, scheme, capture, release=args.release, commit=commit)
     check(developer, capture, probes)
+    make_dmg()
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
-    print(f"Built {APP} ({size:.0f} MB). Open it with: open '{APP}'")
+    print(f"Built {APP} ({size:.0f} MB) and {DMG.name} ({DMG.stat().st_size / 1e6:.0f} MB). Open it with: open '{APP}'")
 
 
 if __name__ == "__main__":

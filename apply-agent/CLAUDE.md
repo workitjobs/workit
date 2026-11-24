@@ -668,6 +668,17 @@ notices strict (above).
   compile (`PROBES`), never text typed into the script, which a reworded
   docstring would turn into a check that always passes. Nuitka's report
   (`build/out/report.xml`) lists every module it compiled and why.
+- **The build ends with the DMG**, `build/out/WorkIt Auto Apply.dmg`: the
+  app (copied with `ditto`, which keeps its signatures), a link to
+  Applications, and `License.txt` and `Third-Party Notices.txt` beside them
+  (W10). The build mounts it read-only and refuses one whose app fails
+  `codesign --verify` or has no Applications link.
+- **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
+  grows: Sparkle offers an update only when the feed's number is higher
+  than the app's, and `pyproject.toml`'s version, the one the student sees
+  (`CFBundleShortVersionString`), stays the same over many builds. Not a
+  commit count: that drops when W0 moves Apply to its own repo, and it
+  differs between branches.
 - **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
   names the bundle after the entry file; the script renames it, adds
   `LSMinimumSystemVersion`, `CFBundleURLTypes` (the app claims

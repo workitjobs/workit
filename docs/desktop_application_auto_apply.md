@@ -526,7 +526,7 @@ by hand (W8).
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
-| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: their copy in the DMG, and a `/privacy` that is true of the app |
+| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
@@ -1616,7 +1616,10 @@ itself (D17, D18, D20).
    student's Mac has no `swiftc`. Step 1 is done.
 2. Sign with Developer ID and notarize, after the Apple enrollment.
 3. Sparkle: the framework in the bundle, the key, the feed on R2.
-4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7.
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
+   is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
+   app, a link to Applications, and the license and notices beside them;
+   left: its signature and notarization (step 2), its upload and the URL.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
