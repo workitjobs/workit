@@ -561,7 +561,10 @@ app's build (W8) finds them.
   does. Code that ships without a Python package (a macOS framework, a
   font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
   text in `legal/licenses/`. The build runs the script with `--strict`
-  (`build_app.py --release`), which fails while a text is missing.
+  (`build_app.py --release`), which fails while a text is missing. The
+  build runs it on its own Python with `UV_PYTHON` set to it, so the
+  notices name the Python the app ships: on uv's first-found 3.12 they
+  named Anaconda's 3.12.2 for an app that ships 3.12.14 (2026-11-24).
 - **A text in `legal/licenses/` is the shipped version's own, unchanged**
   but for LF line endings (KAN-833, 2026-11-21): the student page's
   packages at `window/package-lock.json`'s versions (each package checked
@@ -600,7 +603,10 @@ notices strict (above).
   2026-11-21). `--release` exports the current commit's files of this
   folder with `git archive` into `build/source` and builds from there, so
   an untracked or uncommitted file can't get in, and says when the working
-  tree has changes it leaves out. Before, Apply installed from its folder
+  tree has changes it leaves out. Only the inputs come from the commit: the
+  build script itself runs from the working tree, so a release refuses to
+  start while `scripts/build_app.py` has uncommitted changes, which would
+  decide what the app holds while `WorkItCommit` names another commit. Before, Apply installed from its folder
   with every untracked file in it (hatchling takes any file git doesn't
   ignore), Nuitka shipped every data file of the package, and the inputs
   were copied as whole folders: a test file in `src/apply` went into the
@@ -680,7 +686,8 @@ notices strict (above).
   app (copied with `ditto`, which keeps its signatures), a link to
   Applications, and `License.txt` and `Third-Party Notices.txt` beside them
   (W10). The build mounts it read-only and refuses one whose app fails
-  `codesign --verify` or has no Applications link.
+  `codesign --verify` or has no Applications link. A failed or refused build
+  leaves no DMG: the build deletes the last one when it starts.
 - **The app's icon is `assets/app-icon.png`**: WorkIt's logo at 1024 px on
   Apple's macOS icon grid, an 824 px shape with a transparent margin, so it
   shows at the size of other apps' icons (the logo filled the whole canvas

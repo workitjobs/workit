@@ -203,8 +203,11 @@ def stage_inputs(source: Path, strict: bool) -> None:
             shutil.copytree(source / name, dest, ignore=SKIP)
         else:
             shutil.copy2(source / name, dest)
-    run(["uv", "run", "--frozen", "python", "scripts/third_party_notices.py",
-         "--out", DATA / NOTICES, *(["--strict"] if strict else [])], cwd=source)
+    # On the build's own Python, which the notices name: their venv took the first Python 3.12 uv found (Anaconda's
+    # 3.12.2 on one Mac, while the app ships 3.12.14). UV_PYTHON reaches the script's own uv calls only: set on a
+    # `uv run`, it would also change the Python of the checkout's .venv.
+    run([PYTHON, "-I", source / "scripts" / "third_party_notices.py", "--out", DATA / NOTICES,
+         *(["--strict"] if strict else [])], cwd=source, env={**os.environ, "UV_PYTHON": str(PYTHON)})
 
 
 def make_icon(source: Path) -> Path:
@@ -235,6 +238,7 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
     env |= {"CC": xcrun("--find", "clang"), "SDKROOT": xcrun("--show-sdk-path"), "MACOSX_DEPLOYMENT_TARGET": MIN_MACOS,
             "PATH": SYSTEM_PATH}
     shutil.rmtree(APP, ignore_errors=True)
+    DMG.unlink(missing_ok=True)  # a failed build leaves no DMG of an earlier one beside its app
     shutil.rmtree(OUT / f"{ENTRY.stem}.app", ignore_errors=True)
     data = [f"--include-data-dir={DATA / name}={name}" if (DATA / name).is_dir()
             else f"--include-data-files={DATA / name}={name}" for name in (*INPUTS, NOTICES)]
@@ -315,19 +319,23 @@ def make_dmg() -> None:
     (stage / "Applications").symlink_to("/Applications")
     shutil.copy2(DATA / "legal" / "EULA.txt", stage / "License.txt")
     shutil.copy2(DATA / NOTICES, stage / "Third-Party Notices.txt")
-    run(["/usr/bin/hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-fs", "HFS+", "-format", "UDZO", "-ov",
-         DMG])
-    shutil.rmtree(stage)
-    mount = OUT / "dmg-check"  # mounted read-only, as a student's Mac opens it, and its app checked as it is there
-    run(["/usr/bin/hdiutil", "attach", DMG, "-readonly", "-nobrowse", "-mountpoint", mount])
     try:
-        signed = subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", mount / APP.name],
-                                capture_output=True, check=False).returncode == 0
-        linked = (mount / "Applications").is_symlink()
-    finally:
-        run(["/usr/bin/hdiutil", "detach", mount])
-    if not (signed and linked):
-        sys.exit(f"The DMG's app fails codesign's check or it has no Applications link: {DMG}")
+        run(["/usr/bin/hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-fs", "HFS+", "-format", "UDZO",
+             "-ov", DMG])
+        shutil.rmtree(stage)
+        mount = OUT / "dmg-check"  # mounted read-only, as a student's Mac opens it, and its app checked as it is there
+        run(["/usr/bin/hdiutil", "attach", DMG, "-readonly", "-nobrowse", "-mountpoint", mount])
+        try:
+            signed = subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", mount / APP.name],
+                                    capture_output=True, check=False).returncode == 0
+            linked = (mount / "Applications").is_symlink()
+        finally:
+            run(["/usr/bin/hdiutil", "detach", mount])
+        if not (signed and linked):
+            sys.exit(f"The DMG's app fails codesign's check or it has no Applications link: {DMG}")
+    except BaseException:  # a failed or refused DMG is no download: none stays in build/out
+        DMG.unlink(missing_ok=True)
+        raise
 
 
 def main() -> None:
@@ -339,6 +347,11 @@ def main() -> None:
     commit = git("rev-parse", "HEAD")
     changed = bool(git("status", "--porcelain", "--untracked-files=all", "--", "."))
     if args.release:
+        # Only the inputs come from the commit: this script runs from the working tree. An uncommitted change to it
+        # would decide what the release holds while WorkItCommit names a commit that can't build that app again.
+        if git("status", "--porcelain", "--", "scripts/build_app.py"):
+            sys.exit("Commit scripts/build_app.py first: a release runs the committed build, and its commit is "
+                     "written into the app.")
         source = committed(commit)
         if changed:
             print(f"Building the release from commit {commit[:12]}: this folder's uncommitted changes are not in it.")

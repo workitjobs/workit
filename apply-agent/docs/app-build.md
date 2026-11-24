@@ -12,7 +12,7 @@ and uv:
 | Command | What it builds | Time |
 |---|---|---|
 | `python3 scripts/build_app.py` | A test build from the working tree, uncommitted changes too | About 1.5 minutes with a warm compile cache, 6 to 7 from cold |
-| `python3 scripts/build_app.py --release` | A build for students, from the current commit's files only, with complete notices and no ccache | 6 to 7 minutes, as a cold test build (it compiles every C file) |
+| `python3 scripts/build_app.py --release` | A build for students, from the current commit's files only, with complete notices and no ccache. It refuses to start while `scripts/build_app.py` has uncommitted changes | 6 to 7 minutes, as a cold test build (it compiles every C file) |
 
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
 `build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
