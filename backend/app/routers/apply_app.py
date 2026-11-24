@@ -87,6 +87,7 @@ never a prompt or an answer.
 import base64
 import dataclasses
 import datetime
+import json
 import logging
 import math
 
@@ -102,8 +103,12 @@ from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session, get_supabase
 from app.deps import get_current_account, is_admin
+from app.models.profiles import Applicant_Profile
 from app.queries import answer_banks, model_usage
+from app.queries.engine_student import engine_student
 from app.schemas.apply_app import (
+    AnsweredChange,
+    AppProfile,
     AppSession,
     AskCall,
     EngineDownload,
@@ -119,6 +124,7 @@ from app.schemas.apply_app import (
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.security import decode_access_token
 from app.services import app_sign_in, engine_builds
+from app.services.engine_profile import engine_policies, engine_profile
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
 
@@ -153,6 +159,54 @@ async def usage(
     now = _now()
     today = _usage(await model_usage.used_today(db, account.id, now), now)
     return UsageNow(**today.model_dump(), bank_version=await answer_banks.fetch_version(db, account.id) or 0)
+
+
+# How many Needs you answers a student keeps (fill_profile's answered_questions): far past any real student's.
+ANSWERED_MAX = 2_000
+
+
+@router.get("/profile", response_model=AppProfile)
+async def profile(
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> AppProfile:
+    """The student's Fill engine profile and policies, built from what WorkIt holds as the extension builds them
+    (W11: WorkIt Auto Apply keeps no profile file), read at each Start."""
+    student = await engine_student(db, account.id, account.email, account.full_name or "")
+    if student is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    return AppProfile(profile=engine_profile(student, _now().date()), policies=engine_policies(student),
+                      files=student["files"])
+
+
+@router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
+async def save_answered(
+    body: AnsweredChange,
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> None:
+    """What the student answered in Needs you, kept in the engine profile the student brought (fill_profile), under
+    WorkIt's own fields, which the extension's fills read too: answers by question (`answered_questions`) and facts
+    by dotted key."""
+    row = await db.get(Applicant_Profile, account.id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    # shortcut: read, change, write the whole column; one student's answers come one at a time from one window.
+    facts = json.loads(json.dumps(row.fill_profile or {}))  # a copy, so the column's change is seen
+    answered = {**(facts.get("answered_questions") or {}), **body.answered}
+    if len(answered) > ANSWERED_MAX:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
+    facts["answered_questions"] = answered
+    for key, value in body.facts.items():
+        *sections, name = key.split(".")
+        at = facts
+        for section in sections:
+            if not isinstance(at.get(section), dict):
+                at[section] = {}  # a section's place held by a value: the section takes it
+            at = at[section]
+        at[name] = value
+    row.fill_profile = facts
+    await db.commit()
 
 
 @router.post("/sign-in", status_code=status.HTTP_201_CREATED)

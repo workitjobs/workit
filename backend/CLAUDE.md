@@ -407,7 +407,21 @@ Find files with a directory listing; these are the rules for where code goes.
   that moves the engine pointer (`.github/CLAUDE.md`, "Publish the Fill
   engine"). The server never checks a signature: the app does, with the
   public key compiled in, so a bucket someone else wrote to still runs
-  nothing. **No route takes a schema from a student.** If one ever does,
+  nothing. **WorkIt Auto Apply's profile is WorkIt's** (W11, 2026-11-24):
+  `GET /apply-app/profile` answers the student's Fill engine profile and
+  policies, built from what WorkIt holds exactly as the extension builds
+  them (`queries/engine_student.py` reads the rows its routes answer,
+  `services/engine_profile.py` ports its `engineProfile` and
+  `enginePolicies`), and where each file the profile names is read. The
+  app reads it at each Start and keeps no profile file. **A change to the
+  extension's mapping changes the port**: `tests/test_engine_profile.py`
+  runs both on the same students (the extension's in Node,
+  `tests/engine_profile_parity.mjs`) and fails when they differ. `PATCH
+  /apply-app/profile` keeps what the student answered in the app's Needs
+  you, by question (`answered_questions`) or as a fact by dotted key
+  (never `files.*`), in `fill_profile`, under WorkIt's own fields, so the
+  extension fills them too. Tests: `tests/test_apply_app.py`.
+  **No route takes a schema from a student.** If one ever does,
   it must refuse `$ref` (fetches URLs), `pattern`/`patternProperties`
   (ReDoS with Python's backtracking `re`) and more than 32 levels
   (`jsonschema` stack overflow). Tests: `tests/test_apply_app.py`.

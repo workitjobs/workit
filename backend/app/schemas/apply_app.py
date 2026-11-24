@@ -6,9 +6,9 @@ carries a prompt or a schema. The free-form call that did, with its schema
 checks, went once every kind was built on the server (2026-11-14)."""
 
 import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 
 class AskCall(BaseModel):
@@ -112,3 +112,42 @@ class EngineKey(BaseModel):
     """The download's AES-256 key, base64."""
 
     key: str
+
+
+class AppProfile(BaseModel):
+    """GET /apply-app/profile: the Fill engine's profile and policies for the
+    student, built from what WorkIt holds as the extension builds them
+    (services/engine_profile.py), and where each file the profile names is
+    read: `resume` with `uploaded_resume_id` or `built_resume_id`, and
+    `transcript`, each with its `name`."""
+
+    profile: dict
+    policies: dict
+    files: dict
+
+
+# A Needs you answer as WorkIt Auto Apply keeps it: the question as the form words it, and the answer ("" is a Skip).
+AnsweredQuestion = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+AnsweredText = Annotated[str, StringConstraints(max_length=20000)]
+
+
+# A fact's dotted key in the engine profile ("identity.pronouns"): never a file's path, which only the Mac knows.
+def _not_reserved(key: str) -> str:
+    if key.split(".")[0] in ("files", "answered_questions"):
+        raise ValueError("files and answered_questions are not facts")
+    return key
+
+
+FactKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"), AfterValidator(_not_reserved)]
+
+
+class AnsweredChange(BaseModel):
+    """PATCH /apply-app/profile: what the student answered in WorkIt Auto
+    Apply's Needs you, at most 100 of each: answers to questions no fact
+    answered (the profile's `answered_questions`), and facts the Fill engine
+    read from an answer (`remember`), by dotted key."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answered: dict[AnsweredQuestion, AnsweredText | list[AnsweredText]] = Field(default={}, max_length=100)
+    facts: dict[FactKey, AnsweredText | list[AnsweredText] | bool | int | float] = Field(default={}, max_length=100)

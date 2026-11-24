@@ -949,6 +949,12 @@ so WorkIt fills forms as completely as Apply does.
   `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
   import takes the page's sentence that names the fact's product and holds
   its numbers; a fact with none is dropped.
+- **WorkIt Auto Apply writes `fill_profile` too** (W11): its Needs you
+  answers (`answered_questions`) and the facts the Fill engine reads from
+  them, through `PATCH /apply-app/profile`, since the app's profile is this
+  one with WorkIt's fields over it (`GET /apply-app/profile`). The import
+  replaces the column whole, so it drops those: it is a local developer
+  tool.
 - **Sensitive**: it holds self-identification. Only the owner reads it, and
   it never goes to a model. The import refuses a database not on this
   computer.

@@ -240,3 +240,28 @@ async def test_the_usage_reply_carries_the_answer_bank_s_version(student):
 
     assert saved.status_code == 200, saved.text
     assert (before, after) == (0, saved.json()["version"])
+
+
+async def test_the_app_reads_its_profile_from_workit_and_keeps_the_students_answers_there(student, database):
+    """W11: WorkIt Auto Apply keeps no profile file. Its profile is WorkIt's, built as the extension builds it
+    (tests/test_engine_profile.py holds the mapping), and a Needs you answer goes into it, beside the earlier ones,
+    so the next Start and the extension's fills both take it."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET location = 'Stony Brook, NY', fill_profile ="
+                                   " '{\"answered_questions\": {\"Why us?\": \"Boats.\"}}' WHERE id = :id"),
+                              {"id": student.id})
+        await session.commit()
+    async with _api() as api:
+        saved = await api.patch("/apply-app/profile", json={"answered": {"Which shift?": "Nights", "Skipped?": ""},
+                                                             "facts": {"identity.preferred_first_name": "Sammy"}})
+        refused = await api.patch("/apply-app/profile", json={"facts": {"files.resume_pdf": "/Users/x/r.pdf"}})
+        got = await api.get("/apply-app/profile")
+
+    assert saved.status_code == 204, saved.text
+    profile = got.json()["profile"]
+    assert profile["identity"]["legal_first_name"] == "Sam" and profile["identity"]["phone"] == "631-555-0142"
+    assert profile["identity"]["current_location"] == {"city": "Stony Brook", "state": "NY", "country": "United States"}
+    assert profile["answered_questions"] == {"Why us?": "Boats.", "Which shift?": "Nights", "Skipped?": ""}
+    assert profile["identity"]["preferred_first_name"] == "Sammy"  # a fact the engine read from an answer
+    assert refused.status_code == 422  # a file's path is the Mac's, never WorkIt's
+    assert got.json()["policies"]["how_heard"]["text"] == "WorkIt" and got.json()["files"] == {}
