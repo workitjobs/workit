@@ -522,13 +522,13 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started, but the download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
-| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Left: removal (step 5); the extension is unchanged. The Story bank, Stock answers and profile facts come later |
+| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. The extension is unchanged. Left: the old route, once no Store extension calls it; the Story bank, voice, Stock answers and company briefs, which stay on the Mac |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -1347,11 +1347,14 @@ Left from W5:
   never sends a link into a run, so only the Developer checkout's window
   does.
 
-Left from sign-in: **the built app's link.** W8 registers
-`workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
-URL that macOS hands it. Until a bundle exists, a checkout's window has a
-helper applet claim the scheme for it (`apply-agent/src/apply/sign_in_link.py`,
-KAN-883); the built app must not make that helper.
+**The built app's link: built (KAN-833, 2026-11-21).** The build adds
+`workit-auto-apply://` to the bundle's `Info.plist` (`CFBundleURLTypes`),
+so macOS opens the app for the page's link and hands it the link as an
+Apple event; the app's handler (`sign_in_link.listen`, set up once the
+run loop runs) keeps it in memory for the window's sign-in poll, and no
+file holds it. A checkout's window still has a helper applet claim the
+scheme for it (`apply-agent/src/apply/sign_in_link.py`, KAN-883); the
+built app makes no helper.
 
 ### W6. The Worker extension on the store
 
@@ -1572,15 +1575,19 @@ itself (D17, D18, D20).
   W7), and without it no build fits. `cryptography`'s compiled module
   (`_rust.abi3.so`) is a Mach-O file to sign like the others. Nuitka is AGPLv3 with an
   exception: the compiled app is not bound by the AGPL.
-- **The native host is a program of its own** (found 2026-11-14). Chrome
-  starts the plain Workers' relay (`apply/plain/host.py`) through a
-  wrapper that runs it with `python3 -I`. A compiled app has no Python,
-  so the build compiles the relay as a second program in the bundle, and
-  the wrapper starts that program.
+- **The native host is the app's own program** (found 2026-11-14, built
+  2026-11-21). Chrome starts the plain Workers' relay
+  (`apply/plain/host.py`) through a wrapper that runs it with `python3
+  -I`. A compiled app has no Python, so the wrapper starts the app's own
+  program with `--worker-host` first, and the program then runs only the
+  relay (`scripts/app_entry.py`). One program, not two: a second would
+  carry a second copy of Python's runtime.
 - **Sign:** Developer ID, with the hardened runtime and without
   `get-task-allow`, so other programs can't read the app's memory. Every
   Mach-O file inside is signed, the Node binary included, with the
-  entitlements Node needs (JIT) and no more.
+  entitlements Node needs (JIT) and the app's Apple events
+  (`com.apple.security.automation.apple-events`: FocusKeeper's `osascript`
+  to System Events), and no more.
 - **Notarize** with `notarytool`, then staple.
 - **Update:** Sparkle with its own EdDSA key; the feed and builds on
   Cloudflare R2; a beta channel for testers. The app checks at launch and
@@ -1589,9 +1596,32 @@ itself (D17, D18, D20).
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
   (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
   Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
-- **Build by hand:** one script (for example `scripts/build_app.py`) that
-  compiles, signs, notarizes, makes the DMG and uploads it. No builds in
-  CI (D32).
+- **Build by hand:** one script, `scripts/build_app.py`, that compiles,
+  signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
+  A release builds from the commit's own files (`git archive`), never the
+  working tree, and writes the commit into `Info.plist` (`WorkItCommit`).
+
+**Steps.**
+
+1. **Compile only. Built (KAN-833, 2026-11-21).** `python3
+   scripts/build_app.py` makes `build/out/WorkIt Auto Apply.app`, about
+   227 MB, with the compiler's ad-hoc signature, so it opens only on the
+   Mac that built it. It compiles in a venv of its own with uv's Python
+   3.12, with Apple's tools only, with no docstrings, and refuses an app
+   that holds a developer module, Python source or a docstring
+   (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
+   window and ran the relay. On 2026-11-21 it passed the sign-in round trip
+   in the browser and the Worker setup, which ends on a real plain Worker's
+   hello through the app's own relay. It claims `workit-auto-apply://` and takes
+   the sign-in link itself (W5's last step), and ships the plain
+   Workers' window capture helper, built by `swiftc` in the build, since a
+   student's Mac has no `swiftc`. Step 1 is done.
+2. Sign with Developer ID and notarize, after the Apple enrollment.
+3. Sparkle: the framework in the bundle, the key, the feed on R2.
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
+   is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
+   app, a link to Applications, and the license and notices beside them;
+   left: its signature and notarization (step 2), its upload and the URL.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the

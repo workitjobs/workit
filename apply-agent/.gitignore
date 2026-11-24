@@ -43,3 +43,5 @@ private-identifiers.txt
 .pytest_cache/
 # The Chrome Web Store package `apply plain package` builds (KAN-839).
 /dist/
+# WorkIt Auto Apply's build (scripts/build_app.py): its own venv, the compile and the app (W8).
+/build/

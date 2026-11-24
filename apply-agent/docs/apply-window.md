@@ -56,8 +56,10 @@ docstring first.
   `Bridge.take_link` each second; once the helper has the link,
   `take_link` trades its code as a pasted one (`Bridge.trade`) and brings
   the window in front of the browser (`bring_forward`), signed in or
-  saying why not. Without the helper (off a Mac, a data folder in a temp
-  folder) the code box still works. `docs/workit.md` has the PKCE flow.
+  saying why not. The built app needs no helper: it claims the link
+  itself and takes it from macOS (`sign_in_link.listen`, set up in `run`
+  before the window starts). Without either (off a Mac, a data folder in a
+  temp folder) the code box still works. `docs/workit.md` has the PKCE flow.
 - First run's steps and the app's settings (`app.json` in the data folder:
   the disclosure, the Screen Recording ask, the Worker count) are in
   `apply/first_run.py`, each check a callable that tests replace.
