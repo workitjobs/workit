@@ -690,8 +690,9 @@ its own instructions or a hostile schema.
 - **Sources move to the server** (noted 2026-11-14, part of W11's
   answer bank redesign). Sources belong to the student, not to one form,
   so WorkIt builds and stores them, and the app pulls a copy and caches
-  it, as it will for the redesigned answer bank; the student edits them
-  through WorkIt's routes. Each call then sends only the form's own data
+  it; the student edits them through WorkIt's routes. (The Answer bank,
+  redesigned 2026-11-20, keeps no copy on the Mac: the app reads it into
+  memory only, `apply-agent/docs/adr/0006-the-answer-bank-lives-on-workit.md`.) Each call then sends only the form's own data
   (drafts, questions, the posting), and a new version of each kind reads
   the sources on the server. That keeps each call small and lets the
   server send a kind only the sources it needs.
