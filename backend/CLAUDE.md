@@ -45,6 +45,14 @@ salary columns are non-null, so clearing either aborts the entire batch.
 Description is pure enrichment: it never filters
 a posting out.
 
+**The catalog sync upserts in batches of `SYNC_BATCH` (1,000) boards**
+(`app/scraper/schedules.py`), in the cycle's one transaction. asyncpg takes
+32,767 bind parameters a statement and a board is 8, so one INSERT of the
+whole catalog failed past 4,095 boards: with 5,047 in `boards.csv`, every
+cycle stopped at its first step, a dry run too (2026-11-23). A new column
+on `scraper_schedules` with a Python-side default adds one parameter a
+board. Tests: `tests/test_scrape_worker.py` syncs 4,200 boards.
+
 ### Board publishing and concurrent workers
 
 Each board publishes independently right after it is scraped
@@ -626,6 +634,47 @@ Find files with a directory listing; these are the rules for where code goes.
   choice) and the top 3 error names, plus the
   period's engine versions for the filter. A job system that breaks shows
   as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
+- **The scraper's health for admins** (KAN-879, `routers/scrape_health.py`
+  over `queries/scrape_health.py`): `GET /admin/scrape-health?days=`
+  behind `get_admin`, as `/admin/fill-health`. It answers the enabled
+  boards now (all, failing, resting and stale),
+  the backlog (tasks pending and claimed, and the oldest pending one's
+  time: a worker that stopped leaves its tasks pending, which no finished
+  read shows), the enabled boards per hiring system with how many were
+  ever read,
+  per day (UTC) per hiring system the board reads done and failed with
+  their mean seconds and the jobs first seen, up to 25 failing boards
+  with their last error, and the window's failed reads by reason
+  (`error_groups`: the error's text before its first ": ", with the
+  boards and reads that failed for it and the newest read as an example).
+  **Group failed reads by the reason, never the whole error**: the text
+  after it holds one board's values ("oversized: 5123 listings"), so each
+  board would be its own group. **The reasons list holds boards the
+  failing list lacks**: a failed publish marks its task failed but never
+  calls `record_failure` (`worker._checkpoint_board`), so on 2026-11-15 the
+  page showed 2 failing boards while 90 reads had failed, 88 for one
+  cause. **The page prints `scraper_tasks.error` as it is stored**, so
+  `_sanitize_error` (`scraper/tasks.py`) is the only guard: it masks
+  credential-like `key=value` pairs (quoted too, and the token after
+  `Bearer`) and a URL's password. A new shape of secret gets a case in
+  `tests/test_scrape_worker.py` first. **An answer field no page reads
+  is removed**: `open_jobs` counted over all of `job_postings` on every
+  fill for a caption that was gone (2026-11-23). **It reads only the worker's own tables**
+  (`scraper_schedules`, `scraper_tasks`, `job_sources`) and
+  `job_postings`: no new table, no migration, and the worker writes
+  nothing for it. A board is failing when `consecutive_failures` is above
+  0, and stale when unread for `STALE_AFTER` (2 days) or never read.
+  **The answer is kept in memory for 10 minutes per `days`**
+  (`KEEP_SECONDS`, per process; `forget()` for tests), with `read_at`, so
+  many opens cost one read: `job_postings` is costly to read whole. Every
+  admin read added later is kept the same way, and gets no Refresh.
+  `last_import_at` is the newest `job_postings.updated_at`, the trace of
+  the scheduled feed import (`scrape.yml`), which the worker has not
+  replaced yet: **delete it and the page's line when the worker takes
+  over.**
+  **Still open:** `scraper_tasks` has no retention rule, so the days it
+  can show are as many as the table holds. Tests:
+  `tests/test_scrape_health.py`.
 - **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
