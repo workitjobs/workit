@@ -1091,7 +1091,8 @@ on Windows each one stops Apply:
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with
   `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
-  table).
+  table). Built (KAN-929): `plain/channel.py`, a named pipe on Windows,
+  checked in both directions (`windows_desktop.md`, P4).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
   the Worker's Chrome. Built (KAN-929): every such check is

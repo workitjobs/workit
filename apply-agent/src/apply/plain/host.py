@@ -3,8 +3,10 @@
 Chrome starts it when the worker extension calls connectNative("com.workit.apply_worker"),
 through the wrapper in that Worker profile's NativeMessagingHosts folder, which adds
 `--socket <path> --worker <k>`; Chrome adds the caller's origin. It connects to Apply's
-socket, says which Worker it is, then relays frames both ways unchanged: Chrome's framing
-(a 4-byte length in native byte order, then UTF-8 JSON) is also the socket's.
+channel (plain/channel.py: the Unix socket at <path>, or its named pipe on Windows) and passes the
+check in both directions with the secret beside <path>, says which Worker it is, then relays frames
+both ways unchanged: Chrome's framing (a 4-byte length in native byte order, then UTF-8 JSON) is
+also the channel's.
 
 Stdlib only, run with `python3 -I`, so it needs nothing from Apply's environment.
 """

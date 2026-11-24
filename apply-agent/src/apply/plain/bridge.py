@@ -1,7 +1,8 @@
-"""The plain Workers' bridge: Apply's end of the socket the host relays talk to.
+"""The plain Workers' bridge: Apply's end of the channel the host relays talk to.
 
-It listens on the Worker profiles folder's workers.sock (mode 0600) before any Worker starts. Each Worker's
-relay connects, names its Worker, and passes on the extension's hello; the bridge checks
+It listens on the Worker profiles folder's channel (plain/channel.py: workers.sock, mode 0600, or a named pipe on
+Windows) before any Worker starts. Each Worker's relay connects and passes the check in both directions, names
+its Worker, and passes on the extension's hello; the bridge checks
 the origin, the protocol and the engine, answers welcome or refuse, and keeps one
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
 (`on`). Messages over 512 KiB go as chunks, since Chrome takes at most 1 MB from a host.

@@ -1,6 +1,6 @@
 # WorkIt Auto Apply on Windows
 
-**Status (2026-11-21, KAN-929):** a plan. P1, P2 and P3 are built; the rest is not. This note lists what
+**Status (2026-11-21, KAN-929):** a plan. P1 to P4 are built; the rest is not. This note lists what
 stops Apply on Windows, one problem per section, in the order to solve
 them. It expands F4 and W4's "Found on the way" list in
 `desktop_application_auto_apply.md`. Line numbers are at commit
@@ -31,7 +31,7 @@ This is the background for the problems in section 4.
 
 ```
 Apply process: the Bridge (plain/bridge.py)
-   |  the channel: a Unix socket file, workers.sock (P4)
+   |  the channel: a Unix socket file, workers.sock (a named pipe on Windows), checked both ways (P4)
    v
 the host (plain/host.py): a small relay program that Chrome starts, one per Worker (P5)
    |  native messaging: Chrome joins the extension to the host's stdin and stdout
@@ -319,9 +319,9 @@ for each fix, section 6 the tests, and section 7 the order.
   - Not proven: nothing has run on Windows yet. The first Windows run, or
     the Windows CI job (section 6), proves it.
 - **Unix-only calls that are left.** These fail only when they run, not
-  at import, and each one belongs to another problem: the Unix sockets
-  and their folders (P4), and SIGTERM (P7). P2's `os.kill(pid, 0)` and
-  P3's `SingletonLock` are fixed. Two more are in developer-only modules (`build.DEVELOPER`),
+  at import, and each one belongs to another problem: SIGTERM (P7).
+  P2's `os.kill(pid, 0)`, P3's `SingletonLock` and P4's Unix sockets are
+  fixed. Two more are in developer-only modules (`build.DEVELOPER`),
   so they stop only a Windows developer's command that runs them:
   - `os.killpg` in `claude_cli.stream_claude` (`claude_cli.py:154`), used
     with `ask_model: claude`.
@@ -448,7 +448,7 @@ for each fix, section 6 the tests, and section 7 the order.
   process carries `--user-data-dir` in its arguments as Apply starts it,
   and how long the scan takes there.
 
-### P4. The channel between Apply and the hosts (Unix socket): being built
+### P4. The channel between Apply and the hosts (Unix socket): built
 
 - **What it is.** Apply's Bridge listens on a socket file, `workers.sock`,
   that only the user can read (0600). Each Worker's host connects to it
@@ -475,7 +475,7 @@ for each fix, section 6 the tests, and section 7 the order.
   - **Not `pywin32`:** a new dependency for one job. Python's own
     `multiprocessing.connection` makes and opens named pipes on Windows,
     the same code that `multiprocessing` itself uses there.
-- **The design (being built).** One module, `plain/channel.py`, standard
+- **The design (built).** One module, `plain/channel.py`, standard
   library only, holds the channel for the Bridge, the host, `tools.py` and
   `mcp.py`, with an entry for each OS:
   - **macOS and Linux:** the Unix socket, as today: `workers.sock` in the
@@ -517,17 +517,38 @@ for each fix, section 6 the tests, and section 7 the order.
   - **`tools.py` and `mcp.py`** (Claude's drive, developer only) use the
     same module. `/tmp` and `os.getuid()` stay in the macOS and Linux
     entry only.
-- **Tests.** `tests/test_plain_channel.py` (fast list) runs each test on the
-  entries its OS has. On macOS and Linux, Python's `multiprocessing`
-  connections over a Unix socket stand in for the pipe's, so the Windows
-  adapter, its listener and the check run in CI too; only the pipe's own
-  calls wait for Windows. One test for each fault: a message both ways,
-  one over 1 MB too; a client without the secret is refused; a listener
-  without it is refused by the client; an old answer fails a new
-  challenge; a close wakes a blocked reader; a channel closed and opened
-  again in one process listens again. The tests that play a host on a raw
-  Unix socket (`tests/test_plain_bridge.py`, `tests/test_plain_claude.py`)
-  connect through the channel.
+- **Tests** (built), in the fast list. Each went red with its fault in.
+  - `tests/test_plain_channel.py` runs each test on the entries its OS has.
+    On macOS and Linux, "connections" runs the Windows entry's own classes
+    (`ConnectionListener`, `Messages`) over `multiprocessing` connections on
+    a Unix socket in place of the pipe, so all but the pipe's own calls run
+    in CI. One test for each fault: a frame both ways, read head then body
+    as the Bridge reads it, one over 1 MB too (fault: `Messages` drops
+    what a read didn't take); a client without the secret is refused and
+    told nothing; a client that says nothing is dropped (fault: the pipe's
+    reads take no timeout); a listener without the secret is refused by
+    the client; an old answer fails a new challenge; a drive reads its
+    lines through `makefile`; a close wakes a blocked reader (the socket
+    and the pipe); a closed channel listens again in the same process; and
+    `close` wakes an accept that closing the listener leaves blocked, with
+    a fake listener that plays the pipe (macOS wakes a blocked accept by
+    itself, so only a fake shows the fault there).
+  - `tests/test_each_os.py`: a Windows path makes a named pipe, one for
+    each folder, and never reaches `os.getuid`; its source test fails on a
+    Unix socket made outside the channel.
+  - The tests that played a host on a raw Unix socket
+    (`tests/test_plain_bridge.py`, `tests/test_plain_claude.py`) connect
+    through the channel. The Bridge's permission test covers the secret.
+  - The Mac's real plain Worker tests pass: a Worker's start, an
+    extension's reload (a new host, checked again), a reused Worker, the
+    reopen after Apply is killed (a new secret), and a drive's tools.
+- **Still open.** The pipe's own calls run only on Windows: that a close
+  there cancels a blocked read, that `close`'s own connection wakes a
+  real pipe's accept, and that a second Apply gets `Busy`. They wait for
+  the Windows CI job (later) or the teammate's run.
+- **Review.** The check guards the line that can drive a Worker's Chrome,
+  so it gets a security review before the PR merges, in the spirit of
+  the guards' adversarial review (root `CLAUDE.md`).
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows. That needs P5 too.
 
@@ -711,7 +732,7 @@ A fix may change the Mac's code too, when tests cover it (section 6).
 | P1 file locks | Built: a library (`portalocker`, only through `apply.locks`), the same code on every OS |
 | P2 "is it still running?" | Built: a library (`psutil.pid_exists`), the same code on every OS |
 | P3 profile lock | Built: a library (psutil finds the Chrome by its arguments on Windows), one check for every OS |
-| P4 channel | Decided: a Windows entry, a named pipe (`multiprocessing.connection`); the Unix socket stays on macOS and Linux; one check in both directions on every OS |
+| P4 channel | Built: a Windows entry, a named pipe (`multiprocessing.connection`); the Unix socket stays on macOS and Linux; one check in both directions on every OS |
 | P5 host file | A Windows entry: the registry key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
 | P7 clean quit | For the seed: ask the student to close its window, on every OS or on Windows only. For a Worker: a Windows entry (`taskkill` with no `/F`), after a measurement |
@@ -734,7 +755,7 @@ can break, on each OS. The goal is not a high count of tests.
 | P1 | Built, `tests/test_each_os.py`: no module of Apply imports `fcntl`, read from the source | A module imports `fcntl` again | The fast list, on Ubuntu, before any Windows job |
 | P2 | Built: `tests/test_each_os.py` reads the source for `os.kill(pid, 0)`; `tests/test_into.py` holds a live PID and a gone one | A module checks a process with `os.kill(pid, 0)` again; the check misses a live process | The fast list |
 | P3 | Built, `tests/test_each_os.py`: on Windows the profile's own Chrome is found by its arguments; a helper (`--type=`), another profile's Chrome and a process Apply may not read never count | Another process is taken for the profile's Chrome, or none is found | The fast list |
-| P4 | `tests/test_plain_bridge.py` on the new channel: a hello, a message over 512 KiB, and a client without the key, which is refused | A client that isn't Apply's host gets in | The fast list, on every OS |
+| P4 | Built, `tests/test_plain_channel.py` on each entry its OS has, and `tests/test_each_os.py`: frames both ways, the check's refusals, a silent client, lines, close and listen again | A client or a listener that isn't Apply's gets in; a frame comes through cut; a closed pipe can't be made again | The fast list (the pipe itself: Windows) |
 | P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, and the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker | The fast list |
 | P7, P8 | `tests/test_plain_seed_setup.py`, with its fakes: on Windows the wizard never ends the seed's Chrome by force, and it says the Windows words | A forced stop loses the student's clicks | The fast list |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed | The fast list |
@@ -764,7 +785,7 @@ can break, on each OS. The goal is not a high count of tests.
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
 | M1 | A developer runs CDP Workers | P1, P2 and P3 (built) | `worker_mode: cdp` | Apply starts; every host fills except Lever, SmartRecruiters and Workable |
-| M2 | A developer runs plain Workers, with no seed | P4, P5, P6, P9 | `plain_chrome: testing` | Every host fills; a developer never needs the seed |
+| M2 | A developer runs plain Workers, with no seed | P4 (built), P5, P6, P9 | `plain_chrome: testing` | Every host fills; a developer never needs the seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 The store copy (W6) is not Windows work. When it ships, it changes P8's
@@ -778,8 +799,10 @@ computer runs all the checks at once: M1's first run with
 `worker_mode: cdp`, then plain Workers, and the open questions in
 section 8. Each result goes into this note.
 
-**Next: M2, starting with P4,** the channel between Apply and the hosts.
-Plain Workers can't talk to Apply on Windows until P4 and P5 are built.
+**Next: P5,** the host file. Chrome on Windows can't start a Worker's host
+until it finds the host in the registry, through a wrapper Windows can
+run. P4 left the host ready for one wrapper: it finds the channel and its
+secret from its `--socket` path.
 
 ## 8. Open questions
 

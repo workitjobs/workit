@@ -86,8 +86,10 @@ has neither.
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
   Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`:
-  its SingletonLock, or every process's arguments on Windows), the native
-  host's folder (`native_host.chrome_hosts`), a
+  its SingletonLock, or every process's arguments on Windows), the plain
+  Workers' channel (`plain/channel.py`: a Unix socket, or a named pipe on
+  Windows, checked in both directions), the native host's folder
+  (`native_host.chrome_hosts`), a
   Worker's background start (`plain/launcher.start_in_background`), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder
@@ -98,8 +100,8 @@ has neither.
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
-  `osascript`, `ps`, `fcntl` or `os.kill(pid, 0)` anywhere else
-  (`tests/test_each_os.py` reads the source for the last two). What W4 left for F4 is in its "Found on
+  `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
+  (`tests/test_each_os.py` reads the source for the last three). What W4 left for F4 is in its "Found on
   the way" list; `../docs/windows_desktop.md` takes each item in turn, with
   where it is and how to fix it (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2

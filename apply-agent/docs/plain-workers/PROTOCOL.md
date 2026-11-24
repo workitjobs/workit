@@ -14,7 +14,7 @@ chose, and Apply's left click on a radio, checkbox or option in the top frame (K
 
 ```
 Apply process                                   Worker k (plain Chrome)
-  apply.plain.bridge.Bridge  <── Unix socket ──  host relay  <── native messaging ──  worker extension
+  apply.plain.bridge.Bridge  <──── channel ────  host relay  <── native messaging ──  worker extension
   (listens on APPLY_PROFILES/workers.sock, 0600) (apply/plain/host.py,                (apply-agent/worker-extension/,
   apply.plain.page.PortPage                       Chrome starts it)                     background.js + ops/*.js)
   apply.plain.launcher.PlainWorkers
@@ -43,7 +43,8 @@ Apply process                                   Worker k (plain Chrome)
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
   worker extension's origin. Its `path` is a per-profile wrapper that runs
   `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
-- **Socket:** `workers.sock` in the Worker profiles folder (`APPLY_PROFILES`, default
+- **Socket:** (the channel; on Windows a named pipe, below) `workers.sock` in the Worker
+  profiles folder (`APPLY_PROFILES`, default
   `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
   drives one profiles folder's Workers; a rehearsal held for Lisul keeps its process up, so
   another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
@@ -51,6 +52,12 @@ Apply process                                   Worker k (plain Chrome)
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
   `Bridge.path` says which. The channel's code is `apply.plain.channel`, which the host loads by
   its file path.
+- **Windows (KAN-929):** a named pipe in place of the socket file, made and opened by
+  `multiprocessing.connection`: `\\.\pipe\workit-apply-<16 hex>`, the SHA-256 of the same
+  `workers.sock` path (`channel.pipe_name`), with `workers.key` beside that path. A second Apply
+  on the folder gets `BridgeBusy`: Windows refuses to make the pipe twice. The pipe carries whole
+  messages; `channel.Messages` reads them as the same stream of bytes, so the framing below is
+  unchanged.
 - **The check (KAN-929).** Before any frame, both ends prove that they know the channel's
   secret: `workers.key` beside the socket, mode 0600, new each time the Bridge starts, and
   written only once the Bridge holds the address. Raw bytes, with no framing:
@@ -68,7 +75,7 @@ Apply process                                   Worker k (plain Chrome)
 
 Every message is one JSON object. Chrome ↔ host is Chrome's native messaging framing:
 a 4-byte length in native byte order, then that many bytes of UTF-8 JSON. Host ↔ Apply
-uses **the same framing** over the stream socket, so the host relays frames verbatim.
+uses **the same framing** over the channel, so the host relays frames verbatim.
 
 Limits: Chrome → host up to 64 MiB a message; **host → Chrome at most 1 MB**. So Apply
 splits any message whose JSON is over 512 KiB into `chunk` messages (below); the
