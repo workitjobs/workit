@@ -662,13 +662,15 @@ notices strict (above).
 - **The app has no checkout and no Python.** `home.CODE` is the program's
   own folder when the module is compiled (`__compiled__`), and the build
   puts the inputs the Student path reads there (`INPUTS`: the EULA, the
-  default policies, the sample, the Worker extension; and the notices). A
-  new file the Student path reads beside the code joins `INPUTS`. Two of
-  them are there only for now: the sample, which `student.app` copies into
-  a data folder with no Applicant profile (so a new Mac runs as Test
-  Person), leaves once W11 brings the student's own profile from WorkIt;
-  the Worker extension's folder, which the seed setup copies for Load
-  unpacked, shrinks to what the store copy needs once W6 ships it. A plain
+  default policies, the Worker extension; and the notices). A new file the
+  Student path reads beside the code joins `INPUTS`. The Worker extension's
+  folder, which the seed setup copies for Load unpacked, is there only for
+  now: it shrinks to what the store copy needs once W6 ships it. The Test
+  Person sample (`sample/`) is not in the app (2026-11-24): a student's app
+  has no Test Person, and its data comes from WorkIt (W11). Until W11 stops
+  `student.app` from copying it (`home.fill_from_sample`), a built app whose
+  data folder has no Applicant profile stops at launch, since the sample it
+  copies isn't there. A plain
   Worker's wrapper starts the app's own program as the relay
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
   host.py`. It names that program with `psutil.Process().exe()`, never

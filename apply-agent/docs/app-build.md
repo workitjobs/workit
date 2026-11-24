@@ -40,10 +40,11 @@ Three lists decide what the app holds. Change only these:
   file outside `src/apply` ships only through `INPUTS`.
 - **Remove a file from `INPUTS` only after the code stops reading it.** The
   build doesn't check what the code reads: a missing input crashes the built
-  app when it runs. `sample/` is read by `student.app` (the Test Person
-  copy, until W11 brings the student's profile from WorkIt), and
-  `worker-extension/` by the Worker setup (until W6 uses the Chrome Web
-  Store copy).
+  app when it runs. `worker-extension/` is read by the Worker setup (until
+  W6 uses the Chrome Web Store copy). `sample/` left the app on
+  2026-11-24, ahead of the code: until W11 stops `student.app` from
+  copying it, a built app whose data folder has no Applicant profile stops
+  at launch.
 - **A release sees only committed files.** Commit a change before a
   `--release` build.
 - A new rule about what ships goes in `../CLAUDE.md`, "Building the app", in
@@ -100,7 +101,10 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   and the DMG.
 - Step 3: Sparkle, its EdDSA key, and the feed on R2.
 - Step 4: the DMG's upload and `DOWNLOAD_URL`, after W0, W6 and W7.
-- `sample/` leaves `INPUTS` with W11; `worker-extension/` with W6.
+- `worker-extension/` leaves `INPUTS` with W6.
+- W11: `student.app` still copies the Test Person sample, which the app no
+  longer ships, into a data folder with no Applicant profile, so such a
+  first launch stops until the student's profile comes from WorkIt.
 - CDP Workers' Chrome is started by Playwright inside the app, so macOS may
   blame the app for Chrome's updater ("prevented from modifying apps")
   during a run on a host outside `plain_worker_hosts`.

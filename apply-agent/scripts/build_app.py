@@ -13,7 +13,7 @@ build/out/WorkIt Auto Apply.app. In order:
    (scripts/strip_js_comments.py), so the comments stay in the checkout for development. It checks that the
    Worker extension's store copy is the same after.
 3. The third-party notices (scripts/third_party_notices.py) and the other inputs the app reads beside its
-   program (home.CODE): the EULA, the default policies, the Test Person sample and the Worker extension.
+   program (home.CODE): the EULA, the default policies and the Worker extension.
 4. Nuitka compiles scripts/app_entry.py and what it imports, with no module of build.DEVELOPER and no
    docstrings. Every docstring would be a plain sentence in the program about how Apply works.
    swiftc builds the plain Workers' window capture helper into the app beside the program.
@@ -75,8 +75,9 @@ DMG = OUT / f"{NAME}.dmg"
 STUDENT_LINE = ("STUDENT = False\n", "STUDENT = True\n")
 
 # The checkout's inputs home.CODE names, staged as the app reads them. The Worker extension's vendor/ is what
-# `prepare` writes on one Mac (its .gitignore), never part of the app.
-INPUTS = ("legal/EULA.txt", "policies.default.yaml", "sample", "worker-extension")
+# `prepare` writes on one Mac (its .gitignore), never part of the app. The Test Person sample (sample/) is not one:
+# a student's app has no Test Person (2026-11-24); its data comes from WorkIt (W11).
+INPUTS = ("legal/EULA.txt", "policies.default.yaml", "worker-extension")
 SKIP = shutil.ignore_patterns("vendor", ".gitignore", ".DS_Store")
 NOTICES = "dist/THIRD-PARTY-NOTICES.txt"  # first_run.NOTICES
 
