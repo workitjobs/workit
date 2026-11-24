@@ -1985,17 +1985,26 @@ go then. A change needs to work on Cloudflare only.
   (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
   main"). The runner's scrape needs none of this: each run checks out the
   commit it runs.
-- **Apply `b7e4c2a9d816` (`answer_banks`, KAN-834, W11) once its PR has
-  merged, and before the deploy that maps it.** A revision that `main`
-  lacks breaks every teammate's Alembic (`alembic/CLAUDE.md`). The model
-  maps the table, and every read and save of the Answer bank goes through
-  it: deployed first, the extension's bank reads (`GET .../answer-bank`),
-  its saves (`PUT .../answers`, the connector's one-off answers), the
-  Written Answers page's saves, WorkIt Auto Apply's PATCH and `GET
-  /apply-app/usage` all answer 500. It only adds a table, empty until a
-  student's first read fills their row, so applying it early is safe. It
-  sits on `a9d4c2e7f893`, so `upgrade head` applies `main`'s bank-entry
-  migrations first where they are not yet applied.
+- **KAN-834's two migrations go on around one deploy, in two commands.**
+  Its `b7e4c2a9d816` adds `answer_banks`, which the new code reads for
+  every Answer bank read and save; its `c3f9a1d27b6e` drops
+  `applicant_profiles.fill_answers`, which the old code selects with every
+  profile read. So no one `upgrade head` is safe: before the deploy it
+  drops a column the running code reads (every signed-in request 500), and
+  after it the new code runs without its table (the extension's bank reads
+  and saves, the Written Answers page's saves, WorkIt Auto Apply's PATCH and
+  `GET /apply-app/usage` 500). The order, once the PR has merged (never from
+  its branch: `alembic/CLAUDE.md`):
+  1. `uv run alembic upgrade b7e4c2a9d816` right away. It only adds a
+     table, empty until a student's first read fills their row, so the old
+     code never meets it.
+  2. Let the deploy finish.
+  3. The one-time save of what Apply's old sync left in `fill_answers`
+     into each student's Answer bank: a script run by hand and deleted,
+     never committed. Skipped, those answers are lost with the column.
+  4. `uv run alembic upgrade head` for `c3f9a1d27b6e`.
+  `b7e4c2a9d816` sits on `a9d4c2e7f893`, so step 1 applies `main`'s
+  bank-entry migrations first where they are not yet applied.
 - **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
   has merged, never from its branch.** A revision that `main` lacks breaks
   every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's

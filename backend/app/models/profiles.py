@@ -63,18 +63,12 @@ class Applicant_Profile(Profile):
     # student's own text under the contact line, on every resume that does
     # not hide it. Never sent to a model: it can hold personal data.
     resume_header_extra: Mapped[str | None] = mapped_column(String(100))
-    # The Fill engine's own profile, policies and Answer bank for this
+    # The Fill engine's own profile and policies for this
     # student (models/CLAUDE.md, "The Fill engine's profile"): what a student
     # brings from Apply (scripts/import_apply_profile.py). The extension lays
     # WorkIt's own fields over them; each is an object, '{}' when unset.
     fill_profile: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     fill_policies: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
-    # {question wording: {"answer": text or the options ticked, "own": bool,
-    # "company": where it was first asked or null, "edited_at": when Apply
-    # changed it, absent when unknown}}, as Apply's sync (KAN-746, gone)
-    # left it. Nothing writes it; a student's first read of their Answer
-    # bank takes it (auto_apply/answer_bank.py, `_first_fill`).
-    fill_answers: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # KAN-298: opt-in, off until the student turns it on in Settings — a
     # new unsolicited daily email should never surprise an existing
     # account the day this ships. Both defaults, not just server_default:

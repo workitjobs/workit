@@ -898,15 +898,13 @@ so WorkIt fills forms as completely as Apply does.
   rule is in `apply-agent`'s `profile.py` (`get`). If you change one, change
   the other.
 
-- **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
+- **Two JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
   '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
   table already has RLS on): `fill_profile` (the engine's Profile shape,
-  nested sections: identity, education, screeners, voluntary_self_id...),
-  `fill_policies` (the engine's Policies, only the keys it reads) and
-  `fill_answers` (`{question: {answer, own, choice, company, edited_at?}}`),
-  what Apply's sync (KAN-746, gone) brought before the Answer bank moved to
-  WorkIt. Nothing writes it now; only a student's first read of their bank
-  takes it (below), and it goes in W11's step 5.
+  nested sections: identity, education, screeners, voluntary_self_id...)
+  and `fill_policies` (the engine's Policies, only the keys it reads). The
+  third, `fill_answers`, held what Apply's sync (KAN-746) brought; W11's
+  step 5 drops it (`c3f9a1d27b6e`), its answers now in the Answer bank.
 - **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
   policies; the extension lays what it builds from WorkIt's fields
   (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
@@ -921,7 +919,7 @@ so WorkIt fills forms as completely as Apply does.
   `is_own`). **The import writes each entry of answer-bank.yaml straight
   into the student's Answer bank** (`answer_banks`, below), the student's
   own as theirs and the drafts flagged, each through WorkIt's rule with the
-  company it was first asked at; it no longer writes `fill_answers`.
+  company it was first asked at.
   `choice` (an entry with options, or a list answer: the options ticked)
   skips the writing checks. Not `written_answers`: those rows belong to an
   application, and a brought answer has none.
@@ -970,8 +968,8 @@ WorkIt Auto Apply and the WorkIt extension fill again on any later form
   `own`, so a form that bans AI text never takes it. Nothing else is
   kept: no options, source, company, dates, uses or facts.
 - **Its own table, not a column of `applicant_profiles`**: every profile
-  read loads that row's JSONB columns (`fill_answers` rides along on six of
-  them), and a bank grows to hundreds of KB (W11's "Size").
+  read loads that row's JSONB columns, and a bank grows to hundreds of KB
+  (W11's "Size").
 - **`version` goes up by one on every write**, in the same statement as the
   merge (`queries/answer_banks.py`, `answers || set - deleted`, never the
   whole column from a caller's copy). It is the ETag of `GET
@@ -989,8 +987,8 @@ WorkIt Auto Apply and the WorkIt extension fill again on any later form
   question ("If yes, please explain.") never enters, and a model's text
   enters only when the student's own data holds what it states.
 - **The first read fills the row** from what WorkIt held before the table
-  (`fill_answers`, and the student's own and choice answers saved to
-  one-off questions on applications), so the migration needs no script.
+  (the student's own and choice answers saved to one-off questions on
+  applications), so the migration needs no script.
   Every write makes the row first the same way.
 - **Sensitive** as any of the student's answers: only the owner reads or
   writes it.

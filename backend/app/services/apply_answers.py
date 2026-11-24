@@ -9,12 +9,8 @@ wording, so an answer means the same whichever way it came.
   Claude's checks and a form that bans AI text never takes it. An entry
   marked `reviewed: false` is never their own, whatever its source says:
   an unreviewed answer is not the student's word yet.
-- `edited_at` reads when Apply last changed an entry `fill_answers` holds
-  (Apply's sync, KAN-746, wrote it until W11 moved the bank to WorkIt), for
-  the bank's first read.
 """
 
-import datetime
 from typing import Any
 
 LISUL = "lisul"
@@ -30,18 +26,3 @@ def wording(question: str) -> str:
     `norm`): case, spacing, curly quotes and a required field's asterisk don't count."""
     text = question.lower().replace("’", "'").replace("“", '"').replace("”", '"')
     return " ".join(text.split()).strip(" *")
-
-
-def edited_at(stored: dict) -> datetime.datetime | None:
-    """When Apply last changed a stored entry, or None when it carries no time."""
-    return _time(stored.get("edited_at"))
-
-
-def _time(value: Any) -> datetime.datetime | None:
-    if isinstance(value, datetime.datetime):
-        return value if value.tzinfo else value.replace(tzinfo=datetime.UTC)
-    try:
-        parsed = datetime.datetime.fromisoformat(str(value)) if value else None
-    except ValueError:
-        return None
-    return parsed if parsed is None or parsed.tzinfo else parsed.replace(tzinfo=datetime.UTC)

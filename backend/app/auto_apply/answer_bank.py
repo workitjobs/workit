@@ -23,10 +23,8 @@ extension read whole and fill any form from.
   form). Plain code, no model. So every answer in the bank is safe on
   every form, and a reader takes it whole.
 - **A student's first read fills their row** from what WorkIt held before
-  the bank (`_first_fill`): their brought Apply answers
-  (`applicant_profiles.fill_answers`) and the answers saved to one-off
-  questions on their applications, the student's own first, each through
-  the rule. Nothing is run by hand after the migration.
+  the bank (`_first_fill`): the answers saved to one-off questions on their
+  applications, the student's own first, each through the rule. Nothing is run by hand after the migration.
 - `PATCH .../answer-bank` (`change`) commits; `keep` and `drop` are the
   other steps' writes into the bank, which flush and leave the commit to
   them. A bank past its caps refuses `change`; `keep` then saves nothing to
@@ -45,7 +43,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auto_apply import briefs, checks, truth
 from app.auto_apply.queries import (
     fetch_application_companies,
-    fetch_brought_answers,
     fetch_company_names,
     fetch_form_companies,
     fetch_one_off_answers,
@@ -219,17 +216,14 @@ def served(answers: dict) -> dict[str, SavedAnswer]:
 
 
 async def _first_fill(db: AsyncSession, applicant_id: uuid.UUID) -> dict:
-    """The row a student's first read makes: their own answers first, the
-    newest first (saved on applications, then brought from Apply), then their
-    Claude's, flagged (choices saved on applications, and Apply's drafts,
-    which passed Apply's checks); one a key, each through the rule, within
-    the caps."""
+    """The row a student's first read makes from the one-off answers saved on
+    their applications: their own answers first, the newest first, then their
+    Claude's choices, flagged; one a key, each through the rule, within the
+    caps."""
     saved = [s for s in await fetch_one_off_answers(db, applicant_id) if s.own or s.choice]
-    brought = await fetch_brought_answers(db, applicant_id)
-    newest = sorted([*(s for s in saved if s.own), *(s for s in brought if s.own)],
-                    key=lambda s: s.at.timestamp() if s.at else float("-inf"), reverse=True)
+    newest = sorted((s for s in saved if s.own), key=lambda s: s.at.timestamp() if s.at else float("-inf"), reverse=True)
     ordered = [Kept(question=s.question, answer=s.answer, review=not s.own, choice=s.choice, company=s.company)
-               for s in (*newest, *(s for s in saved if not s.own), *(s for s in brought if not s.own))]
+               for s in (*newest, *(s for s in saved if not s.own))]
     bank = await load_bank(db, applicant_id)
     rule = await rule_for(db, applicant_id, bank, any(map(_checked, ordered)))
     unsupported = await _unsupported(db, applicant_id, bank, ordered, [_text(k.answer) for k in ordered if not k.review])

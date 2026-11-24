@@ -57,7 +57,6 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
-from app.services import apply_answers
 from app.services.postings import ADDED, typed_text
 
 
@@ -905,18 +904,3 @@ async def fetch_profile_facts(db: AsyncSession, applicant_id: uuid.UUID) -> list
         return []
     return [*(v for v in (profile.full_name, profile.headline, profile.location) if v),
             json.dumps(profile.fill_profile or {}, default=str, indent=1)]
-
-
-async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:
-    """The answers the student brought from Apply (`fill_answers`, in the
-    order they were filed): their own words (`own`) or their Claude's drafts,
-    and `choice` for options picked, `at` when Apply last changed it (its
-    sync's `edited_at`). An entry with no answer is left out."""
-    answers = await db.scalar(select(Applicant_Profile.fill_answers).where(Applicant_Profile.id == applicant_id))
-    return [
-        SavedAnswer(question=question, answer=entry["answer"], company=entry.get("company"), own=bool(entry.get("own", True)),
-                    choice=bool(entry.get("choice")) or isinstance(entry["answer"], list),
-                    at=apply_answers.edited_at(entry))
-        for question, entry in (answers or {}).items()
-        if isinstance(entry, dict) and entry.get("answer") not in (None, "", [])
-    ]

@@ -6,11 +6,11 @@ student edits in the app (models/CLAUDE.md, "The Answer bank").
 
 Apply it right after the merge, before the deploy is live: the deployed
 code reads answer_banks on every Plan (GET .../answer-bank answers 500
-without it).
-The table starts empty: a student's first read fills their row from
-applicant_profiles.fill_answers and their saved answers
-(app/auto_apply/answer_bank.py), so nothing is run by hand. Apply it only
-once it is on main, never from its branch (backend/alembic/CLAUDE.md).
+without it). Apply c3f9a1d27b6e, which follows it, only after the deploy
+(backend/CLAUDE.md, Deployment, "KAN-834's two migrations").
+The table starts empty: a student's first read fills their row from their
+saved answers (app/auto_apply/answer_bank.py). Apply it only once it is on
+main, never from its branch (backend/alembic/CLAUDE.md).
 
 Revision ID: b7e4c2a9d816
 Revises: a9d4c2e7f893

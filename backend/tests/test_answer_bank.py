@@ -217,8 +217,8 @@ async def test_a_question_in_words_the_tab_sent_stays_on_its_application(running
 
 
 async def test_the_first_read_fills_the_bank_from_what_workit_held(running, applicant, database):  # noqa: F811
-    """A student who had answers before the bank existed: Apply's synced ones
-    (fill_answers) and the one-off answers saved on applications."""
+    """A student who had answers before the bank existed: the one-off answers
+    saved on their applications."""
     from sqlalchemy import text
 
     me, (job,) = await _student_queues(database, applicant, 1)
@@ -228,11 +228,6 @@ async def test_the_first_read_fills_the_bank_from_what_workit_held(running, appl
     await _tab_asks(me, job, choice)
     await _student_answers(me, job, choice, "Nights")
     _signed_in_as(applicant)
-    await _brought(database, applicant, {
-        REMOTE: {"answer": "Yes", "own": True, "choice": True},
-        "Why Hooli?": {"answer": "Search.", "own": True},
-        "What drew you to logistics?": {"answer": "Watching trucks.", "own": False},
-    })
     # As a database from before the bank: its saves made no row.
     async with database() as session:
         await session.execute(text("DELETE FROM answer_banks"))
@@ -242,41 +237,8 @@ async def test_the_first_read_fills_the_bank_from_what_workit_held(running, appl
 
     assert bank == {
         filed({"label": SHIFTS}): {"question": SHIFTS, "answer": "Nights", "own": True},
-        filed({"label": REMOTE}): {"question": REMOTE, "answer": "Yes", "own": True},
-        "what drew you to logistics?": {"question": "What drew you to logistics?", "answer": "Watching trucks.", "own": False},
     }
     assert (await _read(applicant)).headers["etag"] == '"1"'
-
-
-async def test_the_first_fill_keeps_the_students_answer_beside_a_draft_of_the_same_question(
-    running, applicant, database,  # noqa: F811
-):
-    """Their own answer on a form and an Apply draft word one question alike:
-    the draft fails its check, and the student's answer still fills the bank."""
-    from sqlalchemy import text
-
-    me, (job,) = await _student_queues(database, applicant, 1)
-    question = {"name": "question_4", "label": "How many hackathons have you joined?"}  # a field the tab never sent
-    await _student_answers(me, job, question, "Three.")
-    _signed_in_as(applicant)
-    await _brought(database, applicant, {question["label"]: {"answer": "I have joined 12 hackathons.", "own": False}})
-    async with database() as session:
-        await session.execute(text("DELETE FROM answer_banks"))
-        await session.commit()
-
-    assert (await _read(applicant)).json() == {filed(question): {"question": question["label"], "answer": "Three.", "own": True}}
-
-
-async def _brought(database, student, answers: dict) -> None:
-    """What Apply's sync (KAN-746) left in `fill_answers` before the bank existed."""
-    import json
-
-    from sqlalchemy import text
-
-    async with database() as session:
-        await session.execute(text("UPDATE applicant_profiles SET fill_answers = CAST(:answers AS jsonb) WHERE id = :id"),
-                              {"answers": json.dumps(answers), "id": student})
-        await session.commit()
 
 
 RULE = Rule(companies=("Hooli", "Acme"), places=("Acme",), known=frozenset({"initech"}))

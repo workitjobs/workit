@@ -1942,9 +1942,8 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    cheap.
 9. **Moving over.**
    - The migration makes `answer_banks` empty. **A student's first read
-     (or write) fills their row**, so nothing is run by hand: from
-     `fill_answers` (an own answer with no flag, the rest flagged) and
-     from the answers saved on applications that rule 3 lets in (choices,
+     (or write) fills their row**, so nothing is run by hand: from the
+     answers saved on applications that rule 3 lets in (choices,
      and the student's words in fields the tab never sent), each through
      rule 4. The import (`import_apply_profile`) writes each entry of an
      `answer-bank.yaml` into it too.
@@ -1963,8 +1962,9 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
      the network.
    - `workit_sync`, `apply sync-answers`, `answer_sync.py` and
      `workit-answers-queue.json` go. `PATCH .../fill-answers` and the
-     `fill_answers` column go once no app sends them (only Developer
-     checkouts do: no student has the app yet). `/privacy` says the bank
+     `fill_answers` column go in step 5 (2026-11-24), after a one-time
+     save of what the column held into each student's bank: only
+     Developer checkouts ever sent it, since no student has the app yet. `/privacy` says the bank
      is on WorkIt (W10).
    - **The model's flag for a question only the applicant can answer is
      `needs_applicant`** (it was `needs_lisul`: the app is no one person's).
@@ -2051,10 +2051,11 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    retry, the entry, Test Person); the sender and every write; the version
    checks; `unreviewed_answers` and the Answers view; the upload and the
    removals in rule 9; ADR 0006, the glossary and the docs.
-5. Removal: `PATCH .../fill-answers` and the code behind it, removed
-   (2026-11-24; the import writes the bank itself); the `fill_answers`
-   column and the first read's use of it; the old route once no Store
-   extension calls it.
+5. Removal, built (2026-11-24): `PATCH .../fill-answers` and the code
+   behind it (the import writes the bank itself); the `fill_answers`
+   column (`c3f9a1d27b6e`, applied after the deploy, with a one-time save
+   of what it held first: `backend/CLAUDE.md`, Deployment) and the first
+   read's use of it. Left: the old route, once no Store extension calls it.
 
 The extension has no step: W11 changes no extension code.
 
