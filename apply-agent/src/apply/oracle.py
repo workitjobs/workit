@@ -156,8 +156,13 @@ def _type_code(page: Page, code: str) -> None:
 
 
 def _error(page: Page) -> str:
+    """The error the page shows, else "". At once: an alert counted as the page goes on to its next one is gone, and
+    reading it waited Playwright's 30 s for it, past _until's own wait (the fake's email step, now and then)."""
     alerts = page.locator("[role=alert]:visible, .input-row__error:visible")
-    return alerts.first.inner_text().strip() if alerts.count() else ""
+    try:
+        return alerts.first.inner_text(timeout=1000).strip() if alerts.count() else ""
+    except PlaywrightTimeout:
+        return ""
 
 
 def _until(page: Page, done, timeout: float = TIMEOUT):

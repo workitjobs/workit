@@ -181,3 +181,29 @@ def test_oracles_code_is_searched_by_its_senders_not_by_any_code_subject():
     from apply.oracle import MAIL_SEARCH
     assert "from:(oracle.com OR oraclecloud.com)" in MAIL_SEARCH
     assert 'subject:"confirm your identity"' in MAIL_SEARCH and "subject:(code" not in MAIL_SEARCH
+
+
+def test_an_error_gone_as_the_page_goes_on_reads_as_none_at_once():
+    """The fake's email step, now and then: an alert counted just before the page went on was gone when read, and the
+    read waited Playwright's 30 s for it, so sign-in timed out on a page that had gone on."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    from apply import oracle
+
+    class Gone:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def inner_text(self, timeout=None):
+            assert timeout is not None and timeout <= 1000
+            raise PlaywrightTimeout("gone")
+
+    class Page:
+        def locator(self, selector):
+            return Gone()
+
+    assert oracle._error(Page()) == ""
