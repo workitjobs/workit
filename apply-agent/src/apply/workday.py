@@ -70,6 +70,7 @@ from apply.confirmation import wait_for_confirmation
 from apply.home import HOME
 from apply.model import (
     Answers,
+    Closed,
     FillError,
     Handoff,
     MoreQuestions,
@@ -94,6 +95,13 @@ SUBMITTED = re.compile(r"application (has been |was )?(submitted|received)|congr
                        r"|successfully (submitted|applied)", re.IGNORECASE)
 TIMEOUT = 30.0
 GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
+# The posting's Apply, or Continue Application where the Worker profile started this application before.
+START_BUTTON = "[data-automation-id=adventureButton], [data-automation-id=continueButton]"
+# Workday's page in place of a posting it no longer has ("The page you are looking for doesn't exist.", Symbotic's,
+# J&J's, Smith+Nephew's and SNC's, live 2026-11-25; their page shells said `postingAvailable: false`): no Apply
+# button, so clicking one only timed out.
+GONE = "[data-automation-id=errorContainer]"
+PASSING_ERROR = re.compile(r"went wrong|try again", re.IGNORECASE)
 SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
@@ -395,7 +403,12 @@ class WorkdayFiller:
         if _on_step(page):
             return
         # Continue Application, where the Worker profile started this application before.
-        page.locator("[data-automation-id=adventureButton], [data-automation-id=continueButton]").first.click()
+        start = page.locator(START_BUTTON).first
+        _until(page, lambda: start.is_visible() or _on_step(page) or _signing_in(page) or _gone(page))
+        if said := _gone(page):
+            raise Closed(f"Workday's page for it says \"{said}\"")
+        if start.is_visible():
+            start.click()
         manual = page.locator("[data-automation-id=applyManually]")
         _until(page, lambda: manual.is_visible() or _signing_in(page) or _on_step(page))
         if manual.is_visible():
@@ -795,6 +808,17 @@ def _on_step(page: Page) -> bool:
 
 def _signing_in(page: Page) -> bool:
     return page.locator("[data-automation-id=signInContent]").is_visible()
+
+
+def _gone(page: Page) -> str:
+    """What Workday's page says in place of a posting it no longer has, or "" on any other page. Its error page that
+    asks for a refresh ("Something went wrong") is a passing fault, never a closed posting."""
+    gone = page.locator(GONE)
+    if not gone.count() or not gone.first.is_visible():
+        return ""
+    said = gone.first.locator("[data-automation-id=errorMessage]")
+    said = (one_line(said.first.inner_text()) if said.count() else "") or "The page you are looking for doesn't exist."
+    return "" if PASSING_ERROR.search(said) else said
 
 
 def _sign_in_view(page: Page) -> bool:

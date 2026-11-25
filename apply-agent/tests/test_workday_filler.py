@@ -20,7 +20,7 @@ from fakes import FakeClaude, FakeClock, FakeMailbox
 from apply import workday
 from apply.accounts import Accounts
 from apply.keychain import InMemoryKeychain
-from apply.model import FillError, Handoff, MoreQuestions
+from apply.model import Closed, FillError, Handoff, MoreQuestions
 from apply.one_page import OnePage
 from apply.plain.bridge import PortTimeoutError
 from apply.rescue import Rescue
@@ -458,6 +458,17 @@ def test_continues_an_application_its_worker_profile_already_started():
         questions = filler.question_set(CACI_URL, site)
 
     assert questions[0].label == "How Did You Hear About Us?"
+    assert server.created == [] and server.sign_ins == []
+
+
+def test_a_posting_workday_no_longer_has_is_closed_not_a_timeout_on_its_apply_button():
+    # Fault: `_start` clicks Apply without looking for Workday's "doesn't exist" page (four postings, live 2026-11-25).
+    filler = WorkdayFiller(Accounts(InMemoryKeychain(), FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, gone=True) as server, OnePage(server) as site, \
+            pytest.raises(Closed, match="The page you are looking for doesn't exist"):
+        filler.question_set(CACI_URL, site)
+
     assert server.created == [] and server.sign_ins == []
 
 
