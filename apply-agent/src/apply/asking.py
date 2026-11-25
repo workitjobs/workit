@@ -9,6 +9,7 @@ it is for."""
 
 import re
 from collections.abc import Sequence
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,6 +34,10 @@ HOLDS = {"github": re.compile(r"github\.com/[^/\s]+/?(?:\s|$)", re.IGNORECASE), 
          "site": re.compile(r"^(?:Portfolio|Website):", re.IGNORECASE),
          "repo": re.compile(r"(?:github|gitlab|bitbucket)\.(?:com|org)/[^/\s]+/[^/\s)]+", re.IGNORECASE)}
 URL = re.compile(r"https?://[^\s)<>\]]+")
+# A question for the applicant's graduation date ("which graduation date should the cover letter give?").
+# Never "what will you do after you graduate this year?": the date's word comes before "graduate", or right after it.
+GRADUATION_ASK = re.compile(r"\bgraduation\s+(?:date|month|year|term|semester)\b"
+                            r"|\b(?:when|date|month|year|term|semester)\b[^?]{0,40}\bgraduat", re.IGNORECASE)
 # The profile's link fields by their name in a line ("GitHub: https://...").
 LINK_NAMES = {"github_url": "GitHub", "linkedin_url": "LinkedIn", "portfolio_url": "Portfolio",
               "google_scholar_url": "Google Scholar", "x_twitter_url": "X", "showcase_project_url": "Project"}
@@ -82,11 +87,22 @@ def resume_links(pdf: Path, mtime: float) -> tuple[tuple[str, str], ...]:
     return tuple(dict.fromkeys(found))
 
 
+def graduation(profile: ApplicantProfile) -> str:
+    """The profile's expected graduation as one line ("Expected graduation: May 2028"); "" when it gives none.
+    The profile's date is the one to state: the form's graduation answer comes from it, and a Story bank line
+    can be older (Anduril's cover letter, 2026-11-25, waited on a Story bank date the profile had moved)."""
+    given = str(profile.get("education.expected_graduation") or "").strip()
+    if (m := re.fullmatch(r"(\d{4})-(\d{1,2})(?:-\d{1,2})?", given)) and 1 <= int(m[2]) <= 12:
+        return f"Expected graduation: {date(int(m[1]), int(m[2]), 1):%B %Y}"
+    return f"Expected graduation: {given}" if given else ""
+
+
 def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None) -> tuple[str, ...]:
     """What Apply already holds that answers `asked`, a line a fact; () when
     it holds nothing, and Lisul must be asked. An answer Lisul gave before
     (the profile's answered questions, the Answer bank, a Story bank line
     from an earlier Essay fact) answers the same question. A question for
+    the graduation date is answered by the profile's (graduation). A question for
     links is answered by the links Apply holds when each kind it names
     (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds."""
     from apply.essays import ASK  # imported here: essays imports this module
@@ -102,6 +118,8 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None)
     if line := next((one_line(line)[2:] for line in story_bank.splitlines()
                      if one_line(line).casefold().startswith(f"- {asked}".casefold())), ""):
         return (line,)
+    if GRADUATION_ASK.search(asked) and (graduates := graduation(profile)):
+        return (graduates,)
     if not LINK_ASK.search(asked):
         return ()
     held = links(profile)

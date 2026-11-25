@@ -619,13 +619,15 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     """What essays may draw on: the Story bank and Lisul's Stock answers, their
     approved core answer (apply.stock) of each Question type in `types`, the
     Application's Company material when it has some, the town they live
-    in (<home>), and their links (<links>: apply.asking.links). With
+    in (<home>), the profile's graduation date (<graduation>: apply.asking.graduation,
+    which holds over another date the Story bank gives), and their links (<links>: apply.asking.links). With
     `facts`, their Applicant profile facts too, for drafted answers to
     one-off questions: with `posting`, as the plan reads them (profile_facts)."""
     own = {key: value for key, value in (profile.get("stock_answers") or {}).items() if value}
     return (
         (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
+        + (f"<graduation>\n{graduates}\n</graduation>\n" if (graduates := asking.graduation(profile)) else "")
         + f"<story_bank>\n{data_folder.STORY_BANK.read_text()}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
         + f"<stock_answers>\n{json.dumps(own, indent=1)}\n</stock_answers>"
