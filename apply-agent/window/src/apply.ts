@@ -22,6 +22,7 @@ export type Shown = {
   logo_url?: string;
   worker?: number;
   at?: string;
+  doing?: string; // what a form being filled is doing now, in the Worker's own line (stuck.doing)
   since?: number; // when the tile took its status (seconds since 1970): how long a form has filled or waited
   from?: string; // "tracker": an Application from an earlier run
   live?: boolean; // a form still filling that asks its questions now

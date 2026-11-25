@@ -2,7 +2,7 @@
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Filled, Run, Shown, Waiting } from "./apply.ts";
 import type { AppliedJob, Queued, Usage } from "./bridge.ts";
-import { DEVELOPER, said } from "./words.ts";
+import { DEVELOPER, said, step } from "./words.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
 
@@ -20,6 +20,7 @@ export type Job = {
   worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
   reason?: string; // why it didn't go through, in the student's words
   retry?: string; // what /fill-again names it by, when Apply holds its page to fill again: Try again
+  step?: string; // what it is doing now, in the student's words, when Apply says
   since?: number; // when it took its status (ms since 1970), when Apply says: how long it has filled or waited
   held?: boolean; // its form is open and waiting for the student: Stop applying or quitting closes it
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
@@ -128,6 +129,7 @@ export function view(state: ApplyState): View {
       worker: tile ? tile.worker : item?.worker,
       reason: c.status === "stopped" ? reason(shown) : undefined,
       retry: c.status === "stopped" && tile && (tile.again || tile.askable || tile.refill) ? `tile-${tile.worker}` : undefined,
+      step: c.status === "filling" ? step(shown.doing) : undefined,
       since: sinceOf(shown),
       held: !!tile?.again && c.status !== "submitted",
       source: { ...shown, questions: item?.questions ?? tile?.questions },
@@ -253,6 +255,26 @@ export function stopWords(v: Pick<View, "held" | "queued">): { ask: string; newO
     };
   return { ask: v.held ? `Stop? ${forms} waiting for you will close. Nothing gets submitted.` : "Stop every application? Nothing gets submitted.", all: "Stop" };
 }
+
+// The run's count under the heading: "3 of 10 done · 2 need you · 4 filling · 1 waiting". Only this run's jobs count:
+// the applications from earlier runs (Tracker rows) aren't in it. Empty when no run goes or it has no jobs.
+export function runLine(v: View): string {
+  const done = v.applied.filter((j) => j.source.from !== "tracker").length;
+  const total = done + v.todo.length + v.working.length + v.stopped.length + v.queued;
+  if (!v.running || !total) return "";
+  return [
+    `${done} of ${total} done`,
+    v.todo.length && `${v.todo.length} ${v.todo.length === 1 ? "needs" : "need"} you`,
+    v.working.length && `${v.working.length} filling`,
+    v.queued && `${v.queued} waiting`,
+    v.stopped.length && `${v.stopped.length} didn't go through`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// A form being worked on, as its row says: "Filling · 6 min", or "Checking · 6 min".
+export const working = (job: Job, now: number) => [job.status === "checking" ? "Checking" : "Filling", ago(job.since, now)].filter(Boolean).join(" · ");
 
 // What each to-do asks, in a few plain words, for the "Needs you" list.
 const ASKS_IN_WORDS: Record<Ask, string> = {

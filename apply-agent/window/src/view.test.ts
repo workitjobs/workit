@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, ago, needsYou, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, ago, needsYou, runLine, working, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -496,4 +496,25 @@ test("a wait reads in minutes, then hours", () => {
   assert.equal(ago(NOW - 125 * 60_000, NOW), "2 h 5 min");
   assert.equal(ago(NOW - 120 * 60_000, NOW), "2 h");
   assert.equal(ago(undefined, NOW), "");
+});
+
+test("the run's line counts every job of this run, and none of an earlier run's", () => {
+  const v = view({
+    tiles: [job({ posting_url: "https://f1" }), job({ posting_url: "https://f2" }), waiting({ posting_url: "https://w", worker: 2 })],
+    items: [job({ tone: "submitted", posting_url: "https://d" }), job({ tone: "submitted", posting_url: "https://old", from: "tracker" })],
+    run: { mode: "rehearsal", queued: 1 },
+  });
+  assert.equal(runLine(v), "1 of 5 done · 1 needs you · 2 filling · 1 waiting");
+  assert.equal(runLine(view({ tiles: [], items: [] })), "");
+  assert.equal(runLine(view({ tiles: [job({ tone: "failed", posting_url: "https://p" })], items: [], run: { mode: "rehearsal" } })), "0 of 1 done · 1 didn't go through");
+});
+
+test("a form being worked on says how long, and the step only when Apply's line is one the student knows", () => {
+  const filling = view({ tiles: [job({ doing: "Writing answers for page 2", since: NOW / 1000 - 360 })], items: [] }).working[0];
+  assert.equal(working(filling, NOW), "Filling · 6 min");
+  assert.equal(filling.step, "Writing answers");
+  const other = view({ tiles: [job({ doing: "Claude is rehearsing", tone: "verifying", since: NOW / 1000 - 60 })], items: [] }).working[0];
+  assert.equal(working(other, NOW), "Checking · 1 min");
+  assert.equal(other.step, undefined);
+  assert.equal(view({ tiles: [job({ doing: "Handoff to Browser 2" })], items: [] }).working[0].step, undefined);
 });

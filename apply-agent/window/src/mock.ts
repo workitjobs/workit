@@ -131,9 +131,11 @@ const asana: Shown = {
     { question: "Desired hourly pay", answer: "$30", from: "written", kind: "text", topic: "pay" },
   ],
 };
-const stripe: Shown = { tone: "filling", company: "Stripe", company_domain: "stripe.com", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22 };
+const stripe: Shown = { tone: "filling", company: "Stripe", company_domain: "stripe.com", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22, doing: "Writing answers for page 2" };
 const linear: Shown = { tone: "verifying", company: "Linear", company_domain: "linear.app", role: "Backend Engineer Intern", posting_url: "https://linear/1", worker: 2 };
 const vercel: Shown = { tone: "submitted", company: "Vercel", company_domain: "vercel.com", role: "Software Engineer, New Grad", posting_url: "https://vercel/1", from: "tracker" };
+// Submitted in this run (no `from`), so the run's count has one done.
+const lyft: Shown = { tone: "submitted", company: "Lyft", company_domain: "lyft.com", role: "Software Engineer Intern", posting_url: "https://lyft/1" };
 const datadog: Shown = { tone: "submitted", company: "Datadog", company_domain: "datadoghq.com", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
 
 // Didn't go through: a failed form and a ruled-out one whose pages Apply holds (Try again), and three it can't retry.
@@ -153,9 +155,9 @@ const running = (queued: number) => ({ mode: "rehearsal", queued, waiting: WAITI
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
   questions: () => ({ tiles: [stripe], items: [ramp], run: running(2) }),
-  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, figma, notion, vercel, datadog], run: running(3) }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, figma, notion, lyft, vercel, datadog], run: running(3) }),
   ready: () => ({ tiles: [stripe, { ...notion, worker: 1, again: true }], items: [notion, vercel], run: running(3) }),
-  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
+  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog, lyft], run: running(3) }),
   stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
 };
 

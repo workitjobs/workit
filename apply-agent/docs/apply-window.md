@@ -137,6 +137,11 @@ for a student, not from `dashboard_page.py`.
   Workers run headless, so this is the only place to see one being filled.
   The page asks `Bridge.frames` for a newer screen of that tile, again and
   again, while it is open.
+- **The run's count** (`runLine`) sits under the heading while a run goes:
+  "3 of 10 done · 2 need you · 4 filling · 1 waiting". It counts this run's
+  jobs only. Each "Still working on" row says "Filling · 6 min" (from the
+  tile's `since`) and, when Apply's `doing` line is one `words.step` knows,
+  its step: "Writing answers".
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,

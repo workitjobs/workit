@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, needsYou, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, needsYou, runLine, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view, working } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -247,6 +247,7 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
   return (
     <>
       <h1 className="text-heading">{headline(v)}</h1>
+      {runLine(v) && <p className="mt-1 text-body text-ink-meta">{runLine(v)}</p>}
       {v.todo.length > 0 && <Needs v={v} at={i} go={setAt} now={now} />}
       {v.todo.length ? (
         <div className="mt-4">
@@ -275,7 +276,7 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
         <section className="mt-10">
           <h3 className="mb-2 text-note font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
-            <Row key={job.key} job={job} watch={app.frames} />
+            <Row key={job.key} job={job} watch={app.frames} now={now} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
           {v.waiting.map((w) => (
@@ -346,7 +347,7 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
 
 // `app` on the Applied page, where a submitted Application has Report a problem; none for a job still being filled.
 // `watch`, on a job still being filled: Watch shows its form as the Worker's Chrome has it now.
-function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"] }) {
+function Row({ job, app, watch, now = Date.now() }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"]; now?: number }) {
   const submitted = job.status === "submitted";
   const [watching, setWatching] = useState(false);
   const live = !!watch && job.worker !== undefined && !submitted;
@@ -363,13 +364,14 @@ function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMetho
             <CheckIcon weight="bold" className="size-3.5" /> Submitted
           </span>
         ) : (
-          <span className="w-28 text-right">
+          <span className="w-36 text-right">
             {live && (
               <button onClick={() => setWatching(!watching)} className="mb-1 text-note font-semibold text-brand-ink hover:underline">
                 {watching ? "Hide" : "Watch"}
               </button>
             )}
-            <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
+            <span className="block text-note text-ink-meta">{working(job, now)}</span>
+            {job.step && <span className="block text-note text-ink-meta">{job.step}</span>}
             <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
               {bar(job) === "unknown" ? (
                 <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
