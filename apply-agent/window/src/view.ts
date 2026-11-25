@@ -1,6 +1,6 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
-import type { ApplyState, Run, Shown, Waiting } from "./apply.ts";
+import type { ApplyState, Filled, Run, Shown, Waiting } from "./apply.ts";
 import type { AppliedJob, Queued, Usage } from "./bridge.ts";
 import { DEVELOPER, said } from "./words.ts";
 
@@ -157,6 +157,66 @@ export function checks(s: Shown): string[] {
     s.files?.some((f) => /r[eé]sum[eé]|\bcv\b/i.test(f.label ?? "")) && "Resume attached",
   ].filter((line): line is string => !!line);
 }
+
+// Where an answer came from, in the student's words.
+export const FROM: Record<Filled["from"], string> = { profile: "Your profile", saved: "Your saved answer", written: "Written by WorkIt" };
+
+// Why an answer is worth a glance before Submit, most first: what WorkIt wrote, then work authorization and
+// sponsorship, demographics, school and graduation, pay, and the files attached. A wrong one of these is what an
+// employer reads first; the rest (a name, a phone number) comes straight from the student's profile.
+const GLANCE: [(a: Filled) => boolean, string][] = [
+  [(a) => a.from === "written", "WorkIt wrote this"],
+  [(a) => a.topic === "legal", "Work authorization"],
+  [(a) => a.topic === "eeo", "Demographics"],
+  [(a) => a.topic === "school", "Education"],
+  [(a) => a.topic === "pay", "Pay"],
+  [(a) => a.topic === "file" || a.kind === "file", "File attached"],
+];
+
+export type Row = Filled & { glance: string }; // glance: why to look at it, or "" for one that needs no glance
+
+// "What we filled": the answers worth a glance first (`look`, in GLANCE's order, then the form's), then the rest in
+// the form's order. Only what Apply sent in the state: nothing the window reads or guesses itself.
+export function filledIn(s: Shown): { look: Row[]; rest: Row[] } {
+  const rows = (s.answers ?? []).map((a) => {
+    const at = GLANCE.findIndex(([test]) => test(a));
+    return { ...a, glance: at < 0 ? "" : GLANCE[at][1], at };
+  });
+  const look = rows.filter((r) => r.at >= 0).sort((a, b) => a.at - b.at);
+  const strip = ({ at: _, ...row }: Row & { at: number }): Row => row;
+  return { look: look.map(strip), rest: rows.filter((r) => r.at < 0).map(strip) };
+}
+
+// A long answer (an essay) cut at a word to `max` characters, with whether it was cut: "Show more" shows the rest.
+export function clip(text: string, max = 220): { text: string; cut: boolean } {
+  if (text.length <= max) return { text, cut: false };
+  const at = text.lastIndexOf(" ", max);
+  return { text: `${text.slice(0, at > max / 2 ? at : max).trimEnd()}…`, cut: true };
+}
+
+// What the Pre-submit review changed after checking, as the card says it: a heading and a line each.
+export function changes(s: Shown): { heading: string; lines: string[] } | null {
+  const fixed = s.fixed ?? [];
+  if (!fixed.length) return null;
+  return {
+    heading: `We changed ${plural(fixed.length, "answer")} after checking`,
+    lines: fixed.map((f) => `${f.question}: ${f.was || "blank"} → ${f.now}`),
+  };
+}
+
+// Each answer verifying says needs the student, in plain words: its question, then why. Apply's own names for itself
+// and its checks (words.ts' DEVELOPER) are said as WorkIt's.
+export function flagged(s: Shown): string[] {
+  return (s.flags ?? []).map((f) => {
+    const why = f.why
+      .replace(/^(Verify|Pre-submit (review|check failed\.?)):?\s*/i, "")
+      .replace(/\bClaude\b/g, "WorkIt");
+    return f.field ? `${f.field}: ${why}` : why.charAt(0).toUpperCase() + why.slice(1);
+  });
+}
+
+// What to do about a flagged answer: the app never submits, so the student fixes it on the form and submits there.
+export const FIX_IN_FORM = "Fix it in the form, then press Submit there.";
 
 // How far a job still being worked on has got, for its bar: the share of questions filled, or "unknown" while Apply
 // hasn't counted them (it counts them when a fill pauses or ends) or checks the answers. Never a made-up share.

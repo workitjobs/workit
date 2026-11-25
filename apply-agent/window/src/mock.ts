@@ -87,11 +87,48 @@ const notion: Shown = {
   filled: 22,
   asked: 22,
   files: [{ label: "Resume/CV", name: "Resume.pdf" }],
+  // What the held card's "What we filled" lists, and what the Pre-submit review changed after checking. Made up.
+  answers: [
+    { question: "First Name", answer: "Test", from: "profile", kind: "text", topic: "" },
+    { question: "Email", answer: "test.person@example.com", from: "profile", kind: "text", topic: "" },
+    { question: "Resume/CV", answer: "Resume.pdf", from: "profile", kind: "file", topic: "file" },
+    { question: "Are you legally authorized to work in the United States?", answer: "Yes", from: "profile", kind: "select", topic: "legal" },
+    { question: "Will you now or in the future require sponsorship?", answer: "No", from: "profile", kind: "select", topic: "legal" },
+    { question: "Expected graduation date", answer: "May 2028", from: "profile", kind: "text", topic: "school" },
+    { question: "How did you hear about us?", answer: "WorkIt", from: "saved", kind: "select", topic: "" },
+    { question: "Gender", answer: "Decline to self-identify", from: "profile", kind: "select", topic: "eeo" },
+    {
+      question: "Why Notion?",
+      answer:
+        "I've used Notion to run my robotics team's build season, from part tracking to match notes, and what stuck with me is how one tool bent to fit four different ways of working. I want to help build the parts of it that make that possible, and I'd bring the habit of shipping small, testable pieces that I learned keeping a robot running between matches.",
+      from: "written",
+      kind: "textarea",
+      topic: "",
+    },
+  ],
+  fixed: [{ question: "Expected graduation date", was: "May 2027", now: "May 2028" }],
   essays: [
     {
       question: "Why Notion?",
       text: "I've used Notion to run my robotics team's build season, from part tracking to match notes, and what stuck with me is how one tool bent to fit four different ways of working…",
     },
+  ],
+};
+// A form verifying flagged: the check card lists each flag first, then what was filled.
+const asana: Shown = {
+  id: "9",
+  tone: "needs",
+  kind: "check",
+  company: "Asana",
+  company_domain: "asana.com",
+  role: "Software Engineer Intern",
+  posting_url: "https://jobs.ashbyhq.com/asana/1",
+  system: "Ashby",
+  worker: 3,
+  flags: [{ field: "Expected graduation date", why: "the form shows May 2027, but your profile says May 2028" }],
+  answers: [
+    { question: "Expected graduation date", answer: "May 2028", from: "profile", kind: "text", topic: "school" },
+    { question: "Desired hourly pay", answer: "$30", from: "written", kind: "text", topic: "pay" },
   ],
 };
 const stripe: Shown = { tone: "filling", company: "Stripe", company_domain: "stripe.com", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22 };
@@ -116,7 +153,7 @@ const running = (queued: number) => ({ mode: "rehearsal", queued, waiting: WAITI
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
   questions: () => ({ tiles: [stripe], items: [ramp], run: running(2) }),
-  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: running(3) }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, figma, notion, vercel, datadog], run: running(3) }),
   ready: () => ({ tiles: [stripe], items: [notion, vercel], run: running(3) }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
   stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
