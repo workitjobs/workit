@@ -21,6 +21,7 @@ import time
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from apply import submit_guard
 from apply.accounts import Accounts
 from apply.model import Handoff
 
@@ -74,8 +75,15 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
         _agree(page, disclaimer)
     since = accounts.clock.now()
     _decline_cookies(page)
-    page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
-    _until(page, lambda: not email.is_visible() or _error(page))
+    submit_guard.let_account_click(page)  # the email step's Next is a sign-in's press, never the application's (KAN-868)
+    try:
+        page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
+        _until(page, lambda: not email.is_visible() or _error(page))
+    except TimeoutError:  # the press went nowhere: a guard or the page stopped it (Honeywell's, live)
+        raise Handoff(f"Oracle didn't go on past its email step after Next ({page.url}): finish signing in "
+                      "yourself.") from None
+    finally:
+        submit_guard.let_account_click(page, False)
     if email.is_visible():
         raise Handoff(f"Oracle didn't take the email address: {_error(page)}")
     asked_last_name = False
@@ -165,7 +173,8 @@ def _error(page: Page) -> str:
         return ""
 
 
-def _until(page: Page, done, timeout: float = TIMEOUT):
+def _until(page: Page, done, timeout: float | None = None):
+    timeout = TIMEOUT if timeout is None else timeout
     end = time.monotonic() + timeout
     while True:
         try:

@@ -15,6 +15,8 @@ from fakes import FakeClaude
 from test_employer_accounts import NOW, World
 from test_matches import feed_record
 
+from apply.model import Handoff
+
 MACYS_FORM = FORMS / "oracle-macys"
 MACYS_URL = "https://ebwh.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/91780"
 QUESTIONS = [
@@ -207,3 +209,46 @@ def test_an_error_gone_as_the_page_goes_on_reads_as_none_at_once():
             return Gone()
 
     assert oracle._error(Page()) == ""
+
+
+class _Clock:
+    def now(self):
+        return NOW
+
+
+class _Accounts:
+    login = "test.person@example.com"
+    clock = _Clock()
+
+
+def test_a_rehearsals_guard_lets_the_email_steps_next_go_on():
+    """Honeywell's Oracle site (live): under a rehearsal's guard Next on the email step was blocked as a form's submit
+    (KAN-868), since that form holds Oracle's honeypot box beside the email and the page a shut AI Assist pop-up's empty
+    text box, and sign-in timed out. Apply's own press of it is a sign-in's, and neither of those is an answer."""
+    from apply import oracle, submit_guard
+
+    with submit_guard.guarding_on_open(), FakeOracleServer(MACYS_FORM, verify=None) as server, server.open(MACYS_URL) as page:
+        oracle.sign_in(page, _Accounts(), "Person", agree_to_terms=True)
+        assert page.url.endswith("/__fake__/form")
+    [email_step] = server.emails
+    assert (email_step["email"], email_step["accepted"], email_step["honeypot"]) == ("test.person@example.com", True, "")
+
+
+def test_a_next_that_doesnt_go_on_is_a_handoff_not_a_timeout(monkeypatch):
+    """A Next the page or a guard stops leaves the email step showing with no error: Lisul goes on himself."""
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    monkeypatch.setattr(oracle, "TIMEOUT", 1.0)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<form onsubmit="return false"><input type="email"><button>Next</button></form>')
+        try:
+            oracle.sign_in(page, _Accounts(), "Person", agree_to_terms=True)
+        except Handoff as handoff:
+            assert "didn't go on past its email step" in str(handoff) and "finish signing in yourself" in str(handoff)
+        else:
+            raise AssertionError("no Handoff")
+        browser.close()
