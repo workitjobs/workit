@@ -746,6 +746,20 @@ def notify(title: str, message: str) -> None:
     center.deliverNotification_(notice)
 
 
+def badge(count: int) -> None:
+    """The Dock icon's badge: how many forms wait on the student, none for 0 (Dashboard's `badge`). On a Mac only, and
+    never an error where there is no Dock (a test, a Developer checkout without an app bundle)."""
+    if sys.platform != "darwin":
+        return
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        from PyObjCTools import AppHelper
+    except ImportError:
+        return
+    label = str(count) if count > 0 else ""
+    AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""

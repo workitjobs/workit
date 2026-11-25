@@ -198,7 +198,7 @@ class Runs:
                               quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
                               sample=self._profile.get("sample_data") is True, tracker_url=tracker_url(),
                               back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
-                              notify=app_window.notify, answer=saving_answers(lambda: made.tracker, answers),
+                              notify=app_window.notify, badge=app_window.badge, answer=saving_answers(lambda: made.tracker, answers),
                               serve=False) as board:
                 made.board = board
                 show(board)

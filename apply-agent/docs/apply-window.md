@@ -142,6 +142,12 @@ for a student, not from `dashboard_page.py`.
   jobs only. Each "Still working on" row says "Filling · 6 min" (from the
   tile's `since`) and, when Apply's `doing` line is one `words.step` knows,
   its step: "Writing answers".
+- **Notifications and the Dock badge.** While the window is behind, a
+  macOS notification titled "WorkIt Auto Apply" names each form newly
+  waiting and what it asks ("Amazon: sign in needed", "Stripe: ready to
+  submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
+  (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
+  (`dashboard.todo_count`), and clears when the run ends.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,
