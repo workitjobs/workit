@@ -6,7 +6,7 @@ import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, FIX_IN_FORM, FROM, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged } from "./view.ts";
+import { type Asked, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged, wantedFields } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -51,29 +51,41 @@ function Body(props: Props) {
     case "sign-in":
       return (
         <Open title={`Sign in to ${site ?? job.company}`} button="Open sign-in page" note={`You only do this once. We'll remember it for every ${site ?? "job on this site"}${site ? " job" : ""}.`} {...props}>
-          {job.company} needs an account before you can apply.
+          {job.company} needs an account before you can apply. {HANDOFF["sign-in"]}
         </Open>
       );
     case "code":
       return (
         <Open title="Type the code they emailed you" button="Open the form" {...props}>
-          {job.company} sent a code to your email. Type it into the form.
+          {HANDOFF.code}
         </Open>
       );
     case "captcha":
       return (
         <Open title="Show you're not a robot" button="Open the form" note="We carry on by ourselves once it's done." {...props}>
-          The form has a captcha. Only you can do it.
+          The form has a captcha. Only you can do it. {HANDOFF.captcha}
         </Open>
       );
     case "check":
       return <Check {...props} />;
-    default:
+    default: {
+      const wanted = wantedFields(job.source.why);
       return (
         <Open title="Finish this one yourself" button="Open the form" {...props}>
-          We got as far as we could. The rest of the form needs you.
+          {wanted.length ? `${site ?? "The site"} won't go on until you fill in:` : HANDOFF.finish}
+          {wanted.length > 0 && (
+            <>
+              <ul className="mt-2 list-disc pl-5">
+                {wanted.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+              <span className="mt-2 block">{HANDOFF.fields}</span>
+            </>
+          )}
         </Open>
       );
+    }
   }
 }
 
@@ -82,15 +94,31 @@ const Note = ({ children }: { children: ReactNode }) => <p className="mt-3 text-
 
 const show = ({ job, bridge, fail }: Props) => job.worker !== undefined && bridge.open(job.worker).catch((e) => fail(e.message));
 
+// The button that brings the form's Chrome window forward. Once pressed, the card says it waits for the student there:
+// the window can't see Chrome's focus, so this is what it knows (the student opened it, and the job is still theirs).
+function OpenForm({ label, ...props }: Props & { label: string }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <>
+      <Button tone="primary" size="lg" className="mt-5" onClick={() => (setOpened(true), show(props))}>
+        {label}
+        <ArrowSquareOutIcon className="size-4" />
+      </Button>
+      {opened && (
+        <p role="status" className="mt-3 animate-pulse text-note text-ink-meta">
+          {WAITING_IN_CHROME}
+        </p>
+      )}
+    </>
+  );
+}
+
 function Open({ title, button, note, children, ...props }: Props & { title: string; button: string; note?: string; children: ReactNode }) {
   return (
     <>
       <Title>{title}</Title>
-      <p className="mt-1 text-ink-meta">{children}</p>
-      <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
-        {button}
-        <ArrowSquareOutIcon className="size-4" />
-      </Button>
+      <div className="mt-1 text-ink-meta">{children}</div>
+      <OpenForm label={button} {...props} />
       {note && <Note>{note}</Note>}
     </>
   );
@@ -310,10 +338,7 @@ function Submit(props: Props) {
         ))}
       </ul>
       <Changed {...props} />
-      <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
-        Open form to submit
-        <ArrowSquareOutIcon className="size-4" />
-      </Button>
+      <OpenForm label="Open form to submit" {...props} />
       <Note>Look it over, then press Submit at the bottom of the form. We never submit for you.</Note>
       <WhatWeFilled {...props} />
     </>
@@ -366,10 +391,7 @@ function Check(props: Props) {
       </ul>
       <p className="mt-3 font-medium">{FIX_IN_FORM}</p>
       <Changed {...props} />
-      <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
-        Open the form
-        <ArrowSquareOutIcon className="size-4" />
-      </Button>
+      <OpenForm label="Open the form" {...props} />
       <Note>We never submit for you.</Note>
       <WhatWeFilled {...props} />
     </>

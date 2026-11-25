@@ -193,6 +193,16 @@ for a student, not from `dashboard_page.py`.
   the student, each with its question, in WorkIt's words, then "Fix it
   in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
+- **Handing back.** Each to-do card says how the student hands the form
+  back (`HANDOFF` in `view.ts`): sign in yourself in the window that
+  opens; check your email for the code and type it (Apply reads no email);
+  finish the captcha check (Apply never solves one); fix a flagged answer
+  and press Submit there. A handoff whose reason names the fields a
+  Workday step won't leave (`wantedFields`, from its "Error-<field> The
+  field ..." lines) lists them and says to press Next there. Once the
+  student presses Open on a card, it says "Waiting for you in Chrome…":
+  Apply tells the page nothing of Chrome's focus, so this is only what the
+  page itself knows.
 - **The Approve card stays (decided, stories 16 and 17)** with its mock,
   though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,

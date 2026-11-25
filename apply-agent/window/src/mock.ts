@@ -57,6 +57,22 @@ const nvidia: Shown = {
   worker: 2,
   do: "Sign in to NVIDIA's Workday site once",
 };
+// A Workday step it won't leave: the card names the fields it wants. Made up.
+const sierra: Shown = {
+  id: "11",
+  tone: "needs",
+  kind: "handoff",
+  company: "Sierra Space",
+  company_domain: "sierraspace.com",
+  role: "Software Engineer Intern",
+  posting_url: "https://sierraspace.wd5.myworkdayjobs.com/1",
+  system: "Workday",
+  worker: 4,
+  why: "Workday won't leave its 'Application Questions 1 of 2' step: Error-Are you currently employed? The field Are you currently employed? is required and must have a value. Error-Do you have intellectual property? The field Do you have intellectual property? is required and must have a value.",
+};
+// A captcha, and an emailed code: each card says how to hand the form back.
+const gecko: Shown = { id: "12", tone: "needs", kind: "captcha", company: "Gecko", company_domain: "geckorobotics.com", role: "Software Engineer Intern", posting_url: "https://gecko/1", worker: 5 };
+const lucid: Shown = { id: "13", tone: "needs", kind: "needs code", company: "Lucid", company_domain: "lucidmotors.com", role: "Software Engineer Intern", posting_url: "https://lucid/1", worker: 6 };
 const figma: Shown = {
   id: "8",
   tone: "needs",
@@ -153,7 +169,7 @@ const running = (queued: number) => ({ mode: "rehearsal", queued, waiting: WAITI
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
   questions: () => ({ tiles: [stripe], items: [ramp], run: running(2) }),
-  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, figma, notion, vercel, datadog], run: running(3) }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, sierra, gecko, lucid, figma, notion, vercel, datadog], run: running(3) }),
   ready: () => ({ tiles: [stripe, { ...notion, worker: 1, again: true }], items: [notion, vercel], run: running(3) }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
   stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),

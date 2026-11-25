@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -463,4 +463,19 @@ test("the review's changes say each question, from what to what, and nothing whe
 test("each flag is said with its question and in WorkIt's words, never Apply's", () => {
   const flags = [{ field: "Pay", why: "Pre-submit review: Claude wrote $90, more than the posting's range" }, { field: "", why: "Verify: a file is empty" }];
   assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
+});
+
+test("a handoff's fields are named once each, from the reason's Error- lines", () => {
+  const why = "Workday won't leave its 'Application Questions 1 of 2' step: Error-Are you currently employed? The field Are you currently employed? is required and must have a value. Error-Do you have IP? The field Do you have IP? is required. Error-Are you currently employed? The field Are you currently employed? is required.";
+  assert.deepEqual(wantedFields(why), ["Are you currently employed?", "Do you have IP?"]);
+  assert.deepEqual(wantedFields("Needs your iCIMS account"), []);
+  assert.deepEqual(wantedFields(undefined), []);
+});
+
+test("each handoff says how to hand back, and never that the app solves, reads or submits", () => {
+  assert.match(HANDOFF["sign-in"], /Sign in yourself.*come back here/);
+  assert.match(HANDOFF.code, /We don't read your email/);
+  assert.match(HANDOFF.captcha, /^Finish the check/);
+  assert.match(HANDOFF.fields, /press Next there/);
+  for (const line of Object.values(HANDOFF)) assert.doesNotMatch(line, /we (solve|read your|submit)/i);
 });

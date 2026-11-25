@@ -223,6 +223,25 @@ export function flagged(s: Shown): string[] {
 // What to do about a flagged answer: the app never submits, so the student fixes it on the form and submits there.
 export const FIX_IN_FORM = "Fix it in the form, then press Submit there.";
 
+// What each handoff card says to do, in the student's voice: how to hand the form back, since the app never presses Submit,
+// types into an employer's sign-in, solves a captcha or reads email.
+export const WAITING_IN_CHROME = "Waiting for you in Chrome…";
+
+export const HANDOFF = {
+  "sign-in": "Sign in yourself in the window that opens, then come back here. We'll carry on.",
+  code: "Check your email for the code and type it into the form. We don't read your email.",
+  captcha: "Finish the check in the window that opens.",
+  finish: "We got as far as we could. The rest of the form needs you.",
+  fields: "Fill these in the form, then press Next there.",
+} as const;
+
+// The fields an ATS (Workday) won't go past a step without, from the Worker's reason ("... Error-<field> The field <field>
+// is required ..."), each once and in the form's order. None when the reason names none.
+export function wantedFields(why: string | undefined): string[] {
+  const found = [...(why ?? "").matchAll(/Error-(.+?)\s+The field\b/g)].map((m) => m[1].trim());
+  return [...new Set(found)];
+}
+
 // How far a job still being worked on has got, for its bar: the share of questions filled, or "unknown" while Apply
 // hasn't counted them (it counts them when a fill pauses or ends) or checks the answers. Never a made-up share.
 export const bar = (job: Job): number | "unknown" => (job.progress === undefined ? "unknown" : job.progress);
