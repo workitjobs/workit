@@ -370,6 +370,28 @@ def test_an_optional_catch_all_box_is_always_left_blank_and_never_drafted_nor_as
     assert not note.holds and note.why == f"left blank on purpose: {worker.CATCH_ALL_BLANK}"
 
 
+def test_the_window_lists_each_answer_by_where_it_came_from_and_never_a_secret(tmp_path):
+    # The student page's "What we filled" (worker._Planned.listed). Its faults: an essay WorkIt wrote shown as the
+    # student's own, a pay answer not marked for a glance, or a job-site password Apply typed shown in the window.
+    posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
+    first = Question("first", "First Name", "text", True)
+    pay = Question("pay", "What are your hourly pay expectations?", "text", True)
+    password = Question("pw", "Create a password", "text", True)
+    claude = FakeClaude(essays={"Why do you want": "Amplify's tutoring tools helped me."})
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
+                              AnswerBank(), date(2026, 11, 4))
+    assert planned.add([first, WHY, pay, password]) is None
+    planned.lisuls = {"pw": "a-made-up-password"}  # as the student's own typing on a paused page would be kept
+    planned.answers = planned.answers
+
+    listed = {row["question"]: row for row in planned.listed()}
+    assert list(listed) == ["First Name", WHY.label, pay.label]
+    assert listed["First Name"]["from"] == listed[pay.label]["from"] == worker.PROFILE
+    assert listed[WHY.label] == {"question": WHY.label, "answer": "Amplify's tutoring tools helped me.",
+                                 "from": worker.WRITTEN, "kind": "textarea", "topic": ""}
+    assert listed[pay.label]["topic"] == "pay"
+
+
 def test_a_required_catch_all_box_is_still_answered(tmp_path):
     posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
     required = Question("extra", "Additional information", "textarea", True)

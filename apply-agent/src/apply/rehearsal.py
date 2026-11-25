@@ -911,7 +911,10 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
                  where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
                  planned=_planned(rehearsed.left_behind),
-                 written=rehearsed.form.shown() if rehearsed.form else [])
+                 written=rehearsed.form.shown() if rehearsed.form else [],
+                 # What the student page's held card lists: each answer filled, and each the Pre-submit review changed.
+                 answers=list(result.listed),
+                 fixed=[{"question": q, "was": was, "now": now} for q, was, now in result.fixed])
     _noted(url, site, adapters, posting, rehearsed.outcome, rehearsed)
     return rehearsed
 
