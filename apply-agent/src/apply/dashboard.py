@@ -244,6 +244,35 @@ LOGO = ("company_domain", "logo_url")  # what of it each tile and item of that j
 # Developer one) until paused_until.
 PAUSED_AT = "usage cap"
 
+NOTICE_TITLE = "WorkIt Auto Apply"
+# What each kind of to-do asks, as a notification says it after the company's name.
+NOTICE_ACTIONS = {"held": "your OK needed", "missing fact": "question for you", "needs sign-in": "sign in needed",
+                  "check": "answer to check", "captcha": "captcha to do", "blocked": "finish it yourself",
+                  "handoff": "finish it yourself", "needs code": "code needed", "ready to submit": "ready to submit",
+                  "code filled": "ready to submit"}
+NOTICE_NAMES = 3  # forms a notification names before "and N more"
+
+
+def notice_text(items: list[dict]) -> str:
+    """A notification's line for items newly waiting on him: "Amazon: sign in needed", or several joined by ";"."""
+    named = [f"{i.get('company') or 'A job'}: {NOTICE_ACTIONS.get(verdict(i).get('kind', ''), 'needs you')}"
+             for i in items]
+    more = len(named) - NOTICE_NAMES
+    return "; ".join(named[:NOTICE_NAMES]) + (f"; and {more} more" if more > 0 else "")
+
+
+def todo_count(tiles: list[dict], items: list[dict]) -> int:
+    """How many jobs wait on the student, as the window counts its to-dos: a form's tile says where it is now, else
+    its item; one answered in the window waits no more."""
+    def key(shown: dict) -> str:
+        return str(shown.get("posting_url") or (f"{shown['company']}|{shown['role']}" if shown.get("company") and shown.get("role") else shown.get("id")))
+    live = {key(t): t for t in reversed(tiles) if t.get("tone") not in (None, "idle") and not t.get("let_go")}
+    past = {key(i): i for i in reversed(items)}
+    answered = {k for k, i in past.items() if i.get("answered")}
+    return sum(1 for k in live.keys() | past.keys()
+               if (live.get(k) or past[k]).get("tone") in ("needs", "ready") and k not in answered)
+
+
 def verdict(caption: dict) -> dict[str, str]:
     """What a tile says at a glance of how its Application went: a tone
     (idle, filling, ready, submitted, needs, failed, ended) and a short label;
@@ -578,6 +607,8 @@ class Dashboard:
     the Inbox (the item, the question, the answer) and says how it went.
     `notify`, when given, shows a macOS notification (title, message) of
     what newly waits on him while the window is not in front, one a minute at most.
+    `badge`, when given, hears how many forms wait on him (the window's to-dos) each time that changes, for the
+    Dock's badge; 0 when the window closes.
     `show`, when given, brings Worker k's own Chrome window to the front (False:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
     `quiet(k)`, when given, says Worker k is a plain Worker: Go to question then never
@@ -600,7 +631,8 @@ class Dashboard:
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
                  quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
-                 back: Callable[[int], bool] | None = None, serve: bool = True):
+                 back: Callable[[int], bool] | None = None, serve: bool = True,
+                 badge: Callable[[int], None] | None = None):
         self._workers = workers
         self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
@@ -632,6 +664,7 @@ class Dashboard:
         self.show = (lambda k: show(self.worker_of(k))) if show else None
         self.answer = answer
         self._answered: dict[str, str] = {}  # each item's questions Lisul answered in the window, by "id|question"
+        self._badge, self._badged = badge, 0
         self._notify, self._told, self._told_at, self._telling = notify, set(), -NOTIFY_EVERY, None
         self._focused_at = -FOCUS_FRESH  # when a poll last said the window was in front
         self._captions: list[dict[str, object]] = [{} for _ in range(workers)]
@@ -766,6 +799,7 @@ class Dashboard:
         return self._into(url, worker)
 
     def __exit__(self, *exc) -> None:
+        self._set_badge(0)
         if not self._server:
             return  # app_window's window closes with its own process
         self._server.shutdown()
@@ -813,7 +847,10 @@ class Dashboard:
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
                 caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
+            moved = "status" in caption and caption["status"] != tile.get("status")
             tile.update(caption)
+            if moved or not tile.get("since"):
+                tile["since"] = time.time()  # when it took this status: the window says how long it has filled or waited
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
             if ended:
@@ -844,7 +881,7 @@ class Dashboard:
         """One notification of every item newly waiting on Lisul, unless the
         window is in front (he sees them); within a minute of the last, once that minute is up."""
         with self._lock:
-            new = [i for i in self._items if i["id"] not in self._told and verdict(i)["tone"] == "needs"]
+            new = [i for i in self._items if i["id"] not in self._told and verdict(i)["tone"] in ("needs", "ready")]
             if not new:
                 return
             if time.monotonic() - self._focused_at < FOCUS_FRESH:
@@ -859,9 +896,8 @@ class Dashboard:
                 return
             self._telling, self._told_at = None, time.monotonic()
             self._told.update(i["id"] for i in new)
-        names = ", ".join(f"{i.get('company') or 'one'} ({WORDS.get(verdict(i)['kind'], ('',))[0]})" for i in new)
         try:
-            self._notify("Apply", f"{len(new)} application{'s need' if len(new) > 1 else ' needs'} you: {names}")
+            self._notify(NOTICE_TITLE, notice_text(new))
         except Exception:
             pass  # Notification Center unavailable: the window's title still counts them
 
@@ -1215,8 +1251,19 @@ class Dashboard:
                 item["planned"] = {q: a for q, a in (item.get("planned") or {}).items() if q in item["questions"]}
                 if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
+        self._set_badge(todo_count(captions, items))
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,
                 "context": self._context | context, "run": run}
+
+    def _set_badge(self, count: int) -> None:
+        """Tell `badge` how many forms wait on him, when that changed."""
+        if self._badge is None or count == self._badged:
+            return
+        self._badged = count
+        try:
+            self._badge(count)
+        except Exception:
+            pass  # no Dock to badge: the window's title still counts them
 
     def _tracker(self) -> tuple[list[dict], dict]:
         """The Tracker's Applications still waiting on Lisul, as items, and what

@@ -3,6 +3,8 @@ pywebview's bridge in this process, its tiles' frames and files, and the sign-in
 and no browser: in CI. tests/test_app_window_page.py runs the page's shim in Chromium."""
 
 import base64
+import sys
+import types
 
 import pytest
 from fake_workit import FakeWorkIt
@@ -698,3 +700,29 @@ def test_running_names_only_a_live_windows_pid(tmp_path):
     assert app_window.running(note) == os.getpid()
     note.write_text("2147483646")
     assert app_window.running(note) is None
+
+
+def test_the_dock_badge_never_breaks_a_run_off_a_mac_or_without_pyobjc(monkeypatch):
+    monkeypatch.setattr(app_window.sys, "platform", "linux")
+    app_window.badge(3)  # no Dock: nothing happens
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", None)  # pyobjc missing: importing it raises ImportError
+    app_window.badge(3)
+
+
+def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
+    labels = []
+
+    class DockTile:
+        def setBadgeLabel_(self, label):
+            labels.append(label)
+
+    appkit = types.SimpleNamespace(NSApplication=types.SimpleNamespace(sharedApplication=lambda: types.SimpleNamespace(dockTile=DockTile)))
+    helper = types.SimpleNamespace(callAfter=lambda call: call())
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "PyObjCTools", types.SimpleNamespace(AppHelper=helper))
+    monkeypatch.setitem(sys.modules, "PyObjCTools.AppHelper", helper)
+    app_window.badge(3)
+    app_window.badge(0)
+    assert labels == ["3", ""]

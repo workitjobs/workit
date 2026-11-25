@@ -126,7 +126,10 @@ for a student, not from `dashboard_page.py`.
   to-do: a sign-in, a question, an emailed code, a captcha, an answer to
   check, an Essay to approve, a form to finish or to submit. The window
   shows one at a time, most blocking first, with "1 of 4" and Skip for
-  now. Below it, "Still working on" lists only the jobs WorkIt is filling
+  now. Over the card, "Needs you" lists every to-do in one row each, forms
+  ready to submit first, with what it asks and how long it has waited
+  ("Ready to submit · 12 min", from the tile's `since` or the item's `at`);
+  a row jumps to its card. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. A job WorkIt hasn't counted the
   questions of yet (Apply counts them when a fill pauses or ends) or is
   checking has a bar that moves (`bar`), never a made-up share. Each one's
@@ -134,6 +137,17 @@ for a student, not from `dashboard_page.py`.
   Workers run headless, so this is the only place to see one being filled.
   The page asks `Bridge.frames` for a newer screen of that tile, again and
   again, while it is open.
+- **The run's count** (`runLine`) sits under the heading while a run goes:
+  "3 of 10 done · 2 need you · 4 filling · 1 waiting". It counts this run's
+  jobs only. Each "Still working on" row says "Filling · 6 min" (from the
+  tile's `since`) and, when Apply's `doing` line is one `words.step` knows,
+  its step: "Writing answers".
+- **Notifications and the Dock badge.** While the window is behind, a
+  macOS notification titled "WorkIt Auto Apply" names each form newly
+  waiting and what it asks ("Amazon: sign in needed", "Stripe: ready to
+  submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
+  (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
+  (`dashboard.todo_count`), and clears when the run ends.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,

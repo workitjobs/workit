@@ -1458,6 +1458,16 @@ def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(win
 
 # Notifications.
 
+def test_a_tile_says_when_it_took_its_status_and_keeps_it_while_the_status_holds():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.update(0, status="filling", company="Stripe")
+        first = board.state()["tiles"][0]["since"]
+        time.sleep(0.02)
+        board.update(0, doing="Reading the form")
+        assert board.state()["tiles"][0]["since"] == first
+        board.update(0, status="ready to submit")
+        assert board.state()["tiles"][0]["since"] > first
+
 def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behind(monkeypatch):
     monkeypatch.setattr(dashboard, "NOTIFY_EVERY", 0.5)
     told = []
@@ -1467,8 +1477,49 @@ def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behi
         board.update(2, company="Arc", status="submitted")  # nothing to do: never told
         time.sleep(0.8)
 
-    assert told == ["1 application needs you: Stripe (Waiting for your OK)",
-                    "1 application needs you: Cohere (Question only you can answer)"]
+    assert told == ["Stripe: your OK needed", "Cohere: question for you"]
+
+
+def test_a_notification_is_titled_for_the_app_and_names_each_company_and_what_it_asks(monkeypatch):
+    monkeypatch.setattr(dashboard, "NOTIFY_EVERY", 0.2)
+    sent = []
+    with Dashboard(3, FakeFrames({}), notify=lambda title, message: sent.append((title, message))) as board:
+        board.update(0, company="Amazon", status="needs sign-in", job_system="workday")
+        board.update(1, company="Stripe", status="ready to submit")
+        board.update(2, company="Arc", status="submitted")
+        time.sleep(0.6)
+
+    assert sent == [("WorkIt Auto Apply", "Amazon: sign in needed"), ("WorkIt Auto Apply", "Stripe: ready to submit")]
+
+
+def test_a_long_notification_names_three_forms_and_counts_the_rest():
+    assert dashboard.notice_text([{"company": "Amazon", "status": "needs sign-in"}, {"company": "Stripe", "status": "ready to submit"}]) \
+        == "Amazon: sign in needed; Stripe: ready to submit"
+    items = [{"company": c, "status": "ready to submit"} for c in ("A", "B", "C", "D", "E")]
+    assert dashboard.notice_text(items) == "A: ready to submit; B: ready to submit; C: ready to submit; and 2 more"
+
+
+def test_the_dock_badge_counts_the_forms_waiting_and_clears_when_the_window_closes():
+    badges = []
+    with Dashboard(2, FakeFrames({}), badge=badges.append) as board:
+        board.state()
+        board.update(0, company="Stripe", status="ready to submit", posting_url="https://s")
+        board.update(1, company="Amazon", status="needs sign-in", posting_url="https://a")
+        board.state()
+        board.state()  # unchanged: said once
+        board.update(1, company="Amazon", status="filling", posting_url="https://a")
+        board.state()
+
+    assert badges == [2, 1, 0]
+
+
+def test_todo_count_counts_each_job_once_by_where_it_is_now():
+    tiles = [{"tone": "needs", "posting_url": "https://a"}, {"tone": "filling", "posting_url": "https://b"}, {"tone": "idle"}]
+    items = [{"tone": "needs", "posting_url": "https://a", "id": 1},  # the same job as its tile
+             {"tone": "needs", "posting_url": "https://b", "id": 2},  # its tile fills it again
+             {"tone": "ready", "posting_url": "https://c", "id": 3},
+             {"tone": "needs", "posting_url": "https://d", "id": 4, "answered": True}]
+    assert dashboard.todo_count(tiles, items) == 2
 
 
 def test_nothing_is_told_while_the_window_is_in_front():

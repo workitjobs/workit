@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -201,12 +201,44 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
   );
 }
 
+// The time now, again each 30 s, so each "12 min" on the page keeps counting.
+function useNow(): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+// Every to-do in one list, so the student sees what waits on them before the card: a row jumps to its card.
+function Needs({ v, at, go, now }: { v: View; at: number; go: (at: number) => void; now: number }) {
+  return (
+    <ul aria-label="Needs you" className="mt-5 overflow-hidden rounded-card border border-border bg-panel">
+      {needsYou(v.todo, now).map((n) => (
+        <li key={n.key} className="border-b border-border last:border-0">
+          <button
+            onClick={() => go(n.at)}
+            aria-current={n.at === at ? "true" : undefined}
+            className={cx("flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-left hover:bg-hover", n.at === at && "bg-hover")}
+          >
+            <Logo company={n.company} src={v.todo[n.at].source} size="sm" />
+            <span className="min-w-0 flex-1 truncate font-semibold">{n.company}</span>
+            <span className="shrink-0 text-note text-ink-meta">{n.words}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void; applied: () => void }) {
   const submitted = !v.todo.length && !v.working.length && !v.queued ? submittedLine(v) : "";
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
   const more = v.todo.length > 1;
+  const now = useNow();
   useEffect(() => {
     if (!more) return;
     const down = (e: KeyboardEvent) => pressed(e, 0) === "skip" && setAt(i + 1);
@@ -216,8 +248,10 @@ function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge;
   return (
     <>
       <h1 className="text-heading">{headline(v)}</h1>
+      {runLine(v) && <p className="mt-1 text-body text-ink-meta">{runLine(v)}</p>}
+      {v.todo.length > 0 && <Needs v={v} at={i} go={setAt} now={now} />}
       {v.todo.length ? (
-        <div className="mt-6">
+        <div className="mt-4">
           <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
         </div>
       ) : (
@@ -252,7 +286,7 @@ function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge;
         <section className="mt-10">
           <h3 className="mb-2 text-note font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
-            <Row key={job.key} job={job} watch={app.frames} />
+            <Row key={job.key} job={job} watch={app.frames} now={now} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
           {v.waiting.map((w) => (
@@ -338,7 +372,7 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
 
 // `app` on the Applied page, where a submitted Application has Report a problem; none for a job still being filled.
 // `watch`, on a job still being filled: Watch shows its form as the Worker's Chrome has it now.
-function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"] }) {
+function Row({ job, app, watch, now = Date.now() }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"]; now?: number }) {
   const submitted = job.status === "submitted";
   const [watching, setWatching] = useState(false);
   const live = !!watch && job.worker !== undefined && !submitted;
@@ -355,13 +389,14 @@ function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMetho
             <CheckIcon weight="bold" className="size-3.5" /> Submitted
           </span>
         ) : (
-          <span className="w-28 text-right">
+          <span className="w-36 text-right">
             {live && (
               <button onClick={() => setWatching(!watching)} className="mb-1 text-note font-semibold text-brand-ink hover:underline">
                 {watching ? "Hide" : "Watch"}
               </button>
             )}
-            <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
+            <span className="block text-note text-ink-meta">{working(job, now)}</span>
+            {job.step && <span className="block text-note text-ink-meta">{job.step}</span>}
             <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
               {bar(job) === "unknown" ? (
                 <span className="sweep block h-full w-1/3 rounded-full bg-brand" />

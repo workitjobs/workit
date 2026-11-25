@@ -34,3 +34,14 @@ export function said(raw: string): string {
   if (found) return found[1];
   return DEVELOPER.test(raw) ? SOMETHING_WRONG : raw;
 }
+
+// What a form being filled is doing, from the Worker's own line (stuck.doing), in the student's words. A line that
+// names no step the student knows says nothing: never Apply's own wording.
+const STEPS: [RegExp, string][] = [
+  [/^Reading the form/, "Reading the form"],
+  [/^Reading .*pages|^Researching /, "Reading about the company"],
+  [/^(Planning|Writing answers)/, "Writing answers"],
+  [/^Filling /, "Filling in answers"],
+];
+
+export const step = (doing?: string): string | undefined => STEPS.find(([pattern]) => pattern.test(doing ?? ""))?.[1];
