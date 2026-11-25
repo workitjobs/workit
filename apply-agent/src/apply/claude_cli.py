@@ -30,7 +30,6 @@ from pathlib import Path
 
 from apply import send_click, stuck, trace
 from apply.adapters import (
-    NEEDS_WORKIT,
     ClaudeError,
     Drive,
     SetupError,
@@ -186,7 +185,12 @@ class ClaudeCLI:
         self._spent = threading.local()  # tokens used by each thread's calls
 
     def ask_kind(self, kind: str, data: dict) -> dict:
-        raise SetupError(NEEDS_WORKIT.format(kind=kind))
+        """`kind` on `claude -p`, its prompt built here from WorkIt's own (apply.local_prompts): `apply app
+        --max-plan`, on the developer's own Claude plan."""
+        from apply import local_prompts
+
+        model, built = local_prompts.build(kind, data)
+        return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
         argv = _argv(model, system, schema)

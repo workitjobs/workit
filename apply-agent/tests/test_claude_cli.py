@@ -15,7 +15,7 @@ import pytest
 from conftest import FIXTURES
 
 from apply import claude_cli
-from apply.adapters import ClaudeError, Drive, UsageLimitHit
+from apply.adapters import ClaudeError, Drive, SetupError, UsageLimitHit
 from apply.claude_cli import ClaudeCLI, run_claude
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}}
@@ -414,3 +414,23 @@ def test_no_claude_cli_on_the_path_is_a_setup_error(monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(SetupError, match="isn't installed"):
         run_claude(["claude", "-p"], "", {"PATH": str(tmp_path)})
+
+
+def test_a_kind_runs_on_claude_with_workits_own_prompt_built_here():
+    run = FakeRun(recorded("answer"))
+    ClaudeCLI(run=run).ask_kind("probe.typical", {"posting": "Build robots.", "questions": {"q1": "Why us?"},
+                                                  "school": "Stony Brook", "pronouns": "she/her/hers"})
+    argv, stdin, _ = run.calls[0]
+    assert flag(argv, "--model") == "sonnet"  # a large kind
+    assert "typical strong computer science student" in flag(argv, "--system-prompt")
+    assert "she/her/hers" in flag(argv, "--system-prompt")
+    assert "Why us?" in stdin and "q1" in json.loads(flag(argv, "--json-schema"))["properties"]["typical"]["properties"]
+
+
+def test_a_kind_needs_the_checkouts_backend_and_a_kind_it_has(tmp_path):
+    from apply import local_prompts
+
+    with pytest.raises(SetupError, match="backend"):
+        local_prompts.build("probe.typical", {}, backend=tmp_path)
+    with pytest.raises(SetupError, match="no kind"):
+        local_prompts.build("no.such", {})

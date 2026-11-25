@@ -17,6 +17,7 @@ STUDENT = False
 # retired Tracker Sheet, and the commands that only run from a terminal.
 DEVELOPER = frozenset({
     "apply.claude_cli",  # `claude -p`: ask_model: claude, research, drive, Claude Code's usage
+    "apply.local_prompts",  # WorkIt's prompts built from a checkout's backend, for `apply app --max-plan`
     "apply.claude_fill",  # drive: Claude fill
     "apply.rescue",  # drive: Rescue
     "apply.ask",  # drive: Ask Claude, and `apply ask`
