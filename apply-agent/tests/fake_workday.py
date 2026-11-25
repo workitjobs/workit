@@ -276,6 +276,12 @@ CONTINUE_SCRIPT = r"""
 })();
 """
 
+# Workday's page for a posting it no longer has (Symbotic's, live 2026-11-25), as its code renders it: no Apply button.
+GONE_PAGE = """
+<div data-automation-id="errorContainer"><span data-automation-id="errorMessage">The page you are looking for doesn't
+exist.</span><button data-automation-id="searchForJobsButton">Search for Jobs</button></div>
+"""
+
 CHOOSER_SCRIPT = r"""
 for (const account of document.querySelectorAll('[data-identifier]')) {
   account.onclick = () => { location.href = account.dataset.next; };
@@ -355,7 +361,8 @@ class FakeWorkdayServer:
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
                  lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
-                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False):
+                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False,
+                 gone: bool = False):
         self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
@@ -396,6 +403,7 @@ class FakeWorkdayServer:
         self._exists_quietly = exists_quietly
         self._hides_errors = hides_errors
         self._dates_need_calendar = dates_need_calendar
+        self._gone = gone  # each posting is one Workday no longer has: its page says so a second after it loads
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -496,6 +504,8 @@ class FakeWorkdayServer:
             return _page(route, f"<script>location.replace({json.dumps(f'{GOOGLE}/v3/signin/accountchooser?continue=' + quote(back))})</script>")
         if url.startswith(GOOGLE):
             return self._google_page(route, parts)
+        if self._gone and request.method == "GET" and "/job/" in parts.path and not parts.path.startswith("/wday/"):
+            return _page(route, _later(GONE_PAGE, 1))
         if request.method == "GET" and url in self._responses:
             status, mime, body = self._responses[url]
             return route.fulfill(status=status, content_type=mime, body=body)
