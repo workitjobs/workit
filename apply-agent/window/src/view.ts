@@ -20,6 +20,7 @@ export type Job = {
   worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
   reason?: string; // why it didn't go through, in the student's words
   retry?: string; // what /fill-again names it by, when Apply holds its page to fill again: Try again
+  since?: number; // when it took its status (ms since 1970), when Apply says: how long it has filled or waited
   held?: boolean; // its form is open and waiting for the student: Stop applying or quitting closes it
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
 };
@@ -93,6 +94,12 @@ export const reason = (shown: Shown) => {
 // One job, one key: its posting, else its company and role when it has both, else its own id.
 const keyOf = (s: Shown) => String(s.posting_url || (s.company && s.role ? `${s.company}|${s.role}` : s.id));
 
+// When a job took its status, in ms: the tile's own stamp, else when its item ended. None when Apply gave neither.
+const sinceOf = (s: Shown): number | undefined => {
+  const at = typeof s.since === "number" ? s.since * 1000 : s.at ? Date.parse(s.at) : NaN;
+  return Number.isFinite(at) ? at : undefined;
+};
+
 export function view(state: ApplyState): View {
   // A tile is the form as it is now; an item is how an earlier pass ended, or a live form's questions. The tile
   // says where the job is; the item keeps what the student answers it through.
@@ -121,6 +128,7 @@ export function view(state: ApplyState): View {
       worker: tile ? tile.worker : item?.worker,
       reason: c.status === "stopped" ? reason(shown) : undefined,
       retry: c.status === "stopped" && tile && (tile.again || tile.askable || tile.refill) ? `tile-${tile.worker}` : undefined,
+      since: sinceOf(shown),
       held: !!tile?.again && c.status !== "submitted",
       source: { ...shown, questions: item?.questions ?? tile?.questions },
     });
@@ -244,6 +252,38 @@ export function stopWords(v: Pick<View, "held" | "queued">): { ask: string; newO
       all: v.held ? `Stop and close ${v.held === 1 ? "it" : `all ${v.held}`}` : "Stop everything",
     };
   return { ask: v.held ? `Stop? ${forms} waiting for you will close. Nothing gets submitted.` : "Stop every application? Nothing gets submitted.", all: "Stop" };
+}
+
+// What each to-do asks, in a few plain words, for the "Needs you" list.
+const ASKS_IN_WORDS: Record<Ask, string> = {
+  "sign-in": "Sign in needed",
+  question: "Question for you",
+  code: "Code needed",
+  captcha: "Captcha to do",
+  check: "Answer to check",
+  approve: "Needs your OK",
+  submit: "Ready to submit",
+  finish: "Finish it yourself",
+};
+
+// How long ago `since` was, short: "just now", "12 min", "2 h 5 min". Empty when it isn't known.
+export function ago(since: number | undefined, now: number): string {
+  if (since === undefined) return "";
+  const min = Math.max(0, Math.floor((now - since) / 60_000));
+  if (min < 1) return "just now";
+  return min < 60 ? `${min} min` : min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
+}
+
+export type Need = { key: string; company: string; role: string; words: string; at: number }; // at: its place in `todo`
+
+// The "Needs you" list over the card: one row per to-do, forms ready to submit first, then the order of `todo`.
+// Each says what it asks and how long it has waited: "Ready to submit · 12 min".
+export function needsYou(todo: Job[], now: number): Need[] {
+  const rows = todo.map((j, at) => {
+    const waited = ago(j.since, now);
+    return { key: j.key, company: j.company, role: j.role, words: ASKS_IN_WORDS[j.ask!] + (waited ? ` · ${waited}` : ""), at, ready: j.ask === "submit" };
+  });
+  return [...rows.filter((r) => r.ready), ...rows.filter((r) => !r.ready)].map(({ ready: _, ...row }) => row);
 }
 
 // The page's heading: what the student should do now, in a few words. Questions count one by one, since a job

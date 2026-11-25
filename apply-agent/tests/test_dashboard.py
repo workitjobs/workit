@@ -1458,6 +1458,16 @@ def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(win
 
 # Notifications.
 
+def test_a_tile_says_when_it_took_its_status_and_keeps_it_while_the_status_holds():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.update(0, status="filling", company="Stripe")
+        first = board.state()["tiles"][0]["since"]
+        time.sleep(0.02)
+        board.update(0, doing="Reading the form")
+        assert board.state()["tiles"][0]["since"] == first
+        board.update(0, status="ready to submit")
+        assert board.state()["tiles"][0]["since"] > first
+
 def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behind(monkeypatch):
     monkeypatch.setattr(dashboard, "NOTIFY_EVERY", 0.5)
     told = []

@@ -159,6 +159,13 @@ const SCENARIOS: Record<string, () => ApplyState> = {
   stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
 };
 
+// How many minutes ago each pretend job took its status: what a to-do has waited, or a form has filled.
+const MINUTES: Record<string, number> = { Ramp: 2, NVIDIA: 3, Asana: 5, Figma: 8, Notion: 12, Stripe: 6, Linear: 2 };
+const dated = (state: ApplyState): ApplyState => {
+  for (const s of [...state.tiles, ...state.items]) if (s.company && s.company in MINUTES) s.since = Date.now() / 1000 - MINUTES[s.company] * 60;
+  return state;
+};
+
 const QUEUE: Queued[] = [
   { url: "https://stripe/1", company: "Stripe", title: "Software Engineer Intern", company_domain: "stripe.com" },
   { url: "https://jobs.ashbyhq.com/ramp/1", company: "Ramp", title: "New Grad Software Engineer", company_domain: "ramp.com" },
@@ -192,7 +199,7 @@ export function mock(
   queued = new URLSearchParams(location.search).get("queue") ?? "",
   connect = new URLSearchParams(location.search).get("connect") ?? "",
 ): Bridge {
-  let state = structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)());
+  let state = dated(structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)()));
   window.REPORT_CATEGORIES = { form: "A form was filled wrong", answer: "An essay or an answer", sign_in: "Signing in, or a job-site account", app: "The app itself", other: "Something else" };
   const listeners = new Set<(s: ApplyState) => void>();
   const push = () => listeners.forEach((on) => on(structuredClone(state)));
@@ -264,7 +271,7 @@ export function mock(
       async start(links: string[]) {
         await new Promise((done) => setTimeout(done, 800));
         if (queued === "refused") throw new Error("Chrome isn't installed. Get it from google.com/chrome, then press Start again.");
-        state = structuredClone(SCENARIOS.quiet());
+        state = dated(structuredClone(SCENARIOS.quiet()));
         push();
         return links.length;
       },

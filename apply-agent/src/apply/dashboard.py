@@ -813,7 +813,10 @@ class Dashboard:
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
                 caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
+            moved = "status" in caption and caption["status"] != tile.get("status")
             tile.update(caption)
+            if moved or not tile.get("since"):
+                tile["since"] = time.time()  # when it took this status: the window says how long it has filled or waited
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
             if ended:

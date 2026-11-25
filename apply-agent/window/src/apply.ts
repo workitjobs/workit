@@ -22,6 +22,7 @@ export type Shown = {
   logo_url?: string;
   worker?: number;
   at?: string;
+  since?: number; // when the tile took its status (seconds since 1970): how long a form has filled or waited
   from?: string; // "tracker": an Application from an earlier run
   live?: boolean; // a form still filling that asks its questions now
   answered?: boolean; // resolved in the window: it waits on the student no more

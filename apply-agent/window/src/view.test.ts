@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, ago, needsYou, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -463,4 +463,37 @@ test("the review's changes say each question, from what to what, and nothing whe
 test("each flag is said with its question and in WorkIt's words, never Apply's", () => {
   const flags = [{ field: "Pay", why: "Pre-submit review: Claude wrote $90, more than the posting's range" }, { field: "", why: "Verify: a file is empty" }];
   assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
+});
+
+const NOW = Date.parse("2026-11-25T12:00:00");
+const waiting = (over: Partial<Shown>): Shown => job({ tone: "needs", kind: "needs sign-in", ...over });
+
+test("the Needs you list puts forms ready to submit first and says how long each waited", () => {
+  const v = view({
+    tiles: [
+      waiting({ company: "Amazon", posting_url: "https://a", worker: 0, since: NOW / 1000 - 180 }),
+      job({ tone: "ready", company: "Stripe", posting_url: "https://s2", worker: 1, since: NOW / 1000 - 720 }),
+    ],
+    items: [],
+  });
+  assert.deepEqual(
+    needsYou(v.todo, NOW).map((n) => [n.company, n.words, n.at]),
+    [
+      ["Stripe", "Ready to submit · 12 min", 1],
+      ["Amazon", "Sign in needed · 3 min", 0],
+    ],
+  );
+});
+
+test("a to-do with no start time says what it asks and nothing more, and an ended item's time is when it ended", () => {
+  const v = view({ tiles: [], items: [fact({ at: "2026-11-25T11:50:00" }), waiting({ id: "5", posting_url: "https://x", company: "Ramp" })] });
+  assert.deepEqual(needsYou(v.todo, NOW).map((n) => n.words), ["Sign in needed", "Question for you · 10 min"]);
+});
+
+test("a wait reads in minutes, then hours", () => {
+  assert.equal(ago(NOW - 20_000, NOW), "just now");
+  assert.equal(ago(NOW - 59 * 60_000, NOW), "59 min");
+  assert.equal(ago(NOW - 125 * 60_000, NOW), "2 h 5 min");
+  assert.equal(ago(NOW - 120 * 60_000, NOW), "2 h");
+  assert.equal(ago(undefined, NOW), "");
 });

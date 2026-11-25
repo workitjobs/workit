@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, needsYou, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -201,11 +201,43 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
   );
 }
 
+// The time now, again each 30 s, so each "12 min" on the page keeps counting.
+function useNow(): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+// Every to-do in one list, so the student sees what waits on them before the card: a row jumps to its card.
+function Needs({ v, at, go, now }: { v: View; at: number; go: (at: number) => void; now: number }) {
+  return (
+    <ul aria-label="Needs you" className="mt-5 overflow-hidden rounded-card border border-border bg-panel">
+      {needsYou(v.todo, now).map((n) => (
+        <li key={n.key} className="border-b border-border last:border-0">
+          <button
+            onClick={() => go(n.at)}
+            aria-current={n.at === at ? "true" : undefined}
+            className={cx("flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-left hover:bg-hover", n.at === at && "bg-hover")}
+          >
+            <Logo company={n.company} src={v.todo[n.at].source} size="sm" />
+            <span className="min-w-0 flex-1 truncate font-semibold">{n.company}</span>
+            <span className="shrink-0 text-note text-ink-meta">{n.words}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void }) {
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
   const more = v.todo.length > 1;
+  const now = useNow();
   useEffect(() => {
     if (!more) return;
     const down = (e: KeyboardEvent) => pressed(e, 0) === "skip" && setAt(i + 1);
@@ -215,8 +247,9 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
   return (
     <>
       <h1 className="text-heading">{headline(v)}</h1>
+      {v.todo.length > 0 && <Needs v={v} at={i} go={setAt} now={now} />}
       {v.todo.length ? (
-        <div className="mt-6">
+        <div className="mt-4">
           <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
         </div>
       ) : (

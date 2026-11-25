@@ -126,7 +126,10 @@ for a student, not from `dashboard_page.py`.
   to-do: a sign-in, a question, an emailed code, a captcha, an answer to
   check, an Essay to approve, a form to finish or to submit. The window
   shows one at a time, most blocking first, with "1 of 4" and Skip for
-  now. Below it, "Still working on" lists only the jobs WorkIt is filling
+  now. Over the card, "Needs you" lists every to-do in one row each, forms
+  ready to submit first, with what it asks and how long it has waited
+  ("Ready to submit · 12 min", from the tile's `since` or the item's `at`);
+  a row jumps to its card. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. A job WorkIt hasn't counted the
   questions of yet (Apply counts them when a fill pauses or ends) or is
   checking has a bar that moves (`bar`), never a made-up share. Each one's
