@@ -6,6 +6,7 @@ no `claude -p` (no drive, no research), no Gmail, no notifications or phone push
 starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse` with them.
 """
 
+import os
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -16,6 +17,7 @@ from apply import (
     answer_sync,
     answering,
     app_window,
+    build,
     captcha,
     home,
     rehearsal,
@@ -44,6 +46,7 @@ from apply.worker import sent_resume
 from apply.workit import WaitingWrites, WorkIt, site
 
 RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
+MAX_PLAN = "APPLY_MAX_PLAN"  # set by a Developer checkout's `apply app --max-plan`
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
 NO_MAIL = "WorkIt Auto Apply reads no email: type the code or open the link from your inbox yourself"
 
@@ -100,12 +103,21 @@ class NoRepairs:
         return False
 
 
+def asking(policies: dict, environ=os.environ):
+    """Who answers the run's asks: WorkIt's Model route, under its Usage cap. A Developer checkout's `apply app
+    --max-plan` asks `claude -p` instead, on the developer's own Claude plan, with WorkIt's prompts built from the
+    checkout's backend (apply.local_prompts); its usage is the plan's 5-hour and weekly windows."""
+    if not build.STUDENT and environ.get(MAX_PLAN):
+        return live_claude({**policies, "ask_model": "claude"})
+    return live_claude(policies, NoClaude())
+
+
 def adapters(profile: ApplicantProfile) -> Adapters:
     """What a Student build's run touches. The policies are the Student build's own (apply.build.STUDENT_POLICIES)."""
     policies = profile.policies()
     site = live_site(policies)
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
-    asks = as_applicant(live_claude(policies, NoClaude()), profile)  # no private detail in a kind (apply.private)
+    asks = as_applicant(asking(policies), profile)  # no private detail in a kind (apply.private)
     resume = Path(str(profile.get("files.resume_pdf") or "")).name
     return Adapters(
         feed=live_feed(),
@@ -116,7 +128,7 @@ def adapters(profile: ApplicantProfile) -> Adapters:
         site=site,
         claude=asks,
         mailbox=NoMailbox(),
-        usage=asks,  # WorkIt's Usage cap: the run pauses there until it resets (ask_model.WorkItAsk.reading)
+        usage=asks,  # WorkIt's Usage cap, or the Max plan's: the run pauses there until it resets
         clock=SystemClock(),
         records=FolderRecords(RECORDS),
         notifier=Silent(),
