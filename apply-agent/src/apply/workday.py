@@ -135,14 +135,42 @@ def names(url: str, site: JobSite) -> tuple[str, str]:
     """The company and role the Feed lists for a Workday Posting: Workday's own
     pages name no company, or a legal entity ("2100 NVIDIA USA", live). One the
     Feed lacks is named by Workday's job API, its legal entity trimmed to the
-    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company."""
+    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company.
+    One the job API has no longer (a closed Posting: Smith+Nephew's, live 2026-11-25,
+    whose Record was "# : ") is named by its link: the Workday site's name and the job's."""
     try:
         if found := feed.names(url, site.fetch(feed.LIVE)):
             return found
     except Exception:
         pass  # the Feed unreachable: the job API still names it
-    entity, title = fill_engine.job_names(url, site)
-    return company_of(entity), title
+    try:
+        entity, title = fill_engine.job_names(url, site)
+    except Exception:
+        entity, title = "", ""  # no such job on Workday now: its link still names it
+    return company_of(entity) or site_name(url), title or role_of(url)
+
+
+def site_name(url: str) -> str:
+    """The name of the Workday site a link is on: its tenant ("smithnephew.wd5.myworkdayjobs.com" is Smithnephew,
+    "jj.wd5..." JJ), or "" for a site on the employer's own domain."""
+    parts = urlsplit(url)
+    host, path = (parts.hostname or "").casefold(), [p for p in parts.path.split("/") if p]
+    if host.endswith("myworkdaysite.com") and "recruiting" in path[:-1]:
+        tenant = path[path.index("recruiting") + 1]
+    elif host.endswith("myworkdayjobs.com"):
+        tenant = host.split(".")[0]
+    else:
+        return ""
+    return tenant.upper() if len(tenant) <= 3 else tenant.capitalize()
+
+
+def role_of(url: str) -> str:
+    """The role a Workday job link names: "/job/Andover-MA/Intern-Computer-Vision_R92964" is "Intern Computer Vision"."""
+    path = [p for p in urlsplit(url).path.split("/") if p]
+    if "job" not in path or path[-1] == "job":
+        return ""
+    slug = re.sub(r"_[A-Za-z]*-?\d[\w-]*$", "", path[-1])
+    return " ".join(slug.replace("-", " ").split())
 
 
 # What a legal entity adds to the company's name: a code in brackets, a legal form, a country.
