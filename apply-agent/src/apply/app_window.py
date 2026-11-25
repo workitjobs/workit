@@ -32,6 +32,11 @@ the window shows what it holds, and Send Report sends that same report (send_rep
 its Application's id with the same call, for its record and log; its Send Report sends that id too, so a report
 another form reviewed since is never the one that goes.
 
+Links sent in (`uv run apply app <link>...`): an agent or a script hands the running window links with no
+port and no clicks. `send_links` writes them as one file in INBOX; the window takes them each INBOX_EVERY
+(Bridge._take_inbox) once it is signed in and set up. With no run going they start one, as Start does; while one
+goes, each is filled beside its forms (Dashboard.into), else it waits for the next run. Apply never submits either way.
+
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
@@ -51,6 +56,7 @@ from urllib.parse import urlencode
 
 from apply import first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
+from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
@@ -67,6 +73,11 @@ PROFILE = HOME / "applicant-profile.yaml"
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
 FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
+# Links sent to the window (send_links), one JSON file each, and how often the window looks; the window's PID note.
+INBOX = HOME / "app-inbox"
+INBOX_EVERY = 2.0
+PID_NOTE = HOME / "app.pid"
+LINK = re.compile(r"^https?://\S+$")
 READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
                                    : addEventListener('pywebviewready', () => done(), {once: true}));"""
 
@@ -366,6 +377,7 @@ class Bridge:
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
+        self._waiting: list[str] = []  # links sent in (send_links) that wait for the next run
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
         """One of the page's requests, answered as the Apply window's server answers it."""
@@ -542,6 +554,25 @@ class Bridge:
         self._said = ""
         threading.Thread(target=self._run, args=(links,), daemon=True).start()
         return {"started": len(links)}
+
+    def _take_inbox(self, inbox: Path = INBOX) -> None:
+        """Links sent in (send_links): a run of them when none goes, once signed in and set up; while one goes,
+        each into its Workers beside its forms (Dashboard.into), else it waits for the next run."""
+        if self._start is None or not (self._waiting or any(inbox.glob("*.json"))):
+            return
+        if not self.signed_in() or self._first.step() != READY:
+            return  # they stay in the inbox till the student is signed in and set up
+        links = [link for link in take_links(inbox) if link not in self._waiting]
+        if self._running.is_set():
+            for link in links:
+                try:
+                    self._dashboard.into(link)
+                except Refused:  # this run takes no new links (a CDP Worker), or it is ending
+                    self._waiting.append(link)
+            return
+        links, self._waiting = self._waiting + links, []
+        if links and "error" in self.start(links):
+            self._waiting = links
 
     def show_board(self, board: Dashboard) -> None:
         """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo."""
@@ -726,6 +757,50 @@ def bring_forward() -> bool:
     return True
 
 
+def send_links(links: list[str], inbox: Path = INBOX) -> Path:
+    """Hand `links` to the running window (Bridge._take_inbox): one file in `inbox`, only the user's to read, written
+    whole before it is named .json so the window never reads half of it."""
+    inbox.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = inbox / f"{time.time_ns()}-{os.getpid()}.json"
+    part = path.with_suffix(".part")
+    part.write_text(json.dumps({"links": list(links)}))
+    part.chmod(0o600)
+    part.rename(path)
+    return path
+
+
+def take_links(inbox: Path = INBOX) -> list[str]:
+    """The links sent in since the last take, oldest first, each once; every file read is removed. A file that isn't
+    a list of links is dropped."""
+    links: list[str] = []
+    for path in sorted(inbox.glob("*.json")):
+        try:
+            links += [str(link).strip() for link in json.loads(path.read_text())["links"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        path.unlink(missing_ok=True)
+    return list(dict.fromkeys(link for link in links if LINK.match(link)))
+
+
+def running(note: Path = PID_NOTE) -> int | None:
+    """The PID of the WorkIt Auto Apply window running now (run() notes it), or None."""
+    try:
+        pid = int(note.read_text())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return None
+    return pid
+
+
+def _watch_inbox(bridge: Bridge) -> None:
+    while True:
+        try:
+            bridge._take_inbox()
+        except Exception as error:  # a bad take never ends the watch
+            print(f"Couldn't take the links sent in: {type(error).__name__}: {error}", file=sys.stderr)
+        time.sleep(INBOX_EVERY)
+
+
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
@@ -737,7 +812,13 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     bridge._window = window
     closing(window)
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
-    webview.start()  # no http_server: the page is a string, so pywebview opens no port either
+    PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
+    PID_NOTE.write_text(str(os.getpid()))
+    threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    try:
+        webview.start()  # no http_server: the page is a string, so pywebview opens no port either
+    finally:
+        PID_NOTE.unlink(missing_ok=True)
 
 
 def closing(window) -> None:

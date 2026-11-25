@@ -160,8 +160,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
-    commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then the "
-                                    "Apply window with your answers")
+    app = commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then "
+                                          "the Apply window with your answers. Given links, it fills them: a window "
+                                          "already open takes them, else one opens and starts them. Never submits")
+    app.add_argument("links", nargs="*", help="job posting links to fill and hold for you to check and submit")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
@@ -366,8 +368,15 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
     elif args.command == "app":
-        from apply import student
+        from apply import app_window, student
 
+        if args.links:
+            app_window.send_links(args.links)
+            if pid := app_window.running():
+                print(f"Sent {len(args.links)} link(s) to WorkIt Auto Apply (PID {pid}). It fills each and holds it "
+                      "for you to check and submit.")
+                return
+            print(f"Opening WorkIt Auto Apply with {len(args.links)} link(s): it starts them once you are signed in.")
         student.app()
     elif args.command == "login":
         client = workit.WorkIt()
