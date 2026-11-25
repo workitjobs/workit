@@ -9,8 +9,8 @@ started" step (email box, honeypot box, legal disclaimer, Next).
 After the email step it is built from Oracle's documentation (Enable Email
 Authentication and Email Reuse; 24A/24C release notes), since going on needs
 an email Oracle would write to:
-- A script on the saved page takes the click on Next and sends the email to
-  the fake, which plays Oracle's server.
+- A script on the saved page takes the email step's submit (its Next) and
+  sends the email to the fake, which plays Oracle's server.
 - A returning candidate first confirms their last name.
 - A one-time code is mailed (into the FakeMailbox, under MAIL_SEARCH), or sent
   by text message where the site uses SMS; "Send New Code" sends another.
@@ -36,9 +36,10 @@ from apply.oracle import MAIL_SEARCH
 EMAIL_STEP_SCRIPT = r"""
 (() => {
   if (!location.hostname.endsWith('oraclecloud.com') || location.pathname.startsWith('/__fake__')) return;
-  document.addEventListener('click', (event) => {
-    const next = event.target.closest && event.target.closest('button[type=submit].apply-flow-pagination__button');
-    if (!next || !/\/apply\/email$/.test(location.pathname)) return;
+  // On the step form's submit, as Oracle's own handler hears it (its Next is a submit button), so a guard that stops
+  // the press or the submit stops this too.
+  document.addEventListener('submit', (event) => {
+    if (!event.target.querySelector('input[type=email]') || !/\/apply\/email$/.test(location.pathname)) return;
     event.stopImmediatePropagation();
     event.preventDefault();
     const email = document.querySelector('input[type=email]').value;
