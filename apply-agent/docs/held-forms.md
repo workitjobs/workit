@@ -399,6 +399,12 @@ through `worker._Planned._missing` first.
   question is known when each kind that it names (GitHub, LinkedIn, a site,
   a repo) is among the links. A known text field gets that answer
   (`_Planned.found`), and a known ask is dropped.
+- `asking.graduation(profile)` is the profile's expected graduation as one
+  line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
+  (`essays.sources`), and `known` answers an ask for the graduation date
+  with it. The profile's date wins over a Story bank date: the form's own
+  graduation answer comes from the profile, and a Story bank line can be
+  older (Anduril's cover letter, 2026-11-25, waited on that question).
 - `asking.links(profile)` is the profile's `links`, each Story bank line
   with a URL, and each web link on the resume PDF with the words it is on.
   Essays get them as `<links>` (`essays.sources`). An Essay plan's slot
