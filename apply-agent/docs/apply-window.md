@@ -174,6 +174,25 @@ for a student, not from `dashboard_page.py`.
   "Checked against your WorkIt profile" when `verified`, and "Resume
   attached" when a file the form was given answers its resume question
   (`files`' label).
+- **What we filled** (the Submit and Check cards, `filledIn`): every
+  answer the form was filled with, from the tile's `answers`
+  (`worker._Planned.listed`), each with where it came from (Your
+  profile, Your saved answer, Written by WorkIt). The ones worth a
+  glance come first and are marked, in this order: what WorkIt wrote,
+  work authorization and sponsorship, demographics, school and
+  graduation, pay, the files attached (`worker.topic`); the rest are
+  behind "Show the other N answers". An answer longer than 220
+  characters is cut at a word with Show more (`clip`). `listed` never
+  holds a secret (`records.SECRET`: a job-site password Apply made) or
+  a file's path, only its name, and it reaches the page only through
+  `/state`. When the Pre-submit review changed answers after checking
+  (the tile's `fixed`, from `_Planned.fix`), the card says "We changed
+  N answers after checking" with each "question: old → new"
+  (`changes`).
+- **The Check card** (`flagged`) lists every flag verifying says needs
+  the student, each with its question, in WorkIt's words, then "Fix it
+  in the form, then press Submit there." Like every card, it has no
+  Submit of its own: Apply never submits.
 - **The Approve card stays (decided, stories 16 and 17)** with its mock,
   though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,

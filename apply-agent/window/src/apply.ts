@@ -40,9 +40,21 @@ export type Shown = {
   flags?: { field: string; why: string }[];
   verified?: boolean; // the Pre-submit check found every answer agrees with the profile
   files?: { label?: string; name?: string }[]; // each file the form was given, by the form's question for it
+  answers?: Filled[]; // each answer the form was filled with (worker._Planned.listed): never a secret, a file by name
+  fixed?: { question: string; was: string; now: string }[]; // each answer the Pre-submit review changed after checking
   filled?: number;
   asked?: number;
   status?: string;
+};
+
+// One answer on the filled form, as Apply lists it: where it came from (the student's profile, their own saved answer,
+// or one WorkIt wrote), and what of it is worth a glance before Submit (worker.topic).
+export type Filled = {
+  question: string;
+  answer: string;
+  from: "profile" | "saved" | "written";
+  kind?: string; // the field's: "text", "textarea", "select", "multi_select", "file"...
+  topic?: "legal" | "eeo" | "school" | "pay" | "file" | "";
 };
 
 // What names a queued job, one shape wherever it shows (dashboard.QUEUED_JOB): its WorkIt job's company and title

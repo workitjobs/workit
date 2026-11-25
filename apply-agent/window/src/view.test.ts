@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -421,4 +421,46 @@ test("a run whose board never showed brings the queue back, saying why it didn't
   );
   assert.equal(notStarted({ running: false, said: "The run stopped: KeyError: 'x'" }), "Applying stopped because something went wrong. Press Start to try again.");
   assert.equal(notStarted(new Error("Apply didn't take that.")), "Your applications didn't start. Press Start to try again."); // status() itself failed
+});
+
+// "What we filled" on the held card. Its fault: an answer worth a glance (one WorkIt wrote, work authorization, EEO,
+// school, pay, a file) buried among the name and phone, or one marked that needs no glance.
+test("what we filled puts the answers worth a glance first, in their order, then the rest in the form's", () => {
+  const answers: NonNullable<Shown["answers"]> = [
+    { question: "First Name", answer: "Test", from: "profile", kind: "text", topic: "" },
+    { question: "Resume", answer: "r.pdf", from: "profile", kind: "file", topic: "file" },
+    { question: "Gender", answer: "Decline", from: "profile", kind: "select", topic: "eeo" },
+    { question: "Why us?", answer: "Because.", from: "written", kind: "textarea", topic: "" },
+    { question: "Sponsorship?", answer: "No", from: "profile", kind: "select", topic: "legal" },
+    { question: "Heard from?", answer: "WorkIt", from: "saved", kind: "select", topic: "" },
+  ];
+  const { look, rest } = filledIn(job({ tone: "ready", answers }));
+  assert.deepEqual(look.map((r) => [r.question, r.glance]), [
+    ["Why us?", "WorkIt wrote this"],
+    ["Sponsorship?", "Work authorization"],
+    ["Gender", "Demographics"],
+    ["Resume", "File attached"],
+  ]);
+  assert.deepEqual(rest.map((r) => [r.question, r.glance]), [["First Name", ""], ["Heard from?", ""]]);
+  assert.deepEqual(filledIn(job({ tone: "ready" })), { look: [], rest: [] });
+});
+
+test("a long answer is cut at a word with Show more, and a short one is left whole", () => {
+  assert.deepEqual(clip("Short."), { text: "Short.", cut: false });
+  const cut = clip("word ".repeat(100).trim(), 50);
+  assert.ok(cut.cut && cut.text.endsWith("word…") && cut.text.length <= 51, cut.text);
+});
+
+test("the review's changes say each question, from what to what, and nothing when it changed none", () => {
+  const fixed = [{ question: "Graduation", was: "May 2027", now: "May 2028" }, { question: "Start", was: "", now: "June" }];
+  assert.deepEqual(changes(job({ tone: "ready", fixed })), {
+    heading: "We changed 2 answers after checking",
+    lines: ["Graduation: May 2027 → May 2028", "Start: blank → June"],
+  });
+  assert.equal(changes(job({ tone: "ready", fixed: [] })), null);
+});
+
+test("each flag is said with its question and in WorkIt's words, never Apply's", () => {
+  const flags = [{ field: "Pay", why: "Pre-submit review: Claude wrote $90, more than the posting's range" }, { field: "", why: "Verify: a file is empty" }];
+  assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
 });

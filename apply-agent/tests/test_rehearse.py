@@ -509,13 +509,16 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
                                   "fixes": [{"question": AUTHORIZED, "answer": "Yes"},
                                             {"question": "First Name", "answer": "Someone"}]}])
     profile = profile_with(tmp_path, **{"work_authorization.authorized_to_work_us": False})
-    records = FolderRecords(tmp_path / "rehearsals")
+    records, board = FolderRecords(tmp_path / "rehearsals"), RecordingBoard()
 
     with FakeJobServer(ARC_FORM) as fake:
-        [done] = rehearse([ARC_URL], fake, profile, claude, records=records)
+        [done] = rehearse([ARC_URL], fake, profile, claude, records=records, board=board)
 
     shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
     assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
+    # The student page says what the review changed, from what to what, and that WorkIt wrote the new answer.
+    assert board.captions[0]["fixed"] == [{"question": AUTHORIZED, "was": "No", "now": "Yes"}]
+    assert {a["question"]: a["from"] for a in board.captions[0]["answers"]}[AUTHORIZED] == "written"
     assert sum(asked["kind"] == "presubmit.review" for asked in claude.kinds) == 2  # reviewed again after the fix
     assert done.legal == ()
     assert fake.submissions == []
@@ -1210,11 +1213,19 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     assert board.captions[0].pop("written") == []
     assert board.captions[0].pop("blocked") is False
     assert board.captions[0].pop("where") == {}
+    # What the student page's held card lists (worker._Planned.listed): each answer, where it came from, and the
+    # resume by its name only, never its path on the Mac. The review changed nothing.
+    answers = {a["question"]: a for a in board.captions[0].pop("answers")}
+    assert [(answers[q]["from"], answers[q]["topic"]) for q in ("Resume/CV", "Cover Letter")] == [
+        ("profile", "file"), ("written", "file")]
+    assert not any("/" in answers[q]["answer"] for q in ("Resume/CV", "Cover Letter"))
+    assert answers["Are you legally authorized to work in the United States?"]["topic"] == "legal"
+    assert board.captions[0].pop("fixed") == []
     assert board.captions == {0: {
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,
         "filled": done.filled, "asked": done.asked, "missing": list(done.missing), "drafted": [],
-        "choices": {}, "required": {},
+        "choices": {}, "required": {}, "planned": {}, "again": False,
     }}
     assert done.asked > 0
 

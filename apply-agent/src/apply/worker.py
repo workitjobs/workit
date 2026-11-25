@@ -130,6 +130,41 @@ FILLED_BUT = "Every other answer was filled in; the Record has them all"
 # Why an optional catch-all box ("Additional information") is blank: on purpose, always (KAN-625).
 CATCH_ALL_BLANK = "an optional catch-all box, which Apply always leaves blank"
 
+# Where an answer on the filled form came from, as the student page's "What we filled" says it: the student's
+# profile, their own saved answer (the Answer bank's, one they gave in the window or put on the page), or one WorkIt
+# wrote (an essay, a draft, an earlier unreviewed draft, the Pre-submit review's fix).
+PROFILE, SAVED, WRITTEN = "profile", "saved", "written"
+# The answers a student most needs to glance at before Submit, by the question's words (`topic`): legal and
+# eligibility (verify.LEGAL), demographic (EEO), school and graduation, and pay.
+EEO = re.compile(r"\bgender\b|\bsex\b|\brace\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
+                 r"|\blgbt|transgender|pronoun", re.IGNORECASE)
+SCHOOL = re.compile(r"graduat|\bdegree\b|\bschool\b|universit|college|\bmajor\b|\bgpa\b|education", re.IGNORECASE)
+
+
+def topic(question: Question) -> str:
+    """What of an answer the student most needs to check: "legal", "eeo", "school", "pay" or "file"; "" else."""
+    label = question.label
+    if verify.LEGAL.search(label):
+        return "legal"
+    if EEO.search(label):
+        return "eeo"
+    if question.kind == "file":
+        return "file"
+    if verify.PAY_QUESTION.search(label):
+        return "pay"
+    return "school" if SCHOOL.search(label) else ""
+
+
+def as_text(answer: object) -> str:
+    """An answer as the window shows it: a file by its name only (never its path on the Mac), a list joined by "; "."""
+    if isinstance(answer, Path):
+        return answer.name
+    if isinstance(answer, bool):
+        return "Yes" if answer else "No"
+    if isinstance(answer, (list, tuple)):
+        return "; ".join(as_text(a) for a in answer)
+    return "" if answer is None else str(answer)
+
 
 @dataclass
 class Result:
@@ -157,6 +192,10 @@ class Result:
     regenerable: "regenerate.Form | None" = None
     # (label, answer) of each answer that came after its step was saved without it (KAN-687): never on the form
     left_behind: tuple[tuple[str, object], ...] = ()
+    # each answer the form was filled with, as the window lists it (_Planned.listed): never a secret or a file's path
+    listed: tuple[dict, ...] = ()
+    # (question, answer before, answer after) of each the Pre-submit review's fix changed, in the order it changed them
+    fixed: tuple[tuple[str, str, str], ...] = ()
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -258,6 +297,8 @@ def apply_to(
                            story=e.plan.story if e.plan else "")
     result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
     result.reused = tuple(planned.reused)
+    if result.filled is not None:
+        result.listed, result.fixed = tuple(planned.listed()), tuple(planned.fixed)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
@@ -570,7 +611,7 @@ class _Planned:
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
-        self.fixed: list[tuple[str, str]] = []  # (question, answer) of each, for Verifying to list
+        self.fixed: list[tuple[str, str, str]] = []  # (question, answer before, answer) of each, for Verifying to list
         self.kept_blank: dict[str, str] = {}  # optional catch-all boxes Apply leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
@@ -791,7 +832,7 @@ class _Planned:
         guessed = [(one_line(d.question.label), d.shown) for d in self.drafted + self.unbanked
                    if d.question.name not in self.fixes] \
             + [(question, f"{answer} (the Pre-submit review's fix, filled in place of the plan's)")
-               for question, answer in self.fixed] \
+               for question, _, answer in self.fixed] \
             + [(str(r).split(":", 1)[0], "filled by Claude for the Filler (a Rescue)") for r in rescued]
         return verify.check(
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
@@ -845,12 +886,29 @@ class _Planned:
                 if entry and entry.source != LISUL and not entry.reviewed:
                     self._bank.delete(self.wording(q))
                 self.drafted.remove(draft)
+            self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
             self.fixes[q.name] = answer
-            self.fixed.append((one_line(q.label), answer))
             changed = True
         if changed:
             self.answers = self._answers
         return changed
+
+    def listed(self) -> list[dict]:
+        """Each answer the form is filled with, in form order, as the student page's "What we filled" lists it:
+        {question, answer, from (PROFILE, SAVED or WRITTEN), kind, topic}. Never a secret (a job-site password Apply
+        made), a blank, or a file's path: a file is named only."""
+        own, banked = self.own(), {q.name for q in self.banked}
+        written = {e.question.name for e in self.written} | {d.question.name for d in self.drafted + self.unbanked}
+        rows = []
+        for q in self.questions:
+            answer = as_text(self._answers.get(q.name))
+            if not answer.strip() or SECRET.search(q.label) or SECRET.search(q.name):
+                continue
+            yours = q.name in self.lisuls or q.name in own or q.name in self.found or q.label.strip() in self._answered
+            source = SAVED if q.name in self.lisuls else WRITTEN if q.name in self.fixes else SAVED if yours \
+                else WRITTEN if q.name in written or q.name in banked else PROFILE
+            rows.append({"question": one_line(q.label), "answer": answer, "from": source, "kind": q.kind, "topic": topic(q)})
+        return rows
 
     def use_bank(self) -> None:
         """Count one use of each Answer bank answer the filled form took (a

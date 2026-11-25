@@ -1,11 +1,12 @@
 // The one card the student acts on: the to-do at the top of the pile.
-import { ArrowSquareOutIcon, CheckIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, CaretDownIcon, CheckIcon, UploadSimpleIcon, WarningIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
+import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, type Job, answerOf, asking, checks } from "./view.ts";
+import { type Asked, FIX_IN_FORM, FROM, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -65,14 +66,8 @@ function Body(props: Props) {
           The form has a captcha. Only you can do it.
         </Open>
       );
-    case "check": {
-      const flag = job.source.flags?.[0];
-      return (
-        <Open title="Check one answer" button="Fix it in the form" {...props}>
-          {flag ? `${flag.field ? `${flag.field}: ` : ""}${flag.why}` : "One answer doesn't match your WorkIt profile."}
-        </Open>
-      );
-    }
+    case "check":
+      return <Check {...props} />;
     default:
       return (
         <Open title="Finish this one yourself" button="Open the form" {...props}>
@@ -314,11 +309,13 @@ function Submit(props: Props) {
           </li>
         ))}
       </ul>
+      <Changed {...props} />
       <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
         Open form to submit
         <ArrowSquareOutIcon className="size-4" />
       </Button>
       <Note>Look it over, then press Submit at the bottom of the form. We never submit for you.</Note>
+      <WhatWeFilled {...props} />
     </>
   );
 }
@@ -350,5 +347,101 @@ function LetGo({ job, bridge, fail }: Props) {
         </>
       )}
     </div>
+  );
+}
+// A form verifying found answers in that need the student: each one first, in plain words, and what to do.
+function Check(props: Props) {
+  const lines = flagged(props.job.source);
+  const n = Math.max(1, lines.length);
+  return (
+    <>
+      <Title>{n === 1 ? "Check one answer before you submit" : `Check ${n} answers before you submit`}</Title>
+      <ul className="mt-3 grid gap-2">
+        {(lines.length ? lines : [said(props.job.source.why || "One answer doesn't match your WorkIt profile.")]).map((line) => (
+          <li key={line} className="flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
+            <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
+            {line}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 font-medium">{FIX_IN_FORM}</p>
+      <Changed {...props} />
+      <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
+        Open the form
+        <ArrowSquareOutIcon className="size-4" />
+      </Button>
+      <Note>We never submit for you.</Note>
+      <WhatWeFilled {...props} />
+    </>
+  );
+}
+
+// What the Pre-submit review changed after checking, from what to what.
+function Changed({ job }: Props) {
+  const changed = changes(job.source);
+  if (!changed) return null;
+  return (
+    <div className="mt-4 rounded-card bg-surface px-3.5 py-3">
+      <div className="text-note font-semibold">{changed.heading}</div>
+      <ul className="mt-1.5 grid gap-1 text-note text-ink-muted">
+        {changed.lines.map((line, i) => (
+          <li key={i}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// "What we filled": every answer on the form and where it came from, the ones worth a glance first and marked. Open
+// at first, so the student sees it before they submit; the rest of the answers are one press away.
+function WhatWeFilled({ job }: Props) {
+  const { look, rest } = filledIn(job.source);
+  const [open, setOpen] = useState(true);
+  const [all, setAll] = useState(false);
+  if (!look.length && !rest.length) return null;
+  return (
+    <section className="mt-5 border-t border-border pt-4">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex w-full cursor-pointer items-center gap-2 text-left">
+        <span className="font-semibold">What we filled</span>
+        <span className="text-note text-ink-meta">{look.length + rest.length} answers</span>
+        <CaretDownIcon className={cx("ml-auto size-4 text-ink-meta transition", !open && "-rotate-90")} />
+      </button>
+      {open && (
+        <>
+          {look.length > 0 && <p className="mt-1 text-note text-ink-meta">Worth a look before you submit:</p>}
+          <ul className="mt-2 grid gap-2">
+            {look.map((row, i) => (
+              <Answer key={`look-${i}`} row={row} />
+            ))}
+            {all && rest.map((row, i) => <Answer key={`rest-${i}`} row={row} />)}
+          </ul>
+          {rest.length > 0 && (
+            <Button tone="quiet" className="mt-2 h-8 px-2 text-note" onClick={() => setAll(!all)}>
+              {all ? "Show fewer" : `Show the other ${rest.length} answers`}
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function Answer({ row }: { row: Row }) {
+  const [more, setMore] = useState(false);
+  const short = clip(row.answer);
+  return (
+    <li className={cx("rounded-card px-3.5 py-2.5", row.glance ? "border border-brand-pale bg-brand-tint" : "bg-surface")}>
+      <div className="flex items-baseline gap-2">
+        <div className="min-w-0 text-note font-semibold">{row.question}</div>
+        {row.glance && <span className="ml-auto shrink-0 text-note text-brand-ink">{row.glance}</span>}
+      </div>
+      <p className="mt-0.5 text-body whitespace-pre-line text-ink-muted">{more ? row.answer : short.text}</p>
+      {short.cut && (
+        <button type="button" onClick={() => setMore(!more)} className="cursor-pointer text-note font-medium text-brand-ink">
+          {more ? "Show less" : "Show more"}
+        </button>
+      )}
+      <div className="mt-0.5 text-note text-ink-faint">{FROM[row.from]}</div>
+    </li>
   );
 }
