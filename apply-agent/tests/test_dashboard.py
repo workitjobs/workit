@@ -1580,6 +1580,19 @@ def test_stop_applying_ends_the_run_and_only_the_window_may():
     assert stopped == [True]
 
 
+def test_stop_new_ones_only_reaches_the_run_as_its_own_stop():
+    """Fault: Stop new ones only ends the whole run, closing the forms held for the student."""
+    stopped = []
+    with Dashboard(2, FakeFrames({})) as board:
+        board.stopping(lambda new_only=False: stopped.append(new_only))
+        post = lambda body: _status(board.url + "/stop", data=body, headers={"X-Apply-Token": board.token})
+        assert post(b'{"new_only": true}') == 204
+        assert post(b"not json") == 400
+        assert post(b"{}") == 204
+
+    assert stopped == [True, False]
+
+
 def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():
     """KAN-874. Fault: another site's page removes a job, or Remove takes out one that already started."""
     removed = []

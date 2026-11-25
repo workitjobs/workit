@@ -1982,3 +1982,37 @@ def test_stop_applying_ends_the_run_with_nothing_submitted_and_no_waiting_job_st
     assert lines[-1] == rehearsal.STOPPED_APPLYING
     assert [run["waiting"] for run in board.runs if "waiting" in run][-1] == []
     assert done == [True]  # what the run's ended jobs left to do (a Repair they filed) still runs, once
+
+
+def test_stop_new_ones_only_keeps_the_filled_form_held_and_starts_no_waiting_job(monkeypatch, tmp_path):
+    """Fault: Stop new ones only closes a held form, or still starts the job that waited."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    held, seen, later_stop = [], [], []
+
+    class Board(StoppingBoard):
+        def update(self, worker: int, **caption: object) -> None:
+            super().update(worker, **caption)
+            if caption.get("status") == "filling" and not held:
+                self._stop(new_only=True)  # the student presses Stop new ones only mid-fill
+            if caption.get("again") and not held:  # the form is held for them: a second later they stop the run
+                held.append(worker)
+                later_stop.append(threading.Timer(1.0, lambda: (seen.append(self.captions[worker].get("again")), self._stop())))
+                later_stop[0].start()
+
+    board, lines = Board(lambda stop, remove: None), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    later_stop[0].join(5)
+    assert held == [0]  # the form filled under way was held for the student after Stop new ones only
+    assert seen == [True]  # and a second later it was still held, until the student stopped the run
+    assert submissions == [] and opened == 1  # the waiting job never started
+    assert rehearsal.STOPPED_NEW in lines and lines[-1] == rehearsal.STOPPED_APPLYING

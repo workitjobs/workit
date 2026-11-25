@@ -194,7 +194,14 @@ for a student, not from `dashboard_page.py`.
   "Usage limit reached" (before KAN-837, "Max usage limit hit").
 - **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
   the header has Stop applying, asked once more before it posts `/stop`.
-  The run ends (`rehearse`'s stop): no job waiting starts, each held page
+  The question names the filled forms a full Stop closes (`stopWords`,
+  from each tile whose page is held, `again`): "Stop? 3 filled forms
+  waiting for you will close." While jobs wait to start, Stop new ones
+  only comes first and posts `/stop` with `{"new_only": true}`: no job
+  waiting starts, the run takes no new link (`into`), a fill under way ends
+  held as any does, and every held page stays open until the student closes
+  it or presses Stop again. A full Stop ends the run (`rehearse`'s stop): no
+  job waiting starts, each held page
   is let go unsubmitted, a fill under way ends on its own (a rehearsal
   never submits) or when the run's Workers close, `on_done` still runs, and
   `app_window.Bridge` shows the queue

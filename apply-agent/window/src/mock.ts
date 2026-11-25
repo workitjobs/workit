@@ -117,7 +117,7 @@ const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
   questions: () => ({ tiles: [stripe], items: [ramp], run: running(2) }),
   needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: running(3) }),
-  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: running(3) }),
+  ready: () => ({ tiles: [stripe, { ...notion, worker: 1, again: true }], items: [notion, vercel], run: running(3) }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
   stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
 };
@@ -200,7 +200,9 @@ export function mock(
       run.queued = (run.queued ?? 1) - 1;
       push();
     },
-    async stop() {
+    async stop(newOnly) {
+      // Stop new ones only: no job waits to start any more, and every filled form stays open.
+      if (newOnly) return void later(() => Object.assign(state.run!, { queued: 0, waiting: [] }), 300);
       // The run ends, and app_window.Bridge swaps in the idle board: the queue again.
       later(() => (state = structuredClone(SCENARIOS.start())), 800);
     },

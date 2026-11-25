@@ -691,15 +691,20 @@ class Dashboard:
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
 
-    def stopping(self, stop: Callable[[], None]) -> None:
-        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop."""
+    def stopping(self, stop: Callable[..., None]) -> None:
+        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop.
+        `stop(new_only=True)` only stops new jobs from starting: Stop new ones only, which keeps held forms open."""
         self._stop = stop
 
-    def stop(self) -> None:
-        """Stop applying. Raises Refused when this window has no run to stop."""
+    def stop(self, new_only: bool = False) -> None:
+        """Stop applying; with `new_only`, only stop new jobs from starting. Raises Refused when this window has no
+        run to stop."""
         if self._stop is None:
             raise Refused("No run is going.", 409)
-        self._stop()
+        if new_only:
+            self._stop(new_only=True)
+        else:
+            self._stop()
 
     def removing(self, remove: Callable[[str], bool]) -> None:
         """`remove(link)` takes the job of `link` out of the run before it starts, and says whether it could (False:
@@ -1708,11 +1713,16 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, taken)
 
     def _stop(self) -> None:
-        """Stop applying, from the page itself (KAN-874)."""
+        """Stop applying, from the page itself (KAN-874). Body {new_only: true}: Stop new ones only."""
         if not self._from_window():
             return self._json(403, {"error": "Only the Apply window may stop the run."})
         try:
-            self.dashboard.stop()
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            new_only = body.get("new_only") is True
+        except (ValueError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a stop."})
+        try:
+            self.dashboard.stop(new_only)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         self._send(204, "text/plain", b"")

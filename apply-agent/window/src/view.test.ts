@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -338,6 +338,25 @@ test("each job waiting to start is named as the queue named it, a pasted one by 
 test("the idle board has no run to stop and nothing waiting", () => {
   const v = view({ tiles: [], items: [], run: {} });
   assert.deepEqual([v.running, v.waiting, v.queued], [false, [], 0]);
+});
+
+test("Stop applying names the filled forms it closes, and offers Stop new ones only first while jobs wait", () => {
+  // A held form (its tile's `again`) counts; one submitted, one still filling and an item's stale `again` don't.
+  const v = view({
+    tiles: [
+      job({ tone: "ready", again: true, posting_url: "https://a" }),
+      job({ tone: "needs", kind: "missing fact", again: true, posting_url: "https://b" }),
+      job({ tone: "submitted", again: true, posting_url: "https://c" }),
+      job({ posting_url: "https://d" }),
+    ],
+    items: [job({ tone: "ready", again: true, posting_url: "https://e" })],
+    run: { mode: "rehearsal", queued: 0 },
+  });
+  assert.equal(v.held, 2);
+  assert.deepEqual(stopWords(v), { ask: "Stop? 2 filled forms waiting for you will close. Nothing gets submitted.", all: "Stop" });
+  assert.deepEqual(stopWords({ held: 3, queued: 2 }), { ask: "Stop starting new jobs? Your 3 filled forms stay open.", newOnly: "Stop new ones only", all: "Stop and close all 3" });
+  assert.deepEqual(stopWords({ held: 1, queued: 1 }), { ask: "Stop starting new jobs? Your filled form stays open.", newOnly: "Stop new ones only", all: "Stop and close it" });
+  assert.equal(stopWords({ held: 0, queued: 0 }).ask, "Stop every application? Nothing gets submitted.");
 });
 
 test("+ Add jobs shows whenever no run is going and the window can start one, never during a run", () => {
