@@ -19,6 +19,7 @@ export type Job = {
   id?: string; // what /answer and /approve name it by: its item's id
   worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
   reason?: string; // why it didn't go through, in the student's words
+  stop?: Stop; // what kind of end it was, which says the next step
   retry?: string; // what /fill-again names it by, when Apply holds its page to fill again: Try again
   held?: boolean; // its form is open and waiting for the student: Stop applying or quitting closes it
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
@@ -78,17 +79,48 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
   }
 }
 
-// Why a job didn't go through, from verdict()'s label: "Skipped: " said by the list's own heading, and no
-// developer words (words.ts): a cause in Apply's own words is said plainly instead.
-export const reason = (shown: Shown) => {
+// How a job that didn't go through ended, which decides what the student can do next: a closed posting and one
+// already applied to have nothing to do; a failure can be tried again, or done on the company's own site; the rest
+// (not eligible, an employer's limit, today's usage limit) say their own reason.
+export type Stop = "closed" | "applied" | "failed" | "limit" | "other";
+
+export const CLOSED = "This job was taken down. Nothing to do.";
+export const APPLIED = "You already applied. Nothing to do.";
+export const COULDNT = "We couldn't finish filling this one.";
+
+export function stopOf(shown: Shown): Stop {
   const label = (shown.label ?? "").replace(/^Skipped: /, "");
-  if (/^today's limit reached/.test(label)) return "Today's limit was reached before it started";
   // A job that reached the Usage cap mid-form ends there; the run waits for the reset before the next one
   // (rehearsal._after_the_limit). "Usage limit reached" since KAN-837 (adapters.UsageLimitHit); "hit" before.
-  if (shown.status === "paused" || /usage limit (hit|reached)/i.test(label)) return "Stopped at today's limit. Try again once it resets";
-  if (DEVELOPER.test(label)) return "We couldn't finish filling it out";
+  if (shown.status === "paused" || /usage limit (hit|reached)/i.test(label) || /^today's limit reached/.test(label)) return "limit";
+  if (shown.status === "closed" || /^closed\b|no longer taking applications|taken down|page doesn't exist/i.test(label)) return "closed";
+  if (shown.status === "already applied" || /\balready applied\b/i.test(label)) return "applied";
+  if (shown.tone === "failed" || shown.status === "failed") return "failed";
+  return "other";
+}
+
+// Why a job didn't go through, from verdict()'s label: "Skipped: " said by the list's own heading, and no
+// developer words (words.ts): a cause in Apply's own words is said plainly instead. A failure never shows its cause
+// (a timeout, a raw exception): it says it couldn't finish, and the row offers what to do.
+export const reason = (shown: Shown) => {
+  const label = (shown.label ?? "").replace(/^Skipped: /, "");
+  const stop = stopOf(shown);
+  if (stop === "closed") return CLOSED;
+  if (stop === "applied") return APPLIED;
+  if (/^today's limit reached/.test(label)) return "Today's limit was reached before it started";
+  if (stop === "limit") return "Stopped at today's limit. Try again once it resets";
+  if (stop === "failed") return COULDNT;
+  if (DEVELOPER.test(label)) return COULDNT;
   return label ? label[0].toUpperCase() + label.slice(1) : "Something went wrong";
 };
+
+// What a stopped row offers besides Try again. `finish`: its form is still held, so the student can open it and finish
+// it. `site`: the job's own posting in their browser, for a failure when the window can open it. A closed or applied
+// job offers nothing: there is nothing to do.
+export const stopActions = (job: Job, canOpenSite: boolean) => ({
+  finish: job.stop === "failed" && !!job.held && job.worker !== undefined,
+  site: job.stop === "failed" && canOpenSite && !!job.source.posting_url,
+});
 
 // One job, one key: its posting, else its company and role when it has both, else its own id.
 const keyOf = (s: Shown) => String(s.posting_url || (s.company && s.role ? `${s.company}|${s.role}` : s.id));
@@ -120,6 +152,7 @@ export function view(state: ApplyState): View {
       id: item?.id === undefined ? undefined : String(item.id),
       worker: tile ? tile.worker : item?.worker,
       reason: c.status === "stopped" ? reason(shown) : undefined,
+      stop: c.status === "stopped" ? stopOf(shown) : undefined,
       retry: c.status === "stopped" && tile && (tile.again || tile.askable || tile.refill) ? `tile-${tile.worker}` : undefined,
       held: !!tile?.again && c.status !== "submitted",
       source: { ...shown, questions: item?.questions ?? tile?.questions },

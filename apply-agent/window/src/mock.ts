@@ -158,6 +158,11 @@ const duolingo: Shown = { tone: "ended", kind: "skipped", status: "not eligible"
 const airbnb: Shown = { tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications", company: "Airbnb", company_domain: "airbnb.com", role: "Software Engineer Intern", posting_url: "https://airbnb/1", id: 21 };
 const coinbase: Shown = { tone: "ended", kind: "skipped", status: "already applied", label: "Already applied", company: "Coinbase", company_domain: "coinbase.com", role: "Software Engineer Intern", posting_url: "https://coinbase/1", id: 22 };
 
+// Raw failures the row never shows: a held form, one whose Worker moved on, and a taken-down Workday posting. Made up.
+const brex: Shown = { tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond", why: "PortTimeoutError: Locator.click: Timeout 30000ms exceeded.", company: "Brex", company_domain: "brex.com", role: "Software Engineer Intern", posting_url: "https://brex/1", worker: 3, again: true };
+const oracle: Shown = { tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond", company: "Oracle", company_domain: "oracle.com", role: "Cloud Engineer Intern", posting_url: "https://oracle/1", id: 23 };
+const workday: Shown = { tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications", why: "Closed: the page doesn't exist, so it was skipped", company: "Sierra Space", company_domain: "sierraspace.com", role: "Systems Intern", posting_url: "https://sierraspace.wd5.myworkdayjobs.com/2", id: 24 };
+
 // A run's jobs not started yet: two from the queue and a pasted link. A scenario waits on at most these three.
 const WAITING: Waiting[] = [
   { link: "https://jobs.lever.co/spotify/1", company: "Spotify", title: "Backend Engineer Intern", company_domain: "spotify.com" },
@@ -172,7 +177,7 @@ const SCENARIOS: Record<string, () => ApplyState> = {
   needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, sierra, gecko, lucid, figma, notion, vercel, datadog], run: running(3) }),
   ready: () => ({ tiles: [stripe, { ...notion, worker: 1, again: true }], items: [notion, vercel], run: running(3) }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
-  stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
+  stopped: () => ({ tiles: [stripe, plaid, duolingo, brex], items: [airbnb, coinbase, vercel, oracle, workday], run: running(1) }),
 };
 
 const QUEUE: Queued[] = [
@@ -290,6 +295,7 @@ export function mock(
       ],
       status: async () => ({ running: false, said: "" }),
       usage: async (): Promise<Usage> => ({ used, cap: CAP, resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() }),
+      open_posting: async (url: string) => (window.open(url, "_blank"), true),
       settings: async () => alert("Settings: app_window.Bridge's page opens here."),
       review_report: async (_category: string, _note: string, contact: boolean, id: string, include: boolean) => ({
         parts: [`Your words${contact ? ", and WorkIt may email you about them" : ""}`, `Which application: ${id}`, ...(include ? ["answers.json (4 KB)", "form.png (310 KB)", "The step-by-step log (12 KB), your personal details hidden"] : [])],

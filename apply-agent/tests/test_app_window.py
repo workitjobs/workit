@@ -111,6 +111,18 @@ def test_only_a_file_a_tile_lists_opens(board, tmp_path):
     assert not bridge.open("/file/0/1")
 
 
+def test_only_a_posting_a_tile_lists_opens_in_the_browser(board):
+    """Fault: the page names any link, or a non-web one, and it opens on the computer."""
+    opened = []
+    bridge = Bridge(board, WorkIt(workit.LIVE), opened.append)
+    assert not bridge.open_posting("https://jobs.example/1") and opened == []
+    board.update(0, posting_url="https://jobs.example/1")
+    board.update(1, posting_url="file:///etc/hosts")
+    assert bridge.open_posting("https://jobs.example/1") and opened == ["https://jobs.example/1"]
+    assert not bridge.open_posting("file:///etc/hosts") and not bridge.open_posting("https://jobs.example/2")
+    assert opened == ["https://jobs.example/1"]
+
+
 def test_the_shim_comes_before_the_pages_scripts(board):
     """Fault: the page's first fetch goes out before the shim replaces fetch, to an address with no server."""
     page = app_window.page(board)

@@ -44,6 +44,8 @@ export type App = Partial<{
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;
+  // A job's posting in the student's own browser: only a link a tile or item of this run lists. False: it opened nothing.
+  open_posting(url: string): Promise<boolean>;
   // Report a problem with one Application (D26): what the report holds, a line each; then Send Report sends that
   // same report, named by the same id.
   review_report(category: string, note: string, contact_ok: boolean, application_id: string, include: boolean): Promise<{ parts: string[] }>;
@@ -86,7 +88,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {

@@ -212,7 +212,15 @@ for a student, not from `dashboard_page.py`.
   job's page (the tile's `again`, `askable` or `refill`): it posts
   `/fill-again` for that tile, and the job moves back to "Still working
   on" as the form fills anew. A job whose Worker moved on, one never
-  opened (already applied) and one paused have none.
+  opened (already applied) and one paused have none. Every row says what
+  to do (`stopOf`, `stopActions`): a closed posting ("This job was taken
+  down. Nothing to do.") and an already applied one ("You already
+  applied. Nothing to do.") offer nothing; any other failure reads "We
+  couldn't finish filling this one." and never shows the raw error (a
+  timeout, `PortTimeoutError: ...`), with Try again, "Open the form and
+  finish it yourself" while its page is held, and "Apply on the company's
+  site", which calls `Bridge.open_posting` (opens only a posting this run
+  lists, in the student's own browser).
 - **Today's usage (KAN-837).** On top of every page, a bar shows the
   share of today's Usage cap used ("66% used · resets at 7:00 PM"), like
   Claude's usage bar, never a token count, which means nothing to a

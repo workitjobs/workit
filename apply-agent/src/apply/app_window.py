@@ -52,7 +52,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from apply import first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
@@ -404,6 +404,16 @@ class Bridge:
         if listed:
             self._open_link(listed.as_uri())
         return listed is not None
+
+    def open_posting(self, url: str) -> bool:
+        """A job's posting, in the student's own browser, for "Apply on the company's site": only a web link a tile or
+        item of this run lists as its posting. Any other link opens nothing."""
+        state = self._dashboard.state()
+        listed = {str(s.get("posting_url") or "") for s in [*state.get("tiles", []), *state.get("items", [])]}
+        if str(url) not in listed or urlsplit(str(url)).scheme not in ("http", "https"):
+            return False
+        self._open_link(str(url))
+        return True
 
     def signed_in(self) -> bool:
         return self._client.logged_in()

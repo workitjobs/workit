@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -52,11 +52,11 @@ test("stopped jobs are in neither the pile nor the working list", () => {
 test("a failed or skipped job didn't go through, with its reason in the student's words", () => {
   // Each label as verdict() in dashboard.py gives it, by the Application's status.
   const cases: [Partial<Shown>, string][] = [
-    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond" }, "Couldn't finish: the page took too long to respond"],
+    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond" }, "We couldn't finish filling this one."],
     [{ tone: "ended", kind: "skipped", status: "not eligible", label: "Skipped: you don't qualify (needs US work authorization)" }, "You don't qualify (needs US work authorization)"],
-    [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "No longer taking applications"],
-    [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "Already applied"],
-    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied to this job"],
+    [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "This job was taken down. Nothing to do."],
+    [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "You already applied. Nothing to do."],
+    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied. Nothing to do."],
     [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Stopped at today's limit. Try again once it resets"],
     // A job that reached WorkIt's Usage cap and ended failed, in UsageLimitHit's words (KAN-837).
     [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: UsageLimitHit: Usage limit reached; resets at 2026-11-17 19:00:00" }, "Stopped at today's limit. Try again once it resets"],
@@ -73,9 +73,9 @@ test("a failed or skipped job didn't go through, with its reason in the student'
 
 test("a reason in Apply's developer words is said plainly, never as it is", () => {
   const cases: [Partial<Shown>, string][] = [
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: setup: ask_model: workit needs a WorkIt sign-in" }, "We couldn't finish filling it out"],
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: the rehearsal stopped" }, "We couldn't finish filling it out"],
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: Claude fill gave up on the page" }, "We couldn't finish filling it out"],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: setup: ask_model: workit needs a WorkIt sign-in" }, "We couldn't finish filling this one."],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: the rehearsal stopped" }, "We couldn't finish filling this one."],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: Claude fill gave up on the page" }, "We couldn't finish filling this one."],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: today's limit reached; 3 more go tomorrow" }, "Today's limit was reached before it started"],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: OpenAI takes at most 5 applications in any 180 days" }, "OpenAI takes at most 5 applications in any 180 days"],
   ];
@@ -478,4 +478,32 @@ test("each handoff says how to hand back, and never that the app solves, reads o
   assert.match(HANDOFF.captcha, /^Finish the check/);
   assert.match(HANDOFF.fields, /press Next there/);
   for (const line of Object.values(HANDOFF)) assert.doesNotMatch(line, /we (solve|read your|submit)/i);
+});
+
+test("a raw failure is never shown, whatever the label carries", () => {
+  const raw = ["PortTimeoutError: Locator.click: Timeout 30000ms exceeded.", "TimeoutError: Oracle page didn't get there in 30 s", "Workday won't leave its step"];
+  for (const why of raw) {
+    const [j] = view({ tiles: [], items: [job({ id: 3, tone: "failed", status: "failed", label: `Couldn't finish: ${why}` })] }).stopped;
+    assert.equal(j.reason, "We couldn't finish filling this one.", why);
+    assert.equal(j.stop, "failed");
+  }
+});
+
+test("a closed posting, by its status or its Closed: label, has nothing to do and no retry", () => {
+  for (const over of [{ status: "closed", label: "Skipped: no longer taking applications" }, { tone: "failed" as const, status: "failed", label: "Closed: the page doesn't exist, so it was skipped" }]) {
+    const v = view({ tiles: [job({ tone: "ended", again: true, ...over })], items: [] });
+    const [j] = v.stopped;
+    assert.equal(j.reason, "This job was taken down. Nothing to do.");
+    assert.deepEqual(stopActions(j, true), { finish: false, site: false });
+  }
+});
+
+test("a failure offers the company's site and, while its form is held, finishing it yourself", () => {
+  const held = view({ tiles: [job({ tone: "failed", status: "failed", posting_url: "https://held", again: true })], items: [] }).stopped[0];
+  assert.deepEqual(stopActions(held, true), { finish: true, site: true });
+  assert.deepEqual(stopActions(held, false), { finish: true, site: false }); // a window that can't open links
+  const gone = view({ tiles: [], items: [job({ tone: "failed", status: "failed", posting_url: "https://gone", id: 7 })] }).stopped[0];
+  assert.deepEqual(stopActions(gone, true), { finish: false, site: true });
+  const applied = view({ tiles: [], items: [job({ tone: "ended", status: "already applied", id: 8 })] }).stopped[0];
+  assert.deepEqual(stopActions(applied, true), { finish: false, site: false });
 });

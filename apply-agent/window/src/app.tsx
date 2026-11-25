@@ -1,5 +1,5 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, stopActions, stopWords, usageLine, usedShare, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -270,6 +270,7 @@ function Stopped({ job, bridge, app, fail }: { job: Job; bridge: Bridge; app: Ap
     setTrying(true);
     bridge.fillAgain(job.retry!).catch((e: Error) => (setTrying(false), fail(e.message)));
   };
+  const { finish, site } = stopActions(job, !!app.open_posting);
   return (
     <div className="py-2.5">
       <div className="flex items-center gap-3">
@@ -285,6 +286,20 @@ function Stopped({ job, bridge, app, fail }: { job: Job; bridge: Bridge; app: Ap
           </Button>
         )}
       </div>
+      {(finish || site) && (
+        <div className="mt-1.5 flex flex-wrap gap-2 pl-11">
+          {finish && (
+            <Button tone="quiet" className="h-8 px-3 text-note" onClick={() => bridge.open(job.worker!).catch((e: Error) => fail(e.message))}>
+              <ArrowSquareOutIcon className="size-3.5" /> Open the form and finish it yourself
+            </Button>
+          )}
+          {site && (
+            <Button tone="quiet" className="h-8 px-3 text-note" onClick={() => app.open_posting!(job.source.posting_url!).catch((e: Error) => fail(e.message))}>
+              <ArrowSquareOutIcon className="size-3.5" /> Apply on the company's site
+            </Button>
+          )}
+        </div>
+      )}
       <Under job={job} app={app} />
     </div>
   );
