@@ -108,6 +108,7 @@ export function view(state: ApplyState): View {
     const item = items.get(key);
     const shown = tile ? { ...item, ...tile } : item!;
     if (!tile && item!.tone === "idle") continue;
+    if (tile?.let_go) continue; // not applying to it: its card goes
     const c = classify(shown);
     if (item?.answered && (!tile || c.status === "todo")) continue; // answered in the window: it waits on the student no more
     jobs.push({

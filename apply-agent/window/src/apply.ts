@@ -30,6 +30,7 @@ export type Shown = {
   askable?: boolean;
   refill?: boolean;
   again?: boolean;
+  let_go?: boolean; // the student isn't applying to it: its page is let go, and it shows no more
   application_id?: string;
   questions?: string[];
   choices?: Record<string, Choice>;

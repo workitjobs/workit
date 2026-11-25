@@ -193,6 +193,11 @@ export function mock(
       const held = id.startsWith("tile-") ? state.tiles[Number(id.slice(5))] : find(id);
       if (held) later(() => Object.assign(held, { tone: "filling", kind: undefined, status: "filling", label: undefined, again: false, filled: 2, asked: 22 }), 800);
     },
+    async letGo(id) {
+      const held = state.tiles[Number(id.slice(5))];
+      if (held) Object.assign(held, { let_go: true, again: false });
+      push();
+    },
     async remove(link) {
       const run = state.run!;
       if (!run.waiting?.some((w) => w.link === link)) throw new Error("That job has started already: it isn't waiting any more.");

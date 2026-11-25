@@ -13,6 +13,7 @@ const SAID: [RegExp, string][] = [
   [/^That essay is too long\./, "That answer is too long."],
   [/^Only the Apply window may /, "This window couldn't do that. Quit WorkIt Auto Apply and open it again."],
   [/^That browser has no window to open/, "That form's window is closed."],
+  [/^That form isn't held for you now: it's closed already/, "That form is already closed."],
   [/^That form isn't held for you now/, "That form is closed now, so it can't be tried again."],
   [/^(No such |Not an? )/, "That didn't work. Try again."],
   [/couldn't read your queue/, "We couldn't read your Auto Apply queue on WorkIt. Paste a job's link instead."],

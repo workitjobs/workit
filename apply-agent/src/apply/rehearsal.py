@@ -473,6 +473,7 @@ def rehearse(
             # which has no Ask Claude (KAN-873). Held no more once hold() returns (unheld).
             adapters.board.update(n, again=True)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
+                    "let_go": lambda: getattr(adapters.board, "let_go_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep}
 
@@ -1518,6 +1519,7 @@ class _Kept:
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
+             let_go: Callable[[], bool] = lambda: False,
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
              keep: "keepalive.Keeper | None" = None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
@@ -1551,7 +1553,8 @@ class _Kept:
         `keep` keeps the job site's session alive until he presses Submit, and tells when it ends (apply.keepalive):
         its stay press runs with the guards back on, as Claude's drive does, and then holds his Submit, the guard
         whole, until he presses the note's Dismiss: a page whose button sends later, at any delay, sends nothing.
-        "" when the page closed or `release` was set."""
+        `let_go()` says the student pressed Not applying to this one: the page is let go, unsubmitted.
+        "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
             return ""
         pressed, final, signing, again, hooks, regenerates = [], [], [], [], self._hooks, []
@@ -1639,6 +1642,8 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
+                if let_go():  # Not applying to this one: let go, as if its window closed
+                    return ""
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
                 # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.

@@ -2016,3 +2016,30 @@ def test_stop_new_ones_only_keeps_the_filled_form_held_and_starts_no_waiting_job
     assert seen == [True]  # and a second later it was still held, until the student stopped the run
     assert submissions == [] and opened == 1  # the waiting job never started
     assert rehearsal.STOPPED_NEW in lines and lines[-1] == rehearsal.STOPPED_APPLYING
+
+
+def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_ends(monkeypatch, tmp_path):
+    """Fault: Not applying to this one leaves the page held (the run never ends), or submits it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    asked = []
+
+    class Board(RecordingBoard):
+        def let_go_asked(self, worker: int) -> bool:
+            if self.captions.get(worker, {}).get("again") and not asked:  # held: the student presses it once
+                asked.append(worker)
+                return True
+            return False
+
+    board, lines = Board(), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert asked == [0] and board.captions[0]["again"] is False  # held, then let go: held no more
+    assert submissions == [] and rehearsal.STOPPED_APPLYING not in lines

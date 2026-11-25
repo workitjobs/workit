@@ -359,6 +359,15 @@ test("Stop applying names the filled forms it closes, and offers Stop new ones o
   assert.equal(stopWords({ held: 0, queued: 0 }).ask, "Stop every application? Nothing gets submitted.");
 });
 
+test("a form the student isn't applying to leaves the pile, with its earlier item", () => {
+  const v = view({
+    tiles: [job({ tone: "ready", again: false, let_go: true, posting_url: "https://a" }), job({ tone: "ready", again: true, posting_url: "https://b" })],
+    items: [job({ tone: "ready", id: 3, posting_url: "https://a" })],
+  });
+  assert.deepEqual(v.todo.map((j) => j.source.posting_url), ["https://b"]);
+  assert.equal(v.held, 1);
+});
+
 test("+ Add jobs shows whenever no run is going and the window can start one, never during a run", () => {
   const idle = view({ tiles: [], items: [], run: {} });
   const run = view({ tiles: [job({})], items: [], run: { mode: "rehearsal", queued: 0 } });

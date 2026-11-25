@@ -1593,6 +1593,26 @@ def test_stop_new_ones_only_reaches_the_run_as_its_own_stop():
     assert stopped == [True, False]
 
 
+def test_not_applying_lets_go_only_a_held_form_and_only_the_window_may():
+    """Fault: another site's page closes a held form, one not held (or submitted) is let go, or the run never hears."""
+    post = lambda body, token: _status(board.url + "/let-go", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(3, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True)
+        board.update(1, status="filling")
+        board.update(2, status="submitted", again=True)
+        assert post({"id": "tile-0"}, "guessed") == 403
+        assert post({"id": "tile-1"}, board.token) == 409  # still filling: nothing held to let go
+        assert post({"id": "tile-2"}, board.token) == 409  # sent already
+        assert post({"id": "tile-9"}, board.token) == 404
+        assert post({}, board.token) == 400
+        assert board.held() == 1
+        assert post({"id": "tile-0"}, board.token) == 200
+        assert board.held() == 0  # it waits for the student no more, before the run lets its page go
+        assert board.state()["tiles"][0]["let_go"] is True
+        assert [board.let_go_asked(0), board.let_go_asked(0), board.let_go_asked(1)] == [True, False, False]
+
+
 def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():
     """KAN-874. Fault: another site's page removes a job, or Remove takes out one that already started."""
     removed = []

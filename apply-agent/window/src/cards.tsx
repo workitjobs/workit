@@ -30,6 +30,7 @@ export function TodoCard(props: Props) {
       </div>
       <div className="px-6 pt-5 pb-6">
         <Body {...props} />
+        {job.held && job.worker !== undefined && <LetGo key={job.key} {...props} />}
         <Report key={job.key} job={job} app={props.app} at="mt-5" />
       </div>
     </div>
@@ -319,5 +320,35 @@ function Submit(props: Props) {
       </Button>
       <Note>Look it over, then press Submit at the bottom of the form. We never submit for you.</Note>
     </>
+  );
+}
+
+// Not applying to this one: asked once more, then its held form closes unsubmitted and its card goes (`let_go`).
+function LetGo({ job, bridge, fail }: Props) {
+  const [step, setStep] = useState<"idle" | "asking" | "closing">("idle");
+  const close = () => {
+    setStep("closing");
+    bridge.letGo(`tile-${job.worker}`).catch((e: Error) => (setStep("idle"), fail(e.message)));
+  };
+  if (step === "idle")
+    return (
+      <button onClick={() => setStep("asking")} className="mt-5 block text-note text-ink-meta hover:text-ink hover:underline">
+        Not applying to this one
+      </button>
+    );
+  return (
+    <div role="group" aria-label="Not applying to this one" className="mt-5 flex flex-wrap items-center gap-2 text-note">
+      <span className="text-ink-meta">{step === "closing" ? "Closing…" : "Close this form without applying? Nothing gets submitted."}</span>
+      {step === "asking" && (
+        <>
+          <Button className="h-8 px-3 text-note" onClick={close}>
+            Close it
+          </Button>
+          <Button tone="quiet" className="h-8 px-3 text-note" onClick={() => setStep("idle")}>
+            Keep it
+          </Button>
+        </>
+      )}
+    </div>
   );
 }
