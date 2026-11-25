@@ -76,6 +76,7 @@ FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
 # Links sent to the window (send_links), one JSON file each, and how often the window looks; the window's PID note.
 INBOX = HOME / "app-inbox"
 INBOX_EVERY = 2.0
+CLOSE_GUARD_EVERY = 1.0  # how often the quit question's count of held forms is read again (guard_close)
 PID_NOTE = HOME / "app.pid"
 LINK = re.compile(r"^https?://\S+$")
 READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
@@ -811,6 +812,8 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
                                    min_size=(900, 600))
     bridge._window = window
     closing(window)
+    window.events.closing += lambda: guard_close(window, bridge)
+    threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()))
@@ -819,6 +822,33 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+def close_words(held: int) -> str:
+    """The question before the app quits with `held` forms open and waiting for the student: quitting closes them."""
+    forms = "Your filled form" if held == 1 else f"Your {held} filled forms"
+    return f"Quit WorkIt Auto Apply? {forms} waiting for you will close. Nothing gets submitted."
+
+
+def guard_close(window, bridge: Bridge) -> None:
+    """Ask before the window closes (or the app quits) only while a form is held for the student, naming how many
+    (close_words): pywebview's `confirm_close` and its question's words, read when the window is asked to close. The
+    `closing` event runs this just before `confirm_close` is read; the words are read before it on a Mac, so
+    _guard_closes keeps them fresh too."""
+    held = bridge._dashboard.held()
+    words = getattr(window, "localization", None)  # pywebview makes it once the window starts
+    if held and words is not None:
+        words["global.quitConfirmation"] = close_words(held)
+    window.confirm_close = held > 0
+
+
+def _guard_closes(window, bridge: Bridge) -> None:
+    while True:
+        try:
+            guard_close(window, bridge)
+        except Exception as error:  # a bad read never ends the guard
+            print(f"Couldn't count the held forms: {type(error).__name__}: {error}", file=sys.stderr)
+        time.sleep(CLOSE_GUARD_EVERY)
 
 
 def closing(window) -> None:

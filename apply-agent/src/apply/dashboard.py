@@ -706,6 +706,12 @@ class Dashboard:
         else:
             self._stop()
 
+    def held(self) -> int:
+        """How many forms are open and waiting for the student (a tile whose page its Worker holds, not submitted):
+        what quitting the app or a full Stop closes."""
+        with self._lock:
+            return sum(bool(c.get("again")) and c.get("status") != "submitted" for c in self._captions)
+
     def removing(self, remove: Callable[[str], bool]) -> None:
         """`remove(link)` takes the job of `link` out of the run before it starts, and says whether it could (False:
         it started already): Remove in the student's window (KAN-874), through POST /remove."""

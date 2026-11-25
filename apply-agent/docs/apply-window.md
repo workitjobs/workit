@@ -45,6 +45,14 @@ docstring first.
   same token and Origin checks. A new route needs nothing more. The
   frame streams (`/frames`, `/stream/k`) never go through it, since their
   answer never ends: the shim makes `/frames` from `Bridge.frames`.
+- Closing the window or quitting the app closes every form held for the
+  student, so it asks first only while one is (`guard_close`): pywebview's
+  `confirm_close`, with its question naming how many (`close_words`:
+  "Quit WorkIt Auto Apply? Your 3 filled forms waiting for you will
+  close."). The `closing` event sets `confirm_close` just before pywebview
+  reads it; on a Mac the question's words are read before that event, so a
+  thread sets them again each `CLOSE_GUARD_EVERY`. The count is
+  `Dashboard.held`: each tile whose page is held (`again`), not submitted.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
