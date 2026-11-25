@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, stopActions, stopWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -97,7 +97,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (
-          <Home v={v} bridge={bridge} app={app} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
+          <Home v={v} bridge={bridge} app={app} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} applied={() => setPage("applied")} />
         )}
       </main>
       {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-note text-on-brand shadow-lift">{toast}</div>}
@@ -201,7 +201,8 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
   );
 }
 
-function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void }) {
+function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void; applied: () => void }) {
+  const submitted = !v.todo.length && !v.working.length && !v.queued ? submittedLine(v) : "";
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
@@ -230,6 +231,15 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
               : v.stopped.length
                 ? "The reason for each one is below. Try again where it's offered."
                 : "Every application is done."}
+            {submitted && (
+              <>
+                {" "}
+                {submitted}{" "}
+                <button onClick={applied} className="cursor-pointer font-semibold text-brand-ink hover:underline">
+                  See them in Applied
+                </button>
+              </>
+            )}
           </p>
           {add && !v.working.length && !v.queued && (
             <Button tone="primary" onClick={add}>
@@ -391,7 +401,7 @@ function Live({ tile, frames }: { tile: number; frames: NonNullable<AppMethods["
       {shot ? (
         <img src={shot} alt="The form as it's being filled" className="block w-full" />
       ) : (
-        <p className="px-4 py-10 text-center text-note text-ink-meta">Waiting for the form's screen…</p>
+        <p className="px-4 py-10 text-center text-note text-ink-meta">{WAITING_FOR_SCREEN}</p>
       )}
     </div>
   );
@@ -403,6 +413,34 @@ const Under = ({ job, app }: { job: Job; app: AppMethods }) => (
     <Report job={job} app={app} />
   </div>
 );
+
+// A one-time strip on Start: how it works, until the student dismisses it. Remembered in this browser only, as a
+// convenience: where storage fails (a private window), it shows again.
+const SEEN = "apply.how-it-works.seen";
+function HowItWorks() {
+  const [seen, setSeen] = useState(() => {
+    try {
+      return localStorage.getItem(SEEN) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (seen) return null;
+  const dismiss = () => {
+    setSeen(true);
+    try {
+      localStorage.setItem(SEEN, "1");
+    } catch {}
+  };
+  return (
+    <div role="note" className="mt-5 flex items-start gap-3 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-muted">
+      <p className="flex-1">{HOW_IT_WORKS}</p>
+      <button onClick={dismiss} aria-label="Dismiss how it works" className="cursor-pointer text-ink-meta hover:text-ink">
+        <XIcon className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 // The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
 // pressed the queue leaves the view; app_window.Bridge swaps in the run's board, and this screen again when the run ends.
@@ -447,6 +485,7 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
     <div className="pt-4">
       <h1 className="text-center text-heading">What should we apply to?</h1>
       <p className="mt-1.5 text-center text-body text-ink-meta">We fill out the applications. You check each one and press Submit.</p>
+      <HowItWorks />
       {started ? (
         <p role="status" className="mt-8 text-center text-ink-meta">
           Starting {links.length === 1 ? "your application" : `${links.length} applications`}…

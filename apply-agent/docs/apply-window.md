@@ -203,6 +203,12 @@ for a student, not from `dashboard_page.py`.
   student presses Open on a card, it says "Waiting for you in Chrome…":
   Apply tells the page nothing of Chrome's focus, so this is only what the
   page itself knows.
+- **Empty and waiting states.** Start shows a one-time, dismissible "How
+  it works" strip (remembered in the page's local storage only). When
+  nothing is left to do, the home page says how many applications this
+  run submitted (`submittedLine`, not the student's earlier ones from
+  WorkIt) with a link to Applied. Watch's blank screen says "It can take a
+  minute the first time."
 - **The Approve card stays (decided, stories 16 and 17)** with its mock,
   though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,

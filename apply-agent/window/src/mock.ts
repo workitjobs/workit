@@ -1,5 +1,5 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
-// Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
+// Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped|done,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
 // ?queue=empty|unread|refused (refused: Start gives app_window.Bridge's error), Find jobs' matches with ?matches=empty|unread, and how Apply answers with ?connect=slow|down
 // (slow: the first state after 2 s; down: no answer at all). Answers,
@@ -177,6 +177,8 @@ const SCENARIOS: Record<string, () => ApplyState> = {
   needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, asana, sierra, gecko, lucid, figma, notion, vercel, datadog], run: running(3) }),
   ready: () => ({ tiles: [stripe, { ...notion, worker: 1, again: true }], items: [notion, vercel], run: running(3) }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
+  // Everything done: two submitted this run, and one from before that the line leaves out.
+  done: () => ({ tiles: [{ ...vercel, from: undefined }, { ...datadog, from: undefined }], items: [{ ...vercel, from: "tracker", posting_url: "https://old/1", company: "Palantir" }], run: running(0) }),
   stopped: () => ({ tiles: [stripe, plaid, duolingo, brex], items: [airbnb, coinbase, vercel, oracle, workday], run: running(1) }),
 };
 

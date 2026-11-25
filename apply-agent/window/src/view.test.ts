@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -506,4 +506,16 @@ test("a failure offers the company's site and, while its form is held, finishing
   assert.deepEqual(stopActions(gone, true), { finish: false, site: true });
   const applied = view({ tiles: [], items: [job({ tone: "ended", status: "already applied", id: 8 })] }).stopped[0];
   assert.deepEqual(stopActions(applied, true), { finish: false, site: false });
+});
+
+test("the done line counts this run's submitted jobs, not the student's earlier ones", () => {
+  const v = view({ tiles: [job({ tone: "submitted", posting_url: "https://a" }), job({ tone: "submitted", posting_url: "https://b" })], items: [job({ tone: "submitted", from: "tracker", posting_url: "https://old", id: 9 })] });
+  assert.equal(submittedLine(v), "2 applications submitted this run.");
+  assert.equal(submittedLine(view({ tiles: [job({ tone: "submitted" })], items: [] })), "1 application submitted this run.");
+  assert.equal(submittedLine(view({ tiles: [], items: [job({ tone: "submitted", from: "tracker", id: 9 })] })), "");
+});
+
+test("the how-it-works strip and the live wait say what happens next", () => {
+  assert.match(HOW_IT_WORKS, /you press Submit\. Filled forms wait for you as long as you need\./);
+  assert.match(WAITING_FOR_SCREEN, /It can take a minute the first time\./);
 });

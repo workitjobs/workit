@@ -312,6 +312,18 @@ export function headline(v: View): string {
   return `${plural(n, "thing")} for you to do`;
 }
 
+// Start's one-time strip: the whole flow in one line, and that a filled form waits as long as the student needs.
+export const HOW_IT_WORKS = "We fill each form → you check it → you press Submit. Filled forms wait for you as long as you need.";
+
+// The share of the run's submitted jobs worth a line once nothing is left to do: those this run submitted, not the
+// student's earlier ones from WorkIt's tracker. "" when there are none.
+export function submittedLine(v: Pick<View, "applied">): string {
+  const n = v.applied.filter((j) => j.source.from !== "tracker").length;
+  return n ? `${plural(n, "application")} submitted this run.` : "";
+}
+
+export const WAITING_FOR_SCREEN = "Waiting for the form's screen… It can take a minute the first time.";
+
 const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 const pausedAt = (resets: Date, at: (resets: Date) => string) => `You've reached today's limit, so applying is paused. It starts again at ${at(resets)}.`;
