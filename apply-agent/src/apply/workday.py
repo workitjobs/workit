@@ -464,6 +464,8 @@ class WorkdayFiller:
         its Sign In page (`_create_account`): signed in, the account is made;
         refused as not verified, it is made and its link is waited for; any
         other refusal means an account was there already (`_may_exist`)."""
+        if made_since and self._signed_in_as_made(page):
+            return self._accounts.created(site)
         _by_email(page)
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
@@ -488,6 +490,17 @@ class WorkdayFiller:
                 raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} said: '{error}' Verify the account through the "
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
+
+    @staticmethod
+    def _signed_in_as_made(page: Page) -> bool:
+        """Whether Workday took the new account straight to the first step. As it goes there, its Create Account view
+        still shows once its answer made the account, which `_create_account` reads as its Sign In: on a busy machine,
+        the step came while Sign In was waited for, and the fill stopped (the fake's CACI tenant, 2026-11-25). So the
+        page is let settle on the step or the Sign In view first; neither, Sign In goes on as before."""
+        try:
+            return _until(page, lambda: "in" if _on_step(page) else _sign_in_view(page) and "sign in", SEND_WAIT) == "in"
+        except TimeoutError:
+            return False
 
     def _create_account(self, page: Page, site: str, offers_google: bool = False) -> None:
         """`offers_google`: the tenant shows Sign in with Google, so an account
