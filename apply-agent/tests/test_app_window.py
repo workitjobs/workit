@@ -503,6 +503,29 @@ def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, t
     assert saved == [("When can you start?", "June 2027")]
 
 
+def test_closing_asks_first_only_while_forms_wait_for_the_student_naming_how_many(monkeypatch):
+    """Fault: quitting closes held forms with no question, or asks with nothing held, or a submitted form counts."""
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    window = type("Closing", (), {"confirm_close": False, "localization": {"global.quitConfirmation": "Quit?"}})()
+    with Dashboard(3, OneFrame(), serve=False) as run_board:
+        bridge = Bridge(run_board, WorkIt(workit.LIVE))
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+        run_board.update(0, status="ready", again=True)
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is True
+        assert window.localization["global.quitConfirmation"] == app_window.close_words(1) == (
+            "Quit WorkIt Auto Apply? Your filled form waiting for you will close. Nothing gets submitted.")
+        run_board.update(1, status="missing fact", again=True)
+        run_board.update(2, status="submitted", again=True)  # sent: it waits for no one
+        app_window.guard_close(window, bridge)
+        assert "Your 2 filled forms waiting" in window.localization["global.quitConfirmation"]
+        run_board.update(0, again=False)
+        run_board.update(1, again=False)  # let go: nothing held, nothing asked
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+
+
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
     """Fault: a Developer checkout's own data folder deleted, data removed under a running run, or the login left in
     the keychain after the folder went."""

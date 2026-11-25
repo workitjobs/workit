@@ -18,6 +18,7 @@ test("each refusal Apply's routes and app methods can send reads in the student'
     ["Only the Apply window may answer for you.", "This window couldn't do that. Quit WorkIt Auto Apply and open it again."],
     ["That browser has no window to open: it runs headless, or it closed.", "That form's window is closed."],
     ["That form isn't held for you now: Fill again works once Apply has stopped on it, before Submit.", "That form is closed now, so it can't be tried again."],
+    ["That form isn't held for you now: it's closed already.", "That form is already closed."],
     ["No such form.", "That didn't work. Try again."],
     ["WorkIt Auto Apply couldn't read your queue (WorkIt didn't answer). Paste a link instead.", "We couldn't read your Auto Apply queue on WorkIt. Paste a job's link instead."],
     ["A run is going: its forms are in the window.", "WorkIt is already applying. Stop it first, or wait until it's done."],

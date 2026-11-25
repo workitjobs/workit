@@ -56,7 +56,10 @@ export type Bridge = {
   approve(id: string, essays?: string[]): Promise<void>;
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
-  stop(): Promise<void>; // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again
+  letGo(id: string): Promise<void>; // Not applying to this one: its held form closes, unsubmitted
+  // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again. `newOnly`: no job
+  // waiting starts, and every filled form stays open for the student.
+  stop(newOnly?: boolean): Promise<void>;
   remove(link: string): Promise<void>; // take a job that hasn't started out of the run
   app: Promise<App>; // never settles in a window with no app methods
 };
@@ -132,7 +135,8 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     approve: (id, essays) => post("/approve", essays ? { id, essays } : { id }),
     open: (worker) => post(`/show/${worker}`, {}),
     fillAgain: (id) => post("/fill-again", { id }),
-    stop: () => post("/stop", {}),
+    letGo: (id) => post("/let-go", { id }),
+    stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),
     app,
   };

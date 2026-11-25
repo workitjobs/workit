@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, stopWords, usageLine, usedShare, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -60,7 +60,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           WorkIt Auto Apply
         </button>
         <nav className="ml-auto flex items-center gap-1 text-note">
-          {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
+          {v.running && !first && <Stop v={v} bridge={bridge} fail={setToast} />}
           {addsJobs(v, !!app.start) && !!app.matches && (
             <Button tone="quiet" className={cx("h-8 px-3", first && finds && "bg-hover text-ink")} onClick={() => setPage("find")}>
               <MagnifyingGlassIcon className="size-4" /> Find jobs
@@ -119,13 +119,18 @@ function Connecting({ lost }: { lost: boolean }) {
   );
 }
 
-// Stop applying: asked once more, since the run ends. Nothing is submitted, and filled forms stay as they are;
-// app_window.Bridge then shows the queue again (the page reloads).
-function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
+// Stop applying: asked once more, naming the filled forms a full Stop closes. Nothing is submitted. While jobs wait to
+// start, Stop new ones only comes first: none of them starts, and every filled form stays open (`stopWords`). A full
+// Stop ends the run; app_window.Bridge then shows the queue again (the page reloads).
+function Stop({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
   const [step, setStep] = useState<"idle" | "asking" | "stopping">("idle");
-  const stop = () => {
+  const words = stopWords(v);
+  const stop = (newOnly: boolean) => {
     setStep("stopping");
-    bridge.stop().catch((e: Error) => (setStep("idle"), fail(e.message)));
+    bridge.stop(newOnly).then(
+      () => newOnly && (setStep("idle"), fail(v.held ? "No new jobs will start. Your filled forms stay open." : "No new jobs will start.")),
+      (e: Error) => (setStep("idle"), fail(e.message)),
+    );
   };
   if (step === "idle")
     return (
@@ -135,11 +140,16 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
     );
   return (
     <span role="group" aria-label="Stop applying" className="flex items-center gap-1">
-      <span className="px-1 text-ink-meta">{step === "stopping" ? "Stopping…" : "Stop every application? Nothing gets submitted."}</span>
+      <span className="px-1 text-ink-meta">{step === "stopping" ? "Stopping…" : words.ask}</span>
       {step === "asking" && (
         <>
-          <Button tone="primary" className="h-8 px-3" onClick={stop}>
-            Stop
+          {words.newOnly && (
+            <Button tone="primary" className="h-8 px-3" onClick={() => stop(true)}>
+              {words.newOnly}
+            </Button>
+          )}
+          <Button tone={words.newOnly ? "secondary" : "primary"} className="h-8 px-3" onClick={() => stop(false)}>
+            {words.all}
           </Button>
           <Button tone="quiet" className="h-8 px-3" onClick={() => setStep("idle")}>
             Keep going

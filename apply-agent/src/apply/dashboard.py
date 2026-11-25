@@ -473,6 +473,11 @@ class Board(Protocol):
         (`POST /fill-again`) since it last asked; each ask is given once."""
         ...
 
+    def let_go_asked(self, worker: int) -> bool:
+        """Whether the student pressed Not applying to this one on tile `worker`'s held form (`POST /let-go`):
+        its page is let go, unsubmitted. Each press is given once."""
+        ...
+
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         """The answers of Worker `worker`'s held form that Lisul asked in the
         window to have written again since it last asked, (question name, his
@@ -528,6 +533,9 @@ class NoBoard:
         return False
 
     def fill_again_asked(self, worker: int) -> bool:
+        return False
+
+    def let_go_asked(self, worker: int) -> bool:
         return False
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
@@ -647,6 +655,7 @@ class Dashboard:
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
+        self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
@@ -691,15 +700,27 @@ class Dashboard:
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
 
-    def stopping(self, stop: Callable[[], None]) -> None:
-        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop."""
+    def stopping(self, stop: Callable[..., None]) -> None:
+        """`stop()` ends the run: Stop applying in the student's window (KAN-874), through POST /stop.
+        `stop(new_only=True)` only stops new jobs from starting: Stop new ones only, which keeps held forms open."""
         self._stop = stop
 
-    def stop(self) -> None:
-        """Stop applying. Raises Refused when this window has no run to stop."""
+    def stop(self, new_only: bool = False) -> None:
+        """Stop applying; with `new_only`, only stop new jobs from starting. Raises Refused when this window has no
+        run to stop."""
         if self._stop is None:
             raise Refused("No run is going.", 409)
-        self._stop()
+        if new_only:
+            self._stop(new_only=True)
+        else:
+            self._stop()
+
+    def held(self) -> int:
+        """How many forms are open and waiting for the student (a tile whose page its Worker holds, not submitted):
+        what quitting the app or a full Stop closes."""
+        with self._lock:
+            return sum(bool(c.get("again")) and c.get("status") != "submitted" and not c.get("let_go")
+                       for c in self._captions)
 
     def removing(self, remove: Callable[[str], bool]) -> None:
         """`remove(link)` takes the job of `link` out of the run before it starts, and says whether it could (False:
@@ -868,6 +889,26 @@ class Dashboard:
             asked = worker in self._again
             self._again.discard(worker)
             return asked
+
+    def let_go_asked(self, worker: int) -> bool:
+        with self._lock:
+            asked = worker in self._letting_go
+            self._letting_go.discard(worker)
+            return asked
+
+    def let_go(self, key: str) -> str:
+        """Not applying to this one, on a tile's held form ("tile-<k>"): its page is let go, unsubmitted, and the
+        student's window shows it no more (`let_go` on its tile). Raises Refused when no form is held there."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            caption = self._captions[k]
+            if not caption.get("again") or caption.get("status") == "submitted":
+                raise Refused("That form isn't held for you now: it's closed already.", 409)
+            caption["let_go"] = True
+            self._letting_go.add(k)
+        return "Closed it, unsubmitted."
 
     def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
         with self._lock:
@@ -1368,6 +1409,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._resume()
         if parts.path == "/fill-again":
             return self._fill_again()
+        if parts.path == "/let-go":
+            return self._let_go()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/stop":
@@ -1688,6 +1731,22 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"Fill again asked ({key})")
         self._json(200, {"message": message})
 
+    def _let_go(self) -> None:
+        """Not applying to this one, on a held form, from the page itself. Body {"id": "tile-<k>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may close a form."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a form to close."})
+        try:
+            message = self.dashboard.let_go(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Not applying, let go in the window ({key})")
+        self._json(200, {"message": message})
+
     def _rehearse(self) -> None:
         """A new link for a running Worker (`apply rehearse --into`): from a process that read the window's
         token from its 0600 file, or from the page itself. Body {url, worker?, application?}."""
@@ -1708,11 +1767,16 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, taken)
 
     def _stop(self) -> None:
-        """Stop applying, from the page itself (KAN-874)."""
+        """Stop applying, from the page itself (KAN-874). Body {new_only: true}: Stop new ones only."""
         if not self._from_window():
             return self._json(403, {"error": "Only the Apply window may stop the run."})
         try:
-            self.dashboard.stop()
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            new_only = body.get("new_only") is True
+        except (ValueError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a stop."})
+        try:
+            self.dashboard.stop(new_only)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         self._send(204, "text/plain", b"")

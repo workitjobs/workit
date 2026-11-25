@@ -20,6 +20,7 @@ export type Job = {
   worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
   reason?: string; // why it didn't go through, in the student's words
   retry?: string; // what /fill-again names it by, when Apply holds its page to fill again: Try again
+  held?: boolean; // its form is open and waiting for the student: Stop applying or quitting closes it
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
 };
 
@@ -31,6 +32,7 @@ export type View = {
   queued: number; // waiting to start
   waiting: Waits[]; // those of them Apply names: Remove takes one out
   running: boolean; // a run's board, which Stop applying ends; not the idle board
+  held: number; // forms open and waiting for the student, which a full Stop closes
 };
 
 // A job waiting to start, as a row shows it. `link` is what /remove names it by.
@@ -106,6 +108,7 @@ export function view(state: ApplyState): View {
     const item = items.get(key);
     const shown = tile ? { ...item, ...tile } : item!;
     if (!tile && item!.tone === "idle") continue;
+    if (tile?.let_go) continue; // not applying to it: its card goes
     const c = classify(shown);
     if (item?.answered && (!tile || c.status === "todo")) continue; // answered in the window: it waits on the student no more
     jobs.push({
@@ -118,6 +121,7 @@ export function view(state: ApplyState): View {
       worker: tile ? tile.worker : item?.worker,
       reason: c.status === "stopped" ? reason(shown) : undefined,
       retry: c.status === "stopped" && tile && (tile.again || tile.askable || tile.refill) ? `tile-${tile.worker}` : undefined,
+      held: !!tile?.again && c.status !== "submitted",
       source: { ...shown, questions: item?.questions ?? tile?.questions },
     });
   }
@@ -129,6 +133,7 @@ export function view(state: ApplyState): View {
     queued: state.run?.queued ?? 0,
     waiting: (state.run?.waiting ?? []).map((w) => ({ link: w.link, company: w.company || site(w.link), role: w.title || "", source: w })),
     running: !!state.run?.mode,
+    held: jobs.filter((j) => j.held).length,
   };
 }
 
@@ -167,6 +172,19 @@ export const bar = (job: Job): number | "unknown" => (job.progress === undefined
 export const addsJobs = (v: View, canStart: boolean) => canStart && !v.running;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// Stop applying's question, and its buttons. With jobs still waiting to start, Stop new ones only comes first: it
+// keeps every filled form open. A full Stop names the filled forms it closes, so none is lost unawares.
+export function stopWords(v: Pick<View, "held" | "queued">): { ask: string; newOnly?: string; all: string } {
+  const forms = plural(v.held, "filled form");
+  if (v.queued > 0)
+    return {
+      ask: !v.held ? "Stop starting new jobs? Nothing gets submitted." : v.held === 1 ? "Stop starting new jobs? Your filled form stays open." : `Stop starting new jobs? Your ${forms} stay open.`,
+      newOnly: "Stop new ones only",
+      all: v.held ? `Stop and close ${v.held === 1 ? "it" : `all ${v.held}`}` : "Stop everything",
+    };
+  return { ask: v.held ? `Stop? ${forms} waiting for you will close. Nothing gets submitted.` : "Stop every application? Nothing gets submitted.", all: "Stop" };
+}
 
 // The page's heading: what the student should do now, in a few words. Questions count one by one, since a job
 // asks each on its own card.

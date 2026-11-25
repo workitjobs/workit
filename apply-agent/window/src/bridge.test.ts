@@ -25,12 +25,16 @@ test("an answer, a Skip and a file reach /answer in the shape the route takes", 
   ]);
 });
 
-test("Stop applying and Remove reach /stop and /remove", async () => {
+test("Stop applying, Stop new ones only, Not applying and Remove reach their routes", async () => {
   const { sent, bridge } = posts();
   await bridge.remove("https://jobs.lever.co/acme/2");
+  await bridge.letGo("tile-1");
+  await bridge.stop(true);
   await bridge.stop();
   assert.deepEqual(sent, [
     { path: "/remove", token: "tok", body: { link: "https://jobs.lever.co/acme/2" } },
+    { path: "/let-go", token: "tok", body: { id: "tile-1" } },
+    { path: "/stop", token: "tok", body: { new_only: true } },
     { path: "/stop", token: "tok", body: {} },
   ]);
 });

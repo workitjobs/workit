@@ -45,6 +45,14 @@ docstring first.
   same token and Origin checks. A new route needs nothing more. The
   frame streams (`/frames`, `/stream/k`) never go through it, since their
   answer never ends: the shim makes `/frames` from `Bridge.frames`.
+- Closing the window or quitting the app closes every form held for the
+  student, so it asks first only while one is (`guard_close`): pywebview's
+  `confirm_close`, with its question naming how many (`close_words`:
+  "Quit WorkIt Auto Apply? Your 3 filled forms waiting for you will
+  close."). The `closing` event sets `confirm_close` just before pywebview
+  reads it; on a Mac the question's words are read before that event, so a
+  thread sets them again each `CLOSE_GUARD_EVERY`. The count is
+  `Dashboard.held`: each tile whose page is held (`again`), not submitted.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
@@ -194,7 +202,14 @@ for a student, not from `dashboard_page.py`.
   "Usage limit reached" (before KAN-837, "Max usage limit hit").
 - **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
   the header has Stop applying, asked once more before it posts `/stop`.
-  The run ends (`rehearse`'s stop): no job waiting starts, each held page
+  The question names the filled forms a full Stop closes (`stopWords`,
+  from each tile whose page is held, `again`): "Stop? 3 filled forms
+  waiting for you will close." While jobs wait to start, Stop new ones
+  only comes first and posts `/stop` with `{"new_only": true}`: no job
+  waiting starts, the run takes no new link (`into`), a fill under way ends
+  held as any does, and every held page stays open until the student closes
+  it or presses Stop again. A full Stop ends the run (`rehearse`'s stop): no
+  job waiting starts, each held page
   is let go unsubmitted, a fill under way ends on its own (a rehearsal
   never submits) or when the run's Workers close, `on_done` still runs, and
   `app_window.Bridge` shows the queue
@@ -203,6 +218,14 @@ for a student, not from `dashboard_page.py`.
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
+- **Not applying to this one.** A to-do card whose form is held (its
+  tile's `again`) has Not applying to this one, asked once more before it
+  posts `/let-go` with the tile (`Dashboard.let_go`). The tile gets
+  `let_go`, so `view` drops its card at once, and the run lets that one
+  page go unsubmitted, as if its window closed (`hold`'s `let_go`, through
+  `Board.let_go_asked`); the other forms stay held. The route takes only
+  the window's token, and refuses a tile with no held form or one
+  submitted.
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
   (`view`), names the pile in the heading (`headline`), says the Usage
   cap in words (`limit`) and gives its bar's share and line (`usedShare`,
@@ -225,8 +248,8 @@ for a student, not from `dashboard_page.py`.
   Skip for now; none fires while typing in a box or with Cmd, Ctrl or
   Alt held.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
-  `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
-  `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
+  `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/let-go`,
+  `/stop` and `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
   `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `matches`, `start`,
   `status`, `usage`, `settings`, `review_report`, `send_report`), feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
