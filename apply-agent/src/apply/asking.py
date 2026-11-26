@@ -97,16 +97,17 @@ def graduation(profile: ApplicantProfile) -> str:
     return f"Expected graduation: {given}" if given else ""
 
 
-def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None) -> tuple[str, ...]:
+def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None, employer: str = "") -> tuple[str, ...]:
     """What Apply already holds that answers `asked`, a line a fact; () when
     it holds nothing, and Lisul must be asked. An answer Lisul gave before
     (the profile's answered questions, the Answer bank, a Story bank line
     from an earlier Essay fact) answers the same question. A question for
     the graduation date is answered by the profile's (graduation). A question for
     links is answered by the links Apply holds when each kind it names
-    (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds."""
-    from apply.essays import ASK  # imported here: essays imports this module
-    asked = one_line(asked.removeprefix(ASK))
+    (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds.
+    A Story bank line true of one company only is `employer`'s (essays.story_bank)."""
+    from apply import essays  # imported here: essays imports this module
+    asked = one_line(asked.removeprefix(essays.ASK))
     if not asked:
         return ()
     answered = {key(q): a for q, a in (profile.get(ANSWERED) or {}).items() if a not in (None, "", [])}
@@ -114,8 +115,8 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None)
         return (_shown(answered[key(asked)]),)
     if bank and (entry := bank.get(asked)) and entry.answer:
         return (_shown(entry.answer),)
-    story_bank = data_folder.STORY_BANK.read_text() if data_folder.STORY_BANK.is_file() else ""
-    if line := next((one_line(line)[2:] for line in story_bank.splitlines()
+    stories = essays.story_bank(employer) if data_folder.STORY_BANK.is_file() else ""
+    if line := next((one_line(line)[2:] for line in stories.splitlines()
                      if one_line(line).casefold().startswith(f"- {asked}".casefold())), ""):
         return (line,)
     if GRADUATION_ASK.search(asked) and (graduates := graduation(profile)):

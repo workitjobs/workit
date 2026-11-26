@@ -838,7 +838,7 @@ class _Planned:
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
             left=self.left | self._skipped, blanks=self.blanks | self.kept_blank, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
             essays={e.question.name: e.text for e in self.written if e.text},
-            allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text,
+            allowed=essays.sources(self.profile, self.known(), facts=True, employer=self.posting.company), posting_text=self.text,
             dismissed=verify.dismissed(self.posting.id))
 
     def _letter_file(self, text: str, folder: Path) -> Path:
@@ -956,12 +956,12 @@ class _Planned:
         pair, or the essay it is for."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
         found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
-                 and (facts := asking.known(q.label, self.profile, self._bank))}
+                 and (facts := asking.known(q.label, self.profile, self._bank, self.posting.company))}
         if found:
             self.found |= found
             self.answers = self._answers
         missing = [q for q in missing if q.name not in self.found]
-        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
+        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank, self.posting.company)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
         # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional

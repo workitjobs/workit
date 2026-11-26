@@ -23,6 +23,7 @@ from fakes import (
 
 from apply import (
     answering,
+    asking,
     essays,
     home,
     probe,
@@ -1040,6 +1041,7 @@ def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with
     planned.questions, planned._rehearse, planned._approved = [], True, None
     planned.missing, planned._on_missing = (), lambda *heard: None
     planned.found, planned.written, planned.profile, planned._bank = {}, [], ApplicantProfile.load(PROFILE, POLICIES), None
+    planned.posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/figma/1")
     assert planned._missing([], [f"Essay fact: {DECISION}"]) is None
     assert planned.missing == (f"Essay fact: {DECISION}",)
     essay = essays.Essay(Question("p", PROJECT, "textarea", True), "",
@@ -1857,6 +1859,26 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
+
+
+def test_an_essay_fact_that_names_its_company_is_read_only_on_that_companys_forms():
+    # Fault: a Strava-only answer in the Story bank reaches another company's essays or questions (Strava, 2026-11-26).
+    asked = "Essay fact: Are you applying to any Strava internship besides this one?"
+    essays.remember_fact(asked, "No. This is the only Strava internship I'm applying to.", "Strava", NOW.date())
+    essays.remember_fact("Essay fact: Which club did you lead?", "The robotics club.", "Strava", NOW.date())
+
+    assert "only Strava internship" in essays.story_bank("Strava")
+    assert "only Strava internship" not in essays.story_bank("Acme")
+    assert "only Strava internship" not in essays.story_bank()
+    assert "The robotics club." in essays.story_bank("Acme")  # true anywhere: every company's
+    # One that doesn't name its company but asks of other roles there is that company's too.
+    essays.remember_fact("Essay fact: Are you applying to other internships here?", "No, only this one I'm applying to.",
+                         "Strava", NOW.date())
+    assert "only this one" in essays.story_bank("Strava") and "only this one" not in essays.story_bank("Acme")
+    assert "only Strava internship" not in essays.sources(ApplicantProfile.load(PROFILE, POLICIES), employer="Acme")
+    profile = ApplicantProfile({}, home.HOME, {})
+    assert asking.known(asked, profile, employer="Strava")
+    assert not asking.known(asked, profile, employer="Acme")
 
 
 def test_a_cover_letter_asking_which_graduation_date_to_give_is_written_with_the_profiles(monkeypatch):

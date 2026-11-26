@@ -343,6 +343,7 @@ def test_what_an_essay_asks_is_required_only_when_its_form_requires_the_essay(re
     planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
     planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
     planned._bank = AnswerBank()
+    planned.posting = Posting("p", "Example Co", "Software Engineer Intern", "https://jobs.example.com/example/1")
     planned._missing([], [ask])
 
     assert planned.required == {ask: required}

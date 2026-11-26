@@ -293,7 +293,7 @@ In a rehearsal, its tile has a Fill it anyway button. The button fills the form 
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:
-A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. Lisul's answers to Essay facts are added under "Answered during applications".
+A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. Lisul's answers to Essay facts are added under "Answered during applications". An answer that names the company it was asked for is read only on that company's forms.
 _Avoid_: context, notes, bio
 
 **Story map**:

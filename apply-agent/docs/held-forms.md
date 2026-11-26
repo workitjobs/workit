@@ -393,12 +393,17 @@ Every question that reaches the Needs you tab (a Missing fact, an Essay
 fact, a one-off that Claude left for Lisul, a Handoff's questions) passes
 through `worker._Planned._missing` first.
 
-- `asking.known(asked, profile, bank)` is the never-ask-twice check. It
-  looks in the profile's `answered_questions`, the Answer bank, the Story
-  bank (an earlier Essay fact's answer) and the applicant's links. A link
-  question is known when each kind that it names (GitHub, LinkedIn, a site,
-  a repo) is among the links. A known text field gets that answer
-  (`_Planned.found`), and a known ask is dropped.
+- `asking.known(asked, profile, bank, employer)` is the never-ask-twice
+  check. It looks in the profile's `answered_questions`, the Answer bank,
+  the Story bank (an earlier Essay fact's answer) and the applicant's links.
+  It reads the Story bank as `essays.story_bank(employer)` reads it: an
+  Essay fact answer that names the company it was asked for ("the only
+  Strava internship"), or that asks of other roles there, is read only on
+  that company's forms, as are `essays.sources` and the Essay plan. Other
+  answers hold for every company. A link question is known when each kind
+  that it names (GitHub, LinkedIn, a site, a repo) is among the links. A
+  known text field gets that answer (`_Planned.found`), and a known ask is
+  dropped.
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date

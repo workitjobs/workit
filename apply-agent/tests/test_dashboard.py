@@ -1217,7 +1217,7 @@ def test_each_question_says_whether_its_form_requires_it(window):
 def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     from apply import essays, notify
     from apply.answer_bank import AnswerBank
-    from apply.model import Question, Status
+    from apply.model import Posting, Question, Status
 
     step = "Application Questions 1 of 2"
     worked, start, end = (Question(f"{step} / {label}", label, kind, True) for label, kind in [
@@ -1229,6 +1229,7 @@ def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
     planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
     planned._bank = AnswerBank()
+    planned.posting = Posting("p", "Example Co", "Software Engineer Intern", "https://jobs.example.com/example/1")
     planned._missing([start], ["Essay fact: What did the robot do?"])
 
     assert planned.where == {
