@@ -62,6 +62,7 @@ from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name th
     answered_questions,
     ask_fact,
     ask_questions,
+    cover_letters,
     drop_own_answer,
     led_before,
     next_to_write,
@@ -81,7 +82,7 @@ from app.schemas.jobs import ScoredJob
 
 # The lowest score auto apply takes ("Match (built)"). It moves with the
 # matching weights: retune it when they change.
-MIN_MATCH = 60
+MIN_MATCH = 74
 # One click of Start Auto Apply ("The batch", why 10).
 BATCH_SIZE = 10
 

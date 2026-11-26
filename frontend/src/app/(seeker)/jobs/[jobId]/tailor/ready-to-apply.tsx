@@ -115,7 +115,7 @@ export function TailorFinish({
         <DialogContent
           data-backdrop="strong"
           initialFocus={asking ? true : downloadRef}
-          className={asking ? "max-h-[90vh] overflow-y-auto sm:max-w-3xl" : "gap-5 sm:max-w-md"}
+          className={asking ? "sm:max-w-3xl" : "gap-5 sm:max-w-md"}
         >
           {asking ? (
             <DidYouApply jobId={job.id} title={job.title} onClose={leave} onApplied={leave} />
@@ -126,9 +126,7 @@ export function TailorFinish({
                   <span className="bg-positive-tint text-positive-ink flex size-9 shrink-0 items-center justify-center rounded-full">
                     <CheckIcon aria-hidden className="size-5" />
                   </span>
-                  <DialogTitle className="text-subtitle font-semibold">
-                    Your Resume Is Ready
-                  </DialogTitle>
+                  <DialogTitle>Your Resume Is Ready</DialogTitle>
                 </div>
                 <DialogDescription>
                   Saved to your Tracker.{" "}
@@ -204,7 +202,11 @@ export function TailorFinish({
                     Check the file before you send it.
                   </p>
                 )}
-                {download.error && <p className="text-note text-danger mt-2">{download.error}</p>}
+                {download.error && (
+                  <p role="alert" className="text-note text-danger mt-2">
+                    {download.error}
+                  </p>
+                )}
               </section>
 
               {job.auto_apply && (

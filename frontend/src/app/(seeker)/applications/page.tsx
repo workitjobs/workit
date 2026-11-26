@@ -1,4 +1,3 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -6,6 +5,7 @@ import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -16,6 +16,7 @@ import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsCards } from "./cards";
 import { ClosedNotice } from "./closed-saved";
 import { ApplicationsList } from "./list";
+import { TrackerPickProvider } from "./pick";
 import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
 
@@ -94,73 +95,78 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
         </Card>
       )}
 
-      <FilterBar
-        apps={all.map(({ role, company, stage, track, workModel, source }) => ({
-          role,
-          company,
-          stage,
-          track,
-          workModel,
-          source,
-        }))}
-      />
+      {/* The table's picked rows, shared with the bar over the filter row
+          (./pick.tsx). */}
+      <TrackerPickProvider>
+        <FilterBar
+          apps={all.map(({ role, company, stage, track, workModel, source }) => ({
+            role,
+            company,
+            stage,
+            track,
+            workModel,
+            source,
+          }))}
+        />
 
-      {closedSaved.length > 0 && (
-        <ClosedNotice apps={closedSaved.map(({ id, role }) => ({ id, role }))} />
-      )}
+        {closedSaved.length > 0 && (
+          <ClosedNotice apps={closedSaved.map(({ id, role }) => ({ id, role }))} />
+        )}
 
-      {/* The board (./board.tsx) is archived (KAN-256); ./query.ts says how to
+        {/* The board (./board.tsx) is archived (KAN-256); ./query.ts says how to
           bring it back. Its pane was <ApplicationsBoard applications={shown}
           stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
           query={{ ...query, view: "board" }} />, keyed on query.stages in ./view-panes.tsx. */}
-      <ViewPanes
-        panes={
-          shown.length === 0
-            ? null
-            : {
-                grid: <ApplicationsCards applications={shown} />,
-                list: <ApplicationsList applications={shown} />,
-              }
-        }
-        empty={
-          shown.length === 0 &&
-          (error != null ? (
-            <EmptyState
-              Icon={CloudSlashIcon}
-              title="Applications Aren't Loading"
-              className="mt-4"
-              detail={process.env.NODE_ENV === "development" ? error : undefined}
-            >
-              We couldn&apos;t reach your saved and applied jobs. Refresh the page in a few minutes.
-            </EmptyState>
-          ) : all.length === 0 ? (
-            <EmptyState
-              Icon={BookmarkIcon}
-              title="Nothing Saved Yet"
-              className="mt-4"
-              action={
-                <ButtonLink href="/jobs" variant="secondary" size="sm">
-                  <SearchIcon className="size-4" />
-                  Find Jobs
-                </ButtonLink>
-              }
-            >
-              Save a job, or mark one as applied, and it shows up here.
-            </EmptyState>
-          ) : (
-            <EmptyState
-              Icon={SearchIcon}
-              title="No Matching Applications"
-              className="mt-4"
-              action={
-                <ClearFiltersLink className={buttonClasses({ variant: "secondary", size: "sm" })} />
-              }
-            >
-              Nothing you&apos;re tracking matches these filters.
-            </EmptyState>
-          ))
-        }
-      />
+        <ViewPanes
+          panes={
+            shown.length === 0
+              ? null
+              : {
+                  grid: <ApplicationsCards applications={shown} />,
+                  list: <ApplicationsList applications={shown} />,
+                }
+          }
+          empty={
+            shown.length === 0 &&
+            (error != null ? (
+              <LoadFailed
+                title="Your Applications Aren't Loading Right Now"
+                className="mt-4"
+                detail={process.env.NODE_ENV === "development" ? error : undefined}
+              >
+                We couldn&apos;t reach your saved and applied jobs. Try again in a few minutes.
+              </LoadFailed>
+            ) : all.length === 0 ? (
+              <EmptyState
+                Icon={BookmarkIcon}
+                title="Nothing Saved Yet"
+                className="mt-4"
+                action={
+                  <ButtonLink href="/jobs" variant="secondary" size="sm">
+                    <SearchIcon className="size-4" />
+                    Find Jobs
+                  </ButtonLink>
+                }
+              >
+                Save a job, or mark one as applied, and it shows up here.
+              </EmptyState>
+            ) : (
+              <EmptyState
+                Icon={SearchIcon}
+                title="No Matching Applications"
+                className="mt-4"
+                action={
+                  <ClearFiltersLink
+                    className={buttonClasses({ variant: "secondary", size: "sm" })}
+                  />
+                }
+              >
+                Nothing you&apos;re tracking matches these filters.
+              </EmptyState>
+            ))
+          }
+        />
+      </TrackerPickProvider>
     </div>
   );
 }

@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 from ruamel.yaml import YAML
 
+from apply import build
 from apply.home import CODE, HOME
 
 # The default answer policies (consent boxes, opt-ins, compensation, defense roles), in the checkout.
@@ -40,12 +41,12 @@ class ApplicantProfile:
 
     @classmethod
     def load(cls, path: Path, policies: Path = POLICIES) -> "ApplicantProfile":
-        """A policies.yaml beside the profile overrides `policies` key by key."""
+        """A policies.yaml beside the profile overrides `policies` key by key; none does in the Student build."""
         facts = _yaml().load(path.read_text()) or {}
         _refuse_secrets(facts)
         rules = load_policies(policies)
         beside = path.parent / "policies.yaml"
-        if beside.exists() and beside.resolve() != policies.resolve():
+        if not build.STUDENT and beside.exists() and beside.resolve() != policies.resolve():
             rules |= yaml.safe_load(beside.read_text()) or {}
         return cls(facts, path.parent, rules, path)
 
@@ -147,8 +148,11 @@ def _apply(facts: dict, kind: str, key: str, value: Any) -> None:
 
 def load_policies(path: Path = POLICIES) -> dict:
     """The policies, for what runs without an Applicant profile (the dry run, the Feed):
-    the defaults with the data folder's policies.yaml laid over them key by key."""
+    the defaults with the data folder's policies.yaml laid over them key by key. The Student build reads no
+    policies.yaml: its own fixed policies (apply.build.STUDENT_POLICIES) go over the defaults instead."""
     rules = yaml.safe_load(path.read_text()) or {}
+    if build.STUDENT:
+        return rules | build.STUDENT_POLICIES
     if Path(path).resolve() == POLICIES.resolve() and OVERRIDE.is_file():
         rules |= yaml.safe_load(OVERRIDE.read_text()) or {}
     return rules

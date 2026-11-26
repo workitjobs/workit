@@ -14,6 +14,10 @@ frame, hidden or not, and given the file directly:
    page that does (Airtable's "Drop files here or click to browse" under
    "Please upload your resume").
 
+A file goes only into the top frame, a frame of its own site, or a job system's
+embedded form (apply.upload_origin, KAN-795): a résumé input found only in
+another site's frame raises `Elsewhere`, a Handoff, and gets no file.
+
 It counts only once the page shows the file's name. Until then the guards let
 the page's own script post the file it was given (iCIMS posts its résumé to be
 parsed by a native form submission, which they block otherwise: KAN-691). Jobvite's country of
@@ -40,6 +44,7 @@ from pathlib import Path
 
 from playwright.sync_api import Error, Frame, Page
 
+from apply import upload_origin
 from apply.model import Handoff
 
 RESUME = r"r[eé]sum[eé]|\bcv\b"
@@ -172,19 +177,27 @@ def attach_resume(page: Page, resume: Path, guard=None) -> bool:
     if found := consent(page):  # one still open from an earlier try: his to press, and no file is given over it
         raise Consent(found["title"], found["button"])
     deadline = time.monotonic() + FOUND_WITHIN
+    elsewhere = ""  # a résumé input found only in a frame a file may not go to (KAN-795)
     while True:  # a form still rendering may not have its fields yet
         for frame in page.frames:
             try:
                 index = frame.evaluate(FIND, [RESUME, COVER])
                 if index >= 0:
+                    if not upload_origin.frame_may_upload(frame):
+                        elsewhere = elsewhere or upload_origin.host_of(frame) or "another site"
+                        continue
                     with _posting(guard):
-                        frame.locator("input[type=file]").nth(index).set_input_files(resume)
+                        upload_origin.give(frame.locator("input[type=file]").nth(index), resume)
                         return _shows(page, resume.name)
             except Error:
                 continue  # a frame that went away, or one that refuses scripts
         if time.monotonic() >= deadline:
             with _posting(guard):
-                return _behind_button(page, resume)
+                if _behind_button(page, resume):
+                    return True
+            if elsewhere:
+                raise upload_origin.Elsewhere(elsewhere)
+            return False
         page.wait_for_timeout(250)
 
 
@@ -217,6 +230,8 @@ def _resume_button(frame: Frame):
 
 def _behind_button(page: Page, resume: Path) -> bool:
     for frame in page.frames:
+        if not upload_origin.frame_may_upload(frame):
+            continue  # a file goes to no input there (KAN-795): its button isn't pressed either
         try:
             button = _resume_button(frame)
             if button is None:
@@ -225,14 +240,14 @@ def _behind_button(page: Page, resume: Path) -> bool:
             try:
                 with page.expect_file_chooser(timeout=3_000) as chooser:
                     button.click()
-                chooser.value.set_files(resume)
+                upload_origin.give(chooser.value, resume)
                 return _shows(page, resume.name)
             except Error:
                 pass  # no chooser: look for the input the click revealed
             after = frame.evaluate(REACHABLE)
             revealed = [i for i, now in enumerate(after) if now and not (i < len(before) and before[i])]
             if len(revealed) == 1:
-                frame.locator("input[type=file]").nth(revealed[0]).set_input_files(resume)
+                upload_origin.give(frame.locator("input[type=file]").nth(revealed[0]), resume)
                 _send_on(frame)
                 return _shows(page, resume.name)
         except Error:
@@ -308,7 +323,7 @@ def clear_pop_up(page: Page, resume: Path | None) -> str:
         wait = 1.0
         try:
             if attempt == 0 and resume and file.count() == 1:
-                file.set_input_files(resume)
+                upload_origin.give(file, resume)
                 wait = SHOWN_WITHIN  # an upload may take a moment
             elif (close := [b for b in pop_up.get_by_role("button", name=CLOSE).all() if b.is_visible()]):
                 close[0].click(timeout=3_000)

@@ -13,7 +13,7 @@ import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import type { Section } from "@/lib/bank-actions";
 import type { PreviewEntry, ResumePreview } from "@/lib/resume-actions";
 
@@ -109,17 +109,13 @@ export function ResumeStep({
           Saved {savedName}. Its entries are in your Experiences.
         </p>
       )}
-      <Field
-        Icon={FileIcon}
-        label="Resume"
-        hint={
-          savedName
-            ? "Have a newer version? Read it the same way."
-            : "Nothing is saved until you check what WorkIt found."
-        }
-      >
-        <ResumeUpload file={file} onFileChange={onFileChange} onRemove={onRemove} busy={reading} />
-      </Field>
+      {/* No heading of its own: the page's h1 asks for the resume
+          (./onboarding-form), and a "Resume" heading under it said it twice. */}
+      <ResumeUpload file={file} onFileChange={onFileChange} onRemove={onRemove} busy={reading} />
+      {/* "Nothing is saved until…" is the page's own line now. */}
+      {savedName && (
+        <p className="text-body text-ink-meta mt-3">Have a newer version? Read it the same way.</p>
+      )}
     </>
   );
 }
@@ -255,12 +251,13 @@ function Reading({
                         warn
                         actions={
                           <IconButton
+                            place="row"
                             id={editId(index)}
                             label={`Edit ${entry.title}`}
                             tooltip="Edit this entry"
                             onClick={() => edit(index)}
                           >
-                            <PencilSimpleIcon aria-hidden className="size-4" />
+                            <PencilSimpleIcon aria-hidden />
                           </IconButton>
                         }
                         badges={
@@ -314,16 +311,16 @@ function Reading({
                 </Button>
               ) : (
                 <IconButton
+                  place="heading"
                   id={SKILLS_EDIT}
                   label="Edit Skills"
                   tooltip="Edit this section"
-                  className={HEADING_ACTION}
                   onClick={() => {
                     setEditingSkills(true);
                     focusOn(SKILLS_DONE);
                   }}
                 >
-                  <PencilSimpleIcon aria-hidden className="size-5" />
+                  <PencilSimpleIcon aria-hidden />
                 </IconButton>
               ),
             )}

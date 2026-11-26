@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { jobLogo } from "@/lib/job-logo";
@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { formatPostedShort, placesOf } from "./format";
 import { listingFacts } from "./listing-card";
-import { MatchScoreTile } from "./match-rail";
+import { MatchScoreRing, MatchScoreTile } from "./match-rail";
 import type { JobListing } from "./listings";
 import { NotInterestedButton } from "./not-interested-button";
 import { SaveJobButton } from "./save-job-button";
@@ -19,7 +19,7 @@ function stated(...facts: unknown[]): string[] {
 
 /**
  * One role as a compact card (KAN-519, after Simplify's list), in the split
- * view's list and /search's list. Laid out as a list item (2026-11-09):
+ * view's list on /jobs and /search. Laid out as a list item (2026-11-09):
  *
  *   [logo]  Title, two lines at most       [Save]  [ring ]
  *           Company                                [tier ]
@@ -29,6 +29,21 @@ function stated(...facts: unknown[]): string[] {
  * The score is a small tile down the card's right side (MatchScoreTile), the
  * large card's tile in small: the ring, the percentage and the tier, no
  * reasons (2026-11-09; a pill in the footer until then).
+ *
+ * BELOW 26rem OF CARD THE SCORE IS ITS RING ALONE, under Save (KAN-917), the
+ * company and place stop beside it, and the title may take a third line:
+ *
+ *   [logo]  Title, three lines at most     [Save]
+ *           Company                       [ring]
+ *           Place · work style · type     [    ]
+ *           pay                            posted
+ *
+ * The split view's list is 20rem at its narrowest (a 1180px window), and the
+ * tile and Save left the title about 64px of the 296px card: "Business
+ * Develop…". With the ring it has about 150px, where a title such as "2027
+ * Internship - Software Engineer (AI/ML)" needs three lines. The card is its
+ * own container (`@container/card`), so this follows the card's width
+ * wherever it is drawn, a phone's list too.
  *
  * The logo has its column alone and every line of text starts on one edge
  * beside it. Until then the place and the type ran under the logo, a second
@@ -73,70 +88,89 @@ export function CompactJobCard({
     <article
       data-current={current || undefined}
       className={cn(
-        "hover:bg-hover relative grid grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] gap-x-3 px-4 py-3.5 transition-colors",
+        "hover:bg-hover @container/card relative transition-colors",
         current && "@4xl/main:bg-brand-tint",
       )}
     >
-      <CompanyLogo
-        name={job.company}
-        src={jobLogo(job)}
-        className="text-label rounded-control row-span-2 size-10 self-start"
-      />
-      <h3 className="text-subtitle text-ink line-clamp-2 font-medium">
-        <Link
-          href={`/jobs/${encodeURIComponent(job.id)}`}
-          title={job.title}
-          aria-current={current ? "page" : undefined}
-          className="focus-visible:ring-brand-ring rounded-control after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
-        >
-          {job.title}
-        </Link>
-      </h3>
-      <div className="relative z-2 -mt-1 -mr-1 flex gap-3">
-        <NotInterestedButton title={job.title} quiet />
-        <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
-      </div>
-      {/* Regular (2026-11-10): at the label's medium the company read as a
+      {/* The grid inside the card, since a container's own classes cannot
+          ask its width. */}
+      <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] gap-x-3 px-4 py-3.5 @max-[26rem]/card:grid-cols-[2.5rem_minmax(0,1fr)_auto]">
+        <CompanyLogo
+          name={job.company}
+          src={jobLogo(job)}
+          className="text-label rounded-control row-span-2 size-10 self-start"
+        />
+        <h3 className="text-subtitle text-ink line-clamp-2 font-medium @max-[26rem]/card:line-clamp-3">
+          <HoverPrefetchLink
+            href={`/jobs/${encodeURIComponent(job.id)}`}
+            title={job.title}
+            aria-current={current ? "page" : undefined}
+            className="focus-visible:ring-brand-ring rounded-control after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {job.title}
+          </HoverPrefetchLink>
+        </h3>
+        <div className="relative z-2 -mt-1 -mr-1 flex gap-3 justify-self-end">
+          <NotInterestedButton title={job.title} quiet />
+          <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
+        </div>
+        {/* Regular (2026-11-10): at the label's medium the company read as a
           second bold line under the title. */}
-      <p
-        title={job.company}
-        className="text-label text-ink col-start-2 col-end-4 truncate font-normal"
-      >
-        {job.company}
-      </p>
-      {/* From here every line sits in the text column, beside the logo's
-          column, never under it. */}
-      {meta && (
         <p
-          title={metaTitle}
-          className="text-label text-ink-muted col-start-2 col-end-4 mt-1.5 truncate font-normal"
+          title={job.company}
+          className={cn("text-label text-ink col-start-2 truncate font-normal", TEXT_END)}
         >
-          {meta}
+          {job.company}
         </p>
-      )}
-      <div className="text-label col-start-2 col-end-4 mt-2.5 flex min-w-0 items-center gap-2">
-        {pay && (
-          <span title={pay} className="text-ink min-w-0 truncate font-medium">
-            {pay}
-          </span>
+        {/* From here every line sits in the text column, beside the logo's
+          column, never under it. */}
+        {meta && (
+          <p
+            title={metaTitle}
+            className={cn(
+              "text-label text-ink-muted col-start-2 mt-1.5 truncate font-normal",
+              TEXT_END,
+            )}
+          >
+            {meta}
+          </p>
         )}
-        {/* The age in the row's right corner, where it is easy to find; it
+        <div className="text-label col-start-2 col-end-4 mt-2.5 flex min-w-0 items-center gap-2">
+          {pay && (
+            <span title={pay} className="text-ink min-w-0 truncate font-medium">
+              {pay}
+            </span>
+          )}
+          {/* The age in the row's right corner, where it is easy to find; it
             never shrinks, and a long pay gives way to it instead. The clock
             moves between the server render and hydration. */}
-        {job.posted_at && (
-          <span suppressHydrationWarning className="text-note text-ink-meta ml-auto shrink-0">
-            {formatPostedShort(job.posted_at)}
-          </span>
+          {job.posted_at && (
+            <span suppressHydrationWarning className="text-note text-ink-meta ml-auto shrink-0">
+              {formatPostedShort(job.posted_at)}
+            </span>
+          )}
+        </div>
+        {/* The score in its own column, a small tile as on the large card,
+          down the card's whole height; on a narrow card its ring alone,
+          under Save. */}
+        {job.match != null && (
+          <>
+            <MatchScoreTile
+              score={job.match}
+              className="col-start-4 row-span-4 row-start-1 ml-1 w-[5.5rem] self-stretch @max-[26rem]/card:hidden"
+            />
+            <MatchScoreRing
+              score={job.match}
+              className="col-start-3 row-span-2 row-start-2 mt-1 hidden justify-self-end @max-[26rem]/card:block"
+            />
+          </>
         )}
       </div>
-      {/* The score in its own column, a small tile as on the large card,
-          down the card's whole height. */}
-      {job.match != null && (
-        <MatchScoreTile
-          score={job.match}
-          className="col-start-4 row-span-4 row-start-1 ml-1 w-[5.5rem] self-stretch"
-        />
-      )}
     </article>
   );
 }
+
+/** Where the company and place lines end: beside the score's tile, or, on a
+ *  narrow card, beside its ring under Save. The pay line under them runs on
+ *  under the ring. */
+const TEXT_END = "col-end-4 @max-[26rem]/card:col-end-3";

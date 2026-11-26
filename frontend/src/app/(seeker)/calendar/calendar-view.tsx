@@ -43,7 +43,6 @@ import { Month } from "./month";
 import { calendarHref, type CalendarView as View } from "./query";
 import { TimeGrid } from "./time-grid";
 import { CalendarViewSwitch, useCalendarQuery } from "./view-switch";
-import { Tip } from "@/components/ui/tip";
 
 /**
  * The calendar itself (KAN-429): ONE TOOLBAR, the span's title at the left
@@ -364,26 +363,22 @@ function Calendar({
               >
                 Today
               </ShallowLink>
-              <Tip label={`Previous ${span.unit}`}>
-                <ShallowLink
-                  href={calendarHref({ view, date: dayKey(span.prev), demo })}
-                  transitionType="nav-back"
-                  aria-label={`Previous ${span.unit}`}
-                  className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
-                >
-                  <CaretLeftIcon aria-hidden className="size-4" />
-                </ShallowLink>
-              </Tip>
-              <Tip label={`Next ${span.unit}`}>
-                <ShallowLink
-                  href={calendarHref({ view, date: dayKey(span.next), demo })}
-                  transitionType="nav-forward"
-                  aria-label={`Next ${span.unit}`}
-                  className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
-                >
-                  <CaretRightIcon aria-hidden className="size-4" />
-                </ShallowLink>
-              </Tip>
+              <ShallowLink
+                href={calendarHref({ view, date: dayKey(span.prev), demo })}
+                transitionType="nav-back"
+                aria-label={`Previous ${span.unit}`}
+                className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
+              >
+                <CaretLeftIcon aria-hidden className="size-4" />
+              </ShallowLink>
+              <ShallowLink
+                href={calendarHref({ view, date: dayKey(span.next), demo })}
+                transitionType="nav-forward"
+                aria-label={`Next ${span.unit}`}
+                className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
+              >
+                <CaretRightIcon aria-hidden className="size-4" />
+              </ShallowLink>
             </div>
           </div>
           <div className="flex items-center gap-2 @3xl/main:contents">
@@ -402,8 +397,14 @@ function Calendar({
                 onChange={(next) => setKinds(next as EventKind[])}
               />
               {kinds.length > 0 && (
-                <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
-                  <CloseIcon className="size-4" />
+                <IconButton
+                  place="row"
+                  tooltip={false}
+                  label="Clear Filter"
+
+                  onClick={() => setKinds([])}
+                >
+                  <CloseIcon />
                 </IconButton>
               )}
             </div>

@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S6 ops: what Claude's browser tools (Apply's MCP server, apply/plain/tools.py) need beyond S2's
 // dom op: the page's modal state, dialogs and the file chooser (page/modal.js). Fixed functions
 // through chrome.scripting, so they need no eval and no user scripts.

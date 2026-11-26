@@ -16,8 +16,8 @@ import { cn } from "@/lib/cn";
  * beside it. Saved is a filled bookmark in brand, a step deeper on hover
  * rather than the outline button's ink, which would read as the save undone.
  * The label names the job for a screen reader, which meets the button without
- * its card, while the tooltip stays short for a pointer already inside that
- * card.
+ * its card. It shows no tooltip: a bookmark on a job card reads as Save on
+ * sight (components/ui/tip.tsx, 2026-11-12).
  *
  * It only draws the state. What a click does is the caller's: the job
  * surfaces wrap it in `(seeker)/jobs/save-job-button.tsx`, which saves the
@@ -49,7 +49,7 @@ export function SaveButton({
         className,
       )}
       label={saved ? `Remove ${title} from saved` : `Save ${title}`}
-      tooltip={saved ? "Remove from saved" : "Save"}
+      tooltip={false}
       // A toggle: pressed while saved.
       aria-pressed={saved}
       onClick={onClick}

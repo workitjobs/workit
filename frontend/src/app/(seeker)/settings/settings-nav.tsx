@@ -2,7 +2,9 @@
 
 import type { ComponentType } from "react";
 
-import { BellIcon, BriefcaseIcon, IntegrationsIcon, LockIcon, UserIcon } from "@/components/icons";
+import { ListMagnifyingGlassIcon } from "@phosphor-icons/react/ssr";
+
+import { BellIcon, IntegrationsIcon, LockIcon, UserIcon } from "@/components/icons";
 import { SideNav } from "@/components/side-nav";
 
 /** Settings' sections, in nav order. Each has its own address,
@@ -12,7 +14,7 @@ export const SECTIONS = [
   { key: "security", label: "Sign-In & Security", Icon: LockIcon },
   { key: "notifications", label: "Notifications", Icon: BellIcon },
   { key: "integrations", label: "Integrations", Icon: IntegrationsIcon },
-  { key: "preferences", label: "Job Preferences", Icon: BriefcaseIcon },
+  { key: "preferences", label: "Job Preferences", Icon: ListMagnifyingGlassIcon },
 ] as const satisfies readonly {
   key: string;
   label: string;

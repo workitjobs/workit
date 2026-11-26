@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type ComponentType, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ComponentType, type MouseEvent } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -20,19 +20,20 @@ export type SideNavItem = {
  * sideways above the part, since long labels do not fit equal widths.
  * Used by Settings (settings/settings-nav.tsx, which switches its part in
  * place with `onSelect`) and Application Info (auto-apply/info, whose
- * parts are pages, so a plain link). The column stays put while the part
- * scrolls (`sticky`), so a menu never leaves the screen.
+ * parts are cards down one page: `onSelect` scrolls to one). The column
+ * stays put while the page scrolls (`sticky`), so a menu never leaves the
+ * screen.
  *
- * `head` sits above the items in the column, in their look (Application
- * Info's "Auto Apply" way back); `foot` under them.
+ * AN ITEM IS BODY SIZE (14px, with an 18px glyph, 2026-11-23). It was the
+ * label size (13px, 16px glyph), which the user found small on Application
+ * Info, under 16px tabs and beside 16px card titles: a page's menu is
+ * navigation, and reads at the size of the text it leads to.
  */
 export function SideNav({
   label,
   items,
   active,
   onSelect,
-  head,
-  foot,
   className,
 }: {
   /** The menu's name for a screen reader. */
@@ -42,26 +43,33 @@ export function SideNav({
   /** A plain click switches the part in place, with no navigation; a
    *  modified click still opens the address in a new tab. */
   onSelect?: (key: string) => void;
-  head?: ReactNode;
-  /** Under the items: a line about the whole page (Application Info's
-   *  "Only you can see these"). */
-  foot?: ReactNode;
   className?: string;
 }) {
   const current = useRef<HTMLAnchorElement>(null);
+  const row = useRef<HTMLUListElement>(null);
 
   // On a phone the row scrolls sideways, and a part near its end opened out
-  // of view.
+  // of view. Sideways only: `scrollIntoView` moves the page too, and
+  // Application Info marks a part as the page scrolls, which pulled the
+  // page back up to the menu.
   useEffect(() => {
-    current.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const box = row.current;
+    const item = current.current;
+    if (!box || !item) return;
+    const frame = box.getBoundingClientRect();
+    const at = item.getBoundingClientRect();
+    if (at.left < frame.left) box.scrollLeft -= frame.left - at.left + 8;
+    else if (at.right > frame.right) box.scrollLeft += at.right - frame.right + 8;
   }, [active]);
 
   return (
     // min-w-0: in a grid or flex row the menu would grow to its row's full
     // width on a phone, and the page, not the row, scrolled sideways.
     <nav aria-label={label} className={cn("min-w-0 sm:sticky sm:top-6 sm:self-start", className)}>
-      {head}
-      <ul className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-col sm:overflow-visible sm:px-0">
+      <ul
+        ref={row}
+        className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-col sm:overflow-visible sm:px-0"
+      >
         {items.map(({ key, label: name, href, Icon }) => {
           const isCurrent = key === active;
           const select = onSelect
@@ -80,20 +88,19 @@ export function SideNav({
                 onClick={select}
                 className={cn(SIDE_NAV_ITEM, isCurrent ? SIDE_NAV_CURRENT : SIDE_NAV_IDLE)}
               >
-                <Icon className="size-4 shrink-0" />
+                <Icon className="size-4.5 shrink-0" />
                 {name}
               </Link>
             </li>
           );
         })}
       </ul>
-      {foot}
     </nav>
   );
 }
 
-/** An item's look, for a row drawn in the menu's place (`head`). */
-export const SIDE_NAV_ITEM =
-  "rounded-control text-label focus-visible:ring-brand-ring flex items-center gap-2 px-3 py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
+/** An item's look. */
+const SIDE_NAV_ITEM =
+  "rounded-control text-body focus-visible:ring-brand-ring flex items-center gap-2.5 px-3 py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 const SIDE_NAV_CURRENT = "bg-brand-tint text-brand font-semibold";
-export const SIDE_NAV_IDLE = "text-ink-muted hover:bg-hover hover:text-ink";
+const SIDE_NAV_IDLE = "text-ink-muted hover:bg-hover hover:text-ink font-medium";

@@ -17,8 +17,8 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
  * name over the email, as the reference dashboard shows its account.
  *
  * The whole block opens the account menu (@/components/account-menu):
- * Settings, Help and Sign Out, everything about the app rather than the
- * work. They were the panel's General group; the photo in the corner is
+ * Settings and Sign Out, everything about the app rather than the work,
+ * and Help once its page exists (`HELP_LIVE`). They were the panel's General group; the photo in the corner is
  * where people look for them, so they live here alone and the panel keeps
  * only the sections of the search. The menu skips the account header where
  * this block already shows the name and email, so it does not repeat it.
@@ -40,6 +40,13 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
  * Spans, not a div and paragraphs: the whole block sits inside the menu's
  * <button>, which may only hold inline content.
  */
+/** Whether the menu offers Help (KAN-826). Off until /help has guides: it
+ *  opened a placeholder ("Help Is on the Way"), and a control that does not
+ *  work is not drawn, as the Scout buttons are not (`ASK_SCOUT_LIVE`). The
+ *  page stays at /help (./help/page.tsx), unlinked. Set it to true to bring
+ *  the row back. */
+const HELP_LIVE = false;
+
 /** The menu's rows, above Sign Out: what used to be the panel's General
  *  group. Elements, not components, since they cross into the client menu
  *  (see `icon` in @/components/account-menu). */
@@ -49,7 +56,9 @@ const MENU_ITEMS: AccountMenuItem[] = [
     label: "Settings",
     icon: <GearIcon aria-hidden className="size-4" />,
   },
-  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
+  ...(HELP_LIVE
+    ? [{ href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> }]
+    : []),
 ];
 
 export async function SeekerAccount() {

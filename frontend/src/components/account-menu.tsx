@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
 import { cn } from "@/lib/cn";
-import { Tip } from "@/components/ui/tip";
 import { clearLocalDrafts } from "@/lib/local-drafts";
 import { SignOutIcon, UserIcon } from "@/components/icons";
 import {
@@ -105,37 +104,33 @@ export function AccountMenu({
 }: AccountMenuProps) {
   return (
     <DropdownMenu>
-      {/* "Account" on hover: below lg the trigger is the photo alone, and the
-          company bar's always is (components/ui/tip.tsx, 2026-11-11). */}
-      <Tip label="Account">
-        <DropdownMenuTrigger
-          /* Starts with the visible name, so a voice user who says it reaches
-           * the button (WCAG 2.5.3). */
-          aria-label={name ? `${name}, account menu` : label}
-          /* cursor-pointer is not redundant: Tailwind v4's preflight sets
-           * `cursor: default` on buttons, so a <button> trigger shows an arrow
-           * where the <Link> this replaced showed a hand. */
-          /* A passed-in trigger (the seeker's photo, name and email) is a
-           * wide block that opens a menu, so from lg, where the name and email
-           * show, it fills as a pill on hover to read as a control rather than
-           * a label. Below lg it is the photo alone, like the company bar's
-           * avatar. */
-          className={cn(
-            "focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none",
-            children &&
-              "lg:hover:bg-hover min-w-0 gap-3 text-left transition-colors lg:py-1 lg:pr-4 lg:pl-1",
-          )}
-        >
-          {children ??
-            (name ? (
-              <Avatar name={name} src={src} className="text-note size-8" />
-            ) : (
-              <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
-                <UserIcon className="size-4" />
-              </span>
-            ))}
-        </DropdownMenuTrigger>
-      </Tip>
+      <DropdownMenuTrigger
+        /* Starts with the visible name, so a voice user who says it reaches
+         * the button (WCAG 2.5.3). */
+        aria-label={name ? `${name}, account menu` : label}
+        /* cursor-pointer is not redundant: Tailwind v4's preflight sets
+         * `cursor: default` on buttons, so a <button> trigger shows an arrow
+         * where the <Link> this replaced showed a hand. */
+        /* A passed-in trigger (the seeker's photo, name and email) is a
+         * wide block that opens a menu, so from lg, where the name and email
+         * show, it fills as a pill on hover to read as a control rather than
+         * a label. Below lg it is the photo alone, like the company bar's
+         * avatar. */
+        className={cn(
+          "focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none",
+          children &&
+            "lg:hover:bg-hover min-w-0 gap-3 text-left transition-colors lg:py-1 lg:pr-4 lg:pl-1",
+        )}
+      >
+        {children ??
+          (name ? (
+            <Avatar name={name} src={src} className="text-note size-8" />
+          ) : (
+            <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
+              <UserIcon className="size-4" />
+            </span>
+          ))}
+      </DropdownMenuTrigger>
 
       {/* align="end" because the trigger is the last thing in the bar: a menu
           anchored to its start would hang off the right edge. The width

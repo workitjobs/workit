@@ -2,19 +2,14 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { SearchIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
-import { formatCount } from "@/lib/format-count";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { JobPage } from "../jobs/[jobId]/job-page";
+import JobLoading from "../jobs/[jobId]/loading";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { FeedHeader } from "../jobs/feed-header";
-import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
-import { JobFilters } from "../jobs/filters";
-import { getApplicationStages } from "../auto-apply/applications";
-import { FeedList } from "../jobs/feed-list";
 import { ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
   feedQuery,
@@ -26,25 +21,22 @@ import {
 } from "../jobs/filter-query";
 import {
   getJobCount,
-  getJobFacets,
   getJobListings,
-  getJobLocations,
   getSearchFacts,
   getJobsView,
-  drawnAt,
-  getTailoredJobIds,
-  isApplicant,
   type FeedPage,
   type SearchFact,
 } from "../jobs/listings";
+import { ListFallback, ListViews } from "../jobs/list-views";
 import type { JobsView } from "../jobs/view";
-import { ViewSwitch } from "../jobs/view-switch";
 import { JobSearch } from "./job-search";
 import { SearchFacts } from "./search-facts";
+import { SearchListFrame } from "./search-list-frame";
+import { ResultCount, ResultCountSkeleton } from "./search-top-row";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
-  description: "Find your next role.",
+  description: "Find your next job.",
 };
 
 /**
@@ -72,118 +64,132 @@ export const metadata: Metadata = {
  * results on screen until the new ones arrive.
  *
  * The filters are the feed's own (../jobs/filter-query), sent with the words.
+ * What no search changes (the filter row's options, the seeker's stages,
+ * tailored resumes and account type) is read once per visit, in ./layout.tsx,
+ * so a new search or filter asks the API for its results alone (KAN-916).
  *
- * The Jobs page's view choice holds here too (KAN-519), as Cards or List: the
- * split view's pane needs the Jobs page's header above it, and this page's
- * count and fact chips have no place there, so the open job is the job's own
- * page beside the rail.
+ * The Jobs page's two views hold here too (KAN-519). In the split view the
+ * results are the Jobs page's split frame (KAN-917): ./layout.tsx draws it
+ * with this search's own header (the field, the count, the filters and the
+ * fact chips) over the list, and this page draws only the first result beside
+ * it, handing the list, the count and the facts to the frame, as /jobs does.
+ * A click opens that job's page beside the list. Until KAN-917 the split view
+ * was a list alone here ("List View", KAN-519's choice: the open job was to
+ * be the job's own page), half the window stood empty, and a job opened from
+ * it dropped the list. The page reads the results once and draws both views
+ * from them (../jobs/list-views.tsx), so the view switch changes the view in
+ * the browser with no request (../jobs/view-store, KAN-916).
  */
 
-/** "128 Roles" beside the heading, every match. Nothing when there is
- *  nothing to count (the empty state under the filters says so in words) or
- *  the API can't say. */
-async function ResultCount({ count }: { count: Promise<number | null> }) {
-  const n = await count;
-  if (!n) return null;
-
-  return (
-    <Badge variant="tag" pill>
-      {formatCount(n)} {n === 1 ? "Job" : "Jobs"}
-    </Badge>
-  );
+/** "128 Jobs" in the Cards view's row, once the count lands. */
+async function CountOf({ count }: { count: Promise<number | null> }) {
+  return <ResultCount count={await count} />;
 }
 
-/** The count's place while the search runs: the badge's own box and type, with
- *  the text hidden, so it is the size of a two-digit count. It sits in the
- *  same fixed slot the count lands in, so swapping one for the other moves
- *  nothing. */
-function ResultCountSkeleton() {
+/** The address Try Again reloads: this search under these filters. */
+function retryHref(query: string, filters: FeedFilters) {
+  return `/search?${new URLSearchParams([["q", query], ...filterEntries(filters)])}`;
+}
+
+/** What a search shows with no match, in either view. */
+function NoResults({
+  query,
+  filters,
+  facts,
+}: {
+  query: string;
+  filters: FeedFilters;
+  facts: SearchFact[];
+}) {
   return (
-    <span
-      aria-hidden="true"
-      className="bg-ink/6 text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
+    <EmptyState
+      Icon={SearchIcon}
+      title={`No Jobs Match “${query}”`}
+      className="mt-4"
+      action={
+        <ButtonLink href="/jobs" variant="secondary" size="sm">
+          Browse All Jobs
+        </ButtonLink>
+      }
     >
-      00 Roles
-    </span>
+      {isFiltered(filters) || facts.length > 0
+        ? "Try a different title or company name, loosen a filter, or browse every job in the feed."
+        : "Try a different title or company name, or browse every job in the feed."}
+    </EmptyState>
   );
 }
 
-/** The matching roles, or the state that stands in for them. */
+/**
+ * The results the page read, in the view shown (../jobs/list-views.tsx,
+ * KAN-916): the large cards under the search's chips, or in the split view
+ * the list, its count and its facts handed to the frame
+ * (../jobs/jobs-rail.tsx) beside the first result. A switch of view draws
+ * from this one read. The split view waits for the count, since it lands
+ * in the frame's header with the list; the Card View streams it in its own
+ * row (SearchListFrame).
+ *
+ * The open job is drawn with what its row holds (`fromList`,
+ * ../jobs/[jobId]/job-view.tsx), as on /jobs: its row's score, so it is not
+ * scored again, the same whether the server drew it here or a switch read
+ * it.
+ */
 async function Results({
+  view,
   results,
+  count,
   facts: factsLoading,
   query,
   filters,
-  view,
 }: {
+  view: JobsView;
   results: Promise<FeedPage>;
+  count: Promise<number | null>;
   /** The filters the search's own words set (./search-facts). */
   facts: Promise<SearchFact[]>;
   query: string;
   filters: FeedFilters;
-  view: JobsView;
 }) {
-  // The seeker's applications and tailored resumes, for the cards' Auto Apply
-  // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
-  // /jobs). Dated first (../jobs/listings, drawnAt).
-  const drawn = drawnAt();
-  const [{ jobs, more, error }, facts, stages, tailored, canMarkApplied] = await Promise.all([
-    results,
-    factsLoading,
-    getApplicationStages(),
-    getTailoredJobIds(),
-    isApplicant(),
-  ]);
-
-  if (error != null) {
-    const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
-    return <ListingsError error={error} retryHref={`/search?${retry}`} />;
-  }
-
-  // Above the list or the empty state, with the results rather than the
-  // heading: they arrive together, so the chips never push a list down that
-  // is already on screen.
-  const shownFacts = <SearchFacts facts={facts} filters={filters} />;
-
-  if (jobs.length === 0) {
-    return (
-      <>
-        {shownFacts}
-        <EmptyState
-          Icon={SearchIcon}
-          title={`No Roles Match “${query}”`}
-          className="mt-4"
-          action={
-            <ButtonLink href="/jobs" variant="secondary" size="sm">
-              Browse All Jobs
-            </ButtonLink>
-          }
-        >
-          {isFiltered(filters) || facts.length > 0
-            ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
-            : "Try a different title or company name, or browse every role in the feed."}
-        </EmptyState>
-      </>
-    );
-  }
-
+  const [page, facts] = await Promise.all([results, factsLoading]);
+  const jobs = page.jobs ?? [];
+  const first = jobs[0];
   return (
-    <>
-      {shownFacts}
-      {/* The level between the page's h1 and each card's h3, as on /jobs. */}
-      <h2 className="sr-only">Search Results</h2>
-      {/* The first page of matches, and a Load More for the rest. */}
-      <FeedList
-        initial={jobs}
-        more={more}
-        query={feedQuery(filters, query)}
-        stages={stages}
-        tailored={tailored}
-        canMarkApplied={canMarkApplied}
-        compact={view === "split"}
-        drawnAt={drawn}
-      />
-    </>
+    <ListViews
+      drawnView={view}
+      jobs={jobs}
+      more={page.more}
+      query={feedQuery(filters, query)}
+      source="feed"
+      count={count}
+      facts={facts}
+      heading="Search Results"
+      // Over the cards or the empty state, with the results rather than the
+      // heading: they arrive together, so the chips never push a list down
+      // that is already on screen.
+      above={<SearchFacts facts={facts} filters={filters} />}
+      failed={
+        page.error != null ? (
+          <ListingsError error={page.error} retryHref={retryHref(query, filters)} />
+        ) : null
+      }
+      empty={jobs.length === 0 ? <NoResults query={query} filters={filters} facts={facts} /> : null}
+      open={
+        view === "split" && first ? (
+          <Suspense fallback={<JobLoading />}>
+            <JobPage
+              jobId={first.id}
+              listed
+              fromList={{
+                match:
+                  first.match != null
+                    ? { score: first.match, highlights: first.highlights ?? [] }
+                    : null,
+              }}
+            />
+          </Suspense>
+        ) : null
+      }
+      loading={<JobLoading />}
+    />
   );
 }
 
@@ -202,7 +208,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
         <EmptyState
           Icon={SearchIcon}
-          title="Search for a Role"
+          title="Search for a Job"
           className="mt-6"
           action={
             <ButtonLink href="/jobs" variant="secondary" size="sm">
@@ -210,7 +216,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             </ButtonLink>
           }
         >
-          Search by job title or company name, or browse every role in the feed.
+          Search by job title or company name, or browse every job in the feed.
         </EmptyState>
       </div>
     );
@@ -224,42 +230,37 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const key = feedQuery(filters, query);
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* So a job's page can come back to these results. */}
-      <RememberFeed />
-      {/* One transition for a filter change, so the results dim the moment
-          the row starts it (../jobs/feed-transition). */}
-      <FeedTransition>
-        {/* The search and filters stay put while the results scroll, as on
-            /jobs. The heading, "Results for" the query, is in the top bar
-            (../bar-title.tsx). The count's slot is a fixed width (88px holds
-            "9,999 Roles": it counts every match, not the page shown), so the
-            row does not move when the count lands. It is a live region, so a
-            screen reader hears how many roles a search found. */}
-        <FeedHeader
-          top={
-            <div className="flex items-center gap-3">
-              <JobSearch />
-              <span role="status" className="inline-flex w-22 shrink-0">
-                <Suspense key={key} fallback={<ResultCountSkeleton />}>
-                  <ResultCount count={count} />
-                </Suspense>
-              </span>
-              <div className="ml-auto">
-                <ViewSwitch view={view} listOnly />
-              </div>
-            </div>
-          }
-        >
-          <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
-        </FeedHeader>
-
-        <PendingFeed>
-          <Suspense key={key} fallback={<ListingsSkeleton />}>
-            <Results results={results} facts={facts} query={query} filters={filters} view={view} />
-          </Suspense>
-        </PendingFeed>
-      </FeedTransition>
-    </div>
+    <SearchListFrame
+      drawnView={view}
+      filters={filters}
+      count={
+        <Suspense key={key} fallback={<ResultCountSkeleton />}>
+          <CountOf count={count} />
+        </Suspense>
+      }
+      // So a job's page can come back to these results.
+      extras={<RememberFeed />}
+    >
+      <Suspense
+        key={key}
+        fallback={
+          <ListFallback
+            drawnView={view}
+            query={key}
+            split={<JobLoading />}
+            cards={<ListingsSkeleton />}
+          />
+        }
+      >
+        <Results
+          view={view}
+          results={results}
+          count={count}
+          facts={facts}
+          query={query}
+          filters={filters}
+        />
+      </Suspense>
+    </SearchListFrame>
   );
 }

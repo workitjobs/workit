@@ -1,0 +1,73 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "743999900001001",
+      "uuid": "aaaaaaaa-1111-2222-3333-444444444444",
+      "name": "Software Engineering Intern - Summer 2027",
+      "refNumber": "REF-1001",
+      "releasedDate": "2026-10-15T14:30:00.000Z",
+      "company": {"identifier": "ExampleCorp", "name": "Example Corp"},
+      "location": {
+        "city": "San Francisco",
+        "region": "California",
+        "country": "US",
+        "remote": false,
+        "hybrid": false,
+        "fullLocation": "San Francisco, California, US"
+      },
+      "department": {"id": "eng", "label": "Engineering", "description": ""},
+      "function": {"id": "it", "label": "IT"},
+      "industry": {"id": "tech", "label": "Internet"},
+      "typeOfEmployment": {"id": "intern", "label": "Internship"},
+      "experienceLevel": {"id": "internship", "name": "Internship"},
+      "ref": "https://api.smartrecruiters.com/v1/companies/ExampleCorp/postings/743999900001001"
+    },
+    {
+      "id": "743999900001002",
+      "uuid": "bbbbbbbb-1111-2222-3333-444444444444",
+      "name": "Data Science Intern",
+      "refNumber": "REF-1002",
+      "releasedDate": "2026-10-10T09:00:00.000Z",
+      "company": {"identifier": "ExampleCorp", "name": "Example Corp"},
+      "location": {
+        "city": "London",
+        "region": "",
+        "country": "UK",
+        "remote": false,
+        "hybrid": true,
+        "fullLocation": "London, , UK"
+      },
+      "department": {"id": "data", "label": "Data & Analytics", "description": ""},
+      "function": {"id": "it", "label": "IT"},
+      "industry": {"id": "tech", "label": "Internet"},
+      "typeOfEmployment": {"id": "full_time", "label": "Full-time"},
+      "experienceLevel": {"id": "entry_level", "name": "Entry Level"},
+      "ref": "https://api.smartrecruiters.com/v1/companies/ExampleCorp/postings/743999900001002"
+    },
+    {
+      "id": "743999900001003",
+      "uuid": "cccccccc-1111-2222-3333-444444444444",
+      "name": "Marketing Coordinator",
+      "refNumber": "REF-1003",
+      "releasedDate": "2026-09-20T12:00:00.000Z",
+      "company": {"identifier": "ExampleCorp", "name": "Example Corp"},
+      "location": {
+        "city": "New York",
+        "region": "New York",
+        "country": "US",
+        "remote": true,
+        "hybrid": false,
+        "fullLocation": "New York, New York, US"
+      },
+      "department": {"id": "mktg", "label": "Marketing", "description": ""},
+      "function": {"id": "marketing", "label": "Marketing"},
+      "industry": {"id": "tech", "label": "Internet"},
+      "typeOfEmployment": {"id": "full_time", "label": "Full-time"},
+      "experienceLevel": {"id": "entry_level", "name": "Entry Level"},
+      "ref": "https://api.smartrecruiters.com/v1/companies/ExampleCorp/postings/743999900001003"
+    }
+  ]
+}

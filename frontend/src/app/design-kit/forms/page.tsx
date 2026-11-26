@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 
-import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
 import { ShallowRouting } from "@/components/shallow-routing";
 import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
@@ -12,6 +11,8 @@ import { SECTIONS } from "../data";
 import { TextAreaField } from "@/components/text-area-field";
 
 import {
+  ChoiceCardSpecimen,
+  SuggestFieldSpecimen,
   ChoiceSpecimen,
   DateFieldSpecimen,
   GlyphSelectSpecimen,
@@ -88,7 +89,7 @@ export default function FormsPage() {
         >
           <div className="flex w-full max-w-lg flex-col gap-5">
             <Stepper steps={["Basic Details", "Screening", "Review"]} current={1} />
-            <Stepper size="lg" steps={ONBOARDING_STEPS} current={1} />
+            <Stepper size="lg" steps={["Role", "Resume", "Profile", "Extension"]} current={1} />
           </div>
         </Row>
         <Row name="<SelectField>" role="Label wired by aria-labelledby, WorkIt's field height">
@@ -108,7 +109,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SortMenu>"
-          role="A list's order, drawn as a filter is; never tinted, since an order is always in force"
+          role="A list's order, first in every page toolbar's filter row, drawn as a filter is; never tinted, since an order is always in force"
         >
           <SortMenuSpecimen />
         </Row>
@@ -142,6 +143,18 @@ export default function FormsPage() {
           role="A tile: one answer on a one-question screen. A radio row: one pick in a form's list"
         >
           <ChoiceSpecimen />
+        </Row>
+        <Row
+          name="<ChoiceCard>"
+          role="Two or three big answers side by side, each a different path: onboarding's resume question"
+        >
+          <ChoiceCardSpecimen />
+        </Row>
+        <Row
+          name="<SuggestField>"
+          role="One value, suggested from a list as it is typed, kept as typed: a school, a degree, a field of study"
+        >
+          <SuggestFieldSpecimen />
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />

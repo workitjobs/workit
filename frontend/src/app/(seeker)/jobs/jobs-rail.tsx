@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -15,75 +16,86 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
+import { SearchFacts } from "../search/search-facts";
+import { ResultCount, ResultCountSkeleton, SearchTopRow } from "../search/search-top-row";
 import { loadStages } from "./actions";
 import { CompactJobCard } from "./compact-job-card";
 import { FeedHeader } from "./feed-header";
 import { keep } from "./feed-pages";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import {
+  feedQuery,
   filtersQuery,
   listQuery,
   queryParams,
   readFilters,
+  readQuery,
   readSort,
   sortHref,
-  type FeedFilters,
-  type Sort,
 } from "./filter-query";
 import { JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
-import type { JobFacets, JobLocationOption } from "./listings";
+import { useFilterOptions } from "./list-data";
 import { leavesFeed, onFeed } from "./feed-stages";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
+import { StillLoading } from "./still-loading";
+import type { JobsView } from "./view";
+import { useJobsView } from "./view-store";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
 const JOB_PAGE = /^\/jobs\/([^/]+)$/;
 
-/** The filter row's options, which the layout starts in the split view. */
-type FilterOptions = {
-  locations: Promise<JobLocationOption[]>;
-  facets: Promise<JobFacets>;
-};
-
 /**
- * The jobs layout's frame (./layout.tsx): the split view's, and nothing else.
- * The rail lives in the layout, above the job's own segment, so it stays
- * mounted, scrolled where it was, as the seeker opens one job after another
- * from it.
+ * The split view's frame, drawn by the jobs layout (./layout.tsx) and by
+ * /search's (../search/layout.tsx), and nothing else. The rail lives in the
+ * layout, above the job's own segment, so it stays mounted, scrolled where it
+ * was, as the seeker opens one job after another from it.
  *
  * ONLY THE SPLIT VIEW HAS A RAIL (2026-11-09). A job opened from the Cards
- * view (or /search, or Home) is its page alone, with Back: from KAN-297 it
- * drew the rail of jobs on its left too, after Cooper's job board, and the
- * user saw the Cards view open into what looked like the split view, the two
- * views mixed. Choosing Split is how a seeker asks for a list beside a job.
+ * view (or Home) is its page alone, with Back: from KAN-297 it drew the rail
+ * of jobs on its left too, after Cooper's job board, and the user saw the
+ * Cards view open into what looked like the split view, the two views mixed.
+ * Choosing Split is how a seeker asks for a list beside a job.
  *
- * THE SPLIT VIEW IS THIS FRAME (`filterOptions`, KAN-519), on /jobs and on
- * a job's page: the Jobs page's header over the rail and the job, each pane
- * scrolling on its own under it, held to the height under the shell's 64px bar.
- * /jobs draws only the list's first job (./page.tsx) and a click opens that
- * job's page, so a job is one read of its own: the list and its Best Match
- * scores are never read again, and the rail never moves. A list from /search
- * keeps the plain frame, since the Jobs page's header is not its header.
+ * THE SPLIT VIEW IS THIS FRAME (KAN-519), on /jobs, on /search with words and
+ * on a job's page: the list's header over the rail and the job, each pane
+ * scrolling on its own under it, held to the height under the shell's 64px
+ * bar. The list's page draws only its first job (./(list)/page.tsx,
+ * ../search/page.tsx) and a click opens that job's page, so a job is one read
+ * of its own: the list and its Best Match scores are never read again, and
+ * the rail never moves.
+ *
+ * A SEARCH GETS ITS OWN HEADER (KAN-917): the field with its words, the count
+ * of every match, the filters (no Sort: a search has one order) and the
+ * filters its words set, as /search draws over its cards. On /search they come
+ * from the address and the list the page hands over; beside a job, from the
+ * shown list, whose query holds the words. Until KAN-917 /search drew a list
+ * alone (`listOnly`), half the window empty, and a job opened from it dropped
+ * the list. /search is outside the jobs layout, so the first job opened from
+ * it mounts this frame afresh; it looks the same, and the rail takes back its
+ * scroll (`railScroll`).
  *
  * Below `@4xl/main` the frame flows with the page, so the header sticks as it
- * does on the cards: on /jobs the rail is the whole width, the job does not
- * show (./page.tsx), and a job's page is the job alone with Back.
+ * does on the cards: on a list's page the rail is the whole width, the job
+ * does not show, and a job's page is the job alone with Back.
+ *
+ * THE VIEW IS THE BROWSER'S (./view-store, KAN-916): `view` is the one the
+ * server drew, and a switch moves this frame in or out at once, with no
+ * request. /jobs and /search each draw both views from the one list they
+ * read (./list-views.tsx, ../search/page.tsx).
  */
-export function JobsRailFrame({
-  filterOptions,
-  children,
-}: {
-  filterOptions?: FilterOptions;
-  children: ReactNode;
-}) {
+export function JobsRailFrame({ view, children }: { view: JobsView; children: ReactNode }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const list = useSyncExternalStore(subscribe, readShownList, () => null);
+  const options = useFilterOptions();
+  const shownView = useJobsView(view);
   const jobId = JOB_PAGE.exec(pathname)?.[1];
-  const onList = pathname === "/jobs";
-  const searched = list != null && new URLSearchParams(list.query).has("q");
-  const split = filterOptions != null && (onList || (jobId != null && !searched));
+  // A list's own page: /jobs, or /search with words (with none it is a page
+  // that asks for some).
+  const onList = pathname === "/jobs" || (pathname === "/search" && !!params.get("q")?.trim());
+  const split = shownView === "split" && (onList || jobId != null);
 
   const pane = useRef<HTMLDivElement>(null);
   // The pane stays mounted, so each job would open scrolled as far as the last.
@@ -94,10 +106,22 @@ export function JobsRailFrame({
   // Not the split view: the page alone, a job's page included.
   if (!split) return children;
 
-  // What the header shows: the address on /jobs, the list's own beside a job.
+  // What the header shows: the address on a list's page, the list's own
+  // beside a job.
   const shown = queryParams(onList ? params.toString() : (list?.query ?? ""));
   const sort = onList || list?.source !== "feed" ? readSort(shown) : "newest";
   const filters = readFilters(shown);
+  // A search's words, or none.
+  const words = readQuery(shown);
+  // The queries the list on screen may have: on a list's page the rail waits
+  // for one of them. Best Match with an empty bank draws the plain feed.
+  const wanted = !onList
+    ? undefined
+    : words
+      ? [feedQuery(filters, words)]
+      : [listQuery(sort, filters), filtersQuery(filters)];
+  // The search's count and facts, once its list is the one shown.
+  const searched = words && list && (!wanted || wanted.includes(list.query)) ? list : null;
 
   return (
     <FeedTransition>
@@ -113,21 +137,40 @@ export function JobsRailFrame({
           split && "@4xl/main:mx-auto @4xl/main:w-full @4xl/main:max-w-[86rem]",
         )}
       >
-        {split && filterOptions && (
+        {split && (
           <FeedHeader
             flush
-            top={<JobsTopRow view="split" />}
+            top={
+              words ? (
+                <SearchTopRow
+                  view={view}
+                  query={onList ? undefined : words}
+                  count={
+                    searched ? <ResultCount count={searched.count} /> : <ResultCountSkeleton />
+                  }
+                />
+              ) : (
+                <JobsTopRow view={view} />
+              )
+            }
+            below={
+              searched?.facts && (
+                <SearchFacts facts={searched.facts} filters={filters} className="mt-3" />
+              )
+            }
             className={cn("@4xl/main:shrink-0", !onList && "hidden @4xl/main:block")}
           >
             <JobFilters
-              locations={filterOptions.locations}
-              facets={filterOptions.facets}
+              locations={options.locations}
+              facets={options.facets}
               filters={filters}
-              sort={sort}
+              sort={words ? undefined : sort}
               list={
                 onList
                   ? undefined
-                  : { path: "/jobs", query: sortHref(sort, filters).slice("/jobs".length) }
+                  : words
+                    ? { path: "/search", query: list?.query ?? "" }
+                    : { path: "/jobs", query: sortHref(sort, filters).slice("/jobs".length) }
               }
             />
           </FeedHeader>
@@ -148,7 +191,8 @@ export function JobsRailFrame({
             currentId={jobId ? decodeURIComponent(jobId) : undefined}
             split={split}
             onList={onList}
-            wanted={onList ? { sort, filters } : undefined}
+            wanted={wanted}
+            scoring={wanted != null && !words && sort === "match"}
           />
           <div
             ref={pane}
@@ -179,16 +223,16 @@ export function JobsRailFrame({
  * an hour is fetched again, since roles close. Load More continues the list
  * with its own query, as the list's own Load More would.
  *
- * In the split view on /jobs the page writes the list (./remember-shown-list),
- * so the rail fetches nothing there and waits, on `wanted`, for the list of the
- * address on screen, with the alternative that Best Match with an empty bank
- * draws the plain feed. The list's first job is the open one. What it loads is
+ * In the split view on a list's page (/jobs, /search) the page writes the list
+ * (./remember-shown-list), so the rail fetches nothing there and waits, on
+ * `wanted`, for the list of the address on screen. The list's first job is the
+ * open one. What it loads is
  * kept with the feed's own pages (./feed-pages), so Back finds the list as long
  * as it was. A list left open on /jobs past half an hour stays shown, as the
  * cards do: the rail fetches nothing there, so hiding it left the skeleton.
  *
- * FROM @4xl/main ONLY, but for the split view on /jobs, where it is the list at
- * every width. 20rem to 34rem wide: whatever the panel has left once the job's
+ * FROM @4xl/main ONLY, but on a list's page, where it is the list at every
+ * width. 20rem to 34rem wide: whatever the panel has left once the job's
  * 48rem pane fits (2026-11-09; 20rem to 26rem of the main column from KAN-519,
  * which left the pane a strip of empty space beside the job's 736px column).
  *
@@ -202,25 +246,23 @@ function JobsRail({
   split,
   onList,
   wanted,
+  scoring,
 }: {
   list: ShownList | null;
   currentId?: string;
   split: boolean;
   onList: boolean;
-  wanted?: { sort: Sort; filters: FeedFilters };
+  /** The queries the list on a list's page may have. */
+  wanted?: string[];
+  /** The list waited for is Best Match, which a long wait names. */
+  scoring: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const scroller = useRef<HTMLDivElement>(null);
   const stale = list != null && !isFresh(list);
   const showable =
-    list &&
-    (onList || !stale) &&
-    (!wanted ||
-      list.query === listQuery(wanted.sort, wanted.filters) ||
-      list.query === filtersQuery(wanted.filters))
-      ? list
-      : null;
+    list && (onList || !stale) && (!wanted || wanted.includes(list.query)) ? list : null;
   const openId = currentId ?? showable?.jobs[0]?.id;
   // A job saved or applied to leaves the list as it leaves the feed
   // (KAN-217, ./feed-stages), but the job open beside it stays marked.
@@ -250,6 +292,9 @@ function JobsRail({
             offset: page.offset,
             more: page.more,
             stages,
+            // A search's header keeps its count and facts, a little old.
+            count: stored?.count,
+            facts: stored?.facts,
           });
         }
       },
@@ -259,11 +304,21 @@ function JobsRail({
     };
   }, [currentId, onList, stale]);
 
+  // Takes back where this list was scrolled, before the frame paints. The
+  // rail mounts afresh where the layout changes, /search's to the jobs
+  // layout as the first result opens (KAN-917), and opened at its top it
+  // jumped the row just clicked to a third of the way down.
+  const landed = showable != null;
+  useLayoutEffect(() => {
+    const box = scroller.current;
+    if (box && showable && railScroll?.query === showable.query) box.scrollTop = railScroll.top;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list lands
+  }, [landed]);
+
   // Brings the open job into the rail's view when it is out of it, by the
   // rail's own scroll: scrollIntoView would scroll the page panel too. Only
   // when the job changes or the list lands: on each Load More it scrolled the
   // list back up to the open job.
-  const landed = showable != null;
   useEffect(() => {
     const box = scroller.current;
     const row = box?.querySelector<HTMLElement>("[data-open]");
@@ -281,7 +336,7 @@ function JobsRail({
       const gone = from.jobs.filter((job) => leavesFeed(from.stages?.[job.id])).length;
       const page = await nextPage({ ...from, offset: Math.max(0, from.offset - gone) });
       if (page.error != null) {
-        setError("Couldn't load more roles. Try again in a moment.");
+        setError("Couldn't load more jobs. Try again in a moment.");
         return;
       }
       setError(null);
@@ -293,6 +348,8 @@ function JobsRail({
         offset: page.offset + gone,
         more: page.more,
         stages: from.stages,
+        count: from.count,
+        facts: from.facts,
       });
       keep({
         path: new URLSearchParams(from.query).has("q") ? "/search" : "/jobs",
@@ -360,6 +417,9 @@ function JobsRail({
 
       <div
         ref={scroller}
+        onScroll={(event) => {
+          if (showable) railScroll = { query: showable.query, top: event.currentTarget.scrollTop };
+        }}
         className={cn(
           // No bar here: its 8px of room left the open job's tint short of the
           // column's edge, and only a bar that takes room can be styled.
@@ -372,8 +432,8 @@ function JobsRail({
         {showable ? (
           <>
             {/* Below @4xl/main, where the split view is the list alone, the
-                list is a white card as /search's is (./feed-list.tsx, KAN-558);
-                its edge lines up with the title above it. From @4xl/main the
+                list is one white card (KAN-558); its edge lines up with the
+                title above it. From @4xl/main the
                 card steps aside (`contents`), and in the split view each row
                 is its own card in the panel, edged in `border-surface` as the
                 Cards view's are, 8px apart; the open one is edged in brand
@@ -419,7 +479,11 @@ function JobsRail({
             )}
           </>
         ) : error ? null : (
-          <RailSkeleton split={split} />
+          <>
+            {/* A long wait says it is still working (./still-loading). */}
+            <StillLoading match={scoring} className="px-4 pt-3" />
+            <RailSkeleton split={split} />
+          </>
         )}
         {error && (
           <p role="alert" className="text-body text-danger mt-3 px-4">
@@ -430,6 +494,10 @@ function JobsRail({
     </aside>
   );
 }
+
+/** Where the seeker last scrolled the rail, and in which list, for a rail
+ *  that mounts afresh on the same list (JobsRail). One per tab, as the rail. */
+let railScroll: { query: string; top: number } | null = null;
 
 /** The split view's list from @4xl/main: a stack of cards 8px apart in the
  *  panel, 12px in from its edges. */

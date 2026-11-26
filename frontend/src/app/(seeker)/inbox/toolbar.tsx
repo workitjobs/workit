@@ -194,17 +194,15 @@ export function InboxToolbar({
             />
           </IconButton>
           <DropdownMenu>
-            <Tip label="More">
-              <DropdownMenuTrigger
-                aria-label="More"
-                className={cn(
-                  TOOL,
-                  "text-ink hover:text-brand focus-visible:ring-brand-ring flex items-center justify-center focus-visible:ring-2 focus-visible:outline-none",
-                )}
-              >
-                <EllipsisIcon className="size-[18px]" />
-              </DropdownMenuTrigger>
-            </Tip>
+            <DropdownMenuTrigger
+              aria-label="More"
+              className={cn(
+                TOOL,
+                "text-ink hover:text-brand focus-visible:ring-brand-ring flex items-center justify-center focus-visible:ring-2 focus-visible:outline-none",
+              )}
+            >
+              <EllipsisIcon className="size-[18px]" />
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuItem
                 disabled={!shown.some((email) => !isRead(email))}

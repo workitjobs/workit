@@ -9,10 +9,12 @@ import os
 import plistlib
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
@@ -26,9 +28,12 @@ from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
-    info = tmp_path / "Info.plist"
-    info.write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
-    return info
+    """Google Chrome's binary, as the Chrome finder finds it on the Mac: its version in the app's Info.plist."""
+    contents = tmp_path / "Google Chrome.app" / "Contents"
+    (contents / "MacOS").mkdir(parents=True, exist_ok=True)
+    (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
+    (contents / "MacOS" / "Google Chrome").write_text("")
+    return contents / "MacOS" / "Google Chrome"
 
 
 def filled(tmp_path):
@@ -64,10 +69,11 @@ def list_accounts(email: str) -> str:
     return base64.b64encode(text(1, account)).decode()
 
 
-def worker(profiles, name, account=None, busy=False, web=None):
+def worker(profiles, name, account=None, busy=None, web=None):
     """A Worker profile on disk as Chrome leaves it: signed in to Google as
     `account` (Chrome's own sign-in), or only on Google's web pages as `web`,
-    and with `busy` a live browser's SingletonLock (this process)."""
+    and with `busy` the PID of a live browser that has it open (browser_on),
+    named in its SingletonLock."""
     folder = profiles / name / "Default"
     folder.mkdir(parents=True)
     accounts = [{"email": account, "gaia": "1"}] if account else []
@@ -76,7 +82,7 @@ def worker(profiles, name, account=None, busy=False, web=None):
         preferences["gaia_cookie"] = {"last_list_accounts_binary_data": list_accounts(web)}
     (folder / "Preferences").write_text(json.dumps(preferences))
     if busy:
-        os.symlink(f"host.local-{os.getpid()}", profiles / name / "SingletonLock")
+        os.symlink(f"host.local-{busy}", profiles / name / "SingletonLock")
     return profiles
 
 
@@ -138,9 +144,10 @@ def test_chrome_says_its_version(tmp_path):
 
 
 def test_no_chrome_fails_with_how_to_install_it(tmp_path):
-    found = check(machine(tmp_path, chrome=tmp_path / "missing.plist"), "Chrome")
+    found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
+    assert "/Applications/Google Chrome.app" in found.detail or sys.platform != "darwin"  # where it looked
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
@@ -166,7 +173,7 @@ def test_prints_a_line_per_check_and_exits_zero_with_no_failure(tmp_path):
 
 
 def test_any_failure_exits_non_zero(tmp_path):
-    assert doctor.run(machine(tmp_path, chrome=tmp_path / "missing.plist"), io.StringIO()) == 1
+    assert doctor.run(machine(tmp_path, chrome=None), io.StringIO()) == 1
 
 
 def test_claude_logged_in_says_whose_login(tmp_path):
@@ -210,8 +217,8 @@ def test_each_worker_profile_says_its_google_account(tmp_path):
     assert "test.person@example.com" in found[0].detail
 
 
-def test_a_worker_profile_in_use_is_skipped_not_read(tmp_path):
-    profiles = worker(signed_in(tmp_path), "worker-2", busy=True)
+def test_a_worker_profile_in_use_is_skipped_not_read(tmp_path, browser_on):
+    profiles = worker(signed_in(tmp_path), "worker-2", busy=browser_on(tmp_path / "profiles" / "worker-2"))
     [busy] = [c for c in checks_named(machine(tmp_path, profiles=profiles), "worker-") if c.name == "worker-2"]
     assert busy.level == doctor.WARN
     assert "in use" in busy.detail and "skipped" in busy.detail
@@ -264,12 +271,12 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
 
 
 def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
-    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), "WorkIt")
 
 
 def logged_in(tmp_path, fake: FakeWorkIt) -> None:
-    client = WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
 
 
 def test_workit_logged_in_says_as_whom(tmp_path):
@@ -285,6 +292,22 @@ def test_workit_with_no_login_warns_and_says_rehearsals_still_work(tmp_path):
     assert "rehearsals work without it" in found.detail
     assert "apply login" in found.fix
     assert fake.requests == []  # no login: nothing to ask WorkIt
+
+
+@pytest.mark.parametrize("way", ["no login", "expired", "company account"])
+def test_workit_fails_each_way_its_login_cant_serve_ask_model_workit(tmp_path, way):
+    # Fault: with ask_model: workit, the default, a way the login can't serve the Model route only warns, though a
+    # rehearsal then stops at its first written answer. Each way is its own branch.
+    with FakeWorkIt(account_type="company" if way == "company account" else "applicant") as fake:
+        if way != "no login":
+            logged_in(tmp_path, fake)
+        if way == "expired":
+            fake.revoke()
+        client = lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        found = check(machine(tmp_path, profile=profile(tmp_path, ask_model="workit"), workit=client), "WorkIt")
+    assert found.level == doctor.FAIL
+    if way == "no login":
+        assert "first written answer" in found.detail and "apply app" in found.fix
 
 
 def test_workit_expired_login_warns_to_log_in_again(tmp_path):
@@ -320,7 +343,7 @@ def test_doctor_never_prints_the_workit_tokens(tmp_path):
         logged_in(tmp_path, fake)
         fake.expire()  # doctor refreshes it
         out = io.StringIO()
-        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), out)
     assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
     assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
 
@@ -355,7 +378,7 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     from apply.workit import WaitingWrites, Write
 
     with FakeWorkIt() as fake:
-        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
         waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
         waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
 
@@ -684,3 +707,14 @@ def test_a_plain_seed_whose_extension_holds_older_code_fails_with_how_to_update_
 def test_protected_worker_mode_checks_both_kinds_of_worker(tmp_path):
     m = machine(tmp_path, profile=profile(tmp_path, worker_mode="protected", plain_chrome="chrome"))
     assert checks_named(m, "worker-") and checks_named(m, "Plain seed")
+
+
+def test_plain_workers_on_chrome_for_testing_need_no_seed(tmp_path, monkeypatch):
+    """Fault: doctor fails the Plain seed check whatever the Workers' Chrome, though Workers on Chrome for Testing
+    load the worker extension with --load-extension and never copy the seed."""
+    monkeypatch.delenv("APPLY_PLAIN_CHROME", raising=False)
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="testing")
+
+    found = check(machine(tmp_path, profile=plain, profiles=tmp_path / "none"), "Plain seed")
+
+    assert found.level == doctor.OK and "not needed" in found.detail

@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from apply import browsers
 from apply.browsers import ProfileInUse
 from apply.plain import extension, seed_setup
 from apply.plain.bridge import Refused
@@ -45,7 +46,6 @@ FOLDER = Path("/profiles/worker-extension")
     (SeedState(developer=True), seed_setup.EXTENSION, "no_extension"),
     (SeedState(developer=True, path="/old/checkout"), seed_setup.EXTENSION, "wrong_folder"),
     (SeedState(developer=True, path=str(FOLDER), disabled=True), seed_setup.EXTENSION, "disabled"),
-    (SeedState(developer=True, path=str(FOLDER)), seed_setup.SCRIPTS, "scripts"),
 ])
 def test_first_problem_names_the_first_step_not_saved(state, step, kind):
     problem = first_problem(state, FOLDER)
@@ -53,11 +53,11 @@ def test_first_problem_names_the_first_step_not_saved(state, step, kind):
 
 
 def test_first_problem_is_none_when_every_step_is_saved():
-    assert first_problem(SeedState(developer=True, path=str(FOLDER), scripts=True), FOLDER) is None
+    assert first_problem(SeedState(developer=True, path=str(FOLDER)), FOLDER) is None  # no user scripts (KAN-839)
 
 
 def test_each_failure_has_its_own_message():
-    kinds = ("developer", "no_extension", "wrong_folder", "disabled", "scripts")
+    kinds = ("developer", "no_extension", "wrong_folder", "disabled")
     said = [seed_setup.instruction(Problem("step", kind, "/old/checkout"), FOLDER) for kind in kinds]
     assert len(set(said)) == len(kinds)
     assert "/old/checkout" in said[2] and "Remove" in said[2] and str(FOLDER) in said[2]
@@ -74,7 +74,7 @@ def test_read_state_on_a_fresh_profile_and_on_broken_files(tmp_path):
 @pytest.mark.parametrize("name", ["Secure Preferences", "Preferences"])
 def test_read_state_reads_each_step_from_either_file(tmp_path, name):
     write_prefs(tmp_path, developer=True, path="/a/folder", scripts=True, disabled=[8], name=name)
-    assert read_state(tmp_path) == SeedState(developer=True, path="/a/folder", disabled=True, scripts=True)
+    assert read_state(tmp_path) == SeedState(developer=True, path="/a/folder", disabled=True)
 
 
 def test_read_state_keeps_the_path_of_a_folder_that_is_gone(tmp_path):
@@ -121,7 +121,7 @@ class FakeWorkers:
     def __init__(self, root: Path, hellos=None):
         self.profiles, self.seed, self.copy = root, root / "plain-seed", root / "worker-extension"
         self.copy.mkdir(parents=True)
-        self.hellos = list(hellos or [{"extension": "1.0", "userScripts": True}])
+        self.hellos = list(hellos or [{"extension": "1.0"}])
         self.launched, self.stopped = [], []
         self.bridge = SimpleNamespace(stop=lambda: None)
         self.running = False
@@ -170,11 +170,11 @@ class Run:
         return "\n".join(self.said)
 
     def done(self):
-        return {"developer": True, "path": self.workers.copy, "scripts": True}
+        return {"developer": True, "path": self.workers.copy}
 
 
 def happy(run):
-    return [run.prefs(developer=True), run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    return [run.prefs(developer=True), run.prefs(**run.done())]
 
 
 def test_a_fresh_profile_reaches_a_working_worker_with_only_the_users_clicks(tmp_path):
@@ -182,13 +182,15 @@ def test_a_fresh_profile_reaches_a_working_worker_with_only_the_users_clicks(tmp
     run.clicks = happy(run)
     assert run.wizard.run() is True
 
-    assert run.desk.opened == [EXTENSIONS_PAGE, DETAILS_PAGE]  # opened for the user, nothing clicked
-    assert run.desk.copied == [str(run.workers.copy.resolve())]
+    assert run.desk.opened == [EXTENSIONS_PAGE]  # opened for the user, nothing clicked
+    # Fault: Chrome 157 opens a New Tab for a chrome:// page on its command line, and the user had nothing to paste.
+    assert run.desk.copied == [EXTENSIONS_PAGE, str(run.workers.copy.resolve())]
+    assert EXTENSIONS_PAGE in run.text and "address bar" in run.text
     assert run.desk.revealed == [run.workers.copy.resolve()]
     assert run.desk.terminated == [4242]
     assert run.workers.launched == [0] and run.workers.stopped == [0]
     for confirmed in ("Done: Developer mode is on.", "Done: The worker extension is registered",
-                      "Done: Allow User Scripts is on.", "Done: a real Worker said hello"):
+                      "Done: a real Worker said hello"):
         assert confirmed in run.text
     assert run.text.index("Quitting") < run.text.index("real Worker said hello")
 
@@ -210,7 +212,7 @@ def test_no_extension_says_so_and_nudges_with_the_path_on_the_clipboard_again(tm
                                                                        run.prefs(**run.done())]
     assert run.wizard.run() is True
     assert "No extension yet" in run.text and "Apply still doesn't see the extension" in run.text
-    assert len(run.desk.copied) == 2
+    assert run.desk.copied.count(str(run.workers.copy.resolve())) == 2
 
 
 def test_wrong_folder_names_both_folders_and_shows_the_step_again(tmp_path):
@@ -222,11 +224,12 @@ def test_wrong_folder_names_both_folders_and_shows_the_step_again(tmp_path):
     assert run.desk.revealed == [run.workers.copy.resolve()]
 
 
-def test_user_scripts_off_says_so_on_its_details_page(tmp_path):
+def test_no_allow_user_scripts_step_after_load_unpacked(tmp_path):
+    """The extension asks for no user scripts (KAN-839): Developer mode and Load unpacked are the setup."""
     run = Run(tmp_path)
-    run.clicks = [run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    run.clicks = [run.prefs(developer=True, path=run.workers.copy)]  # user_scripts_enabled stays false
     assert run.wizard.run() is True
-    assert "User scripts are off" in run.text and DETAILS_PAGE in run.desk.opened
+    assert "User Scripts" not in run.text and DETAILS_PAGE not in run.desk.opened
 
 
 def test_a_turned_off_card_says_so(tmp_path):
@@ -238,8 +241,7 @@ def test_a_turned_off_card_says_so(tmp_path):
 
 def test_a_step_that_went_back_does_not_stick(tmp_path):
     run = Run(tmp_path)
-    run.clicks = [run.prefs(developer=True, path=run.workers.copy), run.prefs(developer=False),
-                  run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    run.clicks = [run.prefs(developer=True), run.prefs(developer=False), run.prefs(**run.done())]
     assert run.wizard.run() is True
     assert "Developer mode did not stick" in run.text
 
@@ -282,14 +284,6 @@ def test_chrome_closed_too_early_opens_again_on_the_same_step(tmp_path):
     assert run.text.count("No extension yet") == 2
 
 
-def test_done_needs_user_scripts_on_in_the_workers_hello(tmp_path):
-    run = Run(tmp_path, hellos=[{"extension": "1.0", "userScripts": False}, {"extension": "1.0", "userScripts": True}], again=[True])
-    write_prefs(run.workers.seed, **run.done())
-    assert run.wizard.run() is True
-    assert "its user scripts are off" in run.text and DETAILS_PAGE in run.desk.opened
-    assert len(run.workers.launched) == 2
-
-
 def test_no_hello_is_not_done_and_the_user_can_stop(tmp_path):
     run = Run(tmp_path, hellos=[TimeoutError("no hello from plain Worker 1")], again=[False])
     write_prefs(run.workers.seed, **run.done())
@@ -300,7 +294,7 @@ def test_no_hello_is_not_done_and_the_user_can_stop(tmp_path):
 
 
 def test_a_refused_hello_is_not_done(tmp_path):
-    run = Run(tmp_path, hellos=[Refused("protocol 0"), {"extension": "1.0", "userScripts": True}], again=[True])
+    run = Run(tmp_path, hellos=[Refused("protocol 0"), {"extension": "1.0"}], again=[True])
     write_prefs(run.workers.seed, **run.done())
     assert run.wizard.run() is True
     assert "did not say hello: protocol 0" in run.text
@@ -345,17 +339,31 @@ def test_chrome_that_never_opens_is_a_setup_error(tmp_path):
 
 def test_the_desk_copies_reveals_and_opens_with_no_click(tmp_path, monkeypatch):
     calls = []
+    monkeypatch.setattr(seed_setup.pyperclip, "copy", lambda text: calls.append((["copy"], text)))
     monkeypatch.setattr(subprocess, "run", lambda argv, **kw: calls.append((argv, kw.get("input"))))
-    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: calls.append((argv, None)))
-    desk = Desk(tmp_path, Path("/Chrome"))
+    monkeypatch.setattr(seed_setup, "start_in_background", lambda argv, *a, **kw: calls.append((argv, kw)))
+    seed = tmp_path / "plain-seed"
+    desk = Desk(seed, Path("/Chrome"))
     desk.copy("/a/folder")
-    desk.reveal(Path("/a/folder"))
-    desk.open_chrome(EXTENSIONS_PAGE)
-    assert calls[0] == (["pbcopy"], b"/a/folder")
+    desk.reveal(Path("/a/folder"), "darwin")  # each OS's own way: test_each_os.py
+    desk.open_chrome(EXTENSIONS_PAGE)  # each OS's start, in front: test_each_os.py
+    assert calls[0] == (["copy"], "/a/folder")  # pyperclip: the clipboard on every OS
     assert calls[1] == (["open", "-R", "/a/folder"], None)
-    assert calls[2][0][:2] == ["/Chrome", f"--user-data-dir={tmp_path}"] and calls[2][0][-1] == EXTENSIONS_PAGE
+    assert calls[2][0][:2] == ["/Chrome", f"--user-data-dir={seed}"] and calls[2][0][-1] == EXTENSIONS_PAGE
+    assert calls[2][1] == {"front": True}
     assert not any(a.startswith(("--remote-debugging", "--enable-automation", "--headless", "--load-extension"))
                    for a in calls[2][0])
+
+
+def test_a_chrome_too_slow_to_take_the_seed_is_a_setup_error(tmp_path, monkeypatch):
+    """Fault: start_in_background's TimeoutError left the desk as it was, so `apply plain seed`, which says only a
+    SetupError, printed a traceback when Chrome took the seed profile late (a first launch after an update)."""
+    def late(*args, **kwargs):
+        raise TimeoutError("no Chrome took plain-seed within 20 s of `open`")
+
+    monkeypatch.setattr(seed_setup, "start_in_background", late)
+    with pytest.raises(seed_setup.SetupError, match="did not open the seed profile"):
+        Desk(tmp_path / "plain-seed", Path("/Chrome")).open_chrome(EXTENSIONS_PAGE)
 
 
 def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
@@ -366,6 +374,8 @@ def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
 
 
 def test_the_desk_does_not_trust_a_lock_whose_pid_is_another_program(tmp_path):
+    """Fault: chrome_pid trusts any live PID that the lock names. A Chrome that crashed left its lock, and the
+    PID went to another program: then the seed's Chrome looks open, and every Worker profile in use."""
     (tmp_path / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # this test's own process: not that Chrome
     assert Desk(tmp_path).chrome() is None
     assert Desk(tmp_path / "none").chrome() is None
@@ -377,16 +387,26 @@ def test_the_desk_knows_the_seeds_own_chrome(tmp_path, monkeypatch):
     (seed / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # a live PID
     asked = []
 
-    def ps(argv, **kw):
-        asked.append(argv)
-        return SimpleNamespace(stdout=f"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir={seed} --no-first-run\n")
+    def process(pid):
+        asked.append(pid)
+        return SimpleNamespace(cmdline=lambda: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                                                f"--user-data-dir={seed}", "--no-first-run"])
 
-    monkeypatch.setattr(subprocess, "run", ps)
+    monkeypatch.setattr(browsers.psutil, "Process", process)  # a process's arguments, on every OS
     assert Desk(seed).chrome() == os.getpid()
-    assert asked == [["ps", "-o", "command=", "-p", str(os.getpid())]]
+    assert asked == [os.getpid()]
 
 
-def test_setup_needs_branded_chrome(tmp_path, monkeypatch):
-    monkeypatch.setattr(seed_setup, "BRANDED", tmp_path / "no-chrome")
-    with pytest.raises(seed_setup.SetupError, match="no Google Chrome"):
+def test_a_clipboard_the_os_cant_reach_leaves_the_printed_path(tmp_path, monkeypatch):
+    def no_clipboard(text):
+        raise seed_setup.pyperclip.PyperclipException("no xclip, xsel or wl-copy")  # a bare Linux
+
+    monkeypatch.setattr(seed_setup.pyperclip, "copy", no_clipboard)
+    Desk(tmp_path).copy("/a/folder")  # no crash: the step's words print the path too
+
+
+@pytest.mark.parametrize("found", ["missing", None])
+def test_setup_needs_branded_chrome(tmp_path, monkeypatch, found):
+    monkeypatch.setattr(seed_setup, "BRANDED", tmp_path / "no-chrome" if found else None)  # None: the finder found none
+    with pytest.raises(seed_setup.SetupError, match="Google Chrome isn't installed"):
         seed_setup.run(tmp_path)

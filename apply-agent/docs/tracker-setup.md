@@ -9,7 +9,7 @@ Apply does not write to a Google Sheet any more. The old **Tracker Sheet** is re
 
 ## Set up
 
-There is nothing to set up for Apply's Tracker. For your Applications Tracker, log in to WorkIt one time:
+There is nothing to set up for Apply's Tracker. For your Applications Tracker, log in to WorkIt one time. It opens WorkIt in your browser: sign in there, press Sign In to the App, and paste the code it shows (the page shows it only to WorkIt's admins).
 
 ```sh
 uv run apply login

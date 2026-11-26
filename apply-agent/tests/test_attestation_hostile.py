@@ -23,9 +23,9 @@ from test_run_answers import profile_with
 from apply import fill_engine, worker
 from apply.accounts import Accounts
 from apply.answer_bank import AnswerBank
-from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
 from apply.model import Handoff, Posting, Question
+from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.workday import WorkdayFiller
 

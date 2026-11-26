@@ -75,4 +75,39 @@ export const STICKY_HEAD = "[&_tr]:border-b-0";
  *  the frozen column's edge at its right. One `shadow` replaces another, so
  *  a frozen heading that took only its edge lost its rule. */
 export const STICKY_TH_FROZEN =
-  "shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-subtle)]";
+  "shadow-[inset_0_-1px_0_var(--color-border-subtle)] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-surface";
+
+/** A frozen column's edge on its cells (2026-11-11, after Notion's): a
+ *  line in `--color-border-surface`, a step darker than the rules between
+ *  rows (`--color-border-subtle`), so the frozen column reads as apart
+ *  from the ones that scroll under it. In the rules' grey it read as one
+ *  more rule, and the user asked for a clear line. It is a 1px element
+ *  inside the cell (the sticky cell is positioned), at its right edge:
+ *  as a `box-shadow` outside the cell, the browser painted it only as a
+ *  short tick in the middle of each row, and the user saw no line at
+ *  all. */
+export const FROZEN_EDGE =
+  "after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-surface";
+
+/**
+ * A page table's row fill, one for every table (2026-11-11): the hover
+ * grey under the pointer or while a menu in the row is open, and a picked
+ * row's brand tint, which the pointer keeps. The shadcn row's own
+ * `hover:bg-muted/50` turned a picked row grey under the pointer while its
+ * frozen cell stayed purple, which the user saw as a weird hover on the
+ * first column. Pair a frozen cell with `frozenFill`.
+ */
+export function rowFill(picked: boolean) {
+  return picked
+    ? "bg-brand-tint hover:bg-brand-tint has-aria-expanded:bg-brand-tint"
+    : "hover:bg-hover has-aria-expanded:bg-hover has-[[data-popup-open]]:bg-hover";
+}
+
+/** A frozen cell's fill: its own, so the scrolled cells pass under it,
+ *  following its row's (`rowFill`) in every state: picked, hovered, or
+ *  with a menu open in the row (the pointer leaves for the menu). */
+export function frozenFill(picked: boolean) {
+  return picked
+    ? "bg-brand-tint"
+    : "bg-panel group-hover/row:bg-hover [tr:has([aria-expanded=true])_&]:bg-hover [tr:has([data-popup-open])_&]:bg-hover";
+}

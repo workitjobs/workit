@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/* Inter, WorkIt's face, latin only: the window ships it inside its one HTML file. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format("woff2-variations");
+}
+
+/* WorkIt's design kit (frontend/src/app/globals.css), the tokens this window uses,
+ * under the same names, so a class reads the same here as on the website. */
+@theme static {
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-weight-normal: 400;
+  --font-weight-medium: 450;
+
+  --color-app: #fcfcfc;
+  --color-panel: #ffffff;
+  --color-surface: #f8f8f8;
+  --color-hover: #f0f0f0;
+  --color-border: #e8e8e8;
+  --color-border-surface: #d9d9d9;
+  --color-border-control: #929292;
+
+  --color-ink: #121a28;
+  --color-ink-muted: #3b3e46;
+  --color-ink-meta: #465266;
+  --color-ink-faint: #8893a4;
+
+  --color-brand: #6d3fd8;
+  --color-brand-hover: #5b30c0;
+  --color-brand-active: #4c27a3;
+  --color-brand-tint: #efeaff;
+  --color-brand-pale: #ddd2ff;
+  --color-brand-ink: #5b30c0;
+  --color-on-brand: #ffffff;
+
+  --color-positive: #17b076;
+  --color-positive-ink: #107a52;
+  --color-positive-tint: #e3f7f0;
+  --color-warning-deep: #a16207;
+  --color-warning-tint: #fdf0d9;
+  --color-warning-fill: #f2a516;
+  --color-advanced: #2f5fd6;
+  --color-advanced-tint: #e3ebff;
+  --color-updates-ink: #a01f81;
+  --color-inert-tint: #e8ecef;
+  /* The window's own: a company tile's pink, beside the website's tints above. */
+  --color-updates-tint: #fbe7f3;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.625rem;
+  --radius-shell: 1.25rem;
+  --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
+
+  /* The type scale (frontend/docs/design.md, Legibility): each kind of text has one size. */
+  --text-note: 0.75rem; /* 12px: the floor for reading text (hints, errors, statuses) */
+  --text-note--line-height: 1rem;
+  --text-label: 0.8125rem; /* 13px — field labels, links, social buttons */
+  --text-label--line-height: 1.125rem;
+  --text-label--font-weight: var(--font-weight-medium);
+  --text-body: 0.875rem; /* 14px — body copy, inputs, primary button */
+  --text-body--line-height: 1.25rem;
+  --text-subtitle: 1rem; /* 16px — work-history job titles */
+  --text-subtitle--line-height: 1.375rem;
+  --text-subtitle--font-weight: 600;
+  --text-title: 1.25rem; /* 20px — "Welcome Back" */
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+  --text-heading: 1.625rem; /* 26px — "Applications Tracker" */
+  --text-heading--line-height: 2rem;
+  --text-heading--font-weight: 700;
+  --text-heading--letter-spacing: -0.02em;
+
+  /* The window's own: its one column, narrower than any of the website's pages. */
+  --container-window: 37.5rem;
+}
+
+html,
+body {
+  background: var(--color-app);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+/* A card's rise moves it only, never fades it in: WKWebView pauses animations while the window is in the background,
+ * and a fade paused at its start left the to-do card at opacity 0, blank but for its accessibility text (KAN-887). */
+@keyframes rise {
+  from {
+    transform: translateY(6px);
+  }
+}
+.rise {
+  animation: rise 0.25s ease-out;
+}
+/* A bar with no count yet: a third of it sweeps across, so it moves without claiming a share. */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.sweep {
+  animation: sweep 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+  .sweep {
+    animation: none;
+    opacity: 0.5;
+  }
+}

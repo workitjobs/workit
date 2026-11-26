@@ -6,7 +6,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
-of its own, so one engine pin serves both. To use another engine checkout
+of its own, so one engine pin serves both (moving it:
+`../../autofiller_extension/CLAUDE.md`, "Move the engine pointer"). To use another engine checkout
 (for example, a branch of the engine that you work on), set
 `APPLY_FILL_ENGINE` to its folder (`~` is expanded). Apply then loads
 `dist/engine.js` from that folder. The tests read the saved forms
@@ -15,7 +16,49 @@ of its own, so one engine pin serves both. To use another engine checkout
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
 
-Apply adds three rules to the engine's plan (`fill_engine.plan` and
+**Where the bundle comes from** (KAN-836, W7 of
+`../docs/desktop_application_auto_apply.md`). Every reader takes the
+bundle's text from `fill_engine.source()`, never from the file itself:
+the page through `page.evaluate`, a plain Worker over native messaging
+(`plain/script.keep_engine`), and Node as the first line on its stdin
+(`NODE_SERVER`). `plain/extension.engine_identity` hashes that text and
+reads `FillEngine.version` from it on Node's stdin. So the source can be
+either of two:
+
+- **The checkout's file** (the policy `fill_engine: checkout`, the
+  default in a Developer checkout). `fresh()` reloads the Nodes when the
+  file changes (KAN-645).
+- **WorkIt's download** (`fill_engine: workit`, and always in the Student
+  build, `build.STUDENT_POLICIES`). `engine_download.download` asks
+  `GET /apply-app/engine` for the newest build that fits the app's
+  version (the package's own version, `importlib.metadata`), asks
+  `POST /apply-app/engine-key` for that download's key, decrypts it with
+  AES-GCM and checks its Ed25519 signature with `PUBLIC_KEY`, all in
+  memory. It runs once per process. A refusal is kept, so every later
+  use raises the same `EngineRefused` at once with no new download.
+  `rehearsal.rehearse` calls `fill_engine.ready()` first, so a refusal
+  stops the run before any Worker opens. `fresh()` does nothing: a new
+  build reaches the app at its next start.
+
+**No engine file is written anywhere** for WorkIt's download: not in
+the data folder, the profiles folder or the Worker extension's folders.
+A new reader of the engine takes `fill_engine.source()`, never
+`fill_engine.ENGINE`: the path is the checkout's file only, and the
+Student build has none.
+
+**The connection is pinned** (D28). `workit._send` gives the live API's
+host, and the live Supabase Auth's (the session's hourly refresh, which a
+proxy could otherwise read and then download the engine with), a TLS
+context that trusts only the roots in `workit_roots.py`:
+Cloudflare's CAs (Let's Encrypt, Google Trust Services, SSL.com, and
+Sectigo for its backup certificates), taken from certifi by
+`scripts/workit_roots.py`. A local API is not pinned. When Cloudflare
+changes its CAs, run `uv run python scripts/workit_roots.py`, then
+`--check`, which connects to both hosts with only those roots; the
+tests never reach the network. A set the live chain is not in stops
+every student's app, so this ships before Cloudflare moves.
+
+Apply adds four rules to the engine's plan (`fill_engine.plan` and
 `worker._Planned.add`). They stay in Apply: each one is about Claude (what
 it drafts, the forms that Claude fill reads) or about Apply's own
 read-back. The engine's `fillEach` already accepts the wording that a
@@ -32,6 +75,12 @@ try-list picked, so the extension needs none of them.
   own `HOW_HEARD`): Apply keeps no copy of the pattern.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
+- A part of an address under a bare "Address" heading, as Claude fill reads
+  Oracle's Address block ("Address: Country", "Address: City"), is planned as
+  the home address's part ("Home address: Country", `fill_engine._as_home_address`);
+  its name and answer stay its own. The engine read the heading alone and
+  planned the street for every part (Honeywell's, 2026-11-25). The engine's own
+  fix (a bare "address: " in its `HOME_SECTION`) would make this rule go.
 
 The engine's plan names each field it leaves blank on purpose, with why
 (`fill_engine.Plan.blanks`). On Greenhouse's self-ID block, a race to

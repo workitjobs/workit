@@ -14,13 +14,14 @@ import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { cn } from "@/lib/cn";
 
 /**
- * A filter dropdown in the Jobs page facet's look (jobs/filters.tsx): a
- * small secondary button with the field's glyph, its label and a chevron,
- * taking the brand tint while it holds a pick and is closed, over checkbox
- * rows (ui/check-row.tsx). A pick leaves it open for the next. Used by the
- * Applications filter row (KAN-282) and Live Activity's Status filter on
- * Auto Apply (KAN-285); `facetClasses` and `FacetLabel` also draw the
- * Applications page's Company dropdown, which holds a search field.
+ * A filter dropdown: a small secondary button with the field's glyph, its
+ * label and a chevron, taking the brand tint while it holds a pick and is
+ * closed, over checkbox rows (ui/check-row.tsx). A pick leaves it open for
+ * the next. Used by the Jobs page's row (Workplace and Job Type, KAN-823),
+ * the Applications filter row (KAN-282) and Live Activity's Status filter
+ * on Auto Apply (KAN-285); `facetClasses` and `FacetLabel` also draw the
+ * dropdowns that hold a search field (`SearchFacet`: the Tracker's Company,
+ * the Jobs page's Role) and the Jobs page's Location popover.
  */
 
 export type Glyph = ComponentType<{ className?: string }>;

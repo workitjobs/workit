@@ -18,7 +18,7 @@ document again on each change.
 
 The round trip is the save, the network, the database read, Tectonic
 (about 0.3 to 0.5 s warm on a Mac, more on a cold instance) and the
-pdf.js draw. The editor's bar showed it after each save until the user found it noise; a phone still does ("Saved, 412 ms").
+pdf.js draw. The editor's bar showed it after each save until the user found it noise, and a phone until KAN-799 ("Saved, 412 ms"); it is now the "resume edit round trip" performance measure, read in the browser's developer tools.
 Today the typed line shows at once, because the field over it is HTML
 set in Latin Modern. The rest of the page (the lines below, the page
 break, the page count) waits for the compile.
@@ -110,6 +110,12 @@ Built so far (option A, the typed line only):
   already did. A section emptied by a hide keeps its heading, and a line a
   skill leaves does not pull the next line's skills up, until the PDF
   lands. Show and wording switches show nothing until then.
+- **A new bullet shows at once, and moves and hides slide** (KAN-920): a
+  bullet added from the page opens in place, set as the PDF will print it
+  (`inserts` on `PdfPages`; `frontend/docs/screens.md`, Resume editor),
+  and its text stays in view until the PDF that prints it paints. A
+  move's strips and a hide's band slide over `MOTION_MS` (200 ms, ease
+  out) where they jumped in one frame; with reduced motion they jump.
 - **Fit to One Page is an edit like the others** (KAN-584): the editor
   sends its copy and the measure of the PDF it shows (each render answers
   its points, text area and shrinks beside the boxes) to `POST
@@ -132,8 +138,21 @@ Built so far (option A, the typed line only):
   compile twice, not five times. Every click still saves. A skipped step
   keeps no PDF, nor does the step after it on its before side, so Undo
   renders those, and any step while a page's render is queued renders too,
-  or that render would print over it. Typed lines and choice changes are not skipped: a render
-  is what refuses a bad one, and each carries only its own edit.
+  or that render would print over it.
+- **A choice change's compile is skipped when another choice change is
+  next in the queue, and that render carries both** (KAN-919): three quick
+  hides or ticks compile twice, the first and one for the other two, not
+  three times, at 4 to 5 s a compile in production. The skipped change
+  stays on its way (`unanswered`, its swap, hide and lines) until the
+  render that carries it answers, which sends the changes joined in order
+  (`joined`; the API applies them in order, later wins). A skipped step
+  keeps no PDF on either side, and the step after it none on its before
+  side, so Undo and Redo render those. Every change still saves on its
+  own. A refusal of changes carried together reloads the saved resume,
+  since only the saves know which one was refused. A Fit's cycles never
+  join (their plan reads their own PDF), and typed lines are never
+  skipped: the render reads the typed text (a GPA, a link) into the copy
+  the next edit needs.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
   save goes; an older step, past the newest 7 that keep their PDFs,

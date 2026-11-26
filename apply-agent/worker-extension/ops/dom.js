@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S2 op: `dom`, Playwright's locators and actions in the extension's isolated world.
 // page/dom.js does the work there, over Playwright's own injected script (vendor/injected.js).
 // Its text goes in trusted where it can (ops/typing.js, KAN-716).

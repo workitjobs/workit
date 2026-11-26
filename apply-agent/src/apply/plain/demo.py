@@ -59,7 +59,7 @@ def ping(count: int = 1, kind: str | None = None) -> list[str]:
                 webdriver = evaluate(connection, tab, "() => navigator.webdriver")
                 port_file = (running.profile / "DevToolsActivePort").exists()
                 lines.append(f"plain Worker {worker + 1} (pid {running.pid}, {workers.kind}): extension {hello['extension']}, "
-                             f"Fill engine {hello['engine']['version']}, user scripts {'on' if hello['userScripts'] else 'off'}, "
+                             f"Fill engine {(hello.get('engine') or {}).get('version', 'none')}, "
                              f"navigator.webdriver: {str(webdriver).lower()} (service worker: {str(hello['webdriver']).lower()}), "
                              f"DevToolsActivePort: {'present' if port_file else 'none'}")
     finally:

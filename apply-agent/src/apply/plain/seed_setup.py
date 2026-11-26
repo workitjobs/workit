@@ -1,31 +1,49 @@
 """`apply plain seed`: the guided setup of the plain seed profile (KAN-677).
 
-Branded Chrome takes the worker extension only by the user's own clicks: Developer mode, Load
-unpacked, Allow User Scripts. This wizard opens the page, puts the folder's path on the clipboard,
+Branded Chrome takes the worker extension only by the user's own clicks: Developer mode and Load
+unpacked (the extension asks for no user scripts since KAN-839, so there is no Allow User Scripts
+switch to turn on). This wizard opens the page, puts the folder's path on the clipboard,
 shows the folder in Finder, and then watches the seed's preference files until each step is saved.
 It only reads those files, and it never clicks a chrome:// page.
+
+The Chrome Web Store install needs none of this (W6); this guide stays as the fallback. Its calls
+work on every OS (W4): the Chrome finder's Chrome, pyperclip for the clipboard and psutil for a
+process's arguments. Only showing a folder has an entry for each OS (`Desk.reveal`). Its words
+(Finder, Cmd+Shift+G) are still the Mac's: F4's.
 
 Chrome writes a change to disk about 10 s after the click (measured on Chrome for Testing), and only
 a clean exit writes the rest: SIGTERM saves, SIGKILL loses it (measured on both Chromes). So Apply
 quits the seed's Chrome with SIGTERM, never SIGKILL, reads the files again, and says "done" only
-after a real Worker, copied from the seed, says hello with user scripts on.
+after a real Worker, copied from the seed, says hello.
 """
 
 import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import pyperclip
+
 from apply.adapters import SetupError
 from apply.browsers import ProfileInUse, chrome_pid
+from apply.chrome_finder import NO_CHROME
 from apply.plain import extension
 from apply.plain.bridge import BridgeBusy, Refused
-from apply.plain.launcher import BRANDED, FLAGS, PlainWorkers, developer_mode
+from apply.plain.launcher import (
+    BRANDED,
+    FLAGS,
+    PlainWorkers,
+    developer_mode,
+    start_in_background,
+)
 
+# Chrome 157 opens no chrome:// page named on its command line (a New Tab instead, 2026-11-21), so the user opens
+# it: its address goes on the clipboard, and the step says to paste it in the address bar.
 EXTENSIONS_PAGE = "chrome://extensions"
 DETAILS_PAGE = f"{EXTENSIONS_PAGE}/?id={extension.EXTENSION_ID}"
 POLL = 1.0  # s between two reads of the preference files
@@ -34,11 +52,10 @@ QUIT_WAIT = 15.0  # s from SIGTERM to telling the user that Chrome is still up
 OPEN_WAIT = 20.0  # s from opening Chrome to its holding the seed profile
 
 # The steps, in the order the user does them. Each problem below belongs to one of them.
-DEVELOPER, EXTENSION, SCRIPTS = "Developer mode", "Load unpacked", "Allow User Scripts"
-ORDER = (DEVELOPER, EXTENSION, SCRIPTS)
+DEVELOPER, EXTENSION = "Developer mode", "Load unpacked"
+ORDER = (DEVELOPER, EXTENSION)
 DONE = {DEVELOPER: "Developer mode is on.",
-        EXTENSION: "The worker extension is registered from the right folder.",
-        SCRIPTS: "Allow User Scripts is on."}
+        EXTENSION: "The worker extension is registered from the right folder."}
 
 
 @dataclass(frozen=True)
@@ -48,7 +65,6 @@ class SeedState:
     developer: bool = False
     path: str | None = None  # the folder the worker extension is registered from
     disabled: bool = False  # its card's switch is off, or Chrome turned it off
-    scripts: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,7 +72,7 @@ class Problem:
     """The first step that isn't saved yet, and how it is wrong."""
 
     step: str
-    kind: str  # "developer", "no_extension", "wrong_folder", "disabled" or "scripts"
+    kind: str  # "developer", "no_extension", "wrong_folder" or "disabled"
     path: str | None = None  # wrong_folder: the folder that is registered
 
 
@@ -64,8 +80,7 @@ def read_state(seed: Path) -> SeedState:
     """Read the seed's preference files. It only reads: nothing here opens a file to write."""
     entry = extension.registration(seed) or {}
     return SeedState(developer=developer_mode(seed), path=entry.get("path"),
-                     disabled=bool(entry.get("disable_reasons")),
-                     scripts=entry.get("user_scripts_enabled") is True)
+                     disabled=bool(entry.get("disable_reasons")))
 
 
 def first_problem(state: SeedState, folder: Path) -> Problem | None:
@@ -78,8 +93,6 @@ def first_problem(state: SeedState, folder: Path) -> Problem | None:
         return Problem(EXTENSION, "wrong_folder", state.path)
     if state.disabled:
         return Problem(EXTENSION, "disabled")
-    if not state.scripts:
-        return Problem(SCRIPTS, "scripts")
     return None
 
 
@@ -88,12 +101,13 @@ def instruction(problem: Problem, folder: Path) -> str:
     load = (f"Drag it from Finder onto the Extensions page. Or click Load unpacked, press Cmd+Shift+G, "
             f"Cmd+V, Return, then click Select.\n  Folder (on your clipboard): {folder.resolve()}")
     return {
-        "developer": 'Turn on Developer mode: the switch at the top right of the Extensions page.',
+        "developer": (f"Open the Extensions page: in the Chrome window that opened, paste {EXTENSIONS_PAGE} (it is "
+                      "on your clipboard) into the address bar and press Return. Then turn on Developer mode: the "
+                      "switch at the top right of the Extensions page."),
         "no_extension": f"No extension yet. Add the worker extension. {load}",
         "wrong_folder": f"Wrong folder. The Apply Worker card loads from {problem.path}. Click Remove on that card, "
                         f"then add it again from the right folder. {load}",
         "disabled": "The Apply Worker card is turned off. Turn on the switch on that card.",
-        "scripts": "User scripts are off. On the Apply Worker's Details page, turn on Allow User Scripts.",
     }[problem.kind]
 
 
@@ -118,27 +132,43 @@ class Desk:
     """What the wizard does outside its own files. Tests give fakes."""
 
     seed: Path
-    binary: Path = BRANDED
+    binary: Path | None = BRANDED
 
-    def open_chrome(self, url: str) -> None:
-        """Open `url` in the seed's Chrome, in front: the user works in it. A running one takes a new tab."""
-        subprocess.Popen([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    def open_chrome(self, url: str, system: str = sys.platform) -> None:
+        """The seed's Chrome, in front: the user works in it. A running one takes a new tab. Started by each OS's own
+        way (launcher.start_in_background): on the Mac never as this process's child. `url` is a chrome:// page,
+        which Chrome 157 doesn't open from its command line: the steps have the user paste it."""
+        try:
+            start_in_background([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], self.seed,
+                                self.seed.with_suffix(".log"), system, front=True)
+        except TimeoutError:  # its wait for the profile's lock: the setup's own error, which the CLI and window say
+            raise SetupError(f"Chrome did not open the seed profile within {OPEN_WAIT:.0f} s: {self.seed}") from None
 
     def copy(self, text: str) -> None:
-        subprocess.run(["pbcopy"], input=text.encode(), check=True)
+        """Put `text` on the clipboard (pyperclip: every OS). A Linux with no clipboard tool gets none: the
+        wizard prints the path too."""
+        try:
+            pyperclip.copy(text)
+        except pyperclip.PyperclipException:
+            pass
 
-    def reveal(self, path: Path) -> None:
-        subprocess.run(["open", "-R", str(path)], check=True)
+    def reveal(self, path: Path, system: str = sys.platform) -> None:
+        """Show `path` in the OS's file manager, selected where the OS can: no library does this on every OS.
+        macOS: Finder (`open -R`). Windows: File Explorer (`explorer /select,`). Linux: its parent folder in the
+        desktop's file manager (`xdg-open`)."""
+        if system == "darwin":
+            command: list[str] | str = ["open", "-R", str(path)]
+        elif system == "win32":  # one string: Explorer reads /select, only outside the quotes, and Python quotes
+            command = f'explorer /select,"{path}"'  # a whole argument that holds a space (C:\Users\Jane Doe\...)
+        else:
+            command = ["xdg-open", str(path.parent)]
+        subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
 
     def chrome(self) -> int | None:
-        """The PID of the Chrome that runs this seed. The lock names a PID; `ps` proves that it is this
-        Chrome, not another program with a reused PID or a dead process that nothing has reaped."""
-        pid = chrome_pid(self.seed)
-        if pid is None:
-            return None
-        command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
-        return pid if f"--user-data-dir={self.seed}" in command else None
+        """The PID of the Chrome that runs this seed. chrome_pid takes the lock's PID only while its arguments
+        prove that it is this Chrome, not another program with a reused PID or a dead process that nothing has
+        reaped."""
+        return chrome_pid(self.seed)
 
     def terminate(self, pid: int) -> None:
         try:
@@ -171,7 +201,7 @@ class Wizard:
         return first_problem(read_state(self.seed), self.folder)
 
     def run(self) -> bool:
-        """The whole setup. True only after a real Worker's hello said the extension and user scripts are on."""
+        """The whole setup. True only after a real Worker, copied from the seed, said hello."""
         if not self.workers.idle():
             raise ProfileInUse(f"a plain Worker of {self.workers.profiles} is running: seed once none runs")
         self.seed.mkdir(parents=True, exist_ok=True)
@@ -198,7 +228,9 @@ class Wizard:
                 return True
             self.out(f"Not done yet. {failed}")
             self.desk.open_chrome(DETAILS_PAGE)
-            self.out("Check the Apply Worker card and its Allow User Scripts switch in the Chrome that opened. "
+            self.desk.copy(DETAILS_PAGE)
+            self.out("Check the Apply Worker card and its switch: in the Chrome that opened, paste the address on "
+                     "your clipboard into the address bar and press Return. "
                      "Then press Return here to try again, or Ctrl-C to stop.")
             if not self.ask_again():
                 self._quit(wait=False)
@@ -231,7 +263,7 @@ class Wizard:
             self.sleep(POLL)
 
     def _open(self, problem: Problem) -> None:
-        self.desk.open_chrome(DETAILS_PAGE if problem.kind == "scripts" else EXTENSIONS_PAGE)
+        self.desk.open_chrome(EXTENSIONS_PAGE)
         deadline = self.clock() + OPEN_WAIT
         while self.desk.chrome() is None:
             if self.clock() > deadline:
@@ -244,11 +276,11 @@ class Wizard:
         elif last and problem.step != last.step:
             self.out(f"Done: {DONE[last.step]}")
         self.out(f"Now: {instruction(problem, self.folder)}")
+        if problem.kind == "developer":
+            self.desk.copy(EXTENSIONS_PAGE)
         if problem.kind in ("no_extension", "wrong_folder"):
             self.desk.copy(str(self.folder.resolve()))
             self.desk.reveal(self.folder.resolve())
-        elif problem.kind == "scripts" and last:
-            self.desk.open_chrome(DETAILS_PAGE)  # shows the switch; the click is the user's
 
     def _quit(self, wait: bool = True) -> None:
         """Ask the seed's Chrome to quit, so that it saves. Never SIGKILL: that loses unsaved changes."""
@@ -266,8 +298,7 @@ class Wizard:
 
     def _worker_says(self) -> str | None:
         """Start one real Worker from the seed, on a new profile, so that an old Worker profile can't answer for
-        it. It goes after the check. Returns what is wrong, or None when its hello has the extension and user
-        scripts on."""
+        it. It goes after the check. Returns what is wrong, or None when it said hello."""
         worker = 0
         while self.workers.profile(worker).exists():
             worker += 1
@@ -280,9 +311,7 @@ class Wizard:
             self.workers.bridge.stop()
             shutil.rmtree(self.workers.profile(worker), ignore_errors=True)
             (self.workers.profiles / f"plain-{worker + 1}.log").unlink(missing_ok=True)
-        if hello.get("userScripts") is not True:
-            return "The Worker said hello, but its user scripts are off."
-        self.out(f"Done: a real Worker said hello with extension {hello.get('extension')} and user scripts on.")
+        self.out(f"Done: a real Worker said hello with extension {hello.get('extension')}.")
         return None
 
     def _tell_old_workers(self) -> None:
@@ -295,6 +324,6 @@ class Wizard:
 def run(profiles: Path | None = None, out: Callable[[str], None] = print) -> bool:
     """`apply plain seed`, with branded Chrome."""
     workers = PlainWorkers(profiles, kind="chrome")
-    if not BRANDED.exists():
-        raise SetupError(f"no Google Chrome at {BRANDED}: install Chrome, then run this again")
+    if BRANDED is None or not BRANDED.exists():
+        raise SetupError(f"{NO_CHROME}, then run this again")
     return Wizard(workers, out=out).run()

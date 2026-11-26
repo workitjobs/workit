@@ -4,6 +4,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 ## Prompts and gates
 
+- **Every prompt Apply's `ask` used is on WorkIt's server** (KAN-723,
+  2026-11-14; W1's "Prompts on the server" in
+  `../docs/desktop_application_auto_apply.md`): each call sends a kind and
+  its data, and `../backend/app/apply_prompts/` builds the prompt. Change a
+  prompt there. **The answering guides have one copy, the server's**
+  (`answering/types/` there): the server lists slots and lengths in
+  prompts with their front matter, and Apply classifies questions and
+  checks plans with it, fetched from `GET /apply-app/types` into the data
+  folder (`apply.answering`, 2026-11-15). The rules below still hold for the prompts on the server and for
+  the ones Apply still sends to Claude (Claude fill, Rescue, Ask Claude).
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the
@@ -13,6 +23,15 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   they/them/theirs) to each system prompt. Without them, Claude guesses
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
+- A hosted model (`ask_model`, `docs/ask-model.md`) gets lean essay
+  prompts: the plan lists only the asked Question types, the writer gets
+  the rules' leads and each guide's Order and Rules (no quoted readers,
+  Pairs or model letters), and one-off questions go in their own call. A
+  new guide section that a lean prompt must keep joins
+  `answering.LEAN_SECTIONS`. `claude -p` always gets the full prompts.
+- A plan's quote holds when its words match the sources in order, whole:
+  punctuation, hyphen kinds and small number words ("five" for "5") don't
+  count (`essays._quotable`).
 - The length gate (`gates.bounds`) reads a limit that the form states,
   also a hyphenated one ("500-word limit") and one with the unit first
   ("Word limit: 260", `gates.LIMIT`). Keep it in step with
@@ -43,6 +62,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   when the form states none) also gets one shorter rewrite (`essays.CUT`)
   before the form is shown. If it is still over, it goes on the form, and
   its failed check holds the Application (Bedrock's 132 words of 120).
+  An edit, this rewrite too, may hold a number that the draft or the
+  sources hold, never one that neither holds (`writing._usable`). Each
+  edit that wrote in the count the claim check gave was dropped before
+  (Sierra, 2026-11-26), so both essays stayed at 157 and 145 words of 120.
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the

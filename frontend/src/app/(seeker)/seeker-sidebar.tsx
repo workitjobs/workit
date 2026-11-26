@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
+import { CALENDAR_LIVE } from "./calendar/live";
 import { INBOX_LIVE } from "./inbox/live";
 
 /**
@@ -31,15 +32,18 @@ import { INBOX_LIVE } from "./inbox/live";
  * renders for someone signed in, and the layout sends anyone else to
  * /login.
  *
- * There is no Search row. /search is where the bar's own field lands a query
- * (and, on a phone, the bar's magnifier), and a row beside that field would
- * be a second, contradictory way to reach it.
+ * There is no Search row. /search is where the Jobs page's field lands a
+ * query, and a row beside that field would be a second, contradictory way to
+ * reach it; Jobs is lit there (`also`, KAN-917).
  *
  * Auto Apply sits between Jobs and Applications, in the order the work goes:
  * find the jobs, apply to them, track what was sent. It carries the queue's
  * count (./queue-badge.tsx, 2026-11-09), the queue's one status outside its
  * page; the Inbox's count was taken out as out of place, but a queue's is a
- * count of work waiting on the seeker's own pipeline.
+ * count of work waiting on the seeker's own pipeline. The desktop app's
+ * download page is a tab of Auto Apply (/auto-apply/desktop, 2026-11-23),
+ * not a row: it was the Auto Apply Desktop row right under this one
+ * (KAN-835), a page read one time among the places a student works in.
  *
  * Applications' glyph is ListChecks, what the page is for (tracking what was
  * sent), not how it is laid out. It was SquareKanban, the board's shape, and
@@ -79,18 +83,14 @@ import { INBOX_LIVE } from "./inbox/live";
  * confusing. The bar's title, page titles, Back links and breadcrumbs use
  * the same names.
  */
-/** Whether the Calendar row shows (2026-11-09). Off while the Calendar does
- *  not work: a greyed-out row on every page was a promise the app could not
- *  keep. Its page stays at /calendar, unlinked from the rail. Set it to true
- *  to bring the row back, live. */
-const CALENDAR_LIVE = false;
-
 const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.
     items: [
       { href: "/home", label: "Home", Icon: HouseIcon },
-      { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
+      // /search is the Jobs page's search, in its frame (KAN-917): a search
+      // left no row lit, and the row lit again on the first result opened.
+      { href: "/jobs", also: ["/search"], label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
       { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
       // KAN-766: Experiences is the source every resume, match and answer

@@ -27,7 +27,6 @@ Orchestrator's stop lines.
 """
 
 import ast
-import fcntl
 import json
 import os
 import re
@@ -39,6 +38,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
+from apply import locks
 from apply.adapters import Notifier, Tracker, Usage, UsageLimitHit
 from apply.home import CODE, HOME
 from apply.model import Status, one_line
@@ -55,6 +55,9 @@ from apply.repair import (
 APPLY = CODE
 # Where each Repair's worktree is made, outside every checkout.
 WORKTREES = HOME / "repairs"
+# The one-at-a-time lock, in WORKTREES. Never ".lock": RepairRequests locks that one in the same folder
+# (HOME/repairs), and a Repair saves its request while it holds this one, so a shared file waited for good.
+RUNNING = ".running.lock"
 MODEL = "sonnet"
 # Apply's folder in the checkout, and the Fill engine's submodule (the extension's), with the branch
 # it tracks when .gitmodules names none. FROM_APP names the engine from Apply's folder, where a Repair's session runs.
@@ -241,16 +244,8 @@ class Repairer:
         if self._branch == "main":
             print("Repairs never run on main: run Apply from a branch of its own, or set repair.branch.")
             return []
-        self._worktrees.mkdir(parents=True, exist_ok=True)
-        with open(self._worktrees / ".lock", "a") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return []
-            try:
-                return self._repair_waiting()
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+        with locks.tried(self._worktrees / RUNNING) as mine:  # not mine: another `apply repair` is going
+            return self._repair_waiting() if mine else []
 
     def _repair_waiting(self) -> list[RepairRequest]:
         today = self._today().isoformat()

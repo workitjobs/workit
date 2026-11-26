@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import fakes
+import psutil
 import pytest
 from conftest import APPLY, ARC_FORM, ARC_URL, PURE_STORAGE_FORM, PURE_STORAGE_URL
 from fake_workday import FakeWorkdayServer
@@ -25,7 +26,6 @@ from plain_fakes import have_chrome_for_testing, https_fake
 from test_employer_accounts import XCEL_FORM, XCEL_URL
 from test_plain_routing import UPLOADS, _uploading
 from test_rehearse import NeverSubmits, NeverSubmittingWorkday, adapters
-from test_resume import handed_pages
 from test_run_answers import profile_with
 
 from apply import batch, cli, rehearsal
@@ -37,7 +37,6 @@ from apply.plain.launcher import PlainWorkers
 from apply.plain.site import PlainSite
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
-from apply.workday import GOOGLE_BUTTON
 
 TESTS = Path(__file__).parent
 needs_chrome = pytest.mark.skipif(not have_chrome_for_testing(), reason="needs Chrome for Testing")
@@ -54,11 +53,7 @@ def _wait(until, seconds: float, why: str):
 
 
 def _gone(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return False
-    except ProcessLookupError:
-        return True
+    return not psutil.pid_exists(pid)
 
 
 class Held(RecordingBoard):
@@ -155,44 +150,17 @@ def test_each_form_comes_back_in_its_worker_with_its_record_and_guards_after_app
     assert again[planted["field"]]["on_page"] == PLANTED  # what the form held came back, not a new answer
 
 
-def test_a_reopened_workday_form_at_a_sign_in_waits_for_lisul_and_goes_on_by_itself(monkeypatch, tmp_path):
+def test_a_reopened_workday_form_at_a_sign_in_signs_in_by_itself(monkeypatch, tmp_path):
+    # KAN-878: a reopened form signs in as any rehearsal does (KAN-720 left it to Lisul). Fault: a reopened form that
+    # still stops at its sign-in, or one that sends anything.
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
-    handed = handed_pages(monkeypatch)
-    shown = {}
-
-    class Lisul(RecordingBoard):
-        """At the reopened form's sign-in he signs in with Google himself; once Apply has gone on and stopped, he closes it."""
-
-        turns = 0
-
-        def resumed(self, worker):
-            return False  # he never presses Resume
-
-        def answered(self, worker):
-            if not handed or handed[-1].is_closed():
-                return []
-            page, self.turns = handed[-1], self.turns + 1
-            caption = self.captions[worker]
-            if "Went on by itself" in " ".join(caption.get("history") or []) and caption.get("status") != "filling" \
-                    or self.turns > 60:
-                page.close()
-            elif self.turns == 2:
-                shown["status"], shown["why"] = caption.get("status"), caption.get("why")
-                shown["typed"] = [box.input_value() for box in page.locator("input").all() if box.is_visible()]
-                page.locator(GOOGLE_BUTTON).click()  # his own click: Apply never clicks on a sign-in page
-            elif self.turns == 4 and "accounts.google.com" in page.url:
-                page.locator("[data-identifier]").first.click()
-            return []
-
-    board = Lisul()
+    board = RecordingBoard()
     reopening = rehearsal.Reopening([0], since={XCEL_URL: "2026-11-05 22:10"})
-    with FakeWorkdayServer(XCEL_FORM, google="pick") as server:
-        rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(profile_with(tmp_path)), 1,
-                           out=[].append, reopening=reopening)
-
-    assert shown["status"] == rehearsal.SIGN_IN and "types nothing into a sign-in" in shown["why"]  # its tile: sign in
-    assert not any(shown["typed"])  # Apply typed nothing on the sign-in page
-    history = board.captions[0]["history"]
-    assert "Reopened after Apply stopped (open since 2026-11-05 22:10)" in history[0]
-    assert [h.split(" ", 1)[1].split(":")[0] for h in history[1:3]] == ["Paused", "Went on by itself"], history
-    assert server.created == [] and server.submissions == []  # no account made, nothing sent
+    with FakeWorkdayServer(XCEL_FORM) as server:
+        [done] = rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                                    1, keep_open=False, out=[].append, reopening=reopening)
+    # Past the sign-in by itself: an account made with a Keychain password, and no sign-in stop. What the fake's step
+    # then asks is another test's.
+    assert done.outcome != rehearsal.SIGN_IN and "Needs sign-in" not in done.why, done.why
+    assert any("Reopened after Apply stopped (open since 2026-11-05 22:10)" in h for h in board.captions[0]["history"])
+    assert server.created and server.submissions == []

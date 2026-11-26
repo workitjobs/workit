@@ -18,30 +18,29 @@ export const metadata: Metadata = {
 };
 
 /**
- * /onboarding/applicant — where sign-in sends a seeker until they finish it.
- * Its second step reads a resume and saves it once the seeker confirms
- * (KAN-372); the last opens /jobs.
+ * /onboarding/applicant — where sign-in sends a seeker until they finish it:
+ * one question per page (./steps.ts), the last of which saves the answers
+ * and opens /jobs. The resume page reads a resume and saves it once the
+ * seeker confirms (KAN-372).
  *
  * Outside both shells, like /login: a first-time user has no top bar to sit
- * under yet. The whole screen is ./onboarding-form: the question on the left,
- * the step rail and the fields on the right.
+ * under yet. The whole screen is ./onboarding-form: the question on the
+ * left, the Jobs page building from the answers on the right.
  *
  * Sign-in sends only an applicant who hasn't finished onboarding here
  * (docs/auth.md); signed out goes to sign-in. A finished applicant can still
- * come back by opening this page again: the form opens on their saved
- * answers, and Finish saves the edits. ?step=2 opens it on Profile, now
- * the third step (KAN-372); intake's "Back to Pay & Visa" linked there until
- * KAN-275 took intake out of onboarding. ?step=extension opens it on the
- * extension's install step (Extension, leading to Practice): not opened
- * directly by the extension's install anymore (KAN-471's own tab is
- * `/extension-setup` now, KAN-495) -- reached instead through that page's
- * "I Already Have One" button, signed out by way of sign-in. ?step=2 is
- * honoured only with saved answers (./steps' startStep), since the first
- * step holds the answers that must be given; ?step=extension also for a
- * seeker who finished onboarding, so loading the extension never sends
- * them back to the first step.
+ * come back by opening this page again: the form opens blank, and Find Jobs
+ * replaces the preferences and adds what was answered, never erasing a
+ * saved answer left blank (./onboarding-form). The saved preferences only
+ * decide whether ?step=extension is honoured. ?step=<slug> opens that page
+ * (./steps' PAGE_SLUGS; a setup page for anyone). ?step=extension opens the
+ * extension track (Extension, Add Claude, Practice), which
+ * `/extension-setup`'s "I Already Have One" button links to (KAN-495),
+ * signed out by way of sign-in; it is honoured with saved answers or a
+ * finished onboarding (./steps' startStep), so loading the extension never
+ * sends a finished seeker back to the first page.
  *
- * The Role step's pickers offer what the Jobs page's filters offer
+ * The preferences' pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
  */
 export default async function ApplicantOnboardingPage({
@@ -70,9 +69,8 @@ export default async function ApplicantOnboardingPage({
   return (
     <OnboardingForm
       {...options}
-      initial={saved ?? undefined}
-      initialAnswers={savedAnswers.answers}
-      initialContact={
+      savedAnswers={savedAnswers.answers}
+      savedContact={
         profile
           ? {
               location: profile.location,
@@ -82,7 +80,7 @@ export default async function ApplicantOnboardingPage({
             }
           : undefined
       }
-      email={user.email}
+      name={account?.full_name}
       claudeLink={claudeConnectorLink()}
       startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
     />

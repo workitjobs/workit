@@ -11,6 +11,7 @@ APPLY = Path(__file__).parents[1]
 FIXTURES = Path(__file__).parent / "fixtures"
 # The data folder every test runs on: Apply sets its data paths when it is imported, so
 # APPLY_HOME points here before that, never at ~/.config/apply. data_folder() fills it.
+_REAL_PID = Path(os.environ.get("APPLY_HOME") or Path.home() / ".config" / "apply") / "app.pid"
 os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
 os.environ["APPLY_TEST_TEMP_OK"] = "1"  # that folder is temp on purpose (home.temp_state, KAN-665)
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
@@ -34,10 +35,60 @@ import network_block
 
 network_block.install()
 
+# No test reaches the system's keychain (macOS Keychain, Windows Credential Manager): keyring's null
+# backend reads nothing and keeps nothing, so a SystemKeychain that a test gave no backend sees an empty
+# keychain, and its save fails. test_keychain_contract.py opts in to the real one with APPLY_TEST_KEYCHAIN=1.
+import keyring
+from keyring.backends import null
+
+keyring.set_keyring(null.Keyring())
+
+# Every Chrome a test starts closes when the test process ends, finished or killed (chrome_reaper): each plain Worker
+# (start_in_background, which every launch goes through), and any Chrome started with a profile of its own through
+# subprocess (network_block's test of a Chrome command). Its profile is listed before it starts.
+import subprocess
+
+import chrome_reaper
+
+from apply.plain import launcher as _launcher
+
+_start_in_background = _launcher.start_in_background
+
+
+def _started_and_watched(arguments, profile, log, *args, **kwargs):
+    chrome_reaper.watch(profile)  # before it starts: killed while it starts, the run still leaves none
+    return _start_in_background(arguments, profile, log, *args, **kwargs)
+
+
+_launcher.start_in_background = _started_and_watched
+_popen_init = subprocess.Popen.__init__
+
+
+def _popen_watched(self, args, *rest, **kwargs):
+    if isinstance(args, (list, tuple)) and args and network_block._is_chrome([str(a) for a in args]):
+        for arg in map(str, args):
+            if arg.startswith("--user-data-dir="):
+                chrome_reaper.watch(arg.split("=", 1)[1])
+    _popen_init(self, args, *rest, **kwargs)
+
+
+subprocess.Popen.__init__ = _popen_watched
+
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
-from apply import browsers, cli, cover_letter, gates, home, profile
+from apply import (
+    answering,
+    browsers,
+    cli,
+    cover_letter,
+    doctor,
+    fill_engine,
+    gates,
+    home,
+    profile,
+    workit,
+)
 
 # Never the student's own data folder: data_folder() deletes HOME before each test. Were
 # Apply imported before APPLY_HOME was set above, HOME would be ~/.config/apply (it was,
@@ -116,6 +167,39 @@ BELVEDERE_FORM = FORMS / "lever-belvedere"
 BELVEDERE_URL = "https://jobs.lever.co/belvederetrading/10746b3d-1760-4573-9b63-b93f5a5e4fc0/apply"
 
 
+def pytest_configure(config):
+    """No test run while the Apply window is open: its held forms are a browser each, and the tests' own browsers
+    beside them once slowed the computer to a halt (live, 2026-11-26). APPLY_TESTS_WITH_APP=1 runs them anyway."""
+    try:
+        pid = int(_REAL_PID.read_text())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return
+    if not os.environ.get("APPLY_TESTS_WITH_APP"):
+        pytest.exit(f"WorkIt Auto Apply is open (PID {pid}): quit it before running the tests, or set "
+                    "APPLY_TESTS_WITH_APP=1.", 2)
+
+
+@pytest.fixture
+def browser_on():
+    """Starts a stand-in for a browser that has a profile open, and gives its PID for the profile's SingletonLock:
+    a process whose command line names the profile, as Chrome's does. browsers.chrome_pid counts a lock's PID only
+    for such a process, so a lock that names the test's own process counts as no browser (KAN-929)."""
+    import sys
+
+    started: list[subprocess.Popen] = []
+
+    def start(profile: Path) -> int:
+        started.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)",
+                                         f"--user-data-dir={profile}"]))
+        return started[-1].pid
+
+    yield start
+    for process in started:
+        process.kill()
+        process.wait()
+
+
 @pytest.fixture(autouse=True)
 def no_network(request):
     """Fails a test that tried to reach past loopback, even if it swallowed the error, or a server's thread did.
@@ -140,8 +224,32 @@ def data_folder() -> Path:
     shutil.rmtree(home.HOME, ignore_errors=True)
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)
+    # WorkIt's Question types, as a run fetches them (GET /apply-app/types), saved from the server's own copy.
+    shutil.copy(FIXTURES / "question-types.json", answering.CACHE)
+    answering._served.cache_clear()
+    answering._patterns.cache_clear()
     gates.companies.cache_clear()  # read again from this test's briefs
     return home.HOME
+
+
+@pytest.fixture(autouse=True)
+def a_new_process_for_workit():
+    """Each test starts as a new process does: no WorkIt access token kept from an earlier test (workit._ACCESS),
+    whose fake WorkIt may have had the same port."""
+    workit._ACCESS.clear()
+
+
+# The checkout's engine, read once: what the Student build gets in tests as WorkIt's download.
+CHECKOUT_ENGINE = fill_engine.ENGINE.read_text() if fill_engine.ENGINE.is_file() else None
+
+
+@pytest.fixture(autouse=True)
+def engine_as_downloaded(monkeypatch):
+    """The Student build runs WorkIt's downloaded engine (KAN-836, fill_engine.source). In a test it is the
+    checkout's engine, as if downloaded and checked, so no test reaches WorkIt or needs the engine key. The
+    download's own tests set fill_engine._download themselves (tests/test_engine_download.py)."""
+    if CHECKOUT_ENGINE is not None:
+        monkeypatch.setattr(fill_engine, "_download", {"text": CHECKOUT_ENGINE})
 
 
 @pytest.fixture(autouse=True)
@@ -151,8 +259,11 @@ def cover_letters_printed_as_their_text(monkeypatch):
 
 
 # Lisul's switches in the real policies.yaml (live runs, phone pushes, headed Workers) are his to
-# flip; tests run with them at their defaults, so flipping one never breaks a test.
-SWITCHES = ("live_runs", "phone_push", "worker_headless")
+# flip; tests run with them at their defaults, so flipping one never breaks a test. worker_mode too:
+# a test that needs a plain Worker sets it itself, so policies.default.yaml's protected (KAN-723)
+# starts no plain Worker in a test that didn't ask for one. ask_model too: policies.default.yaml's
+# [groq, gemini] (KAN-723) never sends a test's prompt to a provider; a test runs on claude, its fake.
+SWITCHES = ("live_runs", "phone_push", "worker_headless", "worker_mode", "ask_model")
 
 
 @pytest.fixture(autouse=True)
@@ -166,7 +277,7 @@ def switches_at_their_defaults(monkeypatch):
                 rules.pop(switch, None)
         return rules
 
-    for module in (profile, cli, browsers):
+    for module in (profile, cli, browsers, doctor):  # doctor reads the policies itself with no profile
         monkeypatch.setattr(module, "load_policies", without_switches)
 
 

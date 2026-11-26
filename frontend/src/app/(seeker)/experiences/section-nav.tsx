@@ -16,7 +16,8 @@ const GLIDE_MS = 1500;
  * to that section's card, and the link of the section in view is lit, so a
  * student with a long bank can jump from Education to Skills and see where
  * they are. Each link carries how many items the section shows under the
- * current resume pick.
+ * current resume pick. Every section has its link, an empty one with a
+ * muted 0 (KAN-814), since every section has its card.
  *
  * It sticks to the top of the shell's <main>, the one thing that scrolls,
  * drawn as the Jobs page's FeedHeader is: the panel's white across the
@@ -167,6 +168,9 @@ export function SectionNav({
         {sections.map(({ id, label, count, mark }) => {
           const Glyph = SECTION_ICONS[mark ?? (id as SectionMarkId)];
           const lit = id === current;
+          // An empty section's link stays, muted (KAN-814): its glyph and
+          // its 0 in ink-meta, the lightest grey words may take, even lit
+          const empty = count === 0;
           return (
             <li key={id} className="shrink-0">
               <a
@@ -179,9 +183,9 @@ export function SectionNav({
                   lit ? "bg-brand-tint text-brand" : "text-ink-meta hover:bg-hover hover:text-ink",
                 )}
               >
-                <Glyph aria-hidden className={cn("size-4", !lit && "text-brand")} />
+                <Glyph aria-hidden className={cn("size-4", !lit && !empty && "text-brand")} />
                 {label}
-                <span className="font-normal tabular-nums">
+                <span className={cn("font-normal tabular-nums", empty && "text-ink-meta")}>
                   {count}
                   <span className="sr-only"> {count === 1 ? "item" : "items"}</span>
                 </span>

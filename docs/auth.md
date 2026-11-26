@@ -157,8 +157,9 @@ the student approves on the webapp's `/connect/claude` with their normal
 Supabase session. Signed out, the page sends them to `/login?next=...`,
 and a password sign-in comes back to it; `next` is honoured for that page
 only, so the link can't send anyone elsewhere. A Google or LinkedIn
-sign-in started there lands on the account's home instead (not carried
-through `/auth/callback` yet); the student opens Claude's link again.
+sign-in started there comes back too (KAN-723, `lib/sign-in-next.ts`):
+Google's flow cookie and LinkedIn's `redirectTo` carry `next`. A first
+sign-in, a new account, goes to onboarding instead.
 
 The student disconnects from WorkIt, not only from Claude: My Profile's
 Disconnect calls `DELETE /applicants/{id}/connector`, which deletes every
@@ -166,6 +167,100 @@ access and refresh token given for them (every client) and any sign-in
 they allowed whose code wasn't traded, so the next `/mcp` call is a 401
 and a refresh fails. Removing the connector in Claude alone leaves
 WorkIt's tokens alive until they expire.
+
+## WorkIt Auto Apply's sign-in (the desktop app, KAN-723)
+
+The desktop app gets a Supabase session of its own through the student's
+own browser, with no port (D12 of `desktop_application_auto_apply.md`,
+W5). The code is `backend/app/services/app_sign_in.py`, the page
+`frontend/src/app/app-sign-in/`, the app's side `apply-agent`'s
+`workit.login` and `WorkIt.trade`.
+
+```
+app      makes a PKCE verifier; opens /app-sign-in?challenge=<S256> in the default browser
+page     signed out: /login?next=... and back.  Sign In to the App:
+         Next action ──POST /apply-app/sign-in {challenge}, Bearer──▶ FastAPI
+                                    one-time code, its sha256 kept 5 minutes (app_sign_ins)
+         opens workit-auto-apply://signed-in?code=...; shows the code only to an admin (paste)
+app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
+                                    the code goes at the first try; S256(verifier) must match
+         FastAPI ──admin get_user_by_id, generate_link(magiclink)──▶ Supabase Auth (no email sent)
+         FastAPI ──POST /auth/v1/verify {token_hash}──▶ Supabase Auth: a new session
+         ◀── {access_token, refresh_token, expires_at}; the app refreshes it at Supabase itself
+```
+
+- **A new session, never the website's.** Supabase rotates a refresh
+  token at each use, so the website and the app holding one session
+  would sign each other out, and a reused token can end the session.
+- **PKCE makes a code useless to anyone but the app that asked.** A
+  program that catches the `workit-auto-apply://` link, or a code pasted
+  anywhere else, has no verifier. A code works once for 5 minutes, and a
+  wrong verifier spends it.
+- **A student's page shows no code** (found in review, 2026-11-15). PKCE
+  can't stop a phisher who starts the sign-in with their own challenge,
+  sends a signed-in student the page's link and asks for "the code to
+  verify your account": the phisher holds the verifier. So the page opens
+  the app's link by itself, and its Open WorkIt Auto Apply button opens
+  it again with no `href`: nothing on screen to copy or send. Only for
+  WorkIt's admins (`WORKIT_ADMINS`; the API answers `paste`) the page
+  shows the code with Copy Code, for a Developer checkout, which macOS
+  can't hand the link. A teammate who signs Apply in to the live site
+  needs their email on that list, which also opens the admin pages
+  (every student's fix reports) and sends them the reports' alert emails.
+  Locally it is the root `.env`; for the live API, `WORKIT_ADMINS` in
+  Infisical's `workit-prod/api` (`secrets.md`), which reaches the API at the
+  next deploy.
+- **Not the shared client's `verify_otp`**: it would keep the student's
+  session on the service-role client that every route uses. `/verify`
+  is a plain HTTP call, and no log holds its body.
+- **Limits:** 10 sign-ins an hour per student (429 with `Retry-After`).
+  Supabase limits `/verify` by IP address, and every student's comes
+  from the API's own; check the project's Auth rate limits before the
+  beta grows.
+- **What ends the app's session:** its own sign-out, a "sign out
+  everywhere", deleting the account, and **a password change**: Supabase
+  then ends every other session of the account (`UpdatePassword` calls
+  `LogoutAllExceptMe`, read in supabase/auth's source 2026-11-15), and the
+  app asks the student to sign in again. A normal sign-out on the website
+  does not.
+- **An app sign-in cancels a password-reset link asked for just before.**
+  A magic link for a confirmed account is a recovery token, and Supabase
+  deletes the account's old one as it makes a new one
+  (`CreateOneTimeToken`, read 2026-11-15). The student asks for the reset
+  email again.
+- **The app keeps only the refresh token, in the system's keychain**
+  (`keyring`, item `apply-workit`), and the access token in memory:
+  Windows' Credential Manager takes at most 2,560 bytes an item, less than
+  an access token can be.
+
+### Testing it
+
+- **In CI, with no Supabase:** `backend/tests/test_app_sign_in.py` (real
+  Postgres, a fake Supabase: a code trades once, another verifier spends
+  it, 5 minutes, no company account, 10 an hour, a refusal is a 503);
+  `apply-agent/tests/test_workit_login.py` and every file that signs in
+  through `fake_workit.py`, whose `/app-sign-in` binds its code to the
+  challenge and whose trade checks the verifier; `frontend/src/lib/
+  sign-in-next.test.ts` (no open redirect).
+- **Live, once the migration is applied and the API deployed:**
+  1. `uv run apply login` in `apply-agent/`. The browser opens
+     `/app-sign-in`; sign in, press Sign In to the App, Copy Code (an
+     admin's page only), paste.
+     It prints "Logged in to WorkIt as ...". `uv run apply doctor` says
+     "WorkIt: logged in as", and Keychain Access shows `apply-workit`.
+  2. Paste the same code again: "That sign-in is over". Wait 5 minutes
+     with a new code: the same.
+  3. Signed out, open the page's link: `/login` comes back to it after a
+     password, a Google and a LinkedIn sign-in. If LinkedIn lands on
+     Home, add a `**` entry for the origin's `/auth/callback` in
+     Supabase's redirect list.
+  4. Change the password in Settings: the next `apply doctor` says the
+     login expired.
+  5. Signed in as an account not on `WORKIT_ADMINS`, the page shows no
+     code after Sign In to the App, only Open WorkIt Auto Apply.
+- Against a local stack, set `APPLY_WORKIT_WEB` and `APPLY_WORKIT_API`
+  (`apply-agent/docs/workit.md`); the local API's database needs the
+  migration too.
 
 ## Identity
 

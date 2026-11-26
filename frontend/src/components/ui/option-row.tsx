@@ -7,10 +7,9 @@ import { cn } from "@/lib/cn";
 /**
  * One way forward, as a row the whole of which takes the click: a glyph on
  * a grey tile, a name over one line, and an arrow where it goes somewhere
- * (2026-11-11, from Auto Apply's setup row). Rows stack in one card,
- * ruled between: `<Card padding="none" className="divide-border-subtle
- * divide-y overflow-hidden">`. Used by Auto Apply's setup row
- * (auto-apply/setup-strip.tsx: the Chrome extension, Application Info) and
+ * (2026-11-11, from Auto Apply's setup row, which tabs replaced on
+ * 2026-11-23). Rows stack in one card, ruled between: `<Card padding="none"
+ * className="divide-border-subtle divide-y overflow-hidden">`. Used by
  * Generate Resume's ways to start (resumes/new-resume-dialog.tsx).
  *
  * A link with `href` (`external` opens a new tab), a button with
@@ -18,6 +17,12 @@ import { cn } from "@/lib/cn";
  * (an added extension). `disabled` greys a button row and says why in its
  * line, which the caller writes.
  */
+/** The grey tile a glyph sits on beside a name: this row's, and the head
+ *  of each Application Info card (auto-apply/info/card-head.tsx). The glyph
+ *  on it only says what the thing is, so it is `ink-meta` at 20px
+ *  (frontend/docs/design.md, an icon's colour says its job). */
+export const GLYPH_TILE = "bg-ink/5 rounded-control grid size-10 shrink-0 place-items-center";
+
 export function OptionRow({
   icon,
   title,
@@ -41,9 +46,7 @@ export function OptionRow({
   const acts = !!href || !!onClick;
   const body = (
     <>
-      <span className="bg-ink/5 rounded-control grid size-10 shrink-0 place-items-center">
-        {icon}
-      </span>
+      <span className={GLYPH_TILE}>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="text-label text-ink block font-semibold">{title}</span>
         <span className="text-note text-ink-meta mt-0.5 block">{line}</span>

@@ -105,7 +105,7 @@ def file_params(name: str) -> dict:
 
 def init_script(script: str) -> dict:
     """guard.script's params for an add_init_script of `script`: its guard file when it is one
-    of the guards' scripts, else the code itself (which needs Allow User Scripts on)."""
+    of the guards' scripts, else the code itself, which the extension refuses (NoCodeScripts, KAN-839)."""
     if (name := PREPARED.get(_sha(script))):
         # The drive guard is one registration whatever its opt-ins: a later one, with Lisul's, replaces on_open's.
         return {"id": "drive" if name.startswith("drive-") else name.removesuffix(".js"), **file_params(name)}
@@ -253,7 +253,17 @@ def reset(worker) -> None:
     rules, lifts and bindings all go. Its open pages keep what already ran in them."""
     worker.call("guard.reset")
     worker.__dict__.pop("_bindings", None)
+    worker.__dict__.pop(ARMED, None)
     worker.__dict__.pop("_apply_tokens", None)
+
+
+ARMED = "_apply_drive_armed"  # on a Worker whose drive guard registration is a DriveGuard's, armed
+
+
+def drive_armed(page) -> bool:
+    """Whether a DriveGuard's armed drive guard is the Worker's registration, every tab's (submit_guard.on_open
+    keeps it)."""
+    return bool(page.worker.__dict__.get(ARMED))
 
 
 class PlainDriveGuard(DriveGuard):
@@ -273,9 +283,12 @@ class PlainDriveGuard(DriveGuard):
         so this one, armed and with Lisul's, takes the place of on_open's (lifted until now) for every document from
         now; the open document's copy is armed and takes them by the control. Any other page's open document gets DriveGuard._late's copy."""
         page.context.add_init_script(submit_guard.drive_script(sms_opt_in, marketing_opt_in))
+        page.worker.__dict__[ARMED] = True  # a later on_open keeps it (submit_guard._drive_at_open)
         if not getattr(page, submit_guard.DRIVE_AT_OPEN, False):
             self._late(sms_opt_in, marketing_opt_in, getattr(page, submit_guard.REHEARSAL_AT_OPEN, False))
-        submit_guard.control(page, {"lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in}, (submit_guard.DRIVE,))
+        submit_guard.control(page, {"arm": True, "lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in},
+                             (submit_guard.DRIVE,))
+        submit_guard._arm_every_page(page)
         self._arm_pop_ups({"lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in})
 
     def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool, page=None) -> None:

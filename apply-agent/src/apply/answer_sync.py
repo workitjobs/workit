@@ -21,7 +21,6 @@ extension fills from, with no import to run again.
   sync-answers`. A refusal (a 4xx) drops that batch and says so.
 """
 
-import fcntl
 import json
 import sys
 from collections.abc import Iterator
@@ -31,7 +30,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from apply import answer_bank
+from apply import answer_bank, locks
 from apply.answer_bank import AnswerBank
 from apply.home import HOME
 from apply.workit import (
@@ -156,9 +155,7 @@ class AnswerSync:
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.path.with_suffix(".lock")):
             yield
 
 

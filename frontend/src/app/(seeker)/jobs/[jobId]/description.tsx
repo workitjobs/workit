@@ -30,9 +30,10 @@
  *
  * THE FIXED SECTIONS GET AN ICON (`SECTION_ICONS`). Since KAN-229 the scraper
  * stores a description under fixed headings (scraper/workit_scraper/
- * sections.py, `KEPT`), and each of those draws its glyph beside it in brand
- * purple, so a long posting can be scanned by section. All Filters' section
- * icons stay grey: there they label controls, here they mark where to read. Those
+ * sections.py, `KEPT`), and each of those draws its glyph beside it, so a
+ * long posting can be scanned by section. The glyph only informs, so it is
+ * grey (`ink-meta`), as every heading's glyph is (KAN-821): it was brand
+ * purple, which means on or selected (docs/design.md, Components). Those
  * names are part of the feed's contract here too: a heading renamed in the
  * scraper alone loses its icon. In a description that has them, any other
  * heading the employer wrote ("California Hourly Rate:" under Pay) is a
@@ -48,7 +49,7 @@
  * the job's Company tab** where the page has one (`companyFromPosting`,
  * ./company-tab.tsx; `companyElsewhere` leaves it out here, 2026-11-10): at the
  * foot of the Overview it sat under the job, a tab away from where a student
- * looks for the company. The application page's Job Description tab has no
+ * looks for the company. The application page's Overview tab has no
  * Company tab, so it keeps it in the fold. Before, they were left out,
  * and with them what an employer wrote about the job under a perks heading.
  * Only the job's sections make a description "sectioned": a description stored
@@ -73,6 +74,7 @@ import {
   RequirementsIcon,
   ResponsibilitiesIcon,
 } from "@/components/icons";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 /** Each fixed section heading's icon (KAN-229). */
 const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -414,23 +416,24 @@ function drawBlock(block: Block, i: number, { sectioned, company, fullPosting }:
 /** A heading in the description: a fixed section's with its icon, an
  *  employer's own inside a sectioned description as a smaller subheading, or
  *  any heading of a description stored before KAN-229, the same size as a
- *  section's with no icon. Sections are 20px bold with a 24px icon, as
- *  Jobright's are (2026-11-10): at 16px bold over the 16px body they read
- *  as body text in bold, which the user found too small; "About the Role"
- *  above them is for screen readers only now (job-view.tsx), as Jobright
- *  has no wrapper title. Subheadings are 16px semibold, a step under. */
+ *  section's with no icon. Sections are 20px with a 24px grey icon, as
+ *  Jobright's are (2026-11-10): at 16px over the 16px body they read as
+ *  body text, which the user found too small; "About the Role" above them
+ *  is for screen readers only now (job-view.tsx), as Jobright has no
+ *  wrapper title. They are 600, every section heading's weight, not bold
+ *  (KAN-821: 700 names a page only). Subheadings are 16px, a step under. */
 function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   const Icon = Object.hasOwn(SECTION_ICONS, text) ? SECTION_ICONS[text] : null;
   if (Icon) {
     return (
-      <h3 className="text-title text-ink mt-4 flex items-center gap-2 font-bold">
-        <Icon aria-hidden className="text-brand size-6 shrink-0" />
+      <h3 className="text-title text-ink mt-4 flex items-center gap-2">
+        <Icon aria-hidden className="text-ink-meta size-6 shrink-0" />
         {text}
       </h3>
     );
   }
-  if (sectioned) return <h4 className="text-subtitle text-ink">{text}</h4>;
-  return <h3 className="text-title text-ink mt-4 font-bold">{text}</h3>;
+  if (sectioned) return <SectionHeading as="h4">{text}</SectionHeading>;
+  return <h3 className="text-title text-ink mt-4">{text}</h3>;
 }
 
 /**

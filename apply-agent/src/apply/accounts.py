@@ -1,9 +1,10 @@
 """Lisul's Employer accounts and verification mail, as one Application uses
 them while it signs in. Plain code, zero tokens.
 
-- A new account's password is generated here and saved to Keychain before
-  the sign-up form is sent, so a crash never leaves an account whose password
-  is lost.
+- A new account's password is the one Lisul chose in the Accounts tab
+  (keychain.CHOSEN), else a random one, and either keeps RULE. It is saved
+  for the site before the sign-up form is sent, so a crash never leaves an
+  account whose password is lost.
 - A verification code or link is read from Gmail: looked for every few
   seconds for about 10 minutes. Apply never asks the site to send it again
   (no Resend or Send New Code click, anywhere): still nothing goes to Needs
@@ -21,6 +22,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from apply.adapters import Clock, Keychain, Mailbox
+from apply.keychain import CHOSEN
 from apply.model import Handoff
 from apply.tracker import EmployerAccount
 
@@ -28,9 +30,13 @@ from apply.tracker import EmployerAccount
 # some job systems take minutes to send it.
 MAIL_WAIT = timedelta(minutes=10)
 MAIL_POLL = timedelta(seconds=5)
-PASSWORD_LENGTH = 20
-# Every class Workday's password rules can ask for; no quotes or backslashes.
-SPECIALS = "!#$%&*+-=?@^_~"
+# The rule every new account's password keeps, Lisul's own or a random one: a rule meant to suit almost every job
+# site. Some sites take no more than 16 characters, and some refuse a symbol outside a short list, so the rule keeps
+# to those. A site that refuses it still is a Handoff, which waits in Needs you.
+LENGTHS = range(12, 17)
+SYMBOLS = "!@#$%*"
+RULE = "12 to 16 characters: an upper-case letter, a lower-case letter, a digit and one of ! @ # $ % *, and nothing else"
+_KINDS = (string.ascii_uppercase, string.ascii_lowercase, string.digits, SYMBOLS)
 
 # Starts the Handoff of an Application whose sign-in needs mail Gmail can't read.
 NEEDS_SIGN_IN = "Needs sign-in: "
@@ -41,15 +47,19 @@ NOT_RETRIED = (
     "sign in yourself, and fix the password in Keychain (service apply-ats)."
 )
 SAVE_PASSWORD = ("Sign in there yourself and save the password in Keychain "
-                 "(security add-generic-password -U -s apply-ats -a {site} -w).")
+                 "(uv run keyring set apply-ats {site}, in apply-agent/).")
 NO_PASSWORD = "{site} already has an account for {login}, and Keychain has no password for it. " + SAVE_PASSWORD
 NO_RESET = (
     "{site} already has an account for {login}, and Keychain has no password for it. Apply resets its password "
     "through Gmail, but {why}. " + SAVE_PASSWORD
 )
-# A reopened form at a sign-in (`apply reopen`, KAN-720): Lisul signs in himself, and Apply goes on once he has.
-HANDS_OFF = (NEEDS_SIGN_IN + "Sign in on the page yourself. Apply reopened this form after it stopped, and it types "
-             "nothing into a sign-in: it goes on by itself once you are in")
+# A rehearsal (a reopened form's too) never resets a password (KAN-878's review): a reset changes the account
+# Lisul uses, and a rehearsal only fills a form.
+NO_RESET_IN_REHEARSAL = (NEEDS_SIGN_IN + "{site} already has an account for {login}, and Keychain has no password for it. "
+                         "A rehearsal resets no password. " + SAVE_PASSWORD)
+# A site refused a new account (KAN-838): its password is forgotten, and the form waits for Lisul in Needs you.
+REFUSED = ("{site} refused the new account ({why}). If it refused the password, make the account on the page "
+           "yourself with a password it takes, then finish the form.")
 NO_MAIL = (
     NEEDS_SIGN_IN + "Type the emailed code: no {what} from {search} came within about {minutes} minutes, and Apply "
     "never asks for another. Check Gmail (spam too), then sign in and finish the application yourself."
@@ -67,14 +77,12 @@ class Accounts:
         on_created: Callable[[EmployerAccount], None] = lambda account: None,
         failed: set[str] | None = None,
         rehearsal: bool = False,
-        hands_off: bool = False,
     ):
         """`login` is the email Lisul applies with. `on_created` lists a new
         account in the Tracker. `failed` holds the sites whose password
         sign-in has failed, shared by every Application of a run or
         Rehearsal. `rehearsal`: a Rehearsal's, which never resets a password
-        that only may exist (workday.MAY_EXIST). `hands_off`: a reopened form's (KAN-720): every Filler stops
-        at a sign-in as a Handoff (HANDS_OFF) before it types or clicks anything there."""
+        that only may exist (workday.MAY_EXIST)."""
         self._keychain = keychain
         self._mailbox = mailbox
         self.clock = clock
@@ -83,7 +91,6 @@ class Accounts:
         self._on_created = on_created
         self._failed = failed if failed is not None else set()
         self.rehearsal = rehearsal
-        self.hands_off = hands_off
 
     def password(self, site: str) -> str | None:
         """The site's password, if Apply made an account there. A Handoff if a
@@ -93,9 +100,11 @@ class Accounts:
         return self._keychain.password(site)
 
     def new_password(self, site: str) -> str:
-        """A new unique password for an account about to be made at `site`,
-        already in Keychain."""
-        password = _generate()
+        """The password for an account about to be made at `site`, already
+        saved for it: the one Lisul chose, else a new random one. The site
+        keeps its own copy, so a password he chooses later is only for later
+        accounts."""
+        password = self._keychain.password(CHOSEN) or _generate()
         self._keychain.save(site, password)
         return password
 
@@ -103,7 +112,11 @@ class Accounts:
         """A new password for the account at `site` that Lisul made himself
         and Keychain has none for, already in Keychain before the site is
         asked to reset it. Its reset link comes by mail, so this is a
-        Handoff if Gmail can't be read."""
+        Handoff if Gmail can't be read, and in a rehearsal, which resets nothing: the new password it would have
+        used is forgotten."""
+        if self.rehearsal:
+            self.not_made(site)
+            raise Handoff(NO_RESET_IN_REHEARSAL.format(site=site, login=self.login))
         if why := self._mailbox.unavailable():
             raise Handoff(NO_RESET.format(site=site, login=self.login, why=why.rstrip(".")))
         return self.new_password(site)
@@ -112,6 +125,12 @@ class Accounts:
         """The site never made the account its new password was saved for:
         Keychain forgets it, so no later run signs in with it."""
         self._keychain.forget(site)
+
+    def refused(self, site: str, why: str) -> Handoff:
+        """The Handoff for a site that refused the new account: no account
+        has its password, so Keychain forgets it."""
+        self.not_made(site)
+        return Handoff(REFUSED.format(site=site, why=why.strip().rstrip(".")))
 
     def created(self, site: str) -> None:
         """The site accepted the new account: list it in the Employer accounts tab."""
@@ -133,16 +152,17 @@ class Accounts:
 
     def link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str:
         """The verification link mailed since `since`, found by Gmail `search`,
-        to one of `hosts` (the site's own, or its job system's)."""
+        to one of `hosts` (the site's own, or its job system's). A rehearsal
+        takes none from a mail that resets a password (KAN-878)."""
         return self._wait("verification email", search, since,
-                          lambda **look: self._mailbox.find_link(**look, hosts=hosts))
+                          lambda **look: self._mailbox.find_link(**look, hosts=hosts, resets=not self.rehearsal))
 
     def mailed_link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
         """A verification link already mailed since `since`, in one look, or
         None: for an account made in an earlier run. Never waits, never asks."""
         if self._mailbox.unavailable():
             return None
-        return self._mailbox.find_link(search=search, since=since, hosts=hosts)
+        return self._mailbox.find_link(search=search, since=since, hosts=hosts, resets=not self.rehearsal)
 
     def _wait(self, what, search, since, find) -> str:
         """Gmail looked at until the mail comes or MAIL_WAIT passes. Never a
@@ -168,9 +188,17 @@ def _senders(search: str) -> str:
     return search.removeprefix("from:").removeprefix("(").removesuffix(")").replace(" OR ", " or ")
 
 
+def broken_rule(password: str) -> str | None:
+    """What a password Lisul chose lacks for RULE, or None when it keeps it."""
+    if len(password) not in LENGTHS or not set(password) <= set("".join(_KINDS)) \
+            or not all(set(password) & set(kind) for kind in _KINDS):
+        return f"Use {RULE}."
+    return None
+
+
 def _generate() -> str:
-    classes = [string.ascii_uppercase, string.ascii_lowercase, string.digits, SPECIALS]
-    every = "".join(classes)
-    chars = [secrets.choice(c) for c in classes] + [secrets.choice(every) for _ in range(PASSWORD_LENGTH - len(classes))]
+    """A random password that keeps RULE, at its longest."""
+    every = "".join(_KINDS)
+    chars = [secrets.choice(kind) for kind in _KINDS] + [secrets.choice(every) for _ in range(LENGTHS[-1] - len(_KINDS))]
     secrets.SystemRandom().shuffle(chars)
     return "".join(chars)

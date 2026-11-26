@@ -41,9 +41,7 @@ export function StepsDialog<S extends string>({
       <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-sm">
         {art}
         <div className="px-6 pt-5 pb-6">
-          <DialogTitle className="text-subtitle text-ink truncate text-center font-semibold">
-            {title}
-          </DialogTitle>
+          <DialogTitle className="text-ink truncate text-center">{title}</DialogTitle>
           <DialogDescription className="sr-only" role="status">
             {steps[at]}
           </DialogDescription>

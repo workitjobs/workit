@@ -19,9 +19,9 @@ from fakes import FakeClaude, FakeClock, FakeMailbox
 
 from apply import workday
 from apply.accounts import Accounts
-from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
-from apply.model import FillError, Handoff, MoreQuestions
+from apply.model import Closed, FillError, Handoff, MoreQuestions
+from apply.one_page import OnePage
 from apply.plain.bridge import PortTimeoutError
 from apply.rescue import Rescue
 from apply.workday import WorkdayFiller
@@ -110,6 +110,22 @@ def test_creates_an_account_fills_every_step_reads_it_back_and_stops_before_subm
     assert [q.label for q in questions][:3] == ["How Did You Hear About Us?", "Have you previously worked for this company?", "Country"]
     assert {q.label: q.kind for q in questions}["Resume/CV"] == "file"
     assert readback == {**answers, next(q.name for q in questions if q.label == "Resume/CV"): "one-pager.pdf"}
+    assert server.submissions == []
+
+
+def test_a_new_account_that_lingers_on_create_account_goes_on_to_its_first_step_without_signing_in():
+    # On a busy machine (the CACI tenant, 2026-11-25), Create Account still showed once the account was made, and the
+    # Filler waited for a sign-in form that never came, until the step came and the fill stopped.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, made_delay=3) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            fill_all(filler, page, questions)
+
+    [account] = server.created
+    assert account["host"] == CACI
+    assert server.sign_ins == []  # signed in as made: never with the new password
     assert server.submissions == []
 
 
@@ -458,6 +474,17 @@ def test_continues_an_application_its_worker_profile_already_started():
         questions = filler.question_set(CACI_URL, site)
 
     assert questions[0].label == "How Did You Hear About Us?"
+    assert server.created == [] and server.sign_ins == []
+
+
+def test_a_posting_workday_no_longer_has_is_closed_not_a_timeout_on_its_apply_button():
+    # Fault: `_start` clicks Apply without looking for Workday's "doesn't exist" page (four postings, live 2026-11-25).
+    filler = WorkdayFiller(Accounts(InMemoryKeychain(), FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, gone=True) as server, OnePage(server) as site, \
+            pytest.raises(Closed, match="The page you are looking for doesn't exist"):
+        filler.question_set(CACI_URL, site)
+
     assert server.created == [] and server.sign_ins == []
 
 

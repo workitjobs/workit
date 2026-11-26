@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 
-import { BuiltPageTile, ResumeCard } from "@/components/resume-row";
-import { Button } from "@/components/ui/button";
-import { TextField } from "@/components/ui/text-field";
+import { BuiltPageTile, ResumeCard, type RowPick } from "@/components/resume-row";
 import {
   deleteBuiltResume,
   renameBuiltResume,
@@ -38,11 +36,14 @@ export function BuiltResumeRow({
   reload,
   onDelete,
   layout = "list",
+  pick,
 }: {
   resume: BuiltResume;
   reload: () => Promise<void>;
   /** The Resumes tab's layout (KAN-766). */
   layout?: "list" | "grid";
+  /** The row's select box, in the list (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -124,6 +125,7 @@ export function BuiltResumeRow({
         resume.job_posting_id && resume.posting_title ? <PostingLink resume={resume} /> : undefined
       }
       notes={layout === "list" ? notes : undefined}
+      pick={pick}
       created={resume.created_at}
       edited={edited ? resume.edited_at : null}
       actions={{
@@ -176,62 +178,5 @@ function PostingLink({ resume, titleOnly = false }: { resume: BuiltResume; title
     >
       {label}
     </Link>
-  );
-}
-
-/**
- * The resume's name, open for typing (KAN-258), on an upload's own page
- * (`uploaded/[id]/viewer.tsx`): a labeled field with Cancel and Save. The
- * Resumes page's cards rename in place instead (`RenamingCard`,
- * 2026-11-10). A name left as it was closes the form with no call; Escape
- * or Cancel keeps the name.
- */
-export function RenameForm({
-  id,
-  name,
-  saving,
-  onSave,
-  onCancel,
-}: {
-  id: string;
-  name: string;
-  saving: boolean;
-  onSave: (name: string) => void;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState(name);
-  const trimmed = draft.trim();
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (trimmed === name) return onCancel();
-    onSave(trimmed);
-  }
-
-  return (
-    <form onSubmit={submit} className="mt-2 flex flex-wrap items-end gap-2">
-      <div className="min-w-0 flex-1 basis-56">
-        <TextField
-          id={`resume-name-${id}`}
-          label="Resume Name"
-          required
-          autoFocus
-          maxLength={80}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") onCancel();
-          }}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving || !trimmed}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
-      </div>
-    </form>
   );
 }

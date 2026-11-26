@@ -158,6 +158,12 @@ high_stakes_job_systems: [ashby]
 # Services", but not "Metabase"). None by default; e.g. [Google, Meta, Stripe].
 target_companies: []
 
+# Auto-submit (ADR 0006, apply.auto_submit): a form that needs nobody (no flag,
+# no Essay, no pause, not a Target company, a job system Apply has submitted to
+# and that emails no code) is submitted 10 minutes after it is ready, unless
+# Cancel is pressed in the Apply window. Off by default; never in the Student build.
+auto_submit: false
+
 # The Calibration run: the first this many Applications are all held, so the
 # applicant can judge Claude's answers before anything is submitted unseen.
 calibration_run: 10
@@ -179,9 +185,11 @@ worker_headless: false
 # Playwright over the DevTools protocol, as today), plain (a plain Chrome with no
 # CDP and no automation flags, driven through the private worker extension), or
 # protected (plain only for plain_worker_hosts and the hosts in plain-hosts.json in
-# the data folder; cdp for the rest). cdp until
-# plain Workers reach parity and run side by side for a week.
-worker_mode: cdp
+# the data folder; cdp for the rest). protected since 2026-11-06 (KAN-723, the
+# team's decision, before the week of plain and CDP side by side): plain Workers
+# fill only the hosts that block CDP Workers. It needs the plain seed once
+# (`apply plain seed`); `apply doctor` checks it.
+worker_mode: protected
 
 # The hosts (and their subdomains) that worker_mode: protected fills in plain
 # Workers.
@@ -202,6 +210,13 @@ plain_chrome: chrome
 # An account made with Google before is Needs sign-in, never a password reset.
 workday_sign_in: email
 
+# A sign-in in front of a form Claude fill fills, that offers Sign in with Google
+# and others (Microsoft Careers'): google signs in with Google by plain code, picking
+# your account in Google's chooser of the Worker's Chrome (KAN-878); any other value
+# leaves it to you. Apply never types a Google password: where Google asks for one,
+# a code or a passkey, the sign-in is yours.
+provider_sign_in: google
+
 # Claude fill, for job systems with no Filler, stops at this cap
 # for one Application and hands it off to the applicant. Each row it fills logs what
 # it cost ("Claude fill: ... tokens"); tune the cap from those. About 90% of
@@ -213,6 +228,32 @@ claude_fill:
   max_turns: 80
   max_tokens: 1200000
   max_steps: 20  # Nexts and profile pop-ups before a Handoff, a guard against a loop (KAN-649, KAN-658)
+
+# The model behind Apply's text calls (`ask`: answers, essays, edits, checks).
+# workit, the default since 2026-11-14 (KAN-723 D5, apply.ask_model.WorkItAsk):
+# each call goes to WorkIt's Model route as the signed-in student (`apply
+# login`; your own API with APPLY_WORKIT_API), WorkIt builds the prompt and runs
+# its own model chain, and its daily Usage cap pauses a run until midnight UTC.
+# The other values are for developers, and none of them can run a call whose
+# prompt moved to WorkIt: groq (Groq's gpt-oss models), gemini (Gemini
+# Flash-Lite), a list of them tried in order, or claude (`claude -p` on your own
+# Claude login, full prompts; it needs the developer prompt route,
+# docs/developer_apply_agent_testing_framework.md). Claude fill, Rescue and company briefs stay on claude for now. The keys
+# come from the checkout's root .env (Scout's SCOUT_ENDPOINTS), or GROQ_API_KEY
+# and GEMINI_API_KEY, or Keychain (apply-groq / api.groq.com, apply-gemini /
+# generativelanguage.googleapis.com); `apply doctor` checks them. Prompts carry
+# your profile and sources, which then go to that provider. ask_models maps
+# Apply's model names to a provider's, key by key over apply.ask_model.PROVIDERS:
+# {groq: {haiku: openai/gpt-oss-120b}}.
+ask_model: workit
+ask_models: {}
+
+# Where the Fill engine comes from. checkout: the engine checkout's built
+# bundle (autofiller_extension/fill-engine/dist/engine.js, or $APPLY_FILL_ENGINE).
+# workit: WorkIt's signed, encrypted download, as the Student build always does
+# (KAN-836, W7, apply.engine_download): downloaded at each start as the
+# signed-in student, checked with WorkIt's engine key, kept only in memory.
+fill_engine: checkout
 
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
 # run`, once a day at daily_sweep_at, local time; and the Requests check,

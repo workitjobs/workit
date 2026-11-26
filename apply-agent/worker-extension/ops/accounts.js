@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S7 ops: what Workday's and other account pages need beyond S2's locators.
 //
 // - net.watch: a tab's requests and responses, as Playwright's page.on("request"/"response").

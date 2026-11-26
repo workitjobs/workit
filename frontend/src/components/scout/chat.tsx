@@ -142,6 +142,7 @@ export function Composer({
         <div className="flex items-center justify-end gap-2">
           {speech.supported && (
             <IconButton
+              tooltip={false}
               label={speech.listening ? "Stop dictating" : "Dictate a message"}
               className={cn(
                 "relative size-8 rounded-full after:hidden",
@@ -165,8 +166,10 @@ export function Composer({
           )}
           <IconButton
             label="Send"
+            // Only to say why Send is off: an arrow beside a message box
+            // reads as Send without one.
             tooltip={
-              answering ? `${who} is still answering` : empty ? "Type a message to send" : "Send"
+              answering ? `${who} is still answering` : empty ? "Type a message to send" : false
             }
             type="submit"
             variant="brand"

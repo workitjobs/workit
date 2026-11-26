@@ -2,8 +2,9 @@ import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   CoinIcon,
   LevelIcon,
@@ -52,9 +53,9 @@ import type { LogoSrc } from "@/lib/job-logo";
  * glyph to stand for both.
  *
  * EACH GLYPH SAYS WHAT ITS FACT SAYS. Work style picks its icon by value, a
- * building for On-Site, a house for Remote and two arrows for Hybrid, where
+ * building for On-Site, a laptop for Remote and two arrows for Hybrid, where
  * one desktop screen used to sit beside "On-Site" on most of the feed. The
- * level is a mortarboard, not a prize rosette beside "Internship". The
+ * level is steps, not a prize rosette beside "Internship". The
  * choices live in components/icons.tsx (workStyleIcon, LevelIcon), not here,
  * so the job page can draw the same glyph for the same fact as this card.
  *
@@ -197,7 +198,7 @@ function slotsOf(job: JobFactData): Slot[] {
   const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
   return [
     ["location", PinIcon, job.location],
-    ["jobType", BriefcaseIcon, job.jobType],
+    ["jobType", JobTypeIcon, job.jobType],
     ["salary", CoinIcon, job.salary],
     ["workStyle", workStyleIcon(workStyle), job.workStyle],
     ["experienceLevel", LevelIcon, job.experienceLevel],
@@ -334,7 +335,7 @@ export function JobPostingCard({
           dead. The title, company and actions sit above it (z-2); the facts
           stay under it, so a click on one opens the role too. */}
       {job.titleHref && (
-        <Link
+        <HoverPrefetchLink
           href={job.titleHref}
           tabIndex={-1}
           aria-hidden="true"
@@ -390,12 +391,12 @@ export function JobPostingCard({
                 className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5 @max-md:line-clamp-2 @max-md:whitespace-normal"
               >
                 {job.titleHref ? (
-                  <Link
+                  <HoverPrefetchLink
                     href={job.titleHref}
                     className={cn(INK_LINK, "group-hover/card:text-brand relative z-2")}
                   >
                     {job.title}
-                  </Link>
+                  </HoverPrefetchLink>
                 ) : (
                   job.title
                 )}

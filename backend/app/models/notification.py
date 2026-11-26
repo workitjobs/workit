@@ -20,8 +20,8 @@ class Notification(BaseModel):
     one notification for one applicant. `data` holds the digest's own jobs
     ({"job_id", "title", "company", "match"} per entry), so the bell renders
     each as a link with no second query. `read_at` is null until the
-    applicant opens the bell (routers/notifications.py marks every unread
-    row read at once, matching the bell's own "You're All Caught Up" copy).
+    applicant opens the row in the bell, or presses its Mark All Read
+    (routers/notifications.py, KAN-829).
     '''
     __tablename__ = "notifications"
     id: Mapped[uuid.UUID] = mapped_column(

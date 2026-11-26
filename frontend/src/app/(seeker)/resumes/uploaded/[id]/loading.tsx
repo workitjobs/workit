@@ -4,14 +4,14 @@ import { cn } from "@/lib/cn";
 import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
 import { PageSkeleton } from "../../[resumeId]/pdf-pages";
-import { SLIM_BAR } from "../../[resumeId]/slim-bar";
+import { DESK, DESK_BAR, DESK_PAGES } from "../../[resumeId]/slim-bar";
 
 /**
  * An uploaded resume's page while it loads (KAN-368): the page reads the
  * resume list, then the file itself from Storage (./page.tsx), before it
- * draws anything. This is its frame (./viewer.tsx): Back (live), the name as
- * a bar of the title's line, the bar's box with its date and buttons as
- * bars, and a page's skeleton where pdf.js will draw the file.
+ * draws anything. This is its frame (./viewer.tsx): Back (live), the title
+ * row (the name, its date, Download and ⋯ as bars), the bar's box with the
+ * zoom as a bar, and a page's skeleton where pdf.js will draw the file.
  * ../../../home/loading.tsx says why only the slow pages have one.
  */
 export default function UploadedResumeLoading() {
@@ -20,19 +20,26 @@ export default function UploadedResumeLoading() {
       <BackLink parent={{ href: "/resumes", name: "Resumes" }} />
       <div role="status">
         <span className="sr-only">Loading the resume</span>
-        <Skeleton aria-hidden="true" className="h-8 w-56 max-w-full" />
-        <div aria-hidden="true" className="mt-4 flex flex-col gap-4">
-          <div className={SLIM_BAR}>
-            <Skeleton className="h-4 w-32" />
-            <div className="ml-auto flex items-center gap-2">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-28" />
+        {/* The editor's title row (KAN-825): the name, the date, Download
+            and ⋯, at the title's height */}
+        <div aria-hidden="true" className="mt-4 flex h-9 items-center gap-3 @3xl/main:h-10">
+          <Skeleton className="h-6 w-56 max-w-full @3xl/main:h-8" />
+          <Skeleton className="ml-auto h-4 w-24" />
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="size-8 rounded-full" />
+        </div>
+        <div aria-hidden="true" className="mt-3 flex flex-col gap-4">
+          <div className={DESK}>
+            <div className={cn(DESK_BAR, "@max-md/main:hidden")}>
+              <Skeleton className="ml-auto h-7 w-28" />
             </div>
-          </div>
-          {/* At the viewer's opening zoom, 100% (816px, ../../[resumeId]/zoom.tsx) */}
-          <div className="mx-auto w-full max-w-[816px]">
-            <PageSkeleton />
+            {/* At the pages' opening zoom, Fit Width up to 150% (1224px,
+                ../../[resumeId]/zoom.tsx, which a server file cannot read) */}
+            <div className={DESK_PAGES}>
+              <div className="mx-auto w-full max-w-[1224px]">
+                <PageSkeleton />
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -14,6 +14,7 @@ import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { NoMatches } from "@/components/ui/no-matches";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -86,16 +87,20 @@ export function ExperiencesPicker({
   bank,
   choices,
   onApply,
+  opened = [],
 }: {
   bank: Bank;
   choices: Choices;
   onApply: (changes: ChoicesUpdate) => void;
+  /** Groups open from the start: the walkthrough's practice examples
+   *  (./walkthrough.tsx), where folded groups hid what to tick. */
+  opened?: string[];
 }) {
   const [resume, setResume] = useState<Pick>(ALL);
   const [groups, setGroups] = useState<string[]>([]);
   const [choosing, setChoosing] = useState(false);
   // The groups the student pressed: open, or closed where narrowing opened them
-  const [pressed, setPressed] = useState<string[]>([]);
+  const [pressed, setPressed] = useState<string[]>(opened);
   const narrowed = resume !== ALL || groups.length > 0;
 
   const allEntries = pickerEntries(bank, choices);
@@ -152,11 +157,12 @@ export function ExperiencesPicker({
         </Button>
         {resume !== ALL && (
           <IconButton
+            place="row"
             label="Show All Experiences"
-            className="size-8 shrink-0"
+            className="shrink-0"
             onClick={() => setResume(ALL)}
           >
-            <CloseIcon className="size-4" />
+            <CloseIcon />
           </IconButton>
         )}
         <FieldFacet
@@ -182,7 +188,7 @@ export function ExperiencesPicker({
       )}
 
       {entries.length === 0 && skills.length === 0 && (
-        <p className="text-body text-ink-meta">Nothing here matches your filters.</p>
+        <NoMatches>Nothing here matches your filters.</NoMatches>
       )}
 
       {bankGroups.map((group) => {
@@ -412,7 +418,7 @@ function SkillGroups({
 
 /**
  * Cut From Resume: what Fit to One Page cut, in the Experiences picker's
- * layout but amber, the fit's own color (./fit-notice.tsx), so it reads as
+ * layout but amber, the fit's own color, so it reads as
  * Fit's list and not the bank. A tick puts an item back on the page, as one
  * Undo step like any pick. A row stays once it is back, ticked, so a wrong
  * click can be taken back here too. It has no resume or group filters: a

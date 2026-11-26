@@ -46,6 +46,21 @@ Databases:
 https://workitjobs.ai/jobs
 ```
 
+## Env files
+
+The `.env` files come from Infisical, never from Slack. Once: accept the
+Infisical invite, ask an Admin to add you to `workit-dev`, install the CLI
+(`brew install infisical/get-cli/infisical` on macOS, `winget install
+infisical` on Windows) and run `infisical login`. Then, from the repo root:
+
+```bash
+npm run env
+```
+
+Run it again whenever someone says a value changed. To change a value,
+change it in Infisical and tell the team its name. Details:
+[docs/secrets.md](docs/secrets.md).
+
 ## Local Development 
 ```bash
 cd frontend
@@ -83,3 +98,11 @@ Vedant Vyas.
 You are free to use, modify, and redistribute this code, including
 commercially, as long as the copyright notice and license text travel with it.
 The software comes with no warranty.
+
+**Except the two browser extensions.** `apply-agent/worker-extension/` and
+`autofiller_extension/` (the WorkIt extension) are each under their own
+proprietary license ([the Worker's](apply-agent/worker-extension/LICENSE),
+[WorkIt's](autofiller_extension/LICENSE)): no copying, redistribution or reverse
+engineering, no use to train AI models, and no giving it to an AI tool to understand or recreate it.
+Third-party code inside each keeps its own license (its `NOTICE`). Versions of
+each pushed before its license was added (2026-11-14) stay under MIT.

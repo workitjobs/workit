@@ -261,7 +261,7 @@ function payOf(job: JobListing) {
 /** Pay periods in a year, to put an hourly and a yearly pay on one scale. */
 const PER_YEAR: Record<ListingSalaryPeriod, number> = { hour: 2080, week: 52, month: 12, year: 1 };
 
-/** The top of its pay as a yearly figure, for the list's Pay Range sort
+/** The top of its pay as a yearly figure, for the list's Salary sort
  *  (KAN-282); null when `payOf` prints nothing. The currency is ignored:
  *  nearly every posting is in USD. */
 function payPerYearOf(job: JobListing) {

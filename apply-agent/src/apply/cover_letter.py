@@ -20,10 +20,11 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
+from apply import chrome_finder
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
-CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+CHROME = chrome_finder.find()  # Google Chrome, which prints the letter (the Chrome finder, W4), or None
 FONTS = Path(__file__).parent / "fonts"
 FILE_NAME = "{first}_{last}_Cover_Letter.pdf"  # beside Test_Person_Resume.pdf
 
@@ -53,27 +54,10 @@ SLOTS = {
 }
 TEMPLATE = "Dear {company} Recruiting Team:\n\n{paragraphs}\n\nSincerely,\n{name}"
 
-RULES = """A cover letter question is the one answer written as a formal letter to the company's recruiters. Its answer fills the slots opening, proof, second_proof and closing, each to its own description; Apply adds the salutation, the sign-off and their name. Every rule above holds.
-Recruiters read it in under a minute, if at all, and often stop after the first sentence: it is 180-260 words in all, the strongest evidence first, and every sentence specific to them and to this company. Cut any sentence any applicant could send, or that the letter reads as well without.
-The resume says what they did; the letter says why it matters here. Make two points, each showing they can do work the role needs (never say what the posting asks for or stresses): the strongest in depth, the second briefly. Say what they offer, and never mention a gap or a weakness.
-It is a letter to recruiters, so it leaves out the habits <style_card> lists under "Leave out in a formal letter"; it holds no salutation, sign-off, date or address of its own."""
-
-
 def is_cover_letter(q: Question) -> bool:
     """A cover letter field: an upload that names one, or a text box asking for one."""
     label = q.label.lower()
     return "cover" in label if q.kind == "file" else q.kind in ("text", "textarea") and "cover letter" in label
-
-
-def schema(q: Question, ask: str) -> dict:
-    """What Claude returns for cover letter `q`: each slot, needs_lisul, and its Named fact's name."""
-    return {
-        "type": "object",
-        "description": ask,
-        "properties": {**{slot: {"type": "string", "description": rule} for slot, rule in SLOTS.items()},
-                       "needs_lisul": {"type": "boolean"}, "named": {"type": "string"}},
-        "required": [*SLOTS, "needs_lisul"],
-    }
 
 
 def letter(given: dict, posting: Posting, profile: ApplicantProfile) -> str:
@@ -125,10 +109,12 @@ def pdf(text: str, posting: Posting, profile: ApplicantProfile, path: Path, toda
     page = PAGE.format(
         fonts=FONTS.as_uri(), name=html.escape(name(profile)),
         contact=" | ".join(html.escape(str(c)) for c in contact if c),
-        today=(today or date.today()).strftime("%B %-d, %Y"),
+        today=_dated(today or date.today()),
         company=html.escape(posting.company.strip()), role=html.escape(posting.title.strip()),
         body="\n".join(f"<p>{_lines(b)}</p>" for b in blocks),
     )
+    if CHROME is None:
+        raise RuntimeError(chrome_finder.NO_CHROME)
     with tempfile.TemporaryDirectory(prefix="apply-letter-") as scratch:
         source = Path(scratch) / "letter.html"
         source.write_text(page)
@@ -137,6 +123,11 @@ def pdf(text: str, posting: Posting, profile: ApplicantProfile, path: Path, toda
                        capture_output=True, timeout=60, check=False)
     if not path.is_file() or not path.read_bytes().startswith(b"%PDF"):
         raise RuntimeError(f"Chrome printed no cover letter PDF to {path}")
+
+
+def _dated(day: date) -> str:
+    """November 4, 2026: the day with no leading zero. strftime's %-d is not on Windows."""
+    return f"{day:%B} {day.day}, {day:%Y}"
 
 
 def _lines(block: str) -> str:

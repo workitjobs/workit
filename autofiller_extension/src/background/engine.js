@@ -120,8 +120,13 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  // TikTok USDS keeps its pages, sign-in too, under /usds.
-  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  if (job?.site !== "tiktok" || job.onForm) return false;
+  // Its sign-in's path is the Rules table's (KAN-778): none held (the Store package before TikTok's table comes) is none.
+  const path = engine.siteRules("tiktok").patterns?.SIGN_IN_PATH;
+  if (!path) return false;
+  // At the path's start; TikTok USDS keeps its pages, sign-in too, under /usds.
+  const found = new RegExp(path.source, path.flags ?? "").exec(new URL(url).pathname.replace(/^\/usds(?=\/)/i, ""));
+  return found?.index === 0;
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
@@ -870,7 +875,12 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  * essays off instead, so nothing AI-written goes where it is banned.
  * - `off`: the answers held back because their Fields to autofill category is
  *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
- * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[] }}
+ * - `ticks`: the attestations the Plan leaves blank for the student to tick or
+ *   sign (Plan.attestations, KAN-676 and KAN-775: a certification, a terms
+ *   box), each with the Plan's `reason` from its blanks. Without a row of its
+ *   own a required one showed nowhere, and a Workday step was saved without
+ *   it (KAN-841).
+ * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[], ticks: (Row & { reason: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan, questions = [] }) {
@@ -893,6 +903,8 @@ export function planRows({ plan, questions = [] }) {
     notes,
     handed: handed.map(([name, h]) => ({ ...row(byName.get(name)), reason: h.reason })),
     off: plan.off ?? [],
+    ticks: Object.keys(plan.attestations ?? {}).filter((name) => byName.has(name))
+      .map((name) => ({ ...row(byName.get(name)), reason: plan.blanks?.[name] ?? "Yours to tick: you attest to it or sign it yourself" })),
   };
 }
 

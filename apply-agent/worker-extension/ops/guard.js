@@ -1,9 +1,11 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S4 ops: the submit and drive guards on a plain Worker (apply.plain.guards, apply.submit_guard).
 //
-// - Init scripts: a guard's script is a fixed file Apply writes into vendor/guards/ (`apply plain
-//   prepare`), registered as a MAIN-world content script at document_start in every frame, so it
-//   runs before the page's own code with no eval and no user scripts. A script Apply has no file
-//   for goes through chrome.userScripts (only where Allow User Scripts is on).
+// - Init scripts: a guard's script is a fixed file in vendor/guards/ (written by `apply plain
+//   prepare`, or packaged in a Chrome Web Store copy), registered as a MAIN-world content script at
+//   document_start in every frame, so it runs before the page's own code with no eval. Chrome puts a
+//   registered content script in every tab, pop-ups too, which no debugger script reaches (KAN-839).
+//   A script Apply has no file for is refused (NoCodeScripts): there are no user scripts here.
 // - Routes: declarativeNetRequest session rules that block a non-GET request whose URL matches,
 //   from the tab (and the tabs it opens) or from no tab (a service worker), before any page code:
 //   what a page's script, its workers or a form's native POST would send. Routes with the same
@@ -22,7 +24,7 @@
 //   file's memory on a form's open tab. keepAcrossReload writes them down first and the code that
 //   starts next puts them back, so a guarded page stays guarded and a held Submit stays held.
 
-import { named, useVendor, userScriptsOn, vendor, vendorSet } from "./shared.js";
+import { named, useVendor, vendor, vendorSet } from "./shared.js";
 
 const RESOURCE_TYPES = ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest",
   "ping", "csp_report", "media", "websocket", "webtransport", "webbundle", "other"];
@@ -52,7 +54,6 @@ async function reset() {
     const rules = await chrome.declarativeNetRequest.getSessionRules();
     if (rules.length) await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: rules.map((r) => r.id) });
   } catch {}
-  try { if (userScriptsOn()) await chrome.userScripts.unregister(); } catch {}
   routes.clear();
   sets.clear();
   orphaned.clear();
@@ -73,7 +74,6 @@ export async function keepAcrossReload() {
   const kept = {
     at: Date.now(), vendor: vendorSet(),
     scripts: await chrome.scripting.getRegisteredContentScripts(),
-    userScripts: userScriptsOn() ? await chrome.userScripts.getScripts() : [],
     routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, workers: r.workers, tabs: r.tabs && [...r.tabs] }]),
     orphaned: [...orphaned],
     lifted: [...lifted], applied: [...applied], bindings: [...bindings].map(([where, names]) => [where, [...names]]),
@@ -96,7 +96,6 @@ async function restore() {
   for (const set of kept.orphaned ?? []) orphaned.add(set);
   for (const set of new Set([...routes.values()].map(setOf).concat([...orphaned]))) await putSet(set);
   if (kept.scripts.length) await chrome.scripting.registerContentScripts(kept.scripts);
-  if (kept.userScripts.length && userScriptsOn()) await chrome.userScripts.register(kept.userScripts);
   // The open documents kept their page guards, but their relay died with the old code.
   if (kept.scripts.some((s) => s.id === RELAY)) {
     for (const t of await chrome.tabs.query({})) await inFrames(t.id, "ISOLATED", { files: ["page/relay.js"] }).catch(() => {});
@@ -157,18 +156,15 @@ async function relay(tab) {
 
 // --- init scripts
 
-async function script({ id, file, sha256: sha, code, tab }) {
+async function script({ id, file, sha256: sha, tab }) {
   if (!id) throw named("BadOp", "guard.script needs an id");
   await relay(tab);
   if (file) {
     await register(`apply-init-${id}`, await checked(file, sha), "MAIN");
     return { file };
   }
-  if (!userScriptsOn()) throw named("UserScriptsOff", "add_init_script with code needs Allow User Scripts on (the seed profile); Chrome for Testing has it off");
-  const existing = await chrome.userScripts.getScripts({ ids: [`apply-init-${id}`] });
-  if (existing.length) await chrome.userScripts.unregister({ ids: [`apply-init-${id}`] });
-  await chrome.userScripts.register([{ id: `apply-init-${id}`, matches: ["<all_urls>"], js: [{ code }], runAt: "document_start", world: "MAIN", allFrames: true }]);
-  return { code: true };
+  throw named("NoCodeScripts", "a plain Worker runs only Apply's fixed guard files as init scripts: this code has none " +
+                               "(the guards carry their state through guard.control, KAN-710)");
 }
 
 // A guard file in the tab's frames now (the drive guard on a page already open).

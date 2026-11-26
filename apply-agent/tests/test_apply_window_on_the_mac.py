@@ -62,9 +62,11 @@ class FakeMac:
     def kill(self, pid, signal):
         if pid not in self.chromes:
             raise ProcessLookupError(pid)
-        if signal:  # 0 only asks whether it still runs
-            self.quit.append(pid)
-            self.chromes.pop(pid)
+        self.quit.append(pid)
+        self.chromes.pop(pid)
+
+    def pid_exists(self, pid):
+        return pid in self.chromes
 
 
 @pytest.fixture
@@ -74,6 +76,7 @@ def mac(monkeypatch, tmp_path) -> FakeMac:
     fake = FakeMac(tmp_path / "Applications" / "Apply.app")
     monkeypatch.setattr(dashboard.subprocess, "run", fake.run)
     monkeypatch.setattr(dashboard.os, "kill", fake.kill)
+    monkeypatch.setattr(dashboard.psutil, "pid_exists", fake.pid_exists)
     monkeypatch.setattr(dashboard.time, "sleep", lambda s: None)
     monkeypatch.setattr(dashboard, "CLOSE_GRACE", 0.2)
     return fake

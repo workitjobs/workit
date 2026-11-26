@@ -143,7 +143,11 @@ place. The reply has two lists:
 
 `rewords` keeps today's rules: the handle check, the truth rule, the
 overlap check (`keeps_its_bullet`), the token budget and the reply cap
-(`backend/CLAUDE.md`, "Tailor").
+(`backend/CLAUDE.md`, "Tailor"). **A rewording that changes only case,
+spacing or punctuation is no change** (`same_words`: the same words,
+numbers and symbols in order), so "Built X." for "built X" is skipped,
+not counted as dropped: until KAN-811 a period alone was marked as
+Tailor's rewrite.
 
 ## Skill placement
 
@@ -171,7 +175,8 @@ Code checks each placement on its own, so one bad line loses nothing else:
 | Two placements share one `after` | Both go there, in reply order |
 | `after` is out of range | End of its group |
 | `after` names a skill in another group | Trust the group: end of its group |
-| A new group name | Keep it if it is short, is not an existing group in other case ("tools" for "Tools"), holds no identity placeholder, and the run has made at most two new groups; else "Other" |
+| A near name of one group ("Programming Languages" for "Languages", "Cloud" for "Cloud & DevOps": one name's words hold the other's, plurals and "and" aside) | That group; two groups that match are no match |
+| A new group name | Keep it if it is short, is not an existing group in other case ("tools" for "Tools"), holds no identity placeholder, and the run has made at most two new groups; else "Other". Its words in lower case are written as a resume writes them ("cloud & devops" to "Cloud & DevOps") |
 | A picked skill with no placement, or a name the model changed | End of "Other" |
 
 **The group wins over the number**: the student sees the group label, and
@@ -238,6 +243,57 @@ response lists each change with what it replaced, by handle and id:
 - **The student's own edits are not marked.** Only the run's changes are.
 
 ## Suggestions
+
+**The views beside the page open from a rail** (2026-11-23, after
+Gmail's; the user's pick of three trials). A column of icons down the
+page's right edge, on the page's own ground with no box, holds
+Suggestions (with its count), Sections, Format and Original, each named by
+its tooltip. A press opens that view beside the rail, sliding out over
+200ms (still with reduced motion), and tints the icon as a pressed bar
+button is; a press on the open one closes it. The chevron at the rail's
+foot folds it away, with any open view, to a tab at the window's right
+edge ("Show Side Panel"), kept per browser (`workit:review-rail-folded`).
+The panels are white with the desk's outline: the Suggestions panel and
+the Sections and Format panels were the brand tint, the colour every
+picked control wears, so each read as picked. Before the rail, Original
+and Suggestions were icons in the title row and Sections and Format a
+button at the toolbar's end: one kind of control in two places. The
+toolbar now holds tools for the page only, and below @4xl, where the rail
+does not show, the title row's icons open the views. Also tried: one
+panel with Suggestions, Sections and Format as tabs; a boxed card of
+icons; and tiles with names under the icons as the left sidebar's, which
+the user found heavy. The rest of this section says "the toolbar's
+Suggestions" or "the title row's icons" where the rail now does it.
+
+**The Suggestions panel was redrawn calmer** (2026-11-23, the user found
+it messy). Its top is two rows: "Suggestions" with a grey count and its
+close, then the type filter and a ⋯ holding Show or Hide Marks on the Page
+and Undo All Suggestions, in words, Undo All last and red. Six controls on
+one row, four bare icons, and Undo All drawn as each card's Undo arrow
+came first. Entries are sections under hairlines with no box, and a change
+has no box either: each row's badge sits on its entry title's edge, and
+its name and change on one edge after it. **A rewording shows Was over
+Now, both always** (`wordChanges`, a longest common run of words; the
+user's pick of three, over Docs' "Replace X with Y" sentence and one
+merged line): the student keeps or undoes it by comparing the two. When
+at most half its words are new, the gone ones are struck in grey and the
+new ones tinted the reworded blue, as the page tints the line; when more
+changed, as an AI rewording mostly does, neither line is marked, since a
+line all marked marks nothing. Its whole old line struck in red over its
+whole new line in green came first, then for a day its new words alone in
+green with Show Before: green is the added colour, and hiding the old
+words hid what the choice needs. Added and removed show as pairs: a skill as a chip, green added or grey
+struck removed; a line beside a bar, green added or red removed, its words
+plain. A removed skill in plain grey beside a green chip, and an added
+line in plain type, read as different kinds of thing. **`?sample=1` on the dev server** adds a made-up
+change of each type the run does not make yet (an added and a removed
+bullet, a rewording of most of a line, a removed and an added skill),
+drawn from the resume's own entries, to compare every type at once
+(`sampleChanges` in `tailor-suggestions.tsx`); never in production, never
+on the page, and their Undo does nothing. Three frames deep (panel, entry,
+change) and the entries' outlines, cut off by the scrolling list, went
+with this. A card's Undo is "Undo This Change" in its tooltip. The rest of
+this section describes the cards and boxes as they were.
 
 The review step (`/jobs/[jobId]/tailor?resumeId=`) shows one resume, the
 tailored one in the editor, and a Suggestions panel on its right, as a

@@ -226,6 +226,10 @@ sending:
 
 - `identity` is the header from the profile at that moment
   (`load_header_identity`). A later profile change does not reach it.
+  It holds only what the page printed (KAN-436): a header field the
+  resume hides (`hidden_header`) is left out, and so is `location` while
+  empty and `us_citizen` while false, so a snapshot kept before either
+  existed still matches.
 - `view` is `dataclasses.asdict(ResumeView)`: bullet text already resolved to
   the chosen variant, hidden items already left out.
 - `v` is the snapshot format's version, for a reader that must handle an

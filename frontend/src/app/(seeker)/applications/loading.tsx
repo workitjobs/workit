@@ -36,13 +36,15 @@ export default function ApplicationsLoading() {
           <Skeleton aria-hidden="true" className={cn("h-10 rounded-full", PAGE_SEARCH)} />
           <ViewSwitcher />
         </div>
-        {/* The dropdowns step out at the real row's own container widths
-            (./filter-bar.tsx), so the bar holds the same ones. */}
+        {/* Sort, then the dropdowns, which step out at the real row's own
+            container widths (./filter-bar.tsx), so the bar holds the same
+            ones. */}
         <div aria-hidden="true" className="@container flex items-center gap-2">
-          <Skeleton className="hidden h-9 w-36 @min-[27.5rem]:block" />
-          <Skeleton className="hidden h-9 w-36 @min-[37rem]:block" />
-          <Skeleton className="hidden h-9 w-36 @min-[46.5rem]:block" />
-          <Skeleton className="hidden h-9 w-36 @min-[56rem]:block" />
+          <Skeleton className="h-9 w-36 shrink-0" />
+          <Skeleton className="hidden h-9 w-36 @min-[30.5rem]:block" />
+          <Skeleton className="hidden h-9 w-36 @min-[40rem]:block" />
+          <Skeleton className="hidden h-9 w-36 @min-[49.5rem]:block" />
+          <Skeleton className="hidden h-9 w-36 @min-[59rem]:block" />
           {/* All Filters and Table Settings: two round icon buttons. */}
           <Skeleton className="ml-auto size-9 shrink-0 rounded-full" />
           <Skeleton className="size-9 shrink-0 rounded-full" />

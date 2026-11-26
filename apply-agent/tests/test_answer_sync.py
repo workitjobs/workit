@@ -13,6 +13,7 @@ from test_tracker_record import logged_in
 from apply import answer_sync, cli
 from apply.answer_bank import AnswerBank
 from apply.answer_sync import AnswerSync
+from apply.keychain import InMemoryKeychain
 from apply.model import Question
 from apply.workit import WorkIt
 
@@ -90,7 +91,7 @@ def test_with_workit_down_the_change_waits_and_goes_with_the_next(fake, tmp_path
     bank = answer_sync.bank(tmp_path / "answer-bank.yaml", ON, AnswerSync(client, queue))
     with FakeWorkIt() as down:
         down.stop()  # the same login, but WorkIt's API does not answer
-        unreachable = WorkIt(dataclasses.replace(fake.site, api=down.url), client.login)
+        unreachable = WorkIt(dataclasses.replace(fake.site, api=down.url), client.login, client.keychain)
         offline = answer_sync.bank(tmp_path / "answer-bank.yaml", ON, AnswerSync(unreachable, queue))
         offline.add(HEARD, "From the careers page.", "Initech", DAY)
         offline.answer(HEARD.label, "From a friend.", DAY)
@@ -109,7 +110,7 @@ def test_with_no_login_a_change_waits_and_the_bank_still_saves(tmp_path):
     queue = tmp_path / "q.json"
     with FakeWorkIt() as fake:
         bank = answer_sync.bank(tmp_path / "answer-bank.yaml", ON,
-                                AnswerSync(WorkIt(fake.site, tmp_path / "no-login.json"), queue))
+                                AnswerSync(WorkIt(fake.site, tmp_path / "no-login.json", InMemoryKeychain()), queue))
         bank.answer(HEARD.label, "From a friend.", DAY)
 
         assert fake.requests == []
@@ -193,5 +194,5 @@ def test_sync_answers_needs_a_login(tmp_path, capsys):
     path = tmp_path / "answer-bank.yaml"
     path.write_text(BANK)
     with FakeWorkIt() as fake:
-        assert cli._sync_answers(path, WorkIt(fake.site, tmp_path / "no-login.json"), tmp_path / "q.json") == 1
+        assert cli._sync_answers(path, WorkIt(fake.site, tmp_path / "no-login.json", InMemoryKeychain()), tmp_path / "q.json") == 1
     assert "apply login" in capsys.readouterr().err

@@ -3,7 +3,8 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
 
     render(view, identity, template, page)  a built resume view -> Rendered
                         (PDF bytes, page count, characters the font lacks,
-                        a box for each marked line)
+                        a box for each marked line); bookmarks=False for
+                        the editor's live page, one TeX pass (KAN-919)
     latex(view, identity, template, page)   the same resume as a .tex source, unmarked
     PageSettings        how the page is set: type, spacing, margins, style (KAN-435)
     escape(text)        the one way applicant text enters the LaTeX
@@ -105,6 +106,8 @@ _MARK_LINES = (
     ),
 )
 MARKS = "\n".join(_MARK_LINES)
+# Space a box stopped short of its neighbour keeps from it, in PDF points
+_BESIDE_GAP = 4.0
 # Letter only (the spec), in PDF points; a box's y counts down from the top
 PAGE_HEIGHT = 792.0
 # A box reaches this far above and below a line's baseline: about the
@@ -114,9 +117,16 @@ ASCENT, DESCENT = 8.0, 3.0
 # The name prints \Huge, so its box reaches further each way
 NAME_ASCENT, NAME_DESCENT = 21.0, 5.0
 # The item id of the header's boxes, whose kinds are the profile columns
-# they show: full_name, phone_number, email, linkedin_url, github_url,
-# portfolio_url, other_url
+# they show: full_name, phone_number, email, location, linkedin_url,
+# github_url, portfolio_url, other_url
 HEADER = "header"
+# The header fields a resume can hide (`PageSettings.hidden_header`, KAN-436),
+# each its box's kind. The name always prints, and "U.S. Citizen" is
+# Application Questions' answer, so neither is here.
+HEADER_FIELDS = (
+    "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+    "resume_header_extra",
+)
 # The distance between a wrapped line's baselines in Jake's bullets, in
 # points; `PageSettings.wrapped_line` on any other page
 WRAPPED_LINE = 12.0
@@ -180,6 +190,13 @@ HEADER_ALIGNMENTS = ("left", "center", "right")
 DATE_FORMATS = ("short", "long", "year", "numeric")
 # Which of an Education entry's two rows goes on top
 EDUCATION_FIRST = ("school", "degree")
+# Which of a job's (and a club role's) two rows goes on top (2026-11-17):
+# the role, as Jake's does, or the company, as many career-center
+# templates and finance and consulting resumes do
+EXPERIENCE_FIRST = ("role", "company")
+# Where a project's tools print (2026-11-17): on a line under its name, or
+# after it ("Gitlytics | Python, Flask"), as Jake's own sample does
+PROJECT_TOOLS = ("below", "after_name")
 # Every section, as the page prints them unless the student drags them; the
 # bank's sections (resume_view.SECTIONS), then the skills
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
@@ -256,11 +273,19 @@ class PageSettings:
     body_size: float | None = None
     date_format: str = "short"
     education_first: str = "school"
+    experience_first: str = "role"
+    project_tools: str = "below"
+    # The header fields this resume leaves out (KAN-436), in HEADER_FIELDS'
+    # order: the values stay on the profile, for every other resume
+    hidden_header: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        # Stored as a JSON list, and frozen here
+        # Stored as JSON lists, and frozen here; the hidden fields in one
+        # order, so two resumes hiding the same ones hash the same
         object.__setattr__(self, "section_order", tuple(self.section_order))
-        if not valid_order(self.section_order):
+        hidden = set(self.hidden_header)
+        object.__setattr__(self, "hidden_header", tuple(f for f in HEADER_FIELDS if f in hidden))
+        if not valid_order(self.section_order) or len(self.hidden_header) != len(hidden):
             raise ValueError(f"unknown page settings {self!r}")
         allowed = (
             (self.font_size, FONT_SIZES), (self.line_spacing, LINE_SPACINGS), (self.side_margin, MARGINS),
@@ -268,7 +293,8 @@ class PageSettings:
             (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
             (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
             (self.font_family, ("latin_modern", *FONT_FAMILIES)), (self.date_format, DATE_FORMATS),
-            (self.education_first, EDUCATION_FIRST),
+            (self.education_first, EDUCATION_FIRST), (self.experience_first, EXPERIENCE_FIRST),
+            (self.project_tools, PROJECT_TOOLS),
         )
         sizes = (
             (self.name_size, NAME_SIZES), (self.heading_size, HEADING_SIZES),
@@ -301,8 +327,33 @@ class HeaderIdentity:
     email: str | None = None
     phone: str | None = None
     links: tuple[tuple[str, str], ...] = ()
-    # Prints "U.S. Citizen" after the links (My Profile's check box)
+    # Prints "U.S. Citizen" first on the contact line (Application Questions'
+    # citizenship answer)
     us_citizen: bool = False
+    # Where the student lives, "Stony Brook, NY" (the profile's `location`,
+    # KAN-436): after the email
+    location: str | None = None
+    # The Additional line (the profile's `resume_header_extra`, KAN-436): the
+    # student's own text, on a line of its own under the contact line
+    extra: str | None = None
+
+
+def shown_header(identity: HeaderIdentity, page: PageSettings) -> HeaderIdentity:
+    '''The header this page prints: the identity less the fields the
+    resume hides (`PageSettings.hidden_header`, KAN-436). Every renderer and
+    the sent resume's hash read it, so a hidden field neither prints nor
+    counts.'''
+    hidden = set(page.hidden_header)
+    if not hidden:
+        return identity
+    return replace(
+        identity,
+        phone=None if "phone_number" in hidden else identity.phone,
+        email=None if "email" in hidden else identity.email,
+        location=None if "location" in hidden else identity.location,
+        extra=None if "resume_header_extra" in hidden else identity.extra,
+        links=tuple((field, url) for field, url in identity.links if field not in hidden),
+    )
 
 
 @dataclass(frozen=True)
@@ -414,14 +465,21 @@ class Rendered:
         return line_count((box for box in self.boxes if box.page >= 2), self.wrapped_line)
 
 
-def render(view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE) -> Rendered:
+def render(
+    view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE, *, bookmarks: bool = True
+) -> Rendered:
     '''
     A built resume view (services/resume_view.py) as a PDF in `template`, set
     by `page`. Raises ValueError for a template id it does not know, and
-    TectonicUnavailable when the compile cannot run or fails.
+    TectonicUnavailable when the compile cannot run or fails. `bookmarks`
+    False skips the PDF's outline, and with it TeX's second pass
+    (`compile_document`): for the editor's live page, never a file the
+    student keeps or sends.
     '''
     printed: dict[str, str] = {}
-    rendered = compile_document(_document(view, identity, template, page, marks=True, printed=printed))
+    rendered = compile_document(
+        _document(view, identity, template, page, marks=True, printed=printed), bookmarks=bookmarks
+    )
     boxes = tuple(replace(b, text=printed.get(f"{b.item_id}.{b.kind}", "")) for b in rendered.boxes)
     return replace(rendered, boxes=boxes, wrapped_line=page.wrapped_line)
 
@@ -441,6 +499,7 @@ def _document(
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
+    identity = shown_header(identity, page)
     # The Title goes in a compiled PDF only: the Overleaf source leaves it
     # out, since pdfLaTeX (Overleaf's default) ignores an xdvipdfmx special
     # and warns about it.
@@ -475,13 +534,26 @@ def pdf_title(text: str) -> str:
     return rf"\special{{pdf:docinfo<</Title<{hex_text}>>>}}"
 
 
+# A straight double quote that opens a quotation: at the start, after a
+# space or an opening bracket or dash
+_OPEN_QUOTE_RE = re.compile(r'(?<![^\s(\[{–—-])"')
+
+
 def escape(text: str) -> str:
     '''
     Applicant text as LaTeX that prints it, character for character. Every
     newline becomes a space: a blank line is a paragraph break, which ends a
     command's argument early and fails the compile.
+
+    The font's TeX ligatures stay off what a student types: "--dry-run"
+    printed "–dry-run", "reviews!`" printed "reviews¡" and a backtick a
+    curly quote. A straight double quote prints as an opening or closing
+    curly quote by its place, as an apostrophe already prints curly: TeX
+    made both ends of "smart" closing ones.
     '''
-    return text.replace("\r\n", " ").translate(_TABLE)
+    out = text.replace("\r\n", " ").translate(_TABLE)
+    out = _OPEN_QUOTE_RE.sub("“", out).replace('"', "”").replace("`", r"\textasciigrave{}")
+    return re.sub(r"-(?=-)", "-{}", out)
 
 
 # In a link target hyperref turns \textasciitilde{} into "~{}", which breaks
@@ -602,11 +674,21 @@ def compile_pdf(tex: str, *, cache: Path | None = None, offline: bool = True) ->
     return compile_document(tex, cache=cache, offline=offline).pdf
 
 
-def compile_document(tex: str, *, cache: Path | None = None, offline: bool = True) -> Rendered:
+def compile_document(
+    tex: str, *, cache: Path | None = None, offline: bool = True, bookmarks: bool = True
+) -> Rendered:
     '''
     Compile a whole document with Tectonic, `--untrusted` and (unless the
     build script is warming the cache) `--only-cached`, so a render never
     reaches the network. Raises TectonicUnavailable on any failure.
+
+    Each compile starts in an empty folder, so the first pass writes a new
+    .aux and Tectonic always runs TeX again. The only thing that second pass
+    adds is hyperref's PDF outline (the section bookmarks a viewer lists in
+    its sidebar), read back from the .aux: the page, its text, links and
+    every marker's place are the same after one pass (KAN-919). So
+    `bookmarks` False runs one pass (`--reruns 0`), about 30% less compile
+    time (175 ms against 255 ms on an M-series Mac, 2026-11-18).
     '''
     binary = _binary()
     cache = cache or _cache()
@@ -616,6 +698,8 @@ def compile_document(tex: str, *, cache: Path | None = None, offline: bool = Tru
         command = [str(binary), "-X", "compile", "--untrusted", "--keep-logs", "--outdir", work, str(source)]
         if offline:
             command.insert(3, "--only-cached")
+        if not bookmarks:
+            command[3:3] = ["--reruns", "0"]
         try:
             result = subprocess.run(
                 command, env=_env(cache, work), capture_output=True, text=True, errors="replace",
@@ -697,7 +781,20 @@ def _boxes(positions: str) -> tuple[Box, ...]:
             boxes.append(box(name, page, sx, x, sy, y))
         else:
             boxes.append(box(name, page, sx, edge, sy, y))
-    return tuple(boxes)
+    return tuple(_short_of_beside(boxes))
+
+
+def _short_of_beside(boxes: list[Box]) -> list[Box]:
+    """Each box that runs past the start of another of its item's on its
+    first line, stopped short of it: a heading title wrapped beside its
+    dates (KAN-807) ran to the text's right edge, as a wrapped bullet does,
+    and covered them."""
+    out = []
+    for b in boxes:
+        beside = [o.x0 for o in boxes if o is not b and o.item_id == b.item_id and o.page == b.page
+                  and abs(o.y0 - b.y0) < 1 and b.x0 < o.x0 < b.x1]
+        out.append(replace(b, x1=round(min(beside) - _BESIDE_GAP, 2)) if beside else b)
+    return out
 
 
 #: On Windows a program cannot open a network connection without

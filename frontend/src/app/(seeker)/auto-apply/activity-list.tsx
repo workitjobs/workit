@@ -6,6 +6,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import { LightningRoundedIcon } from "@/components/custom-icons";
+import { frozenFill, rowFill } from "@/components/fill-page";
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
@@ -24,6 +25,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { TEXT } from "@/components/ui/text-roles";
 import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
@@ -232,7 +234,7 @@ const SORT_DESC: Record<Sort, boolean> = {
 };
 
 /** `items` in `sort`'s order. Stable, so ties keep the queue order. */
-export function sortItems(items: ActivityItem[], sort: Sort) {
+export function sortItems<T extends ActivityItem>(items: T[], sort: Sort): T[] {
   const value = SORT_VALUE[sort];
   const sign = SORT_DESC[sort] ? -1 : 1;
   return [...items].sort((a, b) => {
@@ -272,8 +274,8 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
   },
 ];
 
-export const TH = "px-4 text-note text-ink-meta font-medium";
-export const TD = "px-4 py-3 text-note text-ink";
+export const TH = `px-4 ${TEXT.columnHeader}`;
+export const TD = `px-4 py-3 ${TEXT.tableCell}`;
 /** Every column is left-aligned, heading and cell, as the Tracker's are
  *  (2026-11-10). Every column but Role was centred (asked for 2026-10-20):
  *  on a wide window each short value floated far from the job it belongs
@@ -282,7 +284,7 @@ export const ALIGN = "text-left";
 /** Role is frozen at the left while the rest scrolls, from 672px of page up,
  *  as on the Applications list (applications/list.tsx says why not below). */
 export const FROZEN =
-  "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+  "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:after:pointer-events-none @2xl/main:after:absolute @2xl/main:after:inset-y-0 @2xl/main:after:right-0 @2xl/main:after:w-px @2xl/main:after:bg-border-surface";
 
 /**
  * Live Activity's table (KAN-285): one row per job posting, in one white
@@ -372,7 +374,7 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
   const status = STATUS[item.status];
   const cells: ReactNode = (
     <>
-      <TableCell className={cn(TD, FROZEN, "group-hover/row:bg-hover transition-colors")}>
+      <TableCell className={cn(TD, FROZEN, "transition-colors", frozenFill(false))}>
         <div className="flex min-w-0 items-center gap-3">
           <CompanyLogo
             name={item.company}
@@ -452,7 +454,7 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
   // list's rows do; a row cannot rise (its transform does not paint).
   const style = { animationDelay: `${Math.min(index, 10) * 25}ms` };
   return item.href ? (
-    <ClickableRow href={item.href} className="hover:bg-hover animate-fade" style={style}>
+    <ClickableRow href={item.href} className={cn("animate-fade", rowFill(false))} style={style}>
       {cells}
     </ClickableRow>
   ) : (

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { TextField } from "@/components/ui/text-field";
 import { deleteAccount } from "@/lib/account-actions";
 import { clearLocalDrafts } from "@/lib/local-drafts";
@@ -14,8 +15,11 @@ import { SettingsStep, StepActions, useSettingsStep } from "../settings-step";
  * Delete Account and its confirmation, a step of the Settings modal
  * (../settings-step.tsx). The delete is final, so the step asks the
  * student to type their email first: one click on a red button is too
- * easy to make by mistake. On success the action signs out and opens the
- * landing page; on failure the step stays open with the error.
+ * easy to make by mistake. Its buttons are every delete's (`ConfirmButtons`,
+ * KAN-817): Keep It first, Delete Account last, though a Settings form puts
+ * its primary first, since a student who learns where the safe answer sits
+ * must find it there here too. On success the action signs out and opens
+ * the landing page; on failure the step stays open with the error.
  */
 export function DeleteAccount({ email }: { email: string }) {
   const step = useSettingsStep();
@@ -75,12 +79,13 @@ function DeleteStep({ email }: { email: string }) {
       )}
 
       <StepActions>
-        <Button variant="destructive" onClick={remove} disabled={!confirmed || deleting}>
-          Delete Account
-        </Button>
-        <Button variant="secondary" onClick={close}>
-          Keep My Account
-        </Button>
+        <ConfirmButtons
+          act="Delete Account"
+          busy={deleting}
+          disabled={!confirmed}
+          onKeep={close}
+          onAct={remove}
+        />
       </StepActions>
     </SettingsStep>
   );

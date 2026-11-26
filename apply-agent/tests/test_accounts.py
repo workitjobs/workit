@@ -1,13 +1,14 @@
-"""Accounts: resetting the password of an Employer account Lisul made himself,
-which Keychain has none for. With a fake Keychain and a fake mailbox."""
+"""Accounts: a new account's password (the one Lisul chose, else a random one, KAN-838), and resetting the
+password of an Employer account Lisul made himself, which Keychain has none for. With a fake Keychain and a fake
+mailbox."""
 
 from datetime import datetime, timedelta
 
 import pytest
 from fakes import FakeClock, FakeMailbox
 
-from apply.accounts import MAIL_WAIT, Accounts
-from apply.keychain import InMemoryKeychain
+from apply.accounts import MAIL_WAIT, RULE, Accounts, broken_rule
+from apply.keychain import CHOSEN, InMemoryKeychain
 from apply.model import Handoff
 
 SITE = "caci.wd1.myworkdayjobs.com"
@@ -75,3 +76,69 @@ def test_a_code_that_comes_after_minutes_is_still_read():
     accounts = Accounts(InMemoryKeychain(), mailbox, clock, EMAIL, "CACI")
 
     assert accounts.code("from:(icims.com)", NOW) == "482913"
+
+
+CHOSEN_PASSWORD = "Fake!Chosen7xQ"  # made up, and it keeps the rule
+
+
+def test_a_new_account_gets_the_password_lisul_chose_saved_for_its_site():
+    keychain = InMemoryKeychain({CHOSEN: CHOSEN_PASSWORD})
+    accounts = Accounts(keychain, FakeMailbox(), FakeClock(NOW), EMAIL, "CACI")
+
+    assert accounts.new_password(SITE) == CHOSEN_PASSWORD
+    assert keychain.password(SITE) == CHOSEN_PASSWORD  # the site keeps its own copy
+
+
+def test_a_password_chosen_later_is_only_for_later_accounts():
+    keychain = InMemoryKeychain({CHOSEN: CHOSEN_PASSWORD})
+    accounts = Accounts(keychain, FakeMailbox(), FakeClock(NOW), EMAIL, "CACI")
+    accounts.new_password(SITE)
+
+    keychain.save(CHOSEN, "Fake@Changed9yR")
+
+    assert keychain.password(SITE) == CHOSEN_PASSWORD
+    assert accounts.new_password("xcel.wd1.myworkdayjobs.com") == "Fake@Changed9yR"
+
+
+def test_with_no_chosen_password_each_account_gets_a_random_one_that_keeps_the_rule():
+    keychain = InMemoryKeychain()
+    accounts = Accounts(keychain, FakeMailbox(), FakeClock(NOW), EMAIL, "CACI")
+
+    made = {accounts.new_password(f"t{n}.wd1.myworkdayjobs.com") for n in range(50)}
+
+    assert len(made) == 50 and all(broken_rule(password) is None for password in made)
+    assert keychain.password(CHOSEN) is None  # Apply never chooses for Lisul
+
+
+@pytest.mark.parametrize("password", [
+    "Short-1!a",               # under 12
+    "Far-Too-Long-Password-1!",  # over 16
+    "no-upper-case-1!",
+    "NO-LOWER-CASE-1!",
+    "No-Digits-Here!!",
+    "NoSymbolAtAll123",
+    "Has a space 1!Aa",
+    "Bad-Symbol-1&Aaa",        # & is not one of ! @ # $ % *
+    "Ünïcode-Letter1!",
+])
+def test_a_password_that_breaks_the_rule_says_the_rule(password):
+    assert broken_rule(password) == f"Use {RULE}."
+
+
+def test_a_password_that_keeps_the_rule_is_taken():
+    assert broken_rule(CHOSEN_PASSWORD) is None
+    assert broken_rule("Aa1!Aa1!Aa1!") is None  # 12, the shortest
+    assert broken_rule("Aa1@Bb2#Cc3$Dd4%") is None  # 16, the longest
+
+
+def test_a_refused_account_forgets_its_password_and_needs_lisul():
+    keychain = InMemoryKeychain({CHOSEN: CHOSEN_PASSWORD})
+    accounts = Accounts(keychain, FakeMailbox(), FakeClock(NOW), EMAIL, "CACI")
+    accounts.new_password(SITE)
+
+    handoff = accounts.refused(SITE, "Workday said: 'Password must not contain your email.'")
+
+    assert keychain.password(SITE) is None and keychain.password(CHOSEN) == CHOSEN_PASSWORD
+    assert str(handoff) == (f"{SITE} refused the new account (Workday said: 'Password must not contain your email.'). "
+                            "If it refused the password, make the account on the page yourself with a password it "
+                            "takes, then finish the form.")

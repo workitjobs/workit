@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from test_plain_reload import turn_on_developer_mode
 
-from apply import submit_guard
+from apply import steps, submit_guard
 from apply.plain import guards
 from apply.plain.bridge import FEATURES, Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
@@ -145,7 +145,7 @@ def _settle(page, seconds: float = 2.5) -> None:
 
 
 def _note(page) -> str:
-    return page.evaluate("() => (document.getElementById('apply-rehearsal-blocked') || {}).textContent || ''")
+    return page.evaluate("() => (document.getElementById('apply-rehearsal-blocked') || {}).innerText || ''")
 
 
 # --- without a browser
@@ -182,6 +182,20 @@ def test_add_init_script_knows_each_guard_script_by_its_file():
 
 
 # --- live, in a plain Worker
+
+@live
+def test_a_goto_in_a_tab_just_made_answers_once_its_own_page_has_loaded(worker, site):
+    # A tab tabs.create just made is still loading about:blank. A goto heard those events as its own and answered
+    # before its page committed, so the guard's reload ran into the page's own load: net::ERR_ABORTED, in about
+    # one hostile plain-Worker case in five (2026-11-13). One goto in a few missed; fifteen catch it.
+    for _ in range(15):
+        page = PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])
+        try:
+            page.goto(f"{site.url}/form")
+            assert page.evaluate("() => [location.pathname, document.readyState]") == ["/form", "complete"]
+        finally:
+            page.close()
+
 
 @live
 def test_without_the_guard_the_scripted_page_reaches_the_job_system(page, site):
@@ -261,7 +275,7 @@ def test_once_lifted_lisul_s_submit_goes_through_and_apply_hears_it(page, site):
     guard(page)
     lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True), warning="Phone left blank", wrong=False)
     assert page.worker.call("guard.status", tab=page.tab)["rules"] == 0
-    assert _note(page).startswith("Apply rehearsal: check before you submit. Phone left blank")
+    assert _note(page).startswith("WorkIt Please check before you submit\nPhone left blank")
     page.get_by_role("button", name="Fill again").click()
     page.get_by_role("button", name="Next").click()  # a Next sends nothing, and isn't heard
     guards.touch(page)
@@ -280,20 +294,20 @@ def test_a_held_submit_is_blocked_until_lisul_dismisses_it(page, site):
     guard(page)
     lift(page, pressed=lambda words, account=False: pressed.append(words), held="'Are you a US person?' reads No, but you are",
          dismiss=lambda: dismissed.append(True))
-    assert _note(page).startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: 'Are you")
+    assert _note(page).startswith("WorkIt Check this answer before you submit\n'Are you")
     page.get_by_role("button", name="Next").click()  # a held page is his but for its Submit
     guards.touch(page)
     page.get_by_role("button", name="Submit application").click()
     _settle(page, 1)
     assert site.posts == []  # held: blocked
-    assert "Submit is held" in _note(page)
+    assert "Check this answer" in _note(page)
     page.get_by_role("button", name="Dismiss").click()  # his press on the note, from the tile
     deadline = time.monotonic() + 5
     while not dismissed and time.monotonic() < deadline:
         time.sleep(0.1)
     assert dismissed == [True]
     assert renote(page, held="")  # what the hold loop does once nothing holds it
-    assert _note(page).startswith("Apply rehearsal: Apply is done with this page")
+    assert _note(page).startswith("WorkIt Your application is filled in")
     guards.touch(page)
     page.get_by_role("button", name="Submit application").click()
     deadline = time.monotonic() + 5
@@ -309,7 +323,7 @@ def test_renote_leaves_a_page_lisul_already_applied_to_guarded_till_he_dismisses
     guard(page)
     warn_applied(page, "2026-11-03", lambda: dismissed.append(True))
     applied = "() => (document.getElementById('apply-already-applied') || {}).textContent || ''"
-    assert page.evaluate(applied).startswith("You already applied on 2026-11-03")
+    assert page.evaluate(applied).startswith("WorkIt You already applied on 2026-11-03")
     assert renote(page, "Phone left blank") is False  # still guarded: no note of a lifted page
     assert page.worker.call("guard.status", tab=page.tab)["lifted"] is False
     guards.touch(page)
@@ -336,7 +350,7 @@ def test_a_lifted_tab_stays_lisuls_on_reload_and_rearm_guards_it_again(page, sit
     page.reload()
     page.get_by_role("button", name="Fill again").click()
     renote(page, "Postgrad Discipline(s) ticked", wrong=True)
-    assert _note(page).startswith("Apply rehearsal: fix this before you submit. Postgrad")
+    assert _note(page).startswith("WorkIt Please fix this before you submit\nPostgrad")
     page.evaluate("() => { document.querySelector('input').value = 'Lisul typed'; }")
     rearm(page)  # Resume: no reload, so what he typed stays
     assert page.evaluate("() => document.querySelector('input').value") == "Lisul typed"
@@ -572,7 +586,7 @@ def test_a_held_pages_submit_stays_blocked_after_a_reload(reloading, site):
     page.get_by_role("button", name="Submit application").click()
     _settle(page, 1)
     assert site.posts == []
-    assert "Submit is held" in _note(page)
+    assert "Check this answer" in _note(page)
 
 
 def test_a_page_already_lifted_stays_lisuls_after_a_reload(reloading, site):
@@ -683,11 +697,11 @@ def test_ask_s_drive_on_a_plain_page_refuses_the_real_submit_whatever_claude_cal
 def test_ask_s_press_on_a_plain_worker_goes_through_a_native_post_step_but_never_to_a_final_url(page, site, monkeypatch):
     from types import SimpleNamespace
 
-    from apply import ask, claude_fill
+    from apply import ask
     from apply.adapters import Drive
     from apply.model import Posting
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1_000)
     page.goto(f"{site.url}/native")
     drive = DriveGuard(page)
     guard(page)

@@ -147,12 +147,33 @@ def base_choices(bank: Bank) -> Choices:
     return choices
 
 
+def blank_choices(bank: Bank) -> Choices:
+    """What Generate writes for a resume started from scratch (2026-11-18,
+    onboarding's "No, build one for me"): every bank entry and skill with a
+    choice row, hidden, so the page prints its header alone and the
+    Experiences picker can still show any of them. Generated from the whole
+    bank, a returning student's onboarding resume came out full, or opened
+    the one they already had (the duplicate check), and its tour had nothing
+    left to add."""
+    choices = all_chosen(bank)
+    for entry_id, choice in choices.entries.items():
+        choices.entries[entry_id] = dataclasses.replace(choice, shown=False)
+    for skill_id, choice in choices.skills.items():
+        choices.skills[skill_id] = dataclasses.replace(choice, shown=False)
+    return choices
+
+
 # Generate's steps, as `generate_steps` reports them before each one
 GeneratePhase = Literal["checking", "saving"]
 
 
 async def generate_steps(
-    session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None, *, refuse_duplicate: bool = False
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    name: str | None = None,
+    *,
+    refuse_duplicate: bool = False,
+    blank: bool = False,
 ) -> AsyncIterator[GeneratePhase | Built_Resume]:
     """A base resume of `base_choices`: the whole bank, each copy hidden.
     With no name it is "Resume #N" (`next_name`). Yields "checking" before
@@ -166,8 +187,9 @@ async def generate_steps(
     # the new resume.
     everything = await load_bank(session, applicant_id, local_to=[r.id for r in resumes])
     bank = dataclasses.replace(everything, skills=[s for s in everything.skills if s.built_resume_id is None])
-    choices = base_choices(bank)
-    if refuse_duplicate:
+    # A blank resume is new each time: no duplicate check
+    choices = blank_choices(bank) if blank else base_choices(bank)
+    if refuse_duplicate and not blank:
         yield "checking"
         if same := await same_resume(session, resumes, everything, build_view(bank, choices)):
             raise DuplicateResume(same)
@@ -186,10 +208,15 @@ async def generate_steps(
 
 
 async def generate(
-    session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None, *, refuse_duplicate: bool = False
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    name: str | None = None,
+    *,
+    refuse_duplicate: bool = False,
+    blank: bool = False,
 ) -> Built_Resume:
     """`generate_steps` run to its end: the new resume."""
-    async for step in generate_steps(session, applicant_id, name, refuse_duplicate=refuse_duplicate):
+    async for step in generate_steps(session, applicant_id, name, refuse_duplicate=refuse_duplicate, blank=blank):
         if isinstance(step, Built_Resume):
             return step
     raise AssertionError("Generate always ends with its resume")
@@ -321,7 +348,8 @@ async def write_choices(
         + [Built_Resume_Bullet(built_resume_id=resume_id, bullet_id=i, shown=c.shown, position=c.position,
                                variant_id=c.variant_id)
            for i, c in choices.bullets.items()]
-        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position)
+        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position,
+                              group=c.group)
            for i, c in choices.skills.items()]
     )
     await session.flush()
@@ -544,7 +572,7 @@ async def _choices_of(session: AsyncSession, resume_ids: list[uuid.UUID]) -> dic
     for r, wording in bullets:
         found[r.built_resume_id].bullets[r.bullet_id] = BulletChoice(r.shown, r.position, r.variant_id, wording)
     for r in skills:
-        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position)
+        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position, r.group)
     return found
 
 
@@ -661,7 +689,8 @@ WITH owner AS (
     SELECT * FROM jsonb_to_recordset(CAST(:bullets AS jsonb))
         AS c(bullet_id uuid, shown boolean, position integer, switch boolean, variant_id uuid)
 ), sc AS (
-    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb)) AS c(skill_id uuid, shown boolean, position integer)
+    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb))
+        AS c(skill_id uuid, shown boolean, position integer, "group" text)
 ), e AS (
     UPDATE built_resume_entries r SET
         shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
@@ -682,7 +711,8 @@ WITH owner AS (
     RETURNING r.bullet_id
 ), s AS (
     UPDATE built_resume_skills r SET
-        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position)
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        "group" = coalesce(c."group", r."group")
     FROM sc c
     WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.skill_id = c.skill_id
     RETURNING r.skill_id
@@ -969,6 +999,8 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             if (url := getattr(profile, field))
         ),
         us_citizen=answers.work_authorization_status == "us_citizen",
+        location=profile.location,
+        extra=profile.resume_header_extra,
     )
 
 
@@ -998,6 +1030,6 @@ def choices_out(choices: Choices, variants: list[VariantResponse]) -> ChoicesRes
         bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
                                       text=c.text)
                  for i, c in choices.bullets.items()],
-        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
+        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position, group=c.group)
                 for i, c in choices.skills.items()],
     )

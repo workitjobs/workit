@@ -1,7 +1,8 @@
-"""The plain Workers' bridge: Apply's end of the socket the host relays talk to.
+"""The plain Workers' bridge: Apply's end of the channel the host relays talk to.
 
-It listens on the Worker profiles folder's workers.sock (mode 0600) before any Worker starts. Each Worker's
-relay connects, names its Worker, and passes on the extension's hello; the bridge checks
+It listens on the Worker profiles folder's channel (plain/channel.py: workers.sock, mode 0600, or a named pipe on
+Windows) before any Worker starts. Each Worker's relay connects and passes the check in both directions, names
+its Worker, and passes on the extension's hello; the bridge checks
 the origin, the protocol and the engine, answers welcome or refuse, and keeps one
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
 (`on`). Messages over 512 KiB go as chunks, since Chrome takes at most 1 MB from a host.
@@ -31,7 +32,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply.home import HOME
-from apply.plain.extension import EXTENSION_ORIGIN, code_hash, engine_identity
+from apply.plain import channel
+from apply.plain.extension import EXTENSION_ORIGINS, code_hash, engine_identity
 
 PROTOCOL = 1
 SOCKET = "workers.sock"
@@ -39,9 +41,13 @@ SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 CHUNK_CHARS = 200_000  # characters of JSON per chunk: at most 800 KB of UTF-8, under Chrome's 1 MB
 CHUNK_OVER = 512 * 1024  # a message longer than this goes as chunks
 CALL_TIMEOUT = 60.0  # s an op may take, beyond its own timeout
-FEATURES = 3  # the worker extension's feature level Apply expects (background.js FEATURES)
+FEATURES = 6  # the worker extension's feature level Apply expects (background.js FEATURES)
 RELOADS_FROM = 2  # the first level with the extension.reload op
 SETS_FROM = 3  # the first level that reads Apply's files from the vendor set its welcome names (KAN-645)
+PACKAGED = "vendor"  # the root a package's own generated files are at (extension.package, KAN-839)
+STORE_STALE = ("the worker extension from the Chrome Web Store holds other guard and page files than this Apply "
+               "({has}, Apply's {want}), and Apply can't change a store copy's files. Chrome updates it from the store "
+               "within hours: then restart the Worker. Or update WorkIt Auto Apply if it is the older one")
 RELOAD_WAIT = 10.0  # s a reloading extension may take to close its port
 OUT_OF_DATE = "Worker extension is out of date: quit Apply and start it again"
 # How to bring a folder of other code up to date (KAN-764): Apply updates it before a Worker starts, once no Chrome loads it.
@@ -85,11 +91,13 @@ class BridgeBusy(Exception):
     """Another Apply process is listening on the socket."""
 
 
-def socket_path(home: Path = HOME) -> Path:
+def socket_path(home: Path = HOME, system: str = sys.platform) -> Path:
     """`home`/workers.sock, or, when that path is too long for a socket, one under
-    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder."""
+    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder. On Windows the path
+    only names the channel's pipe and holds its secret beside it (channel.pipe_name), so it has no length to keep
+    under, and Windows has no os.getuid."""
     path = home / SOCKET
-    if len(str(path).encode()) <= SOCKET_PATH_MOST:
+    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
         return path
     folder = Path(tempfile.gettempdir() if len(tempfile.gettempdir()) < 40 else "/tmp") / f"apply-{os.getuid()}"
     return folder / f"{hashlib.sha256(str(home.resolve()).encode()).hexdigest()[:16]}.sock"
@@ -227,6 +235,9 @@ class Bridge:
         # The vendor set this Apply wrote into the Workers' extension folder ("vendor/sets/<id>"), named
         # in each welcome: a Worker whose extension takes it is never refused for another checkout's engine.
         self.vendor: str | None = None
+        # The id of this Apply's packaged files (extension.packaged_files): a package whose hello names the same
+        # id has them built in, and is welcomed to its own (PACKAGED); a store copy naming another is refused.
+        self.packaged: str | None = None
         self.folder: Path | None = None  # the folder the Workers load the extension from (PlainWorkers.prepare)
         self.expects = expects  # the feature level a Worker's extension must have not to be stale
         # This Apply's worker extension code (extension.code_hash) and the folder Worker k loads it from (PlainWorkers):
@@ -237,7 +248,7 @@ class Bridge:
         self._reloaded: set[int] = set()  # Workers told to reload once already
         self.reloadable: Callable[[int], bool] = lambda worker: False  # PlainWorkers: its profile's Developer mode
         self._warned = False
-        self._server: socket.socket | None = None
+        self._server: channel.Listener | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
         self._changed = threading.Condition()
@@ -251,27 +262,10 @@ class Bridge:
     def start(self) -> None:
         if self._server:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.parent.name.startswith("apply-"):
-            self.path.parent.chmod(0o700)
-        if self.path.exists():
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                probe.connect(str(self.path))
-                raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}")
-            except (ConnectionRefusedError, FileNotFoundError):
-                self.path.unlink(missing_ok=True)
-            finally:
-                probe.close()
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        old = os.umask(0o177)
         try:
-            server.bind(str(self.path))
-        finally:
-            os.umask(old)
-        self.path.chmod(0o600)
-        server.listen(16)
-        self._server = server
+            self._server = channel.listen(self.path)
+        except channel.Busy:
+            raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}") from None
         self.engine  # noqa: B018 - read the engine's identity before the first hello
         threading.Thread(target=self._accept, name="plain-bridge", daemon=True).start()
 
@@ -279,7 +273,6 @@ class Bridge:
         server, self._server = self._server, None
         if server:
             server.close()
-            self.path.unlink(missing_ok=True)
         for connection in list(self._workers.values()):
             connection.close()
         self._workers.clear()
@@ -287,12 +280,15 @@ class Bridge:
     def _accept(self) -> None:
         while (server := self._server) is not None:
             try:
-                sock, _ = server.accept()
+                sock = server.accept()
             except OSError:
                 return
-            threading.Thread(target=self._greet, args=(sock,), daemon=True).start()
+            threading.Thread(target=self._greet, args=(sock, server), daemon=True).start()
 
-    def _greet(self, sock: socket.socket) -> None:
+    def _greet(self, sock: socket.socket, server: channel.Listener) -> None:
+        if not server.greet(sock):  # it doesn't know this channel's secret: no other message (channel.py)
+            sock.close()
+            return
         try:
             relay = _read_frame(sock)
             hello = _read_frame(sock)
@@ -332,7 +328,9 @@ class Bridge:
             print(f"Plain Worker {worker + 1}'s extension has features {level}, Apply expects {self.expects}. "
                   f"{OUT_OF_DATE}.", file=sys.stderr)
         welcome = {"type": "welcome", "worker": worker, "protocol": PROTOCOL}
-        if self.vendor and features(hello) >= SETS_FROM:
+        if self.packaged and hello.get("packaged") == self.packaged:
+            welcome["vendor"] = PACKAGED  # its package holds this Apply's files: no set to write into a store copy
+        elif self.vendor and features(hello) >= SETS_FROM:
             welcome["vendor"] = self.vendor
         connection.vendor = welcome.get("vendor")
         connection.send(welcome)
@@ -397,10 +395,13 @@ class Bridge:
 
     def refusal(self, relay: dict, hello: dict, engine: bool = True) -> str:
         """Why a Worker's hello is refused, or "" to welcome it (`engine`: also for its Fill engine)."""
-        if relay.get("origin") != EXTENSION_ORIGIN:
-            return f"only the worker extension ({EXTENSION_ORIGIN}) may connect, not {relay.get('origin')!r}"
+        if relay.get("origin") not in EXTENSION_ORIGINS:
+            return f"only the worker extension ({', '.join(EXTENSION_ORIGINS)}) may connect, not {relay.get('origin')!r}"
         if hello.get("type") != "hello" or hello.get("protocol") != PROTOCOL:
             return f"protocol {hello.get('protocol')!r}, Apply speaks {PROTOCOL}"
+        has = hello.get("packaged")
+        if has and hello.get("installType") not in (None, "development") and has != self.packaged:
+            return STORE_STALE.format(has=has, want=self.packaged or "none")  # fails closed: no files Apply can check
         if not engine or (self.vendor and features(hello) >= SETS_FROM):
             return ""  # it reads Apply's own set, which holds this Apply's engine
         has = hello.get("engine") or {}

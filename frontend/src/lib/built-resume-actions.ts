@@ -47,7 +47,9 @@ export type BuiltResume = {
  *  duplicate check, `saving` before the writes, then `done` with the new
  *  resume or `error` with the JSON route's status and message (409 and the
  *  resume it matches on a duplicate). The body's `allow_duplicate` skips
- *  the check (the student confirmed a copy), and with it `checking`. Mirrors `GenerateStep`,
+ *  the check (the student confirmed a copy), and with it `checking`; its
+ *  `blank` starts the resume with its header alone and skips it too
+ *  (onboarding's build, `onboarding/applicant/make-resume.ts`). Mirrors `GenerateStep`,
  *  `GenerateDone` and `GenerateFailed` in backend/app/schemas/built_resume.py;
  *  change both or neither. */
 export type GenerateStreamEvent =
@@ -88,6 +90,10 @@ export type IdentityCopy = {
   phone: string | null;
   links: [string, string][];
   us_citizen: boolean;
+  /** The profile's location (KAN-436). */
+  location: string | null;
+  /** The Additional line (KAN-436). */
+  extra: string | null;
 };
 
 /** How a built resume's page is set (schemas `PageSettings`, KAN-435).
@@ -117,7 +123,28 @@ export type PageSettings = {
   date_format: "short" | "long" | "year" | "numeric";
   /** Which of an Education entry's two rows goes on top. */
   education_first: "school" | "degree";
+  /** Which of a job's (and a club role's) two rows goes on top: the role,
+   *  as Jake's does, or the company (2026-11-17). */
+  experience_first: "role" | "company";
+  /** Where a project's tools print: on a line under its name, or after it
+   *  ("Gitlytics | Python, Flask"), as Jake's own sample does (2026-11-17). */
+  project_tools: "below" | "after_name";
+  /** The header fields this resume leaves out (KAN-436): the Header
+   *  panel's check boxes. The values stay on the profile. */
+  hidden_header: HideableField[];
 };
+
+/** The header fields a resume can leave out (the API's `HEADER_FIELDS`):
+ *  the name always prints. */
+export type HideableField =
+  | "phone_number"
+  | "email"
+  | "location"
+  | "linkedin_url"
+  | "github_url"
+  | "portfolio_url"
+  | "other_url"
+  | "resume_header_extra";
 
 export type FontFamily =
   | "latin_modern"
@@ -215,8 +242,16 @@ export async function renameBuiltResume(
   );
 }
 
-export async function deleteBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return revalidatingResumes(call<null>(`/${id(resumeId)}`, { method: "DELETE" }));
+/** `leaving`: the caller leaves the page once it is gone (the editor's ⋯,
+ *  KAN-825), so nothing clears the router's copies: in an action that also
+ *  renders the current page again, and the editor would read a resume that
+ *  is gone. `deleteResume` does the same for an upload's page. */
+export async function deleteBuiltResume(
+  resumeId: string,
+  { leaving = false }: { leaving?: boolean } = {},
+): Promise<{ error: string | null }> {
+  const sent = call<null>(`/${id(resumeId)}`, { method: "DELETE" });
+  return leaving ? sent : revalidatingResumes(sent);
 }
 
 export async function setDefaultBuiltResume(resumeId: string): Promise<{ error: string | null }> {
@@ -264,7 +299,14 @@ export type BulletChoice = {
   variant_id: string | null;
   text: string | null;
 };
-export type SkillChoice = { skill_id: string; shown: boolean; position: number };
+/** `group` is the group the skill prints under on this resume (KAN-586):
+ *  null the bank's, "" no group, any other text that group. */
+export type SkillChoice = {
+  skill_id: string;
+  shown: boolean;
+  position: number;
+  group?: string | null;
+};
 /** A wording a bullet can switch to: Tailor's, or this resume's own (`local`). */
 export type Variant = {
   id: string;

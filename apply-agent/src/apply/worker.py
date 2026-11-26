@@ -20,6 +20,7 @@ from apply import (
     asking,
     brief,
     browsers,
+    build,
     captcha,
     company,
     cover_letter,
@@ -27,6 +28,8 @@ from apply import (
     eligibility,
     essays,
     gates,
+    other_roles,
+    private,
     regenerate,
     sameness,
     stuck,
@@ -128,6 +131,41 @@ FILLED_BUT = "Every other answer was filled in; the Record has them all"
 # Why an optional catch-all box ("Additional information") is blank: on purpose, always (KAN-625).
 CATCH_ALL_BLANK = "an optional catch-all box, which Apply always leaves blank"
 
+# Where an answer on the filled form came from, as the student page's "What we filled" says it: the student's
+# profile, their own saved answer (the Answer bank's, one they gave in the window or put on the page), or one WorkIt
+# wrote (an essay, a draft, an earlier unreviewed draft, the Pre-submit review's fix).
+PROFILE, SAVED, WRITTEN = "profile", "saved", "written"
+# The answers a student most needs to glance at before Submit, by the question's words (`topic`): legal and
+# eligibility (verify.LEGAL), demographic (EEO), school and graduation, and pay.
+EEO = re.compile(r"\bgender\b|\bsex\b|\brace\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
+                 r"|\blgbt|transgender|pronoun", re.IGNORECASE)
+SCHOOL = re.compile(r"graduat|\bdegree\b|\bschool\b|universit|college|\bmajor\b|\bgpa\b|education", re.IGNORECASE)
+
+
+def topic(question: Question) -> str:
+    """What of an answer the student most needs to check: "legal", "eeo", "school", "pay" or "file"; "" else."""
+    label = question.label
+    if verify.LEGAL.search(label):
+        return "legal"
+    if EEO.search(label):
+        return "eeo"
+    if question.kind == "file":
+        return "file"
+    if verify.PAY_QUESTION.search(label):
+        return "pay"
+    return "school" if SCHOOL.search(label) else ""
+
+
+def as_text(answer: object) -> str:
+    """An answer as the window shows it: a file by its name only (never its path on the Mac), a list joined by "; "."""
+    if isinstance(answer, Path):
+        return answer.name
+    if isinstance(answer, bool):
+        return "Yes" if answer else "No"
+    if isinstance(answer, (list, tuple)):
+        return "; ".join(as_text(a) for a in answer)
+    return "" if answer is None else str(answer)
+
 
 @dataclass
 class Result:
@@ -155,6 +193,10 @@ class Result:
     regenerable: "regenerate.Form | None" = None
     # (label, answer) of each answer that came after its step was saved without it (KAN-687): never on the form
     left_behind: tuple[tuple[str, object], ...] = ()
+    # each answer the form was filled with, as the window lists it (_Planned.listed): never a secret or a file's path
+    listed: tuple[dict, ...] = ()
+    # (question, answer before, answer after) of each the Pre-submit review's fix changed, in the order it changed them
+    fixed: tuple[tuple[str, str, str], ...] = ()
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -184,8 +226,7 @@ def apply_to(
     draft: dict | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
-    the Orchestrator holds the Application anyway (the Calibration run), or "";
-    it raises UsageLimitHit when the Orchestrator has paused every Worker. `answered`
+    the Orchestrator holds the Application anyway (the Calibration run), or "". `answered`
     holds Lisul's answers to Missing facts, by question; they join the
     Applicant profile first (the Orchestrator saves it). `approved` is the
     Essay cell of a Hold Lisul approved: his essays are sent as he left them,
@@ -247,7 +288,7 @@ def apply_to(
     except NotAPosting as what:
         result = Result(Status.FAILED, f"{NOT_A_POSTING}: {what}")
     except UsageLimitHit as hit:
-        result = Result(Status.PAUSED, f"Max usage limit hit; resumes after {hit.resets_at or 'the reset'}")
+        result = Result(Status.PAUSED, f"Usage limit reached until {hit.resets_at or 'it resets'}")
     if result.status == Status.SUBMITTED:  # only what an employer was sent: never a fill, a Hold or a rehearsal
         ledger = sameness.Ledger()
         for e in planned.written:
@@ -257,6 +298,8 @@ def apply_to(
                            story=e.plan.story if e.plan else "")
     result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
     result.reused = tuple(planned.reused)
+    if result.filled is not None:
+        result.listed, result.fixed = tuple(planned.listed()), tuple(planned.fixed)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
@@ -397,7 +440,13 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
                          + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick
                          + [f"Verify: {EXTRA_ENTRY}: {entry}" for entry in getattr(filler, "extra_entries", None) or ()])
+                if build.STUDENT:  # no Rescue: each field its Filler failed on is the student's, in Needs you (KAN-855)
+                    behind += tuple(dict(planned.failed).items())  # once each, though a fill again failed it too
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
+                # A search result the fill picked for an answer, worded the form's own way, is that answer: the
+                # Pre-submit check takes the Filler's word for it ("Stony Brook University - SUNY", live: Airbnb).
+                for name, wordings in getattr(filler, "picked", lambda answers, readback: {})(answers, readback).items():
+                    planned.accepted[name] = tuple(dict.fromkeys((*planned.accepted.get(name, ()), *wordings)))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
@@ -431,7 +480,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own())  # its reasons say the applicant's own pronouns
+                                   planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before
@@ -552,6 +601,7 @@ class _Planned:
         self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking)
         self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
+        self.failed: list[tuple[str, object]] = []  # each of those fields, by its label, with its planned answer
         self._skipped: set[str] = set()
         self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
@@ -566,13 +616,14 @@ class _Planned:
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
-        self.fixed: list[tuple[str, str]] = []  # (question, answer) of each, for Verifying to list
+        self.fixed: list[tuple[str, str, str]] = []  # (question, answer before, answer) of each, for Verifying to list
         self.kept_blank: dict[str, str] = {}  # optional catch-all boxes Apply leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
         self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted into the Answer bank
         self.unbanked: list[essays.Draft] = []  # Claude's answers to one-off questions about this company
+        self.roles: dict[str, str] = {}  # answers to "applying to other roles here?", by name (apply.other_roles)
         self.banked: list[Question] = []  # one-off questions the Answer bank answered
         self.reused: list[tuple[str, str, int]] = []  # the unreviewed drafts among them, with their uses
         self._asked: set[Question] = set()  # one-off questions sent to Claude to draft
@@ -683,6 +734,7 @@ class _Planned:
                 planned.answers[q.name] = given
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
+        self._other_roles(planned)
         if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -772,6 +824,24 @@ class _Planned:
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
 
+    def _other_roles(self, planned) -> None:
+        """Answer each question whether Lisul applies to other roles at this company in code, from his Tracker
+        and the company's job board (apply.other_roles), once: never Claude's to write, never his to answer
+        (Strava, 2026-11-26), and never banked, since it is true of this company only."""
+        if new := [q for q in self.questions if q.name not in self.roles and other_roles.asks(q, self.posting.company)]:
+            board = other_roles.openings(self.posting, self._site)
+            found = other_roles.others(self.posting, board)
+            for q in new:
+                if (text := other_roles.answer(q, self.posting, found, board, self.profile,
+                                               self.text or self.posting_text())) is not None:
+                    self.roles[q.name] = text
+        if not self.roles:
+            return
+        planned.answers.update(self.roles)
+        for part in ("essays", "drafts", "missing", "optional", "high_stakes", "banked"):
+            setattr(planned, part, [q for q in getattr(planned, part) if q.name not in self.roles])
+        planned.waiting = {name: on for name, on in planned.waiting.items() if name not in self.roles}
+
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
         Lisul's, as he fills them on the page, and listed as Missing facts till
@@ -787,13 +857,13 @@ class _Planned:
         guessed = [(one_line(d.question.label), d.shown) for d in self.drafted + self.unbanked
                    if d.question.name not in self.fixes] \
             + [(question, f"{answer} (the Pre-submit review's fix, filled in place of the plan's)")
-               for question, answer in self.fixed] \
+               for question, _, answer in self.fixed] \
             + [(str(r).split(":", 1)[0], "filled by Claude for the Filler (a Rescue)") for r in rescued]
         return verify.check(
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
             left=self.left | self._skipped, blanks=self.blanks | self.kept_blank, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
             essays={e.question.name: e.text for e in self.written if e.text},
-            allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text,
+            allowed=essays.sources(self.profile, self.known(), facts=True, employer=self.posting.company), posting_text=self.text,
             dismissed=verify.dismissed(self.posting.id))
 
     def _letter_file(self, text: str, folder: Path) -> Path:
@@ -841,12 +911,29 @@ class _Planned:
                 if entry and entry.source != LISUL and not entry.reviewed:
                     self._bank.delete(self.wording(q))
                 self.drafted.remove(draft)
+            self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
             self.fixes[q.name] = answer
-            self.fixed.append((one_line(q.label), answer))
             changed = True
         if changed:
             self.answers = self._answers
         return changed
+
+    def listed(self) -> list[dict]:
+        """Each answer the form is filled with, in form order, as the student page's "What we filled" lists it:
+        {question, answer, from (PROFILE, SAVED or WRITTEN), kind, topic}. Never a secret (a job-site password Apply
+        made), a blank, or a file's path: a file is named only."""
+        own, banked = self.own(), {q.name for q in self.banked}
+        written = {e.question.name for e in self.written} | {d.question.name for d in self.drafted + self.unbanked}
+        rows = []
+        for q in self.questions:
+            answer = as_text(self._answers.get(q.name))
+            if not answer.strip() or SECRET.search(q.label) or SECRET.search(q.name):
+                continue
+            yours = q.name in self.lisuls or q.name in own or q.name in self.found or q.label.strip() in self._answered
+            source = SAVED if q.name in self.lisuls else WRITTEN if q.name in self.fixes else SAVED if yours \
+                else WRITTEN if q.name in written or q.name in banked else PROFILE
+            rows.append({"question": one_line(q.label), "answer": answer, "from": source, "kind": q.kind, "topic": topic(q)})
+        return rows
 
     def use_bank(self) -> None:
         """Count one use of each Answer bank answer the filled form took (a
@@ -894,12 +981,12 @@ class _Planned:
         pair, or the essay it is for."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
         found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
-                 and (facts := asking.known(q.label, self.profile, self._bank))}
+                 and (facts := asking.known(q.label, self.profile, self._bank, self.posting.company))}
         if found:
             self.found |= found
             self.answers = self._answers
         missing = [q for q in missing if q.name not in self.found]
-        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
+        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank, self.posting.company)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
         # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional
@@ -925,11 +1012,12 @@ class _Planned:
         """Drop the answer a Filler couldn't fill, named first in its error
         ("<field>: why"), so the rest can be filled. False if it names none."""
         field = str(error).split(":", 1)[0].strip()
-        name = next((q.name for q in self.questions if field in (q.name, q.label.strip())), None)
-        if name not in self.answers:
+        q = next((q for q in self.questions if field in (q.name, q.label.strip())), None)
+        if q is None or q.name not in self.answers:
             return False
-        self._skipped.add(name)
-        self.answers = {n: a for n, a in self.answers.items() if n != name}
+        self._skipped.add(q.name)
+        self.failed.append((q.label.strip(), self.answers[q.name]))
+        self.answers = {n: a for n, a in self.answers.items() if n != q.name}
         self.unfilled.append(str(error))
         return True
 
@@ -950,6 +1038,8 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")
         if essay.claims:  # the truth check: held for Lisul to read, never cut or rewritten here
             holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
+        if essay.sensitive:  # for Lisul to look at: an essay may mean to say it, so it is never cut here
+            holds.append(f"'{one_line(q.label)}' may share something private: {'; '.join(essay.sensitive)}")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")

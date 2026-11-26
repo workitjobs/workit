@@ -27,8 +27,8 @@ def fake():
 
 
 def logged_in(fake: FakeWorkIt, tmp_path: Path) -> workit.WorkIt:
-    client = workit.WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = workit.WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
     return client
 
 
@@ -70,7 +70,7 @@ def test_a_job_workit_does_not_list_gets_the_profiles_resume(fake, tmp_path):
 def test_with_no_login_the_profiles_resume_and_no_call(fake, tmp_path):
     fake.tracker.tailored(fake.tracker.listed(URL, "Acme", "Intern"), TAILORED_PDF)
 
-    resume, profile = resume_of(tmp_path, workit.WorkIt(fake.site, tmp_path / "workit-login.json"))
+    resume, profile = resume_of(tmp_path, workit.WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain))
 
     assert resume == profile.get("files.resume_pdf")
     assert fake.requests == []

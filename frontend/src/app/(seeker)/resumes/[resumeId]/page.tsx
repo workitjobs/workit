@@ -13,6 +13,7 @@ import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { EDITOR_PARENT } from "./back";
 import { Editor } from "./editor";
+import { TitleRowProvider } from "./resume-menu";
 import { ResumeTitle } from "./resume-title";
 
 export const metadata: Metadata = { title: "Resume Editor" };
@@ -27,7 +28,12 @@ export const metadata: Metadata = { title: "Resume Editor" };
  * any of the last three fails it shows the error state.
  * On a phone it takes the layout in ./phone.tsx (KAN-219). The title is
  * the editor's title row (`ResumeTitle`, renamed in place, as on Tailor's
- * review; KAN-411), so a failed load still shows it, over the error.
+ * review; KAN-411), so a failed load still shows it, over the error. The
+ * row is an upload's page's too (KAN-825): the star after the name, filled
+ * on the primary (read from the list of built resumes), and Download. It
+ * has no ⋯ (2026-11-19, ./resume-menu.tsx): the title renames, the star
+ * makes it the primary, the toolbar's ? takes the tour, and Resumes
+ * deletes.
  *
  * THE RENDER IS STARTED HERE AND NOT AWAITED (KAN-368). It is a LaTeX
  * compile, the slowest read in the app, and every other read here is a
@@ -48,9 +54,11 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
     getChoices(resumeId),
     getProfile(),
   ]);
-  const name = resumes.data?.find((r) => r.id === resumeId)?.name ?? "Resume";
+  const resume = resumes.data?.find((r) => r.id === resumeId);
+  const name = resume?.name ?? "Resume";
+  const primary = resume?.is_default ?? false;
   const error = bank.error ?? choices.error ?? profileError;
-  const title = <ResumeTitle as="h1" resumeId={resumeId} name={name} />;
+  const title = <ResumeTitle as="h1" resumeId={resumeId} name={name} primary={primary} />;
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -59,14 +67,16 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
           its own arrow in ./phone.tsx. */}
       <BackLink parent={EDITOR_PARENT} />
       {bank.data && choices.data && profile ? (
-        <Editor
-          resumeId={resumeId}
-          initial={rendered}
-          initialBank={bank.data}
-          initialChoices={choices.data}
-          initialHeader={profile}
-          heading={title}
-        />
+        <TitleRowProvider>
+          <Editor
+            resumeId={resumeId}
+            initial={rendered}
+            initialBank={bank.data}
+            initialChoices={choices.data}
+            initialHeader={profile}
+            heading={title}
+          />
+        </TitleRowProvider>
       ) : (
         <>
           <div className="mt-4">{title}</div>

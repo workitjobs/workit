@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { PdfIcon } from "@/components/icons";
-import { PrimaryStar } from "@/components/resume-row";
+import { PrimaryBadge } from "@/components/resume-row";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +29,8 @@ const TYPE = { uploaded: "Uploaded", base: "Base", tailored: "Tailored" } as con
 const ALL_NOTE = "Everything from your resumes and what you added, with copies shown once";
 
 /** The card's name, stretched over the card (`after:inset-0`) so the whole
- *  card is its target, as a Resumes row's is; the star and Change Resume
- *  sit above it. */
+ *  card is its target, as a Resumes row's is; the Primary badge and
+ *  Change Resume sit above it. */
 const NAME =
   "text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring block w-full cursor-pointer truncate text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2";
 
@@ -55,7 +55,7 @@ const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"
  * The Experiences view's resume control (KAN-361, KAN-363): a card that
  * names the pick, drawn as the Resumes page draws a resume
  * (`components/resume-row.tsx`: the file mark, the name, the meta line, the
- * primary star), with Change Resume inside it. The whole card opens the
+ * Primary badge, KAN-825), with Change Resume inside it. The whole card opens the
  * resume, as a row there does: a built resume in the editor, an upload on
  * its own page (KAN-366). The rest of a row's actions (Rename,
  * Download, the star's Make Primary, Delete) stay on the Resumes view: this
@@ -130,7 +130,7 @@ export function ResumeBar({
         </div>
         {picked?.primary && (
           <span className="relative z-10">
-            <PrimaryStar name={picked.name} primary />
+            <PrimaryBadge wordClassName="" />
           </span>
         )}
         <div className="relative z-10 ml-auto flex items-center gap-2">
@@ -195,7 +195,7 @@ export function ChooseResume({
           list's fixed height pushed Cancel and Show past the window */}
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Choose a Resume to Show</DialogTitle>
+          <DialogTitle>Choose a Resume to Show</DialogTitle>
           <DialogDescription>
             Experiences shows the entries and skills this resume holds.
           </DialogDescription>

@@ -1,4 +1,4 @@
-import { BriefcaseIcon, FileTextIcon, NotepadIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, NotepadIcon, StackIcon } from "@phosphor-icons/react/ssr";
 import { ArrowRightIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 
@@ -14,7 +14,7 @@ const PLACES = [
     href: "/experiences",
     title: "Experiences",
     line: "Your jobs, projects, clubs and skills, which every resume draws from.",
-    Icon: BriefcaseIcon,
+    Icon: StackIcon,
   },
   {
     href: "/auto-apply/info",

@@ -90,7 +90,7 @@ export function DetailPanel({
           <div className="flex items-start gap-3">
             {tile}
             <div className="min-w-0">
-              <SheetTitle className="text-title text-ink font-bold">{application.role}</SheetTitle>
+              <SheetTitle className="text-ink">{application.role}</SheetTitle>
               <SheetDescription className="text-body text-ink-meta">
                 {application.company}
               </SheetDescription>

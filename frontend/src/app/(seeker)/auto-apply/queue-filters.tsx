@@ -1,5 +1,6 @@
 "use client";
 
+import { SELECTION_ROW } from "@/components/selection-bar";
 import { ClockIcon, PencilLineIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 import { useRef, useState, type ReactNode } from "react";
 
@@ -9,11 +10,14 @@ import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-action
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import { MatchIcon } from "@/components/icons";
 import { GroupByOptions, TableSettingsMenu } from "@/components/table-settings";
+import { SortMenu } from "@/components/sort-menu";
 import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import { FIELD_ICON, SearchFacet } from "../applications/field-filters";
 import { StatusIcon } from "../applications/icons";
+import { sortItems } from "./activity-list";
+import type { Sort } from "./query";
 import { QUEUE_GROUP_BY, setQueueGroupBy, useQueueGroupBy } from "./queue-layout";
 import { MATCH_KEYS, matchKey, type QueueGroup, type QueueRow } from "./queue-table";
 
@@ -24,7 +28,8 @@ import { MATCH_KEYS, matchKey, type QueueGroup, type QueueRow } from "./queue-ta
  *   1. The search over job and company, with the page's actions at its
  *      right (`actions`: Add Jobs, or what to do to the picked rows), where
  *      the Tracker has its view switch and Documents Upload and Generate.
- *   2. A dropdown each for Status, Company and Match, then, at the right,
+ *   2. Sort first (`QUEUE_SORTS`, KAN-827), as on every page table, then a
+ *      dropdown each for Status, Company and Match, then, at the right,
  *      Clear (while anything is searched or picked), All Filters (a panel
  *      with every one of them, `QueueAllFilters`) and Table Settings, which
  *      holds Group By (components/table-settings.tsx, ./queue-layout.ts).
@@ -49,6 +54,23 @@ export type QueueFilters = {
 };
 
 export const NO_QUEUE_FILTERS: QueueFilters = { q: "", groups: [], companies: [], match: [] };
+
+/** Up Next's orders (KAN-827), Live Activity's sorts that fit a queue
+ *  (./activity-list.tsx): the queue's own, the default (the job the
+ *  extension opens next at the top), the best match first, and companies A
+ *  to Z. Each sorts the rows under each Group By heading. Clear leaves it,
+ *  as an order is not a filter. */
+export type QueueSort = Extract<Sort, "queue" | "match" | "company">;
+export const QUEUE_SORTS: { value: QueueSort; label: string }[] = [
+  { value: "queue", label: "Queue Order" },
+  { value: "match", label: "Best Match" },
+  { value: "company", label: "Company (A to Z)" },
+];
+
+/** The rows in `sort`'s order; the queue's own is the order they came in. */
+export function sortQueue(rows: QueueRow[], sort: QueueSort) {
+  return sort === "queue" ? rows : sortItems(rows, sort);
+}
 
 /** Status's options: Up Next's groups, in its order, with the glyph each
  *  row's status draws when no heading names it. */
@@ -109,14 +131,22 @@ export function QueueToolbar({
   rows,
   filters,
   onChange,
+  sort,
+  onSort,
   actions,
+  selection,
 }: {
   /** Every row, filtered or not: the Company options and the panel's count. */
   rows: QueueRow[];
   filters: QueueFilters;
   onChange: (filters: QueueFilters) => void;
+  sort: QueueSort;
+  onSort: (sort: QueueSort) => void;
   /** The search row's right end. */
   actions: ReactNode;
+  /** The picked rows' bar, laid over the filter row
+   *  (components/selection-bar.tsx). */
+  selection?: ReactNode;
 }) {
   const groupBy = useQueueGroupBy();
   const [allOpen, setAllOpen] = useState(false);
@@ -143,19 +173,21 @@ export function QueueToolbar({
       </div>
 
       {/* THE DROPDOWNS STEP OUT ONE AT A TIME, from the right, at the
-          Tracker's own widths for its first three (Status from 440px of
-          row, Company 592, Match 744); All Filters, which holds them all,
-          stays at every width. A phone's row is All Filters and Table
-          Settings. */}
+          Tracker's own widths for its first three (Status from 488px of
+          row, Company 640, Match 792); Sort and All Filters, which holds
+          them all, stay at every width. A phone's row is Sort, All Filters
+          and Table Settings. */}
       {rows.length > 0 && (
-        <div className="@container mt-3 flex items-center gap-2">
+        <div className={cn("@container mt-3 flex items-center gap-2", SELECTION_ROW)}>
+          {selection}
+          <SortMenu value={sort} options={QUEUE_SORTS} onChange={onSort} />
           <FieldFacet
             label="Status"
             Icon={StatusIcon}
             options={STATUS_OPTIONS}
             values={filters.groups}
             onChange={(groups) => onChange({ ...filters, groups: groups as QueueGroup[] })}
-            className="hidden min-w-36 @min-[27.5rem]:flex"
+            className="hidden min-w-36 @min-[30.5rem]:flex"
           />
           <SearchFacet
             label="Company"
@@ -165,7 +197,7 @@ export function QueueToolbar({
             options={companies}
             values={filters.companies}
             onChange={(values) => onChange({ ...filters, companies: values })}
-            className="hidden min-w-36 @min-[37rem]:flex"
+            className="hidden min-w-36 @min-[40rem]:flex"
           />
           <FieldFacet
             label="Match"
@@ -173,7 +205,7 @@ export function QueueToolbar({
             options={MATCH_OPTIONS}
             values={filters.match}
             onChange={(match) => onChange({ ...filters, match })}
-            className="hidden min-w-36 @min-[46.5rem]:flex"
+            className="hidden min-w-36 @min-[49.5rem]:flex"
           />
 
           {filtered && (

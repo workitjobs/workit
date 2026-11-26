@@ -76,6 +76,20 @@ test("a copy no resume holds, with other bullets, stays a row of its own", () =>
   );
 });
 
+test("a copy with the row's bullets in another order is no row of its own", () => {
+  const bullets = (...texts: string[]) =>
+    texts.map((text, i) => ({ id: `${i}`, position: i, text })) as BankEntry["bullets"];
+  const entries = [
+    entry("1", { copy_group: "job", resume_ids: ["a"], bullets: bullets("Led it", "Built it") }),
+    entry("2", { copy_group: "job", bullets: bullets("Built it", "Led it") }),
+  ];
+  assert.deepEqual(
+    rowsOf(ALL, entries, [resume("a", true)]).map((r) => [r.entry.id, r.copies.map((c) => c.id)]),
+    [["1", ["2"]]],
+  );
+  assert.deepEqual(otherVersions({ entry: entries[0], copies: [entries[1]] }, [resume("a")]), []);
+});
+
 test("a resume's view keeps every copy as its own row", () => {
   const entries = [entry("1", { copy_group: "job" }), entry("2", { copy_group: "job" })];
   assert.equal(rowsOf("a", entries, []).length, 2);

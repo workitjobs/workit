@@ -15,6 +15,7 @@ its value only from an `input` that a trusted `beforeinput` came before, as a ke
 """
 
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -39,8 +40,14 @@ AMAZON_LIKE = """<!doctype html><title>Job-specific questions</title>
 <script>
 window.taken = {}; window.events = []; window.sent = 0;
 addEventListener('pointerup', (e) => { if (e.isTrusted) window.upOn = e.composedPath()[0].id || e.composedPath()[0].tagName; }, true);
-// Auto-save: what the form took goes to the server, and a reload shows only what the server holds.
-const save = () => fetch('/acme/jobs/123/save', {method: 'PUT', body: JSON.stringify(taken)});
+// Auto-save: what the form took goes to the server, and a reload shows only what the server holds. Each save says
+// when it was sent, so the server keeps the last one however they land; `saving` counts those not yet answered.
+window.saving = 0;
+const save = () => {
+  saving++;
+  fetch('/acme/jobs/123/save', {method: 'PUT', body: JSON.stringify({at: performance.timeOrigin + performance.now(), taken})})
+    .finally(() => saving--);
+};
 for (const [id, value] of Object.entries(window.saved || {})) {
   if (id === 'sponsor') document.querySelector(`input[name=sponsor][value=${value}]`).checked = true;
   else document.getElementById(id).value = value;
@@ -130,12 +137,17 @@ class Site:
     """The fake job system: it keeps what the form auto-saves, and a page it sends shows only that."""
 
     def __init__(self, html: str):
-        self.html, self.posts, self.saved = html, [], {}
+        self.html, self.posts, self.saved, self.at = html, [], {}, 0.0
+        self.lock = threading.Lock()
 
     def handle(self, route) -> None:
         request = route.request
         if request.url.endswith("/save"):
-            self.saved = request.post_data_json or {}
+            # One request per key: on a busy runner "AC" landed after "ACU" (2026-11-14). The last one sent wins.
+            body = request.post_data_json or {}
+            with self.lock:
+                if body.get("at", 0) >= self.at:
+                    self.at, self.saved = body.get("at", 0), body.get("taken") or {}
             return route.fulfill(body="{}", content_type="application/json")
         if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.startswith(HOST):
             self.posts.append(request.url)
@@ -236,7 +248,7 @@ def test_a_radio_clicked_and_text_typed_survive_a_reload(amazon):
     page.get_by_role("radio", name="No").check()
     page.locator("#why").fill("C++ projects")
     page.locator("#school").press_sequentially("ACU")
-    page.wait_for_timeout(300)  # the last auto-save
+    page.wait_for_function("() => window.saving === 0", timeout=5000)  # every auto-save answered: a fixed 300 ms wasn't on CI
     page.reload()
 
     assert site.saved == {"sponsor": "No", "why": "C++ projects", "school": "ACU"}

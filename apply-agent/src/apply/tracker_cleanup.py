@@ -17,9 +17,16 @@ from collections.abc import Callable, Iterable
 from typing import TextIO
 
 from apply.model import Status
-from apply.sheet_import import job_key, sheet_rows
+from apply.sheet_import import sheet_rows
 from apply.tracker import STAGES
-from apply.workit import APPLIED_STAGES, Stage, Unreachable, WorkIt, WorkItError
+from apply.workit import (
+    APPLIED_STAGES,
+    Stage,
+    Unreachable,
+    WorkIt,
+    WorkItError,
+    job_key,
+)
 
 DELETED = (Stage.SAVED, Stage.QUEUED)
 

@@ -334,7 +334,8 @@ def with_page(job: Job, robots: Robots) -> Job:
     if not needs_page(job):
         return job
     url = providers.job_url(job.ats, job.token, job.external_id)
-    if not robots.allows(url):
+    provider = providers.PROVIDERS.get(job.ats)
+    if not (provider and provider.skip_robots) and not robots.allows(url):
         return job
     robots.pace(url)
     try:
@@ -394,7 +395,9 @@ def main(argv: list[str] | None = None) -> int:
         robots = Robots(
             url
             for board in boards
-            if (provider := providers.PROVIDERS.get(board.ats)) and provider.subdomains is None
+            if (provider := providers.PROVIDERS.get(board.ats))
+            and provider.subdomains is None
+            and not provider.skip_robots
             for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}

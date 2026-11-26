@@ -21,18 +21,19 @@ import base64
 import binascii
 import json
 import os
-import plistlib
 import re
 import shutil
+import sys
 import time
 import urllib.request
 from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+import psutil
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from apply import submit_guard, trace
+from apply import chrome_finder, submit_guard, trace
 from apply.focus import KEEPER
 from apply.home import HOME
 from apply.profile import load_policies
@@ -53,18 +54,6 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
 # Keeps navigator.webdriver false while Chrome listens for DevTools (Chrome 156 sets it for a port or a pipe).
 NOT_WEBDRIVER = "--disable-blink-features=AutomationControlled"
 VIEWPORT = {"width": 1280, "height": 800}  # a dashboard tile's shape on a laptop screen
-CHROME = Path("/Applications/Google Chrome.app/Contents/Info.plist")
-
-
-def chrome_user_agent(info: Path = CHROME) -> str:
-    """Installed Chrome's own user agent. Headless Chrome says "HeadlessChrome",
-    which job sites' bot checks look for; the Worker says what a window would."""
-    try:
-        major = plistlib.loads(info.read_bytes())["CFBundleShortVersionString"].split(".")[0]
-    except (OSError, KeyError, plistlib.InvalidFileException):
-        major = "141"
-    return ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-            f"Chrome/{major}.0.0.0 Safari/537.36")
 
 
 # Beside the Worker profiles: the sites Lisul signed them in to by hand (apply sign-in).
@@ -106,18 +95,38 @@ BUSY = "open in another browser (an Apply run or rehearsal?): try again once it 
 
 
 def in_use(profile: Path) -> bool:
-    """Whether a browser has the profile open: Chrome's SingletonLock names its pid."""
+    """Whether a browser has the profile open (chrome_pid)."""
     return chrome_pid(profile) is not None
 
 
-def chrome_pid(profile: Path) -> int | None:
-    """The pid of the Chrome that has the profile open, if one does."""
+def chrome_pid(profile: Path, system: str = sys.platform) -> int | None:
+    """The PID of the Chrome that has `profile` open, if one does: a browser (not a helper) whose `--user-data-dir`
+    is this very profile (docs/windows_desktop.md, P2 and P3).
+
+    - macOS and Linux: the PID that the profile's SingletonLock names, while it is that browser. A Chrome that
+      crashed leaves its lock behind, and the OS gives its PID to another process later: the student's own Chrome,
+      or another user's process, whose arguments Apply may not read. Neither counts, or the profile would stay in
+      use for good.
+    - Windows: Chrome makes no SingletonLock there (its `lockfile` holds no PID), so the browser is found by every
+      process's arguments. A process whose arguments Apply may not read is no browser of Apply's."""
+    if system == "win32":
+        target = profile.resolve()
+        # A process Apply may not read, or a zombie, gets no arguments; one that ends meanwhile is skipped (psutil).
+        found = (p.pid for p in psutil.process_iter(["cmdline"], ad_value=None) if _browser_on(p.info["cmdline"], target))
+        return next(found, None)
     try:
         pid = int(os.readlink(profile / "SingletonLock").rsplit("-", 1)[1])
-        os.kill(pid, 0)
-    except (OSError, ValueError, IndexError):
+        arguments = psutil.Process(pid).cmdline()
+    except (OSError, ValueError, IndexError, psutil.Error):  # no lock, gone, a zombie, or another user's
         return None
-    return pid
+    return pid if _browser_on(arguments, profile.resolve()) else None
+
+
+def _browser_on(arguments: list[str] | None, profile: Path) -> bool:
+    """Whether a process with these arguments is a browser (not a helper, `--type=`) on `profile`, resolved."""
+    if not arguments or any(a.startswith("--type=") for a in arguments):
+        return False
+    return any(Path(a.partition("=")[2]).resolve() == profile for a in arguments if a.startswith("--user-data-dir="))
 
 
 class WorkerBrowsers:
@@ -263,7 +272,7 @@ class WorkerBrowsers:
             "headless": self._headless,
             "chromium_sandbox": True,
             "viewport": VIEWPORT,
-            "user_agent": chrome_user_agent(),
+            "user_agent": chrome_finder.user_agent(),  # installed Chrome's, never "HeadlessChrome"
             "args": [
                 "--remote-debugging-port=0",  # Chrome picks a free port and writes it to DevToolsActivePort
                 "--hide-crash-restore-bubble",  # a Worker stopped mid-run must not offer to restore its tabs
@@ -275,9 +284,22 @@ class WorkerBrowsers:
 
     def show(self, worker: int) -> bool:
         """Bring Worker `worker`'s Chrome window to the front, as Lisul asked
-        in the Apply window; False if it has none (headless, or not open)."""
+        in the Apply window; False if it has none (headless, or not open).
+        On the Mac FocusKeeper brings it, so it stays in front as his app. On
+        Windows and Linux there is no FocusKeeper, and Chrome itself brings it
+        (`activate`), as it does on the Mac when FocusKeeper can't. Only a
+        Chrome that chrome_pid finds on the profile: Chrome leaves its
+        DevToolsActivePort file behind when it quits, and another Chrome may
+        listen on that port later."""
+        if self._headless:
+            return False
+        pid = chrome_pid(self._profiles / f"worker-{worker + 1}")
+        return bool(pid) and (KEEPER.bring(pid) or activate(self.endpoint(worker)))
+
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
         pid = None if self._headless else chrome_pid(self._profiles / f"worker-{worker + 1}")
-        return bool(pid) and KEEPER.bring(pid)
+        return bool(pid) and KEEPER.front() == pid
 
     def endpoint(self, worker: int) -> str | None:
         """Where another client (the dashboard) can reach Worker `worker`'s
@@ -290,6 +312,21 @@ class WorkerBrowsers:
 
 class ProfileInUse(Exception):
     """A Worker profile is open in another browser."""
+
+
+def activate(endpoint: str | None) -> bool:
+    """Bring the Chrome at CDP `endpoint` to the front through Chrome itself, with no OS call: its most recently
+    used page's tab and window come forward. `/json/list` lists the pages, the most recently used first, and
+    `/json/activate` is the DevTools HTTP form of Page.bringToFront. False when no page answered."""
+    if not endpoint:
+        return False
+    try:
+        with urllib.request.urlopen(f"{endpoint}/json/list", timeout=5) as listed:
+            page = next(target["id"] for target in json.load(listed) if target.get("type") == "page")
+        with urllib.request.urlopen(f"{endpoint}/json/activate/{page}", timeout=5) as done:
+            return done.status == 200
+    except (OSError, ValueError, KeyError, TypeError, StopIteration):  # no Chrome there now, or no page
+        return False
 
 
 def _no_saved_passwords(profile: Path) -> None:

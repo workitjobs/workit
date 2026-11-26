@@ -77,26 +77,33 @@ test("Looks right ×N confirms the guessed consent boxes at once, never a self-i
   await bridge(page, async (url) => (url.startsWith("https://boards-api.greenhouse.io/") ? job : saved.get(url) ?? ""), ticks);
   await inject(page);
   await settled(page);
-  // Two more guesses, as another form's would be: a consent box, and a self-identification question.
-  await page.evaluate(() => {
+  // Three more guesses, as another form's would be: a consent box, a legal one and a self-identification question.
+  // The engine guesses no legal box itself (it leaves Coinbase's arbitration box to the student, KAN-775), so the panel's
+  // own rule that keeps a legal box out of Looks right ×N is checked on one put here.
+  const LEGAL = "I acknowledge the arbitration agreement.";
+  await page.evaluate((legal) => {
     const { status } = (window as any).WIA;
-    for (const [key, label, shows] of [["ack", "I acknowledge the candidate privacy notice.", "Yes"], ["gender", "Gender: I consent to share my gender identity", "Decline To Self Identify"]]) {
+    for (const [key, label, shows] of [["ack", "I acknowledge the candidate privacy notice.", "Yes"], ["legal", legal, "Yes"], ["gender", "Gender: I consent to share my gender identity", "Decline To Self Identify"]]) {
       status.register(key, label, true, "guessed");
       status.setStatus(key, "filled", undefined, shows);
     }
-  });
+  }, LEGAL);
   const panel = page.locator("#workit-autofiller-overlay-host");
-  const source = (label: string) => panel.locator(".row", { hasText: label }).locator(".source");
+  const row = (label: string) => panel.locator(".row", { hasText: label });
+  const source = (label: string) => row(label).locator(".source");
   const ARBITRATION = "Please confirm receipt of the above linked Global Data Privacy Notice and US Arbitration Agreement.";
   const AI_TOOLS = "I understand that Coinbase may use AI tools to assist in the application and interview process.";
   await expect(source(AI_TOOLS)).toHaveText("Guessed");
-  await expect(source(ARBITRATION)).toHaveText("Guessed");
+  // Coinbase's arbitration box is the student's: not guessed, and it needs them.
+  await expect(row(ARBITRATION)).toHaveAttribute("data-mark", "needs-you");
+  await expect(source(ARBITRATION)).toHaveCount(0);
 
-  // Coinbase's AI-tools box and the privacy notice; not the arbitration agreement (legal), Gender or How did you hear.
+  // Coinbase's AI-tools box and the privacy notice; not the legal box, Gender or How did you hear.
   await panel.getByRole("button", { name: "Looks right ×2" }).click();
   await expect(source(AI_TOOLS)).toHaveText("You");
   await expect(source("I acknowledge the candidate privacy notice.")).toHaveText("You");
-  for (const label of [ARBITRATION, "Gender: I consent", "How did you hear about this job?"]) await expect(source(label)).toHaveText("Guessed");
+  for (const label of [LEGAL, "Gender: I consent", "How did you hear about this job?"]) await expect(source(label)).toHaveText("Guessed");
+  await expect(row(ARBITRATION)).toHaveAttribute("data-mark", "needs-you");
   await expect(panel.getByRole("button", { name: /Looks right ×/ })).toHaveCount(0);
   expect(coinbase.submissions).toEqual([]);
 });

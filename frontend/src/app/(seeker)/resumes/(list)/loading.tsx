@@ -34,13 +34,13 @@ export default async function ResumesLoading() {
       />
       <div role="status">
         <span className="sr-only">Loading your resumes</span>
-        {/* The real filter row (../built-resumes.tsx): Type, Company and
-            Sort, then All Filters and Table Settings at the right. Type
+        {/* The real filter row (../built-resumes.tsx): Sort, Type and
+            Company, then All Filters and Table Settings at the right. Type
             and Company step out of a narrow row, as the real ones do. */}
         <div aria-hidden="true" className="@container mt-3 flex items-center gap-2">
+          <Skeleton className="h-9 w-36 rounded-full" />
           <Skeleton className="hidden h-9 w-36 rounded-full @min-[30.5rem]:block" />
           <Skeleton className="hidden h-9 w-36 rounded-full @min-[40rem]:block" />
-          <Skeleton className="h-9 w-36 rounded-full" />
           <Skeleton className="ml-auto size-9 rounded-full" />
           {!grid && <Skeleton className="size-9 rounded-full" />}
         </div>

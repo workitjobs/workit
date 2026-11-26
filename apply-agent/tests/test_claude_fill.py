@@ -29,6 +29,7 @@ from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.model import Handoff
 from apply.notify import RecordingNotifier
+from apply.one_page import OnePage
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
 
@@ -215,8 +216,8 @@ def test_claude_fill_reads_the_postings_description_off_its_page_for_the_essay_c
     with FakeBambooServer(LUNAR_FORM) as server:
         run(server, profile, requests=[LUNAR_URL], claude=claude)
 
-    [essay] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [essay] = [asked for asked in claude.kinds if asked["kind"] == "essays.write"]
+    [review] = [asked for asked in claude.kinds if asked["kind"] == "presubmit.review"]
     assert LUNAR_TEXT in essay["prompt"] and LUNAR_TEXT in review["prompt"]
     assert "Pursuing a Bachelor’s or Master's degree in Computer Science" in essay["prompt"]
 
@@ -243,7 +244,7 @@ def test_a_posting_that_speaks_to_ai_agents_is_handed_off_before_its_page_opens_
     assert row.status == "handoff", row.reason
     assert "speaks to AI agents" in row.reason and TRAP in row.reason
     assert server.opened == []
-    assert claude.calls == []
+    assert claude.asked == []
     assert server.submissions == []
 
 
@@ -591,7 +592,7 @@ def test_a_block_lisul_resumed_after_does_not_stop_the_next_read(tmp_path):
     driver = PostingPageDriver()
     filler = ClaudeFill(FakeClaude(driver=driver))
 
-    with FakeBambooServer(LUNAR_FORM) as server, claude_fill.OnePage(server) as site:
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
         with pytest.raises(Handoff, match="blocked a form submission") as handoff:
             filler.question_set(LUNAR_URL, site)
         # JPMorgan (2026-11-05): the note says where the post went and that no button sent it.
@@ -1540,13 +1541,13 @@ def test_a_submit_the_form_bounces_back_is_a_handoff_never_submitted(tmp_path, m
     assert row.status == "handoff", (row.status, row.reason)
     assert "may not have been sent; check and submit yourself if not" in row.reason
     assert server.submissions == []
-    assert len(_sent_reads(claude)) == 1  # one Haiku read, as the page was inconclusive
+    assert len(_sent_reads(claude)) == 1  # one sent check, as the page was inconclusive
     # Its Record shows Lisul the page the click left: the form, and the error over it.
     assert kept.files(row.record)["after-submit.png"].startswith(b"\x89PNG")
 
 
 def _sent_reads(claude: FakeClaude) -> list[dict]:
-    return [c for c in claude.calls if "sent" in c["schema"]["properties"]]
+    return [asked for asked in claude.kinds if asked["kind"] == "claude_fill.sent"]
 
 
 def test_a_submit_haiku_reads_as_sent_where_the_page_was_inconclusive_is_submitted(tmp_path, monkeypatch):
@@ -1558,7 +1559,7 @@ def test_a_submit_haiku_reads_as_sent_where_the_page_was_inconclusive_is_submitt
 
     assert row.status == "submitted", (row.status, row.reason)
     [read] = _sent_reads(claude)
-    assert read["model"] == "haiku" and "Please correct the errors below." in read["prompt"]
+    assert "Please correct the errors below." in read["data"]["page_text"]
 
 
 def test_a_haiku_read_that_fails_after_the_submit_is_a_handoff_never_paused(tmp_path, monkeypatch):

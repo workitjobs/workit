@@ -108,6 +108,15 @@ def test_a_link_the_engine_covers_names_its_job_system_and_form():
     assert fill_engine.job_of("https://example.com/jobs/1") is None
 
 
+@pytest.mark.parametrize("link", ["https://apply.workable.com/perryhomes/j/D894A62691",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/apply/"])
+def test_a_workable_posting_opens_on_its_form_not_its_overview(link):
+    from apply.workable import WorkableFiller
+
+    assert WorkableFiller().form_url(link) == "https://apply.workable.com/perryhomes/j/D894A62691/apply"
+
+
 def test_a_host_call_may_call_the_engine_again():
     # The Posting's text is read only when the plan asks, and reading it makes text of HTML with the engine.
     pay = Question("q2", "What hourly rate do you expect?", "text", True)
@@ -189,10 +198,24 @@ def test_the_pre_submit_review_reads_the_past_applications_the_plan_answered_fro
     shown = json.loads(essays.profile_block(PROFILE, amazon).removeprefix("<profile>\n").removesuffix("\n</profile>\n"))
     assert shown["screeners"]["previously_applied_to"] == ["Amazon"]
     assert "Amazon" in essays.sources(PROFILE, facts=True, posting=amazon)
+    assert shown["screeners"]["applied_to_this_company_before"] == ["Amazon"]
     # Without the Posting, the profile as it is: the Tracker's join is for the Application being checked.
     assert '"previously_applied_to": []' in essays.profile_block(PROFILE)
     # The profile itself is never changed.
     assert PROFILE.get("screeners.previously_applied_to") == []
+
+
+def test_the_review_is_told_outright_of_a_past_application_to_this_company():
+    # Anduril (live, 2026-11-25): the review's small model missed "Anduril Industries" in a list of 46 companies.
+    anduril = Posting("a", "Anduril", "Intern", "https://boards.greenhouse.io/andurilindustries/jobs/2")
+    rows = FileTracker()
+    rows.add(Row("a1", "Anduril Industries", "Intern", "https://boards.greenhouse.io/andurilindustries/jobs/1",
+                 "greenhouse", Status.SUBMITTED))
+    rows.add(Row("a2", "Amazonia", "Intern", "https://example.com/1", "greenhouse", Status.SUBMITTED))
+    screeners = fill_engine.with_past_applications(dict(PROFILE.tree()), anduril)["screeners"]
+    assert screeners["applied_to_this_company_before"] == ["Anduril Industries"]
+    amazon = Posting("b", "Amazon", "Intern", "https://www.amazon.jobs/en/jobs/2/intern")
+    assert "applied_to_this_company_before" not in fill_engine.with_past_applications(dict(PROFILE.tree()), amazon)["screeners"]
 
 
 def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, monkeypatch):

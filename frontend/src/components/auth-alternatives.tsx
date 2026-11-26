@@ -28,24 +28,25 @@ export function SoonBadge() {
  * Each button is its own form posting to `signInWithOAuth` (#58,
  * src/lib/oauth-actions.ts), which sends the browser to the provider and back
  * through /auth/callback. A first sign-in there becomes an applicant account
- * and starts on onboarding; see that route.
+ * and starts on onboarding; see that route. `next` is /login's: a returning
+ * sign-in goes back there too (lib/sign-in-next.ts).
  *
  * The divider's 20px and the row's 20px below it match the gap between the
  * account-type switcher and the form above.
  */
-export function AuthAlternatives() {
+export function AuthAlternatives({ next }: { next?: string }) {
   return (
     <>
       <OrDivider label="Or continue with" className="mt-5" />
 
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <form action={signInWithOAuth.bind(null, "google")}>
+        <form action={signInWithOAuth.bind(null, "google", next ?? null)}>
           <Button type="submit" variant="secondary" className="w-full">
             <GoogleIcon className="size-4" />
             Google
           </Button>
         </form>
-        <form action={signInWithOAuth.bind(null, "linkedin_oidc")}>
+        <form action={signInWithOAuth.bind(null, "linkedin_oidc", next ?? null)}>
           <Button type="submit" variant="secondary" className="w-full">
             <LinkedInIcon className="size-4" />
             LinkedIn

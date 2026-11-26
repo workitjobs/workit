@@ -18,7 +18,8 @@ reads: it does not click, type or submit.
   and not left blank on purpose (`_Planned.left`), the read-back
   (`fill_engine.readback_problems`), an empty file or a file in the wrong
   field, a value that is not one of the field's options, a graduation
-  year that is not the profile's, a start date in the past, pay out of the
+  year that is not the profile's or a span of months that does not hold
+  its month, a start date in the past, pay out of the
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
@@ -34,6 +35,10 @@ reads: it does not click, type or submit.
   section read back with more entries than the plan gave it (JPMorgan's
   Oracle kept a Princeton entry the profile doesn't list), and an employer
   field of a work entry Apply didn't fill that names no job on file.
+  The engine reads Greenhouse's location from the form's own state, not
+  from the text of its box. A place that the box shows but that the form
+  does not hold reads back blank, so the read-back flags it. Submit
+  refuses such a place with "Please enter your location" (Addepar's).
   Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
@@ -300,7 +305,7 @@ fixes it live on that form.
 - **When.** Only while the form is held for Lisul (`_Kept.hold`: a rehearsal's held page, or a paused
   one), until he presses Submit. The tile's `askable` says so. One message at a time per form. A live
   run holds no page, so Ask Claude never acts in one.
-- **What Claude gets.** His message (the only instruction), the thread, the page's state (`ask.FIELDS`:
+- **What Claude gets.** His message (the only instruction), the thread, the page's state (`page_functions.FIELDS`:
   every frame's fields and values, captcha frames left out, a field on another step marked `hidden`),
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
@@ -332,7 +337,7 @@ fixes it live on that form.
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
   back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638). So Claude's own click
   on a step's Next or Back that posts natively is blocked too. Claude names that button in `press` and
-  stops; plain code presses it (`claude_fill.press_step`, the rules of Claude fill's Next: KAN-639, with the
+  stops; plain code presses it (`steps.press_step`, the rules of Claude fill's Next: KAN-639, with the
   final-URL block) and a fresh drive goes on from there, up to `MAX_PRESSES` for one message (KAN-655).
 - **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
   `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change
@@ -393,12 +398,30 @@ Every question that reaches the Needs you tab (a Missing fact, an Essay
 fact, a one-off that Claude left for Lisul, a Handoff's questions) passes
 through `worker._Planned._missing` first.
 
-- `asking.known(asked, profile, bank)` is the never-ask-twice check. It
-  looks in the profile's `answered_questions`, the Answer bank, the Story
-  bank (an earlier Essay fact's answer) and the applicant's links. A link
-  question is known when each kind that it names (GitHub, LinkedIn, a site,
-  a repo) is among the links. A known text field gets that answer
-  (`_Planned.found`), and a known ask is dropped.
+- `asking.known(asked, profile, bank, employer)` is the never-ask-twice
+  check. It looks in the profile's `answered_questions`, the Answer bank,
+  the Story bank (an earlier Essay fact's answer) and the applicant's links.
+  It reads the Story bank as `essays.story_bank(employer)` reads it: an
+  Essay fact answer that names the company it was asked for ("the only
+  Strava internship"), or that asks of other roles there, is read only on
+  that company's forms, as are `essays.sources` and the Essay plan. Other
+  answers hold for every company. A link question is known when each kind
+  that it names (GitHub, LinkedIn, a site, a repo) is among the links. A
+  known text field gets that answer (`_Planned.found`), and a known ask is
+  dropped.
+- `asking.takes_elsewhere(q)` finds a question that asks Lisul to take a
+  quiz, test, assessment or challenge at a link and give its result
+  (Ramp's "Take this builder's quiz: https://..."). Only that result
+  answers it. `fill_engine.plan` makes it a Missing fact, whatever rule,
+  Answer bank entry or draft the engine planned, unless the answer is
+  Lisul's own. `known` never answers it from his links, and its context
+  line leads with "Take it yourself at <link>, then paste its result".
+- `asking.graduation(profile)` is the profile's expected graduation as one
+  line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
+  (`essays.sources`), and `known` answers an ask for the graduation date
+  with it. The profile's date wins over a Story bank date: the form's own
+  graduation answer comes from the profile, and a Story bank line can be
+  older (Anduril's cover letter, 2026-11-25, waited on that question).
 - `asking.links(profile)` is the profile's `links`, each Story bank line
   with a URL, and each web link on the resume PDF with the words it is on.
   Essays get them as `<links>` (`essays.sources`). An Essay plan's slot
@@ -412,8 +435,42 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k already_holds` and
+**Tests.** `test_claude_answers.py -k "already_holds or quiz"` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+### Other roles at the same company (`apply.other_roles`)
+
+"Are you applying to any Strava internship besides this one? If so, which
+ones and why?" is never a question for Lisul and never goes to Claude.
+Strava's form (2026-11-26) asked it, the Essay plan made it an Essay fact,
+and his answer, true of Strava only, joined the Story bank for every
+company.
+
+- `worker._Planned._other_roles` runs before Needs you. `other_roles.asks`
+  finds the question: it asks of other roles, internships or postings and
+  names this company (or "here", "with us", "besides"), and it does not ask
+  of other companies.
+- `other_roles.others` reads Apply's Tracker for his applications to the
+  same company (`model.is_company`): a submitted row is "applied", a row
+  still on its way is "applying". A Request on the same job board is
+  "applying". This posting is never one of them.
+- `other_roles.openings` reads the company's open postings from its board's
+  public API (Greenhouse, Lever, Ashby). The board names a Request's role
+  and gives the text for a why sentence. A board that can't be read leaves
+  the Tracker alone to say.
+- `other_roles.answer` names each other application, or says "No, <role> is
+  the only <company> internship I'm applying to." It never names a role he
+  has not applied to. When the question asks why, each named role (2 at
+  most) gets one sentence from the profile only: an area of
+  `experience_facts.role_interests` its title names, else the
+  `experience_facts.skills` its text lists. A yes/no list gets Yes or No:
+  "Have you applied" counts sent applications only, and "Is this the only
+  role" turns Yes and No round, typed or picked.
+- The answer goes on this form and its Record only. It is dropped from the
+  plan's essays, drafts and Missing facts, and it never joins the Answer
+  bank or the Story bank.
+
+**Tests.** `tests/test_other_roles.py`.
 
 ## An optional question no source answers (KAN-759)
 
@@ -456,8 +513,8 @@ engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
 
-Lisul's answer to a held form's question is filled by a Rescue: Claude
-puts that one answer in its field, under the drive guard. It tries the
+In a Developer checkout, Lisul's answer to a held form's question is filled by a Rescue: Claude
+puts that one answer in its field, under the drive guard (the Student build has no Rescue: below). It tries the
 step showing first. A form in steps may have saved an earlier step
 without it (TAL.net goes on past a required blank), so on a miss the
 Rescue tries once more with `elsewhere`, the step the form is held on
@@ -468,6 +525,69 @@ guard still blocks a button that sends the application. When the form
 ends on another step, the run says which one, so Lisul goes back to it.
 
 **Tests.** `tests/test_rescue_elsewhere.py` (in CI).
+
+## The Student build: what Apply can't do is the student's, in the Apply window (KAN-855)
+
+WorkIt Auto Apply has no Claude fill and no Rescue (`apply.build`). Where a
+Developer checkout would let a model drive the page, the student does it
+from the Apply window: Fix here gives them the form's live view, where their
+clicks, keys, picks and files go to the page, and its own Submit is theirs to
+press (`docs/plain-workers/guide.md`, Fix from the window). They never go to the
+Worker's own Chrome window, but for a captcha. Each message says so
+(`orchestrator.FIX_HERE`: "press Fix here and ... on the form in this window").
+
+- **A job system with no Filler.** The generic Filler fills it (KAN-861,
+  `docs/generic-filler.md`): code reads and fills the form, and a model only
+  picks. Each field it can't fill is the next item's; a page it can't go on
+  from is a Handoff, held as a paused one. Until KAN-861,
+  `orchestrator.ForTheStudent` held the whole form unfilled.
+- **A field its Filler fails on.** The rehearsal leaves it out and goes on, as in
+  a checkout (`_Planned.skip`). Its label and planned answer then join the
+  Result's `left_behind`, so it is a Needs-you item. The held page tries it
+  once more, by the Fill engine, and the window's box for it starts with the
+  planned answer (the tile's `planned`, `rehearsal._planned`), to save as it is
+  or to change. A file's box starts empty.
+- **An answer from the window.** `rehearsal._engine_fill` puts it in with the
+  Fill engine, as it filled the form, in the frame that shows the field, and
+  reads it back. Only a frame of the form's own site
+  (`upload_origin.frame_may_upload`, KAN-795), for text as for a file, and
+  never a captcha's. The hold runs it with both guards on (`driving()`), as it
+  runs Ask Claude. Where the form has no such field on its step, or the engine
+  doesn't know its job system, the run says to type it on the form (Fix here).
+  The adversarial review found both holes: on the lifted page, a field whose
+  own input handler sends the form sent it the moment the engine typed in it,
+  and another site's frame with its own `FillEngine` took a resume's bytes
+  (`test_submit_guard_hostile.py`, `test_upload_origin.py`). Add context and
+  regenerate's engine fill (`regenerate.done`) takes the same frame rule.
+  A second review found more, each with its hostile case:
+  - The top frame passes the frame rule whatever site it is on, so a tab that
+    left the form's site got the answer. The hold keeps the form's own origin
+    from its hand-over (`_Kept.form_origin`), and `_engine_fill` and
+    `regenerate.done` give nothing to a tab on another site.
+  - Regenerate's write and Go to question acted on the lifted page with the
+    guards off: both run inside `driving()` now (Go to question through the
+    hold's `_Kept.acting()`), in both builds.
+  - A pop-up the student opened from the lifted page takes no guard (KAN-796),
+    and a field Apply typed in told it to send. The Student build closes the
+    held page's pop-ups before Apply acts on it (`_close_pop_ups`, by their
+    opener; Fix here never showed them).
+- **An emailed code after Submit.** No mail is read (D9).
+  `code_box.TypeTheCode` watches the held page as `email_code.EmailCode` does,
+  and once the code field comes, Needs you says "needs code"
+  (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`,
+  which reads no captcha frame and no other site's frame.
+- **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
+  captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
+  makes a relayed click look like a person's (the bot rule). Once Apply sees the
+  captcha done, the Apply window comes back to the front `BACK_AFTER_S` (2 s)
+  later, a breath to see the page go on, and only while that Worker's window
+  is still the front app, so it never takes the student from another app
+  (`captcha.Waiter`, `Dashboard.come_back`, each site's `in_front` through
+  `focus.KEEPER`). Only for a challenge on view as the wait began, once a form,
+  and one try at once after the check.
+
+**Tests.** `tests/test_student_build.py` (in CI) and
+`tests/test_student_handoffs.py` (Chromium, on the fake job sites).
 
 ## Needs you on the page: Go to question, and answers typed there (KAN-600)
 
@@ -600,13 +720,15 @@ uv run apply fill-again <application id>  # the form on that tile
 ```
 
 - `POST /fill-again` takes `X-Apply-Token` and `{"id": "tile-0"}`. `Dashboard.fill_again` accepts it only
-  while the tile's `askable` is on: a rehearsal's held or paused page, before Lisul presses Submit. Else it
-  is a 409 or a 404 with the why.
+  while the tile's `askable`, `refill` or `again` is on: a rehearsal's held or paused page, before Lisul presses
+  Submit. Else it is a 409 or a 404 with the why. `again` is on while the Worker holds the page, whatever
+  stopped the fill (failed, ruled out, ready), so a Student run, which has no Ask Claude and so no `askable`,
+  can fill it again too: the student window's Try again (KAN-873).
 - `_Kept.hold` takes it at its next turn (`Board.fill_again_asked`) and returns AGAIN, as the page's button
   does. The form fills anew under the same guards. It never submits.
 - A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
   never guesses. The command then waits for the new fill to stop and prints how it stopped.
-- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).
+- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k "fill_again or try_again"` (Chromium).
 
 ## A fresh page is guarded before its first load (KAN-682)
 

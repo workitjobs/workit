@@ -1,0 +1,182 @@
+WorkIt Auto Apply: End User License Agreement
+
+Last updated 2026-11-14.
+
+Copyright (c) 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala, Vedant Vyas.
+All rights reserved.
+
+This agreement is between you and WorkIt, a project run by its student founders, the
+copyright holders named above ("WorkIt", "we", "us"). It covers WorkIt Auto Apply, our
+desktop app (the "app"), as WorkIt distributes it: the app, its updates, and the software
+it downloads from WorkIt to run, such as the Fill engine. The app's Worker extension has a
+license of its own. WorkIt's Terms of Service (https://workitjobs.ai/terms) and Privacy
+Policy (https://workitjobs.ai/privacy) also apply to the app. Where this agreement and the
+Terms of Service disagree about the app, this agreement wins.
+
+By installing, opening or using the app, you agree to this agreement. If you do not agree,
+do not install or use the app.
+
+
+1. The license
+
+The app is licensed, not sold. While you have a WorkIt account and follow this agreement,
+we give you a personal, non-exclusive and non-transferable license, which we can end
+(section 8), to install the app on computers that you own or control and to run it for
+your own job search, signed in to your own WorkIt account.
+
+
+2. What you may not do
+
+You may not do any of these, with all or part of the app, and you may not help or let
+another person do them:
+
+a. copy, modify, merge, publish, distribute, sublicense, rent, lend or sell the app,
+   except to install it as section 1 allows;
+b. reverse engineer, decompile, disassemble or decrypt the app, or try to get its source
+   code, its prompts or the Fill engine, except where the law allows this despite this
+   limit;
+c. use the app or its output to train, test, fine-tune or improve a machine learning or
+   artificial intelligence model, or put the app or its output in a dataset for one;
+d. give the app, or any part of it, to an artificial intelligence system, model or tool
+   to read, analyze, summarize, explain or translate, in order to understand how it works,
+   or to reproduce it or make software that does what it does;
+e. use the app's AI, or the WorkIt services that the app calls, for anything other than
+   filling and checking your own job applications in the app. For example, do not reach
+   those services with a program other than the app, and do not send them your own
+   prompts, or other text written to make the AI do other work;
+f. get around the app's limits or protections: its sign-in, its daily limit on AI use,
+   the Fill engine's encryption, or its rule that it never submits an application;
+g. use the app for another person, with a WorkIt account that is not yours, or to offer
+   it to others as a service;
+h. use the app to break the law, to give false information to an employer, or to harm a
+   job site, a hiring system or another person;
+i. remove or change this agreement or a copyright notice in the app.
+
+In limit c, "output" means what the app makes as it works: its plans of each form, its
+records and logs, and the answers and essays it writes. The answers and essays that the
+app writes for you are your content under WorkIt's Terms of Service: you may keep them,
+change them and send them with your own applications. Limit c is about making or
+improving a model with the app's output, not about your own use of your applications.
+
+Limits c and d do not bind the copyright holders, or the people they allow to work on the
+app, when they use AI tools in that work.
+
+
+3. Your account and your computer
+
+- You need a WorkIt account to use the app. One account is for one person, and you must
+  be a person, not a program that signs up.
+- Keep your WorkIt password and your computer safe. You are responsible for what happens
+  in your account and in the app on your computer.
+- The app keeps its data on your computer: its records and logs of each application, the
+  Chrome profiles of its Workers (the Chrome windows it fills forms in) and their sign-ins
+  to job sites, and a copy of your WorkIt information. It keeps your WorkIt sign-in and the
+  passwords of the job-site accounts it makes for you in your computer's own safe store
+  (the macOS Keychain). WorkIt never receives your job-site passwords.
+- "Remove all my data", in the app's settings, deletes all of the app's data on your
+  computer.
+- The Privacy Policy says what the app sends to WorkIt and to other companies, and why.
+
+
+4. You submit each application
+
+The app fills job applications and stops on each form's last page. It never submits an
+application: you check each one and click Submit yourself. Sign-ins, the codes that job
+sites send you, captchas and other bot checks are also yours to do, and the app never
+tries to get around them. You are responsible for what you submit, and for following the
+rules of each job site, hiring system and employer. AI writes some of the answers, and AI
+can be wrong: read every answer before you submit it.
+
+
+5. AI use, the beta and changes
+
+- The app is in a free beta. Its AI use has a daily limit, which the app shows. We can
+  change that limit, and the app's other limits, at any time.
+- We can change the app, add or remove features, or stop the app, at any time.
+- The app checks for updates and installs them. An older version can stop working with
+  WorkIt; then you must update the app to use it.
+- The app needs Google Chrome, and its Worker extension comes from the Chrome Web Store.
+  Both are Google's services, under Google's own terms.
+
+
+6. Features and bugs
+
+We build the app with care, but we cannot promise that it does everything you need or
+that it has no bugs. We fix security and privacy bugs first. To tell us about a bug, use
+"Send report" in the app or email team@workitjobs.ai.
+
+
+7. Who owns what
+
+The copyright holders own the app, its code, the Fill engine, its prompts and its design,
+and they keep every right that this agreement does not give you. Your content stays yours,
+as WorkIt's Terms of Service say.
+
+
+8. Ending this agreement
+
+- You can stop at any time: use "Remove all my data", then delete the app.
+- This agreement ends at once, with no notice, if you break it or when your WorkIt account
+  closes.
+- We can end this agreement for you, or stop the app for everyone. We tell you at least 14
+  days before, unless we end it for abuse or for a legal reason; then we can end it at
+  once.
+- When this agreement ends, stop using the app and delete it. Sections 2, 7, 9, 10, 11 and
+  12 stay in force after it ends.
+
+
+9. Other people's software
+
+The app includes software from other people. Each part keeps its own license, and the
+file THIRD-PARTY-NOTICES.txt in the app gives each one. This agreement does not limit what
+those licenses let you do with those parts.
+
+
+10. No warranty
+
+THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. YOU USE IT AT YOUR OWN RISK. WE DO NOT PROMISE
+THAT IT WORKS WITHOUT A BREAK OR AN ERROR, THAT IT FILLS EVERY FORM CORRECTLY, OR THAT YOU
+WILL GET AN INTERVIEW OR A JOB.
+
+
+11. Limits of liability
+
+TO THE FULLEST EXTENT THE LAW ALLOWS, NEITHER WORKIT NOR THE COPYRIGHT HOLDERS ARE LIABLE
+FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR PUNITIVE DAMAGES, OR FOR LOST
+PROFITS, LOST DATA OR A LOST JOB OR OPPORTUNITY, THAT COME FROM THE APP OR YOUR USE OF IT,
+UNDER ANY THEORY OF LIABILITY, EVEN IF WE WERE TOLD THAT THEY COULD OCCUR. OUR TOTAL
+LIABILITY TO YOU FOR ANYTHING ABOUT THE APP IS LIMITED TO THE AMOUNT YOU PAID WORKIT IN THE
+12 MONTHS BEFORE THE CLAIM, WHICH IS CURRENTLY $0. SOME PLACES DO NOT ALLOW THESE LIMITS;
+THERE, THEY APPLY AS FAR AS THE LAW ALLOWS.
+
+
+12. Governing law
+
+The Governing Law section of WorkIt's Terms of Service applies to this agreement: the laws
+of the State of New York govern it, and a dispute about it is decided in the state or
+federal courts in Suffolk County, New York.
+
+
+13. Changes to this agreement
+
+When we change this agreement, we update the date at the top. Before an important change
+takes effect, we tell you by email and with a notice in the app, at least 14 days ahead.
+
+
+14. Contact
+
+Questions about this agreement: team@workitjobs.ai
+
+
+Credits
+
+Parts of this agreement (sections 3, 5, 6, 7, 8, 10 and 11) are adapted from the Basecamp
+open-source policies (https://github.com/basecamp/policies) by Basecamp, used under the
+Creative Commons Attribution 4.0 International license (CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/). WorkIt changed them: we rewrote them for a
+desktop app, in plain words, and added the license and its limits (sections 1, 2 and 9),
+the section on submitting (section 4) and the parts of section 5 on AI use, updates and
+Google's services. CC BY 4.0 applies to the text that came from those policies, not to
+the app.
