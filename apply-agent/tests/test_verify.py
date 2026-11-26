@@ -7,7 +7,7 @@ import pytest
 from test_dashboard import window  # noqa: F401 (a fixture)
 
 from apply import fill_engine, verify
-from apply.model import Posting, Question
+from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
 
 POSTING = Posting("p1", "Arc", "Software Engineer Intern", "https://job-boards.greenhouse.io/arc/jobs/1")
@@ -181,6 +181,18 @@ def test_a_graduation_that_is_not_the_profiles_is_flagged(person, tmp_path):
     flags = verified(person, tmp_path, grad="May 2027").flags
 
     assert any(f.kind == verify.DATE and f.field == "When do you graduate?" for f in flags)
+
+
+def test_a_graduation_span_that_ends_before_the_profiles_month_is_flagged(person):
+    # Airbnb's Greenhouse list (live, 2026-11-26): the span named the graduation's year but ended before its month,
+    # and the year check passed it. Fault: a span of months is checked by its years alone.
+    question = Question("g", "Confirm the degree you are pursuing and your expected graduation.", "select", True,
+                        ("Bachelors - Senior (May 2027 - April 2028)", "Bachelors - Junior (May 2028 - April 2029)"))
+    flags = lambda shown: [f for f in verify.check([question], {"g": shown}, {"g": shown}, person, POSTING,
+                                                   today=TODAY).flags if f.kind == verify.DATE]
+
+    assert [f.field for f in flags("Bachelors - Senior (May 2027 - April 2028)")] == [one_line(question.label)]
+    assert flags("Bachelors - Junior (May 2028 - April 2029)") == []
 
 
 def test_a_start_date_already_past_is_flagged(person, tmp_path):
