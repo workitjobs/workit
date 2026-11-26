@@ -542,6 +542,8 @@ async def _close_missing(
 async def import_feed(
     conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False,
     closings: dict[str, str] | None = None, close_missing: bool = True,
+    resolver: LocationResolver | None = None,
+    role_resolver: RoleResolver | None = None,
 ) -> Report:
     '''
     the whole import, on a connection whose transaction the caller owns.
@@ -549,27 +551,32 @@ async def import_feed(
     close_missing=False skips step 6, for listings that are only part of
     the scraped inventory (the scraper worker's boards, KAN-605): a job
     absent from them is evidence of nothing, so nothing closes and the
-    mass-close guard has nothing to refuse
+    mass-close guard has nothing to refuse.
+    `resolver` and `role_resolver`: when provided, skip the DB reads and
+    gazetteer load that build them. The scraper worker (D9) pre-builds
+    them once per cycle and passes them to every batch's import_feed call.
     '''
     if not listings:
         raise ImportRefused("The feed is empty; nothing was written.")
 
-    countries = set((await conn.scalars(select(Country.code))).all())
-    states = {row.code: row.name for row in await conn.execute(select(State.code, State.name))}
-    # Reading the 3 MB gazetteer blocks; off the event loop like every other
-    # blocking call here.
-    resolver = await asyncio.to_thread(LocationResolver, countries, states)
-    job_roles = {row.slug: row.name for row in await conn.execute(select(Job_Role.slug, Job_Role.name))}
-    try:
-        role_resolver = RoleResolver(job_roles)
-    except ValueError as exc:
-        # An alias for a role the database doesn't hold: the seed migration
-        # isn't applied, or the alias has a typo. Writing tags would fail
-        # their foreign key halfway; fail here instead.
-        raise ImportRefused(
-            f"{exc}. Apply the job_roles migrations or fix the alias in "
-            "services/role_resolver.py; nothing was written."
-        ) from exc
+    if resolver is None:
+        countries = set((await conn.scalars(select(Country.code))).all())
+        states = {row.code: row.name for row in await conn.execute(select(State.code, State.name))}
+        # Reading the 3 MB gazetteer blocks; off the event loop like every other
+        # blocking call here.
+        resolver = await asyncio.to_thread(LocationResolver, countries, states)
+    if role_resolver is None:
+        job_roles = {row.slug: row.name for row in await conn.execute(select(Job_Role.slug, Job_Role.name))}
+        try:
+            role_resolver = RoleResolver(job_roles)
+        except ValueError as exc:
+            # An alias for a role the database doesn't hold: the seed migration
+            # isn't applied, or the alias has a typo. Writing tags would fail
+            # their foreign key halfway; fail here instead.
+            raise ImportRefused(
+                f"{exc}. Apply the job_roles migrations or fix the alias in "
+                "services/role_resolver.py; nothing was written."
+            ) from exc
     prepared = prepare(listings, resolver, role_resolver)
 
     report = Report(
