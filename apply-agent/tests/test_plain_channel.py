@@ -227,8 +227,14 @@ def test_a_close_wakes_a_reader_blocked_on_another_thread(entry, folder):
         client = channel.prove(opened(entry, listener.path), listener.path)
         thread.join(5)
         server = done["stream"]
-        read = threading.Thread(target=server.recv, args=(1,), daemon=True)
+
+        def reading():
+            with suppress(OSError):
+                server.recv(1)
+
+        read = threading.Thread(target=reading, daemon=True)
         read.start()
+        time.sleep(0.2)  # timed on purpose: the read must be blocked when the close comes, or it wakes nothing
         server.shutdown(socket.SHUT_RDWR)
         server.close()
         read.join(5)
