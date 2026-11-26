@@ -32,11 +32,6 @@ _CREDENTIAL_RE = re.compile(
 # The password in a URL's sign-in part: postgresql://user:password@host.
 _URL_PASSWORD_RE = re.compile(r"(://[^\s/:@]+:)[^\s/@]+@")
 
-# DSN URLs: postgresql://user:password@host, postgres://..., etc.
-_DSN_RE = re.compile(
-    r"postgres(?:ql)?(?:\+\w+)?://[^\s]+",
-    re.IGNORECASE,
-)
 
 # Bearer tokens that asyncpg embeds in auth-failure messages.
 _BEARER_RE = re.compile(
@@ -54,7 +49,6 @@ def _sanitize_error(error: str) -> str:
     """
     cleaned = _URL_PASSWORD_RE.sub(r"\1***@", error)
     cleaned = _CREDENTIAL_RE.sub(lambda m: m.group(1) + "=***", cleaned)
-    cleaned = _DSN_RE.sub("postgres://***", cleaned)
     cleaned = _BEARER_RE.sub("Bearer ***", cleaned)
     return cleaned[:2000]
 

@@ -61,7 +61,8 @@ async def test_scrape_health_counts_boards_reads_and_failures_for_admins_only(da
         await _task(s, bad, "failed", error="HTTP 404", at=EARLIER)
         await _task(s, bad, "failed", error="HTTP 500")
         await _task(s, good, "done", at=NOW - datetime.timedelta(days=30))  # outside the window
-        await s.execute(text("INSERT INTO scraper_tasks (schedule_id) VALUES (:s), (:s)"), {"s": bad})  # the backlog
+        # the backlog: one active task a board (scraper_tasks_active_schedule_idx)
+        await s.execute(text("INSERT INTO scraper_tasks (schedule_id) VALUES (:g), (:b)"), {"g": good, "b": bad})
         await s.execute(text("INSERT INTO job_sources (schedule_id, apply_url) VALUES (:s, 'https://a/1'), (:s, 'https://a/2')"),
                         {"s": good})
         await s.commit()

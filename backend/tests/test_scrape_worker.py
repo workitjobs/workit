@@ -66,14 +66,14 @@ def test_sanitize_error_strips_dsn_urls():
     raw = "connection failed: postgresql://user:hunter2@db.example.com:5432/mydb rest"
     cleaned = tasks._sanitize_error(raw)
     assert "hunter2" not in cleaned
-    assert "postgres://***" in cleaned
+    assert "postgresql://user:***@db.example.com" in cleaned
 
 
 def test_sanitize_error_strips_asyncpg_dsn():
     raw = "asyncpg error: postgres+asyncpg://admin:s3cret@host:6543/db"
     cleaned = tasks._sanitize_error(raw)
     assert "s3cret" not in cleaned
-    assert "postgres://***" in cleaned
+    assert "postgres+asyncpg://admin:***@host" in cleaned
 
 
 def test_sanitize_error_strips_bearer_tokens():
