@@ -23,6 +23,14 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
+A call to the live API or to the live Supabase Auth (the session's hourly
+refresh) trusts only the certificate authorities Cloudflare uses
+(`apply.workit_roots`, D28 and W7; Supabase is behind Cloudflare too), not
+the computer's store, so a proxy the computer trusts can't read the session
+or the Fill engine's download. Pinning the API alone left the refresh
+token readable, and with it the download. A local stack (APPLY_WORKIT_*)
+is not pinned.
+
 The Applications Tracker's reads and writes (find or add a job by its
 link, set a stage and the applied date, keep a Sent resume) are methods
 that use `call`. So is the read of the student's tailored resume for a
@@ -38,12 +46,12 @@ that cannot reach WorkIt (no answer, or no live login) waits in
 import base64
 import dataclasses
 import email.utils
-import fcntl
 import hashlib
 import json
 import os
 import re
 import secrets
+import ssl
 import sys
 import time
 import urllib.error
@@ -56,10 +64,12 @@ from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from email.message import Message
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
+from apply import locks
 from apply.home import HOME
 from apply.keychain import WORKIT, SystemKeychain
 
@@ -74,6 +84,7 @@ QUEUE = HOME / "workit-queue.json"
 # Refresh an access token this many seconds before it expires, so it does not expire on its way.
 EARLY = 60
 TIMEOUT = 20
+REPORT_TIMEOUT = 120  # seconds: a report's screenshots are megabytes on a home connection
 # Cloudflare, in front of WorkIt's API, refuses Python-urllib's own user agent (error 1010).
 USER_AGENT = "WorkIt-Apply/1"
 # The page's link, as `apply login` may get it pasted in place of the code (`frontend/src/app/app-sign-in/`).
@@ -292,6 +303,11 @@ class WorkIt:
             return None
         return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
 
+    def send_report(self, report: dict) -> str:
+        """Send report (D26, KAN-837): one Application's Record and masked Trace, as apply.report builds it, to
+        WorkIt's `POST /apply-app/reports`, which keeps it until the team fixes its problem. Its id on WorkIt."""
+        return str(self.call("POST", "/apply-app/reports", report, timeout=REPORT_TIMEOUT)["id"])
+
     def sync_answers(self, answers: list[dict], deleted: list[dict]) -> dict:
         """Merge Answer bank entries (and deletes) into the student's answers on WorkIt, which the extension
         fills from (KAN-746, `PATCH .../fill-answers`): at most 200 of each. WorkIt decides which are the
@@ -322,6 +338,21 @@ class WorkIt:
             self._save(answer)
         self._account = None
         return self.me()
+
+    def sign_out(self) -> None:
+        """End this login: its session at Supabase Auth (this one only, scope=local), then the keychain's item and
+        this process's access token. WorkIt not answering still forgets it here."""
+        if token := self._fresh():
+            try:
+                _send("POST", self.site.auth + "/auth/v1/logout?scope=local", None, token, apikey=self.site.anon_key)
+            except Unreachable:
+                pass  # forgotten here all the same; the session ends with its refresh token unused
+        try:
+            self.keychain.forget(self.site.auth)
+        except RuntimeError as error:
+            raise WorkItError(str(error)) from None
+        _ACCESS.pop(self.site.auth, None)
+        self._account = None
 
     def _bearer(self, refresh: bool) -> str:
         if not refresh and (fresh := self._fresh()):
@@ -370,9 +401,7 @@ class WorkIt:
 
     @contextmanager
     def _locked(self):
-        self.login.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.login.with_suffix(".lock"), "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.login.with_suffix(".lock")):
             yield
 
 
@@ -497,9 +526,7 @@ class WaitingWrites:
 
     @contextmanager
     def _locked(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with locks.held(self.path.with_suffix(".lock")):
             yield
 
 
@@ -546,7 +573,7 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout, context=_pinned(url)) as response:
             status, raw, headers = response.status, response.read(), response.headers
     except urllib.error.HTTPError as error:
         status, raw, headers = error.code, error.read(), error.headers
@@ -558,6 +585,22 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         return status, json.loads(raw) if raw else None, headers
     except ValueError:
         return status, raw.decode(errors="replace")[:200], headers
+
+
+# The hosts whose TLS trusts only Cloudflare's CAs: the live API, and the live Supabase Auth, which sees the session.
+PINNED = frozenset(urlsplit(url).hostname for url in (LIVE.api, LIVE.auth))
+
+
+def _pinned(url: str) -> ssl.SSLContext | None:
+    """The TLS context of a PINNED host, which trusts only Cloudflare's CAs; None (the default) for any other."""
+    return _pinned_context() if urlsplit(url).hostname in PINNED else None
+
+
+@cache
+def _pinned_context() -> ssl.SSLContext:
+    from apply.workit_roots import ROOTS
+
+    return ssl.create_default_context(cadata=ROOTS)
 
 
 def _retry_at(retry_after: str | None) -> float:

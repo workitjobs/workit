@@ -158,6 +158,12 @@ high_stakes_job_systems: [ashby]
 # Services", but not "Metabase"). None by default; e.g. [Google, Meta, Stripe].
 target_companies: []
 
+# Auto-submit (ADR 0006, apply.auto_submit): a form that needs nobody (no flag,
+# no Essay, no pause, not a Target company, a job system Apply has submitted to
+# and that emails no code) is submitted 10 minutes after it is ready, unless
+# Cancel is pressed in the Apply window. Off by default; never in the Student build.
+auto_submit: false
+
 # The Calibration run: the first this many Applications are all held, so the
 # applicant can judge Claude's answers before anything is submitted unseen.
 calibration_run: 10
@@ -204,6 +210,13 @@ plain_chrome: chrome
 # An account made with Google before is Needs sign-in, never a password reset.
 workday_sign_in: email
 
+# A sign-in in front of a form Claude fill fills, that offers Sign in with Google
+# and others (Microsoft Careers'): google signs in with Google by plain code, picking
+# your account in Google's chooser of the Worker's Chrome (KAN-878); any other value
+# leaves it to you. Apply never types a Google password: where Google asks for one,
+# a code or a passkey, the sign-in is yours.
+provider_sign_in: google
+
 # Claude fill, for job systems with no Filler, stops at this cap
 # for one Application and hands it off to the applicant. Each row it fills logs what
 # it cost ("Claude fill: ... tokens"); tune the cap from those. About 90% of
@@ -234,6 +247,13 @@ claude_fill:
 # {groq: {haiku: openai/gpt-oss-120b}}.
 ask_model: workit
 ask_models: {}
+
+# Where the Fill engine comes from. checkout: the engine checkout's built
+# bundle (autofiller_extension/fill-engine/dist/engine.js, or $APPLY_FILL_ENGINE).
+# workit: WorkIt's signed, encrypted download, as the Student build always does
+# (KAN-836, W7, apply.engine_download): downloaded at each start as the
+# signed-in student, checked with WorkIt's engine key, kept only in memory.
+fill_engine: checkout
 
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
 # run`, once a day at daily_sweep_at, local time; and the Requests check,

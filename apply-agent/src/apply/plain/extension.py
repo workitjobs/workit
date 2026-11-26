@@ -6,7 +6,7 @@ its ID fixed by manifest.json's `key`; WorkIt Auto Apply's students add the stor
 (`package`, KAN-839), whose ID the store gives (STORE_ID). `prepare` writes its generated files
 into vendor/:
 
-- engine.json: the Fill engine's version and sha256 (fill_engine.ENGINE), which the extension
+- engine.json: the Fill engine's version and sha256 (fill_engine.source), which the extension
   reports in its hello. The engine itself is never a file here: Apply hands it to the extension's
   memory over native messaging (`cdp.keep`, apply.plain.script.keep_engine), so no plain engine
   sits on disk, and a store copy needs none in its package;
@@ -83,9 +83,10 @@ if (at < 0) throw new Error("no injectedScriptSource in " + process.argv[1]);
 const start = bundle.indexOf("= '", at), end = bundle.indexOf("';\n", start);
 process.stdout.write((0, eval)(bundle.slice(start + 2, end + 1)));"""
 # The engine bundle's own version (FillEngine.version), read in Node.
+# Reads the bundle's text on stdin (it may be WorkIt's download, never a file) and prints FillEngine.version.
 VERSION = r"""const vm = require("vm"), fs = require("fs");
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(fs.readFileSync(0, "utf8"), context);
 process.stdout.write(String(vm.runInContext("FillEngine.version", context)));"""
 
 
@@ -103,19 +104,17 @@ STORE_ID = ""
 EXTENSION_ORIGINS = (EXTENSION_ORIGIN, *([f"chrome-extension://{STORE_ID}/"] if STORE_ID else []))
 
 
-def engine_identity(engine: Path | None = None) -> dict:
-    """The engine bundle's version and sha256, as the hello carries them."""
-    engine = engine or fill_engine.ENGINE
-    return {"version": _engine_version(engine, engine.stat().st_mtime_ns), "sha256": _sha256(engine)}
+def engine_identity(source: str | None = None) -> dict:
+    """The engine bundle's version and sha256, as the hello carries them: of `source`, else of fill_engine.source()."""
+    source = fill_engine.source() if source is None else source
+    sha = hashlib.sha256(source.encode()).hexdigest()
+    return {"version": _engine_version(source), "sha256": sha}
 
 
 @cache
-def _engine_version(engine: Path, _mtime: int) -> str:
-    return subprocess.run([_node(), "-e", VERSION, str(engine)], capture_output=True, text=True, check=True).stdout
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _engine_version(source: str) -> str:
+    return subprocess.run([_node(), "-e", VERSION], input=source, capture_output=True, text=True, encoding="utf-8",
+                          check=True).stdout
 
 
 def _node() -> str:
@@ -145,8 +144,7 @@ def generated(identity: dict | None = None) -> dict[str, bytes]:
     """Each generated file's path under vendor/ and its bytes."""
     from apply.plain import guards
 
-    fill_engine._built()
-    identity = identity or engine_identity()
+    identity = identity or engine_identity()  # through fill_engine.source(), which checks the checkout's file
     return {"engine.json": (json.dumps(identity, indent=1) + "\n").encode(), **_built_in(guards.FILES)}
 
 

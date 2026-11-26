@@ -38,7 +38,8 @@ none.
   package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
-  checkout). Batch
+  checkout; moving it: `autofiller_extension/CLAUDE.md`, "Move the engine
+  pointer"). Batch
   apply (KAN-369) fills up to five tabs at once and gave it routes of its
   own in `backend/app/routers/auto_apply.py` (a tab's state, its written
   questions and answers, the answer bank, finish), plus the connector its
@@ -53,7 +54,9 @@ none.
   It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
-  `apply-agent/CLAUDE.md` before any change there.
+  `apply-agent/CLAUDE.md` before any change there. To read or drive a
+  running WorkIt Auto Apply window, use `uv run apply window ...` (from
+  `apply-agent/`) before any screen automation.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `.sandcastle/` — Sandcastle, an unattended agent loop that works through
   KAN issues labelled `sandcastle` in a sandbox and leaves each on a branch
@@ -79,26 +82,17 @@ every teammate's Alembic on 2026-09-21 (`backend/alembic/CLAUDE.md`).
 
 ## Auth
 
-Supabase Auth issues the session; the Python API authorizes. The Next server
-keeps the session in Supabase's cookies and forwards the access token to
-FastAPI as a Bearer header; FastAPI verifies it and decides what the account
-may do. Signup goes through FastAPI, which creates the auth user (account type
-in `app_metadata`) and the profile row with the same id.
-
-- SQLAlchemy connects as one privileged role that bypasses RLS, so
-  authorization lives in Python.
-- **Every new table's migration enables RLS with no policies**: a deny-all
-  backstop against the public anon key.
-- The **anon** key goes to `frontend/`; the **service-role** key and every
-  connection string stay in `backend/`. A secret added to `frontend/` is one
-  typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
-
-To test a page behind sign-in, use the shared test account and its rules in
-`frontend/CLAUDE.md`, "Auth and the API"; never create one.
+Supabase Auth issues session tokens; the Python API authorizes requests. The
+Next server forwards the access token as a Bearer header; FastAPI verifies it
+and decides what the account may do. Signup goes through FastAPI so the account
+type lands in `app_metadata`. Authorization lives in Python (SQLAlchemy
+bypasses RLS); every new table's migration enables RLS with no policies as a
+deny-all backstop. The **anon** key goes to `frontend/`; the **service-role**
+key and every connection string stay in `backend/`.
 
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
-section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
-"Auth and the API".
+section and `frontend/CLAUDE.md`'s "Auth and the API". To test a page behind
+sign-in, use the shared test account in `frontend/CLAUDE.md`; never create one.
 
 ## Commands
 
@@ -135,7 +129,8 @@ user to remind the team, with the steps in `backend/CLAUDE.md`
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
-the `CF_API_SECRETS_JSON` secret (`.github/CLAUDE.md`); each half's
+Infisical's `workit-prod/api`, which syncs to the `API_*` repo secrets that
+`deploy.yml` sends to the Worker (`docs/secrets.md`); each half's
 Deployment section has the rest.
 
 **Vercel is retired** (2026-10-29): set nothing up there and check nothing
@@ -264,6 +259,10 @@ with the failure it prevents.
   server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
   data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
+- `docs/windows_desktop.md` — KAN-929, being built (its section 7 says
+  where): what stops Apply on Windows, one problem per section with its
+  fix and test, and why Workers copy a WorkIt-only seed. Read it before
+  porting any part of Apply to Windows.
 - `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
   how developers keep testing Apply once its prompts live on the server
   (a prompt route for developer accounts, so `ask_model: claude` runs
@@ -287,6 +286,11 @@ with the failure it prevents.
   Info and Written Answers keep their addresses and never go back to
   Profile (KAN-550). Read it before changing the seeker sidebar, the
   Jobs page's layout or any `/auto-apply` address.
+- `docs/secrets.md` — KAN-899, being set up: every shared secret lives in
+  Infisical (`workit-dev` for everyone, `workit-prod` and `workit-logins`
+  for Admins), and GitHub and Cloudflare hold copies a sync or a workflow
+  writes; how to pull a `.env`, change a value and load the first values.
+  Read it before adding, changing or sharing any secret.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -311,7 +315,10 @@ with the failure it prevents.
   (`frontend/CLAUDE.md`) and Tectonic with its warm cache
   (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
   checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
-  gets them with `npm run worktree -- --env-only`.
+  gets them with `npm run worktree -- --env-only`. **The env files come
+  from Infisical:** `npm run env` pulls the root `.env` and `frontend/.env`
+  in any checkout, keeping the lines only that computer has
+  (`docs/secrets.md`).
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
   then `git submodule update --init` and, once the branch has Apply,

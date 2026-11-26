@@ -11,7 +11,7 @@ and for GET /jobs/{job_id}, the job's own page.
 
 import uuid
 
-from sqlalchemy import Row, func, select
+from sqlalchemy import Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.jobs import Job_Post
@@ -83,15 +83,37 @@ async def fetch_listings(
     the newest published scraped jobs, by when their board says they went up,
     narrowed by whatever `filters` asks for, `offset` of them in
     '''
-    query = select(*LISTING_COLUMNS).where(LISTED, *matching(filters))
-    rows = await db.execute(
-        # id breaks ties, so the order is the same on every request and a
-        # page picks up exactly where the last one stopped.
-        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
+    return [to_listing(row) for row in await db.execute(listing_page(limit, filters, offset))]
+
+
+def listing_page(limit: int, filters: JobFilters = JobFilters(), offset: int = 0) -> Select:
+    '''
+    fetch_listings' query: one page of the feed in LISTING_COLUMNS
+
+    THE PAGE FIRST, THEN ITS COLUMNS (KAN-916). The page's ids are picked
+    alone, then LISTING_COLUMNS are read for those rows only. FORM_URL runs
+    regular expressions on each row it is computed for, and in one query
+    Postgres computed it for every listed job before the sort cut them to a
+    page: 1.2 s for a feed page against 0.14 s without it (2026-11-18, 41,000
+    jobs). A subquery with a LIMIT is never merged into the outer query, so
+    this holds whatever plan the filters get. The partial index
+    job_postings_feed_idx serves the inner sort on the plain feed.
+    '''
+    # id breaks ties, so the order is the same on every request and a
+    # page picks up exactly where the last one stopped.
+    page = (
+        select(Job_Post.id, Job_Post.posted_at)
+        .where(LISTED, *matching(filters))
+        .order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
         .offset(offset)
         .limit(limit)
+        .subquery("page")
     )
-    return [to_listing(row) for row in rows]
+    return (
+        select(*LISTING_COLUMNS)
+        .join(page, page.c.id == Job_Post.id)
+        .order_by(page.c.posted_at.desc().nulls_last(), page.c.id)
+    )
 
 
 async def fetch_count(db: AsyncSession, filters: JobFilters) -> int:

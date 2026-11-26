@@ -795,7 +795,7 @@ async def test_apply_finds_the_tailored_resume_by_the_postings_link_and_keeps_th
         await session.commit()
     tailored_pdf = b"%PDF-1.7 the tailored resume"
     monkeypatch.setattr("app.routers.built_resumes.render",
-                        lambda view, identity, template, page: Rendered(pdf=tailored_pdf, page_count=1))
+                        lambda view, identity, template, page, **_: Rendered(pdf=tailored_pdf, page_count=1))
 
     job = (await client.post("/jobs/listed-by-link", json={"url": link})).json()["job_id"]
     [tailored] = [r for r in (await client.get(f"{me}/built-resumes")).json() if r["job_posting_id"] == job]

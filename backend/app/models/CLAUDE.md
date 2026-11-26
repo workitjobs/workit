@@ -797,6 +797,16 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
 - **Roles are `applicant_job_roles` rows**, not a column, for their foreign
   key to `job_roles` (RESTRICT, as above). The API checks the slugs first so a
   bad one is a 422 that names it, not an `IntegrityError`.
+- **A role the student typed is text, `custom_roles`** (2026-11-16,
+  `8bf848bb95e5`): a role `job_roles` lacks ("UX Researcher"), at most 5
+  (`schemas/jobs.py` `MAX_CUSTOM_ROLES`, a CHECK too), each 2 to 60
+  characters holding a letter or digit, once ignoring case. Not
+  `applicant_job_roles` rows: those have a foreign key to `job_roles`, and
+  a custom role has no row there. GET /jobs takes them as `?custom_role=`
+  and keeps a job whose title says one's words in order
+  (`queries/jobs/filters.py`, `title_says`), as one Role filter with
+  `?role=`: a job matching either is kept. If students' custom roles start
+  to repeat, that is the list of roles to add to `job_roles`.
 - **Places are `applicant_locations` rows, built like `job_locations`**: a
   country, and the state when one was picked, with the same foreign keys and
   `UNIQUE NULLS NOT DISTINCT`. `Place.from_code` (`services/location_resolver.py`)
@@ -1430,6 +1440,23 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   table, safe before or after the deploy; until it is applied, the
   sign-in routes answer 500.
 
+## WorkIt Auto Apply's reports — `apply_reports.py` (KAN-837)
+
+- **One row per report a student sent from the app's support form**
+  (D26): its `category` (a CHECK, not an enum, so a new one is one
+  migration), their words (`note`), `contact_ok`, and, when they included
+  an Application, that Application as its Tracker row names it, the
+  Record's text files (`files`, JSONB by file name), the form's
+  screenshots (`form_png`, `after_submit_png`, `bytea`, deferred) and the
+  Trace masked in the app. `application_id` is '' for a general question.
+  CASCADE from `applicant_profiles`, so it goes with the account.
+- **No retention period, on purpose**: `/privacy` says WorkIt keeps a
+  report until its problem is fixed, so an admin deletes it then
+  (`DELETE /admin/apply-reports/{id}`). Only `app/queries/apply_reports.py`
+  writes or deletes it. Migration `36d339a2d6b4` (RLS on, no policies), a
+  new table, safe before or after the deploy; until it is applied, `POST
+  /apply-app/reports` answers 500.
+
 ## Scraper tables — `scraper.py`
 
 `Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,
@@ -1441,11 +1468,13 @@ paragraph. Invariants for `Job_Source`:
   the provider's `Job.external_id`. Phase 2 needs it to build the description
   page URL via `providers.job_url(ats, token, external_id)`.
 - **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
-  the last description fetch. NULL means "needs fetch" for postings without
-  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
-  queries `WHERE description_version IS NULL OR description_version <
-  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
-  so the posting is retried only on the next `PAGE_VERSION` bump.
+  the last successful description fetch. NULL means "needs fetch" for postings
+  without inline descriptions; a value equal to `PAGE_VERSION` means current.
+  Only a success stamps it; a failure leaves it NULL so the posting is retried.
+- **`description_attempts`** (SmallInteger, NOT NULL, default 0): how many
+  times phase 2 has tried and failed to fetch this posting's description.
+  Phase 2 skips rows at `MAX_DESCRIPTION_ATTEMPTS` (3). A success resets it
+  to 0. Migration: `c5b587c8098e`.
 - **`description_fetched_at`** (DateTime with timezone, nullable): when the
   description was last successfully fetched. NULL for postings that failed or
   have not been fetched yet.

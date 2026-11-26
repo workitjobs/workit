@@ -166,7 +166,11 @@ function JobPreferences({
     list.find((option) => option.value === value)?.label ?? value;
   const rows = saved
     ? [
-        { label: "Roles", value: saved.roles.map((role) => name(options.roles, role)) },
+        {
+          label: "Roles",
+          // The listed roles, then the student's own typed ones.
+          value: [...saved.roles.map((role) => name(options.roles, role)), ...saved.customRoles],
+        },
         { label: "Job Type", value: saved.jobTypes.map((type) => name(JOB_TYPE_OPTIONS, type)) },
         {
           label: "Workplace",

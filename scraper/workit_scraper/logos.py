@@ -271,6 +271,8 @@ def check_addresses(boards: list[tuple[str, str, str]]) -> dict[str, str | None]
             robots.pace(url)
             try:
                 body = web.get(url, timeout=15)
+            except ValueError:
+                return None
             except urllib.error.HTTPError as error:
                 moved = error.filename if 300 <= error.code < 400 else None
                 host = urlsplit(moved).hostname if moved else None

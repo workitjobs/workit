@@ -3,10 +3,10 @@
 import { createContext, use, useEffect, useRef, useState } from "react";
 
 import { PencilIcon } from "@/components/icons";
-import { PrimaryBadge, RenameField } from "@/components/resume-row";
-import { renameBuiltResume } from "@/lib/built-resume-actions";
+import { PrimaryStar } from "@/components/resume-row";
+import { renameBuiltResume, setDefaultBuiltResume } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import { renameResume } from "@/lib/resume-actions";
+import { renameResume, setPrimaryResume } from "@/lib/resume-actions";
 
 import { TitleRowContext, type ResumeKind } from "./resume-menu";
 
@@ -40,17 +40,23 @@ export const TitleHistoryContext = createContext<TitleHistory | null>(null);
 /**
  * A resume's name over its page, in the title row of the editor's page (an
  * h1), of an upload's page (an h1, `kind="uploaded"`) and of Tailor's
- * review step (an h2 under the step's sr-only h1), with the Primary badge
- * after it on the primary (`primary`, KAN-825). One title on both resume
+ * review step (an h2 under the step's sr-only h1), with a star after it on
+ * the two resume pages (`primary`): filled on the primary, and on any other
+ * a button that makes it the primary, as a Google Doc's star sits by its
+ * name (2026-11-19). It was the Primary badge (KAN-825), with Make Primary in
+ * the page's ⋯; the star is both the mark and the way to change it, and the
+ * ⋯ went (./resume-menu.tsx). Tailor's review has no star. One title on both resume
  * pages since KAN-825: an upload's had a heading of its own, renamed from
  * a bordered button into a labeled form.
  *
  * It reads as plain text with its pencil, shows a faint outline when
- * pointed at, and a click opens the one rename every resume has
- * (`RenameField`): the name's field, with Cancel and Save after it; Enter
- * saves, Esc cancels. The page's ⋯ menu (`ResumeMenu`) opens the same
- * field through `TitleRowContext`. Until KAN-825 the field saved on a
- * click away and had no buttons.
+ * pointed at, and a click makes the name itself the field, as a Google
+ * Doc's title is (2026-11-19, `TitleField`): the same words, size and
+ * place, selected, with only a ring to say it is open, and no buttons.
+ * Enter or a click away saves, Esc puts the name back. KAN-825 gave it the
+ * lists' rename (`RenameField`), a field of its own look with Cancel and
+ * Save, which the user found a different editor opening in the title's
+ * place; the lists keep it.
  *
  * **A rename shows at once and saves behind it**, as every other edit in
  * the editor does: the field closes on the new name, the save goes, and a
@@ -75,18 +81,18 @@ export function ResumeTitle({
   name,
   as: Heading = "h2",
   kind = "built",
-  primary = false,
+  primary,
 }: {
   resumeId: string;
   name: string;
   as?: "h1" | "h2";
   kind?: ResumeKind;
-  /** The student's primary resume: the Primary badge after the name. */
+  /** Whether it is the student's primary resume: the star after the name.
+   *  Left out (Tailor's review), no star. */
   primary?: boolean;
 }) {
   const history = use(TitleHistoryContext);
-  // The page's title row, when the title has one: its ⋯ menu's Rename, and
-  // where its failures show
+  // The page's title row, when the title has one: where its failures show
   const row = use(TitleRowContext);
   // The name the student last gave, ahead of the page's own while saving
   const [shown, setShown] = useState(name);
@@ -137,29 +143,40 @@ export function ResumeTitle({
     history?.attach((next, drop) => rename(next, latest.current, drop));
     return () => history?.attach(null);
   });
-  useEffect(() => {
-    row?.attach(() => setRenaming(true));
-    return () => row?.attach(null);
-  });
+  // The star shows a pick at once; the page's answer confirms it, and a
+  // failure puts the old one back
+  const [isPrimary, setIsPrimary] = useState(primary);
+  const [wasPrimary, setWasPrimary] = useState(primary);
+  if (primary !== wasPrimary) {
+    setWasPrimary(primary);
+    setIsPrimary(primary);
+  }
+  async function makePrimary() {
+    setError(null);
+    setIsPrimary(true);
+    const { error } =
+      kind === "uploaded"
+        ? await setPrimaryResume(resumeId)
+        : await setDefaultBuiltResume(resumeId);
+    if (!error) return;
+    setIsPrimary(false);
+    setError(error);
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {renaming ? (
-        <RenameField
-          name={shown}
-          size={Heading === "h1" ? "lg" : "default"}
-          rename={{
-            saving: false,
-            onCancel: () => {
-              setError(null);
+        <Heading className="flex min-w-0">
+          <TitleField
+            name={shown}
+            className={BOX[Heading]}
+            onLeave={(next) => {
               close();
-            },
-            onSave: (next) => {
-              close();
+              if (next === null || next === shown) return setError(null);
               rename(next, shown, history?.record(shown, next));
-            },
-          }}
-        />
+            }}
+          />
+        </Heading>
       ) : (
         <div className="flex min-w-0 items-center gap-2">
           <Heading className="flex min-w-0">
@@ -184,9 +201,14 @@ export function ResumeTitle({
               <PencilIcon className="text-ink-meta group-hover:text-ink size-4 shrink-0 transition-colors duration-150" />
             </button>
           </Heading>
-          {/* Outside the heading, so its name is the resume's alone; the
-              word folds on a phone's column, where the name needs it */}
-          {primary && <PrimaryBadge wordClassName="sr-only @md/main:not-sr-only" />}
+          {/* Outside the heading, so its name is the resume's alone */}
+          {isPrimary !== undefined && (
+            <PrimaryStar
+              name={shown}
+              primary={isPrimary}
+              onMakePrimary={isPrimary ? undefined : makePrimary}
+            />
+          )}
         </div>
       )}
       {error && (
@@ -195,5 +217,49 @@ export function ResumeTitle({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The title as its own field (`ResumeTitle`): an input in the title's
+ * words, size, weight and padding, as wide as the name, so opening it moves
+ * nothing. Enter or a click away hands back the new name (null for an empty
+ * one, which keeps the old), Esc hands back null.
+ */
+function TitleField({
+  name,
+  className,
+  onLeave,
+}: {
+  name: string;
+  className: string;
+  onLeave: (next: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(name);
+  // Enter or Esc leave once; the blur as the field goes must not again
+  const left = useRef(false);
+  const leave = (next: string | null) => {
+    if (left.current) return;
+    left.current = true;
+    onLeave(next);
+  };
+  return (
+    <input
+      aria-label="Resume name"
+      autoFocus
+      maxLength={80}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={() => leave(draft.trim() || null)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") leave(draft.trim() || null);
+        if (event.key === "Escape") leave(null);
+      }}
+      className={cn(
+        className,
+        "text-ink rounded-control ring-brand-ring -mx-2 field-sizing-content max-w-full min-w-24 bg-transparent px-2 py-1 ring-2 outline-none",
+      )}
+    />
   );
 }

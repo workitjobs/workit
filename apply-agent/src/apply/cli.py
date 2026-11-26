@@ -1,7 +1,9 @@
 """The `apply` command."""
 
 import argparse
+import base64
 import imaplib
+import json
 import os
 import queue
 import re
@@ -16,6 +18,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import psutil
 import yaml
 
 from apply import (
@@ -30,12 +33,10 @@ from apply import (
     data_command,
     doctor,
     employer_mail,
-    essays,
     home,
     into,
     masked,
     native_host,
-    on_page,
     orchestrator,
     own_application,
     preflight,
@@ -49,6 +50,7 @@ from apply import (
     trace,
     tracker_cleanup,
     walls,
+    worker_tiles,
     workit,
 )
 from apply.accounts_tab import AccountsTab
@@ -56,6 +58,7 @@ from apply.adapters import Adapters
 from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.answers_tab import saving_answers as _answering
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
@@ -160,6 +163,18 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
+    app = commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then "
+                                          "the Apply window with your answers. Given links, it fills them: a window "
+                                          "already open takes them, else one opens and starts them. Submits only what "
+                                          "you approve")
+    app.add_argument("links", nargs="*", help="job posting links to fill and hold for you to check and submit")
+    app.add_argument("--max-plan", action="store_true",
+                     help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
+                          "route and its Usage cap. Only for a window this opens")
+    claude_token = commands.add_parser(
+        "claude-token", help="developer checkout: keep the token `claude setup-token` prints in Keychain, so every "
+                             "claude -p call signs in with it before your claude login. Paste it when asked")
+    claude_token.add_argument("--forget", action="store_true", help="remove the kept token: back to your claude login")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
@@ -247,6 +262,32 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
     checked.add_argument("--open", action="store_true", help="the open forms instead (apply reopen): which of their "
                                                               "sites wait on your sign-in now, and in which Browser")
+    shown = commands.add_parser("window", help="read and drive the running WorkIt Auto Apply window (`apply app`) as "
+                                               "JSON, through its own buttons' routes: use it before any screen tool")
+    window_commands = shown.add_subparsers(dest="window_command", required=True)
+    window_commands.add_parser("state", help="every job as the window shows it: Needs you, Still working on, Applied, "
+                                             "Didn't go through, each held form's answers, flags and screenshot")
+    window_commands.add_parser("applied", help="what you applied to on WorkIt, newest first (the window's Applied)")
+    for name, does in (("submit", "Approve and submit: the run presses the held form's own Submit"),
+                       ("cancel", "Cancel a held form's Auto-submit countdown"),
+                       ("skip", "Not applying to this one: the held form is let go, unsubmitted"),
+                       ("fill-again", "Try again: fill the held form anew")):
+        acted = window_commands.add_parser(name, help=does)
+        acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
+        if name in ("submit", "skip"):
+            acted.add_argument("--yes", action="store_true", help="you mean it: it can't be undone")
+    answered = window_commands.add_parser("answer", help="answer a Needs-you question, as its card does")
+    answered.add_argument("id", help="the job's `id` from `apply window state`")
+    answered.add_argument("question", help="the question, word for word, from its `missing`")
+    answered.add_argument("answer", nargs="?", default="", help="the answer; none skips an optional question")
+    answered.add_argument("--file", type=Path, help="a file the question asks for, in place of an answer")
+    removed = window_commands.add_parser("remove", help="Remove a job waiting to start from the run")
+    removed.add_argument("link", help="its `link` from the state's `waiting`")
+    added = window_commands.add_parser("add", help="add job links: a run of them, or into the run going")
+    added.add_argument("links", nargs="+")
+    stopped = window_commands.add_parser("stop", help="Stop applying: every held form closes, unsubmitted")
+    stopped.add_argument("--new-only", action="store_true", help="Stop new ones only: held forms stay open")
+    stopped.add_argument("--yes", action="store_true", help="you mean it: every held form closes")
     data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
@@ -261,7 +302,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
     if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
-                            "preflight", "data") and home.fill_from_sample():
+                            "preflight", "data", "window") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -282,7 +323,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                 with _dashboard(adapters, args.workers, profile):
                     orchestrator.run(adapters, profile, args.workers, **kinds)
             finally:
-                _close_workers(adapters.site)
+                worker_tiles.close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "fill-again":
         sys.exit(_fill_again(args.target))
@@ -331,7 +372,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                        submitted_to=kept, together=args.together, force=args.force,
                                        reopening=reopening)
             finally:
-                _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
+                worker_tiles.close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
                                together=args.together, force=args.force, reopening=reopening)
@@ -363,6 +404,37 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
+    elif args.command == "claude-token":
+        import getpass
+
+        from apply import claude_cli
+
+        if args.forget:
+            claude_cli.forget_token()
+            print("Removed the setup token: claude -p signs in with your claude login.")
+        elif not (token := getpass.getpass("Paste the token `claude setup-token` printed (hidden): ").strip()):
+            sys.exit("No token given: nothing changed.")
+        else:
+            claude_cli.save_token(token)
+            print("Kept the setup token in Keychain (apply-claude): every claude -p call signs in with it.")
+    elif args.command == "app":
+        from apply import app_window, student
+
+        app_window.line_by_line()  # its log, under nohup, can be followed live
+
+        if args.max_plan:  # the Student build ignores it (student.asking)
+            os.environ[student.MAX_PLAN] = "1"
+        args.links, not_links = app_window.links_given(args.links)
+        if not_links:
+            sys.exit(f"Not a job link: {', '.join(not_links)}. Pass each posting's full https:// link.")
+        if args.links:
+            app_window.send_links(args.links)
+            if pid := app_window.running():
+                print(f"Sent {len(args.links)} link(s) to WorkIt Auto Apply (PID {pid}). It fills each and holds it "
+                      "for you to check and submit.")
+                return
+            print(f"Opening WorkIt Auto Apply with {len(args.links)} link(s): it starts them once you are signed in.")
+        student.app()
     elif args.command == "login":
         client = workit.WorkIt()
         try:
@@ -442,8 +514,50 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print("\n".join(shown))
     elif args.command == "ask":
         sys.exit(_ask(args.target, args.message, args.list))
+    elif args.command == "window":
+        sys.exit(_window(args))
     elif args.command == "plain":
         _plain(args)
+
+
+def _window(args) -> int:
+    """`apply window`: one action of the running WorkIt Auto Apply window (apply.app_control), its reply printed as
+    JSON. 0 when the window did it, 1 when it refused or isn't open."""
+    from apply import app_control, app_window
+
+    def said(reply: dict) -> int:
+        print(json.dumps(reply, indent=2, ensure_ascii=False))
+        return 0 if int(reply.get("status") or 0) < 400 else 1
+
+    if not app_window.running():
+        return said({"status": 503, "error": "WorkIt Auto Apply isn't open. Open it with `uv run apply app` "
+                                              "(with links, to start them)."})
+    command = args.window_command
+    if command in ("submit", "skip") and not args.yes:
+        return said({"status": 400, "error": f"{command} can't be undone: pass --yes, as the window asks once more."})
+    if command == "stop" and not (args.yes or args.new_only):
+        return said({"status": 400, "error": "Stop closes every held form unless --new-only: pass --yes."})
+    if command == "add":
+        links, not_links = app_window.links_given(args.links)
+        if not_links:
+            return said({"status": 400, "error": f"Not a job link: {', '.join(not_links)}."})
+        app_window.send_links(links)
+        return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
+                                               "signed in and set up. `apply window state` shows them."})
+    body: dict = {}
+    if command in ("submit", "cancel", "skip", "fill-again"):
+        body = {"id": args.tile}
+    elif command == "answer":
+        body = {"id": args.id, "question": args.question, "answer": args.answer}
+        if args.file and not args.file.is_file():
+            return said({"status": 400, "error": f"No such file: {args.file}."})
+        if args.file:
+            body["file"] = {"name": args.file.name, "data": base64.b64encode(args.file.read_bytes()).decode()}
+    elif command == "remove":
+        body = {"link": args.link}
+    elif command == "stop":
+        body = {"new_only": True} if args.new_only else {}
+    return said(app_control.ask(command, body))
 
 
 def _plain(args) -> None:
@@ -502,16 +616,7 @@ def _ask(target: str | None, message: str | None, listed: bool, out: Callable[[s
         except urllib.error.HTTPError as error:
             raise ask.AskRefused(json.loads(error.read() or b"{}").get("error") or str(error)) from None
 
-    def alive(pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-            return True
-        except (ProcessLookupError, ValueError):
-            return False
-        except PermissionError:
-            return True
-
-    forms = ask.windows(WorkerBrowsers().profiles / ask.WINDOWS, alive, fetch)
+    forms = ask.windows(WorkerBrowsers().profiles / ask.WINDOWS, psutil.pid_exists, fetch)
     if listed or not target:
         out("\n".join(f.line() for f in forms) or "No form is open in an Apply window.")
         return 0
@@ -642,7 +747,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with _frames(site, workers or tiles) as frames, \
+    with worker_tiles.frames_for(site, workers or tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
@@ -770,37 +875,6 @@ def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     return remember
 
 
-def _worker_chrome(workers) -> Callable[[int], int | None]:
-    """The PID of the Chrome that has plain Worker k's profile open: its tile films that Chrome only (KAN-717)."""
-    from apply.browsers import chrome_pid
-
-    return lambda worker: chrome_pid(workers.profile(worker))
-
-
-def _frames(site, tiles: int):
-    """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
-    plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
-    from apply.plain.site import PlainSite, RoutedSite
-    from apply.plain.tile import EitherFrames, PortFrames
-
-    if isinstance(site, PlainSite):
-        return PortFrames(tiles, site.workers.bridge.connection, chrome=_worker_chrome(site.workers))
-    if isinstance(site, RoutedSite):
-        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint),
-                            PortFrames(tiles, site.connection, chrome=_worker_chrome(site.plain_site.workers)), site.plain)
-    return dashboard.CdpFrames(tiles, site.endpoint)
-
-
-def _close_workers(site) -> None:
-    """Stop the plain Workers' Chromes the run started (by PID). A CDP Worker's closes with its page."""
-    close = getattr(site, "close", None)
-    if close:
-        try:
-            close()
-        except Exception as error:
-            print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
-
-
 # One attribute line of `security dump-keychain` (no -d, so it prints no secret).
 _ATTRIBUTE = re.compile(r'^\s*"(svce|acct)"<blob>="(.*)"$')
 
@@ -865,35 +939,6 @@ def _answers_window(profile: Path, window: Path) -> None:
 def _accounts_tab(tracker: Callable[[], object], keychain, everyday: Callable[[str], None]) -> AccountsTab:
     """The window's Accounts tab over the Tracker's Employer accounts, their passwords in Keychain (KAN-591)."""
     return AccountsTab(lambda: tracker().employer_accounts(), keychain, rows=lambda: tracker().rows(), everyday=everyday)
-
-
-def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
-    """Save Lisul's answer typed in the Inbox where Apply reads it: a run's
-    Missing fact in its Tracker row's Answer cell, as if he typed it in the
-    Sheet, so the next check fills that Application again with it; a
-    rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after. A
-    bare date (From, To) is that form's alone: never saved by its label.
-    The same for his answer typed on the held form itself (Board.typed).
-    An empty answer is his Skip of an optional question (KAN-759): kept as
-    an empty answer in his profile, so no later form asks it again."""
-    def answer(item: dict, question: str, text: str) -> str:
-        if not text.strip():
-            if question.startswith(essays.ASK) or on_page.bare(question):
-                return "Skipped: it's optional, so this form leaves it blank."
-            tab.save_skipped(question)
-            return "Skipped: the form leaves it blank, and Apply won't ask it again."
-        if item.get("status") == "missing fact" and item.get("application_id"):
-            tracker().answer(item["application_id"], text)
-            return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
-        if question.startswith(essays.ASK):
-            essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
-            return "Saved to your Story bank: the essay is written with it next time."
-        if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
-            return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
-        tab.save_answered(question, text)
-        return "Saved to your facts: every form that asks it gets this answer."
-    return answer
 
 
 def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
@@ -1076,16 +1121,18 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     Gmail app password is read from Keychain for the Applicant profile's
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""
-    claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
     site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
     answering.refresh(workit.WorkIt())  # WorkIt's Question types, for the run's essays
+    # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
+    claude = as_applicant(live_claude(profile.policies(), ClaudeCLI()), profile)
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
-        claude=as_applicant(live_claude(profile.policies(), claude), profile),
+        claude=claude,
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
+        # The Max windows, off every claude -p call's rate-limit events, and with ask_model: workit also WorkIt's
+        # Usage cap (ask_model.WorkItAsk.reading).
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,

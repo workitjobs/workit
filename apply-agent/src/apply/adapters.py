@@ -163,8 +163,9 @@ class Mailbox(Protocol):
         """Only a code the mail names as one, never a guess, with the sender's domain."""
         ...
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
-        """Only a link to one of `hosts` (or a host under one) counts."""
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
+        """Only a link to one of `hosts` (or a host under one) counts; without `resets`, none from a mail that
+        resets a password."""
         ...
 
 
@@ -225,15 +226,16 @@ class SetupError(Exception):
 
 
 class UsageLimitHit(Exception):
-    """A Claude call was refused because Lisul's Max limit is hit."""
+    """A model call was refused at a limit: Lisul's Max plan's, or WorkIt's Usage cap (ask_model.WorkItAsk)."""
 
     def __init__(self, resets_at: datetime | None):
-        super().__init__(f"Max usage limit hit; resets at {resets_at or 'an unknown time'}")
+        super().__init__(f"Usage limit reached; resets at {resets_at or 'an unknown time'}")
         self.resets_at = resets_at
 
 
 class Usage(Protocol):
-    """How much of Lisul's Max plan is used, across Apply and his own Claude work."""
+    """How much of Lisul's Max plan is used, across Apply and his own Claude work, and with ask_model: workit
+    whether WorkIt's Usage cap is reached (ask_model.WorkItAsk.reading)."""
 
     def reading(self) -> UsageReading: ...
 

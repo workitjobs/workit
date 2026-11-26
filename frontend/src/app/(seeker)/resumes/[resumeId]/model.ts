@@ -203,6 +203,84 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
+/** The PATCH that puts a bullet or an entry at `to` among its shown
+ *  siblings (KAN-920, a drag on the page), renumbering them all as `move`
+ *  does; null when it stays where it is or is not shown. */
+export function moveTo(
+  bank: Bank,
+  choices: Choices,
+  kind: "bullet" | "entry",
+  id: string,
+  to: number,
+): ChoicesUpdate | null {
+  const entry =
+    kind === "bullet"
+      ? bank.entries.find((e) => e.bullets.some((b) => b.id === id))
+      : bank.entries.find((e) => e.id === id);
+  if (!entry) return null;
+  const siblings =
+    kind === "bullet"
+      ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+      : ordered(
+          bank.entries.filter((e) => groupOf(bank, e) === groupOf(bank, entry)),
+          (e) => choices.entries.find((c) => c.entry_id === e),
+        );
+  const from = siblings.findIndex((s) => s.id === id);
+  if (from < 0 || to === from || to < 0 || to >= siblings.length) return null;
+  const order = moveItem(
+    siblings.map((s) => s.id),
+    from,
+    to,
+  );
+  return kind === "bullet"
+    ? { bullets: order.map((bullet_id, position) => ({ bullet_id, position })) }
+    : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
+}
+
+/** An entry's bullets this resume shows, in its order. */
+export function shownBullets(entry: BankEntry, choices: Choices): BankEntry["bullets"] {
+  return ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b));
+}
+
+/** A bullet typed in on the page (KAN-920), placed on this resume: its
+ *  entry's shown bullets in this resume's order, renumbered, with `added`
+ *  shown after `after`, or last when `after` is not among them. Each row
+ *  says `shown`, so it is one change with Undo (which hides `added` again,
+ *  `reverseChoices`), and `swapsOf` draws no swaps for it: the bullets
+ *  below make room on the page as it is typed. */
+export function bulletsWithNew(
+  bank: Bank,
+  choices: Choices,
+  entryId: string,
+  added: string,
+  after: string,
+): NonNullable<ChoicesUpdate["bullets"]> {
+  const entry = bank.entries.find((e) => e.id === entryId);
+  const ids = entry
+    ? ordered(entry.bullets, (b) => choices.bullets.find((c) => c.bullet_id === b))
+        .map((b) => b.id)
+        .filter((id) => id !== added)
+    : [];
+  const at = ids.indexOf(after);
+  ids.splice(at < 0 ? ids.length : at + 1, 0, added);
+  return ids.map((bullet_id, position) => ({ bullet_id, position, shown: true }));
+}
+
+/** The page's section order once the printed section at `from` moves to
+ *  `to` (the Sections panel's drag, and the page's, KAN-920). Only the
+ *  sections that print move; the rest keep their places after them, so a
+ *  section the student adds later lands in its usual spot, and a custom
+ *  section that no longer prints leaves the order (KAN-498). */
+export function sectionOrderAfter(
+  printed: string[],
+  order: string[],
+  from: number,
+  to: number,
+): string[] {
+  const moved = moveItem(printed, from, to);
+  return [...moved, ...order.filter((id) => !moved.includes(id) && !id.startsWith("custom:"))];
+}
+
 export type PrintedEntry = {
   id: string;
   title: string;
@@ -217,7 +295,15 @@ export type PrintedSection = {
   entries: PrintedEntry[];
   noun: string;
   addable: boolean;
+  /** Listed with nothing on the resume yet (`withEmpty`), for its Add. */
+  empty?: boolean;
 };
+
+/** The sections the Sections panel lists even when empty (2026-11-17), so a
+ *  resume with nothing in them still has their Add: a new resume, made in
+ *  onboarding with only its header, listed no section at all, and its
+ *  student had no way to add a first school. */
+const ALWAYS_LISTED = new Set(["education", "experience", "projects", "skills"]);
 
 // `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
 const SECTION_LABELS: Record<string, string> = {
@@ -233,21 +319,46 @@ const SECTION_LABELS: Record<string, string> = {
 /** What prints, section by section in `order` (`printedOrder`, so a
  *  custom section prints where the PDF puts it, KAN-498): the outline the
  *  Sections panel drags. A section with nothing on the resume is left out. */
-export function printedSections(bank: Bank, choices: Choices, order: string[]): PrintedSection[] {
+export function printedSections(
+  bank: Bank,
+  choices: Choices,
+  order: string[],
+  { withEmpty = false }: { withEmpty?: boolean } = {},
+): PrintedSection[] {
   const entry = (id: string) => choices.entries.find((c) => c.entry_id === id);
   const bullet = (id: string) => choices.bullets.find((c) => c.bullet_id === id);
   const custom = groupsOf(bank).filter((g) => g.custom);
   return printedOrder(order, custom).flatMap((id): PrintedSection[] => {
     if (id === "skills") {
       const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
-      return shown
-        ? [{ id, label: SECTION_LABELS[id], entries: [], noun: "Skill", addable: false }]
+      return shown || withEmpty
+        ? [
+            {
+              id,
+              label: SECTION_LABELS[id],
+              entries: [],
+              noun: "Skill",
+              addable: false,
+              ...(!shown && { empty: true }),
+            },
+          ]
         : [];
     }
     const entries = ordered(
       bank.entries.filter((e) => groupOf(bank, e) === id),
       entry,
     );
+    if (!entries.length && withEmpty && ALWAYS_LISTED.has(id))
+      return [
+        {
+          id,
+          label: SECTION_LABELS[id],
+          noun: NOUNS[id as keyof typeof NOUNS]?.[0] ?? "Entry",
+          addable: true,
+          entries: [],
+          empty: true,
+        },
+      ];
     if (!entries.length) return [];
     const group = custom.find((g) => g.id === id);
     return [
@@ -450,7 +561,25 @@ export function withWording(
 /** Two neighbours a change swaps: an entry within its section, or a
  *  bullet within its entry, `a` the one above before the change. The page
  *  shows the swap at once (KAN-391). */
-export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
+export type Swap = { kind: "entry" | "bullet" | "section"; a: string; b: string };
+
+/** A reorder as neighbour swaps in order, each against the order after the
+ *  ones before it (a bubble sort); empty when the two lists do not hold the
+ *  same ids, or nothing moves. */
+export function orderSwaps(kind: Swap["kind"], before: string[], after: string[]): Swap[] {
+  const want = new Map(after.map((id, i) => [id, i]));
+  if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
+  const now = [...before];
+  const out: Swap[] = [];
+  for (let end = now.length - 1; end > 0; end--) {
+    for (let i = 0; i < end; i++) {
+      if (want.get(now[i])! < want.get(now[i + 1])!) continue;
+      out.push({ kind, a: now[i], b: now[i + 1] });
+      [now[i], now[i + 1]] = [now[i + 1], now[i]];
+    }
+  }
+  return out;
+}
 
 /** Any reorder of one entry's bullets, or of one section's entries, as
  *  neighbour swaps in order, each against the order after the ones before
@@ -462,20 +591,7 @@ export function swapsOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): S
     list &&
     list.length >= 2 &&
     list.every((c) => Object.keys(c).length === 2 && c.position != null);
-  const steps = (kind: Swap["kind"], before: string[], after: string[]): Swap[] => {
-    const want = new Map(after.map((id, i) => [id, i]));
-    if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
-    const now = [...before];
-    const out: Swap[] = [];
-    for (let end = now.length - 1; end > 0; end--) {
-      for (let i = 0; i < end; i++) {
-        if (want.get(now[i])! < want.get(now[i + 1])!) continue;
-        out.push({ kind, a: now[i], b: now[i + 1] });
-        [now[i], now[i + 1]] = [now[i + 1], now[i]];
-      }
-    }
-    return out;
-  };
+  const steps = orderSwaps;
   if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
     const ids = changes.bullets!.map((c) => c.bullet_id);
     const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));

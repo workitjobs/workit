@@ -91,10 +91,14 @@ export function BankDialog({
         ref={popup}
         aria-label={label}
         showCloseButton={false}
-        // A form's first field; a list's dialog itself, which a screen
-        // reader reads by its title, since on its first row's toggle the
-        // row opened ringed in brand as if picked
+        // A field the form asks for (the empty bullet a page's + opened,
+        // KAN-920), else its first field; a list's dialog itself, which a
+        // screen reader reads by its title, since on its first row's toggle
+        // the row opened ringed in brand as if picked
         initialFocus={() =>
+          popup.current?.querySelector<HTMLElement>(
+            "[data-slot=dialog-scroller] [data-initial-focus]",
+          ) ??
           popup.current?.querySelector<HTMLElement>(
             "[data-slot=dialog-scroller] :is(input, textarea)",
           ) ??
@@ -309,6 +313,7 @@ export function EntryPane({
   remove,
   resumeMode = false,
   resumeSwitches,
+  focusBullet,
 }: {
   ref?: Ref<EntryPaneHandle>;
   title: string;
@@ -330,6 +335,9 @@ export function EntryPane({
   /** A school's GPA and coursework switches for that resume
    *  (`EntryEditor`'s `resumeSwitches`). */
   resumeSwitches?: Parameters<typeof EntryEditor>[0]["resumeSwitches"];
+  /** The bullet box that takes the cursor as the form opens
+   *  (`EntryEditor`'s `focusBullet`). */
+  focusBullet?: number;
 }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -430,6 +438,7 @@ export function EntryPane({
           lines={lines}
           resumeMode={resumeMode}
           resumeSwitches={resumeSwitches}
+          focusBullet={focusBullet}
           onChange={() => setDirty(true)}
           onSave={(draft) => submit(draft)}
           onSaveAsNew={(draft) => submit(draft, true)}

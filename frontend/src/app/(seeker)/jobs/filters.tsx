@@ -20,6 +20,9 @@ import {
   isFiltered,
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
+  roleOptions,
+  roleValues,
+  splitRoleValues,
   WORKPLACE_OPTIONS,
   type FeedFilters,
   SORT_OPTIONS,
@@ -264,21 +267,27 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
 }
 
 type RoleProps = {
+  /** The picked slugs and the student's own typed roles
+   *  (filter-query's roleValues). */
   values: string[];
   onChange: (values: string[]) => void;
+  /** The typed roles, listed first so each can be unticked here; a new one
+   *  is added in All Filters, Settings or onboarding (2026-11-16). */
+  customRoles: string[];
   className?: string;
 };
 
 /** Role's button and search, whether its options have loaded or not. */
-function RoleSearch({ roles, ...props }: RoleProps & { roles: JobFacets["role"] }) {
-  const names = new Map(roles.map((r) => [r.value, r.label]));
+function RoleSearch({ roles, customRoles, ...props }: RoleProps & { roles: JobFacets["role"] }) {
+  const options = roleOptions(roles, customRoles);
+  const names = new Map(options.map((r) => [r.value, r.label]));
   return (
     <SearchFacet
       label="Role"
       Icon={RoleIcon}
       searchLabel="Search roles"
       empty="No role by that name."
-      options={roles.map((r) => r.value)}
+      options={options.map((r) => r.value)}
       labelOf={(value) => names.get(value) ?? value}
       {...props}
     />
@@ -374,7 +383,12 @@ export function JobFilters({
   const [shownSort, showSort] = useOptimistic(sort);
 
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
-   *  /search). The server draws the feed again, narrowed. */
+   *  /search). The server draws the feed again, narrowed.
+   *
+   *  ONE BACK RULE (KAN-916): a filter and a sort both replace the address,
+   *  so Back leaves the list for the page before it, whatever was picked on
+   *  it. The sort pushed until then, so Back stepped through each order but
+   *  skipped every filter, and a student could not tell what Back would undo. */
   function apply(next: FeedFilters) {
     // The feed's transition, so the list dims the moment this starts
     // (./feed-transition).
@@ -396,7 +410,7 @@ export function JobFilters({
   function applySort(next: Sort) {
     startFeedTransition(() => {
       showSort(next);
-      router.push(sortHref(next, shown), { scroll: false });
+      router.replace(sortHref(next, shown), { scroll: false });
     });
   }
 
@@ -413,8 +427,9 @@ export function JobFilters({
     role: (className: string) => (
       <RoleFacet
         facets={facets}
-        values={shown.roles}
-        onChange={(roles) => set({ roles })}
+        values={roleValues(shown)}
+        customRoles={shown.customRoles}
+        onChange={(values) => set(splitRoleValues(values))}
         className={className}
       />
     ),

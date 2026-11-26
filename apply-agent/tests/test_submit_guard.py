@@ -32,11 +32,12 @@ from fake_lever import FakeLeverServer
 from fake_workable import FakeWorkableServer
 from fake_workday import FakeWorkdayServer
 from fakes import FakeClock, FakeJobServer, FakeMailbox
+from plain_fakes import have_chrome_for_testing
 from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
-from apply import captcha, submit_guard
+from apply import captcha, steps, submit_guard
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.greenhouse import GreenhouseFiller
@@ -203,10 +204,10 @@ def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
         guard(page)
         lift(page, warning="Pre-submit review: Postgrad Discipline(s) ticked, but he is an undergraduate")
         note = page.locator("#apply-rehearsal-blocked")
-        text, color = note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor")
+        text, tone = note.inner_text(), note.get_attribute("data-tone")
 
-    assert text.startswith("Apply rehearsal: fix this before you submit. Pre-submit review: Postgrad Discipline(s)")
-    assert color == "rgb(176, 0, 32)"
+    assert text.startswith("WorkIt Please fix this before you submit\nPre-submit review: Postgrad Discipline(s)")
+    assert tone == "fix"
 
 
 US_PERSON_WRONG = ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen, '
@@ -231,16 +232,16 @@ def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dism
         page.get_by_role("button", name="Submit application").click()
         page.wait_for_timeout(1000)
         _post(page, FINAL_POST["greenhouse"][2])
-        held = (note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor"), len(job_server.submissions))
+        held = (note.inner_text(), note.get_attribute("data-tone"), len(job_server.submissions))
         page.get_by_role("button", name="Dismiss").click()
         page.wait_for_timeout(300)
         renote(page, held="")  # what the hold's loop does once the dismissal is saved
         page.get_by_role("button", name="Submit application").click()
         page.wait_for_timeout(1500)
 
-    text, color, sent = held
-    assert text.startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: The U.S. Person")
-    assert color == "rgb(176, 0, 32)" and sent == 0 and pressed == ["Submit application"]
+    text, tone, sent = held
+    assert text.startswith("WorkIt Check this answer before you submit\nThe U.S. Person")
+    assert tone == "fix" and sent == 0 and pressed == ["Submit application"]
     assert dismissed == [True]
     assert len(job_server.submissions) == 1
 
@@ -255,18 +256,18 @@ def test_a_held_submit_stays_held_on_the_pages_lisul_loads_next():
             _post(page, script)
             shown = page.locator("#apply-rehearsal-blocked").inner_text()
         assert fake.submissions == []
-    assert "Submit is held" in shown
+    assert "Check this answer before you submit" in shown
 
 
 def test_a_held_page_with_only_a_field_left_blank_says_so_in_amber(job_server):
     with job_server.open(ARC_URL) as page:
         guard(page)
-        lift(page, warning="Left blank: If referred by an employee, their name", wrong=False)
+        lift(page, warning="Please fill in: If referred by an employee, their name", wrong=False)
         note = page.locator("#apply-rehearsal-blocked")
-        text, color = note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor")
+        text, tone = note.inner_text(), note.get_attribute("data-tone")
 
-    assert text.startswith("Apply rehearsal: check before you submit. Left blank:")
-    assert color == "rgb(138, 90, 0)"
+    assert text.startswith("WorkIt Please check before you submit\nPlease fill in:")
+    assert tone == "check"
 
 
 class _Guarded:
@@ -357,6 +358,21 @@ def test_a_filled_workday_application_forced_to_submit_on_a_guarded_page_sends_n
     assert server.submissions == []
 
 
+@pytest.mark.parametrize("plain", [False, pytest.param(True, marks=pytest.mark.skipif(
+    not have_chrome_for_testing(), reason="needs Chrome for Testing (uv run playwright install chromium)"))])
+def test_a_guarded_workday_page_lets_apply_make_the_account_beside_its_bot_trap(plain):
+    # Trimble's, live (KAN-886): Workday's GET sign-in form sits beside an empty 1-pixel "website" box, which the
+    # guard took for an answer outside the form, so it stopped Create Account's submit and the run handed off.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, plain=plain) as server, OnePage(_Guarded(server)) as site:
+        questions = filler.question_set(CACI_URL, site)
+
+    assert [a["email"] for a in server.created] == ["test.person@example.com"]
+    assert questions and server.submissions == []
+
+
 def test_without_the_guard_the_forced_workday_submit_goes_through():
     keychain = InMemoryKeychain()
     filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
@@ -432,7 +448,9 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.evaluate("document.getElementById('login').requestSubmit()")
         page.wait_for_timeout(500)
         assert server.sign_ins == []
-        assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+        # The script's requestSubmit() of the GET sign-in form is refused before its submit (KAN-868), by its own note.
+        assert drive.blocked()[0] == 'the "Sign In" click' and len(drive.blocked()) == 2
+        assert drive.blocked()[1] in ("a sign-in", "a form submission (GET https://jobs.smartrecruiters.com/Acme/7431/login, by a script)")
 
 
 @pytest.mark.parametrize("invisible_captcha", [True, False])
@@ -452,8 +470,16 @@ def test_claudes_next_on_an_email_step_with_an_invisible_captcha_is_never_presse
             assert drive.blocked() and all(b.endswith(captcha.SIGN_IN_CLICK) for b in drive.blocked())
             assert drive.blocked()[0] == 'the "Next" click on a sign-in page with a captcha'
         else:
-            assert server.email_steps == ["test.person@example.com"] * 2
-            assert drive.blocked() == []
+            # A GET form's submit reaches the page's handler only under plain code's own sign-in press (KAN-868):
+            # Claude's press is stopped, and Apply's account click (apply.account_pages) goes through.
+            assert server.email_steps == []
+            assert drive.blocked() and all("a form submission (GET" in b for b in drive.blocked())
+            next_button = page.get_by_role("button", name="Next")
+            assert drive.let_account_click(next_button.element_handle(), sign_in=True)
+            next_button.click()
+            drive.arm()
+            page.wait_for_timeout(500)
+            assert server.email_steps == ["test.person@example.com"]
 
 
 def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():
@@ -646,11 +672,10 @@ def _posts_to(page, posts):
 def test_plain_codes_next_click_never_lets_a_post_to_the_final_url_through(monkeypatch, shape, action):
     from playwright.sync_api import sync_playwright
 
-    from apply import claude_fill
     from apply.claude_fill import ClaudeFill
     from apply.model import Handoff
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1_000)
     posts = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -896,8 +921,7 @@ def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
 
 
 def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 500)
     with _steps("/app/3") as (page, drive, posts):
         reply = _asked(page, drive, "go on", [(lambda p: None, _said(press="Continue"))])
         assert posts == [] and "didn't press 'Continue'" in reply.couldnt[0]
@@ -1001,9 +1025,8 @@ def test_ask_presses_a_tracker_link_named_by_its_heading():
 
 def test_ask_s_progress_tracker_press_never_posts_the_declaration():
     # The Declaration's form has the Submit: a tracker link from there posts that form, so the guard blocks it.
-    from apply import claude_fill
     with _tal(4) as (page, drive, posts), pytest.MonkeyPatch.context() as mp:
-        mp.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+        mp.setattr(steps, "STEP_SHOWS_MS", 800)
         reply = _asked(page, drive, "open Inclusion", [(lambda p: None, _said(press="Inclusion"))])
         assert posts == [] and page.title() == "Declaration" and "didn't press 'Inclusion'" in reply.couldnt[0]
 
@@ -1080,16 +1103,14 @@ def _press_next(url, html):
 
 @pytest.mark.parametrize("name", list(REAL_STEPS))
 def test_plain_codes_next_goes_on_from_every_real_step_form(monkeypatch, name):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 2_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 2_000)
     url, *rest = REAL_STEPS[name]
     assert len(_press_next(url, _step_on(url, *rest))) == 1
 
 
 @pytest.mark.parametrize("name", list(REAL_SENDS))
 def test_plain_codes_next_never_posts_what_may_be_the_last_step(monkeypatch, name):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 800)
     url, *rest = REAL_SENDS[name]
     assert _press_next(url, _step_on(url, *rest)) == []
 
@@ -1148,7 +1169,7 @@ def test_an_application_with_a_password_box_never_posts_under_the_account_click(
 
     from apply import claude_fill
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 800)
     posts = []
     with sync_playwright() as p:
         browser = p.chromium.launch()

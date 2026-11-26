@@ -139,6 +139,8 @@ class Settings(BaseSettings):
     # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
     fill_report_daily_cap: int = 30
+    # WorkIt Auto Apply's Send report (KAN-837): a report is up to 24 MB, mostly screenshots.
+    apply_report_daily_cap: int = 10
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000

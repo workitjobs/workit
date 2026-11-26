@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { CheckIcon, ChevronDownIcon, SearchIcon } from "@/components/icons";
+import { CheckIcon, ChevronDownIcon, PlusIcon, SearchIcon } from "@/components/icons";
 import { Chip, RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
@@ -63,6 +63,9 @@ export function OptionChip({
 const LIST_MAX = 240;
 const LIST_MIN = 120;
 const LIST_GAP = 8;
+/** The lg list's full height: six and a half 44px rows and the list's
+ *  padding, so the half row says there is more (onboarding's pickers). */
+const LIST_MAX_LG = 296;
 
 export type PickOption = {
   value: string;
@@ -99,6 +102,8 @@ export function SearchPicker({
   values,
   onChange,
   size = "default",
+  create,
+  inline = false,
 }: {
   /** The list's accessible name, and the picks' ("Picked Places"). */
   label: string;
@@ -109,18 +114,34 @@ export function SearchPicker({
   values: string[];
   onChange: (values: string[]) => void;
   size?: ControlSize;
+  /** Lets the student add what they typed when no option has that name
+   *  (2026-11-16: a role the Role filter doesn't list). The list's last row
+   *  says `label(typed)`, reached by the arrows and Enter like any option;
+   *  its press calls `onCreate` with the typed text, trimmed, and the caller
+   *  adds the new value to `options` and `values`. */
+  create?: { label: (typed: string) => string; onCreate: (typed: string) => void };
+  /** The list always open under the field, in the flow, filling the room
+   *  its parent gives it and scrolling inside (2026-11-17: onboarding's
+   *  Find Your Role dialog). A list in a dialog of its own is the whole
+   *  point of the dialog, so it opens already shown, as a phone's picker
+   *  does: a collapsed field that unfolded into the dialog's empty room
+   *  read as odd. No chevron, no lift, no picks under it (the page behind
+   *  shows them), and Escape is the dialog's. */
+  inline?: boolean;
 }) {
   const lg = size === "lg";
   const id = useId();
   const listId = `${id}-list`;
   const optionId = (i: number) => `${id}-option-${i}`;
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
+  const [opened, setOpen] = useState(false);
+  const open = inline || opened;
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
+  const full = lg ? LIST_MAX_LG : LIST_MAX;
   const [place, setPlace] = useState<{ above: boolean; height: number }>({
     above: false,
-    height: LIST_MAX,
+    height: full,
   });
 
   // Where the list fits: below the field, as a dropdown opens, unless the
@@ -128,20 +149,51 @@ export function SearchPicker({
   // near the panel's foot), and never taller than the room it has. Measured
   // each time it opens; the list used to run past the panel's edge, cut off.
   useLayoutEffect(() => {
-    if (!open || !root.current) return;
+    if (inline || !open || !root.current) return;
     const area = root.current.closest("[data-panel-scroll]") ?? document.documentElement;
     const box = area.getBoundingClientRect();
+    const top = Math.max(box.top, 0);
     const field = root.current.getBoundingClientRect();
-    const below = box.bottom - field.bottom - LIST_GAP;
-    const above = field.top - box.top - LIST_GAP;
-    const flip = below < LIST_MAX && above > below;
-    setPlace({ above: flip, height: Math.max(LIST_MIN, Math.min(LIST_MAX, flip ? above : below)) });
+    // A sticky foot inside the scroll area (onboarding's buttons,
+    // `data-panel-foot`) covers its lower edge, so the room below ends at
+    // the foot's top: measured to the area's edge, Start Date's and
+    // Location's lists ran under onboarding's footer, cut off (2026-11-16).
+    const foot = area.querySelector("[data-panel-foot]")?.getBoundingClientRect();
+    const floor = foot ? Math.min(box.bottom, foot.top) : box.bottom;
+    const below = floor - field.bottom - LIST_GAP;
+    const above = field.top - top - LIST_GAP;
+    // NO LIFT (2026-11-17): under a sticky foot (onboarding) the list once
+    // scrolled the page up to open at full height, adding room under the
+    // picker; the page then scrolled, which the user found annoying, and
+    // onboarding's long lists moved into dialogs (`inline`) instead.
+    // Under a sticky foot, the list opens down whenever it has its shortest
+    // height there: flipped up, it covered the page's own question and
+    // tiles. Elsewhere it flips once the full height won't fit.
+    const flip = (foot ? below < LIST_MIN : below < full) && above > below;
+    setPlace({ above: flip, height: Math.max(LIST_MIN, Math.min(full, flip ? above : below)) });
+    // `full` follows `size`, which a picker never changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const input = useRef<HTMLInputElement>(null);
   const needle = search.trim().toLowerCase();
   const byValue = new Map(options.map((o) => [o.value, o]));
   const shown = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
-  const current = Math.min(active, Math.max(shown.length - 1, 0));
+  // The "Add" row: only for two or more characters holding a letter or
+  // digit (the API's own rule) that no option is already named.
+  const typed = search.trim();
+  const canCreate =
+    create != null &&
+    typed.length >= 2 &&
+    /[A-Za-z0-9]/.test(typed) &&
+    !options.some((o) => o.label.toLowerCase() === needle);
+  const rows = shown.length + (canCreate ? 1 : 0);
+  const current = Math.min(active, Math.max(rows - 1, 0));
+  const onCreateRow = canCreate && current === shown.length;
+  function createTyped() {
+    create?.onCreate(typed);
+    setSearch("");
+    setActive(0);
+  }
   const toggle = (value: string) =>
     onChange(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
 
@@ -152,13 +204,13 @@ export function SearchPicker({
 
   // A press anywhere outside the field and its list closes it.
   useEffect(() => {
-    if (!open) return;
+    if (inline || !open) return;
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
-  }, [open]);
+  }, [open, inline]);
 
   // Keep the active option in view as the arrows move it; only when it moves,
   // so a wheel scroll through the list isn't pulled back by a re-render.
@@ -168,16 +220,16 @@ export function SearchPicker({
   }, [open, activeId]);
 
   return (
-    <div className="flex w-full flex-col gap-2.5">
+    <div className={cn("flex w-full flex-col gap-2.5", inline && "min-h-0 flex-1")}>
       <div
         ref={root}
-        className="relative"
+        className={cn("relative", inline && "flex min-h-0 flex-1 flex-col")}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
         }}
         onKeyDown={(event) => {
           // Closes the list, not the panel around it, wherever focus is.
-          if (event.key === "Escape" && open) {
+          if (event.key === "Escape" && open && !inline) {
             event.stopPropagation();
             setOpen(false);
           }
@@ -186,17 +238,28 @@ export function SearchPicker({
         <label htmlFor={id} className="sr-only">
           {placeholder}
         </label>
-        {/* A press on the field's padding or chevron opens the list and
-            keeps focus in the input rather than blurring it shut. */}
+        {/* A press on the field's padding opens the list and keeps focus in
+            the input rather than blurring it shut; a press on the chevron
+            opens it or, when open, closes it.
+
+            THE FIELD IS DRAWN AS EVERY FIELD IS (`FIELD_CONTROL`,
+            ui/text-field.tsx): the `border-control` edge, the hover grey
+            that stops at focus, and focus as one 2px brand edge. It had the
+            light `border` edge, no hover state and a 2px ring outside the
+            edge, so it read as a dead box beside the app's other fields
+            (2026-11-16). The text area keeps the I-beam, since typing is
+            how the list is searched; the chevron takes the hand, as the
+            button it acts as. */}
         <div
           onPointerDown={(event) => {
-            if (event.target !== input.current) {
-              event.preventDefault();
-              openList();
-            }
+            if (event.target === input.current) return;
+            event.preventDefault();
+            const onChevron = (event.target as Element).closest("[data-picker-toggle]");
+            if (onChevron && open) setOpen(false);
+            else openList();
           }}
           className={cn(
-            "border-border focus-within:ring-brand-ring flex h-9 cursor-text items-center gap-2 rounded-md border px-2.5 focus-within:ring-2",
+            "rounded-control border-border-control bg-panel hover:not-focus-within:border-ink-meta focus-within:border-brand focus-within:ring-brand-ring flex h-9 cursor-text items-center gap-2 border px-2.5 transition-colors duration-150 focus-within:ring-1",
             lg && "h-12 gap-3 px-4",
           )}
         >
@@ -208,7 +271,7 @@ export function SearchPicker({
             aria-expanded={open}
             aria-controls={listId}
             aria-autocomplete="list"
-            aria-activedescendant={open && shown.length > 0 ? optionId(current) : undefined}
+            aria-activedescendant={open && rows > 0 ? optionId(current) : undefined}
             autoComplete="off"
             value={search}
             onChange={(event) => {
@@ -222,7 +285,10 @@ export function SearchPicker({
                 event.preventDefault();
                 if (!open) return setOpen(true);
                 const step = event.key === "ArrowDown" ? 1 : -1;
-                setActive(Math.min(Math.max(current + step, 0), shown.length - 1));
+                setActive(Math.min(Math.max(current + step, 0), rows - 1));
+              } else if (event.key === "Enter" && open && onCreateRow) {
+                event.preventDefault();
+                createTyped();
               } else if (event.key === "Enter" && open && shown[current]) {
                 event.preventDefault();
                 toggle(shown[current].value);
@@ -234,12 +300,17 @@ export function SearchPicker({
               lg && "text-subtitle font-normal",
             )}
           />
-          <ChevronDownIcon
-            className={cn(
-              "text-ink-meta size-4 shrink-0 transition-transform duration-150",
-              open && "rotate-180",
-            )}
-          />
+          {!inline && (
+            <span
+              data-picker-toggle
+              aria-hidden
+              className="text-ink-meta hover:text-ink -m-1.5 flex shrink-0 cursor-pointer p-1.5 transition-colors duration-150"
+            >
+              <ChevronDownIcon
+                className={cn("size-4 transition-transform duration-150", open && "rotate-180")}
+              />
+            </span>
+          )}
         </div>
 
         {open && (
@@ -252,58 +323,81 @@ export function SearchPicker({
             aria-label={label}
             // Presses anywhere in the list keep focus in the field.
             onPointerDown={(event) => event.preventDefault()}
-            style={{ maxHeight: place.height }}
+            style={inline ? undefined : { maxHeight: place.height }}
             className={cn(
-              "bg-popover ring-foreground/10 absolute inset-x-0 z-20 flex flex-col overflow-y-auto overscroll-none rounded-md p-1 shadow-md ring-1",
-              place.above ? "bottom-full mb-1" : "top-full mt-1",
+              "flex flex-col overflow-y-auto overscroll-none",
+              inline
+                ? "-mx-1 mt-2 min-h-0 flex-1 px-1"
+                : "bg-popover ring-foreground/10 absolute inset-x-0 z-20 rounded-md p-1 shadow-md ring-1",
+              !inline && (place.above ? "bottom-full mb-1" : "top-full mt-1"),
             )}
           >
-            {shown.length === 0 ? (
+            {shown.length === 0 && !canCreate ? (
               <p className={cn("text-note text-ink-meta px-2 py-1.5", lg && "text-body")}>
                 {empty}
               </p>
             ) : (
-              shown.map((o, i) => {
-                // Indented under its parent, unless a search has pulled it
-                // out of that order.
-                const nested = o.nested && !needle;
-                const checked = values.includes(o.value);
-                return (
-                  <div
-                    key={o.value}
-                    id={optionId(i)}
-                    role="option"
-                    aria-selected={checked}
-                    onClick={() => toggle(o.value)}
-                    onPointerMove={() => i !== current && setActive(i)}
-                    className={cn(
-                      "text-body flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 pr-2 text-left",
-                      lg && "text-subtitle py-2.5 font-normal",
-                      i === current && "bg-accent",
-                      nested ? "pl-7" : "pl-2",
-                    )}
-                  >
-                    <span
-                      aria-hidden
+              <>
+                {shown.map((o, i) => {
+                  // Indented under its parent, unless a search has pulled it
+                  // out of that order.
+                  const nested = o.nested && !needle;
+                  const checked = values.includes(o.value);
+                  return (
+                    <div
+                      key={o.value}
+                      id={optionId(i)}
+                      role="option"
+                      aria-selected={checked}
+                      onClick={() => toggle(o.value)}
+                      onPointerMove={() => i !== current && setActive(i)}
                       className={cn(
-                        "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
-                        checked && "border-primary bg-primary",
+                        "text-body flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 pr-2 text-left",
+                        lg && "text-subtitle py-2.5 font-normal",
+                        i === current && "bg-accent",
+                        nested ? "pl-7" : "pl-2",
                       )}
                     >
-                      <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
-                    </span>
-                    <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
-                      {o.label}
-                    </span>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                          checked && "border-primary bg-primary",
+                        )}
+                      >
+                        <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
+                      </span>
+                      <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
+                        {o.label}
+                      </span>
+                    </div>
+                  );
+                })}
+                {canCreate && (
+                  <div
+                    id={optionId(shown.length)}
+                    role="option"
+                    aria-selected={false}
+                    onClick={createTyped}
+                    onPointerMove={() => current !== shown.length && setActive(shown.length)}
+                    className={cn(
+                      "text-body text-brand-ink flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 pr-2 pl-2 text-left font-medium",
+                      lg && "text-subtitle py-2.5",
+                      onCreateRow && "bg-accent",
+                      shown.length > 0 && "border-border-subtle mt-1 border-t",
+                    )}
+                  >
+                    <PlusIcon className="size-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{create.label(typed)}</span>
                   </div>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         )}
       </div>
 
-      {values.length > 0 && (
+      {!inline && values.length > 0 && (
         <ul aria-label={`Picked ${label}`} className="flex flex-wrap gap-2">
           {values.map((value) => {
             const name = byValue.get(value)?.label ?? value;

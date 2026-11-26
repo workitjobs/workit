@@ -529,7 +529,7 @@ async def test_a_save_never_compiles(student, monkeypatch):
     from app.routers import built_resumes
     from app.services.resume_render import TectonicUnavailable
 
-    def broken(*args):
+    def broken(*args, **kwargs):
         raise TectonicUnavailable("no tectonic")
 
     monkeypatch.setattr(built_resumes, "render", broken)
@@ -951,7 +951,8 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
 SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
             "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"],
             "font_family": "tinos", "name_size": 22, "heading_size": 13, "title_size": 11.5, "body_size": None,
-            "date_format": "year", "education_first": "degree", "hidden_header": []}
+            "date_format": "year", "education_first": "degree", "experience_first": "company",
+            "project_tools": "after_name", "hidden_header": []}
 
 
 async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):

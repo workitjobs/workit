@@ -8,6 +8,7 @@ No browser: in CI.
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from datetime import date, datetime
@@ -30,7 +31,8 @@ from apply import (
 from apply.adapters import ClaudeError, SetupError
 from apply.ask_model import live_claude
 from apply.fillers import FILLERS
-from apply.model import FillError, Handoff, Posting, Question, Status
+from apply.generic_fill import GenericFiller
+from apply.model import FillError, Posting, Question, Status
 from apply.profile import (
     load_policies as real_policies,  # before conftest's fixture strips the switches
 )
@@ -53,9 +55,10 @@ keyring.set_keyring(null.Keyring())
 from apply import student
 from apply.plain import fixed
 from apply.profile import ApplicantProfile
-student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
+run = student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
 fixed.functions()
-print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end()}))"""
+print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end(),
+                  "usage": type(run.usage.reading.__self__).__name__}))"""
 
 
 @pytest.fixture
@@ -70,7 +73,9 @@ def test_the_student_path_loads_no_developer_module(tmp_path):
     run = subprocess.run([sys.executable, "-c", LOADED, str(tmp_path / "applicant-profile.yaml"), str(Path(__file__).parent)],
                          capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
-    assert json.loads(run.stdout) == {"loaded": [], "reached": []}, (
+    loaded = json.loads(run.stdout)
+    assert loaded.pop("usage") == "WorkItAsk"  # the run pauses at WorkIt's Usage cap, never past it
+    assert loaded == {"loaded": [], "reached": []}, (
         "the Student build's path loads a developer module (apply.build.DEVELOPER), or reached the network: import it "
         "inside the function the Student build never reaches")
 
@@ -99,6 +104,16 @@ def test_even_ask_model_claude_builds_no_claude_cli():
     assert isinstance(live_claude({"ask_model": "claude"}, student.NoClaude()), student.NoClaude)
 
 
+def test_only_a_developer_checkouts_max_plan_asks_claude(monkeypatch):
+    from apply.claude_cli import ClaudeCLI
+
+    workit = {"ask_model": "workit"}
+    assert isinstance(student.asking(workit, environ={}).__dict__.get("_claude"), student.NoClaude)
+    assert isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert not isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+
+
 @pytest.mark.parametrize("call", ["ask", "drive", "research"])
 def test_no_claude_refuses_every_call_to_claude(call):
     with pytest.raises(ClaudeError, match="WorkIt Auto Apply doesn't"):
@@ -123,14 +138,12 @@ def by_filler(url: str):
     return given[0] if given else result
 
 
-def test_a_job_system_with_no_filler_is_held_for_the_student_not_claude_fill(student_build):
-    """KAN-855: its form opens and is handed over whole; the student fills it from the Apply window (Fix here)."""
+def test_a_job_system_with_no_filler_gets_the_generic_filler_not_claude_fill(student_build):
+    """KAN-861 (W2 step 2): code reads and fills its form, a model only picks, through WorkIt's kinds; it never
+    submits. Fault: Claude fill (a model driving the page) or a Filler that can press Submit."""
     filler = by_filler("https://careers.example.com/jobs/1")
-    assert isinstance(filler, orchestrator.ForTheStudent)
-    assert filler.question_set("https://careers.example.com/jobs/1", SimpleNamespace()) == []  # nothing read, no model
-    with pytest.raises(Handoff, match="can't fill this job site's forms yet: press Fix here and fill it in"):
-        filler.fill(SimpleNamespace(), [], {})  # touches nothing on the page
-    with pytest.raises(SetupError):
+    assert isinstance(filler, GenericFiller)
+    with pytest.raises(SetupError, match="never presses Submit"):
         filler.submit(SimpleNamespace())
 
 
@@ -236,3 +249,103 @@ def test_a_brief_is_never_researched(student_build, tmp_path, monkeypatch):
     monkeypatch.setattr(brief, "research", lambda *a, **k: pytest.fail("the Student build researched a company"))
     claude = SimpleNamespace(ask_kind=lambda kind, data: {"team": ""})  # brief.team, a WorkIt kind (D5)
     assert brief.brief(posting("https://x.example/1"), SimpleNamespace(), claude, date(2026, 11, 14)) == ""
+
+
+def test_the_student_builds_data_folder_is_the_systems_own_place():
+    """Fault: WorkIt Auto Apply keeping a student's data in a Developer checkout's ~/.config/apply (D25). HOME is
+    read once at import, so a new process with STUDENT set, and no APPLY_HOME, shows it."""
+    environment = {k: v for k, v in os.environ.items() if k != "APPLY_HOME"}
+    shown = subprocess.run([sys.executable, "-c", "from apply import build; build.STUDENT = True\n"
+                            "from apply import home; print(home.HOME == home.APP_FOLDER)"],
+                           capture_output=True, text=True, env=environment, check=True).stdout.strip()
+    assert shown == "True"
+
+
+def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch):
+    """KAN-874. Fault: Stop takes the window back to the queue while a stopped fill's Chrome still holds its Worker
+    profile, so a Start right after it fails with "worker-1 open in another browser"."""
+    from apply.browsers import ProfileInUse
+
+    class Site:
+        busy = 3  # the stopped fill's Chrome quits after three looks
+
+        def endpoint(self, worker):
+            return None
+
+        def close(self):
+            pass
+
+        def refuse_in_use(self):
+            if self.busy:
+                self.busy -= 1
+                raise ProfileInUse("worker-1 open in another browser")
+
+    site = Site()
+    made = SimpleNamespace(site=site, answer_bank=None, keychain=None, everyday=None,
+                           tracker=SimpleNamespace(rows=list, employer_accounts=list))
+    monkeypatch.setattr(student, "FREE_POLL", 0.0)
+    monkeypatch.setattr(student, "workers", lambda: 1)
+    runs = student.Runs({}, make=lambda profile: made, rehearse=lambda *args: None)
+
+    runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
+
+    assert site.busy == 0
+
+
+def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
+    """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
+    removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""
+    from apply.home import HOME
+    from apply.tracker import EmployerAccount, WorkItTracker
+
+    applicant = profile.ApplicantProfile.load(HOME / "applicant-profile.yaml")
+    account = EmployerAccount("Acme", "acme.wd1.myworkdayjobs.com", "test.person@example.com", date(2026, 11, 15))
+    first = student.adapters(applicant)
+    assert isinstance(first.tracker, WorkItTracker)
+    first.tracker.add_employer_account(account)
+    assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's
+
+
+def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
+    """Fault: a plain Worker's wrapper in the compiled app runs `-I host.py`, which the app has neither of (no Python,
+    no .py file), or names its program by sys.executable, which in a Nuitka program is a `python` beside it that
+    doesn't exist. Either way Chrome never reaches Apply and no plain Worker says hello (W8). Its own program, as the
+    OS names it, is the relay when host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated
+    Python on host.py."""
+    import shlex
+
+    import psutil
+
+    from apply.plain import host, launcher
+
+    assert shlex.split(launcher.host_command(compiled=True)) == [psutil.Process().exe(), host.APP_FLAG]
+    assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
+
+
+def test_the_compiled_apps_relay_finds_its_channel_with_no_py_file(tmp_path, monkeypatch):
+    """Fault: the compiled app's relay loads channel.py from beside host.py, a file the app doesn't ship, so every
+    plain Worker's host stops before it connects to Apply and none says hello (W8, KAN-929)."""
+    from apply.plain import channel, host
+
+    monkeypatch.setattr(host, "__file__", str(tmp_path / "host.py"))  # as in the app: no .py file beside it
+    assert host._channel(compiled=True) is channel
+
+
+def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):
+    """Fault: the compiled app builds the window capture helper with swiftc, which a student's Mac lacks, so every
+    plain Worker's tile drops to the slow captureVisibleTab path; or it films with a helper left in a cache folder
+    instead of the one signed with the app (W8)."""
+    from apply.plain import window_capture
+
+    shipped = tmp_path / window_capture.BUNDLED_NAME
+    shipped.write_bytes(b"helper")
+    monkeypatch.setattr(window_capture, "BUNDLED", shipped)
+    monkeypatch.setattr(window_capture.shutil, "which", lambda name: pytest.fail(f"looked for {name}"))
+    window_capture.helper.cache_clear()
+    try:
+        assert window_capture.helper() == shipped
+        shipped.unlink()
+        window_capture.helper.cache_clear()
+        assert window_capture.helper() is None  # a missing helper: the tile's extension frames, never a build
+    finally:
+        window_capture.helper.cache_clear()

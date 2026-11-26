@@ -8,6 +8,9 @@ import {
   ArrowUpIcon,
   CircleNotchIcon,
   LightbulbIcon,
+  ListBulletsIcon,
+  QuestionIcon,
+  TextAaIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
@@ -24,7 +27,7 @@ import {
   type RefObject,
 } from "react";
 
-import { CheckIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
+import { ChevronRightIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,8 +45,9 @@ import type { Choices, PageSettings, RenderBox, RenderedPdf } from "@/lib/built-
 import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
+import { overText } from "./fit-notice";
 import type { Line } from "./model";
-import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
+import { DESK_BAR, PRESSED_GLYPH } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar and the
@@ -70,7 +74,12 @@ export type ExperiencesTools = {
 
 /** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
  *  More's `ZoomSubmenu`. */
-export type ZoomTools = { zoom: number; onZoom: (zoom: number) => void };
+export type ZoomTools = {
+  zoom: number;
+  shown: number;
+  room: number | null;
+  onZoom: (zoom: number) => void;
+};
 
 /** The bar's page settings (./page-format.tsx). */
 export type FormatTools = {
@@ -78,9 +87,11 @@ export type FormatTools = {
   disabled: boolean;
   onChange: (next: PageSettings) => void;
   /** Whether the side panel is open, and its button (KAN-586): the panel
-   *  holds Sections and Format as tabs, so neither has a button of its own. */
+   *  holds Sections and Format as tabs, so neither has a button of its own.
+   *  No button on Tailor's review, whose views open from its own controls
+   *  beside the page (`ReviewTabs`, `ReviewRail`). */
   panelOpen: boolean;
-  onPanel: () => void;
+  onPanel?: () => void;
 };
 
 /** The side panel's tabs (KAN-586). */
@@ -98,47 +109,6 @@ export type ReviewTools = {
   /** False when the run's record names no source resume. */
   hasOriginal: boolean;
 };
-
-/**
- * Whether the edits are saved, in the title row beside Download on the
- * desktop and at the end of the phone's top row (KAN-799): "Saving…" while
- * anything is on its way, "Saved" once the first render has landed and
- * nothing is. It read "Saved, N ms", the render's time, which was for us,
- * not for a student, and it sat in the bar and left it below 58rem. An
- * error is not said here: the line under the bar says what went wrong.
- */
-export function SaveStatus({
-  saving,
-  fitting,
-  ready,
-  short = false,
-}: {
-  saving: boolean;
-  fitting: boolean;
-  /** The first render has landed. */
-  ready: boolean;
-  /** The phone's "Fitting…", for its narrow row. */
-  short?: boolean;
-}) {
-  const saved = ready && !saving && !fitting;
-  return (
-    <span
-      aria-live="polite"
-      className="text-note text-ink-meta flex shrink-0 items-center gap-1 whitespace-nowrap"
-    >
-      {saved && <CheckIcon className="size-3.5" />}
-      {fitting
-        ? short
-          ? "Fitting…"
-          : "Fitting to One Page…"
-        : saving
-          ? "Saving…"
-          : saved
-            ? "Saved"
-            : ""}
-    </span>
-  );
-}
 
 /**
  * One of an open line's tools after its size and its bold and italic: what
@@ -188,6 +158,11 @@ export type LineHandlers = {
  */
 export function lineTools(line: Line, _choices: Choices, { moves }: LineHandlers): LineTool[] {
   if (line.kind === "header" || line.kind === "skill" || !moves) return [];
+  return moveTools(moves);
+}
+
+/** Move Up and Move Down, for an open line or a picked block (KAN-920). */
+export function moveTools(moves: MoveTools): LineTool[] {
   return [
     {
       key: "move-up",
@@ -242,10 +217,15 @@ export function SheetTool({ tool }: { tool: LineTool }) {
   );
 }
 
-/** The bar's middle while a line is open: the line's tools (`lineTools`),
- *  its two arrows. Its size, bold, italic and Done stood here too until
- *  KAN-586. */
-export type OpenLine = { tools: LineTool[] };
+/** One step of the breadcrumb (KAN-920): a section, an entry, a bullet or
+ *  a field. A step with a `target` picks that block (`onCrumb`); the last is
+ *  where the selection is, and has none. */
+export type Crumb = { label: string; target?: string };
+
+/** The bar's middle while a line is open or a block picked: where it sits
+ *  (`crumbs`) and its tools (`lineTools`, `moveTools`), its two arrows. Its
+ *  size, bold, italic and Done stood here too until KAN-586. */
+export type OpenLine = { tools: LineTool[]; crumbs?: Crumb[] };
 
 /** The open line as the bar shows it, or null while the bar is idle: no
  *  line open, or one with no tools (`lineTools`). */
@@ -302,6 +282,10 @@ export function Bar({
   format,
   zoom,
   history,
+  crumbs = null,
+  onCrumb,
+  onTour,
+  blockMoves = null,
 }: {
   /** The open line and its box, or null while none is. */
   line: Line | null;
@@ -318,19 +302,43 @@ export function Bar({
   format: FormatTools;
   zoom: ZoomTools;
   history: HistoryTools;
+  /** Where the open line or the picked block sits (KAN-920). */
+  crumbs?: Crumb[] | null;
+  onCrumb?: (target: string) => void;
+  /** Takes the Getting Started tour again: the ? before the panel's button,
+   *  from 64rem, where the tour is drawn (./walkthrough.tsx). It was Take
+   *  the Tour in the page's ⋯ until the ⋯ went (2026-11-19); Google Docs
+   *  keeps its help under the toolbar the same way. */
+  onTour?: () => void;
+  /** A picked block's moves, in place of an open line's. */
+  blockMoves?: MoveTools | null;
 }) {
-  const open = openLineOf({
+  const blockTools = blockMoves ? moveTools(blockMoves) : null;
+  const lineOpen = openLineOf({
     line,
     box,
     tools: line ? lineTools(line, choices, handlers) : [],
   });
+  const steps_ = crumbs?.length ? crumbs : undefined;
+  const open: OpenLine | null = blockTools
+    ? { tools: blockTools, crumbs: steps_ }
+    : lineOpen
+      ? { ...lineOpen, crumbs: steps_ }
+      : steps_
+        ? { tools: [], crumbs: steps_ }
+        : null;
   const bar = useRef<HTMLDivElement>(null);
   const fits = rendered && rendered.page_count > 1;
   // The fold measures again whenever what the row holds changes
   useFoldToFit(
     bar,
     open
-      ? ["line", ...open.tools.map((t) => `${t.key}:${t.label}`), Boolean(rendered)].join("|")
+      ? [
+          "line",
+          ...(open.crumbs ?? []).map((c) => c.label),
+          ...open.tools.map((t) => `${t.key}:${t.label}:${t.disabled}`),
+          Boolean(rendered),
+        ].join("|")
       : [
           "idle",
           Boolean(experiences?.picker),
@@ -347,7 +355,8 @@ export function Bar({
       ref={bar}
       data-keeps-selection
       data-page-bar
-      className={cn(SLIM_BAR, "@container/bar")}
+      data-tour="toolbar"
+      className={cn(DESK_BAR, "@container/bar")}
       // A press on a button keeps focus in the open line's field, so it does
       // not blur and save first
       onMouseDown={(e) => {
@@ -357,7 +366,7 @@ export function Bar({
       <History tools={history} />
       <Divider />
       {open ? (
-        <LineGroup open={open} />
+        <LineGroup open={open} onCrumb={onCrumb} />
       ) : (
         <>
           {experiences?.picker && (
@@ -440,7 +449,11 @@ export function Bar({
           className={cn("flex shrink-0 items-center", FOLD.away)}
         >
           <Divider />
-          {rendered ? <Zoom zoom={zoom.zoom} onZoom={zoom.onZoom} /> : <ZoomSkeleton />}
+          {rendered ? (
+            <Zoom zoom={zoom.zoom} shown={zoom.shown} room={zoom.room} onZoom={zoom.onZoom} />
+          ) : (
+            <ZoomSkeleton />
+          )}
         </span>
         {rendered && (
           <MoreMenu
@@ -454,7 +467,31 @@ export function Bar({
             above where the panel opens: never folded away, since it is the
             only way back to a closed panel */}
         <Divider />
-        <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
+        {onTour && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  aria-label="Take the Tour"
+                  className="shrink-0 max-lg:hidden"
+                  onClick={onTour}
+                />
+              }
+            >
+              <QuestionIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>Take the Tour</TooltipContent>
+          </Tooltip>
+        )}
+        {format.onPanel && (
+          <PanelToggle
+            open={format.panelOpen}
+            disabled={format.disabled}
+            onToggle={format.onPanel}
+          />
+        )}
       </div>
     </div>
   );
@@ -516,11 +553,12 @@ function useFoldToFit(bar: RefObject<HTMLDivElement | null>, contents: string) {
 }
 
 /** The bar's middle with a line open: its tools, the two arrows. */
-function LineGroup({ open }: { open: OpenLine }) {
+function LineGroup({ open, onCrumb }: { open: OpenLine; onCrumb?: (target: string) => void }) {
   // The line's arrows only (`lineTools`): the size, bold, italic, its other
   // tools and Done stood here until the user cut them (KAN-586)
   return (
     <>
+      {open.crumbs && <Crumbs crumbs={open.crumbs} onCrumb={onCrumb} />}
       {open.tools.map((tool) => (
         <span
           key={tool.key}
@@ -533,6 +571,40 @@ function LineGroup({ open }: { open: OpenLine }) {
         </span>
       ))}
     </>
+  );
+}
+
+/**
+ * Where the selection sits, as a breadcrumb (KAN-920): "Experience › Acme ›
+ * Bullet 2". Each step above the last picks its block, so the student climbs
+ * from a line to its entry or section on the page, as Esc does, with no
+ * Sections panel. Each step is cut short rather than pushing the arrows off.
+ */
+function Crumbs({ crumbs, onCrumb }: { crumbs: Crumb[]; onCrumb?: (target: string) => void }) {
+  return (
+    <nav aria-label="Selection" className="flex min-w-0 shrink items-center gap-0.5 pr-1">
+      {crumbs.map((crumb, i) => (
+        <span key={`${i}:${crumb.label}`} className="flex min-w-0 items-center gap-0.5">
+          {i > 0 && <ChevronRightIcon className="text-ink-meta size-3 shrink-0" />}
+          {crumb.target && onCrumb ? (
+            <button
+              type="button"
+              onClick={() => onCrumb(crumb.target!)}
+              className="text-label text-ink-muted hover:text-ink hover:bg-ink/5 focus-visible:ring-brand-ring max-w-40 truncate rounded-xs px-1 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {crumb.label}
+            </button>
+          ) : (
+            <span
+              aria-current="true"
+              className="text-label text-ink max-w-40 truncate px-1 font-medium"
+            >
+              {crumb.label}
+            </span>
+          )}
+        </span>
+      ))}
+    </nav>
   );
 }
 
@@ -683,7 +755,14 @@ function MoreMenu({
               <ScissorsIcon aria-hidden /> Cut From Resume
             </DropdownMenuCheckboxItem>
           )}
-          {away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}
+          {away.has("zoom") && (
+            <ZoomSubmenu
+              zoom={zoom.zoom}
+              shown={zoom.shown}
+              room={zoom.room}
+              onZoom={zoom.onZoom}
+            />
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
@@ -783,7 +862,7 @@ export function PanelTabs({
   onClose: () => void;
 }) {
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex items-end gap-2" data-tour="panel-tabs">
       <TabButtons
         label="Side Panel"
         ruled
@@ -833,14 +912,10 @@ export function FitButton({
   fitting: boolean;
   onFit: () => void;
 }) {
-  const over =
-    linesOver > 0
-      ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-      : `It runs to ${pages} pages.`;
   return (
     <FoldButton
       label={fitting ? "Fitting…" : "Fit to One Page"}
-      hint={`${over} This hides the least useful lines until it fits.`}
+      hint={`${overText(pages, linesOver)} This hides the least useful lines until it fits.`}
       icon={
         fitting ? (
           <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
@@ -855,6 +930,7 @@ export function FitButton({
           variant="secondary"
           size="sm"
           data-bar-action
+          data-tour="fit"
           className="shrink-0"
           disabled={disabled}
           onClick={onFit}
@@ -868,3 +944,87 @@ export function FitButton({
 function ZoomSkeleton() {
   return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
 }
+
+/**
+ * Tailor's review's views, as a rail of icons down the window's right edge
+ * (2026-11-23, after Gmail's; the user's pick of three trials): Suggestions
+ * with its count, Sections, Format and Original, each named by its
+ * tooltip. A press opens that view beside the rail and tints the icon, as
+ * a pressed bar button is tinted (`PRESSED_GLYPH`); a press on the open one
+ * closes it, and the page takes the room. The chevron at its foot folds the
+ * rail away to a tab at the window's edge, as Gmail's does.
+ *
+ * It has no box: the icons stand on the page's own ground, so the rail
+ * reads as the window's frame, not one more box beside the page. A boxed
+ * card of icons came first, short and floating, which read as content and
+ * could not be put away; tiles with names under the icons, as the left
+ * sidebar's, came second, and the user found them heavy (2026-11-23).
+ */
+export function ReviewRail({ review, onFold }: { review: ReviewTools; onFold: () => void }) {
+  const item = (
+    side: Exclude<Side, null>,
+    label: string,
+    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>,
+    count = 0,
+  ) => {
+    const open = review.side === side;
+    return (
+      <Tooltip key={side}>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-pressed={open}
+              aria-label={count > 0 ? `${label}, ${count}` : label}
+              onClick={() => review.onSide(open ? null : side)}
+              className={cn(
+                RAIL_ICON,
+                open ? "bg-brand-tint text-brand" : "text-ink-muted hover:bg-ink/5 hover:text-ink",
+              )}
+            />
+          }
+        >
+          <Icon aria-hidden className="size-5" />
+          {count > 0 && (
+            <span className="bg-brand text-on-brand text-caption absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
+              {count}
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="left">{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+  return (
+    <div className="flex h-full flex-col items-center gap-2 py-1">
+      {item("suggestions", "Suggestions", LightbulbIcon, review.count)}
+      {item("sections", "Sections", ListBulletsIcon)}
+      {item("format", "Format", TextAaIcon)}
+      {review.hasOriginal && (
+        <>
+          <span aria-hidden className="bg-border-surface h-px w-6" />
+          {item("original", "Original Resume", FileIcon)}
+        </>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Hide Side Panel"
+              onClick={onFold}
+              className={cn(RAIL_ICON, "text-ink-meta hover:bg-ink/5 hover:text-ink mt-auto")}
+            />
+          }
+        >
+          <ChevronRightIcon aria-hidden className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side="left">Hide Side Panel</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+/** A rail icon: 40px, round as Gmail's, its pressed tint the bar's. */
+const RAIL_ICON =
+  "focus-visible:ring-brand-ring relative flex size-10 shrink-0 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";

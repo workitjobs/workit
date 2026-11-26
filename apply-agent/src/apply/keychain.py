@@ -30,6 +30,9 @@ GROQ = "apply-groq"
 GROQ_HOST = "api.groq.com"
 GEMINI = "apply-gemini"
 GEMINI_HOST = "generativelanguage.googleapis.com"
+# A developer's Claude setup token (`claude setup-token`), which `claude -p` signs in with before the claude login.
+CLAUDE = "apply-claude"
+CLAUDE_ACCOUNT = "setup-token"
 
 
 class SystemKeychain:

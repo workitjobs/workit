@@ -27,14 +27,20 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from apply import trace
-from apply.adapters import NEEDS_WORKIT, ClaudeError, SetupError, UsageLimitHit
+from apply.adapters import (
+    NEEDS_WORKIT,
+    ClaudeError,
+    SetupError,
+    UsageLimitHit,
+    UsageReading,
+)
 from apply.home import CODE
 from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, SystemKeychain
 from apply.workit import (
@@ -432,6 +438,29 @@ class WorkItAsk:
 
     def spent(self) -> int:
         return self._claude.spent() + getattr(self._spent, "tokens", 0)
+
+    def reading(self) -> UsageReading:
+        """The run's usage (Adapters.usage): `claude`'s (a Developer checkout's Max windows), and limited from the
+        moment today's use reaches WorkIt's Usage cap (GET /apply-app/usage) until it resets, so no form opens until
+        then (rehearsal._after_the_limit, orchestrator._resume_at). WorkIt not answering reads as not limited: the
+        next ask says what is wrong itself."""
+        try:
+            reading = self._claude.reading()
+        except SetupError:  # no claude -p on this Mac: only drive and research need it, and they say so
+            reading = UsageReading()
+        try:
+            usage = self._workit.call("GET", "/apply-app/usage")
+        except WorkItError:
+            return reading
+        if usage["used"] < usage["cap"]:
+            return reading
+        # Local and naive, as the Clock's and claude_cli's times are; a minute away at least, so a Mac clock a little
+        # ahead of WorkIt's doesn't ask again and again while WorkIt's day hasn't turned.
+        resets = max(datetime.fromtimestamp(datetime.fromisoformat(usage["resets_at"]).timestamp()),
+                     self._now() + timedelta(minutes=1))
+        if reading.limited and reading.resets_at:
+            resets = max(resets, reading.resets_at)
+        return replace(reading, limited=True, resets_at=resets)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
         raise SetupError("ask_model: workit sends each call as a kind and its data, never a prompt (D5, KAN-723)")

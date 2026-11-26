@@ -115,6 +115,16 @@ test("the Sections panel lists custom sections by name where they print", () => 
   );
 });
 
+test("the Sections panel lists Education, Projects and Skills empty, for their Add", () => {
+  const sections = printedSections(bank, choices, ORDER, { withEmpty: true });
+  const empty = sections.filter((s) => s.empty).map((s) => s.id);
+  assert.deepEqual(empty.sort(), ["education", "projects", "skills"]);
+  // Experience has an entry, so it is listed as it always was
+  assert.equal(sections.find((s) => s.id === "experience")?.empty, undefined);
+  // A custom section with nothing in it is still left out
+  assert.ok(sections.every((s) => !s.empty || !s.id.startsWith("custom:")));
+});
+
 test("an entry moves within its own custom section only", () => {
   const coach = { kind: "entry" as const, entry: bank.entries[2], field: "title" };
   assert.deepEqual(move(bank, choices, coach, -1), {

@@ -62,7 +62,7 @@ it, and Claude fill hands the form over.
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
-(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small "Apply rehearsal" note on the page,
+(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small WorkIt card on the page (BLOCKED_CARD),
 once the page has had a click or key: one its own script makes first (a
 cookie banner, analytics) is blocked without one.
 
@@ -107,7 +107,7 @@ form, Submit and all), and a frame with scripts off runs no guard.
 
 Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
-through, and a green note says so, with a Fill again button. The page tells
+through, and a purple WorkIt card says so, with a Fill again button. The page tells
 Apply when he clicks a button that sends, so a rehearsal can keep his
 submission in the Tracker. A rehearsal paused mid-form is lifted the same
 way while Lisul fixes its page; Resume puts both guards back on with
@@ -256,7 +256,7 @@ _TEMPLATE = r"""
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
              asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
-             start: false};
+             start: false, signIn: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   // startSent: a post of it was let go (the guard's copy, or a form's submit()); startGone: one has left as a navigation.
   let starting = null, startSent = false, startGone = false;
@@ -281,7 +281,7 @@ _TEMPLATE = r"""
     // A copy put into a page already open (LATE: after the page's own code, which may have heard this event's name)
     // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
     if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
-      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
+      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing', 'signIn'], (k) => has(cmd, k) && !!cmd[k]))) return;
     if (has(cmd, 'lift')) {
       const n = cmd.lift;
       S.lifted = n !== null && typeof n === 'object';
@@ -297,7 +297,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing', 'signIn'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -341,12 +341,12 @@ _TEMPLATE = r"""
       if (!box) {
         box = D.createElement('div');
         box.id = '@BOX@';
-        // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
-          + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
+        box.setAttribute('role', 'status');
+        box.setAttribute('data-tone', 'fix');
+        box.style.cssText = @BLOCKED_CSS@;  // a WorkIt card (BLOCKED_CARD), under a captcha's challenge
         (D.body || D.documentElement).appendChild(box);
       }
-      box.textContent = '@NAME@: blocked ' + what + '. Nothing was sent.';
+      box.textContent = @BLOCKED_WORDS@;  // what it blocked is in the console line above, never on the page
     } catch (e) {}
   };
   // A guard listener that throws blocks what it was judging, as a page that could make it throw would want it not to.
@@ -364,6 +364,17 @@ _TEMPLATE = r"""
   // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
   const armed = () => S.account;
   let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
+  // The forms that had a button that sends as the last press went down (KAN-868): a page's pointerdown or mousedown
+  // handler can rename or take away a Submit before the click, which is when a press is recorded. The guard's own
+  // listener runs before any of the page's, so this is the form as it stood (pointerdown's, then mousedown's: each
+  // adds, as mousedown comes once a pointerdown handler may have renamed it). It only ever adds to what is blocked.
+  let downSending = [];
+  const wentDown = judged(() => {
+    const now_ = sendingForms();
+    for (let i = 0; i < now_.length; i++) if (!any(downSending, (f) => f === now_[i])) push(downSending, now_[i]);
+  });
+  on('pointerdown', wentDown);
+  on('mousedown', wentDown);
   let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
   const user = (event) => event.isTrusted || event === userClick;
   on('click', judged((event) => {
@@ -376,8 +387,9 @@ _TEMPLATE = r"""
     if (!userClick) return;
     const target = targetGet(event);
     press = isEl(target) && (!at || at === true || contains(at, target))
-      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sendingForms()}
+      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sentAll()}
       : null;
+    downSending = [];  // each press's own: what went down before this click is in its record now
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -392,6 +404,8 @@ _TEMPLATE = r"""
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
   const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  // Those as the press went down, and as it landed.
+  const sentAll = () => { const out = sendingForms(); for (let i = 0; i < downSending.length; i++) push(out, downSending[i]); return out; };
   const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
@@ -1024,9 +1038,89 @@ _TEMPLATE = r"""
   const BUTTONS = 'button, input[type=submit], input[type=image], input[type=button], [role=button]';
   const formSends = (form) => any(all(form, BUTTONS), (n) => buttonSends(n)) || any(fields(form), (n) => buttonSends(n));
   const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image|button)$/i, typeOf(n)) || attr(n, 'role') === 'button') && sends(n);
-  const posts = (form, submitter) => {
-    const method = (isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get';
-    return lower(method) === 'post';
+  const methodOf = (form, submitter) =>
+    lower((isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get');
+  const posts = (form, submitter) => methodOf(form, submitter) === 'post';
+  // A form whose submit only its own handlers can send by (GET, an unknown method, or a dialog's: a dialog's submit
+  // event runs the page's handlers all the same, round 2 of KAN-868's review).
+  const gets = (form, submitter) => !posts(form, submitter);
+  // A sign-in or account step (iCIMS's email step, KAN-703): its only boxes are an email or user name, passwords,
+  // ticks and hidden ones, and the page shows no other answer box, in or out of the form (a textarea or file box
+  // anywhere, or a shown box another form doesn't hold: round 2 of KAN-868's review put the answers outside the
+  // form, or moved them out as the Next was pressed). Its GET submit goes on as before (KAN-868).
+  const LOGIN_BOX = /e-?mail|user|login|account/i;
+  const iframeDoc = get(HTMLIFrameElement.prototype, 'contentDocument'), frameDoc = get(HTMLFrameElement.prototype, 'contentDocument');
+  const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
+  // A form with a password box that plain code's sign-in posts: a POST form, as ever, or one that doesn't POST only
+  // under Apply's own sign-in press and as a sign-in step (round 5 of KAN-868's review: an application that makes an
+  // account as it applies, a GET form with a password box, went through every path's account click).
+  const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
+  const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
+  // A bot trap beside a sign-in form (Workday's "beecatcher", a 1-pixel "website" box on every tenant, KAN-886): an
+  // empty text box no person sees that says it is one ("This input is for robots only"). It holds no answer, so it
+  // doesn't make the page an application's. A box with a value, now or in its markup, one a person sees, or one that
+  // doesn't say it is a trap (a dropdown's see-through typing box beside its hidden answer) still does.
+  const TRAP = /robot|\bbots?\b|human|honey ?pot|beecatcher|leave (?:this |it )?(?:blank|empty)/i;
+  const labelsOf = get(HTMLInputElement.prototype, 'labels');
+  const trapSays = (n) => {
+    let said = text(attr(n, 'data-automation-id')) + ' ' + text(attr(n, 'aria-label'));
+    const found = labelsOf(n), labels = found ? nodes(found) : [];
+    for (let i = 0; i < labels.length; i++) { try { said += ' ' + text(textOf(labels[i])); } catch (e) { /* says nothing */ } }
+    return test(TRAP, said);
+  };
+  const trap = (n) => tag(n) === 'INPUT' && test(/^(text|email|url|tel|search)$/, lower(typeOf(n))) && valueOf(n) === ''
+    && text(attr(n, 'value')) === '' && !visibly(n) && trapSays(n);
+  // A shut pop-up's empty long-answer box: Oracle's AI Assist "Work Summary" dialog, hidden on every Candidate
+  // Experience page beside its email step (Honeywell's, live). No person sees it or the pop-up around it, and it holds
+  // no text, now or in its markup, so it holds no answer. One a person sees, one with text, or one in no pop-up counts.
+  const areaValueGet = getter(HTMLTextAreaElement, 'value');
+  const shutBox = (n) => {
+    if (tag(n) !== 'TEXTAREA' || trim(text(read([areaValueGet], n, '?'))) !== '' || trim(text(textOf(n))) !== ''
+      || visibly(n)) return false;
+    const pop = up(n, '[role=dialog], dialog, [aria-modal=true]');
+    return !!pop && !visibly(pop);
+  };
+  const loginForm = (form) => {
+    const all_ = fields(form);
+    let named = false;
+    for (let i = 0; i < all_.length; i++) {
+      const n = all_[i], kind = lower(typeOf(n));
+      if (test(/^(hidden|password|checkbox|submit|button|reset|image)$/, kind) || tag(n) === 'FIELDSET' || tag(n) === 'BUTTON') continue;
+      if (trap(n)) continue;  // a bot trap in the form itself (Oracle's honeypot box beside its email)
+      if (tag(n) !== 'INPUT' || !test(/^(email|text)$/, kind)) return false;
+      if (kind !== 'email' && !test(LOGIN_BOX, text(attr(n, 'name')) + ' ' + text(attr(n, 'id')) + ' ' + text(attr(n, 'autocomplete'))
+        + ' ' + text(attr(n, 'aria-label')))) return false;
+      if (named) return false;  // one such box: a second is a field of something else
+      named = true;
+    }
+    if (!named) return false;
+    if (any(all(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]'), (n) => !shutBox(n))) return false;
+    const boxes = all(D, 'input, select');
+    for (let i = 0; i < boxes.length; i++) {
+      const n = boxes[i];
+      if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
+      if (formOf(n) === form || trap(n)) continue;
+      return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
+    }
+    // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
+    // can't be read: the residual of this exemption, with answers a script holds.
+    const BOX = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]';
+    // Every root the guard has heard, closed ones too, and each frame of the page's own origin (round 4).
+    for (let i = 0; i < knownRoots.length; i++) { try { if (qs(knownRoots[i], BOX)) return false; } catch (e) { return false; } }
+    const frames = all(D, 'iframe, frame');
+    for (let i = 0; i < frames.length; i++) {
+      let doc = null;
+      try { doc = frameDocOf(frames[i]); } catch (e) { continue; }  // another site's frame: null, its own document
+      try { if (doc && docQs(doc, BOX)) return false; } catch (e) { return false; }
+    }
+    const hosts = all(D, '*');
+    for (let i = 0; i < hosts.length; i++) {
+      let root = null;
+      try { root = apply(openRootOf.get, hosts[i], []); } catch (e) {}
+      if (root && qs(root, 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]')) return false;
+    }
+    return true;
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -1141,7 +1235,7 @@ _TEMPLATE = r"""
       const href = text(postTarget(form, by));
       const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
       const words = isEl(by) ? slice(trim(innerText(by) || valueOf(by) || text(attr(by, 'aria-label'))), 0, 40) : '';
-      return 'a form submission (POST ' + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
+      return 'a form submission (' + (posts(form, by) ? 'POST ' : 'GET ') + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
         + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
     } catch (e) {
       return 'a form submission';
@@ -1175,28 +1269,106 @@ _TEMPLATE = r"""
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     const apply_ = fromPress(form, by);
-    if (apply_ && password(form) && !postsFinal(form, by)) return;
+    if (apply_ && password(form) && !postsFinal(form, by) && passwordStep(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by) : formSends(form);
     // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
     // that has a Submit, goes on only by his own press of it, never by a script's requestSubmit() (KAN-710).
     if (held() && !final && (!by || !formSends(form) || (!!press && contains(by, press.target)))) return;
-    if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
-    if (final || (posts(form, by) && !step)) {
+    // A GET form's submit reaches none of the page's handlers, whatever pressed it (KAN-868). Its own submit handler
+    // is how it sends (a React form's onSubmit posts the application by fetch, to any URL), so it can't be told from
+    // a step by where it goes, and the review of KAN-868 sent it past every test of the form's buttons: a Submit the
+    // press renamed or took away, one outside the form, a <div> of no role, words only in CSS. Only a POST form was
+    // judged, and the adversarial review of KAN-861 sent the application this way past both guards. So a wizard
+    // whose Next submits a GET form is a step no code presses: a Handoff, and the student's press on the held page.
+    // A sign-in step goes on only under plain code's own sign-in press (apply.account_pages, `signIn`), never a Next's
+    // account click: a page alone can't be told from an app dressed as one (round 3 of the review: answers kept in
+    // script, and plain code's Next arms the account click too).
+    const scripted = gets(form, by) && !(apply_ && S.signIn === true && loginForm(form));
+    if (final || scripted) stopNow(event);
+    if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
       note(formNamed(form, by));
     }
   });
   on('submit', judgeSubmit);
+  // A press that would submit a form that doesn't POST is cancelled at the window, before the press reaches the page
+  // (round 4 of KAN-868's review): a listener of the page's own on a shadow root, added before the guard heard that
+  // root (by a script inside it), heard the submit first, so the submit event can't be the only place it is stopped.
+  // A sign-in step under plain code's own sign-in press goes on, as at the submit; a held page's own press too.
+  const wouldSubmit = (event) => {
+    const path = composedPath(event);
+    const at = path.length ? path[0] : targetGet(event);
+    const button = up(at, 'button, input');
+    if (!button || !submitButton(button)) return null;
+    const form = formOf(button);
+    return form && !posts(form, button) ? {form, button} : null;
+  };
+  // What the submit judge lets go on, judged as the press comes: the Posting's Apply (KAN-725), plain code's sign-in
+  // with a password, a profile step's own click (KAN-647), and a sign-in step under plain code's sign-in press.
+  const pressAllowed = (form, button) => (starting !== null && button === starting)
+    || (fromPress(form, button) && password(form) && !postsFinal(form, button) && passwordStep(form, button))
+    || (profileClick() && profileStep(button))
+    || (fromPress(form, button) && S.signIn === true && loginForm(form));
+  on('click', judged((event) => {
+    if (lifted() || held()) return;
+    const found = wouldSubmit(event);
+    if (!found) return;
+    if (pressAllowed(found.form, found.button)) return;
+    prevent(event);
+    note(formNamed(found.form, found.button));
+  }));
   // A form in a shadow root: its submit event stays in the root (it isn't composed), so the guard hears it at each
   // root a script makes, and at each one a press passes through (one the page wrote, KAN-710). Such a form is never a
   // step's, a relay or an upload's: the guard can't be sure what of it the window misses. Its post is judged as it
   // leaves (the navigate check) all the same.
   const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
-  const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  const hearRoot = (root) => {
+    if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); push(knownRoots, root); listen(root, 'submit', judgeSubmit, true); }
+  };
+  // A root the page wrote (a declarative shadow root) that no press passes through: heard as a script submits a form
+  // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
+  // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
+  const hearRootOf = (node) => { try { const root = rootOf(node); if (isRoot(root)) hearRoot(root); } catch (e) {} };
+  // A listener the page adds for submit, anywhere: the guard hears that node's root first, so its own listener there
+  // comes before the page's whatever way the page reached the root (round 5 of KAN-868's review: code inside a
+  // declarative root walked parentNode up to it, past every wrapped getter).
+  const pageListen = EventTarget.prototype.addEventListener;
+  defineProp(EventTarget.prototype, 'addEventListener', {value: function addEventListener(...args) {
+    try { if (lower(Str(args[0])) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
+    return apply(pageListen, this, args);
+  }, writable: true, configurable: true});
+  const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+  if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
+    hearRootOf(this);
+    // A script's submit of a form that doesn't POST, while guarded: refused before any listener hears it (round 4),
+    // but a sign-in step's under plain code's own sign-in press.
+    try {
+      if (isForm(this) && !lifted() && !held() && !posts(this, args[0])
+          && !pressAllowed(this, args[0] || null)) {
+        return note(formNamed(this, args[0] || null));
+      }
+    } catch (e) { return note('what the guard could not read (a form a script submitted)'); }
+    return apply(pageRequestSubmit, this, args);
+  }, writable: true, configurable: true});
+  // A closed root the page wrote is reached only through its element's internals; a press there by script is its
+  // click(): both hear the root first (round 2 of KAN-868's review: a Next outside it clicked its Submit).
+  const pageClick = HTMLElement.prototype.click;
+  defineProp(HTMLElement.prototype, 'click', {value: function click(...args) {
+    hearRootOf(this);
+    return apply(pageClick, this, args);
+  }, writable: true, configurable: true});
+  const closedRootOf = typeof ElementInternals === 'function' && gopd(ElementInternals.prototype, 'shadowRoot');
+  if (closedRootOf && closedRootOf.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...closedRootOf,
+    get() { const root = apply(closedRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(...args) {
+    hearRootOf(this);
+    return apply(pageDispatch, this, args);
+  }, writable: true, configurable: true});
   const attachShadowOf = EP.attachShadow;
   EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
   const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
@@ -1204,6 +1376,24 @@ _TEMPLATE = r"""
   for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
     try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
   });
+  // A root the page wrote is heard as soon as a script reaches it, before it can add a listener of its own there: by
+  // an element's shadowRoot, getRootNode() or an event's composedPath() (round 3 of KAN-868's review: the page's
+  // listener on a declarative root, added first, heard the submit before the guard's).
+  const openRootOf = gopd(EP, 'shadowRoot');
+  if (openRootOf && openRootOf.get) defineProp(EP, 'shadowRoot', {...openRootOf,
+    get() { const root = apply(openRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageRootNode = NP.getRootNode;
+  defineProp(NP, 'getRootNode', {value: function getRootNode(...args) {
+    const root = apply(pageRootNode, this, args);
+    try { if (isRoot(root)) hearRoot(root); } catch (e) {}
+    return root;
+  }, writable: true, configurable: true});
+  const pagePath = EvP.composedPath;
+  defineProp(EvP, 'composedPath', {value: function composedPath(...args) {
+    const path = apply(pagePath, this, args);
+    try { for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
+    return path;
+  }, writable: true, configurable: true});
   const inShadow = (form) => { try { return rootOf(form) !== ownerDoc(form); } catch (e) { return true; } };
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
@@ -1762,7 +1952,9 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
                                "@AT_OPEN@": _js(at_open), "@UPLOAD_RULE@": upload_origin.RULE_JS,
                                "@UPLOAD_HOSTS@": json.dumps(upload_origin.JOB_SYSTEM_HOSTS),
-                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED)}.items():
+                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED),
+                               "@BLOCKED_CSS@": json.dumps(BLOCKED_CARD[0]), "@BLOCKED_WORDS@": json.dumps(BLOCKED_CARD[1]),
+                               "@CARD@": json.dumps(CARD), "@CORNER@": json.dumps(CORNER), "@TONES@": json.dumps(TONES)}.items():
         script = script.replace(placeholder, value)
     return script
 
@@ -1807,45 +1999,82 @@ PORT_TOUCH = ("\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; co
 PORT_SAID = "\n      dispatch(D, new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 NO_NOTE = "  const showNote = () => {};"
+# How Apply's notes on a job site's page look: a WorkIt card (the Apply window's colors and face, theme.css), styled
+# from `all:initial` so the site's own CSS changes nothing in it. It lets clicks through to the page under it but for
+# its buttons, so it never stands between the student and a field. Its tone is a colored edge and its data-tone.
+CARD = ("all:initial;box-sizing:border-box;display:block;width:340px;max-width:calc(100vw - 32px);padding:12px 36px 12px 14px;"
+        "background:#fff;color:#121a28;font:14px/20px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;"
+        "border:1px solid #e8e8e8;border-radius:10px;box-shadow:0 2px 4px rgba(18,26,40,.04),0 10px 24px rgba(18,26,40,.12);"
+        "pointer-events:none;text-align:left;white-space:pre-line;")
+# Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+CORNER = "position:fixed;bottom:16px;right:16px;z-index:1999999999;"
+TONES = {"fix": "#c02a3d", "check": "#f2a516", "done": "#6d3fd8"}  # WorkIt's danger, warning and brand
+# The card the guard shows when it blocked a send the student or Apply's own press caused: what it blocked goes to
+# the console (`warn`) and Apply's logs, never the card.
+BLOCKED_CARD = (CARD + CORNER + "border-left:4px solid " + TONES["fix"] + ";", "WorkIt blocked this step, so nothing was sent.")
 # Lisul's note on a lifted page (lift): what Apply found wrong, its Fill again, a held Submit's Dismiss and a × that
 # hides it; and on a held page of a Posting he applied to already (KAN-621) the red "You already applied" note,
-# whose second press of Dismiss tells Apply. Only his own press of a button counts.
+# whose second press of Dismiss tells Apply. Only his own press of a button counts. Its words are the student's:
+# Apply's detail stays in its logs (rehearsal.Rehearsed.line).
 NOTE = r"""
   const onBody = (f) => { if (document.body) f(); else document.addEventListener('DOMContentLoaded', f); };
+  const FONT = "font:500 13px/18px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;";
+  const PRIMARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#6d3fd8;color:#fff;border:1px solid #6d3fd8';
+  const SECONDARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#fff;color:#121a28;border:1px solid #d9d9d9';
+  const CLOSE = 'all:initial;position:absolute;top:6px;right:8px;pointer-events:auto;cursor:pointer;padding:2px 6px;'
+    + 'font:18px/20px system-ui,sans-serif;color:#8893a4';
+  const span = (words, css) => { const s = document.createElement('span'); s.textContent = words; s.style.cssText = 'all:initial;display:block;' + css; return s; };
   const button = (words, act, css) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = words;
-    b.style.cssText = css || 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+    b.style.cssText = css || SECONDARY;
     b.addEventListener('click', (event) => {
       event.stopPropagation();
       if (user(event)) act(b);
     });
     return b;
   };
+  // The card's head: WorkIt's name in its purple, then what the note asks in a line.
+  const head = (title) => {
+    const h = document.createElement('div');
+    h.style.cssText = 'all:initial;display:block';
+    h.appendChild(span('WorkIt', "display:inline;font:700 12px/16px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#6d3fd8"));
+    h.appendChild(document.createTextNode(' '));
+    h.appendChild(span(title, "display:inline;font:600 14px/20px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#121a28"));
+    return h;
+  };
+  const body = (words) => span(words, "margin-top:4px;font:400 13px/18px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#3b3e46;white-space:pre-line");
   const showNote = () => onBody(() => {
     const n = S.note;
     if (!S.lifted || !n) return;
     const warning = String(n.warning || ''), wrong = n.wrong !== false, holding = String(n.held || '');
     const box = document.getElementById('@BOX@') || document.createElement('div');
     box.id = '@BOX@';
-    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (holding || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20')
-      + ';color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
-    box.textContent = holding
-      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + holding
-      : warning
-      ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
-      : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
-    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold')));  // his say that it is fixed
-    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain')));
-    const close = button('×', () => { box.style.display = 'none'; },  // hides the note on this page only
-      'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;background:none;border:none;color:#fff;padding:0 2px');
+    box.setAttribute('role', 'status');
+    const tone = holding || (warning && wrong) ? 'fix' : warning ? 'check' : 'done';
+    box.setAttribute('data-tone', tone);
+    box.style.cssText = @CARD@ + @CORNER@ + 'border-left:4px solid ' + @TONES@[tone];
+    box.textContent = '';
+    if (holding) {
+      box.appendChild(head('Check this answer before you submit'));
+      box.appendChild(body(holding + '\nFix it on the form, then press Dismiss.'));
+    } else if (warning) {
+      box.appendChild(head(wrong ? 'Please fix this before you submit' : 'Please check before you submit'));
+      box.appendChild(body(warning));
+    } else {
+      box.appendChild(head('Your application is filled in'));
+      box.appendChild(body('Look it over, then press Submit on the form when you are ready.'));
+    }
+    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold'), PRIMARY));  // his say that it is fixed
+    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain'), holding ? SECONDARY : PRIMARY));
+    const close = button('×', () => { box.style.display = 'none'; }, CLOSE);  // hides the note on this page only
     close.setAttribute('aria-label', 'Hide this note');
     box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
-    box.style.display = '';
+    box.style.display = 'block';
   });
   const dropNote = () => onBody(() => { const box = document.getElementById('@BOX@'); if (box) box.remove(); });
   const showApplied = () => {
@@ -1854,12 +2083,11 @@ NOTE = r"""
       const box = document.createElement('div');
       box.id = 'apply-already-applied';
       box.setAttribute('role', 'alert');
-      box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
-        + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
-        + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-      const words = document.createElement('span');
-      words.textContent = 'You already applied on ' + S.applied + ', don’t submit. Apply keeps Submit blocked on this page.';
-      box.appendChild(words);
+      box.setAttribute('data-tone', 'fix');
+      box.style.cssText = @CARD@ + 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+        + 'width:420px;border-left:4px solid ' + @TONES@.fix;
+      box.appendChild(head('You already applied on ' + S.applied));
+      box.appendChild(body('WorkIt keeps Submit blocked on this page, so you don’t apply twice.'));
       let asked = false;
       box.appendChild(button('Dismiss', (b) => {
         if (!asked) {
@@ -1870,7 +2098,7 @@ NOTE = r"""
         S.appliedDismissed = true;
         box.remove();
         tell('__applyDismissApplied');
-      }, 'margin-left:10px;cursor:pointer;font:13px sans-serif'));
+      }, SECONDARY));
       (document.body || document.documentElement).appendChild(box);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
@@ -2167,8 +2395,9 @@ def _tells(page) -> dict:
 
 def let_account_click(page, let: bool = True) -> None:
     """Let Apply's own next click on an account form's button through both guards (Workday's "Submit" in its Sign
-    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back."""
-    control(page, {"account": let})
+    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back. It is a sign-in's press
+    (`signIn`, KAN-868), so a sign-in step's form that doesn't POST goes on too."""
+    control(page, {"account": let, "signIn": let})
 
 
 @contextmanager
@@ -2190,7 +2419,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
     or verification code step's (the script's signInStep: it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread, and only for his own press (the guard tells
-    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber when
+    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber (WorkIt's warning) when
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so what hears his presses is there already, and
     its note keeps the Fill again button. A `held` reason (a legal answer the
@@ -2339,18 +2568,19 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self, element=None) -> bool:
+    def let_account_click(self, element=None, sign_in: bool = False) -> bool:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
         that sends the form, a form that has one, and the application request
         are blocked still. Given the `element` it presses, only in that
         element's frame and only for a press on it (KAN-710): a frame inside
         it, or another form a script posts meanwhile, is blocked still. False when
-        the element holds a frame, where the press could land: it must not be pressed."""
+        the element holds a frame, where the press could land: it must not be pressed. `sign_in`: the press is
+        a sign-in step's own (apply.account_pages), whose GET form may go on when it is one (KAN-868)."""
         if element is None:
-            control(self._page, {"account": True})
+            control(self._page, {"account": True, "signIn": sign_in})
             return True
-        return control(self._page, {"account": "element"}, element=element) != "frame"
+        return control(self._page, {"account": "element", "signIn": sign_in}, element=element) != "frame"
 
     def may_press(self, element) -> bool:
         """Whether plain code may press `element`: False when it holds a frame (KAN-710), where the press could land
@@ -2374,8 +2604,10 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
-        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
-        control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
+        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False,
+                             "signIn": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
+                (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

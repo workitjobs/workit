@@ -15,6 +15,20 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   `Rendered(pdf, page_count, missing_characters, boxes, wrapped_line)`. An unknown template
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
+- **The editor's live page runs TeX once; every file a student keeps runs
+  it twice** (`bookmarks`, KAN-919). Each compile starts in an empty
+  folder, so Tectonic always ran a second pass for the new `.aux`, and
+  that pass only adds hyperref's PDF outline (the section bookmarks a
+  viewer's sidebar lists): the page, its text, links, boxes, points and
+  shrinks are the same after one (`test_one_pass_prints_the_same_page_without_bookmarks`).
+  One pass is about 30% less compile time (175 against 255 ms on an
+  M-series Mac, 2026-11-18), and on the API's 1/4-vCPU container the
+  compile is nearly all of an edit's 4.5 to 5.4 s. So `POST .../render`
+  and `POST .../fit` pass `bookmarks=False`; `GET .../render` (the first
+  page, Download, Tailor's preview) and sent resumes keep the default. A
+  new caller whose PDF leaves the editor keeps it too. A template that
+  reads the `.aux` for its page (a `\pageref`, "page 1 of 2") would need
+  the second pass back: the test catches it.
 - **A template is a function from the view and identity to a LaTeX body**
   (`jakes.py`), registered by its stable id in `_document()`. The id is stored
   on `built_resumes.template`, so never rename one.
@@ -71,6 +85,20 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   each box keeps its field; an entry with no degree line keeps the school on
   top, or the top row would print empty. Dates are never typed in the editor,
   so no format needs reading back.
+- **Experience order and project tools are page settings too** (2026-11-17):
+  `experience_first` from `EXPERIENCE_FIRST` ("role", Jake's, or "company":
+  the company and its place on the top row, the role and its dates under it,
+  as many career-center templates and finance and consulting resumes set a
+  job; Experience and Leadership) and `project_tools` from `PROJECT_TOOLS`
+  ("below", ours since KAN-738, or "after_name": "Gitlytics | Python, Flask",
+  Jake's own sample, the project's context then on the line under it). They
+  follow Education order's rule: the text and the box kinds move together
+  (`company_leads`, `tools_lead`, `heading_fields`), and an entry with no
+  company, or no tools, keeps the default look. Every layout choice is read
+  in one place, `fields.page_heading`, which the PDF and the Word file both
+  call. **Only two styles per heading**, the ones students use: each choice
+  doubles the layouts the PDF, the Word file and Fit must print, so a
+  one-line job or roles grouped under one company wait until students ask.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and

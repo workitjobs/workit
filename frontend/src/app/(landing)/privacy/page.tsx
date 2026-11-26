@@ -188,18 +188,22 @@ export default function PrivacyPage() {
         <li>
           <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
           private details hidden (next item); your applications&apos; stages, the answers you
-          approve and your Auto Apply queue, as the Chrome extension does; and, only when you click
-          &ldquo;Send report&rdquo;, one application&apos;s record and its step-by-step log, with
-          your personal details hidden in the log. We use a report only to fix the problem it shows,
-          and we delete it once that problem is fixed. The app sends no analytics and no automatic
-          crash reports.
+          approve and your Auto Apply queue, as the Chrome extension does; and, only when you send a
+          report from the app&apos;s &ldquo;Report a problem&rdquo; form, what you write there and,
+          if you choose to include them, one application&apos;s record and its step-by-step log,
+          with your personal details hidden in the log. If you allow it, we may email you about your
+          report. We use a report only to fix the problem it shows, and we delete it once that
+          problem is fixed. The app sends no analytics and no automatic crash reports.
         </li>
         <li>
           <strong>What its AI calls send.</strong> The app writes and checks answers with AI through
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
           (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The
           app sends what the answers need, such as the job posting, the form&apos;s questions, your
-          answers on it (self-identification answers included) and your experiences. It replaces
+          answers on it (self-identification answers included) and your experiences. When the app
+          can&apos;t match one of your answers to a field&apos;s choices, it sends that question,
+          your answer and the choices, and AI picks the one that fits; when two buttons could go on
+          to a form&apos;s next page, it sends their names, and AI says which one. It replaces
           private details, such as your contact details and street address, with placeholders, and
           puts the real values back into the answer on your Mac. Before a prompt goes on,
           WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other
@@ -218,6 +222,12 @@ export default function PrivacyPage() {
           its own Chrome window, as you would, and can sign in to job sites or create accounts on
           them for you. A job site and its employer get what you submit, and they handle it under
           their own privacy policies.
+        </li>
+        <li>
+          <strong>Company logos.</strong> To show each company&apos;s logo, the app asks Brandfetch
+          for it by the company&apos;s website, as WorkIt&apos;s website does, so Brandfetch learns
+          which companies&apos; logos were asked for. Where Brandfetch has none, the logo comes from
+          the company&apos;s job board, or from Google&apos;s website icons, the same way.
         </li>
         <li>
           <strong>The Worker extension.</strong> WorkIt Auto Apply Worker, the app&apos;s Chrome

@@ -11,7 +11,7 @@ from conftest import ARC_FORM, ARC_URL, FIXTURES, PURE_STORAGE_FORM, PURE_STORAG
 from fakes import FakeJobServer
 from test_rehearse import NeverSubmits, adapters
 
-from apply import batch, cover_letter, home, rehearsal
+from apply import answering, batch, cover_letter, home, rehearsal
 from apply.fillers import FILLERS
 from apply.greenhouse import GreenhouseFiller
 from apply.plain.bridge import Bridge
@@ -22,9 +22,11 @@ from apply.records import FolderRecords
 
 folder, port, listed, records, profile = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4]), sys.argv[5]
 batch.PATH = listed
-# As conftest's fixtures give each test: the Test Person data and the tests' Story bank, and cover letters as text.
+# As conftest's fixtures give each test: the Test Person data, the tests' Story bank and Question types, and cover
+# letters as text.
 shutil.copytree(home.SAMPLE, home.HOME, dirs_exist_ok=True)
 shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)
+shutil.copy(FIXTURES / "question-types.json", answering.CACHE)  # WorkIt's Question types, as a run fetches them
 cover_letter.pdf = lambda text, posting, profile, path, today=None: path.write_text(text)
 FILLERS["greenhouse"] = NeverSubmits(GreenhouseFiller())
 flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")

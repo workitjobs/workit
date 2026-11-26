@@ -33,16 +33,21 @@ from apply.adapters import (
     Claude,
     JobSite,
     SetupError,
-    UsageLimitHit,
     UsageReading,
 )
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
+from apply.applicant import as_applicant
 from apply.captcha import Waiter
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
+from apply.generic_fill import (  # noqa: F401 (rehearsal reads FIX_HERE here)
+    FIX_HERE,
+    GenericFiller,
+    picker,
+)
 from apply.match_queue import match_queue, over_employer_limits
-from apply.model import Handoff, Posting, Status, one_line
+from apply.model import Posting, Status, one_line
 from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.records import Record
@@ -52,29 +57,6 @@ from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
 WORKERS = 3
-# Where the student does what Apply can't, in the Student build: the form's live view in the Apply window, which
-# Fix here gives them (KAN-855). They never go to the Worker's own Chrome window, but for a captcha.
-FIX_HERE = "press Fix here and {} on the form in this window"
-# The Student build's Handoff for a job system Apply has no Filler for (Claude fill is a Developer checkout's).
-NO_FILLER = "WorkIt Auto Apply can't fill {job_system} forms yet: " + FIX_HERE.format("fill it in") + ", then press its Submit"
-
-
-class ForTheStudent:
-    """The Student build's Filler for a job system with no Filler (KAN-855, W2): it reads no question and fills
-    nothing. It opens the form and hands it over whole: the form is held, and the student fills and sends it from
-    the Apply window (FIX_HERE). Resume hands it over again."""
-
-    def __init__(self, job_system: str):
-        self.why = NO_FILLER.format(job_system=job_system if job_system not in ("", "other") else "this job site's")
-
-    def question_set(self, url: str, site: JobSite) -> list:
-        return []
-
-    def fill(self, page, questions, answers):
-        raise Handoff(self.why)
-
-    def submit(self, page) -> None:
-        raise SetupError("WorkIt Auto Apply never presses Submit")
 # No Application starts once Lisul's Max plan is this far through a window,
 # which leaves the rest for his own Claude work.
 FIVE_HOUR_STOP = 0.85
@@ -457,13 +439,13 @@ class _Run:
         )
 
     def _before_submit(self, posting: Posting) -> str:
-        """Once the limit is hit, every Worker is paused: none submits. During
-        the Calibration run the Application is held instead (the reason is
-        returned). The row says Submitting before the form is sent, so an
-        interrupted run is never submitted twice."""
-        usage = self._adapters.usage.reading()
-        if usage.limited:
-            raise UsageLimitHit(usage.resets_at)
+        """During the Calibration run the Application is held instead (the
+        reason is returned). The row says Submitting before the form is sent,
+        so an interrupted run is never submitted twice. A usage limit never
+        stops a submit, which makes no model call: at a limit no new
+        Application starts (`_resume_at`), and one still filling is paused by
+        its own refused call. Paused here, a form whose pre-submit review
+        reached WorkIt's Usage cap was filled again after the reset."""
         with self._writing:
             hold = "" if posting.id in self._approved else self._calibration_hold(posting)
         if not hold:
@@ -645,8 +627,13 @@ def by_filler(
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
-    if build.STUDENT:  # no Claude fill (apply.build): its form is held for the student to fill in the Apply window
-        return apply(ForTheStudent(posting.job_system), site)
+    if build.STUDENT:  # no Claude fill (apply.build): the generic Filler, where code fills and a model only picks
+        pick, next_button = picker(as_applicant(claude, profile))  # the student's private values masked (D8)
+        generic = GenericFiller(pick, next_button, resume=profile.get("files.resume_pdf"),
+                                sms_opt_in=profile.policy("sms_opt_in") is True,
+                                marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        with OnePage(site) as page_site:
+            return apply(generic, page_site)
     from apply.claude_fill import ClaudeFill, entry_history
 
     signing_in, agree = accounts(), bool(profile.policy("tick_consent_when_true"))
@@ -670,7 +657,8 @@ def by_filler(
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
                         accounts=signing_in, account_facts=account_facts(profile, agree),
                         page_gates=_page_gates(profile.policy("page_gates")),
-                        signed_in=oracle.signed_in if oracle_sign_in else None, history=entry_history(profile))
+                        signed_in=oracle.signed_in if oracle_sign_in else None, history=entry_history(profile),
+                        google_login=profile.get("identity.email") if profile.policy("provider_sign_in") == "google" else None)
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))

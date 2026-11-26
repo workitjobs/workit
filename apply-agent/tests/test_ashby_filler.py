@@ -25,7 +25,7 @@ from fakes import FakeJobServer
 from apply import bot_signals
 from apply.ashby import AshbyFiller
 from apply.fill_engine import plan
-from apply.model import Handoff, Posting, Question
+from apply.model import Closed, Handoff, Posting, Question
 from apply.profile import ApplicantProfile
 
 
@@ -398,3 +398,16 @@ def test_amplify_s_whole_form_fills_in_seconds_one_save_at_a_time(one_pager):
     assert readback == {**answers, RESUME: "one-pager.pdf"}
     assert max(in_flight) == 1, in_flight
     assert len(answers) >= 25 and seconds < 0.3 * len(answers), f"{seconds:.1f} s for {len(answers)} answers"
+
+
+def test_a_posting_ashby_says_is_not_found_is_closed_not_a_timeout():
+    # Cursor's (live, 2026-11-25): Ashby's job query still answered, but its page said "Page not found".
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<h1 class="_title_dea4p_33">Page not found</h1><p>The page you requested was not found</p>')
+        with pytest.raises(Closed, match="Page not found"):
+            AshbyFiller().fill(page, [], {})
+        browser.close()

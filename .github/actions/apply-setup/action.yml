@@ -1,7 +1,8 @@
 name: Apply test setup
 description: >-
   The fill-engine pin, Python, uv and Apply's packages, for the jobs that run
-  Apply's tests (ci.yml's apply and apply-hostile, apply-nightly.yml; KAN-780).
+  Apply's tests (ci.yml's apply-fast on Ubuntu, apply and apply-hostile on macOS,
+  apply-nightly.yml; KAN-780, KAN-837).
   Runs after the checkout, which must bring the fill-engine submodule
   (FILL_ENGINE_TOKEN): a local action can't check out its own repo. The browsers
   are apply-browsers, apart, since the fast tests must run before them.

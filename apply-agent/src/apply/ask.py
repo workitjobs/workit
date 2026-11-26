@@ -47,11 +47,11 @@ from apply import captcha
 from apply.adapters import Claude
 from apply.applicant import named, pronouns_note
 from apply.attach import consent
-from apply.claude_fill import BACK, NEXT, press_step
 from apply.model import Handoff, Posting, one_line
 from apply.page_functions import FIELDS, UNDO
 from apply.repair import WRONG, RepairRequest, _shape, _signature
 from apply.send_click import ATTEST, asks_a_tick, may_tick
+from apply.steps import BACK, NEXT, press_step
 from apply.submit_guard import DriveGuard, drive_blocks
 
 MODEL = "opus"

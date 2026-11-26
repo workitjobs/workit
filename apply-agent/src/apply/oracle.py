@@ -21,7 +21,8 @@ import time
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from apply.accounts import HANDS_OFF, Accounts
+from apply import submit_guard
+from apply.accounts import Accounts
 from apply.model import Handoff
 
 # Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
@@ -63,8 +64,6 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
-    if getattr(accounts, "hands_off", False):  # a reopened form: Lisul signs in himself, and Apply goes on once he is in (KAN-720)
-        raise Handoff(HANDS_OFF)
     if not email.is_visible():
         _apply_button(page).click()
     email.wait_for(timeout=TIMEOUT * 1000)
@@ -76,8 +75,15 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
         _agree(page, disclaimer)
     since = accounts.clock.now()
     _decline_cookies(page)
-    page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
-    _until(page, lambda: not email.is_visible() or _error(page))
+    submit_guard.let_account_click(page)  # the email step's Next is a sign-in's press, never the application's (KAN-868)
+    try:
+        page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
+        _until(page, lambda: not email.is_visible() or _error(page))
+    except TimeoutError:  # the press went nowhere: a guard or the page stopped it (Honeywell's, live)
+        raise Handoff(f"Oracle didn't go on past its email step after Next ({page.url}): finish signing in "
+                      "yourself.") from None
+    finally:
+        submit_guard.let_account_click(page, False)
     if email.is_visible():
         raise Handoff(f"Oracle didn't take the email address: {_error(page)}")
     asked_last_name = False
@@ -158,11 +164,17 @@ def _type_code(page: Page, code: str) -> None:
 
 
 def _error(page: Page) -> str:
+    """The error the page shows, else "". At once: an alert counted as the page goes on to its next one is gone, and
+    reading it waited Playwright's 30 s for it, past _until's own wait (the fake's email step, now and then)."""
     alerts = page.locator("[role=alert]:visible, .input-row__error:visible")
-    return alerts.first.inner_text().strip() if alerts.count() else ""
+    try:
+        return alerts.first.inner_text(timeout=1000).strip() if alerts.count() else ""
+    except PlaywrightTimeout:
+        return ""
 
 
-def _until(page: Page, done, timeout: float = TIMEOUT):
+def _until(page: Page, done, timeout: float | None = None):
+    timeout = TIMEOUT if timeout is None else timeout
     end = time.monotonic() + timeout
     while True:
         try:

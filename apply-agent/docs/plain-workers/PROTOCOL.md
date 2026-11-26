@@ -14,7 +14,7 @@ chose, and Apply's left click on a radio, checkbox or option in the top frame (K
 
 ```
 Apply process                                   Worker k (plain Chrome)
-  apply.plain.bridge.Bridge  <── Unix socket ──  host relay  <── native messaging ──  worker extension
+  apply.plain.bridge.Bridge  <──── channel ────  host relay  <── native messaging ──  worker extension
   (listens on APPLY_PROFILES/workers.sock, 0600) (apply/plain/host.py,                (apply-agent/worker-extension/,
   apply.plain.page.PortPage                       Chrome starts it)                     background.js + ops/*.js)
   apply.plain.launcher.PlainWorkers
@@ -43,19 +43,37 @@ Apply process                                   Worker k (plain Chrome)
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
   worker extension's origin. Its `path` is a per-profile wrapper that runs
   `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
-- **Socket:** `workers.sock` in the Worker profiles folder (`APPLY_PROFILES`, default
+- **Socket:** (the channel; on Windows a named pipe, below) `workers.sock` in the Worker
+  profiles folder (`APPLY_PROFILES`, default
   `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
   drives one profiles folder's Workers; a rehearsal held for Lisul keeps its process up, so
   another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
   macOS caps a socket path at 104 bytes; when the profiles folder's path is too long
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
-  `Bridge.path` says which.
+  `Bridge.path` says which. The channel's code is `apply.plain.channel`: a checkout's host loads
+  it by its file path, and the built app's program has it compiled in.
+- **Windows (KAN-929):** a named pipe in place of the socket file, named from the
+  `workers.sock` path (`channel.pipe_name`), with `workers.key` beside that path. A second Apply
+  on the folder gets `BridgeBusy`. The framing below is unchanged.
+- **The check (KAN-929).** Before any frame, both ends prove that they know the channel's
+  secret: `workers.key` beside the socket, mode 0600, new each time the Bridge starts, and
+  written only once the Bridge holds the address. Raw bytes, with no framing:
+  1. Bridge to host: a random challenge, 32 bytes.
+  2. Host to Bridge: `HMAC-SHA256(secret, "client" + challenge)`, then its own random
+     challenge, 32 bytes.
+  3. Bridge to host: `HMAC-SHA256(secret, "server" + the host's challenge)`.
+
+  The host reads the secret once the challenge came, never sooner: the Bridge writes its new
+  secret just after it takes the address. Each side compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
+  (`channel.GREET_WAIT`), closes the connection with no other message. Then the host sends its
+  `relay` frame, as below. A stranger can't connect, and a program that took the address after
+  Apply went can't pass for Apply to a Worker's next host.
 
 ## Framing
 
 Every message is one JSON object. Chrome ↔ host is Chrome's native messaging framing:
 a 4-byte length in native byte order, then that many bytes of UTF-8 JSON. Host ↔ Apply
-uses **the same framing** over the stream socket, so the host relays frames verbatim.
+uses **the same framing** over the channel, so the host relays frames verbatim.
 
 Limits: Chrome → host up to 64 MiB a message; **host → Chrome at most 1 MB**. So Apply
 splits any message whose JSON is over 512 KiB into `chunk` messages (below); the
@@ -345,8 +363,9 @@ events of its own.
 
 ### Apply's MCP server
 
-`claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a Unix socket of its own
-for that drive, 0600 in `/tmp/apply-<uid>/`, 0700) and gives `claude -p` this server as
+`claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a channel of its own for
+that drive, with its own secret and the Bridge's check; on macOS and Linux a socket, 0600 in
+`/tmp/apply-<uid>/`, 0700) and gives `claude -p` this server as
 `playwright`: `python -I -m apply.plain.mcp --socket <path>`. That stdio process (stdlib only)
 answers `initialize` and `tools/list` itself (`apply/plain/mcp_tools.json`: @playwright/mcp@0.0.83's
 own schemas for `claude_cli.BROWSER_TOOLS`, nothing else) and sends each `tools/call` as one JSON

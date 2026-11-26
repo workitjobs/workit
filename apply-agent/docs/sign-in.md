@@ -37,11 +37,41 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Careers (apply.careers.microsoft.com, an Eightfold site) opens a window on Apply now that offers
   "Sign in using Google", Microsoft, LinkedIn and Facebook. When Claude fill says it is blocked and the
   page shows such a button (by its name, or Eightfold's `candidateAuth<Provider>LoginButton` class),
-  the Handoff is Needs sign-in and names the providers. Apply never presses a provider button, never
-  types into the sign-in and never sees a password: Lisul signs in on the page. Signed in means no
-  provider button shows and the account menu does (Eightfold's "Account manager for <name>", or a
-  Sign out); Microsoft's header shows a "Sign in" button until then. The pause then goes on by itself
-  (`docs/held-forms.md`). A site whose account menu has another name waits for Resume, as before.
+  Apply signs in with Google where it is offered and `policies.yaml: provider_sign_in` is `google`
+  (the default, KAN-878): plain code presses the one Google button, through the guards as its account
+  click, then picks Lisul's account (`identity.email`) in Google's chooser, in the page or the window
+  the button opened, once, and only where that window's own URL asks for a sign-in alone
+  (`provider_sign_in.with_google`, sharing `google_sign_in.py` with Workday's Google sign-in). It
+  never presses Google's consent: a site's first Google sign-in shows one ("Google will share your
+  name and email ... Continue"), and that is Lisul's, once per site, after which the pause goes on by
+  itself. Round 2 of the review reached a Drive consent whose scopes no URL showed (a `login_hint`
+  straight to consent, a second hop after an honest pick, a basic scope seen in another window), so
+  only the chooser's own URL counts, and `include_granted_scopes` makes it unknown. Claude
+  fill then drives again from the signed-in page, once per form. It never types into Google's pages
+  and never sees a password: a page that asks for a password, a code or a passkey, Google's refusal of
+  the browser, a site that doesn't come back signed in within 60 s, no or two Google buttons, and a
+  Google button that is, holds or labels a form's submit button are each a Needs sign-in Handoff. So
+  is a sign-in whose Google URLs ask for more than `openid`, `email` and `profile`, or say nothing of
+  what they ask (`provider_sign_in.BASIC_SCOPES`): the review of KAN-878 opened another app's request
+  for Drive from a page's Google button, and Apply picked the account and pressed Continue on it.
+- Claude never presses Forgot password (its rules), and a mailed link that resets a password is never
+  opened (`account_pages.RESETS`): a reopened form now drives account pages, and a reset can end the
+  password Lisul uses. Gmail takes a link by its words as well as its URL, so a rehearsal's `Accounts`
+  asks for none from a mail that mentions a password or a reset at all (`find_link(resets=False)`,
+  `gmail.speaks_of_reset`: entities decoded, tags taken out two ways and kept (alt, title), Unicode
+  folded, the subject decoded and read too). Not caught: a reset spelled with lookalike letters, or one
+  that never says password, reset, forgot or recover; DMARC and the host check keep other senders out,
+  and an honest site's mail says one of them. Rounds 3
+  and 4 of the review got reset links past a word list ("Reset your password" on a bare URL, the word
+  split by tags or entities, "Set" or "Update your password"). A verification mail that mentions a
+  password makes the sign-in Lisul's, the safe way to be wrong. A run's own reset (Workday's
+  `_reset_password`) still reads the reset link. So is a sign-in that
+  offers no Google, and every sign-in when the policy is anything else: Lisul signs in on the page.
+  Signed in means no provider button shows and the account menu does (Eightfold's "Account manager
+  for <name>", or a Sign out); Microsoft's header shows a "Sign in" button until then. The pause then
+  goes on by itself (`docs/held-forms.md`). A site whose account menu has another name waits for
+  Resume, as before. The Worker's Chrome must be signed in to Google once by hand (the seed), as for
+  Workday's `google`. The Google press is a click path in `tests/test_submit_guard_hostile.py`.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Workday's Create Account is a `POST <site>/register` that answers JSON
@@ -65,7 +95,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   a reset that does not finish forgets the password. This holds on a
   tenant that offers Google too (Lisul, 2026-11-03). A rehearsal resets
   nothing: it forgets the new password and stops with `workday.MAY_EXIST`
-  (`Accounts.rehearsal`). No answer at all after the form was sent
+  (`Accounts.rehearsal`), and Create Account's "already exists" stops it too
+  (`accounts.NO_RESET_IN_REHEARSAL`, in `Accounts.reset_password`, which
+  every reset goes through: KAN-878's review found it reset there). No answer at all after the form was sent
   (`_send(unanswered=...)`) goes to `_may_exist` too.
 - A tenant that mails a link goes to Sign In by way of `/login/warning`
   (Zillow's, Sonos's), so `_create_account` watches the requests for that
@@ -82,6 +114,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (`submit_guard.let_account_click`, the guards' own control: KAN-710).
   The guard then lets a click or submit in a form with a password box go
   through. No application's final button is in such a form.
+- Claude fill's account pages (`account_pages.AccountPages._click`) keep
+  the account click allowed until the page answers the click, not only for
+  the click itself, so a page whose script posts the form after the click
+  goes through (KAN-640). A page that carries a captcha never gets this
+  click: it is a Handoff first (KAN-703). Apply never clicks a button whose
+  own text or value says submit, send, apply, finish, complete or confirm,
+  whatever name Claude gave it.
 - **Lisul's own press on a sign-in step is never the application's Submit
   (KAN-688, KAN-781).** On a held page, the guard script tells Apply of each
   press whose words send. A sign-in, account or code step's press is marked

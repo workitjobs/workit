@@ -43,9 +43,9 @@ The form is filled by the **Fill engine**, the TypeScript engine Apply
 (Lisul's autopilot) fills with too: one copy of every job system's filler
 and of the answer rules, so a fix lands in both. It lives in the private
 repo `workitjobs/fill-engine` and sits here as the submodule
-`fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
-autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
-a change to the engine reaches students only when someone here chooses it.
+`fill-engine/`, **pinned to a commit on its `main`**. A person moves the
+pin ("Move the engine pointer", at the end of this section), so a change
+to the engine reaches students only when someone here chooses it.
 Nothing else changes with the pin: `ENGINE_VERSION` (`src/background/engine.js`,
 what a problem report and a fill event name) is the bundle's own `version`
 (the engine's package.json version and a hash of its src/), and
@@ -356,6 +356,79 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and that nothing was submitted. Run: `npm --prefix autofiller_extension/test ci`,
   then `npm --prefix autofiller_extension/test test` (Chromium:
   `npx playwright install chromium` once).
+
+### Move the engine pointer
+
+The pointer (`fill-engine/`, a gitlink: the one engine commit this repo
+records) picks the engine for three things at once: this extension, Apply
+in a Developer checkout, and WorkIt Auto Apply, which downloads the build
+that `publish-engine.yml` signs on each merge to `main` that moves it. One
+PR moves it for all three. Nothing moves it for you: a merge in
+`workitjobs/fill-engine` changes nothing here.
+
+1. **Merge the engine change** into `workitjobs/fill-engine`'s `main`,
+   with its built `dist/` committed. The pointer names a commit on the
+   engine's `main`, usually that merge commit. CI checks that the commit's
+   `dist/` is built from its `src/`, but not that the commit is on the
+   engine's `main`: a commit from another branch would ship code that no
+   engine PR reviewed. The engine stopped making tags after v0.3.5. Its
+   `package.json` version names it (v0.3.48 at `66d8403`).
+2. **Branch here from a fresh `main`:**
+   `npm run worktree -- KAN-123-engine-v0-3-49`.
+3. **Move the pointer.** `<commit>` is the engine commit, or `origin/main`
+   for the newest one:
+
+   ```bash
+   git submodule update --init autofiller_extension/fill-engine
+   git -C autofiller_extension/fill-engine fetch origin main
+   git -C autofiller_extension/fill-engine checkout --detach <commit>
+   git -C autofiller_extension/fill-engine merge-base --is-ancestor HEAD origin/main && echo "on the engine's main"
+   git -C autofiller_extension/fill-engine show HEAD:package.json | grep '"version"'
+   git add autofiller_extension/fill-engine
+   git commit -m "KAN-123: Point the engine at v0.3.49"
+   ```
+
+   `git show --stat HEAD` then lists one path,
+   `autofiller_extension/fill-engine`. Nothing else changes with the
+   pointer.
+4. **Decide two things in the same PR.**
+   - **Can the apps that students have run it?** When the engine needs
+     something that only a newer WorkIt Auto Apply has, raise
+     `backend/app/scripts/engine_min_app.txt` to that app version. Older
+     apps then keep the build before it. Otherwise leave the file alone.
+   - **Must Store users get it now?** A pointer move alone publishes no
+     extension: Store users get the engine with the next `store/store.json`
+     bump. To ship it now, raise `version` there in this PR
+     (`../.github/CLAUDE.md`, "Publish extension to Chrome Web Store").
+5. **Try it on your Mac.** Reload the unpacked extension in
+   `chrome://extensions` and fill a posting that the change touches. For
+   Apply, run `uv run apply rehearse <url>` from `apply-agent/`: a
+   rehearsal never submits. The specs under **Tests** above run on the new
+   engine too.
+6. **Open the PR.** CI's `extension` job checks the pinned commit's
+   `dist/` against its `src/` and runs the smoke specs. The `apply` job
+   runs Apply's fast tests on the new engine. A stale `dist/` fails: build
+   and commit it in the engine repo, then point at that commit.
+7. **After the merge:**
+   - `publish-engine.yml` signs and publishes the build in about 30 s.
+     Check it: `gh run list --repo workitjobs/workit --workflow
+     publish-engine.yml --limit 1` shows success, and the run's log says
+     "Published". A failed run leaves students on the last build. Fix the
+     cause, then run `gh workflow run publish-engine.yml --ref main`
+     (`../.github/CLAUDE.md`, "Publish the Fill engine").
+   - WorkIt Auto Apply gets the build at its next launch, within 60 s of
+     the publish. An app that is running keeps its engine until it
+     restarts.
+   - Each teammate runs `git submodule update` after the pull. `git pull`
+     does not move a checkout's engine, so it keeps the old one.
+
+**Roll back a bad engine** with a PR that moves the pointer back to the
+last good commit, by the same steps. Keep `engine_min_app.txt` as it is,
+even when the bad PR raised it. An app takes the build with the highest
+min app that fits it, so a rollback that lowers the min app leaves the
+apps at the higher version on the bad build (found in a dry run,
+2026-11-16). The Store extension rolls back only with another
+`store.json` bump.
 
 ## Two surfaces, one engine
 
@@ -1864,8 +1937,8 @@ KAN-283's `autofill_answers` (`backend/app/models/autofill_answers.py`) holds
 the nine answers hiring systems repeat on every form:
 `work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
 `security_clearance`, `gender`, `hispanic_latino`, `race`,
-`veteran_status`, `disability_status`. Onboarding's Profile step and My
-Profile write it, and the extension writes only the self-identification a
+`veteran_status`, `disability_status`. Onboarding's Authorization page
+(the first two) and Application Info write it, and the extension writes only the self-identification a
 form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 `engineProfile` turns each option key into the fact the engine's rules
 read (yes/no as true/false, "declined" as "decline", the rest in

@@ -1,5 +1,6 @@
 import { CloseIcon } from "@/components/icons";
 import { ChipLink } from "@/components/ui/chip";
+import { cn } from "@/lib/cn";
 
 import {
   EXPERIENCE_OPTIONS,
@@ -25,13 +26,22 @@ import type { SearchFact } from "../jobs/listings";
  * than its filter (a title saying "Remote" or "Summer 2027" counts too), so
  * ticking Remote for it would claim the row's narrower rule.
  *
- * A server component: every chip is a plain link, as the row's picks are
- * URL state.
+ * Plain links, as the row's picks are URL state, so it draws on the server
+ * over /search's large cards and in the split frame's header, under the
+ * filter row (../jobs/jobs-rail.tsx, KAN-917).
  */
-export function SearchFacts({ facts, filters }: { facts: SearchFact[]; filters: FeedFilters }) {
+export function SearchFacts({
+  facts,
+  filters,
+  className = "mt-4",
+}: {
+  facts: SearchFact[];
+  filters: FeedFilters;
+  className?: string;
+}) {
   if (facts.length === 0) return null;
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <p className="text-note text-ink-meta">Your search also filters by</p>
       <ul className="contents">
         {facts.map((fact) => {

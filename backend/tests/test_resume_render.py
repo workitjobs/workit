@@ -33,6 +33,7 @@ from app.services.resume_render import (
     DATE_FORMATS,
     DEFAULT_PAGE,
     EDUCATION_FIRST,
+    EXPERIENCE_FIRST,
     FONT_FAMILIES,
     FONT_SIZES,
     HEADER_FIELDS,
@@ -40,6 +41,7 @@ from app.services.resume_render import (
     LINE_SPACINGS,
     MARGINS,
     NAME_SIZES,
+    PROJECT_TOOLS,
     TEMPLATE,
     TITLE_SIZES,
     WRAPPED_LINE,
@@ -59,6 +61,7 @@ from app.services.resume_render.fields import (
     heading,
     heading_fields,
     one_row,
+    page_heading,
     phone_text,
     skill_lines,
 )
@@ -315,6 +318,25 @@ def test_position_markers_leave_the_page_unchanged(view) -> None:
 
     assert marked.boxes and not plain.boxes
     assert _content_streams(marked.pdf) == _content_streams(plain.pdf)
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view(), _one_row_view()],
+                         ids=["one page", "two pages", "tools", "one row"])
+def test_one_pass_prints_the_same_page_without_bookmarks(view) -> None:
+    # KAN-919: the editor's live page runs TeX once. The second pass only
+    # adds the PDF's outline, so the page itself, every box and the page
+    # count must match the two-pass file that downloads
+    from pypdf import PdfReader
+
+    _tectonic_or_skip()
+    both = render(view, IDENTITY, "jakes")
+    once = render(view, IDENTITY, "jakes", bookmarks=False)
+
+    assert _content_streams(once.pdf) == _content_streams(both.pdf)
+    assert once.boxes == both.boxes and once.page_count == both.page_count
+    assert once.points == both.points and once.area == both.area and once.shrinks == both.shrinks
+    assert PdfReader(io.BytesIO(both.pdf)).outline
+    assert not PdfReader(io.BytesIO(once.pdf)).outline
 
 
 def _text_lines(pdf: bytes) -> list[tuple[str, int, tuple[float, float, float, float]]]:
@@ -680,7 +702,8 @@ def test_page_settings_go_after_jakes_preamble_and_only_when_they_differ() -> No
 @pytest.mark.parametrize("settings", [
     {"font_family": "Comic Sans"}, {"name_size": 99}, {"heading_size": 99}, {"title_size": 99}, {"body_size": 99},
     {"body_size": 10.25}, {"body_size": 7.5}, {"body_size": float("nan")}, {"body_size": "10"},
-    {"date_format": "roman"}, {"education_first": "gpa"},
+    {"date_format": "roman"}, {"education_first": "gpa"}, {"experience_first": "date"},
+    {"project_tools": "above"},
     {"font_size": 13}, {"line_spacing": 2.0}, {"side_margin": 0.1}, {"top_margin": 2.0}, {"alignment": r"\\input{/etc/passwd}"},
 ])
 def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
@@ -696,6 +719,7 @@ def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
     PageSettings(name_size=31.5, heading_size=15.5, title_size=13.5, body_size=8.5),
     *(PageSettings(date_format=date_format) for date_format in DATE_FORMATS),
     PageSettings(education_first="degree"),
+    PageSettings(experience_first="company", project_tools="after_name"),
     *(PageSettings(line_spacing=spacing) for spacing in LINE_SPACINGS),
     *(PageSettings(side_margin=margin, top_margin=margin) for margin in MARGINS),
     *(PageSettings(alignment=alignment) for alignment in ALIGNMENTS),
@@ -871,6 +895,8 @@ def test_the_api_takes_exactly_what_the_page_can_print() -> None:
     assert set(get_args(fields["font_family"].annotation)) == {"latin_modern", *FONT_FAMILIES}
     assert set(get_args(fields["date_format"].annotation)) == set(DATE_FORMATS)
     assert set(get_args(fields["education_first"].annotation)) == set(EDUCATION_FIRST)
+    assert set(get_args(fields["experience_first"].annotation)) == set(EXPERIENCE_FIRST)
+    assert set(get_args(fields["project_tools"].annotation)) == set(PROJECT_TOOLS)
     scales = {"name_size": NAME_SIZES, "heading_size": HEADING_SIZES, "title_size": TITLE_SIZES, "body_size": BODY_SIZES}
     for field, (low, high) in scales.items():
         for size in (low, low + 0.5, high):
@@ -950,6 +976,87 @@ def test_the_word_file_follows_the_date_format_and_the_education_order() -> None
     school = next(i for i, row in enumerate(rows) if row.startswith(_education().title))
     assert heading(_education()).subtitle in rows[school - 1]
     assert rows[school].endswith("2018 – 2021")
+
+
+# --- Experience order and project tools (2026-11-17) ------------------------
+
+def _job():
+    return next(s for s in VIEW.sections if s.section == "experience").entries[0]
+
+
+def _project(**changes):
+    project = next(s for s in VIEW.sections if s.section == "projects").entries[0]
+    return replace(
+        project,
+        **{"organization": "CSE 316", "tools": ("Python", "Flask"), "link": "https://github.com/jd/gitlytics", **changes},
+    )
+
+
+def test_company_first_puts_the_company_and_its_place_over_the_role_and_its_dates() -> None:
+    job = _job()
+    h, kinds = page_heading(job, PageSettings(experience_first="company"))
+    assert (h.title, h.right, h.subtitle) == (job.organization, job.location or "", job.title)
+    assert h.subright == heading(job).right  # the dates move to the role's row
+    assert kinds == {"title": "organization", "right": "location", "subtitle": "title", "subright": "dates"}
+
+
+def test_a_job_with_no_company_keeps_its_role_on_top() -> None:
+    job = replace(_job(), organization=None)
+    assert page_heading(job, PageSettings(experience_first="company"))[0] == heading(job)
+
+
+def test_tools_after_the_name_move_the_context_under_it() -> None:
+    project = _project()
+    plain, plain_kinds = page_heading(project, DEFAULT_PAGE)
+    assert (plain.tag, plain.subtitle) == ("CSE 316 | github.com/jd/gitlytics", "Python, Flask")
+    h, kinds = page_heading(project, PageSettings(project_tools="after_name"))
+    assert (h.tag, h.subtitle) == ("Python, Flask | github.com/jd/gitlytics", "CSE 316")
+    assert (kinds["tag"], kinds["subtitle"]) == ("tools", "organization")
+    assert (plain_kinds["tag"], plain_kinds["subtitle"]) == ("organization", "tools")
+
+
+def test_a_project_with_no_tools_keeps_its_context_after_the_name() -> None:
+    project = _project(tools=())
+    assert page_heading(project, PageSettings(project_tools="after_name"))[0] == heading(project)
+
+
+def test_each_choice_leaves_the_other_sections_alone() -> None:
+    page = PageSettings(experience_first="company", project_tools="after_name")
+    school = _education()
+    assert page_heading(school, page) == page_heading(school, DEFAULT_PAGE)
+    assert page_heading(_project(), PageSettings(experience_first="company"))[0] == heading(_project())
+    assert page_heading(_job(), PageSettings(project_tools="after_name"))[0] == heading(_job())
+
+
+def test_the_word_file_follows_both_choices() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    view = replace(
+        VIEW,
+        sections=tuple(
+            replace(s, entries=(_project(), *s.entries[1:])) if s.section == "projects" else s
+            for s in VIEW.sections
+        ),
+    )
+    page = PageSettings(experience_first="company", project_tools="after_name")
+    rows = [p.text for p in Document(io.BytesIO(render_docx(view, IDENTITY, page))).paragraphs]
+    job = _job()
+    top = next(i for i, row in enumerate(rows) if row.startswith(job.organization))
+    assert rows[top + 1].startswith(job.title)
+    assert any(row.startswith("Gitlytics") and "Python, Flask" in row for row in rows)
+    assert "CSE 316" in rows
+
+
+def test_a_box_keeps_its_field_when_the_company_leads() -> None:
+    _tectonic_or_skip()
+    boxes = render(VIEW, IDENTITY, "jakes", PageSettings(experience_first="company")).boxes
+    job = _job()
+    role = next(b for b in boxes if b.item_id == str(job.id) and b.kind == "title")
+    company = next(b for b in boxes if b.item_id == str(job.id) and b.kind == "organization")
+    assert role.text == job.title
+    assert company.y0 < role.y0
 
 
 # --- Text the PDF printed wrong (2026-11-12 audit) ---------------------------

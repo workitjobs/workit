@@ -215,7 +215,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
 
 - **Frames: filmed (KAN-635).** With Screen Recording permission, Apply films
   each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
-  `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`,
+  `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`
+  (the built app ships it built, `window-capture`: `../../CLAUDE.md`, "Building the app"),
   finds the window of the Worker Chrome's PID (the native host's parent) nearest
   the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
   and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x
@@ -463,7 +464,8 @@ What changes on a plain Worker:
   rehearsal skips.
 - **The production seed.** `uv run apply plain seed` is a guided setup of `APPLY_PROFILES/plain-seed`
   (`apply.plain.seed_setup`, KAN-677). `plain_chrome: chrome` (the default) then copies that seed to each
-  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed. See "The seed's guided setup" below.
+  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed, and the Apply window's first run then
+  skips its seed step. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
   that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
@@ -475,6 +477,26 @@ What changes on a plain Worker:
   `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
+
+## A Worker's Chrome after its Apply is gone (KAN-885)
+
+A plain Worker's Chrome runs on its own (`start_in_background`), so it outlives an Apply that crashed, was
+killed with SIGKILL, or quit while that Chrome was still starting. The next run then found the profile in use
+and failed the job (`ProfileInUse`, "Didn't go through").
+
+- **Ownership.** Before a Worker's Chrome starts, `launcher.own` writes `apply-owner.json` into its profile:
+  the Apply process's PID and its start time (psutil), so a PID the OS later gives to another process never
+  counts as that Apply.
+- **Reclaim.** `PlainWorkers.launch` and `PlainSite.refuse_in_use` call `launcher.reclaim` on each profile
+  first. It stops the Chrome that holds the profile (SIGTERM, then SIGKILL, as Apply's own stop) only when
+  all of these hold: the profile names an owner, that owner no longer runs, and the process the
+  SingletonLock names is a browser (no `--type=`) whose `--user-data-dir` is this very profile.
+- **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
+  no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
+  now another process, such as the student's own Chrome.
+- **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
+  started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
+- Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)
 
@@ -558,7 +580,12 @@ differs from its Apply's crashed the page guard. So:
 Branded Chrome takes the worker extension only by the user's own clicks. `apply.plain.seed_setup.Wizard`
 helps with each click and confirms it. It refuses to start while a plain Worker of the folder runs.
 
-- **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
+- **What Apply does.** It opens branded Chrome on the seed, in front, through `open` on the Mac
+  (`launcher.start_in_background`), so Chrome is never the app's child: as one, macOS blamed WorkIt Auto
+  Apply when Chrome's updater changed Google Chrome.app ("prevented from modifying apps", 2026-11-21).
+  Chrome 157 opens no `chrome://` page named on its command line (a New Tab instead), so for Developer
+  mode Apply puts `chrome://extensions` on the clipboard and the step says to paste it in the address
+  bar; the "check the card" step does the same with the card's details page. At Load unpacked it
   puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
   `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
   can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the

@@ -6,12 +6,14 @@ table says where each workstream stands. Merged so far: Workers default
 to `worker_mode: protected` (2026-11-06); W1, the Model route, the Usage
 cap and the prompts on WorkIt's server, so each call sends a kind and its
 data, with `ask_model: workit` the default and the student's private
-values masked (#577, #587); W3's Student path with no developer part
+values masked (#577, #587), and Send report (#614); W3's Student path with no developer part
 (#581); W2's step 1, what Apply can't fill handed to the student in the
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
-W10's legal text (#579, #582); and W5's sign-in (#609). The rest of what a
-student downloads and runs (W5's window, W7, W8) is not built.
+W10's legal text (#579, #582); W5, the app's window with no port:
+sign-in (#609), first run, a run, and Report a problem in Settings and
+on each Application's card (KAN-858); and W2's step 2, the generic Filler (KAN-861). The rest of what
+a student downloads and runs (W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -116,9 +118,9 @@ builds it.
 | D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
 | D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
-| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
-| D27 | **Engine signing:** the Fill engine's CI signs each build with an Ed25519 key; WorkIt serves the newest build that fits the app's version; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer | W7 |
-| D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
+| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry. As built (KAN-837): a support form ("Report a problem", from Settings or an Application's tile): a category, the student's words, whether WorkIt may email them, and, if they include one, an Application's Record and masked Trace | Testers need a way to report; privacy first | W5, W1 |
+| D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by WorkIt's own CI on each merge that moves the engine pointer (`.github/workflows/publish-engine.yml` runs `backend/app/scripts/publish_engine.py`, with the key a secret of an environment that takes `main` only; 2026-11-15, it was the Fill engine's CI, then a person's hand run); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo. WorkIt's CI signs only the engine a merged pointer names, which its PR's checks built, and no person's computer holds the key after setup | W7 |
+| D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai` and for the live Supabase Auth, which refreshes the session (2026-11-15: pinning the API alone left the refresh token readable, and with it the download), with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
 | D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
@@ -186,6 +188,9 @@ profiles, and nothing of theirs changes.
    Submit in the Worker's window. Apply writes the Tracker on WorkIt.
 5. At the Usage cap, the run pauses with "Today's model use is reached;
    it resets at midnight UTC". The window always shows the use so far.
+   A Student run, a rehearsal, waits before its next form until the cap
+   resets (`rehearsal._after_the_limit`, KAN-837), and the window shows
+   the pause and when it goes on (`paused_until`).
 
 ### 3.3 The processes
 
@@ -209,8 +214,11 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
-| WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
+| WorkIt | Each link the student sends in or pastes, to find WorkIt's job and name it while it waits | When it waits to start (`apply.queued_names`) |
+| WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting or a careers page's own host), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
 W1): the exact private values the student gave, by field, never a value
@@ -221,7 +229,10 @@ profile links, and each reference's name, email and phone
 placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
 wherever it is in what a call sends, as a whole word, and comes back into
 the answer on the computer (`apply/private.py`). A name matches in its
-own case only, so a student named Will never masks "will". No answer
+own case only, so a student named Will never masks "will". A value that
+says there is none ("N/A", "None") is no private value and is never
+masked: a native-script name of "N/A" once turned every N/A in the
+Pre-submit review into that name's placeholder. No answer
 needs these values, since the Fill engine types them from the profile;
 a draft or an essay that needs one (a reference's details, the ZIP code
 an essay box asks for, live at Applied Materials) writes the placeholder,
@@ -510,19 +521,19 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587): the Model route, the Usage cap, the 11 kinds and the Question types on the server, and the student's private values masked in every call. Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); Send report's route (D26); the Orchestrator's pause on `GET /apply-app/usage` |
-| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds (13 with W2's two picks) and the Question types on the server, the student's private values masked in every call, Send report's route (D26), and the run's pause at the Usage cap (`GET /apply-app/usage`). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4) |
+| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
-| W7 | The engine download and its protection | W1 (sign-in) | Yes | Not started |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
-| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the app's parts (W5, W8), and a `/privacy` that is true of the app |
+| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
-| W13 | Measure quality and model use | W1 | Yes, for the cap | Not started |
+| W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
 Every workstream that adds or changes a click path, or touches
 `submit_guard.py`, `plain/guards.py`, `send_click.py` or a guard flag,
@@ -577,8 +588,9 @@ shapes and status codes.
     on the server"). Each kind runs on the size of the API's model chain
     it names: Apply's Haiku calls on the small one, its Sonnet and Opus
     calls on the large one (`app/services/models.py`). So the models and
-    their keys are the `SCOUT_ENDPOINTS*` settings already in
-    `CF_API_SECRETS_JSON`, and a model change is an env change. It answers
+    their keys are the `SCOUT_ENDPOINTS*` settings already in the API's
+    production secrets (Infisical's `workit-prod/api`, `secrets.md`), and a
+    model change is an env change. It answers
     `{answer, tokens, usage}`, with `usage` as below, so the window's cap
     line updates with each call. The free-form `POST /apply-app/model`,
     which took the app's own prompt and schema, went once every kind was
@@ -639,7 +651,20 @@ shapes and status codes.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
   since its body can hold the model's output.
-- **Not built:** Send report's route (D26).
+- **Send report** (D26, KAN-837) is a support form, "Report a problem",
+  from Settings or an Application's tile, which picks that Application:
+  a category (`report.CATEGORIES`), the student's own words, whether
+  WorkIt may email them, and, with an Application picked, whether to
+  include its Record (its answers, essays, verification, the questions
+  asked of Claude, the page's HTML and the form's screenshots) and its
+  Trace, masked in the app. A general question names no Application.
+  `POST /apply-app/reports` keeps it in `apply_reports` (RLS on, no
+  policies; migration `36d339a2d6b4`). Admins list and read reports with
+  the student's email (`/admin/apply-reports`) and `DELETE` one once its
+  problem is fixed, so a report has no retention period, as `/privacy`
+  says. Up to 24 MB, 10 a day per student. The window (W5's) calls
+  `report.build` with the form's answers, shows `report.parts`, and on
+  Send calls `report.send` with that same report.
 
 **Prompts on the server (decided 2026-11-14, being built).** D5 changed:
 the app no longer sends a prompt and a schema, so a request can't carry
@@ -789,12 +814,22 @@ its own instructions or a hostile schema.
   (section 3.4, next). The label pattern that dropped self-ID answers went
   in that PR, with the answers it dropped by mistake (a diversity essay,
   Rippling's school question).
-- **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
-  and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
-  Student build reads `GET /apply-app/usage` instead and pauses at the
-  cap with its reset date.
+- **The Orchestrator's limit.** **Built** (KAN-837): with `ask_model:
+  workit` the run's usage (`adapters.usage`) is `WorkItAsk.reading`, which
+  reads `GET /apply-app/usage`. Once `used` reaches `cap`, no form opens
+  until `resets_at`: a rehearsal, the Student build's run, waits before
+  each link (`rehearsal._after_the_limit`), `apply run` waits before each
+  Application (`orchestrator._resume_at`), and the window shows the pause
+  with its time. A Developer checkout keeps Claude Code's 5-hour and
+  weekly windows beside it. Before this, the Student build never paused:
+  at the cap each link left opened its form, was refused at its first
+  ask and ended paused, and nothing started it again.
 - **Send report** (D26) uploads one Record and masked Trace through a
-  WorkIt route; the server keeps it for the team.
+  WorkIt route; the server keeps it for the team. **Built** (KAN-837)
+  as the support form above: `report.build` reads the Record's files from
+  its folder and the Application's Trace, masks the Trace with
+  `masked.Known` (the profile's and Answer bank's own values, and every
+  email, phone and id in a link) and keeps its start and its last 4 MB.
 
 **Waits for.** Nothing. Sign-in (W5) supplies the session in the app; a
 developer can test with an existing WorkIt token.
@@ -811,22 +846,15 @@ logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 
 **Goal.** v1 fills without `drive` (D13).
 
-**Who builds it.** Step 1 is built (below). Step 2 is a teammate's
-(2026-11-15), beside the Fillers they write for each job system: one
-person owns all filling, so the generic Filler and the Fillers never
-collide in `fillers.py` or `orchestrator._apply_with`. What step 2 can
-count on:
-
-- Only a Filler that fills with plain code runs in the Student build. A
-  job system that Claude fill fills in the Developer checkout (iCIMS,
-  Oracle, and every other one with no entry in `FILLERS`) is held for the
-  student until a Filler of its own or the generic Filler fills it.
-- W1's Model route is built: the small question below is a new kind in
-  `backend/app/apply_prompts/`, which deploys with the API.
-- What a Filler can't place goes to step 1's paths: a Needs-you item
-  with its planned answer, or the held form (`orchestrator.ForTheStudent`).
-- Each new click path needs the adversarial review (KAN-666) and its cases
-  in `tests/test_submit_guard_hostile.py`.
+**Who builds it.** Both steps are built (below): step 1 in KAN-855,
+step 2 in KAN-861. The generic Filler stays with this workstream, not
+with the teammate who writes a Filler for each job system (2026-11-16,
+reversing #617's hand-over). A Filler of a job system's own still comes
+first: `by_filler` uses the generic Filler only where `FILLERS` has none,
+so the two never meet in `fillers.py`. What a Filler can't place goes to
+step 1's paths: a Needs-you item with its planned answer, or a Handoff
+of the held form. Each new click path needs the adversarial review
+(KAN-666) and its cases in `tests/test_submit_guard_hostile.py`.
 
 **Design.**
 
@@ -894,9 +922,47 @@ two frames a second, so W5's first run asks for the permission.
 | An emailed code after Submit | No mail read: once the code field comes, Needs you says to type the code (`code_box.TypeTheCode`) |
 
 `docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
-and `tests/test_student_handoffs.py` (Chromium) test them. Left for
-step 2, a teammate's (above): the generic Filler, which fills a form
-with no Filler of its own.
+and `tests/test_student_handoffs.py` (Chromium) test them. Step 2, below, fills a form with no Filler of its own.
+
+**Built (2026-11-15, step 2, KAN-861: the generic Filler).** In the Student build a job system with no Filler gets
+the generic Filler (`apply-agent/src/apply/generic_fill.py`, `apply-agent/docs/generic-filler.md`), in place of
+step 1's hold of the whole form. As designed above, with these choices made on the way:
+
+- **The tree is Playwright's ARIA snapshot**, not CDP's `Accessibility.getFullAXTree`: the same call runs on a plain
+  Worker, which has no op for Chrome's raw tree. Each control's element gives what the tree leaves out (a required
+  mark, a text area, a select's placeholder, a file input). Only the top frame is read.
+- **fit.ts is reached through the planner.** The engine exports no `fit`, so an option read before planning is
+  fitted by the planner as for any Filler; an option seen only as the fill opens or types is matched by its words,
+  then by the engine's `shows`, then by the model.
+- **Two kinds, not one:** `generic_fill.pick` (`{"choice": <number> | null}` for one field's options, the number
+  bounded by the list) and `generic_fill.next` (which of two or more Nexts goes on without sending). Both run on the
+  small chain and send no pronouns or school.
+- **A posting page with no field** opens its form by its one Apply link (followed with no click) or Apply button
+  outside any form (BambooHR's "Apply for This Job").
+- **Every field is read back as it is filled.** A wrong or empty one is a `FillError` naming it, so step 1's path
+  makes it a Needs-you item with the planned answer.
+
+**Measured** (`apply-agent/scripts/generic_fill_measure.py`): the Fill engine's six saved Lever forms, served on
+127.0.0.1 and refusing every POST, filled in a plain Worker as Test Person by each Filler in turn; then the engine
+reads each page back and counts how many of its own planned answers it shows. The generic Filler ran code only (a
+Developer checkout has no Model route), so every field it couldn't match counted as wrong.
+
+| Form | Planned answers | Lever's own Filler (engine) | Generic Filler, code only | Claude fill |
+|---|---|---|---|---|
+| lever-belvedere | 26 | 26 | 24 | 26 |
+| lever-hermeus | 23 | 23 | 20 | 21 (stopped at its cap) |
+| lever-immuta | 15 | 15 | 14 | 15 |
+| lever-rhombus | 17 | 17 | 15 | 17 |
+| lever-shieldai | 28 | 28 | 26 | 26 (stopped at its cap) |
+| lever-xcimer | 17 | 17 | 15 | 17 |
+| **All six** | **126** | **126 (100%)** | **114 (90%)** | **122 (97%)** |
+
+Time per form: the generic Filler 3 to 13 s, Claude fill 28 to 63 s and about 40 Haiku turns, the engine under 1 s.
+The generic Filler's 12 misses are each a field it left for the student, never a wrong answer typed: Lever's
+location search on all six forms (its choices come from Lever's live API, which the saved form's server doesn't
+answer, so no model could pick one either), Lever's school list on three, and a self-ID survey the page keeps
+collapsed on two. Each is a Needs-you item with its planned answer in a run. The model's picks would add to the
+generic Filler's count only where code finds options but no match; on these forms it found none such.
 
 ### W3. What the Student build leaves out
 
@@ -987,7 +1053,7 @@ built 2026-11-14 except where a row below says what waits.
 | Module | macOS part today | Change |
 |---|---|---|
 | `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows, the Secret Service on Linux) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
-| `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Built (W5's sign-in, 2026-11-15): the refresh token in `keyring` (`apply-workit`), the access token in memory; sign-in in the default browser with a one-time code, pasted or through `workit-auto-apply://` once W8 builds the bundle |
+| `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Built (W5's sign-in, 2026-11-15): the refresh token in `keyring` (`apply-workit`), the access token in memory; sign-in in the default browser with a one-time code, pasted or through `workit-auto-apply://`: a checkout's window takes the link through a helper applet (`sign_in_link.py`, KAN-883), and the built app will claim it once W8 builds the bundle |
 | `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
 | `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |
 | `dock_app.py` | The Dock bundle | Dropped: the app is its own bundle |
@@ -1022,23 +1088,27 @@ on Windows each one stops Apply:
 
 - **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
   `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
-  at their top, which Windows lacks, so Apply can't even start there. A
-  cross-platform lock library (such as `filelock`) does the job (W4's
-  rules).
+  at their top, which Windows lacks, so Apply can't even start there. Built
+  (KAN-929): every lock goes through `apply.locks`, on `portalocker`
+  (`windows_desktop.md`, P1).
 - **The channel between Apply and the plain Workers.** `plain/bridge.py`,
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with
   `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
-  table).
+  table). Built (KAN-929): `plain/channel.py`, a named pipe on Windows,
+  checked in both directions (`windows_desktop.md`, P4).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
-  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
+  the Worker's Chrome. Built (KAN-929): every such check is
+  `psutil.pid_exists` (`windows_desktop.md`, P2).
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
   PID read find nothing there, and Show brings no CDP Worker forward: it
   brings one only when the lock names a running Chrome, since Chrome
-  leaves its `DevToolsActivePort` file behind when it quits.
+  leaves its `DevToolsActivePort` file behind when it quits. Built
+  (KAN-929): on Windows `chrome_pid` finds the Chrome by its arguments
+  (`windows_desktop.md`, P3).
 - Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
@@ -1056,9 +1126,10 @@ on Windows each one stops Apply:
 
 **Design.**
 
-- **pywebview, no port** (D11). The window's page is today's Apply
-  window (Start, Needs you, Answers, Accounts) without the Developer-only
-  parts. Its 28 routes in `dashboard.py` (`/state`, `/start`, `/answer`,
+- **pywebview, no port** (D11). The window's page is the student page
+  (KAN-867: one to-do at a time, what WorkIt is still working on, Applied,
+  the queue and Start), in place of today's Apply window, which a
+  Developer checkout's window keeps. Its 28 routes in `dashboard.py` (`/state`, `/start`, `/answer`,
   `/answers`, `/approve`, `/resume`, `/fill-again`, `/regenerate`,
   `/accounts`, `/frames`, `/stream/`, `/input/`, ...) become methods on
   pywebview's JavaScript bridge (`js_api`). Tiles' frames are pushed into
@@ -1106,15 +1177,11 @@ terminal step and no open port.
 **Steps**, each one PR:
 
 1. Sign-in (D12). **Built (2026-11-15).**
-2. The window on pywebview: `dashboard.py`'s routes as `js_api`
-   methods, no port, and `uv run apply app`; its paste box for the
-   sign-in code, which `workit.trade` takes.
-3. First run: the Chrome check, the disclosure, the seed, and macOS's
-   Screen Recording permission, without which Fix here's view is about two
-   frames a second (W2).
-4. A run: the Auto Apply queue, the paste box for a posting, the Usage
-   cap line.
-5. Settings and notices.
+2. The window on pywebview, no port, and `uv run apply app`, with the
+   sign-in screen. **Built (KAN-858).**
+3. First run. **Built (KAN-858).**
+4. A run. **Built (KAN-858).**
+5. Settings and notices, with Report a problem. **Built (KAN-858).**
 
 **Built (2026-11-15, step 1): sign-in.**
 
@@ -1141,9 +1208,161 @@ terminal step and no open port.
   app sign-in cancels a password-reset link asked for just before
   (`docs/auth.md`).
 
-Left from sign-in: **the built app's link.** W8 registers
-`workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
-URL that macOS hands it; until a bundle exists, nothing can receive it.
+**Built (KAN-858, step 2): the window, with no port.** `uv run apply app`
+runs `apply.student.app`, the Student build's entry point.
+
+- **The routes stay; the port goes.** `Dashboard(serve=False)` listens
+  on nothing. `apply/app_window.py` loads the Apply window's own page as
+  a string (pywebview opens no server for that) with `SHIM` before its
+  scripts. The shim sends each `fetch` of a path to `Bridge.request`,
+  pywebview's `js_api`, which answers it in this process through the same
+  handler, checks and token as the server (`Dashboard.respond`). The
+  tiles' `/frames` stream comes from `Bridge.frames`, and a link to a file
+  a tile lists opens in the system's own app (`Bridge.open`, only what
+  `Dashboard.listed` allows). So the 28 routes did not become 28 bridge
+  methods, and the Developer checkout's Chrome window keeps the server.
+- **Signed out, the window shows the sign-in screen:** Sign In with
+  WorkIt opens `/app-sign-in` with a new PKCE challenge, and the box
+  takes the code (an admin's page shows it); then the window shows the
+  Apply window with the student's answers.
+- **Checked on this Mac in WKWebView:** the page's requests and a tile's
+  frames came through the bridge, and the process listened on no port.
+  `tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
+  (Chromium) test it.
+
+- **The app's page loads no web font** (`app_window.FONTS`): Google
+  Fonts would be a request the privacy page doesn't name. The system's
+  fonts stand in.
+
+**Built (KAN-858, step 3): first run** (`apply/first_run.py`, `FIRST_RUN`
+in `app_window.py`). After sign-in, one step at a time, before the Apply
+window:
+
+1. Google Chrome (D21): the Chrome finder's; missing, Download Google
+   Chrome, and the window goes on by itself once it is installed.
+2. What leaves the Mac (D8, section 3.4) and the license (W10): OK once
+   for each `first_run.DISCLOSURE`; Read the License opens `EULA.txt`.
+3. Screen Recording, on a Mac only: asked once (`Quartz`'s
+   `CGRequestScreenCaptureAccess`, which pywebview's pyobjc brings), or
+   Not Now. Without it, Fix here's view is about two frames a second (W2).
+4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
+   the window and its "press Return" as Try Again, till a real Worker says
+   hello. The way in until a store copy can be used (W6). Skipped when
+   the Workers run on Chrome for Testing (`plain_chrome: testing`), which
+   loads the worker extension itself.
+
+Chrome and the seed are looked at again at each launch; the disclosure,
+the Screen Recording ask and the Worker count are kept in the data
+folder's `app.json`. **The Student build's data folder is
+`home.APP_FOLDER`** (D25): `home.HOME` reads `build.STUDENT` once, at
+import, which the build script writes before it compiles.
+
+**Built (KAN-858, step 4): a run.** With no run going, the window shows
+the queue: the student's queued, open jobs on WorkIt (`Bridge.queue`),
+oldest first, a job board's posting by its employer's form; a box for one
+pasted link; Start (`Bridge.start`). Start runs the ticked links
+in `student.Runs`: `student.adapters()`, the Worker count from Settings,
+and the run's own Apply window, its tiles, till every form it held is
+closed; then the queue again. One run at a time. The window comes back to
+the front after a captcha (Dashboard's `back`, `app_window.bring_forward`,
+a Mac only). A run that can't start (a refused engine, W7's
+`EngineRefused`; a Worker profile in use) says why in one line. The frame
+source and closing the plain Workers moved from `cli.py` to
+`worker_tiles.py`, so the Student path has them; quitting the app stops the
+plain Workers' Chromes, which outlive it.
+
+**Built (KAN-882): Find jobs.** With no run going, the window first
+shows Find jobs: the student's best Auto Apply matches they haven't queued
+or applied to (`Bridge.matches`, the `auto-apply/matches` route), with the
+website's Jobs page search, filters and cards. The student picks jobs and
+presses Start applying, which runs them as ticked queued jobs run; the
+queue and a pasted link are one click away
+(`apply-agent/docs/apply-window.md`).
+
+**Built (KAN-858, step 5): Settings and notices** (`SETTINGS`): the Worker
+count (one to three, D24), What Leaves Your Mac, the license and the
+third-party notices, Sign Out (`WorkIt.sign_out` ends this session at
+Supabase and forgets it), and Remove All My Data (D25): the login and the
+whole data folder, then the app closes, in the Student build only, since a
+Developer checkout's data folder is the developer's own. A second press
+removes. Notices of what newly waits on the student (Dashboard's
+`notify`) are macOS's own, which only an app bundle may post (W8).
+
+Checked on this Mac in WKWebView: first run's disclosure, the queue with
+its usage line, and Settings. `tests/test_first_run.py` and
+`tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
+(Chromium: every page of the app runs with no script error) test them.
+
+**The Student build's window shows the student page** (KAN-867,
+KAN-869), in place of the developer Apply window: one to-do card at a
+time, "Still working on", Applied (this run's, then those on WorkIt from
+before), the queue and Start when no run goes (Add jobs brings it back
+whenever no run is going; a run refuses a second), today's usage as a bar
+(the share of the Usage cap used, never a token count, read again as each
+form is filled; KAN-837) with words from 80%, and Settings. Its source is
+`apply-agent/window/` (React, Tailwind, the website's tokens and Inter),
+built by Vite into one self-contained file committed in the package
+(`apply/student_page/index.html`), so the app ships it with no Node; CI
+checks the file matches its source. `app_window.student_page` puts SHIM
+and the window's token (`window.APPLY_TOKEN`) before its scripts. The page
+reads `/state` and sends `/answer`, `/approve`, `/show/<k>`,
+`/fill-again`, `/stop` (Stop applying) and `/remove` (one job not started
+yet) with plain `fetch` and the token, which SHIM carries to the
+same handler and checks, with no port; it uses the bridge's app methods
+(queue, applied, start, status, usage, settings) only when the window has them. A
+Developer checkout's window, which runs nothing, keeps the developer page.
+A run's board takes the student's answers (`answers_tab.saving_answers`).
+
+**Built (KAN-858): Report a problem** (D26, W1's #614), in Settings: what
+it is about (`report.CATEGORIES`), what happened, "WorkIt may email me
+about this". Review Report makes the report (`Bridge.review_report`, which
+calls `report.build`) and lists what goes (`report.parts`); Send Report
+sends that same report (`Bridge.send_report`), and a changed answer hides
+Send Report till it is reviewed again. After it, the form says WorkIt
+deletes the report once its problem is fixed. With an Application's id,
+the report is about that Application, with its record and log unless the
+student unticks them: its Tracker row, or, for a form this run held (a
+rehearsal keeps no Tracker row for one), its tile with its newest Record
+under `student.RECORDS`. `build`'s `profile` is the Applicant profile's
+file (`app_window.PROFILE`), never its folder: the log's mask reads a path
+it can't open as no values, so a folder sent the student's name and street
+in the log. No words, `build`'s ValueError, and each of the send's errors
+(the daily cap's too) are each a one-line message.
+
+The student page has the same form on each Application's to-do card,
+its "Didn't go through" row and its Applied row (`window/src/report.tsx`),
+under "Report a problem". It calls `review_report` with the Application's
+id, and `send_report` with that id too, which refuses a report another
+form reviewed since: the window keeps one report, so without the id a
+second form's Review Report changed what the first one's Send Report sent.
+It shows only for a job with an `application_id`, in the app's window; its
+categories come in the page (`window.REPORT_CATEGORIES`, from
+`report.CATEGORIES`, put in by `student_page`).
+
+**Built (KAN-858): the Student build's Tracker is in the data folder**
+(`student.adapters`): `WorkItTracker(FileTracker(), WaitingWrites(), ...)`,
+as a Developer checkout's, in place of a Tracker in memory. So the
+Employer accounts outlive a launch (the Accounts tab shows them), a
+submitted job is found as already applied, and the student's own Submit
+from a held form is written to their Applications Tracker on WorkIt with
+the resume the form was given (KAN-544). Remove All My Data (`first_run.remove_all_data`) forgets each
+Employer account's keychain item (`apply-ats`, one per site) before the
+folder goes, and names any the keychain kept.
+
+Left from W5:
+- A tile added during a run (`--into`) reloads the page with
+  `location.reload()`, which a page loaded as a string can't do. The app
+  never sends a link into a run, so only the Developer checkout's window
+  does.
+
+**The built app's link: built (KAN-833, 2026-11-21).** The build adds
+`workit-auto-apply://` to the bundle's `Info.plist` (`CFBundleURLTypes`),
+so macOS opens the app for the page's link and hands it the link as an
+Apple event; the app's handler (`sign_in_link.listen`, set up once the
+run loop runs) keeps it in memory for the window's sign-in poll, and no
+file holds it. A checkout's window still has a helper applet claim the
+scheme for it (`apply-agent/src/apply/sign_in_link.py`, KAN-883); the
+built app makes no helper.
 
 ### W6. The Worker extension on the store
 
@@ -1273,28 +1492,65 @@ Worker in memory, not in a file.
 **Goal.** The Fill engine never sits on the student's disk in plain text
 and comes only from WorkIt (D3, D27, D28).
 
-**Design.**
+**Built (KAN-836, 2026-11-15).**
 
-1. **Build and sign.** The Fill engine's CI builds `dist/engine.js` and
-   signs it with an Ed25519 key kept in its GitHub secrets, then uploads
-   the build and its signature to WorkIt (R2 or the API's storage) with
-   the app versions it fits. This step is in the engine's repo, so its
-   owners make it.
-2. **Serve.** `GET /apply-app/engine?app_version=…` (signed in) answers
-   the newest build that fits, encrypted with AES-GCM under a key made
-   for this launch; `POST /apply-app/engine-key` gives that key to this
-   session only, for a short time.
-3. **Load.** The app checks the signature with the public key compiled
-   into it, decrypts in memory, and never writes the plain text:
-   - the Node process gets the engine on stdin (today
-     `fill_engine.call_without_page` loads a file path);
-   - CDP Workers get it as text through `page.evaluate` and
-     `add_init_script` (today `fill_engine.ENGINE` is a file);
-   - plain Workers get it over native messaging (W6).
-4. **Pinning.** The app's HTTPS client trusts only the certificate
-   authorities that Cloudflare uses for `api.workitjobs.ai`, with backups.
-   Sparkle's feed is on another host without pinning.
-5. **No source maps** ship; they stay on WorkIt.
+1. **Sign and publish, on each merge.** `.github/workflows/publish-engine.yml`
+   runs `uv run python -m app.scripts.publish_engine publish --key <file>`
+   when a merge to `main` moves the engine pointer or
+   `backend/app/scripts/engine_min_app.txt` (the oldest app the engine
+   fits). It signs the submodule's `dist/engine.js` with WorkIt's
+   Ed25519 engine key and puts it in the private Supabase Storage bucket
+   `ApplyEngine` (chosen over Cloudflare R2 on 2026-11-15: no new account
+   or cost): `<sha256>.js`, and a line in `builds.json` (`sha256`,
+   `signature`, `min_app`, `published_at`). It refuses a bundle that names a
+   source map, so no source map ships, and a key whose public half Apply
+   doesn't hold. A run with nothing new uploads nothing, and a pointer
+   moved back serves the older build again, unless the bad build had a
+   higher min app (`autofiller_extension/CLAUDE.md`, "Move the engine
+   pointer"). `make-key <file>` makes the key
+   once; its private half is a secret of the `apply-engine` environment,
+   which takes jobs from `main` only, since whoever holds it can make every
+   app run their code (`.github/CLAUDE.md`, "Publish the Fill engine").
+2. **Serve.** `GET /apply-app/engine?app_version=` (signed in) answers the
+   build made for the nearest app version at or below the app's (the
+   highest `min_app` that fits, then the last published), so a fix
+   published later for older apps never reaches a newer app. It is
+   encrypted with AES-GCM under a key for this account, this Supabase
+   session and this download. `POST /apply-app/engine-key` makes that key
+   again for two minutes, for the same account and session only. The key
+   is an HMAC under a key derived from the API's service key: nothing is
+   stored, and every API instance makes the same key
+   (`backend/app/services/engine_builds.py`). The server never checks a
+   signature; the app does.
+3. **Load.** `apply.engine_download` asks for both, decrypts in memory and
+   checks the signature with `PUBLIC_KEY`, compiled into the app. Every
+   reader takes the text from `fill_engine.source()`: Node on its stdin,
+   CDP Workers through `page.evaluate`, plain Workers over native
+   messaging. It runs once per process, and `rehearsal.rehearse` checks it
+   before any Worker opens, so a wrong signature, a changed download, no
+   sign-in or no build for this version stops the run with one sentence.
+   The Student build always uses it; a Developer checkout uses it with
+   `fill_engine: workit` in `policies.yaml` (`apply-agent/docs/fill-engine.md`).
+4. **Pinning.** `apply.workit` trusts only Cloudflare's CAs for
+   `api.workitjobs.ai` and for the live Supabase Auth, which is behind
+   Cloudflare too (Let's Encrypt, Google Trust Services, SSL.com, and
+   Sectigo, which Cloudflare uses for backup certificates), 13 roots from
+   certifi's copy of Mozilla's list (`apply-agent/scripts/workit_roots.py`;
+   `--check` connects to both with them). The session's hourly refresh goes
+   to Supabase, so pinning the API alone let a proxy read the refresh token
+   and then download the engine itself. A local stack is not pinned. Sparkle's feed is on another host without pinning, so an update
+   can change the set. Cloudflare's own documentation advises against
+   pinning to its CAs, since it may change them: the set must ship before
+   it does.
+
+**Left, by hand, before a student can run it** (the steps are in
+`.github/CLAUDE.md`, "Publish the Fill engine"). Done 2026-11-17: the key
+(`make-key`), with its public half in `engine_download.PUBLIC_KEY`. Left:
+make the private `ApplyEngine` bucket in the Supabase dashboard; give the
+`apply-engine` environment its branch rule, then its secret; run the
+workflow once by hand for the first build. Until that build is published,
+the API answers 503 and the app says that WorkIt did not send the Fill
+engine.
 
 **A dependency outside this design.** The WorkIt extension ships the
 minified engine in its public store package today, so anyone can read
@@ -1307,6 +1563,9 @@ copying, but the code stays readable.
 **Done when.** A Developer checkout runs a form with the engine from
 the route, the data folder and the Worker extension's folder hold no
 engine file, and a wrong signature stops the run with a clear message.
+Checked on 2026-11-15 against the API on the same computer, with a
+stand-in bucket and sign-in (the route itself is not deployed until the
+merge).
 
 ### W8. Compile, sign, notarize, update, publish
 
@@ -1318,26 +1577,59 @@ itself (D17, D18, D20).
 - **Compile:** Nuitka, standalone, as a macOS app bundle, on Apple
   Silicon with macOS 13 as the minimum (`MACOSX_DEPLOYMENT_TARGET`). It
   holds Playwright's Node driver (`site-packages/playwright/driver/`) as
-  data, pywebview, and none of W3's modules. Nuitka is AGPLv3 with an
+  data, pywebview, and none of W3's modules. It also keeps Apply's own
+  package metadata (`--include-distribution-metadata=apply`): the engine
+  download names the app's version from it (`engine_download.app_version`,
+  W7), and without it no build fits. `cryptography`'s compiled module
+  (`_rust.abi3.so`) is a Mach-O file to sign like the others. Nuitka is AGPLv3 with an
   exception: the compiled app is not bound by the AGPL.
-- **The native host is a program of its own** (found 2026-11-14). Chrome
-  starts the plain Workers' relay (`apply/plain/host.py`) through a
-  wrapper that runs it with `python3 -I`. A compiled app has no Python,
-  so the build compiles the relay as a second program in the bundle, and
-  the wrapper starts that program.
+- **The native host is the app's own program** (found 2026-11-14, built
+  2026-11-21). Chrome starts the plain Workers' relay
+  (`apply/plain/host.py`) through a wrapper that runs it with `python3
+  -I`. A compiled app has no Python, so the wrapper starts the app's own
+  program with `--worker-host` first, and the program then runs only the
+  relay (`scripts/app_entry.py`). One program, not two: a second would
+  carry a second copy of Python's runtime.
 - **Sign:** Developer ID, with the hardened runtime and without
   `get-task-allow`, so other programs can't read the app's memory. Every
   Mach-O file inside is signed, the Node binary included, with the
-  entitlements Node needs (JIT) and no more.
+  entitlements Node needs (JIT) and the app's Apple events
+  (`com.apple.security.automation.apple-events`: FocusKeeper's `osascript`
+  to System Events), and no more.
 - **Notarize** with `notarytool`, then staple.
 - **Update:** Sparkle with its own EdDSA key; the feed and builds on
   Cloudflare R2; a beta channel for testers. The app checks at launch and
   installs at the next restart.
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
-  that says "Apple Silicon Macs (M1 and later), macOS 13 or later".
-- **Build by hand:** one script (for example `scripts/build_app.py`) that
-  compiles, signs, notarizes, makes the DMG and uploads it. No builds in
-  CI (D32).
+  that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
+  (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
+  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+- **Build by hand:** one script, `scripts/build_app.py`, that compiles,
+  signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
+  A release builds from the commit's own files (`git archive`), never the
+  working tree, and writes the commit into `Info.plist` (`WorkItCommit`).
+
+**Steps.**
+
+1. **Compile only. Built (KAN-833, 2026-11-21).** `python3
+   scripts/build_app.py` makes `build/out/WorkIt Auto Apply.app`, about
+   227 MB, with the compiler's ad-hoc signature, so it opens only on the
+   Mac that built it. It compiles in a venv of its own with uv's Python
+   3.12, with Apple's tools only, with no docstrings, and refuses an app
+   that holds a developer module, Python source or a docstring
+   (`apply-agent/CLAUDE.md`, "Building the app"). The built app opened its
+   window and ran the relay. On 2026-11-21 it passed the sign-in round trip
+   in the browser and the Worker setup, which ends on a real plain Worker's
+   hello through the app's own relay. It claims `workit-auto-apply://` and takes
+   the sign-in link itself (W5's last step), and ships the plain
+   Workers' window capture helper, built by `swiftc` in the build, since a
+   student's Mac has no `swiftc`. Step 1 is done.
+2. Sign with Developer ID and notarize, after the Apple enrollment.
+3. Sparkle: the framework in the bundle, the key, the feed on R2.
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
+   is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
+   app, a link to Applications, and the license and notices beside them;
+   left: its signature and notarization (step 2), its upload and the URL.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
@@ -1417,7 +1709,8 @@ text merges only once the team approves it.
   Playwright's driver (Node.js's license, playwright-core's and the
   license files beside its bundles), Python's own license (Nuitka
   compiles the runtime in), and a hand list, `BY_HAND`: pywebview
-  (BSD-3-Clause; its entry goes by itself once W5 adds the package),
+  (BSD-3-Clause; left out since KAN-858 added the package, which
+  pip-licenses lists with the pyobjc packages and bottle it brings),
   Sparkle (MIT, with the notices for the code it includes), Nuitka's
   runtime exception (AGPLv3; the compiled app is not bound by the AGPL)
   and the cover letters' Latin Modern font (GUST Font License). A hand
@@ -1440,21 +1733,19 @@ the app does not do all of it yet:
   the page says self-ID answers are included; once the engine reports
   its sources and Apply leaves those out, the page changes with it. Not
   done: a student ID has no placeholder, since the profile keeps none.
-- **Send report's route (D26) is not built.** It takes the one
-  Application's Record and masked Trace that a student sends with the
-  window's "Send report". **WorkIt keeps a report until the problem it
-  shows is fixed, then deletes it** (decided 2026-11-14), and `/privacy`
-  says so. So the route's PR needs a way to mark a report's problem
-  fixed that deletes the report, not a period in
-  `backend/app/services/retention.py`. A report whose problem is never
-  fixed stays until the team deletes it.
+- **Send report is built** (W1's #614, and its form in W5's Settings):
+  **WorkIt keeps a report until the problem it shows is fixed, then
+  deletes it** (decided 2026-11-14), and `/privacy` says so. The team's
+  `DELETE /admin/apply-reports/{id}` marks it fixed and deletes it; there
+  is no period in `backend/app/services/retention.py`. A report whose
+  problem is never fixed stays until the team deletes it.
 - **The page merged before W1's PR (#577)**, whose route it describes.
   Both are on `main` now.
 
 **Left.**
 
-- W5: show the EULA and the notices in the app (Settings), and the
-  EULA at first run. W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
+- W5 shows the EULA at first run and in Settings, with the notices
+  (KAN-858). W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
   (made with `--strict`) in the app bundle and the DMG, and link both
   from the download page.
 - W3: when the Student build leaves out a developer part, move the
@@ -1522,7 +1813,30 @@ adversarial review.
    2026-11-10 found Groq's plainer but correct, `apply-agent/docs/ask-model.md`).
 2. Count calls and tokens by call kind on about 20 forms across hiring
    systems: the tokens of one Application, which sets the app's "about N
-   Applications left".
+   Applications left". **Parked (KAN-837, 2026-11-17)** on branch
+   `KAN-837-tokens-by-kind`, not merged; W13 starts again from it:
+   - Each WorkIt call's Trace event gets the `tokens` WorkIt counted
+     against the cap, or the status it `failed` with
+     (`WorkItAsk._post`). Each fill already ends with a `result` event.
+   - `uv run apply tokens [--since YYYY-MM-DD] [--cap N]` adds them up
+     over the Traces: by call kind, by job system, and a fill's tokens
+     divided into the cap. Each `start` in a Trace is one fill, so a Fill
+     again counts on its own.
+   - **Fix before it merges:** it divides by every fill, so a fill that
+     stopped early (a sign-in, a closed posting, a failure) counts as a
+     whole form, and "about N" comes out too high (15 forms of 8,000
+     tokens and 5 stops of 300 gave 13; the right answer is 9). Divide
+     all tokens by the fills whose `result` reached the form's end (held
+     or submitted). Name job systems with `preflight.job_system`:
+     `Posting.job_system` puts Jobvite, SmartRecruiters, iCIMS, BambooHR
+     and Paylocity under "other".
+   - It can't see what a failed call spent (WorkIt counts it; its answer
+     doesn't say), or calls outside a fill (`apply story-map`, a held
+     page's Regenerate or Ask Claude).
+   - The measurement: rehearse about 20 postings across hiring systems
+     with `ask_model: workit`, against a local API with a higher
+     `APPLY_APP_DAILY_TOKENS` (on the real server they count against the
+     developer's own cap), then run `apply tokens --since` that day.
 3. With W2: the generic Filler's share of fields filled right, against
    Claude fill.
 
@@ -1625,13 +1939,14 @@ Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
-lock, signals, the hosts' wrappers, the seed guide's words).
+lock, signals, the hosts' wrappers, the seed guide's words), and
+`windows_desktop.md` (KAN-929) takes them one at a time.
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port; `windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |

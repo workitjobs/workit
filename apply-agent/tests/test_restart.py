@@ -92,29 +92,18 @@ def test_a_reopened_forms_draft_is_its_records_answers_but_no_file_or_secret(tmp
     assert batch.draft({"record": str(tmp_path / "gone")}) == {} and batch.draft({}) == {}
 
 
-class _Mailless:
-    login, hands_off = "test.person@example.com", True
+def test_a_reopened_rehearsals_accounts_sign_in_but_reset_no_password():
+    # KAN-878: a reopened form signs in as any rehearsal does, and a rehearsal's Accounts never reset a password that
+    # only may exist, so a stale one can't lock the account. Fault: the reopened batch's Accounts made a run's.
+    from types import SimpleNamespace
 
+    from apply import rehearsal
+    from apply.model import Posting
 
-class _Page:
-    url = "https://careers.example.com/signin"
-    frames = ()
-
-
-def test_a_reopened_forms_account_page_is_a_handoff_before_anything_is_typed():
-    from apply.account_pages import AccountPages
-    from apply.accounts import HANDS_OFF
-    from apply.model import Handoff
-
-    pages = AccountPages(_Mailless(), {"first_name": "Test"})
-    assert "test.person@example.com" not in pages.told() and "type nothing" in pages.told()
-    try:
-        pages.after(_Page(), {"account_page": "sign_in", "account_button": "Sign in"}, None, None, _Page.url)
-    except Handoff as handoff:
-        assert str(handoff) == HANDS_OFF
-    else:
-        raise AssertionError("a reopened form's sign-in went on")
-    pages.hands_off(_Page())  # no password box shows: Claude may look at the page
+    adapters = SimpleNamespace(keychain=None, mailbox=None, clock=None, tracker=None)
+    profile = SimpleNamespace(get=lambda key: "test.person@example.com")
+    accounts = rehearsal._Accounts(adapters, profile, None)(Posting("p1", "Acme", "Intern", "https://acme.example/1"))
+    assert accounts.rehearsal is True and not hasattr(accounts, "hands_off")
 
 
 def test_reopen_list_prints_the_plan_and_opens_nothing(monkeypatch, tmp_path, capsys):
@@ -175,3 +164,22 @@ def test_preflight_open_lists_the_reopened_sites_that_wait_on_a_sign_in_now():
     assert "Acme (Browser 1)" in now and "Arc" not in said  # Greenhouse asks no sign-in, and its form is held
     assert "Beta (Browser 3)" in later
     assert preflight.open_report([], []).startswith("No open form")
+
+
+def test_a_reopened_form_never_tries_a_password_that_failed_before():
+    # KAN-878's review: a rehearsal's Accounts started with no failed sites, so a reopened form, now signing in, could
+    # try a password the Tracker says failed, once more, toward a lockout. Fault: the failed sites not read in.
+    from types import SimpleNamespace
+
+    import pytest
+
+    from apply import rehearsal
+    from apply.model import Handoff, Posting
+
+    tracker = SimpleNamespace(rows=lambda: [SimpleNamespace(reason="Sign-in failed at acme.example: refused.")])
+    adapters = SimpleNamespace(keychain=SimpleNamespace(password=lambda site: "Old-Pass1!"), mailbox=None, clock=None,
+                               tracker=tracker)
+    profile = SimpleNamespace(get=lambda key: "test.person@example.com")
+    accounts = rehearsal._Accounts(adapters, profile, tracker)(Posting("p1", "Acme", "Intern", "https://acme.example/1"))
+    with pytest.raises(Handoff, match="won't try that password again"):
+        accounts.password("acme.example")

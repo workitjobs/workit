@@ -19,7 +19,7 @@ from playwright.sync_api import Route, sync_playwright
 
 from apply import answering, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
-from apply.gmail import MailedCode, on_hosts
+from apply.gmail import MailedCode, on_hosts, speaks_of_reset
 from apply.model import Question
 
 # Greenhouse loads reCAPTCHA Enterprise and asks it for a token at submit.
@@ -562,8 +562,9 @@ class FakeClaude:
                  sent: bool | Exception = False, facts: dict | None = None, brief: list[dict] | dict | None = None,
                  team: str = "", team_brief: list[dict] | dict | None = None, named: dict[str, str] | None = None,
                  story_map: list[dict] = (), plans: list[dict[str, dict]] = (),
-                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None):
+                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = ()):
         self._repairs = repairs or {}
+        self._picks = list(picks)  # the generic Filler's picks, in order (generic_fill.pick, generic_fill.next)
         self._typical = typical or {}
         self._sent = sent
         self._story_map = list(story_map)
@@ -623,6 +624,8 @@ class FakeClaude:
             return {"replanned": {key: {"answer": next((a for start, a in self._replans.items()
                                                         if field["question"].startswith(start)), "")}
                                   for key, field in data["fields"].items()}}
+        if kind in ("generic_fill.pick", "generic_fill.next"):  # the generic Filler's small picks: none, unless given
+            return {"choice": self._picks.pop(0) if self._picks else None}
         if kind == "claude_fill.sent":
             if isinstance(self._sent, Exception):
                 raise self._sent
@@ -761,8 +764,10 @@ class FakeMailbox:
         code = self._find(search, since, "code")
         return MailedCode(code, self._senders[code]) if code else None
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
         link = self._find(search, since, "link")
+        if link and not resets and speaks_of_reset(link):
+            return None
         return link if link and on_hosts(link, hosts) else None
 
     def _find(self, search: str, since: datetime, kind: str) -> str | None:

@@ -120,3 +120,15 @@ def test_requests_name_apply_not_python(tmp_path):
         logged_in(fake, tmp_path).me()
         agents = {r.headers.get("user-agent", "") for r in fake.requests}
     assert agents and not any(a.startswith("Python-urllib") for a in agents)
+
+
+def test_sign_out_ends_the_session_at_supabase_and_forgets_it_here(tmp_path):
+    """Fault: a sign-out that leaves the refresh token in the keychain, or the session alive at Supabase."""
+    with FakeWorkIt() as fake:
+        client = logged_in(fake, tmp_path)
+        client.me()
+        client.sign_out()
+        assert "/auth/v1/logout?scope=local" in [r.path for r in fake.requests]
+        assert not client.logged_in() and fake.keychain.password(fake.site.auth) is None
+        with pytest.raises(NotLoggedIn):
+            client.me()

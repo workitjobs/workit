@@ -45,7 +45,10 @@ SECTION_NAMES = {
 FIELD_MEANINGS = {
     bank_section.education: ("the school, such as a university", "a college or department in it"),
     bank_section.experience: ("the job title", "the company"),
-    bank_section.projects: ("the project name", "the team or course"),
+    bank_section.projects: (
+        "the project name",
+        "its context: a course, a hackathon or personal project",
+    ),
     bank_section.leadership: ("the role", "the club or organization"),
     bank_section.awards: ("the award", "who gave it"),
     bank_section.certifications: ("the certification", "the organization"),

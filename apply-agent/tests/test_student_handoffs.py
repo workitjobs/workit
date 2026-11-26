@@ -7,9 +7,9 @@ from contextlib import contextmanager
 import pytest
 from conftest import ARC_FORM, ARC_URL
 from fake_bamboohr import FakeBambooServer
-from fakes import FakeJobServer, RecordingBoard
+from fakes import FakeClaude, FakeJobServer, RecordingBoard
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
-from test_rehearse import NeverSubmits, adapters
+from test_rehearse import NeverSubmits, adapters, rehearse
 from test_run_answers import profile_with
 
 from apply import build, rehearsal, rescue
@@ -39,23 +39,15 @@ def keeping(server):
     return pages
 
 
-def test_a_form_apply_has_no_filler_for_is_held_for_the_student_to_fill_in_the_app(tmp_path):
-    class Board(RecordingBoard):
-        def answered(self, worker):  # each turn of the held page: once it is handed over, the student closes it
-            if self.captions.get(worker, {}).get("status") == "handoff" and pages:
-                pages.pop().close()
-            return []
-
-    board, lines = Board(), []
+def test_a_form_apply_has_no_filler_for_is_filled_by_the_generic_filler_with_no_model_driving(tmp_path):
+    """KAN-861 (W2 step 2): a BambooHR form, a job system with no Filler, is read and filled by code. Nothing is sent,
+    no model drives the page (the fixture fails Rescue's), and what it can't fill is the student's."""
+    claude = FakeClaude()
+    claude.drive = lambda **_: pytest.fail("a model drove the page in the Student build")
     with FakeBambooServer(LUNAR_FORM) as server:
-        pages = keeping(server)
-        rehearsal.rehearse([LUNAR_URL], adapters(server, board=board), ApplicantProfile.load(profile_with(tmp_path)), 1,
-                           keep_open=True, out=lines.append)
-
-    caption = board.captions[0]
-    assert caption["status"] == "handoff", caption
-    assert "can't fill this job site's forms yet: press Fix here and fill it in on the form in this window" in caption["why"]
-    assert caption["filled"] == 0  # nothing typed: the form is the student's, whole
+        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path), claude=claude)
+    assert done.outcome != "handoff" or "can't fill" not in done.why, done.why
+    assert done.filled >= 8, (done.outcome, done.why, done.filled, done.asked)
     assert server.submissions == []
 
 

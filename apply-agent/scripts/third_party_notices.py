@@ -69,6 +69,16 @@ BY_HAND = (
     Hand("Latin Modern Roman fonts", "GUST Font License (c) 2003-2009 B. Jackowski and J. M. Nowacki (GUST)",
          "http://www.gust.org.pl/fonts/licenses/GUST-FONT-LICENSE.txt", "GUST-FONT-LICENSE.txt",
          "The cover letters' font (src/apply/fonts/README.md)."),
+    # The student page (window/, built into src/apply/student_page/index.html) carries these inside it.
+    Hand("Inter", "SIL Open Font License 1.1 (c) 2016 The Inter Project Authors", "https://github.com/rsms/inter",
+         "Inter-LICENSE.txt", "The student page's font (its Latin subset). Copy LICENSE from "
+         "window/node_modules/@fontsource-variable/inter."),
+    Hand("React", "MIT (c) Meta Platforms, Inc. and affiliates", "https://react.dev/", "React-LICENSE.txt",
+         "The student page: react, react-dom and scheduler. Copy LICENSE from window/node_modules/react."),
+    Hand("Phosphor Icons", "MIT (c) 2020 Phosphor Icons", "https://phosphoricons.com/", "Phosphor-LICENSE.txt",
+         "The student page's icons. Copy LICENSE from window/node_modules/@phosphor-icons/react."),
+    Hand("Tailwind CSS", "MIT (c) Tailwind Labs, Inc.", "https://tailwindcss.com/", "Tailwind-LICENSE.txt",
+         "The student page's base styles. Copy LICENSE from window/node_modules/tailwindcss."),
 )
 
 

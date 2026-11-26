@@ -8,7 +8,7 @@ import { useShallowPush } from "@/components/shallow-routing";
  * Writes the address a fresh visit stands for into the address bar, in place
  * of bare /jobs: `href` is Best Match with the seeker's saved preferences, the
  * view the page has just drawn (see "SAVED PREFERENCES APPLY ON A FRESH
- * VISIT ONLY" in ./page). Draws nothing.
+ * VISIT ONLY" in ./(list)/page.tsx). Draws nothing.
  *
  * WHY NOT redirect(). The page used to redirect there, which cost a second
  * server round trip on the sidebar's most used link: the first answer

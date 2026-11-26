@@ -96,8 +96,9 @@ export function TabButtons<V extends string>({
 /**
  * Tabs that move between different content on one subject (KAN-766): a
  * job's Overview and Company, an application's own page and its job
- * description, Documents' Resumes and Cover Letters. Each is a link, kept
- * in the URL, so a tab can be linked to and survives a reload.
+ * description, Documents' Resumes and Cover Letters, Auto Apply's three
+ * pages. Each is a link, kept in the URL, so a tab can be linked to and
+ * survives a reload.
  *
  * TABS OR A SWITCHER. A switcher (`ui/segmented-control.tsx`) changes how
  * the same content looks, or one setting: List or Grid, Week or Month, per

@@ -3,12 +3,12 @@
 # Starts no processes, so teardown only has to stop what run.sh starts.
 set -euo pipefail
 
-# Copies .env, frontend/.env.local and the sample resumes in
+# Copies .env, frontend/.env, frontend/.env.local and the sample resumes in
 # frontend/public/resumes/ from the git primary checkout.
 npm run worktree -- --env-only
 
 # $SUPERSET_ROOT_PATH's env files win when it has them; it can have none.
-for f in .env frontend/.env.local; do
+for f in .env frontend/.env frontend/.env.local; do
   src="${SUPERSET_ROOT_PATH:-}/$f"
   if [ -f "$src" ] && ! [ "$src" -ef "$f" ]; then
     cp "$src" "$f" && echo "copied $f from $SUPERSET_ROOT_PATH"

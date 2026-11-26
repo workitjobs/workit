@@ -12,7 +12,24 @@ kind and its data (`Claude.ask_kind`), as the signed-in student
 (`apply login`; a developer's own API with `APPLY_WORKIT_API`). WorkIt
 builds the prompt (`../../backend/app/apply_prompts/`), so a call never
 carries one. Its per-minute limit is waited out once; its daily Usage cap
-raises `UsageLimitHit`, which pauses the run until midnight UTC. Every
+raises `UsageLimitHit`, which pauses the run until midnight UTC. It is
+also the run's usage (`Adapters.usage`, in the Student build and in a
+Developer checkout): `WorkItAsk.reading` reads `GET /apply-app/usage` and
+is limited from the moment `used` reaches `cap` until `resets_at`. Until
+then a rehearsal, the Student build's run, opens no form
+(`rehearsal._after_the_limit`), `apply run` starts no Application
+(`orchestrator._resume_at`), and the window shows the pause with its
+time. Before (2026-11-15), the Student build's usage was never limited: at
+the cap each link left opened its form, was refused at its first ask and
+ended paused, and nothing started it again. WorkIt not answering reads as
+not limited, since the next ask reports it. In a rehearsal a reading that
+fails (a Developer checkout's `claude -p` logged out, or its probe
+refused) is no limit too: raised before the link's `try`, it ended the
+link's thread holding its Worker's turn, and the run waited until Ctrl-C
+(2026-11-16). A form already filled is sent at a limit, since a submit
+makes no model call: WorkIt checks the cap before each call, so the
+pre-submit review can be the call that reaches it, and a pause at submit
+filled that form again after the reset. Every
 other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 `claude` can run one again only once the developer prompt route is built
 (urgent, `../../docs/developer_apply_agent_testing_framework.md`).
@@ -159,3 +176,25 @@ go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain, from `apply-agent/`:
 uv run keyring set apply-groq api.groq.com                      # asks for the key
 uv run keyring set apply-gemini generativelanguage.googleapis.com
 ```
+
+## The Best model on your own plan (`apply app --max-plan`)
+
+With `--max-plan`, the window's asks run on `claude -p` with WorkIt's
+prompts built from this checkout (`apply.local_prompts`). Large kinds
+(essays, cover letters, story tags) and the Pre-submit review run on
+Opus, the Best model; the other small kinds stay on Haiku. Settings has
+a switch to put them back on Sonnet. Near the plan's limits (70% of the
+5-hour window, or 60% of the week) they drop to Sonnet by themselves,
+and Settings says why until a call runs on Opus again.
+
+To run on another subscription than your `claude` login, make a setup
+token once and keep it in Keychain:
+
+```sh
+claude setup-token              # prints a long-lived token for your subscription
+uv run apply claude-token       # asks for it, hidden, and keeps it under apply-claude
+uv run apply claude-token --forget
+```
+
+Every `claude -p` call then passes it as `CLAUDE_CODE_OAUTH_TOKEN`, which
+wins over the login. Settings names which one is in use.

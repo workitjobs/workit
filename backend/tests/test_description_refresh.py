@@ -46,6 +46,8 @@ def test_description_provider_receives_listing_work_style(monkeypatch, style, ex
 
 async def test_phase_two_failure_rolls_back_before_closures(monkeypatch):
     conn = AsyncMock()
+    conn.engine = Mock()
+    conn.engine.connect.return_value = AsyncMock()
     for name, result in (
         ("sync_catalog", 0),
         ("expire_leases", 0),
@@ -100,7 +102,11 @@ async def test_no_page_is_a_failure_not_a_successful_fetch():
     conn = AsyncMock()
     row = SimpleNamespace(apply_url=URL_A, schedule_id="board")
     assert await worker._commit_description_batch(conn, [(row, None, None)]) == (0, 1)
-    assert conn.execute.await_args.args[1]["fetched"] is False
+    # The failure path uses _STAMP_SOURCE_FAIL which increments attempts.
+    params = conn.execute.await_args.args[1]
+    assert params["apply_url"] == URL_A
+    assert params["schedule_id"] == "board"
+    assert "version" not in params  # _STAMP_SOURCE_OK would have this
 
 
 async def test_stale_candidates_deduplicate_before_cap(database):
@@ -112,7 +118,7 @@ async def test_stale_candidates_deduplicate_before_cap(database):
             await update_sources(conn, board, [(URL_A, "a"), (URL_B, "b")])
         rows = (
             await conn.execute(
-                worker._STALE_QUERY, {"version": providers.PAGE_VERSION, "cap": 2}
+                worker._STALE_QUERY, {"version": providers.PAGE_VERSION, "cap": 2, "max_attempts": worker.MAX_DESCRIPTION_ATTEMPTS}
             )
         ).all()
         assert {row.apply_url for row in rows} == {URL_A, URL_B}

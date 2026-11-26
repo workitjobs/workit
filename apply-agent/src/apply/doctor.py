@@ -191,6 +191,14 @@ def _chrome(machine: Machine) -> Check:
 
 
 def _engine(machine: Machine) -> Check:
+    from apply import fill_engine
+
+    if fill_engine.from_workit():  # fill_engine: workit: the download is what a run would use (W7)
+        try:
+            return Check("Fill engine", OK, f"WorkIt's, {len(fill_engine.source()):,} characters, signature checked")
+        except Exception as failed:
+            return Check("Fill engine", FAIL, f"WorkIt's download: {failed}",
+                         "run `apply login`, or set fill_engine: checkout in policies.yaml")
     if not machine.engine.is_file():
         return Check("Fill engine", FAIL, f"no bundle at {machine.engine}",
                      "run `git submodule update --init` from the checkout (you need read access to the fill-engine repo)")
@@ -411,24 +419,37 @@ def _folder(machine: Machine) -> Path:
 
 
 LOGIN = "run `uv run apply login`"
+# ask_model: workit, the default, writes every answer through WorkIt's Model route as the signed-in student.
+NEEDED = "a rehearsal stops at its first written answer (ask_model: workit writes every answer through WorkIt)"
 
 
 def _workit(machine: Machine) -> Check:
-    """Optional, as Gmail is: only Apply's writes to the Applications Tracker need the login."""
+    """Needed with ask_model: workit, the default: without a student's login a rehearsal stops at its first written
+    answer, so each way the login can't serve fails. With another ask_model it is optional, as Gmail is: only Apply's
+    writes to the Applications Tracker need it. WorkIt not answering only warns: the login is still kept."""
     client = machine.workit()
+    try:
+        needed = ask_model.WORKIT in ask_model.chain({"ask_model": _policy(machine, "ask_model")})
+    except SetupError:  # the Ask model line fails on it
+        needed = False
+    level = FAIL if needed else WARN
     if not client.logged_in():
+        if needed:
+            return Check("WorkIt", FAIL, f"off: not logged in, so {NEEDED}",
+                         f"{LOGIN} from apply-agent/ (or `uv run apply app`, whose window needs no code to paste)")
         return Check("WorkIt", WARN, "off: not logged in, so Apply can't write to your Applications Tracker "
                                      "(rehearsals work without it)", f"{LOGIN} if you have a WorkIt student account")
     try:
         account = client.me()
     except LoginExpired:
-        return Check("WorkIt", WARN, "the login expired or was signed out", f"{LOGIN} again")
+        return Check("WorkIt", level, "the login expired or was signed out" + (f", so {NEEDED}" if needed else ""),
+                     f"{LOGIN} again")
     except Unreachable as e:
         return Check("WorkIt", WARN, f"can't reach WorkIt ({e})",
                      f"check your network, and that {client.site.api} answers; Apply's login is still kept")
     if account.account_type != "applicant":
-        return Check("WorkIt", WARN, f"logged in as {account.email}, a {account.account_type} account",
-                     f"{LOGIN} with a student account: the Applications Tracker needs one")
+        return Check("WorkIt", level, f"logged in as {account.email}, a {account.account_type} account",
+                     f"{LOGIN} with a student account: the Model route and the Applications Tracker need one")
     return Check("WorkIt", OK, f"logged in as {account.email}")
 
 

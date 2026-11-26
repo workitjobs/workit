@@ -3,7 +3,7 @@
 import pytest
 from test_submit_guard_hostile import FINAL, SAVE, START, _settle, cdp, plain
 
-from apply import claude_fill, submit_guard
+from apply import steps, submit_guard
 
 STEP2 = "/acme/jobs/123/step2"
 ALWAYS = {STEP2: "<title>Two</title><input name=next>"}
@@ -36,7 +36,7 @@ LOAD = {
 
 @pytest.fixture(autouse=True)
 def quick_steps(monkeypatch):
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1500)
 
 
 @pytest.mark.parametrize("name", list(LOAD))

@@ -44,7 +44,6 @@ import {
   HistoryButtons,
   PanelToggle,
   ReviewButtons,
-  SaveStatus,
   SheetTool,
   lineTools,
   type HistoryTools,
@@ -278,7 +277,6 @@ export function PhoneEditor({
             <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>
           <div className="min-w-0 flex-1">{title}</div>
-          <SaveStatus saving={saving} fitting={fitting} ready={Boolean(rendered)} short />
           <span className={cn("flex shrink-0", TAP)}>
             <DownloadMenu
               download={download}

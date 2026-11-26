@@ -13,7 +13,7 @@ import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { EDITOR_PARENT } from "./back";
 import { Editor } from "./editor";
-import { ResumeMenu, TitleRowProvider } from "./resume-menu";
+import { TitleRowProvider } from "./resume-menu";
 import { ResumeTitle } from "./resume-title";
 
 export const metadata: Metadata = { title: "Resume Editor" };
@@ -29,9 +29,11 @@ export const metadata: Metadata = { title: "Resume Editor" };
  * On a phone it takes the layout in ./phone.tsx (KAN-219). The title is
  * the editor's title row (`ResumeTitle`, renamed in place, as on Tailor's
  * review; KAN-411), so a failed load still shows it, over the error. The
- * row is an upload's page's too (KAN-825): the Primary badge after the
- * name, and the resume's ⋯ (`ResumeMenu`: Rename, Make Primary, Delete)
- * after Download, both read from the list of built resumes.
+ * row is an upload's page's too (KAN-825): the star after the name, filled
+ * on the primary (read from the list of built resumes), and Download. It
+ * has no ⋯ (2026-11-19, ./resume-menu.tsx): the title renames, the star
+ * makes it the primary, the toolbar's ? takes the tour, and Resumes
+ * deletes.
  *
  * THE RENDER IS STARTED HERE AND NOT AWAITED (KAN-368). It is a LaTeX
  * compile, the slowest read in the app, and every other read here is a
@@ -73,11 +75,6 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
             initialChoices={choices.data}
             initialHeader={profile}
             heading={title}
-            more={
-              resume && (
-                <ResumeMenu kind="built" resumeId={resumeId} name={name} primary={primary} />
-              )
-            }
           />
         </TitleRowProvider>
       ) : (

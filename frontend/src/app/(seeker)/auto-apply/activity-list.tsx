@@ -25,6 +25,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { TEXT } from "@/components/ui/text-roles";
 import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
@@ -273,8 +274,8 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
   },
 ];
 
-export const TH = "px-4 text-note text-ink-meta font-medium";
-export const TD = "px-4 py-3 text-note text-ink";
+export const TH = `px-4 ${TEXT.columnHeader}`;
+export const TD = `px-4 py-3 ${TEXT.tableCell}`;
 /** Every column is left-aligned, heading and cell, as the Tracker's are
  *  (2026-11-10). Every column but Role was centred (asked for 2026-10-20):
  *  on a wide window each short value floated far from the job it belongs

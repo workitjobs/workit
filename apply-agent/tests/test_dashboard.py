@@ -160,6 +160,7 @@ def test_captions_say_what_each_worker_is_on():
 
     assert kind == "application/json"
     tiles = json.loads(state)["tiles"]
+    assert isinstance(tiles[1].pop("since"), float)  # when it took its status: the window says how long it waits
     assert tiles == [
         {"tone": "idle", "label": "Waiting for the next job", "detail": "", "thread": []},
         {"company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
@@ -331,6 +332,42 @@ def test_an_application_ending_again_takes_the_place_of_its_last_item():
 
     assert [(i["company"], i["status"]) for i in items] == [("Rhombus", "submitted"), ("Arc", "submitted")]
     assert board.state()["summary"].startswith("2 sent")
+
+
+def test_tiles_and_items_carry_the_logo_sources_job_system_and_progress_apply_has():
+    """Fault: the Student window drew a queued job with its initials though WorkIt gave its logo, lost the logo once
+    the form's own link took the place of the queue's, or had no job system or progress to show (KAN-871)."""
+    queued = "https://www.linkedin.com/jobs/3"
+    sources = {"logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"}
+    with Dashboard(2, FakeFrames({})) as board:
+        board.logos({queued: sources, "https://boards.greenhouse.io/y/1": {"logo_url": None, "company_domain": None}})
+        board.update(0, company="Acme", role="Intern", link=queued, posting_url="https://jobs.lever.co/acme/3",
+                     job_system="lever", status="filling")
+        board.update(1, company="Pasted", role="Intern", link="https://jobs.ashbyhq.com/p/1",
+                     posting_url="https://jobs.ashbyhq.com/p/1", job_system="ashby", status="filling")
+        tiles = board.state()["tiles"]
+        board.update(0, status=rehearsal.READY, why=CALIBRATION, filled=17, asked=18, missing=[])
+        item = board.state()["items"][0]
+
+    assert (tiles[0]["logo_url"], tiles[0]["company_domain"], tiles[0]["system"]) == (
+        sources["logo_url"], "acme.com", "Lever")
+    assert "logo_url" not in tiles[1] and "company_domain" not in tiles[1]  # a pasted link: no WorkIt job, initials
+    assert (item["company"], item["logo_url"], item["company_domain"], item["system"], item["filled"], item["asked"]) \
+        == ("Acme", sources["logo_url"], "acme.com", "Lever", 17, 18)
+
+
+def test_a_form_that_has_not_read_its_company_yet_is_named_by_its_queued_job():
+    """Fault: a picked job's row read "A job" while its form loaded, since only the queued job's logo came along."""
+    queued = "https://jobs.lever.co/motorolasolutions/1"
+    with Dashboard(1, FakeFrames({})) as board:
+        board.logos({queued: {"company": "Motorola Solutions", "title": "Software Intern", "company_domain": "motorolasolutions.com"}})
+        board.update(0, link=queued, status="filling")
+        named = board.state()["tiles"][0]
+        board.update(0, company="Motorola", role="SWE Intern")
+        read = board.state()["tiles"][0]
+
+    assert (named["company"], named["role"]) == ("Motorola Solutions", "Software Intern")
+    assert (read["company"], read["role"]) == ("Motorola", "SWE Intern")  # what the form says wins
 
 
 def test_the_windows_title_counts_what_waits_on_lisul(window):
@@ -1034,6 +1071,22 @@ def test_a_run_paused_at_a_usage_limit_says_why_and_when_it_goes_on(window):
         assert window.inner_text("#runline") == "Paused: Claude's usage limit is reached. Picks up again at 14:05."
 
 
+def test_a_run_paused_at_the_usage_cap_carries_the_paused_flag_and_why():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.run(mode="rehearsal", queued=2)
+        assert board.state()["run"]["paused"] is False
+        assert "reason" not in board.state()["run"]
+
+        board.run(paused_until="2026-11-16T00:00")
+        run = board.state()["run"]
+        assert run["paused"] is True
+        assert run["reason"] == "usage cap"
+        assert run["paused_until"] == "2026-11-16T00:00"
+
+        board.run(paused_until=None)  # the cap reset: it goes on
+        assert board.state()["run"]["paused"] is False
+
+
 def test_the_daily_cap_shows_in_the_status_bar(window):
     with Dashboard(1, FakeFrames({})) as board:
         board.run(mode="run", cap=25, capped=True, tomorrow=11)
@@ -1164,7 +1217,7 @@ def test_each_question_says_whether_its_form_requires_it(window):
 def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     from apply import essays, notify
     from apply.answer_bank import AnswerBank
-    from apply.model import Question, Status
+    from apply.model import Posting, Question, Status
 
     step = "Application Questions 1 of 2"
     worked, start, end = (Question(f"{step} / {label}", label, kind, True) for label, kind in [
@@ -1176,6 +1229,7 @@ def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
     planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
     planned._bank = AnswerBank()
+    planned.posting = Posting("p", "Example Co", "Software Engineer Intern", "https://jobs.example.com/example/1")
     planned._missing([start], ["Essay fact: What did the robot do?"])
 
     assert planned.where == {
@@ -1313,6 +1367,25 @@ def test_an_optional_question_saved_blank_is_skipped_and_kept_and_a_file_is_atta
         assert board.state()["items"][0]["questions"] == ["Pronouns"]
 
 
+def test_a_student_runs_file_question_is_answered_from_the_card_while_its_form_fills_or_once_it_is_held():
+    """Fault (KAN-867): a Student run's file question can't be answered from the window's card, because /answer
+    refuses a file for it ("Attach the file on the form itself", which is only a live run's Tracker row's)."""
+    pdf = base64.b64encode(b"%PDF-1.4 transcript").decode()
+    with Dashboard(2, FakeFrames({}), answer=lambda item, q, a: "Saved.") as board:  # a Student run's saving_answers
+        asked = {"missing": ["Transcript"], "choices": {"Transcript": {"kind": "file", "options": []}}}
+        board.update(0, company="Ramp", posting_url="https://r.example/1", status="filling", **asked)
+        board.update(1, company="Plaid", posting_url="https://p.example/1", status=rehearsal.READY, **asked)
+        live, held = sorted(board.state()["items"], key=lambda i: str(i["company"]) != "Ramp")
+        for item in (live, held):
+            body = json.dumps({"id": item["id"], "question": "Transcript", "answer": "",
+                               "file": {"name": "transcript.pdf", "data": pdf}}).encode()
+            urllib.request.urlopen(urllib.request.Request(board.url + "/answer", body, {"X-Apply-Token": board.token}))
+
+        assert live["live"] and not held.get("live")
+        assert [(q, f.read_bytes()) for q, f in board.answered(0)] == [("Transcript", b"%PDF-1.4 transcript")]
+        assert [(q, f.read_bytes()) for q, f in board.answered(1)] == [("Transcript", b"%PDF-1.4 transcript")]
+
+
 # History: what Apply did, and why.
 
 def test_history_lists_each_decision_newest_first_with_why(window, tmp_path):
@@ -1387,6 +1460,16 @@ def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(win
 
 # Notifications.
 
+def test_a_tile_says_when_it_took_its_status_and_keeps_it_while_the_status_holds():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.update(0, status="filling", company="Stripe")
+        first = board.state()["tiles"][0]["since"]
+        time.sleep(0.02)
+        board.update(0, doing="Reading the form")
+        assert board.state()["tiles"][0]["since"] == first
+        board.update(0, status="ready to submit")
+        assert board.state()["tiles"][0]["since"] > first
+
 def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behind(monkeypatch):
     monkeypatch.setattr(dashboard, "NOTIFY_EVERY", 0.5)
     told = []
@@ -1396,8 +1479,50 @@ def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behi
         board.update(2, company="Arc", status="submitted")  # nothing to do: never told
         time.sleep(0.8)
 
-    assert told == ["1 application needs you: Stripe (Waiting for your OK)",
-                    "1 application needs you: Cohere (Question only you can answer)"]
+    assert told == ["Stripe: your OK needed", "Cohere: question for you"]
+
+
+def test_a_notification_is_titled_for_the_app_and_names_each_company_and_what_it_asks(monkeypatch):
+    monkeypatch.setattr(dashboard, "NOTIFY_EVERY", 0.2)
+    sent = []
+    with Dashboard(3, FakeFrames({}), notify=lambda title, message: sent.append((title, message))) as board:
+        board.update(0, company="Amazon", status="needs sign-in", job_system="workday")
+        board.update(1, company="Stripe", status="ready to submit")
+        board.update(2, company="Arc", status="submitted")
+        time.sleep(0.6)
+
+    assert sent == [("WorkIt Auto Apply", "Amazon: sign in needed"), ("WorkIt Auto Apply", "Stripe: ready to submit")]
+
+
+def test_a_long_notification_names_three_forms_and_counts_the_rest():
+    assert dashboard.notice_text([{"company": "Amazon", "status": "needs sign-in"}, {"company": "Stripe", "status": "ready to submit"}]) \
+        == "Amazon: sign in needed; Stripe: ready to submit"
+    items = [{"company": c, "status": "ready to submit"} for c in ("A", "B", "C", "D", "E")]
+    assert dashboard.notice_text(items) == "A: ready to submit; B: ready to submit; C: ready to submit; and 2 more"
+
+
+def test_the_dock_badge_counts_the_forms_waiting_and_clears_when_the_window_closes():
+    badges = []
+    with Dashboard(2, FakeFrames({}), badge=badges.append) as board:
+        board.state()
+        board.update(0, company="Stripe", status="ready to submit", posting_url="https://s")
+        board.update(1, company="Amazon", status="needs sign-in", posting_url="https://a")
+        board.state()
+        board.state()  # unchanged: said once
+        board.update(1, company="Amazon", status="filling", posting_url="https://a")
+        board.state()
+
+    assert badges == [2, 1, 0]
+
+
+def test_todo_count_counts_each_job_once_by_where_it_is_now():
+    tiles = [{"tone": "needs", "posting_url": "https://a"}, {"tone": "filling", "posting_url": "https://b"}, {"tone": "idle"}]
+    items = [{"tone": "needs", "posting_url": "https://a", "id": 1},  # the same job as its tile
+             {"tone": "needs", "posting_url": "https://b", "id": 2},  # its tile fills it again
+             {"tone": "ready", "posting_url": "https://c", "id": 3},
+             {"tone": "needs", "posting_url": "https://d", "id": 4, "answered": True},
+             {"tone": "ready", "posting_url": "https://e", "id": 5, "let_go": True}]  # the student let it go
+    assert dashboard.todo_count(tiles, items) == 2
 
 
 def test_nothing_is_told_while_the_window_is_in_front():
@@ -1493,6 +1618,74 @@ def test_start_holds_until_the_window_presses_it_and_only_the_window_may():
         waited.join(2)
         assert not waited.is_alive()
         assert board.state()["run"]["start"] == "started"
+
+
+def test_stop_applying_ends_the_run_and_only_the_window_may():
+    """KAN-874. Fault: a page of another site stops the student's run, or Stop does nothing."""
+    stopped = []
+    with Dashboard(2, FakeFrames({})) as board:
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 409  # no run
+        board.stopping(lambda: stopped.append(True))
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": "guessed"}) == 403
+        assert _status(board.url + "/stop", data=b"{}") == 403
+        assert stopped == []
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 204
+
+    assert stopped == [True]
+
+
+def test_stop_new_ones_only_reaches_the_run_as_its_own_stop():
+    """Fault: Stop new ones only ends the whole run, closing the forms held for the student."""
+    stopped = []
+    with Dashboard(2, FakeFrames({})) as board:
+        board.stopping(lambda new_only=False: stopped.append(new_only))
+        post = lambda body: _status(board.url + "/stop", data=body, headers={"X-Apply-Token": board.token})
+        assert post(b'{"new_only": true}') == 204
+        assert post(b"not json") == 400
+        assert post(b"{}") == 204
+
+    assert stopped == [True, False]
+
+
+def test_not_applying_lets_go_only_a_held_form_and_only_the_window_may():
+    """Fault: another site's page closes a held form, one not held (or submitted) is let go, or the run never hears."""
+    post = lambda body, token: _status(board.url + "/let-go", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(3, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True)
+        board.update(1, status="filling")
+        board.update(2, status="submitted", again=True)
+        assert post({"id": "tile-0"}, "guessed") == 403
+        assert post({"id": "tile-1"}, board.token) == 409  # still filling: nothing held to let go
+        assert post({"id": "tile-2"}, board.token) == 409  # sent already
+        assert post({"id": "tile-9"}, board.token) == 404
+        assert post({}, board.token) == 400
+        assert board.held() == 1
+        assert post({"id": "tile-0"}, board.token) == 200
+        assert board.held() == 0  # it waits for the student no more, before the run lets its page go
+        assert board.state()["tiles"][0]["let_go"] is True
+        assert [board.let_go_asked(0), board.let_go_asked(0), board.let_go_asked(1)] == [True, False, False]
+        board.update(0, status="ready", again=True)
+        assert post({"id": "tile-0"}, board.token) == 200
+        board.update(0, status="filling")  # its next job, before the run saw the press: that job's form isn't let go
+        assert board.let_go_asked(0) is False
+
+
+def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():
+    """KAN-874. Fault: another site's page removes a job, or Remove takes out one that already started."""
+    removed = []
+    post = lambda body, token: _status(board.url + "/remove", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(2, FakeFrames({})) as board:
+        assert post({"link": "https://jobs.example/2"}, board.token) == 409  # no run takes a removal
+        board.removing(lambda link: removed.append(link) or link == "https://jobs.example/2")
+        assert post({"link": "https://jobs.example/2"}, "guessed") == 403
+        assert removed == []
+        assert post({"link": "https://jobs.example/1"}, board.token) == 409  # started: it isn't waiting any more
+        assert post({}, board.token) == 400
+        assert post({"link": "https://jobs.example/2"}, board.token) == 204
+
+    assert removed == ["https://jobs.example/1", "https://jobs.example/2"]
 
 
 # A bot block (KAN-590): LinkedIn's SmartRecruiters form, refused by DataDome, finished in Lisul's own Chrome.
@@ -1662,3 +1855,53 @@ def test_a_tiles_input_comes_only_from_the_window_itself():
             assert _status(board.url + "/input/0", data=press, headers=headers) == 403
     assert not board_frames.inputs
 
+
+
+def test_approve_and_submit_goes_only_to_a_held_form_with_no_answers_left_and_only_from_the_window():
+    """ADR 0006. Fault: another site's page submits a form, or one that still needs the student's answers is sent."""
+    post = lambda body, token: _status(board.url + "/submit", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(3, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True)
+        board.update(1, status="ready", again=True, missing=["Why us?"], required={"Why us?": True})
+        board.update(2, status="submitted", again=True)
+        assert post({"id": "tile-0"}, "guessed") == 403
+        assert post({"id": "tile-1"}, board.token) == 409  # still needs an answer
+        assert post({"id": "tile-2"}, board.token) == 409  # sent already
+        assert post({}, board.token) == 400
+        assert post({"id": "tile-0"}, board.token) == 200
+        assert board.state()["tiles"][0]["submitting"] is True
+        assert [board.submit_asked(0), board.submit_asked(0), board.submit_asked(1)] == [True, False, False]
+        board.update(1, required={"Why us?": False})  # an optional one left empty doesn't hold it
+        assert post({"id": "tile-1"}, board.token) == 200
+
+
+def test_cancel_ends_an_auto_submit_countdown_once_and_only_from_the_window():
+    """ADR 0006. Fault: Cancel doesn't stop the countdown, another site's page cancels it, or approving it by hand
+    still shows the countdown."""
+    post = lambda path, body, token: _status(board.url + path, data=json.dumps(body).encode(),
+                                             headers={"X-Apply-Token": token})
+    with Dashboard(2, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True, auto_at=1e10)
+        board.update(1, status="ready", again=True, auto_at=1e10)
+        assert post("/auto-cancel", {"id": "tile-0"}, "guessed") == 403
+        assert post("/auto-cancel", {"id": "tile-0"}, board.token) == 200
+        assert board.state()["tiles"][0]["auto_at"] is None
+        assert [board.auto_cancel_asked(0), board.auto_cancel_asked(0)] == [True, False]
+        assert post("/auto-cancel", {"id": "tile-0"}, board.token) == 409  # no countdown now
+        assert post("/submit", {"id": "tile-1"}, board.token) == 200  # approved by hand first
+        assert board.state()["tiles"][1]["auto_at"] is None
+        assert board.auto_cancel_asked(1) is False  # approved, not cancelled
+
+
+def test_a_countdown_that_runs_out_and_a_cancel_never_both_win():
+    """ADR 0006. Fault: a Cancel that lands as the wait runs out is told "Cancelled" while the form is pressed."""
+    post = lambda body: _status(board.url + "/auto-cancel", data=json.dumps(body).encode(),
+                                headers={"X-Apply-Token": board.token})
+    with Dashboard(2, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True, auto_at=1e10)
+        board.update(1, status="ready", again=True, auto_at=1e10)
+        assert board.auto_go(0) is True  # the wait ran out first: Cancel finds nothing to cancel
+        assert post({"id": "tile-0"}) == 409
+        assert post({"id": "tile-1"}) == 200  # Cancel first: the press doesn't happen
+        assert board.auto_go(1) is False

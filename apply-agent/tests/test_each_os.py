@@ -3,22 +3,27 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 "darwin" or "win32", else Linux), so this Mac runs the Windows and Linux entries too, on paths of their own. Running
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
+import ast
 import json
+import os
 import plistlib
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
 import platformdirs
+import psutil
 import pytest
 
-from apply import browsers, captcha, chrome_finder, focus, home, native_host
+from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import launcher, seed_setup
+from apply.plain import bridge, channel, launcher, seed_setup, tools, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -143,6 +148,33 @@ def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
         assert keeper.bring(4242) is False  # its caller brings the Worker through Chrome
 
 
+def test_only_the_mac_is_kept_awake_and_only_while_apply_runs():
+    assert awake.command("darwin", 4242) == ["/usr/bin/caffeinate", "-dims", "-w", "4242"]
+    for system in ("win32", "linux"):
+        assert awake.command(system) is None
+        with awake.awake(system, popen=lambda *a, **k: pytest.fail("an OS call off the Mac")):
+            pass
+
+
+def test_on_the_mac_caffeinate_runs_for_the_block_only():
+    started = []
+
+    class Caffeinate:
+        def __init__(self, arguments, **kwargs):
+            self.arguments, self.stopped = arguments, False
+            started.append(self)
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    with awake.awake("darwin", popen=Caffeinate):
+        assert started[0].arguments[-1] == str(os.getpid()) and not started[0].stopped
+    assert started[0].stopped
+
+
 @pytest.mark.parametrize("system, detached", [
     ("linux", {"start_new_session": True}),
     ("win32", {"creationflags": launcher.CREATE_NEW_PROCESS_GROUP}),
@@ -176,6 +208,19 @@ def test_on_the_mac_chrome_starts_through_open_g(tmp_path, monkeypatch):
     assert isinstance(process, launcher.Chrome) and process.pid == 4242
     assert ran[0][:5] == ["/usr/bin/open", "-g", "-n", "-a", "/Applications/Google Chrome.app"]
     assert ran[0][-2:] == ["--args", f"--user-data-dir={tmp_path}"]
+
+
+def test_on_the_mac_the_seeds_chrome_starts_through_open_in_front_never_as_this_apps_child(tmp_path, monkeypatch):
+    """Fault: the seed's Chrome started from its binary is the app's child, so macOS blamed WorkIt Auto Apply when
+    Chrome's updater changed Google Chrome.app ("prevented from modifying apps"); or started with -g, so the window
+    the user works in stays behind."""
+    from apply.plain import seed_setup
+
+    ran = []
+    monkeypatch.setattr(launcher.subprocess, "run", lambda argv, **kwargs: ran.append(argv))
+    monkeypatch.setattr(launcher, "chrome_pid", lambda profile: 4242)
+    seed_setup.Desk(tmp_path / "plain-seed", MAC_CHROME).open_chrome(seed_setup.EXTENSIONS_PAGE, "darwin")
+    assert ran[0][:4] == ["/usr/bin/open", "-n", "-a", "/Applications/Google Chrome.app"]
 
 
 class Port:
@@ -306,3 +351,134 @@ def test_on_windows_a_folder_with_a_space_in_its_path_is_shown_whole(monkeypatch
     seed_setup.Desk(Path("/seed")).reveal(Path("/Users/Jane Doe/profiles/worker-extension"), "win32")
     # Python would quote the whole "/select,<path>" argument, and Explorer would open its default folder.
     assert ran == ['explorer /select,"/Users/Jane Doe/profiles/worker-extension"']
+
+
+def test_a_stale_lock_whose_pid_another_user_took_leaves_the_profile_free(tmp_path, monkeypatch):
+    """Fault: chrome_pid counts a live PID whose arguments Apply may not read as the profile's Chrome. A Chrome that
+    crashed left its lock, the OS gave its PID to another user's process (root's, on a Mac: AccessDenied), and the
+    Worker stayed in use for good: reclaim can't read that process either (found in review, 2026-11-21)."""
+    (tmp_path / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # a live PID, played as another user's
+
+    def denied():
+        raise psutil.AccessDenied(os.getpid())
+
+    monkeypatch.setattr(browsers.psutil, "Process", lambda pid: SimpleNamespace(cmdline=denied))
+    assert not browsers.in_use(tmp_path)
+
+
+def test_on_windows_the_profiles_chrome_is_found_by_its_arguments(tmp_path, monkeypatch):
+    """Windows' Chrome makes no SingletonLock, so chrome_pid read nothing there and every profile looked free: a second
+    run could open a profile a Worker had open (P3). Faults: no Windows entry; a helper (`--type=`), another
+    profile's browser, or a process whose arguments Apply may not read taken for the profile's Chrome."""
+    profile = tmp_path / "plain-1"
+    profile.mkdir()
+    chrome = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    processes = [
+        (11, [chrome, "--type=renderer", f"--user-data-dir={profile}"]),  # a helper of the profile's Chrome
+        (12, [chrome, f"--user-data-dir={tmp_path / 'plain-2'}"]),  # another profile's browser
+        (13, None),  # a process Apply may not read: psutil gives it no arguments
+        (14, [chrome, f"--user-data-dir={profile}", "--no-first-run"]),  # the profile's own browser
+    ]
+    monkeypatch.setattr(browsers.psutil, "process_iter", lambda attrs=None, ad_value=None: [
+        SimpleNamespace(pid=pid, info={"cmdline": arguments}) for pid, arguments in processes])
+
+    assert browsers.chrome_pid(profile, "win32") == 14
+    processes.pop()  # its Chrome quits
+    assert browsers.chrome_pid(profile, "win32") is None
+
+
+@pytest.mark.parametrize("system", ["win32", "linux"])
+def test_off_the_mac_a_tile_takes_the_extensions_frames(monkeypatch, system):
+    """Fault: native capture off the Mac. Its helper is ScreenCaptureKit's, and its permission note named the app
+    through `ps`, which Windows lacks: every plain Worker's tile failed on each watch turn and stayed blank, and each
+    turn added its handlers again (found in review, 2026-11-24)."""
+    monkeypatch.delenv("APPLY_TILE_CAPTURE", raising=False)
+    assert window_capture.mode(system) == "extension"
+    assert window_capture.mode("darwin") == "native"
+
+
+def test_a_hosts_chrome_is_its_parent_read_with_no_ps(monkeypatch):
+    """Fault: chrome_of reads the host's parent with `ps`, which Windows lacks. P3 made the tile reach it there: its
+    check that a connection is its Worker's own failed on each watch turn (found in review, 2026-11-24)."""
+    def no_ps(*args, **kwargs):
+        raise FileNotFoundError("ps")  # as on Windows
+
+    monkeypatch.setattr(window_capture.subprocess, "run", no_ps)
+    assert window_capture.chrome_of(os.getpid()) == os.getppid()
+    assert window_capture.chrome_of(None) is None
+
+
+def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(monkeypatch):
+    """Fault: launcher.Chrome polls and signals a bare PID. Its Chrome had ended, the OS gave the PID to another
+    program (played by this test's own process), and _stop sent that program SIGTERM, then SIGKILL (found in review,
+    2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises NoSuchProcess."""
+    sent = []
+    monkeypatch.setattr(launcher.os, "kill", lambda pid, number: sent.append((pid, number)))
+
+    class Reused:  # the Chrome's psutil.Process, after its PID went to another program
+        def is_running(self):
+            return False
+
+        def send_signal(self, number):
+            raise psutil.NoSuchProcess(os.getpid())
+
+        def kill(self):
+            raise psutil.NoSuchProcess(os.getpid())
+
+    monkeypatch.setattr(launcher.psutil, "Process", lambda pid: Reused())
+    chrome = launcher.Chrome(os.getpid())
+
+    assert chrome.poll() == 0
+    chrome.send_signal(signal.SIGTERM)
+    chrome.kill()
+    launcher._stop(chrome)
+    assert sent == []
+
+
+def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, monkeypatch):
+    """Faults: the Windows channel is a Unix socket (Python on Windows has none: no plain Worker reaches Apply), two
+    profiles folders share one pipe (a second Apply would take the first one's Workers' channel), or a Windows path
+    reaches os.getuid, which Windows lacks (P4)."""
+    monkeypatch.delattr(os, "getuid")
+    long = tmp_path / ("x" * 120)
+    path = bridge.socket_path(long, "win32")
+    assert path == long / "workers.sock"  # no /tmp fallback: on Windows the path only names the pipe
+    assert channel.pipe_name(path).startswith("\\\\.\\pipe\\workit-apply-")
+    assert channel.pipe_name(path) == channel.pipe_name(long / "workers.sock")
+    assert channel.pipe_name(path) != channel.pipe_name(bridge.socket_path(tmp_path / "two", "win32"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # Windows' temp folder, played here
+    assert tools.socket_folder("win32") == tmp_path / "apply"
+    made = []
+    monkeypatch.setattr(channel, "ConnectionListener", lambda address, family, at: made.append((address, family)))
+    channel.listen(path, "win32")
+    assert made == [(channel.pipe_name(path), "AF_PIPE")]
+
+
+def _stops_windows(node: ast.AST, module: Path) -> str | None:
+    """Why `node`, in `module`, is a call that works on macOS and Linux but stops Apply on Windows
+    (docs/windows_desktop.md), or None."""
+    if isinstance(node, ast.Import) and any(alias.name.split(".")[0] == "fcntl" for alias in node.names):
+        return "imports fcntl (P1: lock through apply.locks)"
+    if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "fcntl":
+        return "imports fcntl (P1: lock through apply.locks)"
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "kill"
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "os" and len(node.args) == 2
+            and isinstance(node.args[1], ast.Constant) and node.args[1].value == 0):
+        return "checks a process with os.kill(pid, 0) (P2: psutil.pid_exists)"
+    if isinstance(node, ast.Attribute) and node.attr == "AF_UNIX" and module.name != "channel.py":
+        return "makes a Unix socket of its own (P4: open the channel through apply.plain.channel)"
+    return None
+
+
+def test_no_module_of_apply_makes_a_call_that_stops_windows():
+    """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts),
+    checks a process with `os.kill(pid, 0)` (P2: on Windows signal 0 is CTRL_C_EVENT, and any other number ends the
+    process), or makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX). It reads the
+    source: on this computer each call works, and portalocker itself imports `fcntl` on macOS and Linux, so only
+    Windows would show the fault."""
+    source = Path(home.__file__).parent
+    found = [f"{path.relative_to(source)}:{node.lineno}: {why}"
+             for path in sorted(source.rglob("*.py"))
+             for node in ast.walk(ast.parse(path.read_text()))
+             if (why := _stops_windows(node, path))]
+    assert found == []

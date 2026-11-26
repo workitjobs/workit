@@ -9,49 +9,27 @@ from __future__ import annotations
 
 import csv
 import time
-import zlib
-from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
+from workit_scraper.scheduling import (
+    FINGERPRINT_FIRST,
+    FINGERPRINT_LONGEST,
+    RUN_EVERY,  # noqa: F401 — re-exported for tests
+    is_quiet_board_due,
+    quiet_slot,
+    rest_for,
+)
 
 from app.models.scraper import Scraper_Schedule
 
 _schedules = Scraper_Schedule.__table__
 
-# Same constants as workit_scraper.store
-REST_AFTER = 3
-REST_FIRST = timedelta(hours=6)
-REST_LONGEST = timedelta(hours=24)
-
-# Quiet board stagger: boards with no kept postings are read 1 in QUIET_EVERY
-# runs, staggered by CRC32 of the board key over the run's slot.
-QUIET_EVERY = 3
-QUIET_LONGEST = timedelta(days=1)
-RUN_EVERY = timedelta(hours=3)
-
-# Fingerprint rest: hot boards whose content hasn't changed rest after
-# the first unchanged read, doubling each time.
-FINGERPRINT_FIRST = timedelta(hours=4)
-FINGERPRINT_LONGEST = timedelta(hours=24)
-
 BOARDS_CSV = Path(__file__).resolve().parents[3] / "scraper" / "boards.csv"
-
-
-def rest_for(failures: int) -> timedelta | None:
-    """How long a board unread `failures` runs in a row rests."""
-    if failures < REST_AFTER:
-        return None
-    return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
-
-
-def fingerprint_rest(unchanged_reads: int) -> timedelta | None:
-    """How long a board unchanged `unchanged_reads` times rests."""
-    if unchanged_reads < 1:
-        return None
-    return min(FINGERPRINT_FIRST * 2 ** (unchanged_reads - 1), FINGERPRINT_LONGEST)
+# Boards per catalog upsert: 8,000 bind parameters, well under asyncpg's 32,767.
+SYNC_BATCH = 1000
 
 
 def filter_quiet(schedules: list, *, full: bool = False) -> list:
@@ -63,30 +41,35 @@ def filter_quiet(schedules: list, *, full: bool = False) -> list:
     if full:
         return list(schedules)
     now = time.time()
-    slot = int(now // RUN_EVERY.total_seconds())
-    quiet_longest_s = QUIET_LONGEST.total_seconds()
+    slot = quiet_slot(now)
     return [
         row
         for row in schedules
-        if row.last_read_at is None
-        or row.has_kept
-        or (now - row.last_read_at.timestamp()) > quiet_longest_s
-        or zlib.crc32(f"{row.ats}/{row.token}".encode()) % QUIET_EVERY == slot % QUIET_EVERY
+        if is_quiet_board_due(
+            f"{row.ats}/{row.token}",
+            slot,
+            row.last_read_at.timestamp() if row.last_read_at else None,
+            now,
+            has_kept=row.has_kept,
+        )
     ]
 
 
 async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> int:
     """Upsert boards.csv into scraper_schedules. Returns count of new rows."""
     boards = _load_csv(boards_csv)
-    if not boards:
-        return 0
-    stmt = insert(_schedules).values(boards)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[_schedules.c.ats, _schedules.c.token],
-        set_={"company": stmt.excluded.company},
-    ).returning(text("xmax = 0"))
-    result = await conn.execute(stmt)
-    return sum(1 for row in result if row[0])
+    new = 0
+    # In batches, in the caller's one transaction: asyncpg takes 32,767 bind
+    # parameters a statement and a board is 8, so one INSERT of the whole
+    # catalog failed past 4,095 boards and no cycle could start (2026-11-23).
+    for start in range(0, len(boards), SYNC_BATCH):
+        stmt = insert(_schedules).values(boards[start : start + SYNC_BATCH])
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[_schedules.c.ats, _schedules.c.token],
+            set_={"company": stmt.excluded.company},
+        ).returning(text("xmax = 0"))
+        new += sum(1 for row in await conn.execute(stmt) if row[0])
+    return new
 
 
 async def select_due(conn: AsyncConnection, *, full: bool = False) -> list:

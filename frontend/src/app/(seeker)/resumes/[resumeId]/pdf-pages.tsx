@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { OutlineLayer, usePageOutline, type PageOutline } from "./page-handles";
 import type { Mark } from "./tailor-review";
 import { Tip } from "@/components/ui/tip";
 
@@ -132,6 +133,7 @@ export function loadPdfjs() {
 
 /** A Letter page's proportions, in points: 8.5 by 11 inches. */
 const LETTER = "612 / 792";
+const NO_SIZES: Size[] = [];
 
 /**
  * A page's place while the PDF is on its way: the page's own box (white,
@@ -144,7 +146,7 @@ export function PageSkeleton() {
   return (
     <div
       role="status"
-      className="bg-panel border-border-subtle flex w-full flex-col items-center gap-2 overflow-hidden border px-[8%] pt-[7%] shadow-sm"
+      className="bg-panel ring-border-subtle shadow-panel flex w-full flex-col items-center gap-2 overflow-hidden px-[8%] pt-[7%] ring-1"
       style={{ aspectRatio: LETTER }}
     >
       <span className="sr-only">Drawing the PDF</span>
@@ -173,6 +175,7 @@ export function PdfPages({
   overlay,
   overlaid = [],
   shiftOf,
+  inserts,
   swaps,
   gaps,
   placeholder,
@@ -181,6 +184,7 @@ export function PdfPages({
   focus,
   dots,
   onDot,
+  outline,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -197,11 +201,16 @@ export function PdfPages({
   onDrawn?: () => void;
   /** What to draw over the first box of each line in `overlaid`, by box
    *  key: the text field for the selected line, typed text for others. */
-  overlay?: (box: RenderBox) => ReactNode;
+  overlay?: (box: Insert) => ReactNode;
   overlaid?: string[];
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
+  /** Lines the page does not print yet, typed in where they will go (a new
+   *  bullet, KAN-920): each a box of no height, read against the boxes
+   *  shown, where the page under it opens by `by` points. `overlay` draws
+   *  each one as it draws an overlaid line. */
+  inserts?: (shown: RenderBox[]) => Insert[];
   /** The moves on their way, as strips of the page on screen that trade
    *  places, in order, each against the page after the ones before. */
   swaps?: (boxes: RenderBox[]) => Strip[];
@@ -221,6 +230,9 @@ export function PdfPages({
   /** Tailor's margin dots, by box key, and what a click on one does. */
   dots?: Map<string, Dot>;
   onDot?: (key: string) => void;
+  /** The page's own handles (KAN-920, ./page-handles.tsx): drag and add
+   *  sections, entries and bullets where they print. */
+  outline?: PageOutline;
 }) {
   const [doc, setDoc] = useState<{
     pdf: PDFDocumentProxy;
@@ -239,10 +251,11 @@ export function PdfPages({
         return kept ? [kept] : [];
       });
   // Each overlaid line's first box, top to bottom, with what it moves by
-  const lives = overlaid
+  const lives: Insert[] = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
     .filter((box): box is RenderBox => box !== undefined)
-    .map((box) => ({ ...box, by: shiftOf?.(box) ?? 0 }))
+    .map((box): Insert => ({ ...box, by: shiftOf?.(box) ?? 0 }))
+    .concat(readOnly ? [] : (inserts?.(shown) ?? []))
     .sort((a, b) => a.page - b.page || a.y0 - b.y0);
   const typing = selected !== null && lives.some((l) => boxKey(l) === selected);
   const popupBox = popup && shown.find((box) => boxKey(box) === popup.line);
@@ -253,6 +266,35 @@ export function PdfPages({
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
     );
+  // An overlaid line moves by the lines before it, in the order the page
+  // opens them (`compose`), never by those after: two new lines at one
+  // place (a bullet added with Enter, and the next line opened under it)
+  // each counted the other as over it, both sat a line low, and the empty
+  // field covered the added bullet's text until its PDF painted
+  const livesShown = lives.map((l, i) => ({
+    l,
+    top:
+      l.y0 +
+      lives.slice(0, i).reduce((by, o) => (o.page === l.page && o.y1 <= l.y0 ? by + o.by : by), 0),
+  }));
+  // The page as sections, entries and bullets, where they show now: under a
+  // typed line or a new bullet too, or a handle sat a line off its block
+  const blocks =
+    outline && !readOnly
+      ? outline.blocksOf(
+          shown.map((box) => {
+            const by = moved(box);
+            return by ? { ...box, y0: box.y0 + by, y1: box.y1 + by } : box;
+          }),
+        )
+      : [];
+  const pageFrames = useRef<(HTMLDivElement | null)[]>([]);
+  const handles = usePageOutline({
+    outline: readOnly ? undefined : outline,
+    blocks,
+    pages: pageFrames,
+    sizes: doc?.sizes ?? NO_SIZES,
+  });
   const [failed, setFailed] = useState(false);
   const painted = useRef(new Set<number>());
   const drawn = useRef(onDrawn);
@@ -309,15 +351,25 @@ export function PdfPages({
   if (!doc) return placeholder ?? <p className="text-body text-ink-meta">Drawing the PDF…</p>;
 
   return (
-    <div ref={frame} className="flex flex-col gap-4">
+    <div
+      ref={frame}
+      className="flex flex-col gap-4"
+      onPointerMove={handles.onPointerMove}
+      onPointerLeave={handles.onPointerLeave}
+    >
       {doc.sizes.map((size, i) => (
         <div
           key={i}
+          ref={(node) => {
+            pageFrames.current[i] = node;
+          }}
           className={cn(
-            "bg-panel border-border-subtle @container relative w-full border shadow-sm",
+            "bg-panel ring-border-subtle shadow-panel @container relative w-full ring-1",
             // A popup at a page's foot runs over the next page, not under it
             popupBox?.page === i + 1 && "z-10",
           )}
+          // The zoom keeps a line in place by its page (`useZoomTo`)
+          data-page-frame
           style={{ aspectRatio: `${size.width} / ${size.height}` }}
         >
           <PageCanvas
@@ -370,6 +422,15 @@ export function PdfPages({
               );
             })}
           {dots && <MarginDots boxes={shown} page={i + 1} size={size} dots={dots} onDot={onDot} />}
+          {outline && !readOnly && (
+            <OutlineLayer
+              outline={outline}
+              blocks={blocks}
+              page={i + 1}
+              size={size}
+              state={handles}
+            />
+          )}
           {popupBox?.page === i + 1 && (
             <LinePopup
               key={popup?.line}
@@ -380,15 +441,15 @@ export function PdfPages({
               {popup?.node}
             </LinePopup>
           )}
-          {lives
-            .filter((l) => l.page === i + 1)
-            .map((l) => (
+          {livesShown
+            .filter(({ l }) => l.page === i + 1)
+            .map(({ l, top }) => (
               <div
                 key={boxKey(l)}
                 className="absolute z-10"
                 style={{
                   left: `${(l.x0 / size.width) * 100}%`,
-                  top: `${((l.y0 + moved(l)) / size.height) * 100}%`,
+                  top: `${(top / size.height) * 100}%`,
                   minWidth: `${((l.x1 - l.x0) / size.width) * 100}%`,
                 }}
               >
@@ -408,8 +469,8 @@ const POPUP_LEAST = 96;
 
 /**
  * A card by a line, under it or over it, whichever the student can see all
- * of. The room is measured against what shows: the scrolling `main` less the
- * sticky bar (`data-page-bar`), not the page, since a page runs far past the
+ * of. The room is measured against what shows: the desk's scroll box, or
+ * the scrolling `main` less the sticky bar (`data-page-bar`), not the page, since a page runs far past the
  * window. It stays on its side while that side still fits, so scrolling does
  * not flip it back and forth; with no room for it on either side, it takes
  * the roomier one and scrolls inside. A fixed rule, over the line in the
@@ -434,9 +495,12 @@ function LinePopup({
     const main = el?.closest("main");
     const page = el?.parentElement;
     if (!el || !main || !page) return;
+    // The desk's own scroll box where it has one (`DESK_SCROLL`), else main
+    const box = el.closest<HTMLElement>("[data-page-scroll]");
+    const view = box && /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : main;
     const fit = () => {
       const { top: pageTop, height } = page.getBoundingClientRect();
-      const shown = main.getBoundingClientRect();
+      const shown = view.getBoundingClientRect();
       const bar = main.querySelector("[data-page-bar]")?.getBoundingClientRect().bottom ?? 0;
       const rooms = {
         over: pageTop + height * top - Math.max(shown.top, bar) - 2 * POPUP_GAP,
@@ -535,11 +599,31 @@ function MarginDots({
 
 /** An overlaid line's box, in PDF points, and how far the page under it
  *  moves. */
-type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number };
+type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number; marker?: Marker };
+
+/** A list's marker (a bullet's dot or dash) to copy into a new line
+ *  (KAN-920): the anchor's own pixels, from `x0` to `x1` and `top` to
+ *  `bottom` on the page as drawn, set again with their top at `to`, all in
+ *  PDF points. The copy is the PDF's own ink, so it matches the bullets
+ *  around it in every font, size and bullet style, where a dot drawn by the
+ *  page sat off them. */
+export type Marker = { x0: number; x1: number; top: number; bottom: number; to: number };
+
+/** A line the page does not print yet, typed in where it will go (KAN-920):
+ *  a box of no height whose `by` opens the page under it, the marker it
+ *  copies, and its `base`, its text's baseline below its `y0` (a printed
+ *  line's is its box's fixed ascent, the API's resume_render). */
+export type Insert = RenderBox & { by: number; marker?: Marker; base?: number };
 
 /** Two neighbours on one page, `a` above `b`, as their tops and bottoms in
  *  PDF points: a move on its way trades their strips of the page. */
-export type Strip = { page: number; a: [number, number]; b: [number, number] };
+export type Strip = {
+  page: number;
+  a: [number, number];
+  b: [number, number];
+  /** How far through its move the page draws it, 0 to 1 (`PageCanvas`). */
+  t?: number;
+};
 
 /** Where a box sits once these strips have traded places, in order. */
 export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
@@ -562,7 +646,15 @@ export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
  *  A band (no `x0`): everything under it on its page moves up by its height.
  *  A cut (`x0` to `x1`, one line's `top` to `bottom`): what follows it on
  *  that line moves left by its width, as a skill leaves its line. */
-export type Gap = { page: number; top: number; bottom: number; x0?: number; x1?: number };
+export type Gap = {
+  page: number;
+  top: number;
+  bottom: number;
+  x0?: number;
+  x1?: number;
+  /** How far through closing the page draws a band, 0 to 1 (`PageCanvas`). */
+  t?: number;
+};
 
 const isCut = (gap: Gap) => gap.x0 !== undefined && gap.x1 !== undefined;
 
@@ -662,6 +754,17 @@ function closed(drawn: HTMLCanvasElement, gaps: Gap[], scale: number) {
   };
   for (const gap of gaps) {
     copy(Math.round(gap.top * scale));
+    // Part way closed, the band fades where it is while what is under it
+    // rises over it
+    const t = gap.t ?? 1;
+    const top = Math.round(gap.top * scale);
+    const height = Math.round(gap.bottom * scale) - top;
+    if (t < 1 && height > 0) {
+      context.globalAlpha = 1 - t;
+      context.drawImage(drawn, 0, top, next.width, height, 0, to, next.width, height);
+      context.globalAlpha = 1;
+      to += Math.round(height * (1 - t));
+    }
     from = Math.round(gap.bottom * scale);
   }
   copy(drawn.height);
@@ -674,6 +777,7 @@ function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
   let current = drawn;
   for (const strip of strips) {
     const [a0, a1, b0, b1] = [...strip.a, ...strip.b].map((v) => Math.round(v * scale));
+    const t = strip.t ?? 1;
     const next = document.createElement("canvas");
     next.width = current.width;
     next.height = current.height;
@@ -681,8 +785,12 @@ function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
     context.drawImage(current, 0, 0);
     context.fillStyle = "#fff";
     context.fillRect(0, a0, next.width, b1 - a0);
-    context.drawImage(current, 0, b0, next.width, b1 - b0, 0, a0, next.width, b1 - b0);
-    context.drawImage(current, 0, a0, next.width, a1 - a0, 0, a0 + b1 - a1, next.width, a1 - a0);
+    // Each slides toward the other's place: `a` down by `b`'s height, `b`
+    // up by `a`'s and the space between, so they cross at once
+    const aTop = Math.round(a0 + (b1 - a1) * t);
+    const bTop = Math.round(b0 + (a0 - b0) * t);
+    context.drawImage(current, 0, a0, next.width, a1 - a0, 0, aTop, next.width, a1 - a0);
+    context.drawImage(current, 0, b0, next.width, b1 - b0, 0, bTop, next.width, b1 - b0);
     current = next;
   }
   return current;
@@ -716,13 +824,35 @@ function compose(
   let moved = 0;
   for (const live of lives) {
     const [x0, y0, x1, y1, by] = [live.x0, live.y0, live.x1, live.y1, live.by].map(px);
+    const was = moved;
     context.fillRect(x0, y0 + moved, x1 - x0, y1 - y0);
-    if (by === 0) continue;
-    // Everything under this line, drawn again where it now sits
-    moved += by;
-    const below = drawn.height - y1;
-    context.fillRect(0, y1 + moved - by, drawn.width, drawn.height);
-    context.drawImage(drawn, 0, y1, drawn.width, below, 0, y1 + moved, drawn.width, below);
+    if (by !== 0) {
+      // Everything under this line, drawn again where it now sits
+      moved += by;
+      const below = drawn.height - y1;
+      context.fillRect(0, y1 + moved - by, drawn.width, drawn.height);
+      context.drawImage(drawn, 0, y1, drawn.width, below, 0, y1 + moved, drawn.width, below);
+    }
+    // A new line's marker: its anchor's own, from the page as drawn, set in
+    // the space the line opened
+    const mark = live.marker;
+    if (mark) {
+      const [mx0, mx1, top, bottom, to] = [mark.x0, mark.x1, mark.top, mark.bottom, mark.to].map(
+        px,
+      );
+      if (mx1 > mx0 && bottom > top)
+        context.drawImage(
+          drawn,
+          mx0,
+          top,
+          mx1 - mx0,
+          bottom - top,
+          mx0,
+          to + was,
+          mx1 - mx0,
+          bottom - top,
+        );
+    }
   }
 }
 
@@ -733,6 +863,12 @@ function compose(
  *  hidden canvas is kept, so a change to `lives` composes again with no
  *  draw, but only onto this `pdf`'s drawing: a new PDF's lines composed
  *  onto the old drawing would clear and move the wrong lines. */
+/** How long a move or a hide takes to show on the page, and its ease: fast
+ *  out, slow in, so it reads as settling (Notion's blocks take about as
+ *  long). */
+const MOTION_MS = 200;
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+
 function PageCanvas({
   pdf,
   page,
@@ -754,17 +890,40 @@ function PageCanvas({
   const drawnCanvas = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement } | null>(null);
   const latest = useRef({ lives, strips, gaps });
   const layoutKey = JSON.stringify([
-    lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]),
+    lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by, l.marker?.to ?? null]),
     strips,
     gaps,
   ]);
+  // When each move and hide on this page began to show, by its place: a new
+  // one slides (a move) or closes (a hide) over `MOTION_MS`, as Notion's
+  // blocks do, where it had jumped to its end in one frame. The page paints
+  // its end the moment the PDF lands, which prints the same
+  const began = useRef(new Map<string, number>());
   useEffect(() => {
     latest.current = { lives, strips, gaps };
-    const shown = canvas.current;
-    const drawn = drawnCanvas.current;
-    if (shown && drawn?.pdf === pdf) {
-      compose(shown, drawn.canvas, strips, gaps, lives, drawn.canvas.width / size.width);
-    }
+    const now = performance.now();
+    const still =
+      !drawnCanvas.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const keyOf = (x: Strip | Gap) => JSON.stringify({ ...x, t: undefined });
+    const keys = new Set([...strips, ...gaps].map(keyOf));
+    for (const key of keys)
+      if (!began.current.has(key)) began.current.set(key, still ? -Infinity : now);
+    for (const key of began.current.keys()) if (!keys.has(key)) began.current.delete(key);
+    let frame = 0;
+    const paint = () => {
+      const shown = canvas.current;
+      const drawn = drawnCanvas.current;
+      if (!shown || drawn?.pdf !== pdf) return;
+      const at = performance.now();
+      const t = (x: Strip | Gap) =>
+        easeOut(Math.min(1, (at - (began.current.get(keyOf(x)) ?? -Infinity)) / MOTION_MS));
+      const moving = strips.map((x) => ({ ...x, t: t(x) }));
+      const closing = gaps.map((x) => ({ ...x, t: t(x) }));
+      compose(shown, drawn.canvas, moving, closing, lives, drawn.canvas.width / size.width);
+      if ([...moving, ...closing].some((x) => x.t < 1)) frame = requestAnimationFrame(paint);
+    };
+    paint();
+    return () => cancelAnimationFrame(frame);
   }, [layoutKey, pdf, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
   const painted = useRef(onPainted);
   useEffect(() => {

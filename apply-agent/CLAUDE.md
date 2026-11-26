@@ -77,22 +77,39 @@ has neither.
 - **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
   KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
   and Linux later (F4). A general library comes first: Python's standard
-  library, `psutil` (a process's arguments), `platformdirs` (each OS's data and
-  cache folders), `pyperclip` (the seed guide's clipboard), the window's own
+  library, `psutil` (a process's arguments; `pid_exists`), `platformdirs`
+  (each OS's data and cache folders), `portalocker` (file locks, only through
+  `apply.locks`),
+  `pyperclip` (the seed guide's clipboard), the window's own
   `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
   extension's `windows.focus`). Per-OS code lives in one place for each job,
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
-  Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
-  Worker's background start (`plain/launcher.start_in_background`), a link in
+  Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`),
+  the plain Workers' channel (`plain/channel.py`), the native host's folder
+  (`native_host.chrome_hosts`), a Chrome's start
+  (`plain/launcher.start_in_background`: a Worker's in the
+  background, the seed's in front; on the Mac through `open`, never as
+  Apply's child, or macOS blames the built app for what Chrome's updater
+  does: "prevented from modifying apps"), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
-  Mac, so Chrome never runs as Apply's child) and showing a folder
-  (`plain/seed_setup.Desk.reveal`). FocusKeeper (`focus.py`) is the
+  Mac, so Chrome never runs as Apply's child), showing a folder
+  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
+  and keeping the computer awake during a run
+  (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
-  `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
-  the way" list.
+  `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
+  (`tests/test_each_os.py` reads the source for the last three). Porting to
+  Windows: `../docs/windows_desktop.md` (KAN-929).
+- **In the Student build no model drives the browser** (D13, KAN-861, W2
+  step 2, `docs/generic-filler.md`). A job system with no Filler gets the
+  generic Filler: code reads the form from the accessibility tree and does
+  every click, and a model only picks an option or a Next by its number
+  (`generic_fill.pick`, `generic_fill.next`). Its clicks are click paths:
+  a change to them gets the adversarial review and joins
+  `tests/test_submit_guard_hostile.py` (KAN-666).
 - **The Student build leaves the developer parts out** (KAN-723, W3,
   `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
   without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
@@ -108,16 +125,20 @@ has neither.
   `workit.job_key`), and its callers import it from there.
   `tests/test_student_build.py` (in CI) fails when the Student path loads one,
   as it imports, builds `student.adapters()` or makes that first page call.
-  Read `build.STUDENT` when the code runs, never into a constant at import.
+  Read `build.STUDENT` when the code runs, never into a constant at import. The one
+  exception is `home.HOME`, which every data path is made from at import: the build
+  script writes STUDENT before it compiles (`tests/test_student_build.py` checks it in a
+  new process).
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.
 - **In the Student build, what Apply can't do is the student's, in the Apply
-  window** (KAN-855, W2 step 1, `docs/held-forms.md`). A form with no Filler,
-  a field the form didn't take and an emailed code are each held for the
-  student, who does it through Fix here; an answer they type in the window
-  goes in by the Fill engine, never a model. Every message says "press Fix
-  here" (`orchestrator.FIX_HERE`), never "your own Chrome". Only a captcha
+  window** (KAN-855, W2 step 1, `docs/held-forms.md`). A field the form
+  didn't take, a page the generic Filler can't go on from, and an emailed
+  code are each held for the student, who does it through Fix here; an
+  answer they type in the window goes in by the Fill engine, never a model.
+  Every message says "press Fix here" (`generic_fill.FIX_HERE`), never "your
+  own Chrome". Only a captcha
   takes the Worker's own window (Open in Chrome): the tile's clicks are
   synthetic, and Apply never makes one look like a person's.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
@@ -126,6 +147,16 @@ has neither.
   yourself. `uv run apply ask --list` lists every open form. Print the reply
   to him. Never press the offer's Save for him: only his click in the window
   saves to his sources.
+- **WorkIt Auto Apply's window, from a terminal:** read and drive it with
+  `uv run apply window ...` (from `apply-agent/`), never a screenshot or an
+  accessibility tool first. `uv run apply window state` prints every job as the
+  window shows it, as JSON: each held form's answers and their sources, its
+  Pre-submit flags, legal holds, Missing facts, Essays, Auto-submit's reason and
+  its screenshot's path. `submit`, `cancel`, `skip`, `fill-again`, `answer`,
+  `remove` and `stop` are the window's own buttons, with their own checks;
+  `add` sends links as `apply app <link>` does. Submit only when Lisul says to, and never turn on `live_runs`. Use
+  screen automation only when the command can't do the job, and say why
+  (`docs/apply-window.md`, "The window from a terminal").
 - **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It never
   types into a sign-in: Lisul signs in on each "needs sign-in" tile.
 - **A next posting on a job site a running Worker is signed in to:** send it
@@ -135,6 +166,11 @@ has neither.
   touches a captcha. It hands them to the user.
 - **The Fill engine:** run `git submodule update --init` once per checkout.
   Without it, Apply cannot fill a form, and `uv run apply doctor` says so.
+  **Read the engine only through `fill_engine.source()`**, never
+  `fill_engine.ENGINE` (KAN-836, W7): with `fill_engine: workit`, and always
+  in the Student build, the engine is WorkIt's signed download, kept only in
+  memory, and no engine file may be written (`docs/fill-engine.md`, "Where
+  the bundle comes from").
 - **`README.md`** is a teammate's setup path, from a clone to a rehearsal. Its
   steps and doctor's fix lines say the same thing. When you change one,
   change the other.
@@ -150,13 +186,16 @@ this folder's `CLAUDE.md` for its area.
 - `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
+- `docs/generic-filler.md`: the generic Filler (`generic_fill.py`) and its reader (`form_tree.py`), the Student
+  build's Filler for a job system with no Filler of its own.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
-- `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
+- `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), the window read and driven from a terminal (`apply window`, `app_control.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), and keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10). Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10), held forms in tabs of a CDP Worker (`held-forms-in-tabs.md`, KAN-865 and KAN-876, with `tools/held_forms_tabs.py`: a form behind fills as one in front while Playwright drives it, on every saved form that fills; a window, not a tab, since a Playwright click in a tab behind waits about 2 s; a cap of 4 held forms per Worker on 8 GB), and what a Worker's Chrome crash costs held forms (`held-forms-after-a-crash.md`, KAN-866, with `tools/held_forms_crash.py`: no tab comes back; on Linux a plain Worker with `--no-startup-window` quits at once). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
@@ -233,10 +272,13 @@ into it and the window shows "Sample data".
 - Run `uv run ruff check .` here before you commit. It uses the backend's
   ruff config. `pyproject.toml` lists the findings that Apply keeps on
   purpose, each with its reason.
-- CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
-  a fixed list of fast test files: the files that need no browser, no
-  network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. Its test steps run in parallel
+- CI (the `apply-fast` job in `../.github/workflows/ci.yml`, on Ubuntu)
+  runs ruff and only a fixed list of fast test files: the files that need
+  no browser, no network and no `claude` CLI. When you add a test file that
+  needs none of them, add it to that list. Only the browser tests run on
+  macOS (`apply`, `apply-hostile`), since the organization has few macOS
+  runners (`../.github/CLAUDE.md`), and a change to only the student page
+  or the docs starts neither. Its test steps run in parallel
   (`pytest -n auto`), so a new test there can't share a fixed port or
   path with another. A test of `rehearse` with `keep_open` picks out the
   lines it checks, and never counts all it printed: when a form's thread
@@ -360,6 +402,52 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A GET form's submit reaches none of the page's handlers while a guard
+  is on** (KAN-868). A form with no method whose own submit handler posts
+  the application (a React form's onSubmit, by fetch to any URL) sent it past
+  both guards when a press of anything else of the form's submitted it: a
+  Next, a dropdown made of a submit button, one the page turned into a submit
+  button as it was pressed (the adversarial review of KAN-861). A test of the
+  form's buttons was got round each way the review of KAN-868 tried: a
+  Submit the press renamed, blanked or took away, one renamed on pointerdown,
+  one outside the form with no `form=`, a `<div>` of no role, words only in
+  CSS. So every submit of a form that doesn't POST is stopped: a GET form's,
+  and a dialog's, whose submit runs the page's handlers all the same. Only a
+  sign-in step goes on, and only under plain code's own sign-in press
+  (`apply.account_pages`, `let_account_click(sign_in=True)`, never a Next's
+  account click): its only boxes are an email or user name and passwords
+  (iCIMS's email step), and the page shows no other answer box anywhere, an
+  editable box, a radio, a tick or one in an open shadow root too (rounds 2
+  and 3 of the review put the answers outside the form). An empty bot trap
+  no one sees (Workday's beside the form, KAN-886; Oracle's honeypot in it)
+  and a shut pop-up's empty text box (Oracle's AI Assist summary) are no
+  answer box. The residual: an
+  app whose answers a script holds, behind one email box, looks like a
+  sign-in step under that press. A wizard whose Next submits a GET form is a
+  step no code or model presses: a Handoff, the student's on the held page,
+  whose own press goes through as before. A form in a shadow root the page
+  wrote is heard as a script submits it, clicks in it or dispatches an event
+  in its root, and a closed one as its element's internals hand it over
+  (`hearRootOf`), as one a press passes through always was; an open one as
+  a script first reaches it (`shadowRoot`, `getRootNode()`, an event's
+  `composedPath()`), so the guard's listener there is the first. That
+  order can still be beaten from inside a root (a custom element in it
+  that listens on its root as it connects: round 4 of the review), so the
+  press itself is stopped too: a click on a submit button of a form that
+  doesn't POST is cancelled at the window, before any of the page's
+  listeners, and a script's `requestSubmit()` of one is refused. The sign-in
+  step's page check also reads same-origin frames and every root the guard
+  has heard, closed ones too. Whenever page code adds a `submit` listener,
+  the guard first hears that node's root (the `addEventListener` wrapper),
+  so code inside a root that walks up to it can't get there first, and an
+  Enter that submits with no click is stopped there (round 5). Plain
+  code's sign-in with a password goes on for a form that doesn't POST only
+  under Apply's own sign-in press and as a sign-in step: an application
+  that makes an account as it applies is a GET form with a password box. The guard
+  scripts are one function each, built from shared parts: a name two parts
+  declare stops the whole script with no error Apply sees, and every page
+  is unguarded. That happened twice while KAN-868 was built;
+  `tests/test_guard_scripts_compile.py` (CI) compiles each script.
 - **A request body is read as its server reads it, never by a regex on
   its text** (KAN-791). One regex on Ashby's `operationName` let through
   escaped JSON, a submit named only in `query`, a batch, and form or
@@ -443,6 +531,10 @@ into it and the window shows "Sample data".
   starts a browser outside those two calls `chrome_reaper.watch` itself. Test
   runs leave their `/tmp/apw-*` folders, finished or not; the reaper stops
   processes only.
+- **Open a profile in a test with the `browser_on` fixture** (`conftest.py`,
+  KAN-929): `browsers.chrome_pid` counts a `SingletonLock`'s PID only when
+  that process is a browser on that profile, so a lock with the test's own
+  PID counts as closed.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
@@ -491,12 +583,171 @@ app's build (W8) finds them.
   `pyproject.toml` joins it on the next run, and a dev dependency never
   does. Code that ships without a Python package (a macOS framework, a
   font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
-  text in `legal/licenses/`. The build runs the script with `--strict`,
-  which fails while a text is missing.
+  text in `legal/licenses/`. The build runs the script with `--strict`
+  (`build_app.py --release`), which fails while a text is missing. The
+  build runs it on its own Python with `UV_PYTHON` set to it, so the
+  notices name the Python the app ships: on uv's first-found 3.12 they
+  named Anaconda's 3.12.2 for an app that ships 3.12.14 (2026-11-24).
+- **A text in `legal/licenses/` is the shipped version's own, unchanged**
+  but for LF line endings (KAN-833, 2026-11-21): the student page's
+  packages at `window/package-lock.json`'s versions (each package checked
+  against its `integrity`), Nuitka's from the wheel the `build` group
+  pins, the GUST Font License from the URL `src/apply/fonts/README.md`
+  names, and Sparkle's from release 2.10.1. A version change copies the
+  text again in the same PR; Sparkle's when W8 step 3 bundles a release
+  other than 2.10.1.
 - **A change to what the app sends off the Mac** (a model call's data, a
   new WorkIt route, a new outside service) updates the WorkIt Auto Apply
   section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
   pages).
+
+## Building the app
+
+`python3 scripts/build_app.py`, on an Apple Silicon Mac, builds WorkIt Auto
+Apply into `build/out/WorkIt Auto Apply.app` (KAN-833, W8 of
+`../docs/desktop_application_auto_apply.md`). Its docstring lists the steps.
+Any teammate's Mac builds the same app: it needs only Xcode's Command Line
+Tools, uv and the network, and any `python3` runs the script, macOS's own
+3.9 too (standard library only; checked 2026-11-21 in an empty environment
+with only the system folders and uv on the `PATH`).
+Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
+so it opens on the Mac that built it and nowhere else. Signing and
+notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
+notices strict (above).
+
+- **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
+  in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
+  modules the Student path imports and every non-Python file in
+  `src/apply`. Remove a file from `INPUTS` only after the code stops
+  reading it, then launch the built app: the build doesn't check what the
+  code reads, and a missing input crashes the app when it runs. How to
+  change each list and how to test the built app: `docs/app-build.md`.
+- **A release builds from the commit, never the working tree** (KAN-833,
+  2026-11-21). `--release` exports the current commit's files of this
+  folder with `git archive` into `build/source` and builds from there, so
+  an untracked or uncommitted file can't get in, and says when the working
+  tree has changes it leaves out. Only the inputs come from the commit: the
+  build script itself runs from the working tree, so a release refuses to
+  start while `scripts/build_app.py` has uncommitted changes, which would
+  decide what the app holds while `WorkItCommit` names another commit. Before, Apply installed from its folder
+  with every untracked file in it (hatchling takes any file git doesn't
+  ignore), Nuitka shipped every data file of the package, and the inputs
+  were copied as whole folders: a test file in `src/apply` went into the
+  wheel. Every build writes its commit into `Info.plist` (`WorkItCommit`,
+  with `+changes` on a test build of a changed working tree), so a report
+  names the code it came from. `git archive` runs from the repo's top
+  folder: run in a subfolder, it keeps only paths under that folder,
+  inside the exported subtree too, and exported nothing.
+
+- **The build has its own venv, `build/venv`**, from `uv.lock` with uv's
+  own Python 3.12 and the `build` group (Nuitka), never the checkout's
+  `.venv`: its Python can be Anaconda's or Homebrew's, which differ per
+  Mac. It installs Apply as a copy and sets `STUDENT = True` there, so the
+  checkout's `build.py` stays False. uv puts that Python in
+  `/Users/Shared/workit-auto-apply-build/python` (`PYTHON_HOME`), never in
+  its default `~/.local/share/uv`: the app carries the Python's install
+  path (its `sysconfig` settings and `libpython`'s own name), and from the
+  default place every copy held the builder's user name (2026-11-21). The
+  build refuses an app whose own files (the program, `libpython`, the
+  capture helper) hold the builder's home folder path. Only those: third-party
+  files carry their own builders' paths (`/Users/admin` in Node,
+  `/Users/runner` in cffi), and a check of every file refused a teammate
+  whose home folder matched one.
+- **It compiles with Apple's tools and nothing from the shell** (found
+  2026-11-21). Homebrew's LLVM exports `CPPFLAGS` and `LDFLAGS`, and Nuitka
+  passed them on: the first build linked Homebrew's `libunwind`, which a
+  student's Mac lacks. With Anaconda first on the `PATH`, Nuitka ran
+  Anaconda's `install_name_tool`, which failed. So the script drops every
+  compiler variable (`COMPILER_ENV`), runs Nuitka on `/usr/bin` only, and
+  sets `SDKROOT`: the clang `xcrun` names finds no `stdlib.h` without it.
+  It drops every `PYTHON*` variable too: `PYTHONPATH` comes before the
+  venv, so a teammate's could make Nuitka compile the checkout's Apply or
+  another copy of a library. `--release` also compiles with no ccache
+  (`--disable-cache=ccache`): on a Mac with Rosetta, Nuitka downloads it
+  from nuitka.net with no hash check and runs it on every C file.
+- **No docstrings in the app.** Each one is a plain sentence about how Apply
+  works, and Nuitka keeps it as text in the program. The build passes
+  `no_docstrings` and checks that a known docstring is gone, so code on the
+  Student path must work with `__doc__` as None. Asserts stay: `launcher.py`'s
+  `NEVER` check is one.
+- **No JavaScript comments in the app's page code, and all of them in the
+  checkout.** Comments in Python vanish when it compiles, but JavaScript in
+  a Python string kept them (the tiles window's page code, for one), so the
+  build strips its own copy (`scripts/strip_js_comments.py`). It changes a
+  piece only when Node parses it the same way before and after, keeps a
+  comment that names a license, and never touches `STORE_CODE`, the modules
+  whose page code goes into the Worker extension's store copy: the
+  extension checks those files by sha256, and the guards are public there.
+  The build then checks that the store copy's files are the same, and fails
+  if not: `upload_origin` was missing from `STORE_CODE` and failed it
+  (`RULE_JS` goes into the guards). A module that a new fixed function or
+  guard takes code from joins `STORE_CODE`.
+- **The app has no checkout and no Python.** `home.CODE` is the program's
+  own folder when the module is compiled (`__compiled__`), and the build
+  puts the inputs the Student path reads there (`INPUTS`: the EULA, the
+  default policies, the Worker extension; and the notices). A new file the
+  Student path reads beside the code joins `INPUTS`. The Worker extension's
+  folder, which the seed setup copies for Load unpacked, is there only for
+  now: it shrinks to what the store copy needs once W6 ships it. The Test
+  Person sample (`sample/`) is not in the app (2026-11-24): a student's app
+  has no Test Person, and its data comes from WorkIt (W11). Until W11 stops
+  `student.app` from copying it (`home.fill_from_sample`), a built app whose
+  data folder has no Applicant profile stops at launch, since the sample it
+  copies isn't there. A plain
+  Worker's wrapper starts the app's own program as the relay
+  (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
+  host.py`. It names that program with `psutil.Process().exe()`, never
+  `sys.executable`: in a Nuitka program, `sys.executable` is a `python`
+  beside the program that doesn't exist, and the first wrapper named it
+  (found in review, 2026-11-21). A new place that starts the app's own
+  program needs the same.
+- **The build refuses an app** that compiled a module in `build.DEVELOPER`,
+  holds a `.py` or `.pyc` file, or still holds docstrings or page code
+  comments. The checks look for text read from the build's copy before the
+  compile (`PROBES`), never text typed into the script, which a reworded
+  docstring would turn into a check that always passes. Nuitka's report
+  (`build/out/report.xml`) lists every module it compiled and why.
+- **The build ends with the DMG**, `build/out/WorkIt Auto Apply.dmg`: the
+  app (copied with `ditto`, which keeps its signatures), a link to
+  Applications, and `License.txt` and `Third-Party Notices.txt` beside them
+  (W10). The build mounts it read-only and refuses one whose app fails
+  `codesign --verify` or has no Applications link. A failed or refused build
+  leaves no DMG: the build deletes the last one when it starts.
+- **The app's icon is `assets/app-icon.png`**: WorkIt's logo at 1024 px on
+  Apple's macOS icon grid, an 824 px shape with a transparent margin, so it
+  shows at the size of other apps' icons (the logo filled the whole canvas
+  and stood about a quarter bigger). The build makes the `.icns` from it
+  with `sips` and `iconutil` (`make_icon`). `src/apply/Apply.icns` is the
+  developer's Dock icon (`dock_app`) and stays out of the app (`LEAVE_OUT`).
+- **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
+  grows: Sparkle offers an update only when the feed's number is higher
+  than the app's, and `pyproject.toml`'s version, the one the student sees
+  (`CFBundleShortVersionString`), stays the same over many builds. Not a
+  commit count: that drops when W0 moves Apply to its own repo, and it
+  differs between branches.
+- **Nuitka puts the data files in `Contents/MacOS`**, beside the program, and
+  names the bundle after the entry file; the script renames it, adds
+  `LSMinimumSystemVersion`, `CFBundleURLTypes` (the app claims
+  `workit-auto-apply://`, WorkIt's sign-in link, `sign_in_link.SCHEME`) and
+  `NSAppleEventsUsageDescription` (FocusKeeper's `osascript` sends System
+  Events an Apple event as the app, and with no reason macOS refuses it
+  and never asks), and
+  signs it ad hoc again, since the edit breaks Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
+  it.
+- **The app ships the window capture helper**, `window-capture` beside the
+  program (`window_capture.BUNDLED`), which the build compiles with `swiftc`
+  for macOS 13 and checks with `--check`. A Developer checkout builds it on
+  first use, but a student's Mac has no `swiftc`: without the shipped one,
+  every live tile took the slow captureVisibleTab path. The `.swift`
+  source stays out of the app, as do `plain/mcp_tools.json`, the tools
+  Claude drives a page with, and Playwright's web UIs (`lib/vite`: its
+  trace viewer, HTML report, recorder and dashboard, which Apply never
+  opens; its driver starts Chrome without them). They are `LEAVE_OUT`,
+  and the build refuses an app that holds any of them. The helper is the app's child process, so
+  it has the app's own Screen Recording permission. macOS keys that
+  permission to the app's signature: with the ad-hoc signature, each new
+  build asks again; a Developer ID signature (step 2) keeps it across
+  updates.
 
 ## The privacy gate
 

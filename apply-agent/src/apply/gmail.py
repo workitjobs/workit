@@ -16,6 +16,7 @@ import html
 import imaplib
 import re
 import time
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
@@ -48,6 +49,27 @@ NOT_TEXT = re.compile(r"<(style|script)\b.*?</\1>|https?://\S+", re.IGNORECASE |
 CODE_WORDS = re.compile(r"code|pin|passcode|one-time|verif", re.IGNORECASE)
 LINK = re.compile(r"""<a\b[^>]*?href=["'](https://[^"']+)["'][^>]*>(.*?)</a>|(https://[^\s<>"']+)""", re.IGNORECASE | re.DOTALL)
 VERIFY = re.compile(r"verif|activat|confirm|reset", re.IGNORECASE)  # an account's link, or a password reset's
+# A mail a rehearsal takes no link from (KAN-878's review): one that speaks of a password at all, or of a reset.
+# A word list of reset phrases lost each round ("Reset your password" in a bare-URL link, "Set" or "Update your
+# password", the word split by tags or entities), so any mention of a password counts; a verification mail that
+# mentions one makes the sign-in Lisul's, the safe way to be wrong.
+RESET = re.compile(r"pass\W{0,3}word|passcode|reset|forgot|recover", re.IGNORECASE)
+
+
+def _plain_words(text: str) -> tuple[str, ...]:
+    """A mail's words as a reader sees them, three ways: its tags taken out, its tags turned to spaces, and its tags
+    kept (an image's alt, a link's title); each with entities decoded, Unicode folded (NFKC: fullwidth letters) and
+    soft hyphens and zero-width marks dropped."""
+    out = []
+    for words in (re.sub(r"<[^>]+>", "", text), re.sub(r"<[^>]+>", " ", text), text):
+        words = unicodedata.normalize("NFKC", html.unescape(words))
+        out.append(re.sub(r"[\u00ad\u200b-\u200d\u2060\ufeff]", "", words))
+    return tuple(out)
+
+
+def speaks_of_reset(text: str) -> bool:
+    """Whether a mail (its subject and text) speaks of a password or its reset, read as a reader reads it."""
+    return any(RESET.search(words) for words in _plain_words(text))
 
 
 NOT_SET_UP = (
@@ -100,10 +122,12 @@ class GmailMailbox:
             return MailedCode(code, sender_domain(_header(message, "From"))) if code else None
         return self._newest(search, since, read)
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
         """The verification link in the newest such mail, to one of `hosts`
-        (or a host under one): any other link is not followed."""
-        return self._newest(search, since, lambda message: _link(_text(message), hosts))
+        (or a host under one): any other link is not followed. Without
+        `resets`, a mail that speaks of resetting a password gives none."""
+        return self._newest(search, since,
+                            lambda message: _link(_subject_and_text(message), hosts, resets))
 
     def read_mail(self, *, search: str) -> list[Mail]:
         """Every inbox mail matching `search` (Gmail search terms, such as
@@ -174,6 +198,11 @@ def _header(message: Message, name: str) -> str:
     return str(make_header(decode_header(message.get(name, ""))))
 
 
+def _subject_and_text(message: Message) -> str:
+    """The mail's subject, decoded (round 5 of KAN-878's review read it encoded, "=?UTF-8?B?...?="), and its text."""
+    return f"{_header(message, 'Subject')}\n{_text(message)}"
+
+
 def _text(message: Message) -> str:
     """The mail's text: its plain part and its HTML, undecoded entities and all."""
     parts = message.walk() if message.is_multipart() else [message]
@@ -220,7 +249,9 @@ def sender_domain(sender: str) -> str:
     return parseaddr(sender)[1].rpartition("@")[2].lower()
 
 
-def _link(text: str, hosts: tuple[str, ...]) -> str | None:
+def _link(text: str, hosts: tuple[str, ...], resets: bool = True) -> str | None:
+    if not resets and speaks_of_reset(text):  # its subject, its words, its links' words or its URLs
+        return None
     for m in LINK.finditer(text):
         url = html.unescape(m[1] or m[3])
         label = re.sub(r"<[^>]+>", "", m[2] or "")

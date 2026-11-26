@@ -27,7 +27,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-import psutil
 import pyperclip
 
 from apply.adapters import SetupError
@@ -35,8 +34,16 @@ from apply.browsers import ProfileInUse, chrome_pid
 from apply.chrome_finder import NO_CHROME
 from apply.plain import extension
 from apply.plain.bridge import BridgeBusy, Refused
-from apply.plain.launcher import BRANDED, FLAGS, PlainWorkers, developer_mode
+from apply.plain.launcher import (
+    BRANDED,
+    FLAGS,
+    PlainWorkers,
+    developer_mode,
+    start_in_background,
+)
 
+# Chrome 157 opens no chrome:// page named on its command line (a New Tab instead, 2026-11-21), so the user opens
+# it: its address goes on the clipboard, and the step says to paste it in the address bar.
 EXTENSIONS_PAGE = "chrome://extensions"
 DETAILS_PAGE = f"{EXTENSIONS_PAGE}/?id={extension.EXTENSION_ID}"
 POLL = 1.0  # s between two reads of the preference files
@@ -94,7 +101,9 @@ def instruction(problem: Problem, folder: Path) -> str:
     load = (f"Drag it from Finder onto the Extensions page. Or click Load unpacked, press Cmd+Shift+G, "
             f"Cmd+V, Return, then click Select.\n  Folder (on your clipboard): {folder.resolve()}")
     return {
-        "developer": 'Turn on Developer mode: the switch at the top right of the Extensions page.',
+        "developer": (f"Open the Extensions page: in the Chrome window that opened, paste {EXTENSIONS_PAGE} (it is "
+                      "on your clipboard) into the address bar and press Return. Then turn on Developer mode: the "
+                      "switch at the top right of the Extensions page."),
         "no_extension": f"No extension yet. Add the worker extension. {load}",
         "wrong_folder": f"Wrong folder. The Apply Worker card loads from {problem.path}. Click Remove on that card, "
                         f"then add it again from the right folder. {load}",
@@ -125,10 +134,15 @@ class Desk:
     seed: Path
     binary: Path | None = BRANDED
 
-    def open_chrome(self, url: str) -> None:
-        """Open `url` in the seed's Chrome, in front: the user works in it. A running one takes a new tab."""
-        subprocess.Popen([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    def open_chrome(self, url: str, system: str = sys.platform) -> None:
+        """The seed's Chrome, in front: the user works in it. A running one takes a new tab. Started by each OS's own
+        way (launcher.start_in_background): on the Mac never as this process's child. `url` is a chrome:// page,
+        which Chrome 157 doesn't open from its command line: the steps have the user paste it."""
+        try:
+            start_in_background([str(self.binary), f"--user-data-dir={self.seed}", *FLAGS, url], self.seed,
+                                self.seed.with_suffix(".log"), system, front=True)
+        except TimeoutError:  # its wait for the profile's lock: the setup's own error, which the CLI and window say
+            raise SetupError(f"Chrome did not open the seed profile within {OPEN_WAIT:.0f} s: {self.seed}") from None
 
     def copy(self, text: str) -> None:
         """Put `text` on the clipboard (pyperclip: every OS). A Linux with no clipboard tool gets none: the
@@ -151,16 +165,10 @@ class Desk:
         subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
 
     def chrome(self) -> int | None:
-        """The PID of the Chrome that runs this seed. The lock names a PID; its arguments (psutil) prove that
-        it is this Chrome, not another program with a reused PID or a dead process that nothing has reaped."""
-        pid = chrome_pid(self.seed)
-        if pid is None:
-            return None
-        try:
-            arguments = psutil.Process(pid).cmdline()
-        except psutil.Error:  # gone, a zombie, or another user's
-            return None
-        return pid if f"--user-data-dir={self.seed}" in arguments else None
+        """The PID of the Chrome that runs this seed. chrome_pid takes the lock's PID only while its arguments
+        prove that it is this Chrome, not another program with a reused PID or a dead process that nothing has
+        reaped."""
+        return chrome_pid(self.seed)
 
     def terminate(self, pid: int) -> None:
         try:
@@ -220,7 +228,9 @@ class Wizard:
                 return True
             self.out(f"Not done yet. {failed}")
             self.desk.open_chrome(DETAILS_PAGE)
-            self.out("Check the Apply Worker card and its switch in the Chrome that opened. "
+            self.desk.copy(DETAILS_PAGE)
+            self.out("Check the Apply Worker card and its switch: in the Chrome that opened, paste the address on "
+                     "your clipboard into the address bar and press Return. "
                      "Then press Return here to try again, or Ctrl-C to stop.")
             if not self.ask_again():
                 self._quit(wait=False)
@@ -266,6 +276,8 @@ class Wizard:
         elif last and problem.step != last.step:
             self.out(f"Done: {DONE[last.step]}")
         self.out(f"Now: {instruction(problem, self.folder)}")
+        if problem.kind == "developer":
+            self.desk.copy(EXTENSIONS_PAGE)
         if problem.kind in ("no_extension", "wrong_folder"):
             self.desk.copy(str(self.folder.resolve()))
             self.desk.reveal(self.folder.resolve())

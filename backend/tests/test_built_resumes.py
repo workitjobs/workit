@@ -269,6 +269,23 @@ def test_generate_shows_each_skill_name_once():
     assert [choices.skills[s.id].shown for s in skills] == [True, True, False, False, True]
 
 
+def test_a_blank_resume_prints_its_header_alone():
+    # 2026-11-18: onboarding's "No, build one for me" starts from scratch.
+    # Every bank entry and skill gets a choice row, hidden, so the page
+    # prints the header and Add Experiences can still show any of them.
+    from types import SimpleNamespace
+
+    from app.services.built_resumes import blank_choices
+
+    bullet = SimpleNamespace(id=uuid.uuid4())
+    entry = SimpleNamespace(row=SimpleNamespace(id=uuid.uuid4(), section="experience"), bullets=[bullet])
+    skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group=None) for n in ("Go", "Rust")]
+    choices = blank_choices(SimpleNamespace(entries=[entry], skills=skills))
+    assert choices.entries[entry.row.id].shown is False
+    assert [choices.skills[s.id].shown for s in skills] == [False, False]
+    assert bullet.id in choices.bullets
+
+
 async def test_generate_shows_a_skill_two_uploads_hold_once(student, monkeypatch):
     # KAN-504: each upload owns its skills (ADR 0005), so two uploads each
     # held Python. Generate showed both, the resume printed it twice, and
@@ -737,7 +754,7 @@ async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(st
 async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template, page):
+    def missing(view, identity, template, page, **_):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.routers.built_resumes.render", missing)

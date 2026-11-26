@@ -21,6 +21,7 @@ from app.connector.server import connector
 from app.db import get_sessionmaker
 from app.routers.applications import router as applications_router
 from app.routers.apply_app import router as apply_app_router
+from app.routers.apply_reports import router as apply_reports_router
 from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.auto_apply import router as auto_apply_router
@@ -32,6 +33,7 @@ from app.routers.company_jobs import router as company_jobs_router
 from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
+from app.routers.education import router as education_router
 from app.routers.extension_config import router as extension_config_router
 from app.routers.extension_rules import router as extension_rules_router
 from app.routers.fill_events import router as fill_events_router
@@ -46,6 +48,7 @@ from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
 from app.routers.rules_anomalies import router as rules_anomalies_router
 from app.routers.scout import router as scout_router
+from app.routers.scrape_health import router as scrape_health_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
@@ -128,6 +131,7 @@ app.include_router(writing_samples_router)
 app.include_router(pasted_answers_router)
 app.include_router(fill_reports_router)
 app.include_router(fill_events_router)
+app.include_router(scrape_health_router)
 app.include_router(job_system_requests_router)
 app.include_router(extension_config_router)
 app.include_router(extension_rules_router)
@@ -135,6 +139,8 @@ app.include_router(rules_anomalies_router)
 app.include_router(tracker_router)
 app.include_router(uninstall_answers_router)
 app.include_router(apply_app_router)
+app.include_router(apply_reports_router)
+app.include_router(education_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
 
