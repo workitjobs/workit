@@ -740,10 +740,9 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
   `publish_engine.APP_KEY` must read the key from there.
 - **Secrets:**
   - `APPLY_ENGINE_SIGNING_KEY`, the private key's PEM from `make-key`, is a
-    secret of the **`auto-apply-desktop` environment** (`apply-engine` until
-    2026-11-26: it holds the desktop app's other publish secrets too),
-    never a repo secret. Infisical's `workit-prod/auto-apply-desktop` sync
-    writes it (`../docs/secrets.md`). The
+    secret of the **`auto-apply-desktop` environment**, which holds every
+    publish secret of the desktop app, never a repo secret. Infisical's
+    `workit-prod/auto-apply-desktop` sync writes it (`../docs/secrets.md`). The
     environment takes jobs from `main` only, so a workflow pushed to any
     other branch can't read it; a repo secret reaches every branch's
     workflows. A job that names an environment that doesn't exist makes it
@@ -770,8 +769,7 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
      A new key needs a new app: every installed app refuses its builds.
   2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
      bucket, Public off.
-  3. The environment, then its secret (done 2026-11-17 as `apply-engine`,
-     again 2026-11-26 as `auto-apply-desktop`):
+  3. The environment, then its secret (done 2026-11-26):
      `gh api -X PUT repos/workitjobs/workit/environments/auto-apply-desktop -F
      'deployment_branch_policy[protected_branches]=false' -F
      'deployment_branch_policy[custom_branch_policies]=true'`, then
@@ -786,82 +784,50 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
 
 Builds a release of the Mac app from `main` on a GitHub-hosted Apple
 Silicon Mac, signs it for Sparkle, and puts it in the R2 bucket
-`auto-apply-desktop`, served at https://downloads.workitjobs.ai (W8 step 4
-of `../docs/desktop_application_auto_apply.md`). Every installed app reads
-the feed there, `appcast.xml`, and updates itself (Sparkle); the website's
-Download for Mac links `WorkIt-Auto-Apply.dmg`.
+`auto-apply-desktop` behind https://downloads.workitjobs.ai (W8 step 4 of
+`../docs/desktop_application_auto_apply.md`). Every installed app reads the
+feed there, `appcast.xml`, and updates itself; the website's Download for
+Mac links `WorkIt-Auto-Apply.dmg`. How a person publishes:
+`apply-agent/docs/app-build.md`, Publish a release. The workflow's comments
+give each step's mechanism; these are its rules.
 
-- **One workflow builds, signs and publishes; no person's computer does**
-  (D32, revised 2026-11-26). Whoever holds the update key makes every
-  installed app run what it signs. Built on a person's Mac, each publisher
-  needed a copy of the key, and the release was only as clean as their
-  checkout. Here the key is only in the environment, and the build is a
-  clean checkout of `main`. From step 2, the Developer ID signature and
-  notarizing join this job, with their secrets in the same environment.
-- **When.** By hand from `main` only: `gh workflow run publish-app.yml
-  --ref main`. Every installed app takes the build at its next check (at
-  launch and each day) and installs it when the student quits, with no
-  question: test `main`'s app on a Mac before you run it
-  (`apply-agent/docs/app-build.md`, Publish a release).
-- **It refuses a commit that isn't `main`'s newest.** A re-run of an old
-  run builds that run's commit, and with a new build number every app
-  would install the old code. Start a new run instead. To undo a bad
-  build, revert it on `main` and publish again: Sparkle never installs an
-  older build number.
-- **It refuses a build number that isn't higher than the live feed's.**
-  Every installed app would ignore it, while the run passed and the
-  website handed it out: a new way of numbering builds (a commit count at
-  W0) or a runner's wrong clock would freeze every app with no message.
-- **The steps:** `apply-agent/scripts/build_app.py --release` on
-  `macos-15` (3 M1 cores, 7 GB; a release took 3.5 minutes on a 10-core
-  M2 Pro, so expect 10 to 20 here, not measured yet; the timeout is 60
-  minutes), then `apply-agent/scripts/publish_app.py`, which signs the DMG
-  and writes the feed (one item, the newest build). It refuses a key whose
-  signature the app's public half rejects, so a wrong
-  `SPARKLE_PRIVATE_KEY` stops the run before any upload. It reads the feed
-  back as Sparkle does and refuses one it can't read, or one that offers
-  another file: with a broken feed every app's check fails with no message.
-- **Only the signing step sees the key.** The build step installs
-  third-party packages and runs their code with no secret in its
-  environment. `publish_app.py` takes the key out of its own environment
-  before it starts any program and gives it to `sign_update` on stdin.
-  **It never prints what `sign_update` says:** its error repeats the key it
-  was given ("Failed to decode base64 encoded key data from: ..."), so a key
-  pasted with one wrong character would land in the log.
-- **Order.** The build's own DMG first, then the website's
-  `WorkIt-Auto-Apply.dmg`, then `appcast.xml`: an app reads the feed at
-  any moment, so the feed never names a DMG that isn't there yet. The feed
-  and the website's DMG are `no-cache`; a build's own DMG never changes.
-  The last step reads the feed and both DMGs back through the domain,
-  with retries.
-- **A dropped R2 connection is retried.** The AWS CLI retries each request
-  itself, and `put` tries a whole file 5 times, 15 to 60 seconds apart; the
-  upload step stops after 15 minutes. A retry is always safe: an R2 upload
-  replaces a file whole or not at all, never half.
-- **Until step 2 the DMG opens on no other Mac,** so the website's
-  `DOWNLOAD_URL` stays null.
-- **Secrets,** of the `auto-apply-desktop` environment (`main` only), from
-  Infisical's `workit-prod/auto-apply-desktop` (`../docs/secrets.md`):
-  `SPARKLE_PRIVATE_KEY`, and `R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID`,
-  `R2_AUTO_APPLY_DESKTOP_SECRET_ACCESS_KEY` and
-  `R2_AUTO_APPLY_DESKTOP_ENDPOINT`, a token that writes only this bucket.
-  Never repo secrets: a repo secret reaches every branch's workflows. A
-  person who can change a workflow on `main` can still read them, so a
-  workflow change goes through review like code.
-- **Cost:** free while the repo is public. Once W0 makes Apply's repo
-  private, a Mac minute counts as about 10 of the plan's free minutes. The
-  run takes one of the organization's 5 macOS jobs (CI, the Apply jobs), so it
-  can wait in the queue behind PRs' `apply` jobs.
-- **A failed run leaves the last build served,** unless it failed after
-  the website's DMG: then the website has the new build, and the feed
-  still offers the last one until the next publish. Start a new run (`gh
-  workflow run publish-app.yml --ref main`), not a re-run: a re-run builds
-  again, and once `main` has a newer commit it is refused.
-- **Setup, once** (the user's steps): the bucket `auto-apply-desktop` and
-  its custom domain `downloads.workitjobs.ai` (Cloudflare dashboard, R2,
-  2026-11-26, and it reaches the bucket: an empty bucket answers R2's own
-  "Object not found"), the token, and the `/auto-apply-desktop` sync to
-  the environment (2026-11-26, `../docs/secrets.md`).
+- **A release is built and signed here only** (D32): the update key lives
+  in the environment, and the build is a clean checkout of `main`. From
+  step 2, the Developer ID signature and notarizing join this job, with
+  their secrets in the same environment.
+- **Every installed app installs what it publishes,** at its next check
+  (at launch and each day), when the student quits, with no question.
+  Test `main`'s app on a Mac first.
+- **Two refusals guard every app.** A commit that isn't `main`'s newest: a
+  re-run of an old run would publish old code under a new build number.
+  A build number that isn't higher than the live feed's: every app would
+  ignore it while the run passed (numbering: `apply-agent/CLAUDE.md`,
+  `CFBundleVersion`). To undo a bad build, revert it on `main` and publish
+  again.
+- **The feed goes last.** The build's own DMG, then the website's
+  `WorkIt-Auto-Apply.dmg`, then `appcast.xml`, so the feed only ever names
+  a DMG that is there. An R2 upload replaces a file whole or not at all,
+  so the workflow retries a dropped upload freely.
+- **After a failed run, start a new run** (`gh workflow run
+  publish-app.yml --ref main`): a re-run builds again, and is refused once
+  `main` has a newer commit. A run that failed after the website's DMG
+  leaves the website on the new build and the feed on the last one until
+  the next publish; any other failure leaves the live build as it was.
+- **Secrets,** of the `auto-apply-desktop` environment only (`main` only),
+  from Infisical's `workit-prod/auto-apply-desktop`
+  (`../docs/secrets.md`): `SPARKLE_PRIVATE_KEY` and the three
+  `R2_AUTO_APPLY_DESKTOP_*` keys of a token that writes only this bucket.
+  Whoever can change a workflow on `main` can read them, so a workflow
+  change gets the same review as code.
+- **Time and cost.** `macos-15` has 3 M1 cores and 7 GB; a release took
+  3.5 minutes on a 10-core M2 Pro, so expect 10 to 20 here (not measured
+  yet; the job's timeout is 60 minutes). The run takes one of the
+  organization's 5 macOS jobs (CI, the Apply jobs) and can queue behind
+  them. Free while the repo is public; once W0 makes Apply's repo private,
+  a Mac minute counts as about 10 of the plan's free minutes.
+- **Setup, once** (the user's steps, done 2026-11-26): the bucket
+  `auto-apply-desktop`, its custom domain `downloads.workitjobs.ai`, the
+  token, and the `/auto-apply-desktop` sync to the environment.
 
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 
