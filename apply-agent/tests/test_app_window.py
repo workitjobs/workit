@@ -3,6 +3,8 @@ pywebview's bridge in this process, its tiles' frames and files, and the sign-in
 and no browser: in CI. tests/test_app_window_page.py runs the page's shim in Chromium."""
 
 import base64
+import sys
+import types
 
 import pytest
 from fake_workit import FakeWorkIt
@@ -109,6 +111,18 @@ def test_only_a_file_a_tile_lists_opens(board, tmp_path):
     board.update(0, files=[{"label": "Resume", "path": str(sent)}])
     assert bridge.open("/file/0/0") and opened == [sent.as_uri()]
     assert not bridge.open("/file/0/1")
+
+
+def test_only_a_posting_a_tile_lists_opens_in_the_browser(board):
+    """Fault: the page names any link, or a non-web one, and it opens on the computer."""
+    opened = []
+    bridge = Bridge(board, WorkIt(workit.LIVE), opened.append)
+    assert not bridge.open_posting("https://jobs.example/1") and opened == []
+    board.update(0, posting_url="https://jobs.example/1")
+    board.update(1, posting_url="file:///etc/hosts")
+    assert bridge.open_posting("https://jobs.example/1") and opened == ["https://jobs.example/1"]
+    assert not bridge.open_posting("file:///etc/hosts") and not bridge.open_posting("https://jobs.example/2")
+    assert opened == ["https://jobs.example/1"]
 
 
 def test_the_shim_comes_before_the_pages_scripts(board):
@@ -503,6 +517,29 @@ def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, t
     assert saved == [("When can you start?", "June 2027")]
 
 
+def test_closing_asks_first_only_while_forms_wait_for_the_student_naming_how_many(monkeypatch):
+    """Fault: quitting closes held forms with no question, or asks with nothing held, or a submitted form counts."""
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    window = type("Closing", (), {"confirm_close": False, "localization": {"global.quitConfirmation": "Quit?"}})()
+    with Dashboard(3, OneFrame(), serve=False) as run_board:
+        bridge = Bridge(run_board, WorkIt(workit.LIVE))
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+        run_board.update(0, status="ready", again=True)
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is True
+        assert window.localization["global.quitConfirmation"] == app_window.close_words(1) == (
+            "Quit WorkIt Auto Apply? Your filled form waiting for you will close. Nothing gets submitted.")
+        run_board.update(1, status="missing fact", again=True)
+        run_board.update(2, status="submitted", again=True)  # sent: it waits for no one
+        app_window.guard_close(window, bridge)
+        assert "Your 2 filled forms waiting" in window.localization["global.quitConfirmation"]
+        run_board.update(0, again=False)
+        run_board.update(1, again=False)  # let go: nothing held, nothing asked
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+
+
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
     """Fault: a Developer checkout's own data folder deleted, data removed under a running run, or the login left in
     the keychain after the folder went."""
@@ -654,6 +691,14 @@ def test_links_sent_in_start_a_run_once_signed_in_then_join_it_or_wait(board, tm
     go.set()
 
 
+def test_links_given_on_lines_of_one_argument_are_each_a_link():
+    # zsh passes `apply app $links` as one argument, its links on lines of their own (live, 2026-11-25).
+    one = "https://jobs.lever.co/acme/1\nhttps://jobs.lever.co/acme/2\n"
+    assert app_window.links_given([one, "https://jobs.lever.co/acme/3"]) == (
+        ["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2", "https://jobs.lever.co/acme/3"], [])
+    assert app_window.links_given(["acme.com/jobs/1"]) == ([], ["acme.com/jobs/1"])
+
+
 def test_running_names_only_a_live_windows_pid(tmp_path):
     import os
 
@@ -663,3 +708,29 @@ def test_running_names_only_a_live_windows_pid(tmp_path):
     assert app_window.running(note) == os.getpid()
     note.write_text("2147483646")
     assert app_window.running(note) is None
+
+
+def test_the_dock_badge_never_breaks_a_run_off_a_mac_or_without_pyobjc(monkeypatch):
+    monkeypatch.setattr(app_window.sys, "platform", "linux")
+    app_window.badge(3)  # no Dock: nothing happens
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", None)  # pyobjc missing: importing it raises ImportError
+    app_window.badge(3)
+
+
+def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
+    labels = []
+
+    class DockTile:
+        def setBadgeLabel_(self, label):
+            labels.append(label)
+
+    appkit = types.SimpleNamespace(NSApplication=types.SimpleNamespace(sharedApplication=lambda: types.SimpleNamespace(dockTile=DockTile)))
+    helper = types.SimpleNamespace(callAfter=lambda call: call())
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "PyObjCTools", types.SimpleNamespace(AppHelper=helper))
+    monkeypatch.setitem(sys.modules, "PyObjCTools.AppHelper", helper)
+    app_window.badge(3)
+    app_window.badge(0)
+    assert labels == ["3", ""]

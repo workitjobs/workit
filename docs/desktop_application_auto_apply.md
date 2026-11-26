@@ -228,7 +228,10 @@ profile links, and each reference's name, email and phone
 placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
 wherever it is in what a call sends, as a whole word, and comes back into
 the answer on the computer (`apply/private.py`). A name matches in its
-own case only, so a student named Will never masks "will". No answer
+own case only, so a student named Will never masks "will". A value that
+says there is none ("N/A", "None") is no private value and is never
+masked: a native-script name of "N/A" once turned every N/A in the
+Pre-submit review into that name's placeholder. No answer
 needs these values, since the Fill engine types them from the profile;
 a draft or an essay that needs one (a reference's details, the ZIP code
 an essay box asks for, live at Applied Materials) writes the placeholder,

@@ -52,7 +52,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from apply import first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
@@ -76,6 +76,7 @@ FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
 # Links sent to the window (send_links), one JSON file each, and how often the window looks; the window's PID note.
 INBOX = HOME / "app-inbox"
 INBOX_EVERY = 2.0
+CLOSE_GUARD_EVERY = 1.0  # how often the quit question's count of held forms is read again (guard_close)
 PID_NOTE = HOME / "app.pid"
 LINK = re.compile(r"^https?://\S+$")
 READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
@@ -403,6 +404,16 @@ class Bridge:
         if listed:
             self._open_link(listed.as_uri())
         return listed is not None
+
+    def open_posting(self, url: str) -> bool:
+        """A job's posting, in the student's own browser, for "Apply on the company's site": only a web link a tile or
+        item of this run lists as its posting. Any other link opens nothing."""
+        state = self._dashboard.state()
+        listed = {str(s.get("posting_url") or "") for s in [*state.get("tiles", []), *state.get("items", [])]}
+        if str(url) not in listed or urlsplit(str(url)).scheme not in ("http", "https"):
+            return False
+        self._open_link(str(url))
+        return True
 
     def signed_in(self) -> bool:
         return self._client.logged_in()
@@ -745,6 +756,20 @@ def notify(title: str, message: str) -> None:
     center.deliverNotification_(notice)
 
 
+def badge(count: int) -> None:
+    """The Dock icon's badge: how many forms wait on the student, none for 0 (Dashboard's `badge`). On a Mac only, and
+    never an error where there is no Dock (a test, a Developer checkout without an app bundle)."""
+    if sys.platform != "darwin":
+        return
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        from PyObjCTools import AppHelper
+    except ImportError:
+        return
+    label = str(count) if count > 0 else ""
+    AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""
@@ -755,6 +780,14 @@ def bring_forward() -> bool:
 
     AppHelper.callAfter(AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_, True)
     return True
+
+
+def links_given(arguments: list[str]) -> tuple[list[str], list[str]]:
+    """The links in `apply app`'s arguments, and the words that aren't links. An argument may hold several links on
+    lines of their own: zsh passes a variable's lines as one argument (`apply app $links`), which once sent the window
+    a single unusable link, so a 28-job run never started."""
+    words = [word for argument in arguments for word in argument.split()]
+    return [w for w in words if LINK.match(w)], [w for w in words if not LINK.match(w)]
 
 
 def send_links(links: list[str], inbox: Path = INBOX) -> Path:
@@ -811,6 +844,8 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
                                    min_size=(900, 600))
     bridge._window = window
     closing(window)
+    window.events.closing += lambda: guard_close(window, bridge)
+    threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()))
@@ -819,6 +854,37 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+def close_words(held: int) -> str:
+    """The question before the app quits with `held` forms open and waiting for the student: quitting closes them."""
+    forms = "Your filled form" if held == 1 else f"Your {held} filled forms"
+    return f"Quit WorkIt Auto Apply? {forms} waiting for you will close. Nothing gets submitted."
+
+
+def guard_close(window, bridge: Bridge) -> None:
+    """Ask before the window closes (or the app quits) only while a form is held for the student, naming how many
+    (close_words): pywebview's `confirm_close` and its question's words, read when the window is asked to close. The
+    `closing` event runs this just before `confirm_close` is read; the words are read before it on a Mac, so
+    _guard_closes keeps them fresh too."""
+    held = bridge._dashboard.held()
+    words = getattr(window, "localization", None)  # pywebview makes it once the window starts
+    if held and words is not None:
+        words["global.quitConfirmation"] = close_words(held)
+    window.confirm_close = held > 0
+
+
+def _guard_closes(window, bridge: Bridge) -> None:
+    said = ""
+    while True:
+        try:
+            guard_close(window, bridge)
+            said = ""
+        except Exception as error:  # a bad read never ends the guard, and says so once, not every second
+            if (line := f"Couldn't count the held forms: {type(error).__name__}: {error}") != said:
+                print(line, file=sys.stderr)
+            said = line
+        time.sleep(CLOSE_GUARD_EVERY)
 
 
 def closing(window) -> None:

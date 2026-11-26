@@ -1,8 +1,8 @@
 name: CI
 
+# Every pull request, stacked ones too: a PR on another PR's branch got no checks, and failures sat unseen on it.
 on:
   pull_request:
-    branches: [main]
 
 jobs:
   frontend:

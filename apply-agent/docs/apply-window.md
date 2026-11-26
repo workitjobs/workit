@@ -45,6 +45,14 @@ docstring first.
   same token and Origin checks. A new route needs nothing more. The
   frame streams (`/frames`, `/stream/k`) never go through it, since their
   answer never ends: the shim makes `/frames` from `Bridge.frames`.
+- Closing the window or quitting the app closes every form held for the
+  student, so it asks first only while one is (`guard_close`): pywebview's
+  `confirm_close`, with its question naming how many (`close_words`:
+  "Quit WorkIt Auto Apply? Your 3 filled forms waiting for you will
+  close."). The `closing` event sets `confirm_close` just before pywebview
+  reads it; on a Mac the question's words are read before that event, so a
+  thread sets them again each `CLOSE_GUARD_EVERY`. The count is
+  `Dashboard.held`: each tile whose page is held (`again`), not submitted.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
@@ -118,7 +126,10 @@ for a student, not from `dashboard_page.py`.
   to-do: a sign-in, a question, an emailed code, a captcha, an answer to
   check, an Essay to approve, a form to finish or to submit. The window
   shows one at a time, most blocking first, with "1 of 4" and Skip for
-  now. Below it, "Still working on" lists only the jobs WorkIt is filling
+  now. Over the card, "Needs you" lists every to-do in one row each, forms
+  ready to submit first, with what it asks and how long it has waited
+  ("Ready to submit · 12 min", from the tile's `since` or the item's `at`);
+  a row jumps to its card. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. A job WorkIt hasn't counted the
   questions of yet (Apply counts them when a fill pauses or ends) or is
   checking has a bar that moves (`bar`), never a made-up share. Each one's
@@ -126,6 +137,17 @@ for a student, not from `dashboard_page.py`.
   Workers run headless, so this is the only place to see one being filled.
   The page asks `Bridge.frames` for a newer screen of that tile, again and
   again, while it is open.
+- **The run's count** (`runLine`) sits under the heading while a run goes:
+  "3 of 10 done · 2 need you · 4 filling · 1 waiting". It counts this run's
+  jobs only. Each "Still working on" row says "Filling · 6 min" (from the
+  tile's `since`) and, when Apply's `doing` line is one `words.step` knows,
+  its step: "Writing answers".
+- **Notifications and the Dock badge.** While the window is behind, a
+  macOS notification titled "WorkIt Auto Apply" names each form newly
+  waiting and what it asks ("Amazon: sign in needed", "Stripe: ready to
+  submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
+  (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
+  (`dashboard.todo_count`), and clears when the run ends.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,
@@ -166,6 +188,41 @@ for a student, not from `dashboard_page.py`.
   "Checked against your WorkIt profile" when `verified`, and "Resume
   attached" when a file the form was given answers its resume question
   (`files`' label).
+- **What we filled** (the Submit and Check cards, `filledIn`): every
+  answer the form was filled with, from the tile's `answers`
+  (`worker._Planned.listed`), each with where it came from (Your
+  profile, Your saved answer, Written by WorkIt). The ones worth a
+  glance come first and are marked, in this order: what WorkIt wrote,
+  work authorization and sponsorship, demographics, school and
+  graduation, pay, the files attached (`worker.topic`); the rest are
+  behind "Show the other N answers". An answer longer than 220
+  characters is cut at a word with Show more (`clip`). `listed` never
+  holds a secret (`records.SECRET`: a job-site password Apply made) or
+  a file's path, only its name, and it reaches the page only through
+  `/state`. When the Pre-submit review changed answers after checking
+  (the tile's `fixed`, from `_Planned.fix`), the card says "We changed
+  N answers after checking" with each "question: old → new"
+  (`changes`).
+- **The Check card** (`flagged`) lists every flag verifying says needs
+  the student, each with its question, in WorkIt's words, then "Fix it
+  in the form, then press Submit there." Like every card, it has no
+  Submit of its own: Apply never submits.
+- **Handing back.** Each to-do card says how the student hands the form
+  back (`HANDOFF` in `view.ts`): sign in yourself in the window that
+  opens; check your email for the code and type it (Apply reads no email);
+  finish the captcha check (Apply never solves one); fix a flagged answer
+  and press Submit there. A handoff whose reason names the fields a
+  Workday step won't leave (`wantedFields`, from its "Error-<field> The
+  field ..." lines) lists them and says to press Next there. Once the
+  student presses Open on a card, it says "Waiting for you in Chrome…":
+  Apply tells the page nothing of Chrome's focus, so this is only what the
+  page itself knows.
+- **Empty and waiting states.** Start shows a one-time, dismissible "How
+  it works" strip (remembered in the page's local storage only). When
+  nothing is left to do, the home page says how many applications this
+  run submitted (`submittedLine`, not the student's earlier ones from
+  WorkIt) with a link to Applied. Watch's blank screen says "It can take a
+  minute the first time."
 - **The Approve card stays (decided, stories 16 and 17)** with its mock,
   though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,
@@ -175,7 +232,15 @@ for a student, not from `dashboard_page.py`.
   job's page (the tile's `again`, `askable` or `refill`): it posts
   `/fill-again` for that tile, and the job moves back to "Still working
   on" as the form fills anew. A job whose Worker moved on, one never
-  opened (already applied) and one paused have none.
+  opened (already applied) and one paused have none. Every row says what
+  to do (`stopOf`, `stopActions`): a closed posting ("This job was taken
+  down. Nothing to do.") and an already applied one ("You already
+  applied. Nothing to do.") offer nothing; any other failure reads "We
+  couldn't finish filling this one." and never shows the raw error (a
+  timeout, `PortTimeoutError: ...`), with Try again, "Open the form and
+  finish it yourself" while its page is held, and "Apply on the company's
+  site", which calls `Bridge.open_posting` (opens only a posting this run
+  lists, in the student's own browser).
 - **Today's usage (KAN-837).** On top of every page, a bar shows the
   share of today's Usage cap used ("66% used · resets at 7:00 PM"), like
   Claude's usage bar, never a token count, which means nothing to a
@@ -194,7 +259,14 @@ for a student, not from `dashboard_page.py`.
   "Usage limit reached" (before KAN-837, "Max usage limit hit").
 - **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
   the header has Stop applying, asked once more before it posts `/stop`.
-  The run ends (`rehearse`'s stop): no job waiting starts, each held page
+  The question names the filled forms a full Stop closes (`stopWords`,
+  from each tile whose page is held, `again`): "Stop? 3 filled forms
+  waiting for you will close." While jobs wait to start, Stop new ones
+  only comes first and posts `/stop` with `{"new_only": true}`: no job
+  waiting starts, the run takes no new link (`into`), a fill under way ends
+  held as any does, and every held page stays open until the student closes
+  it or presses Stop again. A full Stop ends the run (`rehearse`'s stop): no
+  job waiting starts, each held page
   is let go unsubmitted, a fill under way ends on its own (a rehearsal
   never submits) or when the run's Workers close, `on_done` still runs, and
   `app_window.Bridge` shows the queue
@@ -203,6 +275,22 @@ for a student, not from `dashboard_page.py`.
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
+- **At most five forms open.** Each open form is a browser window, so a
+  rehearsal opens at most `rehearsal.OPEN_FORMS` (5) at once: a job takes
+  a slot before its form opens and gives it back when its page closes
+  (sent, let go, or its window closed). The run says the cap
+  (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
+  every slot, "Still working on" says the next starts when the student
+  submits, lets go of, or closes one (`view`'s `full`). Start together is
+  not capped.
+- **Not applying to this one.** A to-do card whose form is held (its
+  tile's `again`) has Not applying to this one, asked once more before it
+  posts `/let-go` with the tile (`Dashboard.let_go`). The tile gets
+  `let_go`, so `view` drops its card at once, and the run lets that one
+  page go unsubmitted, as if its window closed (`hold`'s `let_go`, through
+  `Board.let_go_asked`); the other forms stay held. The route takes only
+  the window's token, and refuses a tile with no held form or one
+  submitted.
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
   (`view`), names the pile in the heading (`headline`), says the Usage
   cap in words (`limit`) and gives its bar's share and line (`usedShare`,
@@ -225,8 +313,8 @@ for a student, not from `dashboard_page.py`.
   Skip for now; none fires while typing in a box or with Cmd, Ctrl or
   Alt held.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
-  `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
-  `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
+  `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/let-go`,
+  `/stop` and `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
   `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `matches`, `start`,
   `status`, `usage`, `settings`, `review_report`, `send_report`), feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no

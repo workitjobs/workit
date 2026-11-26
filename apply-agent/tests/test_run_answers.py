@@ -301,14 +301,14 @@ def test_a_follow_up_to_a_question_claude_answered_no_is_not_a_missing_fact(tmp_
 SARONIC_URL = "https://jobs.ashbyhq.com/saronic/60afb634-5515-4347-824a-3816735541c2/application"
 # Saronic's Ashby (live, 2026-11-04): the follow-up was written as an essay and asked as a Required Essay fact.
 # The question it follows is one no rule answers, so Claude drafts it.
-KNOWS = Question("knows", "Do you have a friend who works at Saronic?", "select", True, ("Yes", "No"))
+KNOWS = Question("knows", "Do you know anyone who works at Saronic?", "select", True, ("Yes", "No"))
 IF_YES = Question("if_yes", "If yes, please provide the employee\u2019s name and your relationship", "textarea", False)
 
 
 @pytest.mark.parametrize("rehearse", [False, True])
 def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_nor_written(tmp_path, rehearse):
     posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
-    claude = FakeClaude(drafts={"Do you have a friend": "No"})
+    claude = FakeClaude(drafts={"Do you know anyone": "No"})
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, rehearse,
                               AnswerBank(), date(2026, 11, 4))
 
@@ -320,7 +320,7 @@ def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_no
 
 def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):
     posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
-    claude = FakeClaude(drafts={"Do you have a friend": "Yes"})
+    claude = FakeClaude(drafts={"Do you know anyone": "Yes"})
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
                               AnswerBank(), date(2026, 11, 4))
 
@@ -368,6 +368,28 @@ def test_an_optional_catch_all_box_is_always_left_blank_and_never_drafted_nor_as
     verification = planned.verify({"why": planned.answers["why"], "extra": ""}, [], ())
     [note] = [f for f in verification.flags if f.field == "Additional information"]
     assert not note.holds and note.why == f"left blank on purpose: {worker.CATCH_ALL_BLANK}"
+
+
+def test_the_window_lists_each_answer_by_where_it_came_from_and_never_a_secret(tmp_path):
+    # The student page's "What we filled" (worker._Planned.listed). Its faults: an essay WorkIt wrote shown as the
+    # student's own, a pay answer not marked for a glance, or a job-site password Apply typed shown in the window.
+    posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
+    first = Question("first", "First Name", "text", True)
+    pay = Question("pay", "What are your hourly pay expectations?", "text", True)
+    password = Question("pw", "Create a password", "text", True)
+    claude = FakeClaude(essays={"Why do you want": "Amplify's tutoring tools helped me."})
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
+                              AnswerBank(), date(2026, 11, 4))
+    assert planned.add([first, WHY, pay, password]) is None
+    planned.lisuls = {"pw": "a-made-up-password"}  # as the student's own typing on a paused page would be kept
+    planned.answers = planned.answers
+
+    listed = {row["question"]: row for row in planned.listed()}
+    assert list(listed) == ["First Name", WHY.label, pay.label]
+    assert listed["First Name"]["from"] == listed[pay.label]["from"] == worker.PROFILE
+    assert listed[WHY.label] == {"question": WHY.label, "answer": "Amplify's tutoring tools helped me.",
+                                 "from": worker.WRITTEN, "kind": "textarea", "topic": ""}
+    assert listed[pay.label]["topic"] == "pay"
 
 
 def test_a_required_catch_all_box_is_still_answered(tmp_path):

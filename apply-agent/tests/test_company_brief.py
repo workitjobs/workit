@@ -436,6 +436,8 @@ def test_a_known_job_sites_host_names_its_company():
     assert host_company("https://www.amazon.jobs/en/jobs/2981234/software-dev-engineer-intern") == "Amazon"
     assert host_company("https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210") \
         == "JPMorgan Chase"
+    assert host_company("https://icfcjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Aerospace/job/120770") \
+        == "Honeywell Aerospace"
     assert host_company("https://careers.amd.com/careers-home/jobs/12345") == "Advanced Micro Devices"
     assert host_company("https://careers-amd.icims.com/jobs/12345/job") == "Advanced Micro Devices"
     assert host_company("https://careers-other.icims.com/jobs/1/job") == ""

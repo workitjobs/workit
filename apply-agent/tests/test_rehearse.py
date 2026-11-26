@@ -509,13 +509,16 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
                                   "fixes": [{"question": AUTHORIZED, "answer": "Yes"},
                                             {"question": "First Name", "answer": "Someone"}]}])
     profile = profile_with(tmp_path, **{"work_authorization.authorized_to_work_us": False})
-    records = FolderRecords(tmp_path / "rehearsals")
+    records, board = FolderRecords(tmp_path / "rehearsals"), RecordingBoard()
 
     with FakeJobServer(ARC_FORM) as fake:
-        [done] = rehearse([ARC_URL], fake, profile, claude, records=records)
+        [done] = rehearse([ARC_URL], fake, profile, claude, records=records, board=board)
 
     shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
     assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
+    # The student page says what the review changed, from what to what, and that WorkIt wrote the new answer.
+    assert board.captions[0]["fixed"] == [{"question": AUTHORIZED, "was": "No", "now": "Yes"}]
+    assert {a["question"]: a["from"] for a in board.captions[0]["answers"]}[AUTHORIZED] == "written"
     assert sum(asked["kind"] == "presubmit.review" for asked in claude.kinds) == 2  # reviewed again after the fix
     assert done.legal == ()
     assert fake.submissions == []
@@ -1210,11 +1213,19 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     assert board.captions[0].pop("written") == []
     assert board.captions[0].pop("blocked") is False
     assert board.captions[0].pop("where") == {}
+    # What the student page's held card lists (worker._Planned.listed): each answer, where it came from, and the
+    # resume by its name only, never its path on the Mac. The review changed nothing.
+    answers = {a["question"]: a for a in board.captions[0].pop("answers")}
+    assert [(answers[q]["from"], answers[q]["topic"]) for q in ("Resume/CV", "Cover Letter")] == [
+        ("profile", "file"), ("written", "file")]
+    assert not any("/" in answers[q]["answer"] for q in ("Resume/CV", "Cover Letter"))
+    assert answers["Are you legally authorized to work in the United States?"]["topic"] == "legal"
+    assert board.captions[0].pop("fixed") == []
     assert board.captions == {0: {
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,
         "filled": done.filled, "asked": done.asked, "missing": list(done.missing), "drafted": [],
-        "choices": {}, "required": {},
+        "choices": {}, "required": {}, "planned": {}, "again": False,
     }}
     assert done.asked > 0
 
@@ -1982,3 +1993,101 @@ def test_stop_applying_ends_the_run_with_nothing_submitted_and_no_waiting_job_st
     assert lines[-1] == rehearsal.STOPPED_APPLYING
     assert [run["waiting"] for run in board.runs if "waiting" in run][-1] == []
     assert done == [True]  # what the run's ended jobs left to do (a Repair they filed) still runs, once
+
+
+def test_stop_new_ones_only_keeps_the_filled_form_held_and_starts_no_waiting_job(monkeypatch, tmp_path):
+    """Fault: Stop new ones only closes a held form, or still starts the job that waited."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    held, seen, later_stop = [], [], []
+
+    class Board(StoppingBoard):
+        def update(self, worker: int, **caption: object) -> None:
+            super().update(worker, **caption)
+            if caption.get("status") == "filling" and not held:
+                self._stop(new_only=True)  # the student presses Stop new ones only mid-fill
+            if caption.get("again") and not held:  # the form is held for them: a second later they stop the run
+                held.append(worker)
+                later_stop.append(threading.Timer(1.0, lambda: (seen.append(self.captions[worker].get("again")), self._stop())))
+                later_stop[0].start()
+
+    board, lines = Board(lambda stop, remove: None), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    later_stop[0].join(5)
+    assert held == [0]  # the form filled under way was held for the student after Stop new ones only
+    assert seen == [True]  # and a second later it was still held, until the student stopped the run
+    assert submissions == [] and opened == 1  # the waiting job never started
+    assert rehearsal.STOPPED_NEW in lines and lines[-1] == rehearsal.STOPPED_APPLYING
+
+
+def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypatch, tmp_path):
+    """Fault: every job opens its own window while forms wait on the student, and a long run slows the computer to
+    a halt (live, 2026-11-26)."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    servers, held_at, opened_while_held = [], {}, []
+
+    class Board(RecordingBoard):
+        def let_go_asked(self, worker: int) -> bool:  # each held form, let go a second after it is held
+            if not self.captions.get(worker, {}).get("again"):
+                return False
+            since = held_at.setdefault(worker, time.monotonic())
+            if time.monotonic() - since < 1.0:
+                return False
+            if len(held_at) == 1:
+                opened_while_held.append(len(servers[0].workers))
+            return True
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            servers.append(fake)
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               2, keep_open=True, out=lambda line: None)
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert opened_while_held == [1]  # a second after the first was held, the second job still hadn't opened
+    assert opened == 2 and len(held_at) == 2  # once it was let go, the second opened and was held in turn
+    assert submissions == []
+    assert {"open_forms": 1} in board.runs
+
+
+def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_ends(monkeypatch, tmp_path):
+    """Fault: Not applying to this one leaves the page held (the run never ends), or submits it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    asked = []
+
+    class Board(RecordingBoard):
+        def let_go_asked(self, worker: int) -> bool:
+            if self.captions.get(worker, {}).get("again") and not asked:  # held: the student presses it once
+                asked.append(worker)
+                return True
+            return False
+
+    board, lines = Board(), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert asked == [0] and board.captions[0]["again"] is False  # held, then let go: held no more
+    assert submissions == [] and rehearsal.STOPPED_APPLYING not in lines

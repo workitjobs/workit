@@ -1859,6 +1859,25 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
 
 
+def test_a_cover_letter_asking_which_graduation_date_to_give_is_written_with_the_profiles(monkeypatch):
+    # Anduril's (2026-11-25): the Story bank gave an older date than the profile, whose date the form's education
+    # block had planned, and the plan asked Lisul which one the letter should give, so no letter was written.
+    ask = ("Your story bank says you graduate December 2027 but this form says May 2028: "
+           "which graduation date should the cover letter give?")
+    letter = Question("cl", "Cover Letter", "file", True)
+    slots = [{"slot": s.name, "quotes": [FIX], "ask": ""} for s in answering.load()["cover-letter"].slots if s.required is True]
+    slots = [s if s["slot"] != "opening-who" else {"slot": "opening-who", "quotes": [], "ask": ask} for s in slots]
+    claude = FakeClaude(plans=[{"Cover Letter": {"type": "cover-letter", "slots": slots}}] * 2)
+
+    [essay] = write_figma(claude, [letter])
+
+    assert essay.plan.asks == () and essay.text  # written, not asked
+    assert {b.slot: b.quotes for b in essay.plan.slots}["opening-who"] == ("Expected graduation: May 2028",)
+    # The plan and the draft see the profile's date beside the Story bank's, and the truth check holds it.
+    assert _block_text(plans(claude)[0]["prompt"], "graduation") == "Expected graduation: May 2028"
+    assert _block_text(asks(claude)[0]["prompt"], "graduation") == "Expected graduation: May 2028"
+
+
 def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
     """The form's files reach the Application's folder and the window, and an attestation is never an answer (KAN-676)."""
     resume = tmp_path / "resume.pdf"

@@ -375,6 +375,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
 
         if args.max_plan:  # the Student build ignores it (student.asking)
             os.environ[student.MAX_PLAN] = "1"
+        args.links, not_links = app_window.links_given(args.links)
+        if not_links:
+            sys.exit(f"Not a job link: {', '.join(not_links)}. Pass each posting's full https:// link.")
         if args.links:
             app_window.send_links(args.links)
             if pid := app_window.running():
