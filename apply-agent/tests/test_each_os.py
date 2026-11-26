@@ -167,11 +167,13 @@ class NoRegistry:
 
 def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypatch):
     """Faults (P5): on Windows no registry key names the host's manifest (Chrome there reads no folder); the .bat
-    echoes its command into Chrome's pipe, drops Chrome's arguments (%*: the caller's origin), or lets cmd.exe read
-    a % in a path as a variable; the manifest lets another extension call the host (on Windows every Chrome of
-    this user's finds it); or off Windows the files leave the Worker's profile, or a registry is touched."""
+    echoes its command or chcp's line into Chrome's pipe, drops Chrome's arguments (%*: the caller's origin), lets
+    cmd.exe read a % in a path as a variable, or can't hold a path such as C:\\Users\\Łukasz; the manifest lets
+    another extension call the host (on Windows every Chrome of this user's finds it); or off Windows the files
+    leave the Worker's profile, or a registry is touched."""
     monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
-    monkeypatch.setattr(launcher, "host_command", lambda: [r"C:\Program Files\py%1\python.exe", "-I", r"C:\a\host.py"])
+    command = [r"C:\Program Files\py%1\python.exe", "-I", r"C:\Łukasz\host.py"]
+    monkeypatch.setattr(launcher, "host_command", lambda: command)
     workers, registry = PlainWorkers(tmp_path / "profiles", kind="testing"), FakeRegistry()
     manifest = workers.install_host(1, "win32", registry)
     assert manifest.parent == tmp_path / "native-hosts"
@@ -179,8 +181,8 @@ def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypa
         ("HKEY_CURRENT_USER", rf"{chrome_host.KEY}\com.workit.apply_worker", ""): (registry.REG_SZ, str(manifest))}
     written = json.loads(manifest.read_text())
     assert written["allowed_origins"] == list(extension.EXTENSION_ORIGINS)
-    assert Path(written["path"]).read_bytes() == \
-        b'@echo off\r\n"C:\\Program Files\\py%%1\\python.exe" "-I" "C:\\a\\host.py" %*\r\n'
+    bat = '@echo off\r\nchcp 65001 >nul\r\n"C:\\Program Files\\py%%1\\python.exe" "-I" "C:\\Łukasz\\host.py" %*\r\n'
+    assert Path(written["path"]).read_bytes() == bat.encode()
     assert workers.install_host(1, "darwin", NoRegistry()).parent == workers.profile(1) / "NativeMessagingHosts"
 
 

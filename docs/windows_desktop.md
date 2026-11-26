@@ -198,8 +198,10 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
     temporary folder would name a deleted file once that test ended.
   - The `.bat` starts with `@echo off`, or cmd.exe writes the command into
     Chrome's pipe. Each part is quoted with each `%` doubled, then `%*`
-    passes on Chrome's arguments. It is written in the OEM code page,
-    which cmd.exe reads.
+    passes on Chrome's arguments. It is UTF-8, and its `chcp 65001 >nul`
+    makes cmd.exe read it so: the OEM code page (437 on US Windows) can't
+    hold a path such as `C:\Users\Łukasz`, and every Worker's start failed
+    (found in review, 2026-11-26).
   - A file is written only when its text changes: on Windows a file that
     Chrome or cmd.exe has open can't be replaced.
   - The student's everyday Chrome sees the key too. That is safe: only
@@ -214,8 +216,9 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
     too, unless the `NativeHostsExecutablesLaunchDirectly` policy is on.
 - **Still to build.** The accounts host: the same key and `.bat`.
 - **Still open (Windows):** Chrome runs the `.bat` and the host says
-  hello; a venv's `python.exe`, a launcher, finds psutil under `-I`; a
-  user folder with letters that the OEM code page can't hold.
+  hello; a venv's `python.exe`, a launcher, finds psutil under `-I`;
+  `chcp 65001` in the hidden cmd.exe that Chrome starts, with a user
+  folder such as `C:\Users\Łukasz`.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows.
 
