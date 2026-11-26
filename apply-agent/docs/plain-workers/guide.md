@@ -217,7 +217,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
   `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`
   (the built app ships it built, `window-capture`: `../../CLAUDE.md`, "Building the app"),
-  finds the window of the Worker Chrome's PID (the native host's parent) nearest
+  finds the window of the Worker Chrome's PID (the browser above the native host) nearest
   the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
   and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x
   1626 for a 1280 x 813 viewport). By window ID: nothing is focused, raised or
@@ -268,7 +268,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
-  window only. A Connection whose Chrome (the host's parent) isn't the one that
+  window only. A Connection whose Chrome (the browser above the host) isn't the one that
   has Worker k's profile open (`chrome_pid`), or whose Chrome PID can't be told,
   shows nothing on tile k and takes none of its input; it is looked at again each
   turn. The helper films a window of that PID only while macOS lists exactly one

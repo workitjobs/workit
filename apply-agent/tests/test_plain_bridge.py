@@ -13,6 +13,7 @@ import threading
 import time
 from pathlib import Path
 
+import fake_chrome
 import pytest
 
 from apply.plain import channel, extension, host
@@ -248,12 +249,6 @@ def test_a_closed_worker_is_gone(bridge):
         connection.call("ping")
 
 
-# A Worker's Chrome, played by Python: it starts its host through a process between them, as Chrome on Windows
-# starts a .bat host through cmd.exe. Its own arguments: --user-data-dir=<profile>, then the host's command.
-CHROME = ("import subprocess, sys; shell = [sys.executable, '-c', 'import subprocess, sys; "
-          "sys.exit(subprocess.call(sys.argv[1:]))']; sys.exit(subprocess.call(shell + sys.argv[2:]))")
-
-
 def test_the_host_relays_both_ways_and_finds_its_worker_from_its_chrome(tmp_path):
     """The real host script, started as Chrome starts it, between a fake extension's pipes and the bridge. Faults:
     the host takes its Worker or its channel from anything but the Chrome that started it (on Windows one wrapper
@@ -262,8 +257,8 @@ def test_the_host_relays_both_ways_and_finds_its_worker_from_its_chrome(tmp_path
     bridge = Bridge(channel.socket_path(profiles), engine=ENGINE)
     bridge.start()
     try:
-        relay = subprocess.Popen([sys.executable, "-c", CHROME, f"--user-data-dir={profiles / 'plain-2'}",
-                                  sys.executable, "-I", host.__file__, EXTENSION_ORIGIN, "--parent-window=0"],
+        relay = subprocess.Popen(fake_chrome.command(profiles / "plain-2", sys.executable, "-I", host.__file__,
+                                                     EXTENSION_ORIGIN, "--parent-window=0"),
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         relay.stdin.write(frame({"type": "hello", "protocol": 1, "engine": ENGINE}))
         relay.stdin.flush()

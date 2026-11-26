@@ -190,6 +190,8 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
     host runs in its Chrome's environment, launchd's on the Mac.
   - The host imports psutil (decided 2026-11-26): the standard library
     can't read another process's arguments on Windows.
+  - The tile takes the same browser (`window_capture.chrome_of`), for its
+    check that a connection is its Worker's own (`tile._foreign_to`).
 - **Still to build.**
   - Write the key with `winreg`, and a `.bat` wrapper in one fixed folder
     (`home.APP_FOLDER`): a key that named a test's temporary folder would
@@ -200,9 +202,6 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
   - The student's everyday Chrome sees the key too. That is safe: only
     the Worker extension may call the host (`allowed_origins`), and the
     host connects only from a `plain-<k>` profile.
-  - The tile proves that a connection is its Worker's own by the host's
-    parent (`window_capture.chrome_of`, `tile._foreign_to`), which is
-    cmd.exe on Windows: it must take `host.browser_of`'s Chrome.
   - The accounts host: the same key and `.bat`.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows.
@@ -312,7 +311,8 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 
 | Problem | Test, new or extended | The fault it turns red |
 |---|---|---|
-| P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome, with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
+| P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome (`tests/fake_chrome.py`), with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
+| P5 | Built: `tests/test_each_os.py`, the tile's `chrome_of` under the same fake | The tile takes cmd.exe for a Worker's Chrome |
 | P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, and the `.bat` starts the host | Chrome on Windows finds no host |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |

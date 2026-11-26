@@ -32,9 +32,8 @@ from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
-import psutil
-
 from apply.home import CODE
+from apply.plain import host
 
 SOURCE = Path(__file__).with_name("window_capture.swift")
 BUNDLED_NAME = "window-capture"  # the built app's helper, beside its program (scripts/build_app.py)
@@ -108,16 +107,11 @@ def permission_note() -> str:
 
 
 def chrome_of(host_pid: int | None) -> int | None:
-    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID. psutil reads the
-    parent on every OS: `ps` is not on Windows, where the tile's check that a connection is its Worker's own failed
-    on each watch turn."""
-    if not host_pid:
-        return None
-    try:
-        parent = psutil.Process(host_pid).ppid()
-    except psutil.Error:  # gone, or another user's
-        return None
-    return parent if parent > 1 else None
+    """The Chrome that started a Worker's native messaging host: the Worker's PID. The nearest browser above the host
+    (host.browser_of), not its parent: Chrome on Windows starts the host's .bat through cmd.exe, and the tile's
+    check that a connection is its Worker's own took cmd.exe for its Chrome on every Worker."""
+    found = host.browser_of(host_pid) if host_pid else None
+    return found[0] if found else None
 
 
 # What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,

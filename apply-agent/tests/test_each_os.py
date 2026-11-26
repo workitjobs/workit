@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
+import fake_chrome
 import platformdirs
 import psutil
 import pytest
@@ -397,14 +398,22 @@ def test_off_the_mac_a_tile_takes_the_extensions_frames(monkeypatch, system):
     assert window_capture.mode("darwin") == "native"
 
 
-def test_a_hosts_chrome_is_its_parent_read_with_no_ps(monkeypatch):
-    """Fault: chrome_of reads the host's parent with `ps`, which Windows lacks. P3 made the tile reach it there: its
-    check that a connection is its Worker's own failed on each watch turn (found in review, 2026-11-24)."""
+def test_a_hosts_chrome_is_the_browser_above_it_read_with_no_ps(monkeypatch, tmp_path):
+    """Faults: chrome_of reads the host's parent with `ps`, which Windows lacks (found in review, 2026-11-24), or
+    takes the host's parent for its Chrome: on Windows that is cmd.exe, which starts the host's .bat (P5). Either way
+    the tile's check that a connection is its Worker's own fails on every Worker there."""
     def no_ps(*args, **kwargs):
         raise FileNotFoundError("ps")  # as on Windows
 
     monkeypatch.setattr(window_capture.subprocess, "run", no_ps)
-    assert window_capture.chrome_of(os.getpid()) == os.getppid()
+    host = "import os, sys; print(os.getpid(), flush=True); sys.stdin.read()"  # it ends as its stdin closes
+    chrome = subprocess.Popen(fake_chrome.command(tmp_path / "plain-1", sys.executable, "-c", host),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    try:
+        assert window_capture.chrome_of(int(chrome.stdout.readline())) == chrome.pid
+    finally:
+        chrome.stdin.close()
+        chrome.wait(5)
     assert window_capture.chrome_of(None) is None
 
 
