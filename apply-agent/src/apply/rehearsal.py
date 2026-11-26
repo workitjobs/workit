@@ -497,11 +497,19 @@ def rehearse(
             adapters.board.update(n, again=True)
             auto = _Auto(done, adapters, profile, n, submitted_to or adapters.tracker)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
-                    "let_go": lambda: getattr(adapters.board, "let_go_asked", lambda k: False)(n),
+                    "let_go": let_go,
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep,
                     "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
                     "approved": approved, "changed": auto.stop}
+
+        def let_go() -> bool:
+            """Not applying to this one: its slot is given back at once, before its hold unwinds and its tab closes,
+            so the next job opens even while this page is slow to let go (KAN-839)."""
+            if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
+                return False
+            leave_room()
+            return True
 
         def approved(why: str, handoff: bool) -> None:
             """Approve and submit didn't send it: refused (the card says why), or pressed and never confirmed."""
@@ -510,6 +518,9 @@ def rehearse(
                 return
             adapters.board.update(n, status="handoff", why=why, submitting=False, submit_said="", resume=None)
             batch.note(url, status=batch.SENT)  # it may have gone in: never brought back to be sent again
+            # Pressed, and Apply presses it no more: like a sent form, it waits on no Worker, so the next job may open.
+            # Five such held their slots, and the run stalled with jobs queued (live, 2026-11-26).
+            leave_room()
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         def unheld() -> None:

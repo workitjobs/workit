@@ -2103,6 +2103,43 @@ def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monk
     assert second_held_while_first_open == [True]  # the second form opened while the first's tab was still open
 
 
+def test_a_submit_the_job_system_never_confirms_frees_its_slot_while_its_handoff_stays(monkeypatch, tmp_path):
+    """Fault: each form Apply pressed Submit on but the job site never confirmed kept its slot as a handoff, so five of
+    them stalled the run with jobs queued and nothing filling (live, 2026-11-26)."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    approved, second_held_while_first_handed_off = [], []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:  # the first form is approved once
+            if worker == 0 and self.captions.get(0, {}).get("again") and not approved:
+                approved.append(worker)
+                return True
+            return False
+
+        def let_go_asked(self, worker: int) -> bool:
+            if worker == 1 and self.captions.get(1, {}).get("again"):  # the second form opened and was held
+                second_held_while_first_handed_off.append(self.captions[0].get("again") is True)
+                return True
+            return worker == 0 and bool(second_held_while_first_handed_off)
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               2, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert board.captions[0]["why"] == rehearsal.UNCONFIRMED
+    assert second_held_while_first_handed_off == [True]  # the second opened while the first's handoff was held
+
+
 def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_ends(monkeypatch, tmp_path):
     """Fault: Not applying to this one leaves the page held (the run never ends), or submits it."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
