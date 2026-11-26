@@ -12,12 +12,13 @@ never submits.
 """
 
 import json
-import os
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
+
+import psutil
 
 from apply import ask
 from apply.browsers import WorkerBrowsers
@@ -40,11 +41,11 @@ def windows(folder: Path | None = None) -> list[dict]:
     for path in sorted((folder or notes()).glob("*.json")):
         try:
             window = json.loads(path.read_text())
-            os.kill(int(window["pid"]), 0)
-        except ProcessLookupError:
-            path.unlink(missing_ok=True)
-            continue
+            pid = int(window["pid"])
         except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if not psutil.pid_exists(pid):
+            path.unlink(missing_ok=True)
             continue
         found.append(window)
     return found

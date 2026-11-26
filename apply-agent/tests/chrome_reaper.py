@@ -23,6 +23,8 @@ import threading
 import time
 from pathlib import Path
 
+import psutil
+
 _LIST: Path | None = None  # the profiles of this process's Chromes, one a line
 _ALIVE: int | None = None  # the pipe's write end: open for as long as this process lives, never passed to a child
 _LOCK = threading.Lock()
@@ -92,9 +94,7 @@ def stop(pid: int, wait: float = 3.0) -> None:
     deadline = time.monotonic() + wait
     while time.monotonic() < deadline:
         time.sleep(0.1)
-        try:
-            os.kill(pid, 0)
-        except OSError:
+        if not psutil.pid_exists(pid):
             return
     try:
         os.kill(pid, signal.SIGKILL)

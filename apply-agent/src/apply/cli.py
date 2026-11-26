@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import psutil
 import yaml
 
 from apply import (
@@ -615,16 +616,7 @@ def _ask(target: str | None, message: str | None, listed: bool, out: Callable[[s
         except urllib.error.HTTPError as error:
             raise ask.AskRefused(json.loads(error.read() or b"{}").get("error") or str(error)) from None
 
-    def alive(pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-            return True
-        except (ProcessLookupError, ValueError):
-            return False
-        except PermissionError:
-            return True
-
-    forms = ask.windows(WorkerBrowsers().profiles / ask.WINDOWS, alive, fetch)
+    forms = ask.windows(WorkerBrowsers().profiles / ask.WINDOWS, psutil.pid_exists, fetch)
     if listed or not target:
         out("\n".join(f.line() for f in forms) or "No form is open in an Apply window.")
         return 0

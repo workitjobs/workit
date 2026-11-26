@@ -1088,23 +1088,27 @@ on Windows each one stops Apply:
 
 - **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
   `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
-  at their top, which Windows lacks, so Apply can't even start there. A
-  cross-platform lock library (such as `filelock`) does the job (W4's
-  rules).
+  at their top, which Windows lacks, so Apply can't even start there. Built
+  (KAN-929): every lock goes through `apply.locks`, on `portalocker`
+  (`windows_desktop.md`, P1).
 - **The channel between Apply and the plain Workers.** `plain/bridge.py`,
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with
   `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
-  table).
+  table). Built (KAN-929): `plain/channel.py`, a named pipe on Windows,
+  checked in both directions (`windows_desktop.md`, P4).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
-  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
+  the Worker's Chrome. Built (KAN-929): every such check is
+  `psutil.pid_exists` (`windows_desktop.md`, P2).
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
   PID read find nothing there, and Show brings no CDP Worker forward: it
   brings one only when the lock names a running Chrome, since Chrome
-  leaves its `DevToolsActivePort` file behind when it quits.
+  leaves its `DevToolsActivePort` file behind when it quits. Built
+  (KAN-929): on Windows `chrome_pid` finds the Chrome by its arguments
+  (`windows_desktop.md`, P3).
 - Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
@@ -1935,13 +1939,14 @@ Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
-lock, signals, the hosts' wrappers, the seed guide's words).
+lock, signals, the hosts' wrappers, the seed guide's words), and
+`windows_desktop.md` (KAN-929) takes them one at a time.
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port; `windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |

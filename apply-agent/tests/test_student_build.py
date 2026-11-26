@@ -322,6 +322,15 @@ def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
     assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
 
 
+def test_the_compiled_apps_relay_finds_its_channel_with_no_py_file(tmp_path, monkeypatch):
+    """Fault: the compiled app's relay loads channel.py from beside host.py, a file the app doesn't ship, so every
+    plain Worker's host stops before it connects to Apply and none says hello (W8, KAN-929)."""
+    from apply.plain import channel, host
+
+    monkeypatch.setattr(host, "__file__", str(tmp_path / "host.py"))  # as in the app: no .py file beside it
+    assert host._channel(compiled=True) is channel
+
+
 def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):
     """Fault: the compiled app builds the window capture helper with swiftc, which a student's Mac lacks, so every
     plain Worker's tile drops to the slow captureVisibleTab path; or it films with a helper left in a cache folder

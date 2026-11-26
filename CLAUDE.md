@@ -259,6 +259,10 @@ with the failure it prevents.
   server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
   data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
+- `docs/windows_desktop.md` — KAN-929, being built (its section 7 says
+  where): what stops Apply on Windows, one problem per section with its
+  fix and test, and why Workers copy a WorkIt-only seed. Read it before
+  porting any part of Apply to Windows.
 - `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
   how developers keep testing Apply once its prompts live on the server
   (a prompt route for developer accounts, so `ask_model: claude` runs

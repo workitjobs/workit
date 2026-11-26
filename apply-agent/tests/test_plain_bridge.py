@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from apply.plain import extension, host
+from apply.plain import channel, extension, host
 from apply.plain.bridge import (
     CHUNK_OVER,
     FEATURES,
@@ -58,8 +58,7 @@ def bridge():
 def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None, packaged=None,
                 install_type=None) -> socket.socket:
     """A relay plus extension: says relay and hello, as the host and the worker extension do."""
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(str(bridge.path))
+    sock = channel.connect(bridge.path)  # as the host connects: the check in both directions first
     sock.sendall(frame({"type": "relay", "protocol": 1, "worker": worker, "origin": origin, "host_pid": 1}))
     sock.sendall(frame({"type": "hello", "protocol": protocol, "extension": "0.1.0", "engine": engine,
                         "packaged": packaged, "installType": install_type, "webdriver": False,
@@ -83,7 +82,9 @@ def serve(sock, answer):
 
 
 def test_the_socket_is_only_lisuls(bridge):
+    """Fault: the socket or its secret is readable by other users (the secret proves a host is Apply's, P4)."""
     assert stat.S_IMODE(os.stat(bridge.path).st_mode) == 0o600
+    assert stat.S_IMODE(os.stat(channel.secret_path(bridge.path)).st_mode) == 0o600
 
 
 def test_a_long_data_folder_puts_the_socket_under_tmp():

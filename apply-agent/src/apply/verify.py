@@ -8,7 +8,6 @@ contradict each other, an essay wrong for its question) are the Pre-submit
 review's (apply.presubmit), whose findings join the flags. Verifying only
 reads: it never clicks, types or submits."""
 
-import fcntl
 import json
 import os
 import re
@@ -17,7 +16,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 
-from apply import fill_engine
+from apply import fill_engine, locks
 from apply.home import HOME
 from apply.model import (
     Answers,
@@ -224,9 +223,7 @@ def dismissed(application_id: str) -> set[tuple[str, str]]:
 
 def dismiss(application_id: str, field: str, why: str) -> None:
     """Lisul dismissed this flag of this Application: it holds it no more, in this run or the next."""
-    DISMISSED.parent.mkdir(parents=True, exist_ok=True)
-    with open(DISMISSED.with_suffix(".lock"), "a") as lock:  # the window's threads and other runs share the file
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with locks.held(DISMISSED.with_suffix(".lock")):  # the window's threads and other runs share the file
         every = _read_dismissed()
         mine = every.setdefault(str(application_id), [])
         if [field, why] not in mine:

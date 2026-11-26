@@ -3,20 +3,23 @@
 Chrome starts it when the worker extension calls connectNative("com.workit.apply_worker"),
 through the wrapper in that Worker profile's NativeMessagingHosts folder, which adds
 `--socket <path> --worker <k>`; Chrome adds the caller's origin. It connects to Apply's
-socket, says which Worker it is, then relays frames both ways unchanged: Chrome's framing
-(a 4-byte length in native byte order, then UTF-8 JSON) is also the socket's.
+channel (plain/channel.py: the Unix socket at <path>, or its named pipe on Windows) and passes the
+check in both directions with the secret beside <path>, says which Worker it is, then relays frames
+both ways unchanged: Chrome's framing (a 4-byte length in native byte order, then UTF-8 JSON) is
+also the channel's.
 
 Stdlib only, run with `python3 -I`, so it needs nothing from Apply's environment. The
 compiled app has no Python: its own program runs this relay when APP_FLAG comes first
 (scripts/app_entry.py, W8).
 """
 
+import importlib.util
 import json
 import os
-import socket
 import struct
 import sys
 import threading
+from pathlib import Path
 
 PROTOCOL = 1
 APP_FLAG = "--worker-host"  # the compiled app's program, started with this first, is this relay
@@ -42,12 +45,24 @@ def frames(stream):
         yield head + body
 
 
+def _channel(compiled: bool = "__compiled__" in globals()):
+    """The channel (plain/channel.py). A checkout loads channel.py beside this file by its path, so the host imports
+    nothing else of Apply's. The compiled app (W8) has no .py file: its program has the channel compiled in."""
+    if compiled:
+        from apply.plain import channel
+
+        return channel
+    spec = importlib.util.spec_from_file_location("apply_channel", Path(__file__).with_name("channel.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main(argv: list[str]) -> None:
     path = argv[argv.index("--socket") + 1]
     worker = int(argv[argv.index("--worker") + 1])
     origin = next((a for a in argv if a.startswith("chrome-extension://")), "")
-    apply = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    apply.connect(path)
+    apply = _channel().connect(Path(path))
     first = json.dumps({"type": "relay", "protocol": PROTOCOL, "worker": worker, "origin": origin,
                         "host_pid": os.getpid()}).encode()
     apply.sendall(struct.pack("=I", len(first)) + first)
