@@ -749,3 +749,49 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
         assert bridge.set_best_model(False) == {"best": False}
         assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
+    """Fault: a js_api method's return that comes back after load_html replaced its page (a long `matches` wait,
+    then Go on) raises JavascriptException in pywebview's reply thread, and its traceback floods the log."""
+    class JavascriptException(Exception):
+        pass
+
+    class Window:
+        def evaluate_js(self, script):
+            if "missing" in script or "broken" in script:
+                raise JavascriptException({"name": "TypeError" if "missing" in script else "ReferenceError"})
+            return "ran"
+
+    window = Window()
+    app_window.late_replies(window)
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["missing"]({value: "[]"})') is None
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["7"]({value: "[]"})') == "ran"
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("broken()")
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("missing()")  # not a reply: its error is the page's own
+
+
+def test_the_apps_output_goes_out_a_line_at_a_time_even_to_a_file(tmp_path):
+    """Fault: under nohup stdout is a file, so the run's lines sat in a block buffer and its log couldn't be followed."""
+    import io
+
+    from apply import masked
+
+    with open(tmp_path / "app.log", "w") as log:
+        app_window.line_by_line(masked._Scrubbing(log))
+        assert log.line_buffering
+        log.write("Took a link\n")
+        assert (tmp_path / "app.log").read_text() == "Took a link\n"
+    app_window.line_by_line(io.StringIO())  # a stream that can't change stays as it is
+
+
+def test_links_sent_in_are_taken_once_per_posting(tmp_path):
+    """Fault: a Greenhouse job sent in by its board link, then by its embed link (one token), was queued twice."""
+    inbox = tmp_path / "inbox"
+    app_window.send_links(["https://job-boards.greenhouse.io/acme/jobs/6270727004"], inbox)
+    app_window.send_links(["https://job-boards.greenhouse.io/embed/job_app?for=acme&token=6270727004",
+                           "https://jobs.lever.co/acme/2"], inbox)
+    assert app_window.take_links(inbox) == ["https://job-boards.greenhouse.io/acme/jobs/6270727004",
+                                            "https://jobs.lever.co/acme/2"]

@@ -592,7 +592,8 @@ class Bridge:
             return
         if not self.signed_in() or self._first.step() != READY:
             return  # they stay in the inbox till the student is signed in and set up
-        links = [link for link in take_links(inbox) if link not in self._waiting]
+        waiting = {workit.job_key(link) for link in self._waiting}
+        links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
         if self._running.is_set():
             for link in links:
                 try:
@@ -836,8 +837,8 @@ def send_links(links: list[str], inbox: Path = INBOX) -> Path:
 
 
 def take_links(inbox: Path = INBOX) -> list[str]:
-    """The links sent in since the last take, oldest first, each once; every file read is removed. A file that isn't
-    a list of links is dropped."""
+    """The links sent in since the last take, oldest first, one per posting (workit.job_key: a Greenhouse board's
+    link and its embed's are one job); every file read is removed. A file that isn't a list of links is dropped."""
     links: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
@@ -845,7 +846,11 @@ def take_links(inbox: Path = INBOX) -> list[str]:
         except (OSError, ValueError, KeyError, TypeError):
             pass
         path.unlink(missing_ok=True)
-    return list(dict.fromkeys(link for link in links if LINK.match(link)))
+    kept: dict[str, str] = {}
+    for link in links:
+        if LINK.match(link):
+            kept.setdefault(workit.job_key(link), link)
+    return list(kept.values())
 
 
 def running(note: Path = PID_NOTE) -> int | None:
@@ -876,6 +881,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window
+    late_replies(window)
     closing(window)
     window.events.closing += lambda: guard_close(window, bridge)
     threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
@@ -891,6 +897,38 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+def line_by_line(*streams) -> None:
+    """Each line goes out as it is written: under nohup, stdout and stderr are files, so Python held the run's lines
+    in a block buffer, and its log could not be followed live (nor read whole after a crash). A stream that can't
+    change (a test's capture) stays as it is."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+REPLY = 'window.pywebview._returnValuesCallbacks["'  # how pywebview hands a js_api method's return to the page
+
+
+def late_replies(window) -> None:
+    """A js_api method's return that comes back after its page was replaced (load_html: Go on, Back, the board) finds
+    no callback there: pywebview's reply thread raised JavascriptException ("... is not a function") and logged a
+    traceback with the whole reply, a long `matches` wait's 30 jobs in it. No page waits on it, so it is dropped. Any
+    other script's error still raises."""
+    evaluate = window.evaluate_js
+
+    def replying(script, *args, **kwargs):
+        try:
+            return evaluate(script, *args, **kwargs)
+        except Exception as error:
+            gone = type(error).__name__ == "JavascriptException" and "TypeError" in str(error)
+            if isinstance(script, str) and script.startswith(REPLY) and gone:
+                return None
+            raise
+    window.evaluate_js = replying
 
 
 def close_words(held: int) -> str:

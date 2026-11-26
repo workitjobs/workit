@@ -36,3 +36,22 @@ def test_none_or_several_and_it_presses_nothing(browser):
     with pytest.raises(send_button.NotPressed, match="'Submit', 'Send to a friend'"):
         send_button.press(page)
     assert page.evaluate("window.pressed") == []
+
+
+def test_a_press_that_sends_the_page_away_is_unsure_never_none(browser):
+    """Fault: a Submit whose page navigates away (Lever's whole-page post) ends the click with an error, and Apply
+    reads that as no Submit button found, so it never watches for the job site's confirmation."""
+    page = page_of(browser, """<button onclick="setTimeout(() => location.href = 'about:blank#thanks', 0)">Submit</button>""")
+    real = page.frames[0].locator
+
+    class Lost:
+        def __init__(self, selector):
+            self._real = real(selector)
+
+        def click(self, **kwargs):
+            self._real.click(**kwargs)
+            raise RuntimeError("Navigated: the click's reply was lost")
+    page.frames[0].locator = Lost
+    with pytest.raises(send_button.Unsure) as unsure:
+        send_button.press(page)
+    assert unsure.value.words == "Submit"

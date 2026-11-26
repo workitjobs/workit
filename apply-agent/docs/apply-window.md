@@ -34,8 +34,14 @@ docstring first.
   one file in `APPLY_HOME/app-inbox/`; the window takes them every 2 s
   (`Bridge._take_inbox`) once signed in and set up. With no run going they
   start one, as Start does; during a run each joins it (`Dashboard.into`),
-  else it waits for the next run. With no window open, the command opens
+  else it waits for the next run. Each posting is taken once
+  (`workit.job_key`): a Greenhouse board's link and its embed's link with
+  the same token are one job, both in one take and against the links
+  already waiting or in the run (`rehearse`'s `into` answers with the
+  tile that has it). With no window open, the command opens
   one, which starts them. `APPLY_HOME/app.pid` names the running window.
+  Its stdout and stderr are line-buffered (`line_by_line`), so a log
+  written under nohup can be followed live.
 - The window from a terminal (`uv run apply window ...`,
   `src/apply/app_control.py`): an agent reads and drives the window as
   JSON, with no screen automation. Use it before any screenshot or
@@ -84,6 +90,11 @@ docstring first.
   same token and Origin checks. A new route needs nothing more. The
   frame streams (`/frames`, `/stream/k`) never go through it, since their
   answer never ends: the shim makes `/frames` from `Bridge.frames`.
+- A `js_api` method's return that comes back after its page was
+  replaced (`load_html`: Go on, Back, the board), such as a `matches`
+  wait of up to 90 seconds, finds no callback on the new page.
+  `late_replies` drops it, so pywebview's reply thread logs no
+  JavascriptException; any other script's error still raises.
 - Closing the window or quitting the app closes every form held for the
   student, so it asks first only while one is (`guard_close`): pywebview's
   `confirm_close`, with its question naming how many (`close_words`:
@@ -243,9 +254,12 @@ for a student, not from `dashboard_page.py`.
   (the tile's `fixed`, from `_Planned.fix`), the card says "We changed
   N answers after checking" with each "question: old → new"
   (`changes`).
-- **The Check card** (`flagged`) lists every flag verifying says needs
-  the student, each with its question, in WorkIt's words, then "Fix it
-  in the form, then press Submit there." Like every card, it has no
+- **The Check card** (`toCheck`) lists every flag verifying says needs
+  the student, each with its question, in WorkIt's words (`flagged`).
+  With no flags it lists each part of the form's reason in the same
+  words, never "Something went wrong" for a reason that names the
+  Pre-submit review; with no part left, "One answer doesn't match your
+  WorkIt profile." Then "Fix it in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
 - **Handing back.** Each to-do card says how the student hands the form
   back (`HANDOFF` in `view.ts`): sign in yourself in the window that
@@ -319,7 +333,10 @@ for a student, not from `dashboard_page.py`.
 - **At most five forms open.** Each open form is a browser window, so a
   rehearsal opens at most `rehearsal.OPEN_FORMS` (5) at once: a job takes
   a slot before its form opens and gives it back when its page closes
-  (sent, let go, or its window closed). The run says the cap
+  (sent, let go, or its window closed). A form gives it back at once,
+  with its tab still open, when it is sent, when the student presses Not
+  applying to this one, and when Apply pressed its Submit but the job
+  site never confirmed it (that Handoff waits on no Worker). The run says the cap
   (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
@@ -355,7 +372,9 @@ for a student, not from `dashboard_page.py`.
   Send button, in the page or a frame, and with none or several it
   presses nothing and the card says why. It refuses while an answer is
   still needed, while Submit is held on the page (a red note, an earlier
-  application), and after any Submit. The job system's confirmation is
+  application), and after any Submit. A click that never answers, as a
+  Submit that sends the whole page away can end it (`send_button.Unsure`),
+  counts as pressed. The job system's confirmation is
   read as for the student's own press; with none within two minutes
   (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
   form becomes a Handoff that says it may have gone in, and Apply never

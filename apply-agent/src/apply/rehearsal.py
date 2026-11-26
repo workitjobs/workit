@@ -70,6 +70,7 @@ from apply import (
     upload_origin,
     verify,
     workday,
+    workit,
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
 from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
@@ -303,8 +304,8 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
-    # Forms open at once (OPEN_FORMS): taken before a form opens, given back when its page closes. Start together
-    # opens every form before any fills, so it isn't capped.
+    # Forms open at once (OPEN_FORMS): taken before a form opens, given back once it is submitted or its page closes.
+    # Start together opens every form before any fills, so it isn't capped.
     room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
     if not together:
         adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
@@ -329,6 +330,9 @@ def rehearse(
     writing = threading.Lock()
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
+    # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
+    # to that posting (a Greenhouse board's link, then its embed's), joins it no more (KAN-839).
+    posted = {workit.job_key(url): n for n, url in reversed(list(enumerate(urls)))}
 
     def told() -> None:  # under `writing`
         adapters.board.run(queued=len(waiting), waiting=list(waiting.values()))
@@ -393,6 +397,7 @@ def rehearse(
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
+            leave_room()  # sent: its thank-you tab may stay open, but it waits on no one, so the next job may open
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
             if together:
@@ -492,11 +497,19 @@ def rehearse(
             adapters.board.update(n, again=True)
             auto = _Auto(done, adapters, profile, n, submitted_to or adapters.tracker)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
-                    "let_go": lambda: getattr(adapters.board, "let_go_asked", lambda k: False)(n),
+                    "let_go": let_go,
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep,
                     "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
                     "approved": approved, "changed": auto.stop}
+
+        def let_go() -> bool:
+            """Not applying to this one: its slot is given back at once, before its hold unwinds and its tab closes,
+            so the next job opens even while this page is slow to let go (KAN-839)."""
+            if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
+                return False
+            leave_room()
+            return True
 
         def approved(why: str, handoff: bool) -> None:
             """Approve and submit didn't send it: refused (the card says why), or pressed and never confirmed."""
@@ -505,6 +518,9 @@ def rehearse(
                 return
             adapters.board.update(n, status="handoff", why=why, submitting=False, submit_said="", resume=None)
             batch.note(url, status=batch.SENT)  # it may have gone in: never brought back to be sent again
+            # Pressed, and Apply presses it no more: like a sent form, it waits on no Worker, so the next job may open.
+            # Five such held their slots, and the run stalled with jobs queued (live, 2026-11-26).
+            leave_room()
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         def unheld() -> None:
@@ -582,7 +598,7 @@ def rehearse(
         while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
             roomy[0] = room.acquire(timeout=0.5)
 
-        def leave_room() -> None:  # its page closed, or it never opened: the next job may open its form
+        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
             if roomy[0]:
                 roomy[0] = False
                 room.release()
@@ -670,7 +686,11 @@ def rehearse(
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
+            if (same := posted.get(workit.job_key(url))) is not None and same not in dropped:
+                out(f"{url} | already in this run: it is the same posting, so it isn't taken twice")
+                return {"tile": same, "worker": worker, "already": True}
             n = adapters.board.add_tile(worker)
+            posted[workit.job_key(url)] = n
             waiting[n] = url
             told()
             thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
@@ -1752,6 +1772,9 @@ class _Kept:
                     if not why:
                         try:
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
+                            pressing = time.monotonic()
+                        except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
+                            heard(unsure.words)
                             pressing = time.monotonic()
                         except send_button.NotPressed as refused_press:
                             why = str(refused_press)
