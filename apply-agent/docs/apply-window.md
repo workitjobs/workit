@@ -36,6 +36,45 @@ docstring first.
   start one, as Start does; during a run each joins it (`Dashboard.into`),
   else it waits for the next run. With no window open, the command opens
   one, which starts them. `APPLY_HOME/app.pid` names the running window.
+- The window from a terminal (`uv run apply window ...`,
+  `src/apply/app_control.py`): an agent reads and drives the window as
+  JSON, with no screen automation. Use it before any screenshot or
+  accessibility tool. It works in a Developer checkout's window only
+  (`build.DEVELOPER`), and a window opened before the command existed
+  never answers: quit it and open it again.
+  - `state` prints what the window shows, sorted as the student page sorts
+    it: `needs_you`, `working`, `applied`, `stopped` and `waiting` (queued
+    links), plus `window` (sign-in, first run or the page), `summary` and
+    `run`. Each job has its `tile` and `id`, company, title, URL, `status`,
+    `stage` and `doing`. A held form also has every answer and its
+    `source`, its Pre-submit `flags` (dismissed ones left out),
+    `legal_holds`, `missing` (each question, whether it is required, its
+    choices and the planned answer), `essays`, `why_not` (Auto-submit's
+    reason) and the path of its Record's `screenshot`. `applied` lists
+    what WorkIt's Tracker says was applied to.
+  - `submit <tile> --yes`, `cancel <tile>`, `skip <tile> --yes`,
+    `fill-again <tile>`, `answer <id> "<question>" "<answer>"` (or
+    `--file <path>`), `remove <link>` and `stop --yes` (or `--new-only`)
+    are the page's buttons. Each posts to the route its button posts to,
+    through `Bridge.request` with the board's token, so it has the same
+    checks and refusals. `submit` is Approve and submit: POST /submit, and
+    the run presses the form's Submit (`send_button.press`), reads the
+    confirmation and makes a Handoff without one. `--yes` stands in for
+    the window's second question. `add <link>...` sends links through
+    `app-inbox`, as `apply app <link>` does: the window takes them once
+    signed in and set up.
+  - The channel is a folder, `APPLY_HOME/app-control/`. The command writes
+    one `.request` file (written whole, then renamed). The window looks
+    every 0.25 s, renames it `.taken`, answers in a thread of its own and
+    writes a `.reply` the same way. A request carries when it expires, so
+    a submit the window hadn't taken when the command gave up (after 30 s)
+    is never pressed later. One it took but answered late may still go
+    through: the command says so, and `state` shows whether it did.
+    The folder takes action names, never routes: `/start`, Settings and
+    the developer routes can't be reached through it.
+  - Output goes through the masked printer, like every command: a value
+    from the profile prints as its key, never the value. The exit code is
+    1 when the window refused or isn't open.
 - `Dashboard(serve=False)` binds nothing. The window loads the Apply
   window's page as a string, with `app_window.SHIM` right after its first
   `<meta charset="utf-8">`, before the page's scripts.

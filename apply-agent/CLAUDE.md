@@ -141,6 +141,16 @@ has neither.
   yourself. `uv run apply ask --list` lists every open form. Print the reply
   to him. Never press the offer's Save for him: only his click in the window
   saves to his sources.
+- **WorkIt Auto Apply's window, from a terminal:** read and drive it with
+  `uv run apply window ...` (from `apply-agent/`), never a screenshot or an
+  accessibility tool first. `uv run apply window state` prints every job as the
+  window shows it, as JSON: each held form's answers and their sources, its
+  Pre-submit flags, legal holds, Missing facts, Essays, Auto-submit's reason and
+  its screenshot's path. `submit`, `cancel`, `skip`, `fill-again`, `answer`,
+  `remove` and `stop` are the window's own buttons, with their own checks;
+  `add` sends links as `apply app <link>` does. Submit only when Lisul says to, and never turn on `live_runs`. Use
+  screen automation only when the command can't do the job, and say why
+  (`docs/apply-window.md`, "The window from a terminal").
 - **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It never
   types into a sign-in: Lisul signs in on each "needs sign-in" tile.
 - **A next posting on a job site a running Worker is signed in to:** send it
@@ -175,7 +185,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
-- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), or what a Record keeps.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), the window read and driven from a terminal (`apply window`, `app_control.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
