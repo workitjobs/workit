@@ -284,6 +284,26 @@ for a student, not from `dashboard_page.py`.
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
   not capped.
+- **Auto-submit** (ADR 0006, `apply.auto_submit`). With `auto_submit: true`
+  in a Developer checkout's policies.yaml (off by default; the Student build
+  reads no policies.yaml), a held form that needs nobody counts down ten
+  minutes and then is pressed as Approve and submit presses it. Its Review
+  card shows "We'll submit this in 9:42 unless you cancel." with Cancel
+  (`POST /auto-cancel`) and Submit now, and a notification says it is
+  coming ("Open Auto Apply to cancel": macOS notifications from osascript
+  carry no buttons, so Cancel lives in the window). A form needs nobody
+  when it passed the Pre-submit check with no flags, no Missing fact, no
+  legal hold and no reason to hold it (so never in the Calibration run);
+  has no Essay, in a text box or as a file; never paused (a sign-in,
+  captcha or code); names its company, and it isn't a Target company; is
+  on a job system that emails no code after Submit (Greenhouse does); had
+  no Employer account made for it today; and is on a job system Apply has
+  submitted to before ("other", any careers site Apply doesn't know, never
+  counts). Any other form's card says why it waits ("Waiting for you: it
+  has an Essay."). Any answer Apply changes on the page during the wait
+  (from the window, Ask Claude or a regenerate) ends the countdown, and a
+  Cancel that lands as the wait runs out either stops the press or is
+  refused, never both (`Dashboard.auto_go`).
 - **Review card, Approve and submit** (ADR 0006). A form ready to submit
   is a Review card: what was checked, what the Pre-submit review changed,
   the answers worth a look (Essays, work authorization, demographics,
