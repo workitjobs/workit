@@ -34,6 +34,10 @@ reads: it does not click, type or submit.
   section read back with more entries than the plan gave it (JPMorgan's
   Oracle kept a Princeton entry the profile doesn't list), and an employer
   field of a work entry Apply didn't fill that names no job on file.
+  The engine reads Greenhouse's location from the form's own state, not
+  from the text of its box. A place that the box shows but that the form
+  does not hold reads back blank, so the read-back flags it. Submit
+  refuses such a place with "Please enter your location" (Addepar's).
   Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
