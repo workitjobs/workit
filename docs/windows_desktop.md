@@ -496,7 +496,10 @@ for each fix, section 6 the tests, and section 7 the order.
     failure of a read counts as "closed". And a blocked `accept` doesn't
     wake when the listener closes, so `close` first connects once to its
     own pipe: else the pipe stays, and the next Bridge in the same process
-    (a run after the seed's setup) can't make it again. The Bridge already
+    (a run after the seed's setup) can't make it again. Then `close` waits,
+    for 1 s at most, till the woken accept has closed its end of that
+    connection: Windows makes no pipe of that name while the end is open,
+    so a channel made again at once was `Busy`. The Bridge already
     sends under a lock, which the pipe needs: it refuses two sends at once.
   - **The check in both directions.** When a channel starts, it writes a
     new random secret, 32 bytes, beside its address (`workers.key` beside
@@ -530,9 +533,13 @@ for each fix, section 6 the tests, and section 7 the order.
     the client; an old answer fails a new challenge; a drive reads its
     lines through `makefile`; a close wakes a blocked reader (the socket
     and the pipe); a closed channel listens again in the same process; and
-    `close` wakes an accept that closing the listener leaves blocked, with
-    a fake listener that plays the pipe (macOS wakes a blocked accept by
-    itself, so only a fake shows the fault there).
+    `close` wakes an accept that closing the listener leaves blocked, and
+    returns only once that accept closed its end and raised, with a fake
+    listener that plays the pipe (macOS wakes a blocked accept by itself,
+    so only a fake shows the fault there). A check in a thread of its own
+    can't fail a test (pytest only warns), so each test asserts in its own
+    thread: a review found that taking out the accept's closing check
+    failed no test.
   - `tests/test_each_os.py`: a Windows path makes a named pipe, one for
     each folder, and never reaches `os.getuid`; its source test fails on a
     Unix socket made outside the channel.

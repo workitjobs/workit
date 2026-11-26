@@ -33,6 +33,7 @@ import os
 import secrets
 import socket
 import sys
+import threading
 from pathlib import Path
 from typing import Self
 
@@ -147,6 +148,7 @@ class ConnectionListener(Listener):
         from multiprocessing.connection import Listener as Connections
 
         self._address, self._family, self._closing = address, family, False
+        self._accepting = threading.Lock()  # held while an accept waits: close waits for it to give its pipe back
         try:
             self._listener = Connections(address, family)
         except OSError as error:  # Windows: the pipe is made already (FILE_FLAG_FIRST_PIPE_INSTANCE)
@@ -154,10 +156,11 @@ class ConnectionListener(Listener):
         super().__init__(path)
 
     def accept(self) -> "Messages":
-        connection = self._listener.accept()
-        if self._closing:  # close's own connection, which woke this accept
-            connection.close()
-            raise OSError("the channel is closed")
+        with self._accepting:
+            connection = self._listener.accept()
+            if self._closing:  # close's own connection, which woke this accept
+                connection.close()
+                raise OSError("the channel is closed")
         return Messages(connection)
 
     def close(self) -> None:
@@ -166,6 +169,10 @@ class ConnectionListener(Listener):
             open_connection(self._address, self._family).close()
         except OSError:
             pass
+        # The woken accept holds its end of the pipe till it closes it, and Windows makes no pipe of that name till
+        # then: without this wait, a channel made again at once on the same path is Busy.
+        if self._accepting.acquire(timeout=1):
+            self._accepting.release()
         self._listener.close()
         super().close()
 

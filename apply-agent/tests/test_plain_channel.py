@@ -13,6 +13,8 @@ import socket
 import struct
 import tempfile
 import threading
+import time
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -215,7 +217,12 @@ def test_a_closed_channel_listens_again_in_the_same_process(entry, folder):
     wake frees; macOS and Linux free a socket's path as it closes, so this fault shows on Windows."""
     path = folder / "c.sock"
     first = listening(entry, path)
-    threading.Thread(target=lambda: pytest.raises(OSError, first.accept), daemon=True).start()  # as the Bridge's
+
+    def blocked():  # as the Bridge's accept thread; what its accept gives is the next test's
+        with suppress(OSError):
+            first.accept()
+
+    threading.Thread(target=blocked, daemon=True).start()
     first.close()
     second = listening(entry, path)
     try:
@@ -227,32 +234,50 @@ def test_a_closed_channel_listens_again_in_the_same_process(entry, folder):
         second.close()
 
 
-def test_close_wakes_an_accept_that_closing_the_listener_leaves_blocked(folder, monkeypatch):
-    """Fault: ConnectionListener.close doesn't wake its blocked accept. On Windows a pipe's accept stays blocked when
-    the listener closes, and holds the pipe, so no channel can be made on that path again in the process. macOS wakes
-    a blocked accept as its socket closes, so a fake listener plays Windows' pipe here: only a connection wakes it."""
-    arrived = threading.Event()
+def test_close_wakes_an_accept_and_waits_till_it_gave_the_pipe_back(folder, monkeypatch):
+    """Fault: ConnectionListener.close doesn't wake its blocked accept, returns before the woken accept closed its
+    end of the pipe, or the woken accept hands close's own connection on as a new one. On Windows a pipe's accept
+    stays blocked when the listener closes, and Windows makes no pipe of that name while the woken accept's end is
+    open, so a channel made again at once on that path is Busy. macOS wakes a blocked accept as its socket closes, so
+    a fake listener plays Windows' pipe here: only a connection wakes it, and its thread takes a while to run."""
+    waiting, arrived, gave_back = threading.Event(), threading.Event(), threading.Event()
 
     class Pipe:  # multiprocessing's Listener as Windows' named pipe behaves
         def __init__(self, address, family):
             pass
 
         def accept(self):
+            waiting.set()
             arrived.wait()
-            return Gone()
+            time.sleep(0.2)  # timed on purpose: the woken thread runs again later than close's own steps take
+            return Woken()
 
         def close(self):
             pass  # wakes nothing
 
-    class Gone:
+    class Woken:  # the accept's end of close's own connection
+        def close(self):
+            gave_back.set()
+
+    class Gone:  # close's end of it
         def close(self):
             pass
 
     monkeypatch.setattr("multiprocessing.connection.Listener", Pipe)
     monkeypatch.setattr(channel, "open_connection", lambda address, family: (arrived.set(), Gone())[1])
     listener = channel.ConnectionListener(r"\\.\pipe\test", "AF_PIPE", folder / "c.sock")
-    accepting = threading.Thread(target=lambda: pytest.raises(OSError, listener.accept), daemon=True)
+    got = {}
+
+    def accept():
+        try:
+            got["connection"] = listener.accept()
+        except OSError:
+            got["connection"] = None
+
+    accepting = threading.Thread(target=accept, daemon=True)
     accepting.start()
+    waiting.wait(5)
     listener.close()
+    assert gave_back.is_set()  # before close returned
     accepting.join(5)
-    assert not accepting.is_alive()
+    assert got == {"connection": None}  # it raised: close's own connection is no new one
