@@ -34,6 +34,7 @@ DEVELOPER = frozenset({
     "apply.tracker_cleanup",  # `apply clean-tracker`
     "apply.doctor",
     "apply.cli",  # every command that runs from a terminal
+    "apply.app_control",  # `apply window`: the window read and driven from a terminal
 })
 
 # The Student build's policies, laid over policies.default.yaml. It reads no policies.yaml, so every key is the

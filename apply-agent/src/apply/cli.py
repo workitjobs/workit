@@ -1,7 +1,9 @@
 """The `apply` command."""
 
 import argparse
+import base64
 import imaplib
+import json
 import os
 import queue
 import re
@@ -259,6 +261,32 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
     checked.add_argument("--open", action="store_true", help="the open forms instead (apply reopen): which of their "
                                                               "sites wait on your sign-in now, and in which Browser")
+    shown = commands.add_parser("window", help="read and drive the running WorkIt Auto Apply window (`apply app`) as "
+                                               "JSON, through its own buttons' routes: use it before any screen tool")
+    window_commands = shown.add_subparsers(dest="window_command", required=True)
+    window_commands.add_parser("state", help="every job as the window shows it: Needs you, Still working on, Applied, "
+                                             "Didn't go through, each held form's answers, flags and screenshot")
+    window_commands.add_parser("applied", help="what you applied to on WorkIt, newest first (the window's Applied)")
+    for name, does in (("submit", "Approve and submit: the run presses the held form's own Submit"),
+                       ("cancel", "Cancel a held form's Auto-submit countdown"),
+                       ("skip", "Not applying to this one: the held form is let go, unsubmitted"),
+                       ("fill-again", "Try again: fill the held form anew")):
+        acted = window_commands.add_parser(name, help=does)
+        acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
+        if name in ("submit", "skip"):
+            acted.add_argument("--yes", action="store_true", help="you mean it: it can't be undone")
+    answered = window_commands.add_parser("answer", help="answer a Needs-you question, as its card does")
+    answered.add_argument("id", help="the job's `id` from `apply window state`")
+    answered.add_argument("question", help="the question, word for word, from its `missing`")
+    answered.add_argument("answer", nargs="?", default="", help="the answer; none skips an optional question")
+    answered.add_argument("--file", type=Path, help="a file the question asks for, in place of an answer")
+    removed = window_commands.add_parser("remove", help="Remove a job waiting to start from the run")
+    removed.add_argument("link", help="its `link` from the state's `waiting`")
+    added = window_commands.add_parser("add", help="add job links: a run of them, or into the run going")
+    added.add_argument("links", nargs="+")
+    stopped = window_commands.add_parser("stop", help="Stop applying: every held form closes, unsubmitted")
+    stopped.add_argument("--new-only", action="store_true", help="Stop new ones only: held forms stay open")
+    stopped.add_argument("--yes", action="store_true", help="you mean it: every held form closes")
     data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
@@ -273,7 +301,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
     if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
-                            "preflight", "data") and home.fill_from_sample():
+                            "preflight", "data", "window") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -483,8 +511,50 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print("\n".join(shown))
     elif args.command == "ask":
         sys.exit(_ask(args.target, args.message, args.list))
+    elif args.command == "window":
+        sys.exit(_window(args))
     elif args.command == "plain":
         _plain(args)
+
+
+def _window(args) -> int:
+    """`apply window`: one action of the running WorkIt Auto Apply window (apply.app_control), its reply printed as
+    JSON. 0 when the window did it, 1 when it refused or isn't open."""
+    from apply import app_control, app_window
+
+    def said(reply: dict) -> int:
+        print(json.dumps(reply, indent=2, ensure_ascii=False))
+        return 0 if int(reply.get("status") or 0) < 400 else 1
+
+    if not app_window.running():
+        return said({"status": 503, "error": "WorkIt Auto Apply isn't open. Open it with `uv run apply app` "
+                                              "(with links, to start them)."})
+    command = args.window_command
+    if command in ("submit", "skip") and not args.yes:
+        return said({"status": 400, "error": f"{command} can't be undone: pass --yes, as the window asks once more."})
+    if command == "stop" and not (args.yes or args.new_only):
+        return said({"status": 400, "error": "Stop closes every held form unless --new-only: pass --yes."})
+    if command == "add":
+        links, not_links = app_window.links_given(args.links)
+        if not_links:
+            return said({"status": 400, "error": f"Not a job link: {', '.join(not_links)}."})
+        app_window.send_links(links)
+        return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
+                                               "signed in and set up. `apply window state` shows them."})
+    body: dict = {}
+    if command in ("submit", "cancel", "skip", "fill-again"):
+        body = {"id": args.tile}
+    elif command == "answer":
+        body = {"id": args.id, "question": args.question, "answer": args.answer}
+        if args.file and not args.file.is_file():
+            return said({"status": 400, "error": f"No such file: {args.file}."})
+        if args.file:
+            body["file"] = {"name": args.file.name, "data": base64.b64encode(args.file.read_bytes()).decode()}
+    elif command == "remove":
+        body = {"link": args.link}
+    elif command == "stop":
+        body = {"new_only": True} if args.new_only else {}
+    return said(app_control.ask(command, body))
 
 
 def _plain(args) -> None:
