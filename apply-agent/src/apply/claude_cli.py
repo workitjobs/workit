@@ -171,6 +171,13 @@ def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator
         process.wait()
 
 
+# Past either share of the plan's windows, the Best model's calls drop to Sonnet, which leaves the rest of the
+# windows for the run (Opus spends them several times as fast; apply.orchestrator stops at 0.85 and 0.70).
+BEST_FIVE_HOUR, BEST_WEEKLY = 0.70, 0.60
+# Why the latest kind that would have run on the Best model ran on Sonnet instead; None once one ran on it.
+dropped: str | None = None
+
+
 class ClaudeCLI:
     """Implements both the Claude and the Usage adapter: every call's
     rate_limit_event updates the usage reading."""
@@ -190,9 +197,11 @@ class ClaudeCLI:
     def ask_kind(self, kind: str, data: dict) -> dict:
         """`kind` on `claude -p`, its prompt built here from WorkIt's own (apply.local_prompts): `apply app
         --max-plan`, on the developer's own Claude plan."""
-        from apply import local_prompts
+        from apply import first_run, local_prompts
 
-        model, built = local_prompts.build(kind, data)
+        model, built = local_prompts.build(kind, data, best=first_run.best_model())
+        if model == local_prompts.BEST:
+            model = self._best_or_sonnet(kind)
         return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
@@ -202,6 +211,21 @@ class ClaudeCLI:
         self._spend(sum((result.get("usage") or {}).get(k) or 0 for k in TOKENS))
         trace.event("claude", block="ask", model=model, answer=result["structured_output"])
         return result["structured_output"]
+
+    def _best_or_sonnet(self, kind: str) -> str:
+        """The Best model, or Sonnet near the plan's limits, with `dropped` saying so."""
+        global dropped
+        reading = self._reading or UsageReading()
+        if reading.five_hour >= BEST_FIVE_HOUR:
+            window, share = "5-hour", reading.five_hour
+        elif reading.weekly >= BEST_WEEKLY:
+            window, share = "weekly", reading.weekly
+        else:
+            dropped = None
+            return "opus"
+        dropped = f"Opus paused: your plan is at {share:.0%} of its {window} limit, so large calls run on Sonnet until it resets."
+        trace.event("claude", block="dropped", prompt_kind=kind, why=dropped)
+        return "sonnet"
 
     def spent(self) -> int:
         return getattr(self._spent, "tokens", 0)
