@@ -39,8 +39,9 @@ from apply.home import HOME
 from apply.tracker import EmployerAccount
 
 NAME = "com.workit.apply_accounts"
-# The WorkIt extension's ID: manifest.json's `key` pins it (autofiller_extension/store/extension-id.mjs).
-EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi"
+# The WorkIt extension's ID: manifest.json's `key` pins it (autofiller_extension/store/extension-id.mjs). It is the
+# Store item's since KAN-447 (2026-11-03); this kept the dev key's till 2026-11-26, so Chrome refused the extension.
+EXTENSION_ID = "nejadaaigpkenldhafhhogbmhlfhabda"
 EXTENSION_ORIGIN = f"chrome-extension://{EXTENSION_ID}/"
 LOG = HOME / "apply-accounts-host.log"
 # Chrome's limit on a message to a host.

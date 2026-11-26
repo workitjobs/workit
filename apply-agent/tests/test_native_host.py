@@ -22,7 +22,7 @@ CACI = "caci.wd1.myworkdayjobs.com"
 XCEL = "xcel.wd1.myworkdayjobs.com"
 EMAIL = "test.person@example.com"
 PASSWORD = "Generated-Test-Pw-1!x"
-EXTENSION = "chrome-extension://cpklhdkoafegnndlafmiceehfloodjgi/"
+EXTENSION = native_host.EXTENSION_ORIGIN  # the ID manifest.json's key gives: the test below checks it
 
 
 def listed(*sites: str) -> InMemoryTracker:

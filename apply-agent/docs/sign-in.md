@@ -213,7 +213,9 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
   for macOS and Linux; on Windows, Chrome reads a registry key instead,
   and the host is not built there yet, F4). Its manifest names only the WorkIt
   extension's ID (`EXTENSION_ID`, pinned to manifest.json's `key` by a
-  test), and the host checks the caller's origin again. One request names
+  test in CI's fast list; it kept the dev key's ID from 2026-11-03 to
+  2026-11-26, and Chrome refused the extension), and the host checks the
+  caller's origin again. One request names
   one tenant. It answers only for a tenant in the Tracker's Employer
   accounts list, with a Keychain password, whose sign-in has not failed.
   `want: "known"` gives the company and login, `want: "login"` adds the
