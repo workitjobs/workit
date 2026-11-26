@@ -36,3 +36,16 @@ def test_oracles_dropdowns_named_only_by_their_label_are_read_and_picked_country
     assert picked == {"q8": "United States", "q31": "2027"}
     assert page.input_value("#country-29") == "United States"
     assert page.get_by_label("Address Line 1").is_visible()  # the block's next fields, now shown in order
+
+
+def test_a_choice_under_the_error_paragraph_that_covers_the_open_list_is_still_picked(page):
+    # Live: "This info is required." lay over the graduation month's open list and took every click on December;
+    # the read listed no choices, so the plan gave "December 2027", which no option is.
+    month = Question("q32", "What is your anticipated graduation month?", "select", True)
+
+    [found] = claude_fill._with_options(page, [month])
+    picked = claude_fill._pick_in_comboboxes(page, [found], {"q32": "December"})
+
+    assert found.options[0] == "January" and found.options[-1] == "December"
+    assert picked == {"q32": "December"}
+    assert page.input_value("[id=\"300000007362128-25\"]") == "December"

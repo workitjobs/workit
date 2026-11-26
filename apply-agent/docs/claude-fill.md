@@ -222,7 +222,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   each one, leaving Honeywell's required Country empty (2026-11-25). A label read
   under its section's heading ("Address: Country") also fits the dropdown named
   by the part after it, and a box that shows its choice only as its value
-  (Oracle's) reads back as picked.
+  (Oracle's) reads back as picked. An option a click can't reach is pressed on
+  its own element (`_press_option`, the engine's `press`): Oracle's required
+  field's error paragraph lay over the open graduation month list and took every
+  click on its options.
 - A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
   "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
   says its format only there, and refused "May 2028". (amazon.jobs has its own Filler since KAN-765:

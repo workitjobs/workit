@@ -1198,7 +1198,7 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
                 combobox.click(timeout=3_000)
                 # Its own listbox's option, else one showing: never a same-named option of another list.
                 option = (_owned_listbox(page, combobox) or page).get_by_role("option", name=choice, exact=True)
-                option.filter(visible=True).first.click(timeout=OPENS_MS)
+                _press_option(option.filter(visible=True).first)
                 if q.kind == "multi_select":
                     page.keyboard.press("Escape")
         except Exception:
@@ -1210,6 +1210,25 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
         if all(_shows_choice(combobox, choice) for choice in wanted):
             picked[q.name] = list(wanted) if q.kind == "multi_select" else wanted[0]
     return picked
+
+
+# A press on the element itself, as the Fill engine's `press` gives one: the pointer and mouse events, then the click.
+PRESS = """el => {
+  el.scrollIntoView({block: 'center'});
+  const at = {bubbles: true, cancelable: true, composed: true, button: 0, view: window};
+  for (const [Kind, type] of [[PointerEvent, 'pointerdown'], [MouseEvent, 'mousedown'], [PointerEvent, 'pointerup'],
+                              [MouseEvent, 'mouseup'], [MouseEvent, 'click']]) el.dispatchEvent(new Kind(type, at));
+}"""
+
+
+def _press_option(option: Locator) -> None:
+    """Click a dropdown's option, else press it on its own element: on Oracle's form the required field's error
+    paragraph lay over the open list and took every click at the option's place, so none was picked (Honeywell's
+    graduation month, live 2026-11-25)."""
+    try:
+        option.click(timeout=OPENS_MS)
+    except Exception:
+        option.evaluate(PRESS, timeout=OPENS_MS)
 
 
 def _shows_choice(combobox, choice: str) -> bool:
