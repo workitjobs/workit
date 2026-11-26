@@ -164,6 +164,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                           "the Apply window with your answers. Given links, it fills them: a window "
                                           "already open takes them, else one opens and starts them. Never submits")
     app.add_argument("links", nargs="*", help="job posting links to fill and hold for you to check and submit")
+    app.add_argument("--max-plan", action="store_true",
+                     help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
+                          "route and its Usage cap. Only for a window this opens")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
@@ -370,6 +373,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     elif args.command == "app":
         from apply import app_window, student
 
+        if args.max_plan:  # the Student build ignores it (student.asking)
+            os.environ[student.MAX_PLAN] = "1"
         if args.links:
             app_window.send_links(args.links)
             if pid := app_window.running():
