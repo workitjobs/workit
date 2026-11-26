@@ -18,7 +18,8 @@ reads: it does not click, type or submit.
   and not left blank on purpose (`_Planned.left`), the read-back
   (`fill_engine.readback_problems`), an empty file or a file in the wrong
   field, a value that is not one of the field's options, a graduation
-  year that is not the profile's, a start date in the past, pay out of the
+  year that is not the profile's or a span of months that does not hold
+  its month, a start date in the past, pay out of the
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
