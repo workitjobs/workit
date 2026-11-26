@@ -23,7 +23,7 @@ challenge:
 
 Each side compares with hmac.compare_digest and closes on a wrong answer, or on none within GREET_WAIT s.
 
-Stdlib only: the host (host.py) loads this file by its path, and imports nothing else of Apply's.
+Stdlib only: a checkout's host (host.py) loads this file by its path, and imports nothing else of Apply's.
 """
 
 import hashlib

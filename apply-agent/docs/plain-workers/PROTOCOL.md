@@ -50,8 +50,8 @@ Apply process                                   Worker k (plain Chrome)
   another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
   macOS caps a socket path at 104 bytes; when the profiles folder's path is too long
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
-  `Bridge.path` says which. The channel's code is `apply.plain.channel`, which the host loads by
-  its file path.
+  `Bridge.path` says which. The channel's code is `apply.plain.channel`: a checkout's host loads
+  it by its file path, and the built app's program has it compiled in.
 - **Windows (KAN-929):** a named pipe in place of the socket file, named from the
   `workers.sock` path (`channel.pipe_name`), with `workers.key` beside that path. A second Apply
   on the folder gets `BridgeBusy`. The framing below is unchanged.

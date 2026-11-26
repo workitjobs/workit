@@ -45,8 +45,13 @@ def frames(stream):
         yield head + body
 
 
-def _channel():
-    """channel.py beside this file, loaded by its path: the host imports nothing else of Apply's."""
+def _channel(compiled: bool = "__compiled__" in globals()):
+    """The channel (plain/channel.py). A checkout loads channel.py beside this file by its path, so the host imports
+    nothing else of Apply's. The compiled app (W8) has no .py file: its program has the channel compiled in."""
+    if compiled:
+        from apply.plain import channel
+
+        return channel
     spec = importlib.util.spec_from_file_location("apply_channel", Path(__file__).with_name("channel.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
