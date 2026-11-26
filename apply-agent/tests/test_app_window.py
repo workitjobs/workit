@@ -734,3 +734,18 @@ def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
     app_window.badge(3)
     app_window.badge(0)
     assert labels == ["3", ""]
+
+
+def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(monkeypatch):
+    from apply import claude_cli, student
+
+    monkeypatch.delenv(student.MAX_PLAN, raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert "claude" not in bridge.settings_state()  # WorkIt's Model route answers: no Claude to choose
+        monkeypatch.setenv(student.MAX_PLAN, "1")
+        monkeypatch.setattr(claude_cli, "dropped", None)
+        assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
+        assert bridge.set_best_model(False) == {"best": False}
+        assert bridge.settings_state()["claude"]["best"] is False
