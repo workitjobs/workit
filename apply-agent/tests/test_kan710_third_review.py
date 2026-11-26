@@ -4,7 +4,7 @@ send nothing. A CONTROL case is the same page without the trick."""
 import pytest
 from test_submit_guard_hostile import FINAL, HOST, START, _settle, cdp
 
-from apply import claude_fill, submit_guard
+from apply import steps, submit_guard
 from apply.submit_guard import DriveGuard
 
 OTHER = "https://forms.example.net"  # another site: a cross-site (out-of-process) frame
@@ -31,7 +31,7 @@ class Site:
 
 @pytest.fixture(autouse=True)
 def quick_steps(monkeypatch):
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1500)
 
 
 def live(pages, before=None, after=None, wait=2500, opened=True):
