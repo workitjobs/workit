@@ -1113,10 +1113,10 @@ on Windows each one stops Apply:
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
   A Worker started off the Mac is a Popen, which stops it on each OS.
-- The hosts' wrappers are shell scripts (`native_host.install`,
-  `PlainWorkers.install_host`), and Chrome on Windows reads a Worker
-  profile's host from the registry, not from its `NativeMessagingHosts`
-  folder (F4's table).
+- The accounts host's wrapper is a shell script (`native_host.install`),
+  and Chrome on Windows reads a host from the registry, not from a
+  `NativeMessagingHosts` folder (F4's table). The Workers' host has its
+  key and a `.bat` (`windows_desktop.md`, P5).
 - The seed guide's words name Finder and the Mac's keys.
 
 ### W5. The app shell

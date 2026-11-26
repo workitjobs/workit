@@ -19,9 +19,9 @@ Two Chromes (policies.yaml `plain_chrome`):
 
 Each profile gets its own NativeMessagingHosts folder with the host's manifest, naming only
 the worker extension, and a wrapper that starts the host, which finds its Worker and channel
-from the Chrome that started it (host.py). Lisul's own Chrome folder is never touched. (Chrome
-reads that folder on macOS and Linux; on Windows it reads a registry key instead, and the
-wrapper is a shell script: both are P5 of docs/windows_desktop.md.)
+from the Chrome that started it (host.py). Lisul's own Chrome folder is never touched. On
+Windows, Chrome reads a registry key instead, one for every Worker, which names one manifest
+and a .bat wrapper (apply.chrome_host).
 
 Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It starts in the
 background by each OS's own way (`start_in_background`).
@@ -29,7 +29,6 @@ background by each OS's own way (`start_in_background`).
 
 import json
 import os
-import shlex
 import shutil
 import signal
 import subprocess
@@ -42,6 +41,7 @@ from pathlib import Path
 
 import psutil
 
+from apply import chrome_host
 from apply.adapters import SetupError
 from apply.browsers import (
     BUSY,
@@ -96,14 +96,14 @@ CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Win
 OWNER = "apply-owner.json"
 
 
-def host_command(compiled: bool = "__compiled__" in globals()) -> str:
+def host_command(compiled: bool = "__compiled__" in globals()) -> list[str]:
     """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
     The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
     (scripts/app_entry.py). The OS names that program: a Nuitka program's sys.executable is a `python` beside it,
     which doesn't exist."""
     if compiled:
-        return f"{shlex.quote(psutil.Process().exe())} {host.APP_FLAG}"
-    return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
+        return [psutil.Process().exe(), host.APP_FLAG]
+    return [sys.executable, "-I", host.__file__]
 
 
 def developer_mode(profile: Path) -> bool:
@@ -298,23 +298,14 @@ class PlainWorkers:
             said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
         return said
 
-    def install_host(self, worker: int) -> Path:
-        """Write the host's wrapper and manifest into Worker `worker`'s profile. Returns the manifest. The wrapper
-        names no Worker and no channel: the host finds both from the Chrome that started it (host.py)."""
-        hosts = self.profile(worker) / "NativeMessagingHosts"
-        hosts.mkdir(parents=True, exist_ok=True)
-        wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} \"$@\"\n")
-        wrapper.chmod(0o700)
-        manifest = hosts / f"{extension.HOST_NAME}.json"
-        manifest.write_text(json.dumps({
-            "name": extension.HOST_NAME,
-            "description": "Relays Apply's plain Worker extension to the Apply process on this computer",
-            "path": str(wrapper),
-            "type": "stdio",
-            "allowed_origins": list(extension.EXTENSION_ORIGINS),
-        }, indent=1) + "\n")
-        return manifest
+    def install_host(self, worker: int, system: str = sys.platform, registry=None) -> Path:
+        """Write the host's wrapper and manifest where Worker `worker`'s Chrome finds them (chrome_host: its profile's
+        NativeMessagingHosts folder, or on Windows the one folder that the registry key names). Returns the manifest.
+        The wrapper names no Worker and no channel: the host finds both from the Chrome that started it (host.py)."""
+        hosts = chrome_host.folder(self.profile(worker), system)
+        return chrome_host.install(extension.HOST_NAME,
+                                   "Relays Apply's plain Worker extension to the Apply process on this computer",
+                                   extension.EXTENSION_ORIGINS, host_command(), hosts, hosts / WRAPPER, system, registry)
 
     def launch(self, worker: int = 0) -> PlainWorker:
         """Start Worker `worker`'s Chrome and wait for its hello."""

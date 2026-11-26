@@ -192,17 +192,30 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
     can't read another process's arguments on Windows.
   - The tile takes the same browser (`window_capture.chrome_of`), for its
     check that a connection is its Worker's own (`tile._foreign_to`).
-- **Still to build.**
-  - Write the key with `winreg`, and a `.bat` wrapper in one fixed folder
-    (`home.APP_FOLDER`): a key that named a test's temporary folder would
-    point at a deleted file after that test. The `.bat` starts with
-    `@echo off`, or cmd.exe writes into Chrome's pipe. The package can use
-    its own `.exe`, which starts through cmd.exe too, unless the
-    `NativeHostsExecutablesLaunchDirectly` policy is on.
+- **Built: the key and a `.bat` for the Workers' host** (`chrome_host`).
+  - The manifest and the `.bat` go in one fixed folder,
+    `APP_FOLDER/native-hosts`, never a profile: a key that named a test's
+    temporary folder would name a deleted file once that test ended.
+  - The `.bat` starts with `@echo off`, or cmd.exe writes the command into
+    Chrome's pipe. Each part is quoted with each `%` doubled, then `%*`
+    passes on Chrome's arguments. It is written in the OEM code page,
+    which cmd.exe reads.
+  - A file is written only when its text changes: on Windows a file that
+    Chrome or cmd.exe has open can't be replaced.
   - The student's everyday Chrome sees the key too. That is safe: only
     the Worker extension may call the host (`allowed_origins`), and the
-    host connects only from a `plain-<k>` profile.
-  - The accounts host: the same key and `.bat`.
+    host connects only from a `plain-<k>` profile. The seed's extension
+    tries every 2 s, so during the seed's setup a host starts and exits
+    every 2 s.
+  - A checkout and the installed app on one Windows user share the key:
+    the last one that starts a Worker owns it. Either one's host serves
+    the other's Workers while their channel code is the same.
+  - The package can use its own `.exe`, which starts through cmd.exe
+    too, unless the `NativeHostsExecutablesLaunchDirectly` policy is on.
+- **Still to build.** The accounts host: the same key and `.bat`.
+- **Still open (Windows):** Chrome runs the `.bat` and the host says
+  hello; a venv's `python.exe`, a launcher, finds psutil under `-I`; a
+  user folder with letters that the OEM code page can't hold.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows.
 
@@ -313,7 +326,8 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 |---|---|---|
 | P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome (`tests/fake_chrome.py`), with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
 | P5 | Built: `tests/test_each_os.py`, the tile's `chrome_of` under the same fake | The tile takes cmd.exe for a Worker's Chrome |
-| P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, and the `.bat` starts the host | Chrome on Windows finds no host |
+| P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
+| P5 | `tests/test_native_host.py`, with a fake `winreg`: the accounts host's key and `.bat` | The accounts host can't start on Windows |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |

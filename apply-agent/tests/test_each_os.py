@@ -4,6 +4,7 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import ast
+import contextlib
 import json
 import os
 import plistlib
@@ -21,10 +22,19 @@ import platformdirs
 import psutil
 import pytest
 
-from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
+from apply import (
+    awake,
+    browsers,
+    captcha,
+    chrome_finder,
+    chrome_host,
+    focus,
+    home,
+    native_host,
+)
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import channel, launcher, seed_setup, tools, window_capture
+from apply.plain import channel, extension, launcher, seed_setup, tools, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -134,6 +144,44 @@ def test_the_native_host_folder_is_each_oss_chromes(tmp_path):
     with pytest.raises(NotImplementedError, match="NativeMessagingHosts"):
         native_host.install(None, "/venv/bin/python", tmp_path / "home")
     assert not (tmp_path / "home").exists()
+
+
+class FakeRegistry:
+    """winreg, as chrome_host.install uses it: the values it set, by key."""
+    HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ = "HKEY_CURRENT_USER", 2, 1
+
+    def __init__(self):
+        self.values = {}
+
+    def CreateKeyEx(self, root, path, reserved, access):
+        return contextlib.nullcontext((root, path))
+
+    def SetValueEx(self, key, name, reserved, kind, value):
+        self.values[(*key, name)] = (kind, value)
+
+
+class NoRegistry:
+    def __getattr__(self, name):
+        pytest.fail("a registry call off Windows")
+
+
+def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypatch):
+    """Faults (P5): on Windows no registry key names the host's manifest (Chrome there reads no folder); the .bat
+    echoes its command into Chrome's pipe, drops Chrome's arguments (%*: the caller's origin), or lets cmd.exe read
+    a % in a path as a variable; the manifest lets another extension call the host (on Windows every Chrome of
+    this user's finds it); or off Windows the files leave the Worker's profile, or a registry is touched."""
+    monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
+    monkeypatch.setattr(launcher, "host_command", lambda: [r"C:\Program Files\py%1\python.exe", "-I", r"C:\a\host.py"])
+    workers, registry = PlainWorkers(tmp_path / "profiles", kind="testing"), FakeRegistry()
+    manifest = workers.install_host(1, "win32", registry)
+    assert manifest.parent == tmp_path / "native-hosts"
+    assert registry.values == {
+        ("HKEY_CURRENT_USER", rf"{chrome_host.KEY}\com.workit.apply_worker", ""): (registry.REG_SZ, str(manifest))}
+    written = json.loads(manifest.read_text())
+    assert written["allowed_origins"] == list(extension.EXTENSION_ORIGINS)
+    assert Path(written["path"]).read_bytes() == \
+        b'@echo off\r\n"C:\\Program Files\\py%%1\\python.exe" "-I" "C:\\a\\host.py" %*\r\n'
+    assert workers.install_host(1, "darwin", NoRegistry()).parent == workers.profile(1) / "NativeMessagingHosts"
 
 
 def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
