@@ -691,6 +691,14 @@ def test_links_sent_in_start_a_run_once_signed_in_then_join_it_or_wait(board, tm
     go.set()
 
 
+def test_links_given_on_lines_of_one_argument_are_each_a_link():
+    # zsh passes `apply app $links` as one argument, its links on lines of their own (live, 2026-11-25).
+    one = "https://jobs.lever.co/acme/1\nhttps://jobs.lever.co/acme/2\n"
+    assert app_window.links_given([one, "https://jobs.lever.co/acme/3"]) == (
+        ["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2", "https://jobs.lever.co/acme/3"], [])
+    assert app_window.links_given(["acme.com/jobs/1"]) == ([], ["acme.com/jobs/1"])
+
+
 def test_running_names_only_a_live_windows_pid(tmp_path):
     import os
 

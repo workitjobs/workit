@@ -782,6 +782,14 @@ def bring_forward() -> bool:
     return True
 
 
+def links_given(arguments: list[str]) -> tuple[list[str], list[str]]:
+    """The links in `apply app`'s arguments, and the words that aren't links. An argument may hold several links on
+    lines of their own: zsh passes a variable's lines as one argument (`apply app $links`), which once sent the window
+    a single unusable link, so a 28-job run never started."""
+    words = [word for argument in arguments for word in argument.split()]
+    return [w for w in words if LINK.match(w)], [w for w in words if not LINK.match(w)]
+
+
 def send_links(links: list[str], inbox: Path = INBOX) -> Path:
     """Hand `links` to the running window (Bridge._take_inbox): one file in `inbox`, only the user's to read, written
     whole before it is named .json so the window never reads half of it."""
