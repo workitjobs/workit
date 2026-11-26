@@ -103,7 +103,10 @@ never pressed. The drive guard's init script goes on at on_open, before each pag
 rehearsal (and before guard()'s reload), lifted and deaf to any lift until a DriveGuard arms it, in every page of the
 context (a pop-up opened before it too: PR 477's third review); a copy put into a page that skipped it, after its
 code, takes no lift or allowance (LATE). XHR's and the beacon's form data is read by its entries, and a body to Ashby
-that can't be read at once (a Blob, a document) is not sent. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
+that can't be read at once (a Blob, a document) is not sent. A pop-up's copy (KAN-796) starts
+armed where no control can reach it (a pop-up's first document hears no event while the init scripts run), reads the
+document its window holds now, and puts its listeners back after a document.open or write; DriveGuard arms its page's
+pop-ups too, and a pop-up that won't hear it is a Handoff. Claude fill's own submit click lifts its page alone. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
 final URLs); while plain code attaches the résumé, the form that holds it may post (iCIMS parses its whole profile
 form, Submit and all), and a frame with scripts off runs no guard.
@@ -123,10 +126,12 @@ import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Page, Route
 
 from apply import captcha, send_click, upload_origin
+from apply.model import Handoff
 from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
@@ -167,11 +172,15 @@ _TEMPLATE = r"""
   // its own getAttribute, RegExp test or eventPhase on a prototype changes nothing the guard reads. The guard never
   // calls a method through the page's objects (a field named getAttribute shadows a form's own), and a guard listener
   // that throws blocks what it was judging.
-  const W = window, D = document, apply = Reflect.apply, gopd = Object.getOwnPropertyDescriptor;
+  const W = window, apply = Reflect.apply, gopd = Object.getOwnPropertyDescriptor;
   const defineProp = Object.defineProperty, ownP = Object.prototype.hasOwnProperty, parse = JSON.parse, json = JSON.stringify;
   const Str = String, Num = Number, Custom = CustomEvent, URL_ = URL, TypeErr = TypeError, DOMExc = DOMException;
   const fn = (proto, name) => { const f = proto[name]; return (self, ...args) => apply(f, self, args); };
   const get = (proto, name) => { const g = gopd(proto, name).get; return (self) => apply(g, self, []); };
+  // The window's document as it is now, never the one the guard started in (KAN-796): a pop-up's first document
+  // (window.open's about:blank) gives its window to the page it loads next, same-origin, and no init script runs again
+  // there, so this copy is that page's guard.
+  const windowDoc = gopd(W, 'document').get, doc = () => apply(windowDoc, W, []);
   const getter = (cls, name) => { try { return get(cls.prototype, name); } catch (e) { return null; } };
   const has = (o, k) => o !== null && typeof o === 'object' && apply(ownP, o, [k]);
   const exec = RegExp.prototype.exec;
@@ -211,8 +220,8 @@ _TEMPLATE = r"""
   const hcLen = get(HTMLCollection.prototype, 'length'), hcItem = fn(HTMLCollection.prototype, 'item');
   const nodes = (nl) => { const out = []; const n = nlLen(nl); for (let i = 0; i < n; i++) out[i] = nlItem(nl, i); return out; };
   const items = (hc) => { const out = []; const n = hcLen(hc); for (let i = 0; i < n; i++) out[i] = hcItem(hc, i); return out; };
-  const all = (scope, selector) => nodes(scope === D ? docQsa(D, selector) : qsa(scope, selector));
-  const one = (scope, selector) => scope === D ? docQs(D, selector) : qs(scope, selector);
+  const all = (scope, selector) => nodes(scope === doc() ? docQsa(doc(), selector) : qsa(scope, selector));
+  const one = (scope, selector) => scope === doc() ? docQs(doc(), selector) : qs(scope, selector);
   const up = (el, selector) => isEl(el) ? closest(el, selector) : null;
   const read = (gets, el, or) => {
     for (let i = 0; i < gets.length; i++) { if (gets[i]) { try { return gets[i](el); } catch (e) {} } }
@@ -239,7 +248,11 @@ _TEMPLATE = r"""
   const prevent = fn(EvP, 'preventDefault'), stopNow = fn(EvP, 'stopImmediatePropagation');
   const submitterGet = get(SubmitEvent.prototype, 'submitter'), detailGet = get(Custom.prototype, 'detail');
   const listen = fn(EventTarget.prototype, 'addEventListener'), dispatch = fn(EventTarget.prototype, 'dispatchEvent');
-  const on = (type, f) => listen(W, type, f, true);
+  // Each of the guard's own listeners on the window, so they are there again at once after a document.open() (or a
+  // write to a finished document, which opens it), which erases every listener on the window (KAN-796).
+  const ons = [];
+  const on = (type, f) => { push(ons, [type, f]); listen(W, type, f, true); };
+  const relisten = () => { for (let i = 0; i < ons.length; i++) listen(W, ons[i][0], ons[i][1], true); };
   const perf = performance, perfNow = fn(Performance.prototype, 'now');
   const now = () => perfNow(perf);
   const con = console, warnFn = con.warn, debugFn = con.debug;
@@ -251,7 +264,7 @@ _TEMPLATE = r"""
   // What a relative URL is relative to, as the browser reads it (KAN-710): the document's base (a <base href>, or
   // the creator's for a new frame's about:blank), never the page's own address.
   const docURL = get(DP, 'URL'), baseOf = get(NP, 'baseURI'), ownerDoc = get(NP, 'ownerDocument');
-  const base = () => text(baseOf(D)) || pageURL();
+  const base = () => text(baseOf(doc())) || pageURL();
 
   // The guard's own state (KAN-710): in this closure, never on window, so no page script reads or sets it. Apply
   // changes it only by @CONTROL@, an event named with a token of this run that only Apply's own scripts know: sent
@@ -271,7 +284,18 @@ _TEMPLATE = r"""
   // in a live run goes on as ever. Until then (`fresh`) it takes no lift either: a rehearsal's rearm() of a page no
   // DriveGuard drove leaves it as it was. `arm` reaches every page of the context, so a pop-up the page opened before
   // the DriveGuard is armed too (KAN-710, PR 477's third review).
-  let fresh = @AT_OPEN@;
+  // Not where no control can come (KAN-796): in a pop-up's first document (window.open's about:blank, which a
+  // same-origin page then takes over with no init script run again) Chrome runs no event listener while the init
+  // scripts run, so the control each of DriveGuard's init scripts sends is lost there. Where an event to a listener
+  // of its own goes unheard, the copy starts armed and takes lifts as any copy does: it fails closed.
+  const quiet = (() => {
+    const probe = new EventTarget();
+    let heard = false;
+    listen(probe, 'apply-probe', () => { heard = true; });
+    dispatch(probe, new Event('apply-probe'));
+    return !heard;
+  })();
+  let fresh = @AT_OPEN@ && !quiet;
   if (fresh) S.lifted = true;
   if (apply(ownP, W, [MARK])) return;
   defineProp(W, MARK, {value: true});
@@ -345,14 +369,14 @@ _TEMPLATE = r"""
       warn('@NAME@ blocked ' + what);@PORT_SAID@
       // The page's own script, with no click or key on it yet (a cookie banner, analytics): blocked, unshown.
       if (!touched) return;
-      let box = D.getElementById('@BOX@');
+      let box = doc().getElementById('@BOX@');
       if (!box) {
-        box = D.createElement('div');
+        box = doc().createElement('div');
         box.id = '@BOX@';
         box.setAttribute('role', 'status');
         box.setAttribute('data-tone', 'fix');
         box.style.cssText = @BLOCKED_CSS@;  // a WorkIt card (BLOCKED_CARD), under a captcha's challenge
-        (D.body || D.documentElement).appendChild(box);
+        (doc().body || doc().documentElement).appendChild(box);
       }
       box.textContent = @BLOCKED_WORDS@;  // what it blocked is in the console line above, never on the page
     } catch (e) {}
@@ -411,7 +435,7 @@ _TEMPLATE = r"""
   const fromPress = (form, by) => accountClick() && pressed(form, by);
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
-  const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  const sendingForms = () => { const out = [], forms = all(doc(), 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
   // Those as the press went down, and as it landed.
   const sentAll = () => { const out = sendingForms(); for (let i = 0; i < downSending.length; i++) push(out, downSending[i]); return out; };
   const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
@@ -464,7 +488,7 @@ _TEMPLATE = r"""
     const row = digits.length >= 4 ? digits : [];
     const code = codes.length > 0 || row.length > 0;
     if (code && test(CODE_PRESS, words) && !test(NOT_AUTH, words)) return true;
-    if (any(all(D, 'input[type=file], input[type=radio], [role=radio], textarea, select, '
+    if (any(all(doc(), 'input[type=file], input[type=radio], [role=radio], textarea, select, '
       + '[contenteditable]:not([contenteditable=false])'), answerField)) return false;
     let rest = 0;
     for (let i = 0; i < boxes.length; i++) {
@@ -484,12 +508,12 @@ _TEMPLATE = r"""
   const profileDialog = (dialog) => {
     const ids = wordList(text(attr(dialog, 'aria-labelledby')));
     let by = '';
-    for (let i = 0; i < ids.length; i++) { const n = byId(D, ids[i]); by += (i ? ' ' : '') + (n ? innerText(n) : ''); }
+    for (let i = 0; i < ids.length; i++) { const n = byId(doc(), ids[i]); by += (i ? ' ' : '') + (n ? innerText(n) : ''); }
     const heading = qs(dialog, 'h1, h2, h3, [role=heading]');
     const title = trim(text(attr(dialog, 'aria-label')) || by || (heading ? innerText(heading) : ''));
     if (!test(PROFILE_TITLE, title) || test(NOT_PROFILE, title) || qs(dialog, ASKS)) return false;
     const shown = (n) => typeOf(n) !== 'hidden' && typeOf(n) !== 'search' && seen(n);
-    return !any(all(D, 'input, select, textarea'), (n) => !contains(dialog, n) && shown(n)
+    return !any(all(doc(), 'input, select, textarea'), (n) => !contains(dialog, n) && shown(n)
       && !closest(n, '[role=search], [role=dialog], [aria-modal=true], dialog'));
   };
   // Only a button that names no application, in a pop-up that is a profile step and no more.
@@ -807,7 +831,7 @@ _TEMPLATE = r"""
   const wordsOf = (el) => {
     const ids = wordList(text(attr(el, 'aria-labelledby')));
     let labelled = '';
-    for (let i = 0; i < ids.length; i++) { const n = byId(D, ids[i]); if (n) labelled += ' ' + innerText(n); }
+    for (let i = 0; i < ids.length; i++) { const n = byId(doc(), ids[i]); if (n) labelled += ' ' + innerText(n); }
     const images = all(el, 'img[alt], svg title, [role=img][aria-label]');
     let pictured = '';
     for (let i = 0; i < images.length; i++) pictured += ' ' + (text(attr(images[i], 'alt')) || text(attr(images[i], 'aria-label')) || innerText(images[i]));
@@ -903,14 +927,14 @@ _TEMPLATE = r"""
   const opens = (el) => {
     const form = formOf(el), words = wordsOf(el);
     if (!startClick() || apply(topGet, W, []) !== W || !form || inShadow(form) || test(SENDS, words) || !test(APPLY, words)) return false;
-    const body = bodyOf(D);
+    const body = bodyOf(doc());
     if (!tokenOnly(form, el) || test(DRAFT, body ? innerText(body) : '')) return false;
-    let heads = text(titleGet(D));
-    const hs = all(D, 'h1, h2, h3, h4, [role=heading], legend');
+    let heads = text(titleGet(doc()));
+    const hs = all(doc(), 'h1, h2, h3, h4, [role=heading], legend');
     for (let i = 0; i < hs.length; i++) heads += ' ' + innerText(hs[i]);
     if (test(HEADED, heads)) return false;
-    return !any(all(D, 'input, select, textarea'), filled)
-      && !any(all(D, '[contenteditable]:not([contenteditable=false])'), (n) => !!trim(innerText(n)));
+    return !any(all(doc(), 'input, select, textarea'), filled)
+      && !any(all(doc(), '[contenteditable]:not([contenteditable=false])'), (n) => !!trim(innerText(n)));
   };
   // What the Apply's one post may carry: its form's hidden fields and the button's own name, nothing else.
   const startEntries = (form, by) => {
@@ -937,19 +961,19 @@ _TEMPLATE = r"""
   // submit or formdata event) can add to it after this check.
   const sendStart = (form, by) => {
     startSent = true;  // once: no other copy of it posts after this one (PR 477's second review)
-    const copy = make(D, 'form');
+    const copy = make(doc(), 'form');
     setAttr(copy, 'method', 'post');
     setAttr(copy, 'action', postTarget(form, by));
     setAttr(copy, 'hidden', '');  // an attribute, not a style: a page's CSP may refuse style attributes (TAL.net's does)
     const kept = startEntries(form, by);
     for (let i = 0; i < kept.length; i++) {
-      const input = make(D, 'input');
+      const input = make(doc(), 'input');
       setAttr(input, 'type', 'hidden');
       setAttr(input, 'name', kept[i][0]);
       setAttr(input, 'value', kept[i][1]);
       appendTo(copy, input);
     }
-    appendTo(bodyOf(D) || D.documentElement, copy);
+    appendTo(bodyOf(doc()) || doc().documentElement, copy);
     reading = true;  // no page handler of its formdata event runs
     try { apply(submit, copy, []); } finally { reading = false; }
   };
@@ -1008,6 +1032,17 @@ _TEMPLATE = r"""
     if (!lifted() && isEl(this)) { try { const t = eventType(event); if (t === 'click' || t === 'auxclick') unping(this); } catch (e) {} }
     return apply(dispatchOf, this, [event]);
   };
+  // document.open() erases every listener on the window, the guard's too, and a write to a finished document opens it
+  // (KAN-796): an opener wrote its form into a pop-up's about:blank so, and its Submit sent. After each, the guard's
+  // listeners go back on. Only on this document: another realm's document (a frame's or the opener's, called with
+  // another document) is refused while the guard is on, as that document's guard would never hear it.
+  for (const name of ['open', 'write', 'writeln']) {
+    const was = DP[name];
+    DP[name] = function (...args) {
+      if (this !== doc() && !lifted()) throw new DOMExc('Apply guard: not this document', 'SecurityError');
+      try { return apply(was, this, args); } finally { relisten(); }
+    };
+  }
   const PING = (name) => { const n = Str(name); return lower(slice(n, lastIndexOf(n, ':') + 1)) === 'ping'; };
   const pings = (el, name) => !lifted() && PING(name) && isEl(el) && matches(el, 'a, area');
   for (const [proto, method, at] of [[EP, 'setAttribute', 0], [EP, 'setAttributeNS', 1], [EP, 'toggleAttribute', 0]]) {
@@ -1102,9 +1137,9 @@ _TEMPLATE = r"""
       named = true;
     }
     if (!named) return false;
-    if (any(all(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+    if (any(all(doc(), 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
       + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]'), (n) => !shutBox(n))) return false;
-    const boxes = all(D, 'input, select');
+    const boxes = all(doc(), 'input, select');
     for (let i = 0; i < boxes.length; i++) {
       const n = boxes[i];
       if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
@@ -1116,13 +1151,13 @@ _TEMPLATE = r"""
     const BOX = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]';
     // Every root the guard has heard, closed ones too, and each frame of the page's own origin (round 4).
     for (let i = 0; i < knownRoots.length; i++) { try { if (qs(knownRoots[i], BOX)) return false; } catch (e) { return false; } }
-    const frames = all(D, 'iframe, frame');
+    const frames = all(doc(), 'iframe, frame');
     for (let i = 0; i < frames.length; i++) {
       let doc = null;
       try { doc = frameDocOf(frames[i]); } catch (e) { continue; }  // another site's frame: null, its own document
       try { if (doc && docQs(doc, BOX)) return false; } catch (e) { return false; }
     }
-    const hosts = all(D, '*');
+    const hosts = all(doc(), '*');
     for (let i = 0; i < hosts.length; i++) {
       let root = null;
       try { root = apply(openRootOf.get, hosts[i], []); } catch (e) {}
@@ -1181,16 +1216,16 @@ _TEMPLATE = r"""
   };
   const moreSteps = (form) => {
     if (formSends(form)) return false;
-    const body = bodyOf(D), said = match(STEP_OF, body ? innerText(body) : '');
+    const body = bodyOf(doc()), said = match(STEP_OF, body ? innerText(body) : '');
     if (said) {  // the step said where it shows: in an element of its own text that a person sees
-      const els = all(D, 'body *');
+      const els = all(doc(), 'body *');
       for (let i = 0; i < els.length && i < 5000; i++) {
         const own = match(STEP_OF, ownText(els[i]));
         if (own && visibly(els[i])) return Num(own[1]) < Num(own[2]);
       }
       return false;
     }
-    const at = docQs(D, '[aria-current=step]'), next = at && nextEl(closest(at, 'li') || at);
+    const at = docQs(doc(), '[aria-current=step]'), next = at && nextEl(closest(at, 'li') || at);
     return !!next && visibly(at) && visibly(next);
   };
   // A step's Next only (KAN-710): the button plain code pressed, never a script's post or a step list's link.
@@ -1212,7 +1247,7 @@ _TEMPLATE = r"""
   // posted into itself, once the whole page has loaded (a field after the relay's script hasn't parsed yet before),
   // never a frame's: a frame doesn't know the fields of the page around it.
   const topGet = gopd(W, 'top').get, readyOf = get(DP, 'readyState');
-  const fieldShown = () => any(all(D, 'input, select, textarea'), (n) =>
+  const fieldShown = () => any(all(doc(), 'input, select, textarea'), (n) =>
     !test(/^(hidden|submit|button|reset|image)$/i, typeOf(n)) && seen(n));
   const intoItself = (form, by) => {
     const target = (submitButton(by) && hasAttr(by, 'formtarget') ? text(attr(by, 'formtarget')) : text(attr(form, 'target')));
@@ -1220,7 +1255,7 @@ _TEMPLATE = r"""
   };
   const relayLike = (form, by, href) => !touched && apply(topGet, W, []) === W && posts(form, by) && intoItself(form, by)
     && !postsFinal(form, by, href) && hiddenOnly(form);
-  const relay = (form, by, href) => relayLike(form, by, href) && readyOf(D) !== 'loading' && !fieldShown();
+  const relay = (form, by, href) => relayLike(form, by, href) && readyOf(doc()) !== 'loading' && !fieldShown();
   // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
   // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
   // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
@@ -1229,7 +1264,7 @@ _TEMPLATE = r"""
     const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
     if (!target || startsWith(target, '_') || !posts(form, by) || postsFinal(form, by, href) || !hiddenOnly(form)) return false;
     const away = originOf(href || postTarget(form, by)) !== pageOrigin();
-    return away && any(nodes(byName(D, target)), (n) => test(/^I?FRAME$/, tag(n)));
+    return away && any(nodes(byName(doc(), target)), (n) => test(/^I?FRAME$/, tag(n)));
   };
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
   // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
@@ -1264,9 +1299,9 @@ _TEMPLATE = r"""
       return sendStart(form, by);
     }
     posting = {form, by, press: fromPress(form, by)};
-    if (readyOf(D) === 'loading' && relayLike(form, by)) {  // a relay's post as the page loads: judged once it has
+    if (readyOf(doc()) === 'loading' && relayLike(form, by)) {  // a relay's post as the page loads: judged once it has
       prevent(event);
-      listen(D, 'DOMContentLoaded', () => {
+      listen(doc(), 'DOMContentLoaded', () => {
         if (!relay(form, by)) return note(formNamed(form, by));
         posting = {form, by: null, press: false};
         apply(submit, form, []);
@@ -1379,7 +1414,7 @@ _TEMPLATE = r"""
   }, writable: true, configurable: true});
   const attachShadowOf = EP.attachShadow;
   EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
-  const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
+  const isRoot = (x) => { try { return x !== doc() && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
   const hostOf = get(ShadowRoot.prototype, 'host'), rootOf = fn(NP, 'getRootNode');
   for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
     try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
@@ -1416,9 +1451,9 @@ _TEMPLATE = r"""
         || (!startSent && !inShadow(this) && posts(this, null) && intoItself(this, null)  // KAN-725's copy, once, into this page
           && startPost(postTarget(this, null), ownEntries(this, null)) && (startSent = true));
     } catch (e) {}  // a form the guard can't read is not posted
-    if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
+    if (!go && readyOf(doc()) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
       const form = this;
-      listen(D, 'DOMContentLoaded', () => {
+      listen(doc(), 'DOMContentLoaded', () => {
         if (!relay(form, null)) return note(formNamed(form, null));
         posting = {form, by: null, press: false};
         apply(submit, form, []);
@@ -1483,7 +1518,7 @@ _TEMPLATE = r"""
     const href = destURL(navTo(event)), from = navFrom ? navFrom(event) : null;
     if (startPost(href, entriesOf(data))) { startGone = true; return; }  // the Posting's Apply's one post (KAN-725)
     let go;
-    if (isEl(from) && ownerDoc(from) === D) {
+    if (isEl(from) && ownerDoc(from) === doc()) {
       // A script's form.submit() in a link's click names the link: the form is the one the guard last let post.
       const own = isForm(from) ? from : formOf(from);
       const form = own || (posting && posting.form), by = own ? (own === from ? null : from) : posting && posting.by;
@@ -1692,7 +1727,7 @@ _TEMPLATE = r"""
     }
   });
   const fenceWatch = (root) => observe(fencer, root, {childList: true, subtree: true, attributes: true, attributeFilter: ['sandbox', 'inert']});
-  fenceWatch(D);
+  fenceWatch(doc());
   const watched = [];
   const watchRoot = (root) => {
     if (!root || any(watched, (x) => x === root)) return;
@@ -1701,7 +1736,7 @@ _TEMPLATE = r"""
     try { fenceWatch(root); fenceIn(root); } catch (e) {}
   };
   onControl[onControl.length] = () => {
-    if (!handedOver()) { fenceIn(D); for (let i = 0; i < watched.length; i++) { try { fenceIn(watched[i]); } catch (e) {} } return; }
+    if (!handedOver()) { fenceIn(doc()); for (let i = 0; i < watched.length; i++) { try { fenceIn(watched[i]); } catch (e) {} } return; }
     for (let i = 0; i < fenced.length; i++) { try { removeAttr(fenced[i], 'inert'); } catch (e) {} }
     fenced.length = 0;
   };
@@ -1844,7 +1879,7 @@ _CONTROLS = r"""
   // email step's Next): at most one more, or three on a page whose path signs in or makes an account.
   const ACCOUNT_PATH = /(?:^|[\/_.-])(?:log-?in|sign-?in|sign-?up|log-?on|register|registration|account)(?:$|[\/_.-])/i;
   const accountStep = (el) => {
-    const scope = formOf(el) || D;
+    const scope = formOf(el) || doc();
     if (one(scope, 'input[type=password]')) return true;
     const shown = [], ns = all(scope, 'input, select, textarea');
     for (let i = 0; i < ns.length; i++) {
@@ -1997,7 +2032,7 @@ def touch_type(key: str) -> str:
 TELL_PREFIX = f"__apply:{TELL}:"
 TELL_TYPE = f"__apply_tell{TELL}"
 TELL_CDP = "\n    apply(debugFn, con, ['@TELL_PREFIX@' + said]);"
-TELL_PORT = "\n    dispatch(D, new Custom('@TELL_TYPE@', {detail: said}));"
+TELL_PORT = "\n    dispatch(doc(), new Custom('@TELL_TYPE@', {detail: said}));"
 TELLS = ("__applyLisulPressed", "__applyFillAgain", "__applyDismissHold", "__applyDismissApplied")
 
 # A plain Worker's additions (port=True): the worker extension sends its touch (the token's) on the page before each
@@ -2006,7 +2041,7 @@ TELLS = ("__applyLisulPressed", "__applyFillAgain", "__applyDismissHold", "__app
 # click on it, makes that one click Apply's or Lisul's press.
 PORT_TOUCH = ("\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; const at = targetGet(event);"
               " S.touchAt = isEl(at) ? at : null; S.touchUntil = S.touchAt ? now() + 1000 : 0; });")
-PORT_SAID = "\n      dispatch(D, new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
+PORT_SAID = "\n      dispatch(doc(), new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 NO_NOTE = "  const showNote = () => {};"
 # How Apply's notes on a job site's page look: a WorkIt card (the Apply window's colors and face, theme.css), styled
@@ -2571,11 +2606,56 @@ class DriveGuard:
             self._late(sms_opt_in, marketing_opt_in, getattr(page, REHEARSAL_AT_OPEN, False))
         control(page, opts, (DRIVE,))
         _arm_every_page(page)
+        self._arm_pop_ups(opts)
 
-    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
-        """The copy for the open document's frames: under the rehearsal's guard, which ran before the page's code and
-        blocks every send itself, the full one, as before; else the block-only one (LATE)."""
-        self._in_frames(drive_script(sms_opt_in, marketing_opt_in, late=not held))
+    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool, page=None) -> None:
+        """The copy for the open document's frames (of `page`, else the guard's own): under the rehearsal's guard,
+        which ran before the page's code and blocks every send itself, the full one, as before; else the block-only
+        one (LATE)."""
+        self._in_frames(drive_script(sms_opt_in, marketing_opt_in, late=not held), page)
+
+    def _pop_ups(self) -> list:
+        """Every open page the guard's page opened, and each one those opened (KAN-796). The control reaches only the
+        page it is sent to, so a pop-up open before the guard armed (on_open's copy, lifted until a DriveGuard arms
+        it) stayed lifted, and Claude could press its Submit."""
+        try:
+            pages = list(self._page.context.pages)
+        except Exception:
+            return []
+        mine, found, grew = {id(self._page)}, [], True
+        while grew:
+            grew = False
+            for other in pages:
+                if id(other) in mine:
+                    continue
+                try:
+                    opener = other.opener()
+                    closed = other.is_closed()
+                except Exception:
+                    continue  # a page going away
+                if opener is not None and id(opener) in mine and not closed:
+                    mine.add(id(other))
+                    found.append(other)
+                    grew = True
+        return found
+
+    def _arm_pop_ups(self, cmd: dict) -> None:
+        """`cmd` (one that arms) in each pop-up of the page too, or a Handoff: a pop-up whose drive guard won't hear
+        it, even with the block-only copy put in, is one Claude could press a Submit in, so Apply doesn't drive
+        (KAN-796: it fails closed)."""
+        for pop_up in self._pop_ups():
+            if control(pop_up, cmd, (DRIVE,)) == "heard":
+                continue
+            self._late(False, False, False, pop_up)
+            if control(pop_up, cmd, (DRIVE,)) != "heard":
+                raise Handoff(f"A pop-up of the form ({urlsplit(pop_up.url).hostname or pop_up.url}) runs no guard "
+                              "Apply can turn on, so Apply doesn't drive the form. Close the pop-up, or finish the "
+                              "form yourself.")
+
+    def _to_pop_ups(self, cmd: dict, keys=(DRIVE,)) -> None:
+        """`cmd` in each pop-up of the page, as far as it reaches (one that lifts or rests: nothing to fail closed)."""
+        for pop_up in self._pop_ups():
+            control(pop_up, cmd, keys)
 
     def blocked(self) -> list[str]:
         """What it, or a rehearsal's guard on the page, has blocked so far, as
@@ -2590,8 +2670,12 @@ class DriveGuard:
         """Clear what it has blocked so far, once Claude fill has made sense of it."""
         self._blocked.clear()
 
-    def lift(self) -> None:
+    def lift(self, pop_ups: bool = False) -> None:
+        """Off on the page: for Claude fill's own submit click there, where its pop-ups stay guarded (KAN-796), or,
+        with `pop_ups`, the page and its pop-ups Lisul's (or a Filler's) again."""
         control(self._page, {"lift": {}}, (DRIVE,))
+        if pop_ups:
+            self._to_pop_ups({"lift": {}})
         self.rest()
 
     def rest(self) -> None:
@@ -2635,10 +2719,15 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
+        """On before Claude drives, on the page and every pop-up of it (KAN-796), with no allowance left."""
         control(self._page, {"arm": True, "lift": None, "account": False, "profile": False, "upload": False, "start": False,
                              "signIn": False}, (DRIVE,))
         control(self._page, {"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
                 (REHEARSAL,))
+        self._arm_pop_ups({"arm": True, "lift": None, "account": False, "profile": False, "upload": False,
+                           "start": False, "signIn": False})
+        self._to_pop_ups({"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
+                         (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
@@ -2648,6 +2737,7 @@ class DriveGuard:
         cmd = {"asking": on, "askTick": may_tick}
         _init(self._page, cmd, (DRIVE,))
         control(self._page, cmd, (DRIVE,))
+        self._to_pop_ups(cmd)
 
     def _set_driving(self, driving: bool) -> None:
         """Claude drives now, or not: so a captcha's frame refuses every click
@@ -2658,6 +2748,7 @@ class DriveGuard:
         self._driving = driving
         _init(self._page, {"driving": driving}, (DRIVE,))
         control(self._page, {"driving": driving}, (DRIVE,))
+        self._to_pop_ups({"driving": driving})
 
     def _heard(self, message) -> None:
         for said in HEARD:
@@ -2665,8 +2756,8 @@ class DriveGuard:
                 self._blocked.append(message.text.removeprefix(said))
                 return
 
-    def _in_frames(self, script: str) -> None:
-        for frame in self._page.frames:
+    def _in_frames(self, script: str, page=None) -> None:
+        for frame in (page or self._page).frames:
             try:
                 frame.evaluate(script)
             except Exception:
