@@ -288,7 +288,9 @@ for a student, not from `dashboard_page.py`.
   is a Review card: what was checked, what the Pre-submit review changed,
   the answers worth a look (Essays, work authorization, demographics,
   school, pay, files), and every other answer folded under What we
-  filled. Approve and submit (`POST /submit`) has the run press the held
+  filled. The decision (Approve and submit, Fix in the form) sticks to
+  the window's foot while the answers scroll by, so it never sits below
+  the fold. Approve and submit (`POST /submit`) has the run press the held
   form's own Submit (`apply.send_button`): only the one visible Submit or
   Send button, in the page or a frame, and with none or several it
   presses nothing and the card says why. It refuses while an answer is
