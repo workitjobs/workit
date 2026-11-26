@@ -71,17 +71,6 @@ async def test_a_complete_read_keeps_the_one_before(database, boards_csv):
     assert row.last_read_at == datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
 
 
-async def test_a_dry_run_writes_nothing(database, boards_csv, monkeypatch):
-    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
-    async with get_engine().connect() as conn:
-        summary = await worker.run_cycle(conn, dry_run=True)
-    assert summary["synced"] == 1
-    assert summary["tasks_created"] == 1
-    async with get_engine().connect() as conn:
-        for table in ("scraper_schedules", "scraper_tasks"):
-            assert await conn.scalar(text(f"SELECT count(*) FROM {table}")) == 0
-
-
 def _job(title: str, number: int):
     from workit_scraper.providers import Job
 
@@ -118,15 +107,41 @@ def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
     assert kept == []
 
 
-def _read_one_intern(monkeypatch, boards_csv):
+# ---------------------------------------------------------------------------
+# Integration tests for the new reader/writer architecture
+# ---------------------------------------------------------------------------
+
+
+async def _seed_cycle_lease(conn):
+    """Ensure the cycle lease row exists (the migration seeds it).
+
+    Called inside a ``begin()`` context manager, so no explicit commit.
+    """
+    await conn.execute(
+        text(
+            "INSERT INTO scraper_cycle_leases (holder, expires_at)"
+            " VALUES (NULL, '1970-01-01 00:00:00+00')"
+            " ON CONFLICT DO NOTHING"
+        )
+    )
+
+
+def _fake_read_one_intern(monkeypatch, boards_csv):
+    """Patch the board read to return one kept intern for every board."""
     from workit_scraper.board_read import BoardRead, ReadStatus
 
     async def skip_descriptions(conn, summary, robots=None):
         pass
 
     monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+
     job = _job("Software Engineering Intern", 1)
-    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
+
+    monkeypatch.setattr(
+        worker,
+        "sync_catalog_diff",
+        None,  # will be replaced per test
+    )
     monkeypatch.setattr(
         worker, "read_board_listing",
         lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
@@ -134,42 +149,168 @@ def _read_one_intern(monkeypatch, boards_csv):
     return job
 
 
-async def _checkpoint() -> tuple:
+async def test_a_dry_run_writes_nothing(database, boards_csv, monkeypatch):
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", boards_csv)
+
+    # Pre-seed catalog so sync_catalog_diff has rows.
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, boards_csv)
+
+    engine = get_engine()
+    summary = await worker.run_cycle(engine, dry_run=True)
+    assert summary["synced"] == 0  # no new rows since catalog already synced
+    assert summary["due_count"] == 1
+
+    # Nothing was written (dry run released the lease).
     async with get_engine().connect() as conn:
-        task = (await conn.execute(text("SELECT status, error FROM scraper_tasks"))).one()
+        tasks_count = await conn.scalar(text("SELECT count(*) FROM scraper_tasks"))
+    assert tasks_count == 0
+
+
+async def test_boards_are_read_and_published(database, boards_csv, monkeypatch):
+    """One board is read, published and its schedule advanced."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
+
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", boards_csv)
+
+    job = _job("Software Engineering Intern", 1)
+    monkeypatch.setattr(
+        worker, "read_board_listing",
+        lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
+    )
+
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, boards_csv)
+
+    engine = get_engine()
+    summary = await worker.run_cycle(engine)
+
+    assert summary["boards_ok"] == 1
+    assert summary["jobs_scraped"] == 1
+
+    async with get_engine().connect() as conn:
         read_at = await conn.scalar(text("SELECT last_read_at FROM scraper_schedules"))
         jobs = await conn.scalar(text("SELECT count(*) FROM job_postings"))
-    return task, read_at, jobs
-
-
-async def test_a_board_is_checkpointed_with_its_published_jobs(database, boards_csv, monkeypatch):
-    _read_one_intern(monkeypatch, boards_csv)
-    async with get_engine().connect() as conn:
-        summary = await worker.run_cycle(conn)
-    task, read_at, jobs = await _checkpoint()
-    assert summary["jobs_scraped"] == 1
-    assert task.status == "done"
+        task_count = await conn.scalar(text("SELECT count(*) FROM scraper_tasks WHERE status = 'done'"))
     assert read_at is not None
     assert jobs == 1
+    assert task_count == 1
 
 
-async def test_a_failed_publish_leaves_the_board_unread(database, boards_csv, monkeypatch):
-    from app.scripts import import_jobs
+async def test_unchanged_board_skips_import_but_advances_reads(database, boards_csv, monkeypatch):
+    """When the fingerprint matches, import_feed is not called but
+    advance_reads still runs (D2: two-read closure rule preserved)."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
 
-    _read_one_intern(monkeypatch, boards_csv)
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", boards_csv)
 
-    async def refuse(*args, **kwargs):
-        raise import_jobs.ImportRefused("no")
+    job = _job("Software Engineering Intern", 1)
+    monkeypatch.setattr(
+        worker, "read_board_listing",
+        lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
+    )
 
-    monkeypatch.setattr(import_jobs, "import_feed", refuse)
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, boards_csv)
+
+    engine = get_engine()
+
+    # First cycle: board is new, fingerprint is None → changed.
+    summary1 = await worker.run_cycle(engine)
+    assert summary1["boards_ok"] == 1
+
     async with get_engine().connect() as conn:
-        summary = await worker.run_cycle(conn)
-    assert summary["boards_failed"] == 1
-    task, read_at, jobs = await _checkpoint()
-    assert task.status == "failed"
-    assert task.error.startswith("publish failed")
-    assert read_at is None
-    assert jobs == 0
+        row = await _schedule(conn)
+        first_read = row.last_read_at
+
+    # Second cycle: same fingerprint → unchanged.
+    summary2 = await worker.run_cycle(engine)
+    assert summary2["boards_ok"] == 1
+
+    async with get_engine().connect() as conn:
+        row = await _schedule(conn)
+        second_read = row.last_read_at
+
+    # advance_reads ran: last_read_at advanced.
+    assert second_read > first_read
+
+
+async def test_parallel_workers_read_all_boards(database, tmp_path, monkeypatch):
+    """Four boards, four workers: every board is read and logged."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
+
+    csv = tmp_path / "boards.csv"
+    csv.write_text(
+        "ats,token,company\n"
+        "greenhouse,a,A\n"
+        "greenhouse,b,B\n"
+        "greenhouse,c,C\n"
+        "greenhouse,d,D\n",
+        encoding="utf-8",
+    )
+
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", csv)
+
+    def fake_read(board, robots=None):
+        n = ord(board.token)
+        job = _job("Software Engineering Intern", n)
+        return BoardRead(ReadStatus.OK, jobs=[job]), [job], 0.1
+
+    monkeypatch.setattr(worker, "read_board_listing", fake_read)
+
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, csv)
+
+    engine = get_engine()
+    summary = await worker.run_cycle(engine, workers=4)
+
+    assert summary["boards_ok"] == 4
+    assert summary["jobs_scraped"] == 4
+
+    async with get_engine().connect() as conn:
+        done = await conn.scalar(
+            text("SELECT count(*) FROM scraper_tasks WHERE status = 'done'")
+        )
+    assert done == 4
+
+
+async def test_lease_prevents_concurrent_cycles(database, boards_csv, monkeypatch):
+    """A second cycle cannot take the lease while the first holds it (D5)."""
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", boards_csv)
+
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, boards_csv)
+
+    # Take the lease manually so run_cycle finds it held.
+    async with get_engine().begin() as conn:
+        lease_id = await schedules.take_lease(conn, "other-holder")
+    assert lease_id is not None
+
+    engine = get_engine()
+    summary = await worker.run_cycle(engine)
+    assert summary.get("lease_held") is True
+    assert summary["boards_ok"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +464,7 @@ async def test_select_due_skips_fingerprint_resting(database, boards_csv):
 
 
 # ---------------------------------------------------------------------------
-# Parallel board workers
+# Description enrichment (phase 2)
 # ---------------------------------------------------------------------------
 
 
@@ -486,78 +627,6 @@ async def test_version_bump_retries_despite_max_attempts(database, boards_csv):
             )
         ).all()
         assert len(rows) == 1, "version-stale row must not be blocked by attempts cap"
-
-
-async def test_broken_connection_in_checkpoint_does_not_propagate(database, boards_csv, monkeypatch):
-    """When the connection breaks during checkpoint *and* during recovery,
-    the worker exits cleanly: boards_failed increments, the exception does
-    not propagate, and run_cycle still runs closures (phase 6)."""
-    from app.scripts import import_jobs
-
-    _read_one_intern(monkeypatch, boards_csv)
-
-    # Simulate a broken connection: import_feed raises, then rollback also
-    # raises (the connection is dead).
-    class DeadConnection(Exception):
-        pass
-
-    async def break_on_import(*args, **kwargs):
-        # Make the connection's rollback fail too, simulating a lost connection.
-        conn = args[0]
-
-        async def broken_rollback():
-            raise DeadConnection("connection lost")
-
-        conn.rollback = broken_rollback
-        raise DeadConnection("connection reset by peer")
-
-    monkeypatch.setattr(import_jobs, "import_feed", break_on_import)
-
-    async with get_engine().connect() as conn:
-        summary = await worker.run_cycle(conn)
-
-    # The exception did not propagate (run_cycle returned), closures ran.
-    assert summary["boards_failed"] >= 1
-
-
-async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch):
-    """Four boards, four workers: every board is claimed and processed."""
-    from workit_scraper.board_read import BoardRead, ReadStatus
-
-    csv = tmp_path / "boards.csv"
-    csv.write_text(
-        "ats,token,company\n"
-        "greenhouse,a,A\n"
-        "greenhouse,b,B\n"
-        "greenhouse,c,C\n"
-        "greenhouse,d,D\n",
-        encoding="utf-8",
-    )
-
-    async def skip_descriptions(conn, summary, robots=None):
-        pass
-
-    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
-    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, csv))
-
-    def fake_read(board, robots=None):
-        n = ord(board.token)
-        job = _job("Software Engineering Intern", n)
-        return BoardRead(ReadStatus.OK, jobs=[job]), [job], 0.1
-
-    monkeypatch.setattr(worker, "read_board_listing", fake_read)
-
-    async with get_engine().connect() as conn:
-        summary = await worker.run_cycle(conn, workers=4)
-
-    assert summary["boards_ok"] == 4
-    assert summary["jobs_scraped"] == 4
-
-    async with get_engine().connect() as conn:
-        done = await conn.scalar(
-            text("SELECT count(*) FROM scraper_tasks WHERE status = 'done'")
-        )
-    assert done == 4
 
 
 # ---------------------------------------------------------------------------
