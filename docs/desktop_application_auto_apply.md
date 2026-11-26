@@ -214,9 +214,10 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Each link the student sends in or pastes, to find WorkIt's job and name it while it waits | When it waits to start (`apply.queued_names`) |
 | WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
-| Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting or a careers page's own host), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
 | Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,

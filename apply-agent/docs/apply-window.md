@@ -272,7 +272,8 @@ for a student, not from `dashboard_page.py`.
   never submits) or when the run's Workers close, `on_done` still runs, and
   `app_window.Bridge` shows the queue
   again. Below "Still working on", each job waiting to start (`run.waiting`,
-  named as the queue named it; a pasted link by its site) has Remove,
+  named as the queue named it; a link sent in or pasted as
+  `apply.queued_names` names it, else by its site) has Remove,
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
@@ -372,7 +373,13 @@ for a student, not from `dashboard_page.py`.
   Brandfetch's icon by `company_domain`, through `fallback/404` and
   WorkIt's public client id, then the scraper's `logo_url`, then the
   initials tile (`src/logo.ts`, `Logo` in `src/ui.tsx`). No domain is
-  guessed from a name: a pasted link has none, so it shows initials. Each
+  guessed from a name. A link sent in or pasted is named in the
+  background as it waits (`Dashboard.names_by`, `apply.queued_names`), with
+  plain reads and no browser: WorkIt's job when WorkIt lists the link (its
+  logo sources too), else its job system's names (`request.resolve`), and a
+  careers page's Greenhouse job (`greenhouse.board_behind`) with the page's
+  own registered domain as `company_domain`. One nothing names shows its
+  host and initials. Each
   image stays hidden until it loads; one that fails moves on to the next
   source, so no broken image shows. `Bridge.queue` passes on each job's
   `logo_url` and `company_domain`, keeps them by link, and gives them to
