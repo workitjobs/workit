@@ -428,7 +428,19 @@ Find files with a directory listing; these are the rules for where code goes.
   /apply-app/profile` keeps what the student answered in the app's Needs
   you, by question (`answered_questions`) or as a fact by dotted key
   (never `files.*`), in `fill_profile`, under WorkIt's own fields, so the
-  extension fills them too. Tests: `tests/test_apply_app.py`.
+  extension fills them too. **The Story bank and voice are WorkIt's too**
+  (2026-11-26): the same read answers `writing`, the Story bank built from
+  the student's writing samples, experience bank and the lines the app's
+  fills added (`services/story_bank.py`, in Apply's layout, each entry
+  once across resumes), and the style card as the voice. Those lines come
+  by the same PATCH (`story`) and live in `fill_profile.story_lines`,
+  which the read keeps out of the profile. **`POST
+  /apply-app/profile/upload` is a Developer checkout's** (`apply upload`):
+  its own files, taking only what WorkIt lacks, so a second upload changes
+  nothing the student edited since. Writing samples and the style card
+  follow the import's rules (`scripts/import_apply_writing.py`), only for a
+  student with none. Tests: `tests/test_apply_app.py`,
+  `tests/test_story_bank.py`.
   **No route takes a schema from a student.** If one ever does,
   it must refuse `$ref` (fetches URLs), `pattern`/`patternProperties`
   (ReDoS with Python's backtracking `re`) and more than 32 levels

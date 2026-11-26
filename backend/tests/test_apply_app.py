@@ -21,6 +21,7 @@ from app.apply_prompts import KINDS, brief, said, writing
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.queries import writing as writing_rows
 from app.queries.model_usage import resets_at
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.models import get_large_llm, get_small_llm
@@ -265,3 +266,51 @@ async def test_the_app_reads_its_profile_from_workit_and_keeps_the_students_answ
     assert profile["identity"]["preferred_first_name"] == "Sammy"  # a fact the engine read from an answer
     assert refused.status_code == 422  # a file's path is the Mac's, never WorkIt's
     assert got.json()["policies"]["how_heard"]["text"] == "WorkIt" and got.json()["files"] == {}
+
+
+async def test_the_app_reads_its_story_bank_and_voice_from_workit_and_keeps_the_lines_a_fill_adds(student, database):
+    """W11: the Story bank and voice are WorkIt's too. Fault: the Story bank missed the student's writing samples or
+    a line a fill added, a line sent twice was kept twice, the voice wasn't the style card, or the lines reached the
+    engine profile as a fact."""
+    async with database() as session:
+        await writing_rows.add_sample(session, student.id, "I built a shelf scanner.")
+        await writing_rows.save_style_card(session, student.id, "Short sentences.")
+        await session.commit()
+    line = {"section": "## Answers to essay questions\nIn their words.", "line": "- Favorite book? Dune"}
+    async with _api() as api:
+        for _ in range(2):  # a save sent again after WorkIt didn't answer the first time
+            assert (await api.patch("/apply-app/profile", json={"story": [line]})).status_code == 204
+        got = (await api.get("/apply-app/profile")).json()
+
+    story = got["writing"]["story_bank"]
+    assert "## Sam's own essays\nI built a shelf scanner.\n" in story
+    assert story.endswith("## Answers to essay questions\nIn their words.\n- Favorite book? Dune\n")
+    assert story.count("Dune") == 1 and "story_lines" not in got["profile"]
+    assert got["writing"]["voice"] == "Short sentences."
+
+
+async def test_a_developer_upload_takes_only_what_workit_lacks(student, database):
+    """`apply upload`. Fault: it wrote over what WorkIt holds (its phone, an answer the student gave since), took a
+    file's path, or a second upload added the same samples, lines or answers again."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = '{\"answered_questions\":"
+                                   " {\"Why us?\": \"Boats.\"}}' WHERE id = :id"), {"id": student.id})
+        await session.commit()
+    body = {"profile": {"identity": {"phone": "999-000-0000", "preferred_first_name": "Sammy"},
+                        "files": {"resume_pdf": "Sam_Resume.pdf"}, "stock_answers": {"why_field": "Robots."},
+                        "answered_questions": {"Why us?": "Old words.", "Which shift?": "Nights"}},
+            "story_bank": "# Story bank\n\n## Sam's own essays\n> I built a shelf scanner.\n\n## Skills\n- Python.\n",
+            "voice": "<!-- measured from 1 sample -->\nShort sentences.",
+            "story": [{"section": "## Added context\nWhat they added.", "line": "- For \"Why us?\": boats"}]}
+    async with _api() as api:
+        first = await api.post("/apply-app/profile/upload", json=body)
+        again = await api.post("/apply-app/profile/upload", json=body)
+        got = (await api.get("/apply-app/profile")).json()
+
+    assert first.json() == {"facts": 2, "answered": 1, "story": 1, "samples": 1, "style_card": True}, first.text
+    assert again.json() == {"facts": 0, "answered": 0, "story": 0, "samples": 0, "style_card": False}
+    profile = got["profile"]
+    assert profile["identity"]["phone"] == "631-555-0142" and profile["identity"]["preferred_first_name"] == "Sammy"
+    assert profile["stock_answers"] == {"why_field": "Robots."} and "resume_pdf" not in profile.get("files", {})
+    assert profile["answered_questions"] == {"Why us?": "Boats.", "Which shift?": "Nights"}
+    assert "I built a shelf scanner." in got["writing"]["story_bank"] and got["writing"]["voice"] == "Short sentences."

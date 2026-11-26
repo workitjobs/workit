@@ -119,11 +119,14 @@ class AppProfile(BaseModel):
     student, built from what WorkIt holds as the extension builds them
     (services/engine_profile.py), and where each file the profile names is
     read: `resume` with `uploaded_resume_id` or `built_resume_id`, and
-    `transcript`, each with its `name`."""
+    `transcript`, each with its `name`. `writing` is the Story bank
+    (services/story_bank.py) and the voice (the style card), as Apply's
+    essays read them."""
 
     profile: dict
     policies: dict
     files: dict
+    writing: dict = {}
 
 
 # A Needs you answer as WorkIt Auto Apply keeps it: the question as the form words it, and the answer ("" is a Skip).
@@ -133,12 +136,24 @@ AnsweredText = Annotated[str, StringConstraints(max_length=20000)]
 
 # A fact's dotted key in the engine profile ("identity.pronouns"): never a file's path, which only the Mac knows.
 def _not_reserved(key: str) -> str:
-    if key.split(".")[0] in ("files", "answered_questions"):
-        raise ValueError("files and answered_questions are not facts")
+    if key.split(".")[0] in ("files", "answered_questions", "story_lines"):
+        raise ValueError("files, answered_questions and story_lines are not facts")
     return key
 
 
 FactKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"), AfterValidator(_not_reserved)]
+
+
+class StoryLine(BaseModel):
+    """A line WorkIt Auto Apply added to the Story bank during a fill (the
+    student's answer to what an essay asked, or what they added when they
+    asked for an answer again), under its section: its heading and what it
+    holds, as the app wrote them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    section: str = Field(min_length=1, max_length=500)
+    line: str = Field(min_length=1, max_length=4000)
 
 
 class AnsweredChange(BaseModel):
@@ -151,3 +166,27 @@ class AnsweredChange(BaseModel):
 
     answered: dict[AnsweredQuestion, AnsweredText | list[AnsweredText]] = Field(default={}, max_length=100)
     facts: dict[FactKey, AnsweredText | list[AnsweredText] | bool | int | float] = Field(default={}, max_length=100)
+    story: list[StoryLine] = Field(default=[], max_length=100)
+
+
+class ProfileUpload(BaseModel):
+    """POST /apply-app/profile/upload: a Developer checkout's own files
+    (`apply upload`): its applicant-profile.yaml as data, its story-bank.md
+    and voice.md as text, and the Story bank's lines a fill added."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    profile: dict = {}
+    story_bank: str = Field(default="", max_length=200_000)
+    voice: str = Field(default="", max_length=20_000)
+    story: list[StoryLine] = Field(default=[], max_length=2_000)
+
+
+class UploadTaken(BaseModel):
+    """What an upload put in: only what WorkIt lacked."""
+
+    facts: int
+    answered: int
+    story: int
+    samples: int
+    style_card: bool
