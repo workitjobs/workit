@@ -366,6 +366,10 @@ test("a form the student isn't applying to leaves the pile, with its earlier ite
   });
   assert.deepEqual(v.todo.map((j) => j.source.posting_url), ["https://b"]);
   assert.equal(v.held, 1);
+  // Its tile on to the next job: the let-go form's item stays gone.
+  const after = view({ tiles: [job({ tone: "filling", posting_url: "https://c" })], items: [job({ tone: "ready", id: 3, let_go: true, posting_url: "https://a" })] });
+  assert.deepEqual(after.todo, []);
+  assert.deepEqual(after.working.map((j) => j.source.posting_url), ["https://c"]);
 });
 
 test("+ Add jobs shows whenever no run is going and the window can start one, never during a run", () => {

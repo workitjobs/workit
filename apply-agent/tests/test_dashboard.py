@@ -1519,7 +1519,8 @@ def test_todo_count_counts_each_job_once_by_where_it_is_now():
     items = [{"tone": "needs", "posting_url": "https://a", "id": 1},  # the same job as its tile
              {"tone": "needs", "posting_url": "https://b", "id": 2},  # its tile fills it again
              {"tone": "ready", "posting_url": "https://c", "id": 3},
-             {"tone": "needs", "posting_url": "https://d", "id": 4, "answered": True}]
+             {"tone": "needs", "posting_url": "https://d", "id": 4, "answered": True},
+             {"tone": "ready", "posting_url": "https://e", "id": 5, "let_go": True}]  # the student let it go
     assert dashboard.todo_count(tiles, items) == 2
 
 
@@ -1663,6 +1664,10 @@ def test_not_applying_lets_go_only_a_held_form_and_only_the_window_may():
         assert board.held() == 0  # it waits for the student no more, before the run lets its page go
         assert board.state()["tiles"][0]["let_go"] is True
         assert [board.let_go_asked(0), board.let_go_asked(0), board.let_go_asked(1)] == [True, False, False]
+        board.update(0, status="ready", again=True)
+        assert post({"id": "tile-0"}, board.token) == 200
+        board.update(0, status="filling")  # its next job, before the run saw the press: that job's form isn't let go
+        assert board.let_go_asked(0) is False
 
 
 def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():

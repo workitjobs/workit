@@ -267,7 +267,7 @@ def todo_count(tiles: list[dict], items: list[dict]) -> int:
     def key(shown: dict) -> str:
         return str(shown.get("posting_url") or (f"{shown['company']}|{shown['role']}" if shown.get("company") and shown.get("role") else shown.get("id")))
     live = {key(t): t for t in reversed(tiles) if t.get("tone") not in (None, "idle") and not t.get("let_go")}
-    past = {key(i): i for i in reversed(items)}
+    past = {key(i): i for i in reversed(items) if not i.get("let_go")}  # one let go waits on him no more
     answered = {k for k, i in past.items() if i.get("answered")}
     return sum(1 for k in live.keys() | past.keys()
                if (live.get(k) or past[k]).get("tone") in ("needs", "ready") and k not in answered)
@@ -842,6 +842,7 @@ class Dashboard:
             if caption.get("status") == "filling" and tile.get("status") != "filling":
                 tile.clear()  # the next Application: none of the last one's caption
                 self._picked[worker] = []
+                self._letting_go.discard(worker)  # a let go asked of the last one's form isn't this one's
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
