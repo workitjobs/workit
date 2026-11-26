@@ -125,6 +125,12 @@ class ApplicantProfile:
             _apply(self._facts, "answered", question.strip(), answer)
             self._changes.append(("answered", question.strip(), answer))
 
+    def add_story(self, section: str, line: str) -> None:
+        """A line a fill added to the Story bank (home.add_story_line), for `saver` to send with the next save: in
+        WorkIt Auto Apply the Story bank is WorkIt's (W11)."""
+        with self._lock:
+            self._changes.append(("story", section, line))
+
     def save_fact(self, key: str, value: Any) -> None:
         """Set a fact by dotted key and save the profile, refusing first, with
         nothing changed, a key that looks like it holds a secret."""
@@ -150,7 +156,9 @@ class ApplicantProfile:
 
 
 def _apply(facts: dict, kind: str, key: str, value: Any) -> None:
-    """One change to the facts: a dotted key set, or an answered question."""
+    """One change to the facts: a dotted key set, or an answered question. A Story bank line is no fact."""
+    if kind == "story":
+        return
     if kind == "answered":
         if not isinstance(facts.get(ANSWERED), dict):
             facts[ANSWERED] = {}

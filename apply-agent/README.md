@@ -79,6 +79,9 @@ your shell runs macOS's own `apply`, an unrelated command that prints only
 
    The window also takes you through first run (Chrome, what leaves your
    Mac, Screen Recording, the seed), then runs your Auto Apply queue (W5).
+   It fills with your WorkIt profile, as a student's app does. To send your
+   own profile, Story bank and voice there once, run
+   `uv run apply upload`.
    Apply keeps the login in your keychain (`apply-workit`), never in the
    repo. You sign in one time; Apply refreshes the login by itself.
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it

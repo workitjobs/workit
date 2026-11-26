@@ -211,7 +211,7 @@ def other_companies(text: str, company: str, bank: str | None = None) -> list[st
     """Known companies `text` names that aren't `company`: a name left over
     from another Application. A name his own facts in the Story bank use
     (`bank`, outside his past answers to other companies) is his, and passes."""
-    own = _own_facts(home.STORY_BANK.read_text() if bank is None else bank)
+    own = _own_facts(home.story_bank() if bank is None else bank)
     return [f"names another company: {name}" for name in companies()
             if re.search(rf"\b{re.escape(name)}\b", text) and not is_company(company, name)
             and not is_company(name, company) and not re.search(rf"\b{re.escape(name)}\b", own)]

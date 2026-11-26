@@ -190,6 +190,7 @@ def data_folder() -> Path:
     shutil.rmtree(home.HOME, ignore_errors=True)
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)
+    home.WORKIT = None  # a Developer command's files, unless the test makes them WorkIt Auto Apply's
     # WorkIt's Question types, as a run fetches them (GET /apply-app/types), saved from the server's own copy.
     shutil.copy(FIXTURES / "question-types.json", answering.CACHE)
     answering._served.cache_clear()

@@ -343,9 +343,7 @@ the app fills as the extension does. The policies lie over the app's own,
 and an empty one never wipes Apply's (`high_stakes_job_systems: [ashby]`
 stays). "How did you hear about us?" stays Apply's, "Company careers
 page": WorkIt's answer, "WorkIt", is the extension's alone (decided
-2026-11-26). The Story bank, voice, Stock answers and company briefs don't
-come from WorkIt yet: the app starts an empty `story-bank.md`, which
-every essay reads, so a first essay never stops on a missing file. The default resume and the transcript are read then too
+2026-11-26). The default resume and the transcript are read then too
 (`WorkIt.profile_file`) and kept in `home.HOME / "files"`, by their names
 alone, for a form's upload. A Start WorkIt doesn't answer says so and
 changes nothing. What the student answers in Needs you goes back
@@ -355,6 +353,36 @@ WorkIt doesn't answer stays in the profile and goes with the next save. A
 report's log is masked with the profile read from WorkIt as it goes. A
 Developer checkout keeps its profile file and Test Person. Tests:
 `tests/test_profile_from_workit.py`.
+
+**The Story bank and voice are WorkIt's too** (2026-11-26). The same read
+answers `writing`: the Story bank WorkIt builds from the student's writing
+samples, experience bank and the lines the app's fills added, in the
+layout essays read, and their style card as the voice. The app holds them
+in memory (`home.WORKIT`, set at launch and at each Start), and every
+reader goes through `home.story_bank()` and `writing.style_card()`, so it
+never reads the data folder's `story-bank.md` or `voice.md`: in a
+Developer checkout's `apply app`, those are the developer's own. A line a
+fill adds (an essay's asked fact, `essays.remember_fact`; context added
+on Regenerate, `regenerate.keep_context`) goes through
+`home.add_story_line`: into the file in a Developer command, and in the
+app into memory and to WorkIt with the profile's next save
+(`student.story_to_workit`, the PATCH's `story`). One WorkIt doesn't take
+stays with the profile's changes and goes with the next save; until then
+the next Start's Story bank lacks it. The Stock answers the profile holds
+(`stock_answers`) come and go as its other facts. A developer's
+`stock-answers.yaml` and story map are still read in their `apply app`,
+and each entry that the Story bank's lines no longer back is left out,
+as in any command. Company briefs are W9's: the app reads none yet.
+
+**`uv run apply upload`** (`cli.upload`) sends a Developer checkout's own
+`applicant-profile.yaml`, `story-bank.md`, `voice.md` and the Story
+bank's added lines to WorkIt (`POST /apply-app/profile/upload`), so its
+`apply app` fills with the developer's own data, through the students'
+pipeline. WorkIt keeps only what it lacks: a fact with no value there
+(never a file: upload the resume on WorkIt's website), a new answer or
+line, and writing samples and a style card only for an account with
+none. A second upload changes nothing edited on WorkIt since. The files
+stay, for every other command, and Test Person's sample is never sent.
 
 **Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
 `tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,

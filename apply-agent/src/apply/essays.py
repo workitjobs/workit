@@ -300,7 +300,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     claude = as_applicant(claude, profile)
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     classified = {key: question_type(q) for key, q in keys.items()}
-    bank = data_folder.STORY_BANK.read_text()
+    bank = data_folder.story_bank()
     mapped = story_map.load() if story_map.MAP.is_file() else []
     angles = {key: list(found.angles) for key, q in keys.items() if (found := (typical or {}).get(q)) and found.angles}
     led = {kind: stories for kind, stories in sameness.Ledger().led(posting.company).items()
@@ -573,6 +573,7 @@ SHORTER = f"{CUT} The form refuses a longer answer."
 
 # Heads the Story bank's section of Lisul's answers to the questions essays asked them (ASK).
 ANSWERED = "## Answered during applications"
+ANSWERED_SECTION = f"{ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word."
 
 
 def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
@@ -580,12 +581,7 @@ def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
     ASK), as a Story bank line under ANSWERED, so this essay and every one
     after can quote it. An answer already there is not added again."""
     fact = f"- {one_line(asked.removeprefix(ASK))} {one_line(answer)}"
-    bank = data_folder.STORY_BANK.read_text()
-    if fact in bank:
-        return
-    if ANSWERED not in bank:
-        bank = f"{bank.rstrip()}\n\n{ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word.\n"
-    data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n")
+    data_folder.add_story_line(ANSWERED_SECTION, f"{fact} (asked for {company}, {today.isoformat()})", fact)
 
 
 def form_answers(answered: Mapping[Question, object], self_ids: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:
@@ -625,7 +621,7 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     return (
         (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
-        + f"<story_bank>\n{data_folder.STORY_BANK.read_text()}</story_bank>\n"
+        + f"<story_bank>\n{data_folder.story_bank()}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
         + f"<stock_answers>\n{json.dumps(own, indent=1)}\n</stock_answers>"
         + (f"\n{core}" if (core := stock.material(types)) else "")
@@ -842,7 +838,7 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
 def _facts(named: object, profile: ApplicantProfile) -> tuple[str, ...]:
     """The facts Claude named that a source holds: a profile key it was sent,
     or a Story bank line word for word; any other is dropped, unchecked."""
-    story = data_folder.STORY_BANK.read_text()
+    story = data_folder.story_bank()
     facts = profile_facts(profile)
     held = lambda f: (f.split(".")[0] in facts and profile.get(f) is not None) or (len(f) > 10 and f in story)
     return tuple(dict.fromkeys(f.strip() for f in named if isinstance(f, str) and held(f.strip()))) \

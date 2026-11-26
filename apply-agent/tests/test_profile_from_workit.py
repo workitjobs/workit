@@ -1,35 +1,45 @@
 """WorkIt Auto Apply's profile is WorkIt's (W11): read at each Start, its files with it, and what the student answers
 in Needs you sent back. No profile file and no Test Person: a first launch with neither starts all the same."""
 
+from datetime import date
+
 import pytest
 
-from apply import essays, student
+from apply import cli, essays, home, regenerate, student, writing
 from apply.adapters import SetupError
 from apply.answer_bank import AnswerBank
+from apply.model import Question
 from apply.profile import ApplicantProfile
 from apply.workit import Unreachable
+
+STORY = "# Story bank: Sam\n\n## Sam's own essays\nI built a shelf scanner.\n\n## Acme: Intern (Jun 2026-Aug 2026)\n- Cut the report.\n"
 
 
 class WorkIt:
     """WorkIt's profile route and file reads, as `apply.workit.WorkIt` answers them."""
 
     def __init__(self, down: bool = False):
-        self.down, self.saved = down, []
+        self.down, self.saved, self.uploaded = down, [], []
 
     def applicant_profile(self) -> dict:
         if self.down:
             raise Unreachable("api.workitjobs.ai: timed out")
         return {"profile": {"identity": {"legal_first_name": "Sam"}},
                 "policies": {"how_heard": {"text": "WorkIt"}, "high_stakes_job_systems": [], "sms_opt_in": False},
-                "files": {"resume": {"name": "../Sam_Resume.pdf", "uploaded_resume_id": "r1"}}}
+                "files": {"resume": {"name": "../Sam_Resume.pdf", "uploaded_resume_id": "r1"}},
+                "writing": {"story_bank": STORY, "voice": "Short sentences. No dashes."}}
 
     def profile_file(self, where: dict) -> bytes:
         return b"%PDF resume " + where["uploaded_resume_id"].encode()
 
-    def save_answered(self, answered: dict, facts: dict) -> None:
+    def save_answered(self, answered: dict, facts: dict, story: list[dict] | None = None) -> None:
         if self.down:
             raise Unreachable("api.workitjobs.ai: timed out")
-        self.saved.append((answered, facts))
+        self.saved.append((answered, facts) + ((story,) if story else ()))
+
+    def upload_profile(self, profile: dict, story_bank: str, voice: str, story: list[dict]) -> dict:
+        self.uploaded.append((profile, story_bank, voice, story))
+        return {"facts": 3, "answered": 1, "story": len(story), "samples": 2, "style_card": True}
 
 
 def test_a_start_reads_the_profile_and_its_files_from_workit(tmp_path, monkeypatch):
@@ -89,7 +99,6 @@ def test_a_first_launch_with_no_profile_and_no_sample_opens(tmp_path, monkeypatc
     profile, and stopped at launch where the build ships no sample/. Without the copy, the first essay stopped
     on a Story bank file that wasn't there."""
     monkeypatch.setattr("apply.home.fill_from_sample", lambda: pytest.fail("Test Person copied"))
-    monkeypatch.setattr("apply.home.STORY_BANK", tmp_path / "story-bank.md")
     monkeypatch.setattr(student, "AnswerBank", lambda *_: AnswerBank())
     opened = []
     monkeypatch.setattr(student.app_window, "run", lambda board, start: opened.append(start))
@@ -97,4 +106,63 @@ def test_a_first_launch_with_no_profile_and_no_sample_opens(tmp_path, monkeypatc
     student.app()
 
     assert len(opened) == 1  # the window opened, and the patched copy above was never made
-    assert "<story_bank>\n</story_bank>" in essays.sources(ApplicantProfile({}, tmp_path, {}))  # empty, not missing
+    # Until the first Start reads WorkIt's, an empty Story bank, never the data folder's file (a Developer's own).
+    assert "<story_bank>\n</story_bank>" in essays.sources(ApplicantProfile({}, tmp_path, {}))
+
+
+def test_a_start_reads_the_story_bank_and_voice_from_workit_and_leaves_the_data_folders_alone(tmp_path, monkeypatch):
+    """Fault: an essay read the data folder's story-bank.md or voice.md (a Developer's own, in `apply app`) in place
+    of WorkIt's, or a line a fill added went into that file."""
+    monkeypatch.setattr(student, "FILES", tmp_path / "files")
+    mine = home.STORY_BANK.read_text()
+    profile = ApplicantProfile({}, tmp_path, {}, saver=lambda changes: None)
+
+    student.profile_from_workit(profile, WorkIt())
+    essays.remember_fact(f"{essays.ASK}What did the report cut?", "Four minutes to twenty seconds", "Acme",
+                         date(2026, 11, 26))
+
+    assert essays.sources(profile).startswith(f"<story_bank>\n{STORY}")
+    assert "- What did the report cut? Four minutes to twenty seconds (asked for Acme, 2026-11-26)" in home.story_bank()
+    assert writing.style_card() == "Short sentences. No dashes." and "shelf scanner" in writing.samples()
+    assert home.STORY_BANK.read_text() == mine
+
+
+def test_a_line_a_fill_adds_goes_to_workit_and_waits_when_it_doesnt_answer(tmp_path, monkeypatch):
+    """Fault: a Story bank line was lost when WorkIt didn't answer, or stopped the fill."""
+    monkeypatch.setattr(student, "FILES", tmp_path / "files")
+    workit = WorkIt()
+    monkeypatch.setattr(student, "WorkIt", lambda: workit)
+    profile = ApplicantProfile({}, tmp_path, {}, saver=student.to_workit)
+    student.profile_from_workit(profile, workit)
+    workit.down = True
+
+    regenerate.keep_context(Question("q1", "Why Acme?", "textarea"), [], "I ride their trains", "Acme",
+                            date(2026, 11, 26))
+    workit.down = False
+    student.profile_from_workit(profile, workit)  # the next Start, with the line still waiting: it is no fact
+    assert profile.facts() == {"identity": {"legal_first_name": "Sam"},
+                               "files": {"resume_pdf": str(tmp_path / "files" / "Sam_Resume.pdf")}}
+    profile.save_answered("Which shift?", "Nights")
+
+    line = '- For "Why Acme?" at Acme: I ride their trains (2026-11-26)'
+    assert workit.saved == [({"Which shift?": "Nights"}, {}, [{"section": regenerate.ADDED_SECTION, "line": line}])]
+
+
+def test_apply_upload_sends_the_data_folders_own_files_and_never_test_persons(monkeypatch, capsys):
+    """Fault: `apply upload` left out the Story bank's added lines or the voice, or sent Test Person's sample."""
+    workit = WorkIt()
+    monkeypatch.setattr(cli.workit, "WorkIt", lambda: workit)
+    with pytest.raises(SystemExit, match="Test Person"):
+        cli.upload()  # the tests' data folder is Test Person's
+    profile = ApplicantProfile.load(cli.DEFAULT_PROFILE)
+    profile.set("sample_data", False)
+    profile.save()
+    home.STORY_BANK.write_text(home.STORY_BANK.read_text() + f"\n{essays.ANSWERED_SECTION}\n- Favorite book? Dune\n")
+
+    cli.upload()
+
+    facts, bank, voice, story = workit.uploaded[0]
+    assert facts["identity"]["legal_first_name"] and bank == home.STORY_BANK.read_text()
+    assert voice == writing.VOICE.read_text() and story == [{"section": essays.ANSWERED_SECTION,
+                                                             "line": "- Favorite book? Dune"}]
+    assert "only what it lacked" in capsys.readouterr().out

@@ -111,7 +111,7 @@ def stale(story_bank_text: str) -> list[str]:
 def material(types: Iterable[str]) -> str:
     """The approved, fresh Stock answer of each of `types` (each once), for the
     essay prompt as his core answer for that type; "" when there is none."""
-    old = set(stale(home.STORY_BANK.read_text())) if home.STORY_BANK.exists() else set()
+    old = set(stale(home.story_bank()))
     found = [s for t in dict.fromkeys(types) if (s := get(t)) and t not in old]
     if not found:
         return ""

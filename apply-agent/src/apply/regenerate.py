@@ -59,6 +59,8 @@ from apply.profile import ApplicantProfile
 ESSAY, DRAFT, ONE_OFF = "essay", "draft", "one-off"  # an essay; a one-off in the Answer bank; one about this company only
 TEXT_KINDS = ("text", "textarea")  # the fields a written answer goes in: never a pick from a list, never a file
 ADDED = "## Added while reviewing answers"  # the Story bank's section of Lisul's added context
+ADDED_SECTION = (f"{ADDED}\nWhat the applicant added, in their own words, when they asked Claude to write one answer "
+                 "again.")
 CONTEXT_CHARS = 2_000  # the most of his context kept
 # A gate failure that keeps a new answer off the form: a fact no source holds.
 INVENTED = (gates.UNTRACED_NUMBER, gates.UNTRACED_NAME)
@@ -181,13 +183,7 @@ def keep_context(q: Question, questions: list[Question], context: str, company_n
     where = asking.where(q, questions)
     line = (f'- For "{one_line(q.label)}"' + (f" ({where})" if where else "") + f" at {company_name or 'one company'}: "
             f"{one_line(context)}")
-    story = data_folder.STORY_BANK.read_text() if data_folder.STORY_BANK.is_file() else ""
-    if line in story:
-        return line
-    if ADDED not in story:
-        story = (f"{story.rstrip()}\n\n{ADDED}\nWhat the applicant added, in their own words, when they asked Claude to "
-                 "write one answer again.\n")
-    data_folder.STORY_BANK.write_text(f"{story.rstrip()}\n{line} ({today.isoformat()})\n")
+    data_folder.add_story_line(ADDED_SECTION, f"{line} ({today.isoformat()})", line)
     return line
 
 

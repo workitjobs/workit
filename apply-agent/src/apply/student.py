@@ -240,15 +240,29 @@ def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None)
         raise SetupError(f"Your profile didn't come from WorkIt ({error}). Press Start again in a moment.") from None
     got["policies"].pop("how_heard", None)  # "How did you hear about us?" stays Apply's: the extension answers "WorkIt"
     profile.refresh(facts, layered(load_policies(), got["policies"]))
+    writing = got.get("writing") or {}
+    home.WORKIT = home.FromWorkIt(writing.get("story_bank") or "", writing.get("voice") or "",
+                                  send=lambda section, line: story_to_workit(profile, section, line))
+
+
+def story_to_workit(profile: ApplicantProfile, section: str, line: str) -> None:
+    """A line a fill added to the Story bank, sent to WorkIt with the profile's changes. One WorkIt doesn't answer
+    stays with them, and goes with the next save: the fill goes on."""
+    profile.add_story(section, line)
+    try:
+        profile.save()
+    except WorkItError:
+        pass
 
 
 def to_workit(changes: list[tuple]) -> None:
     """A profile save, into the student's profile on WorkIt: their Needs you answers, and the facts the Fill engine
     read from them. A file's path is this Mac's, never sent."""
     answered = {question: answer for kind, question, answer in changes if kind == "answered"}
-    facts = {key: value for kind, key, value in changes if kind != "answered" and not key.startswith("files.")}
-    if answered or facts:
-        WorkIt().save_answered(answered, facts)
+    facts = {key: value for kind, key, value in changes if kind == "set" and not key.startswith("files.")}
+    story = [{"section": section, "line": line} for kind, section, line in changes if kind == "story"]
+    if answered or facts or story:
+        WorkIt().save_answered(answered, facts, story)
 
 
 def layered(under: dict, over: dict) -> dict:
@@ -268,9 +282,10 @@ def app() -> None:
     first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
     (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
     Start."""
-    HOME.mkdir(parents=True, exist_ok=True)
-    home.STORY_BANK.touch()  # an empty Story bank, which every essay reads: the app has no Test Person's (W11)
     profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
+    # The Story bank and voice are WorkIt's too, read with the profile at each Start: never the data folder's files,
+    # which a Developer checkout's `apply app` would read.
+    home.WORKIT = home.FromWorkIt(send=lambda section, line: story_to_workit(profile, section, line))
     bank = AnswerBank(WorkItSource())
     bank.load_in_background()
     answers = AnswersTab(bank, profile)

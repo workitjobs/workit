@@ -189,7 +189,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the applicant profile, story bank, voice and story map (the Answer bank
   is the one exception: it lives on WorkIt, W11, `docs/workit.md`, on
   purpose: `docs/adr/0006-the-answer-bank-lives-on-workit.md`; in WorkIt
-  Auto Apply the profile is WorkIt's too);
+  Auto Apply the profile, Story bank and voice are WorkIt's too, and a
+  Developer checkout sends its own with `uv run apply upload`);
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login's lock (`workit-login.lock`); the login itself is in

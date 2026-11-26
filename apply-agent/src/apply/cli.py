@@ -163,6 +163,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                     "Apply window with your answers")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
+    commands.add_parser("upload", help="one time: send your own profile, Story bank and voice from the data folder to "
+                                       "WorkIt, which WorkIt Auto Apply (`apply app` too) reads; WorkIt keeps only what "
+                                       "it lacks, and your files stay for the other commands")
     import_sheet = commands.add_parser(
         "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
                              "Tracker. It lists every add and skip first, and writes only when you type yes")
@@ -255,7 +258,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
+    if args.command not in ("doctor", "login", "upload", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
                             "preflight", "data") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
@@ -363,6 +366,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         from apply import student
 
         student.app()
+    elif args.command == "upload":
+        upload()
     elif args.command == "login":
         client = workit.WorkIt()
         try:
@@ -869,6 +874,36 @@ def _mask_the_bank() -> None:
         AnswerBank(WorkItSource()).load()  # its answers join masked.KNOWN as it reads them
     except workit.WorkItError:
         print("The Answer bank couldn't be read from WorkIt: its answers aren't masked in this Trace.", file=sys.stderr)
+
+
+def upload() -> None:
+    """`apply upload`: this checkout's own files onto WorkIt (W11), where WorkIt Auto Apply reads its profile, Story
+    bank and voice, a Developer checkout's `apply app` too. WorkIt keeps only what it lacks, so a second upload
+    changes nothing edited there since; the files stay, for every other command. Never Test Person's."""
+    from apply import essays, regenerate, writing
+
+    if not DEFAULT_PROFILE.is_file():
+        sys.exit(f"apply upload: there is no {DEFAULT_PROFILE.name} in {HOME} to send.")
+    facts = ApplicantProfile.load(DEFAULT_PROFILE).facts()
+    if facts.get("sample_data") is True:
+        sys.exit("apply upload: this is Test Person's sample data, which never goes to WorkIt.")
+    bank = home.story_bank()
+    voice = writing.VOICE.read_text() if writing.VOICE.is_file() else ""
+    lines = [{"section": section, "line": line} for section in (essays.ANSWERED_SECTION, regenerate.ADDED_SECTION)
+             for line in _section_lines(bank, section.split("\n", 1)[0])]
+    try:
+        took = workit.WorkIt().upload_profile(facts, bank, voice, lines)
+    except workit.WorkItError as error:
+        sys.exit(f"apply upload: {error}. Run `uv run apply login` if you aren't signed in, then try again.")
+    print(f"WorkIt took {took['facts']} profile facts, {took['answered']} answers, {took['story']} Story bank lines "
+          f"and {took['samples']} writing samples{', and your voice' if took['style_card'] else ''}: only what it "
+          "lacked. Your files stay as they are.")
+
+
+def _section_lines(bank: str, heading: str) -> list[str]:
+    """The Story bank's "- " lines under `heading`, up to the next section."""
+    _, found, rest = bank.partition(f"{heading}\n")
+    return [line for line in rest.split("\n## ", 1)[0].splitlines() if found and line.startswith("- ")]
 
 
 def _answer_bank(profile: ApplicantProfile) -> AnswerBank:
