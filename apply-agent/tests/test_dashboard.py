@@ -1854,3 +1854,22 @@ def test_a_tiles_input_comes_only_from_the_window_itself():
             assert _status(board.url + "/input/0", data=press, headers=headers) == 403
     assert not board_frames.inputs
 
+
+
+def test_approve_and_submit_goes_only_to_a_held_form_with_no_answers_left_and_only_from_the_window():
+    """ADR 0006. Fault: another site's page submits a form, or one that still needs the student's answers is sent."""
+    post = lambda body, token: _status(board.url + "/submit", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(3, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True)
+        board.update(1, status="ready", again=True, missing=["Why us?"], required={"Why us?": True})
+        board.update(2, status="submitted", again=True)
+        assert post({"id": "tile-0"}, "guessed") == 403
+        assert post({"id": "tile-1"}, board.token) == 409  # still needs an answer
+        assert post({"id": "tile-2"}, board.token) == 409  # sent already
+        assert post({}, board.token) == 400
+        assert post({"id": "tile-0"}, board.token) == 200
+        assert board.state()["tiles"][0]["submitting"] is True
+        assert [board.submit_asked(0), board.submit_asked(0), board.submit_asked(1)] == [True, False, False]
+        board.update(1, required={"Why us?": False})  # an optional one left empty doesn't hold it
+        assert post({"id": "tile-1"}, board.token) == 200

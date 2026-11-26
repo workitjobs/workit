@@ -60,6 +60,7 @@ from apply import (
     masked,
     on_page,
     regenerate,
+    send_button,
     stuck,
     submit_guard,
     tailored,
@@ -145,6 +146,13 @@ CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on 
 TAB_CLOSED = "The form's tab was closed: start it again"
 # A press of his that sends the application itself, not one that goes on to it (Apply now, Complete a profile).
 FINAL = re.compile(r"\b(submit|send)\b", re.IGNORECASE)
+# Approve and submit (ADR 0006): why Apply didn't press Submit, and a press the job system never confirmed.
+APPLIED_FIRST = "You applied here before: dismiss that note on the form first, if you mean to apply again."
+HELD_FIRST = "Submit is held on the form: dismiss its red note first, or fix the answer it names."
+PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
+CONFIRM_S = 120
+UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went in. It may have: look for a "
+               "confirmation email before you apply again. Apply won't press Submit on it again.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
@@ -483,7 +491,18 @@ def rehearse(
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
                     "let_go": lambda: getattr(adapters.board, "let_go_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
-                    "note": lambda: (done.warning(), done.wrong()), "keep": keep}
+                    "note": lambda: (done.warning(), done.wrong()), "keep": keep,
+                    "approve": lambda: getattr(adapters.board, "submit_asked", lambda k: False)(n),
+                    "approved": approved}
+
+        def approved(why: str, handoff: bool) -> None:
+            """Approve and submit didn't send it: refused (the card says why), or pressed and never confirmed."""
+            if not handoff:
+                adapters.board.update(n, submitting=False, submit_said=why)
+                return
+            adapters.board.update(n, status="handoff", why=why, submitting=False, submit_said="", resume=None)
+            batch.note(url, status=batch.SENT)  # it may have gone in: never brought back to be sent again
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         def unheld() -> None:
             adapters.board.update(n, again=False)
@@ -1544,7 +1563,8 @@ class _Kept:
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
              let_go: Callable[[], bool] = lambda: False,
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
-             keep: "keepalive.Keeper | None" = None) -> str:
+             keep: "keepalive.Keeper | None" = None, approve: Callable[[], bool] = lambda: False,
+             approved: Callable[[str, bool], None] = lambda why, handoff: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1577,6 +1597,11 @@ class _Kept:
         its stay press runs with the guards back on, as Claude's drive does, and then holds his Submit, the guard
         whole, until he presses the note's Dismiss: a page whose button sends later, at any delay, sends nothing.
         `let_go()` says the student pressed Not applying to this one: the page is let go, unsubmitted.
+        `approve()` says the student pressed Approve and submit (ADR 0006): Apply presses the form's own Submit
+        (apply.send_button) as theirs, once, and the job system's confirmation goes on as for their own press. Never
+        while Submit is held, nor after any Submit: `approved(why, False)` says why not. No confirmation within
+        CONFIRM_S, and no captcha or refusal to explain it, is `approved(UNCONFIRMED, True)`: it may have gone in,
+        so it is the student's, and Apply never presses it again.
         "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
             return ""
@@ -1649,7 +1674,7 @@ class _Kept:
                 self._offered = True
             except Exception:
                 pass  # the page closing: the window's button still says so
-        kept, closing, told, turned_down, said_sent = False, None, False, False, False
+        kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
         # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
         # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
         unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
@@ -1667,6 +1692,21 @@ class _Kept:
                     return AGAIN
                 if let_go():  # Not applying to this one: let go, as if its window closed
                     return ""
+                if approve():
+                    why = APPLIED_FIRST if blocked else HELD_FIRST if holding else PRESSED_ALREADY if pressed or kept else ""
+                    if not why:
+                        try:
+                            heard(send_button.press(self._page))  # theirs, as if they had pressed it
+                            pressing = time.monotonic()
+                        except send_button.NotPressed as refused_press:
+                            why = str(refused_press)
+                        except Exception:
+                            why = send_button.NONE
+                    if why:
+                        approved(why, False)
+                if pressing and not kept and not told and not turned_down and time.monotonic() - pressing > CONFIRM_S:
+                    pressing = 0.0
+                    approved(UNCONFIRMED, True)
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
                 # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.

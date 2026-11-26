@@ -502,6 +502,11 @@ class Board(Protocol):
         (`POST /fill-again`) since it last asked; each ask is given once."""
         ...
 
+    def submit_asked(self, worker: int) -> bool:
+        """Whether the student pressed Approve and submit on tile `worker`'s held form (`POST /approve`, ADR 0006):
+        Apply presses its Submit. Each press is given once."""
+        ...
+
     def let_go_asked(self, worker: int) -> bool:
         """Whether the student pressed Not applying to this one on tile `worker`'s held form (`POST /let-go`):
         its page is let go, unsubmitted. Each press is given once."""
@@ -565,6 +570,9 @@ class NoBoard:
         return False
 
     def let_go_asked(self, worker: int) -> bool:
+        return False
+
+    def submit_asked(self, worker: int) -> bool:
         return False
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
@@ -689,6 +697,7 @@ class Dashboard:
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
+        self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
@@ -843,6 +852,7 @@ class Dashboard:
                 tile.clear()  # the next Application: none of the last one's caption
                 self._picked[worker] = []
                 self._letting_go.discard(worker)  # a let go asked of the last one's form isn't this one's
+                self._submitting.discard(worker)
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
@@ -932,6 +942,29 @@ class Dashboard:
             asked = worker in self._letting_go
             self._letting_go.discard(worker)
             return asked
+
+    def submit_asked(self, worker: int) -> bool:
+        with self._lock:
+            asked = worker in self._submitting
+            self._submitting.discard(worker)
+            return asked
+
+    def submit_form(self, key: str) -> str:
+        """Approve and submit, on a tile's held form ("tile-<k>", ADR 0006): Apply presses its Submit, once, and the
+        tile says how it went. Raises Refused when no form is held there, or it still needs the student's answers."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            caption = self._captions[k]
+            if not caption.get("again") or caption.get("status") == "submitted" or caption.get("let_go"):
+                raise Refused("That form isn't held for you now: it's closed already.", 409)
+            required = caption.get("required") or {}
+            if any(required.get(asked, True) for asked in caption.get("missing") or ()):
+                raise Refused("It still needs your answers: answer them, then approve it.", 409)
+            caption["submitting"], caption["submit_said"] = True, ""
+            self._submitting.add(k)
+        return "Submitting it."
 
     def let_go(self, key: str) -> str:
         """Not applying to this one, on a tile's held form ("tile-<k>"): its page is let go, unsubmitted, and the
@@ -1459,6 +1492,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._fill_again()
         if parts.path == "/let-go":
             return self._let_go()
+        if parts.path == "/submit":
+            return self._submit_form()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/stop":
@@ -1777,6 +1812,22 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Fill again asked ({key})")
+        self._json(200, {"message": message})
+
+    def _submit_form(self) -> None:
+        """Approve and submit, on a held form, from the page itself. Body {"id": "tile-<k>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may submit a form."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a form to submit."})
+        try:
+            message = self.dashboard.submit_form(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Approved and submitting, in the window ({key})")
         self._json(200, {"message": message})
 
     def _let_go(self) -> None:
