@@ -67,3 +67,24 @@ def test_each_part_of_the_address_block_is_planned_from_its_own_fact_not_the_str
 
     assert {name: plan.answers.get(name) for name in ("q8", "q9", "q10")} == \
         {"q8": "United States", "q9": "1 Main St", "q10": "Springfield"}
+
+
+def test_the_ethnicity_box_and_the_race_list_get_their_own_choices_and_the_races_are_ticked(page, tmp_path):
+    # Live: the read gave Ethnicity, a group of one box ("I am Hispanic or Latino."), no choices, so the plan put the
+    # race in it; and the race list was left to Claude.
+    questions = [Question("q11", "Ethnicity (I am Hispanic or Latino.)", "select", False),
+                 Question("q12", "Select the races you identify with.", "multi_select", False)]
+
+    found = claude_fill._with_options(page, questions)
+    facts = (FIXTURES / "planner-profile.yaml").read_text().replace("hispanic_or_latino: decline", "hispanic_or_latino: false")
+    (tmp_path / "profile.yaml").write_text(facts.replace("race: decline", "race: Asian"))
+    profile = ApplicantProfile.load(tmp_path / "profile.yaml", APPLY / "policies.default.yaml")
+    plan = fill_engine.plan(found, POSTING, profile, today=date(2026, 11, 25))
+    ticked = claude_fill._tick_in_groups(page, found, {"q12": ["Asian"]})
+
+    assert found[0].options == ("I am Hispanic or Latino.",)
+    assert found[1].options == ("American Indian or Alaska Native", "Asian", "Black or African American", "White",
+                                "Two or More Races")
+    assert "q11" not in plan.answers  # not Hispanic: its one box stays unticked
+    assert ticked == {"q12": ["Asian"]}
+    assert page.is_checked("#dq-option-5") and not page.is_checked("#dq-option-4")

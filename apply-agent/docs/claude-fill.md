@@ -226,6 +226,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   its own element (`_press_option`, the engine's `press`): Oracle's required
   field's error paragraph lay over the open graduation month list and took every
   click on its options.
+- A choice question asked as a group of checkboxes (Oracle's races) is ticked by
+  plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
+  `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
+  and `_with_options` gives the planner those options. It ticks only choices the
+  group lists, never unticks a box, and skips attestations and radio groups,
+  which stay Claude's. Oracle's Ethnicity group is one box beside the race list:
+  read without its options, its question took the race (Honeywell's, 2026-11-25).
 - A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
   "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
   says its format only there, and refused "May 2028". (amazon.jobs has its own Filler since KAN-765:
