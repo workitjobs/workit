@@ -15,12 +15,14 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from email.utils import formatdate
 
 import build_app as build  # the app's paths and settings, kept in one place
 
 PUBLISH = build.OUT / "publish"
 SIGN_UPDATE = build.SPARKLE / "bin" / "sign_update"
+SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"  # the feed's sparkle: names, as ElementTree reads them
 APPCAST = """<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
@@ -64,17 +66,34 @@ def main() -> None:
     dmg = PUBLISH / f"WorkIt-Auto-Apply-{number}.dmg"  # one name per build: an app may be downloading the last one
     shutil.copyfile(build.DMG, dmg)
     # The key goes in on stdin ("-"), never in a file or the command line. -p prints the signature alone.
-    signature = subprocess.run([SIGN_UPDATE, "--ed-key-file", "-", "-p", dmg], input=key, check=True,
-                               capture_output=True, text=True).stdout.strip()
+    try:
+        signature = subprocess.run([SIGN_UPDATE, "--ed-key-file", "-", "-p", dmg], input=key, check=True,
+                                   capture_output=True, text=True).stdout.strip()
+    except subprocess.CalledProcessError:
+        # Never print what sign_update said: its error repeats the key it was given, into the run's log.
+        sys.exit("sign_update couldn't read SPARKLE_PRIVATE_KEY: it must be the one line of base64 that "
+                 "generate_keys -x wrote (docs/secrets.md, workit-prod/auto-apply-desktop).")
     try:
         build.venv_python(VERIFY, plist["SUPublicEDKey"], signature, dmg)
     except subprocess.CalledProcessError:
         sys.exit("SPARKLE_PRIVATE_KEY isn't the app's update key: every app would download this update and refuse "
                  "it. Put the team's key back in Infisical (docs/secrets.md); never make a new one.")
-    (PUBLISH / "appcast.xml").write_text(APPCAST.format(
-        name=build.NAME, shown=shown, number=number, date=formatdate(usegmt=True), signature=signature,
-        length=dmg.stat().st_size, minimum=plist["LSMinimumSystemVersion"],
-        url=f"{build.FEED.rsplit('/', 1)[0]}/{dmg.name}"))
+    url, length = f"{build.FEED.rsplit('/', 1)[0]}/{dmg.name}", str(dmg.stat().st_size)
+    feed = PUBLISH / "appcast.xml"
+    feed.write_text(APPCAST.format(name=build.NAME, shown=shown, number=number, date=formatdate(usegmt=True),
+                                   signature=signature, length=length, minimum=plist["LSMinimumSystemVersion"],
+                                   url=url))
+    # Read back as Sparkle reads it: with a feed it can't read (a "&" in new text), every app's check fails with no
+    # message, while the run passes.
+    try:
+        [item] = ET.parse(feed).getroot().findall("channel/item")
+        enclosure = item.find("enclosure")
+        offered = (item.findtext(f"{SPARKLE}version"), enclosure.get("url"), enclosure.get(f"{SPARKLE}edSignature"),
+                   enclosure.get("length"))
+    except (ET.ParseError, ValueError, AttributeError) as error:
+        sys.exit(f"appcast.xml isn't a feed Sparkle can read ({error}): fix APPCAST in scripts/publish_app.py.")
+    if offered != (number, url, signature, length):
+        sys.exit(f"appcast.xml doesn't offer this build: {offered}. Fix APPCAST in scripts/publish_app.py.")
     print(f"Signed build {number} ({shown}) for Sparkle: {PUBLISH}")
 
 

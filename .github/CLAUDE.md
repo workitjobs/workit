@@ -808,21 +808,36 @@ Download for Mac links `WorkIt-Auto-Apply.dmg`.
   would install the old code. Start a new run instead. To undo a bad
   build, revert it on `main` and publish again: Sparkle never installs an
   older build number.
+- **It refuses a build number that isn't higher than the live feed's.**
+  Every installed app would ignore it, while the run passed and the
+  website handed it out: a new way of numbering builds (a commit count at
+  W0) or a runner's wrong clock would freeze every app with no message.
 - **The steps:** `apply-agent/scripts/build_app.py --release` on
-  `macos-15` (the build time on a runner is not measured yet; the timeout
-  is 60 minutes), then `apply-agent/scripts/publish_app.py`, which signs
-  the DMG and writes the feed (one item, the newest build). It refuses a
-  key whose signature the app's public half rejects, so a wrong
-  `SPARKLE_PRIVATE_KEY` stops the run before any upload.
+  `macos-15` (3 M1 cores, 7 GB; a release took 3.5 minutes on a 10-core
+  M2 Pro, so expect 10 to 20 here, not measured yet; the timeout is 60
+  minutes), then `apply-agent/scripts/publish_app.py`, which signs the DMG
+  and writes the feed (one item, the newest build). It refuses a key whose
+  signature the app's public half rejects, so a wrong
+  `SPARKLE_PRIVATE_KEY` stops the run before any upload. It reads the feed
+  back as Sparkle does and refuses one it can't read, or one that offers
+  another file: with a broken feed every app's check fails with no message.
 - **Only the signing step sees the key.** The build step installs
   third-party packages and runs their code with no secret in its
   environment. `publish_app.py` takes the key out of its own environment
   before it starts any program and gives it to `sign_update` on stdin.
+  **It never prints what `sign_update` says:** its error repeats the key it
+  was given ("Failed to decode base64 encoded key data from: ..."), so a key
+  pasted with one wrong character would land in the log.
 - **Order.** The build's own DMG first, then the website's
   `WorkIt-Auto-Apply.dmg`, then `appcast.xml`: an app reads the feed at
   any moment, so the feed never names a DMG that isn't there yet. The feed
   and the website's DMG are `no-cache`; a build's own DMG never changes.
-  The last step reads the feed and both DMGs back through the domain.
+  The last step reads the feed and both DMGs back through the domain,
+  with retries.
+- **A dropped R2 connection is retried.** The AWS CLI retries each request
+  itself, and `put` tries a whole file 5 times, 15 to 60 seconds apart; the
+  upload step stops after 15 minutes. A retry is always safe: an R2 upload
+  replaces a file whole or not at all, never half.
 - **Until step 2 the DMG opens on no other Mac,** so the website's
   `DOWNLOAD_URL` stays null.
 - **Secrets,** of the `auto-apply-desktop` environment (`main` only), from
@@ -838,13 +853,15 @@ Download for Mac links `WorkIt-Auto-Apply.dmg`.
   run takes one of the organization's 5 macOS jobs (CI, the Apply jobs), so it
   can wait in the queue behind PRs' `apply` jobs.
 - **A failed run leaves the last build served,** unless it failed after
-  the DMG upload: then the website already has the new DMG, and the feed
-  still offers the last build. Run it again.
+  the website's DMG: then the website has the new build, and the feed
+  still offers the last one until the next publish. Start a new run (`gh
+  workflow run publish-app.yml --ref main`), not a re-run: a re-run builds
+  again, and once `main` has a newer commit it is refused.
 - **Setup, once** (the user's steps): the bucket `auto-apply-desktop` and
   its custom domain `downloads.workitjobs.ai` (Cloudflare dashboard, R2,
-  2026-11-26), the token, and the `/auto-apply-desktop` sync to the
-  environment (`../docs/secrets.md`, Still open). The first run checks
-  the domain.
+  2026-11-26, and it reaches the bucket: an empty bucket answers R2's own
+  "Object not found"), the token, and the `/auto-apply-desktop` sync to
+  the environment (2026-11-26, `../docs/secrets.md`).
 
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 

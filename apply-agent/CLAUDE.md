@@ -726,7 +726,10 @@ the notices strict (above).
   which can hold untracked files and incomplete notices, and a key whose
   signature the app's `SUPublicEDKey` rejects (checked with
   `cryptography`, as an app checks it), which every app would download and
-  refuse. No developer holds the key: a test build signs nothing. How to
+  refuse. It reads the feed back with ElementTree and refuses one Sparkle
+  couldn't read or that offers another file. **It never prints
+  `sign_update`'s output on a failure:** its error repeats the key it was
+  given. No developer holds the key: a test build signs nothing. How to
   publish: `docs/app-build.md`.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher

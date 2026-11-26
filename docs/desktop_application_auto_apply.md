@@ -1639,8 +1639,8 @@ itself (D17, D18, D20).
    Publishing is built (KAN-941, 2026-11-26): `.github/workflows/publish-app.yml`,
    run by hand from `main`, builds the release on a GitHub Mac, signs it
    for Sparkle (`scripts/publish_app.py`) and puts it in the R2 bucket
-   `auto-apply-desktop` behind `downloads.workitjobs.ai`. Left: the
-   environment's secrets (`docs/secrets.md`, Still open), the first
+   `auto-apply-desktop` behind `downloads.workitjobs.ai`. Its secrets are
+   in the `auto-apply-desktop` environment (2026-11-26). Left: the first
    publish, the signature and notarization (step 2), and `DOWNLOAD_URL`,
    which waits on step 2.
 

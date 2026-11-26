@@ -160,9 +160,10 @@ build afterwards: it allows plain HTTP.
   environment, like the update key.
 - Step 3: a beta channel for testers is not built. Sparkle and the update
   key are in every build (2026-11-26).
-- Step 4: publishing (above) waits on the `auto-apply-desktop`
-  environment's secrets (`../../docs/secrets.md`, Still open), and nothing
-  is published yet. The workflow's build on a GitHub Mac has not run yet.
+- Step 4: publishing (above) is ready, with its secrets in the
+  `auto-apply-desktop` environment (2026-11-26), and waits on KAN-941's
+  merge. Nothing is published yet, and the workflow's build on a GitHub
+  Mac has not run yet.
   The website's `DOWNLOAD_URL`
   (`frontend/src/app/(seeker)/auto-apply-desktop/page.tsx`) stays null
   until step 2, since until then the DMG opens on no other Mac; then it is

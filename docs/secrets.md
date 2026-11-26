@@ -8,7 +8,8 @@ workflow writes. A copy can be lost; the value in Infisical cannot.
 and `publish-engine.yml` read its `API_*` secrets, as do the scrape, the
 purge and the job alerts. The `/github` sync is on and holds 3 of its 8
 keys** (Syncs). Developers pull their `.env` files with `npm run env`. The
-`/web` and `/auto-apply-desktop` syncs are still open (end of this file).
+`/web` sync is still open, and so is the end of the move to the
+`auto-apply-desktop` environment (end of this file).
 A key that no folder holds yet is still set with `gh secret set`.
 
 ## Rules
@@ -396,7 +397,7 @@ folder to one place:
 | `workit-prod/api` | Repository | `API_{{secretKey}}` | on, checked |
 | `workit-prod/github` | Repository | none | on, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a deploy passed with them) and `CHROME_EXTENSION_ID`; `DATABASE_URL` and `SCOUT_ENDPOINTS` only until this change is on `main` (Still open) |
 | `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off: the folder is empty until `GOOGLE_CLIENT_SECRET` is issued again |
-| `workit-prod/auto-apply-desktop` | must be Repository Environment, `auto-apply-desktop` | none | set up 2026-11-26 with scope Repository by mistake: it wrote repo secrets, and the environment held none (Still open) |
+| `workit-prod/auto-apply-desktop` | Repository Environment, `auto-apply-desktop` | none | on, 2026-11-26: the environment lists its 5 keys. It first ran with scope Repository; those repo copies are deleted (Still open) |
 
 **Only GitHub holds these keys (2026-11-21):** `FILL_ENGINE_TOKEN`,
 `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_PUBLISHER_ID` and
@@ -453,44 +454,30 @@ again.
 2. **Revoke the old Cloudflare token.** "Deploy to Cloudflare" passed with
    the new one on 2026-11-21.
 3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
-4. **Point the `/auto-apply-desktop` sync at the environment, and finish
-   the move to it** (KAN-941). On 2026-11-26 the sync ran with scope
-   Repository: it wrote `APPLY_ENGINE_SIGNING_KEY` and the
-   `R2_AUTO_APPLY_DESKTOP_*` keys (and `SPARKLE_SUPUBLICEDKEY`) as **repo
-   secrets**, which every branch's workflows can read, and the
-   `auto-apply-desktop` environment held none. The old `apply-engine`
-   environment still holds the engine key set by hand on 2026-11-17. In
-   this order:
-   1. Move `SPARKLE_PRIVATE_KEY` from `/auto-apply-desktop-private-keys`
-      into `/auto-apply-desktop`, then delete the old folder. Delete
-      `R2_AUTO_APPLY_DESKTOP_API_TOKEN` and `SPARKLE_SUPUBLICEDKEY` from
-      the folder: nothing reads them.
-   2. Change the sync: scope Repository Environment, environment
-      `auto-apply-desktop`, no key schema, Disable Secret Deletion on
-      (Syncs, above). Start it once by hand.
-   3. `gh secret list --env auto-apply-desktop` lists five names:
-      `APPLY_ENGINE_SIGNING_KEY`, `SPARKLE_PRIVATE_KEY` and the three
-      `R2_AUTO_APPLY_DESKTOP_*` keys the workflow reads.
-   4. Delete the repo copies the first sync wrote (a sync never deletes
-      them): `for s in APPLY_ENGINE_SIGNING_KEY
-      R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID R2_AUTO_APPLY_DESKTOP_API_TOKEN
-      R2_AUTO_APPLY_DESKTOP_ENDPOINT R2_AUTO_APPLY_DESKTOP_SECRET_ACCESS_KEY
-      SPARKLE_SUPUBLICEDKEY; do gh secret delete "$s" --repo
-      workitjobs/workit; done`. Then `gh secret list` shows none of them.
-   5. Delete the update key from the Keychain of the Mac that made it
-      (Keychain Access, login, the item `https://sparkle-project.org`),
-      and any file copy: Infisical and the environment are its only homes.
-   6. Merge KAN-941, which moves both workflows to this environment, only
-      after step 3: from that merge, `publish-engine.yml` reads its key
-      here.
-   7. After the merge, run "Publish the Fill engine" from `main` (`gh
+4. **Finish the move to the `auto-apply-desktop` environment** (KAN-941).
+   Done 2026-11-26: `SPARKLE_PRIVATE_KEY` moved into `/auto-apply-desktop`
+   (the folder `/auto-apply-desktop-private-keys` is deleted), the sync
+   points at the environment, and `gh secret list --env
+   auto-apply-desktop` lists `APPLY_ENGINE_SIGNING_KEY`,
+   `SPARKLE_PRIVATE_KEY` and the three `R2_AUTO_APPLY_DESKTOP_*` keys. The
+   sync first ran twice with scope Repository: it wrote these keys, and
+   `SPARKLE_PRIVATE_KEY` too, as **repo secrets**, which every branch's
+   workflows can read. They are deleted, and no run in that time named
+   them, so no key is new. The update key's Keychain copy is deleted:
+   Infisical and the environment are its only homes. The old
+   `apply-engine` environment still holds the engine key set by hand on
+   2026-11-17, and `main`'s `publish-engine.yml` still reads it there.
+   Left, in this order:
+   1. Merge KAN-941, which moves both workflows to the new environment.
+      Never delete `apply-engine` before: a publish on `main` would make
+      it again, with no branch rule and no key, and fail.
+   2. After the merge, run "Publish the Fill engine" from `main` (`gh
       workflow run publish-engine.yml --ref main`). Its key is now the
       folder's backup, and a publish refuses a key whose public half the
       apps don't hold, so a pass shows the backup is right. A run with
       nothing new changes nothing. On a failure, paste the PEM file into
       the folder again.
-   8. Then delete the old environment, which holds only the old copy of
-      the engine key: `gh api -X DELETE
+   3. Then delete the old environment: `gh api -X DELETE
       repos/workitjobs/workit/environments/apply-engine`.
 
    To check a PEM file against the key the apps hold, run this from
