@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from datetime import timedelta
 
-from sqlalchemy import select, text, update
+from sqlalchemy import text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -37,27 +37,19 @@ def _sanitize_error(error: str) -> str:
 async def create_tasks(conn: AsyncConnection, schedule_ids: list) -> int:
     """Insert one pending task per schedule id. Returns count inserted.
 
-    Skips schedules that already have a pending or claimed task, so repeated
-    cycles never pile up duplicate work items.
+    Uses ON CONFLICT DO NOTHING against the partial unique index on
+    (schedule_id) WHERE status IN ('pending', 'claimed'), so two concurrent
+    runs race harmlessly: the second's duplicates are silently skipped by
+    Postgres instead of the check-then-insert that the first design used.
     """
     if not schedule_ids:
         return 0
-    # Exclude schedules that already have an active (pending/claimed) task.
-    existing = (
-        await conn.execute(
-            select(_tasks.c.schedule_id).where(
-                _tasks.c.schedule_id.in_(schedule_ids),
-                _tasks.c.status.in_(["pending", "claimed"]),
-            )
-        )
-    ).all()
-    already = {row.schedule_id for row in existing}
-    to_create = [sid for sid in schedule_ids if sid not in already]
-    if not to_create:
-        return 0
-    result = await conn.execute(
-        insert(_tasks).values([{"schedule_id": sid} for sid in to_create])
+    stmt = insert(_tasks).values([{"schedule_id": sid} for sid in schedule_ids])
+    stmt = stmt.on_conflict_do_nothing(
+        index_elements=[_tasks.c.schedule_id],
+        index_where=_tasks.c.status.in_(["pending", "claimed"]),
     )
+    result = await conn.execute(stmt)
     return result.rowcount
 
 
@@ -145,4 +137,34 @@ async def expire_leases(conn: AsyncConnection) -> int:
             lease_expires_at=None,
         )
     )
+    return result.rowcount
+
+
+async def bulk_log_tasks(conn: AsyncConnection, results: list[dict]) -> int:
+    """Insert one task-log row per board result in a single statement (D4).
+
+    Each dict must have schedule_id, status ('done' or 'failed'), started_at,
+    finished_at, and optionally boards_s, pages_s, error. Error strings are
+    sanitized through _sanitize_error (H3).
+
+    Returns the count of rows inserted.
+    """
+    if not results:
+        return 0
+    rows = []
+    for r in results:
+        row = {
+            "schedule_id": r["schedule_id"],
+            "status": r["status"],
+            "started_at": r["started_at"],
+            "finished_at": r["finished_at"],
+        }
+        if r.get("boards_s") is not None:
+            row["boards_s"] = r["boards_s"]
+        if r.get("pages_s") is not None:
+            row["pages_s"] = r["pages_s"]
+        if r.get("error"):
+            row["error"] = _sanitize_error(r["error"])
+        rows.append(row)
+    result = await conn.execute(insert(_tasks).values(rows))
     return result.rowcount
