@@ -442,6 +442,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 if build.STUDENT:  # no Rescue: each field its Filler failed on is the student's, in Needs you (KAN-855)
                     behind += tuple(dict(planned.failed).items())  # once each, though a fill again failed it too
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
+                # A search result the fill picked for an answer, worded the form's own way, is that answer: the
+                # Pre-submit check takes the Filler's word for it ("Stony Brook University - SUNY", live: Airbnb).
+                for name, wordings in getattr(filler, "picked", lambda answers, readback: {})(answers, readback).items():
+                    planned.accepted[name] = tuple(dict.fromkeys((*planned.accepted.get(name, ()), *wordings)))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
