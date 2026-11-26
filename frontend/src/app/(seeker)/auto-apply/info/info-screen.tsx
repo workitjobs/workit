@@ -7,50 +7,53 @@ import type { BankEntry } from "@/lib/bank-actions";
 
 import { ApplicationAnswers } from "./application-answers";
 import { ApplicationQuestions } from "./application-questions";
+import { InfoPart } from "./info-part";
 
 const WORK_QUESTIONS = PROFILE_QUESTIONS.filter((q) => !SELF_ID_KEYS.includes(q.key));
 const SELF_ID_QUESTIONS = PROFILE_QUESTIONS.filter((q) => SELF_ID_KEYS.includes(q.key));
 
 /**
- * The parts of Application Info that read the answer bank
- * (./[section]/page.tsx): Work Authorization, Voluntary Self-Identification
- * and Application Answers. A Save hands the whole bank back (the PATCH
- * answers it), which the card shows; another part reads the bank again
- * when it opens, so it shows the save too.
+ * The three parts of Application Info that read the answer bank
+ * (./layout.tsx): Work Authorization, Voluntary Self-Identification and
+ * Application Answers, each its own part (./info-part.tsx). One copy of
+ * the bank for all three: a Save hands the whole bank back (the PATCH
+ * answers it), and every card counts its answers from it.
  */
-export function AnswersSection({
-  section,
+export function AnswerCards({
   initial,
   education,
 }: {
-  section: "work-authorization" | "self-identification" | "application-answers";
   initial: AutofillAnswers;
   /** The experience bank's entries; School Year reads the education ones. */
   education: BankEntry[];
 }) {
   const [answers, setAnswers] = useState(initial);
-
-  if (section === "application-answers") {
-    return <ApplicationAnswers answers={answers} education={education} onSaved={setAnswers} />;
-  }
-  return section === "work-authorization" ? (
-    <ApplicationQuestions
-      id="work-authorization"
-      title="Work Authorization"
-      description="Whether you can work here and under what status. Most applications ask."
-      questions={WORK_QUESTIONS}
-      answers={answers}
-      onSaved={setAnswers}
-    />
-  ) : (
-    <ApplicationQuestions
-      id="self-identification"
-      title="Voluntary Self-Identification"
-      description="The equal opportunity questions U.S. employers ask. Answering is optional."
-      questions={SELF_ID_QUESTIONS}
-      concealed
-      answers={answers}
-      onSaved={setAnswers}
-    />
+  return (
+    <>
+      <InfoPart name="work-authorization">
+        <ApplicationQuestions
+          id="work-authorization"
+          title="Work Authorization"
+          description="Whether you can work here and under what status. Most applications ask."
+          questions={WORK_QUESTIONS}
+          answers={answers}
+          onSaved={setAnswers}
+        />
+      </InfoPart>
+      <InfoPart name="self-identification">
+        <ApplicationQuestions
+          id="self-identification"
+          title="Voluntary Self-Identification"
+          description="The equal opportunity questions U.S. employers ask. Answering is optional."
+          questions={SELF_ID_QUESTIONS}
+          concealed
+          answers={answers}
+          onSaved={setAnswers}
+        />
+      </InfoPart>
+      <InfoPart name="application-answers">
+        <ApplicationAnswers answers={answers} education={education} onSaved={setAnswers} />
+      </InfoPart>
+    </>
   );
 }
