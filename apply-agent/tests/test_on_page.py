@@ -23,7 +23,7 @@ from test_rehearse import (
 )
 from test_run_answers import profile_with
 
-from apply import cli, essays, on_page, rehearsal
+from apply import ask, cli, essays, on_page, rehearsal
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
 from apply.dashboard import Dashboard
@@ -134,8 +134,8 @@ def test_what_ask_claude_changed_on_the_held_form_is_never_taken_as_his_answer(m
     def claude_fixes(claude, page, message, *args, **kwargs):  # Claude types into the waiting field, and leaves it
         page.fill("#email", "claude@example.com")
         page.keyboard.press("Tab")
-        return rehearsal.ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
-    monkeypatch.setattr(rehearsal.ask, "ask", claude_fixes)
+        return ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
+    monkeypatch.setattr(ask, "ask", claude_fixes)
     with FakeJobServer(ARC_FORM) as fake:
         rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
                            ApplicantProfile.load(profile), 1, keep_open=True, out=lambda line: None)

@@ -1,0 +1,38 @@
+{
+  "status": "OK",
+  "data": {
+    "count": 3,
+    "positions": [
+      {
+        "id": 10001,
+        "name": "Software Engineering Intern - Summer 2027",
+        "locations": ["Boise, ID, US"],
+        "standardizedLocations": ["Boise, Idaho, United States"],
+        "postedTs": 1728950400,
+        "department": "Engineering",
+        "workLocationOption": "hybrid",
+        "positionUrl": "/careers/job?domain=example.com&pid=10001"
+      },
+      {
+        "id": 10002,
+        "name": "Data Science Co-op",
+        "locations": [],
+        "standardizedLocations": ["San Jose, California, United States"],
+        "postedTs": 1729036800,
+        "department": "Data",
+        "workLocationOption": "remote",
+        "positionUrl": "/careers/job?domain=example.com&pid=10002"
+      },
+      {
+        "id": 10003,
+        "name": "Product Design Intern",
+        "locations": ["Austin, TX, US", "San Jose, CA, US"],
+        "standardizedLocations": [],
+        "postedTs": 1729123200,
+        "department": null,
+        "workLocationOption": "onsite",
+        "positionUrl": "/careers/job?domain=example.com&pid=10003"
+      }
+    ]
+  }
+}

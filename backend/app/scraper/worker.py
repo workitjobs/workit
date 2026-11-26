@@ -31,6 +31,7 @@ from app.scraper.closures import (
     update_sources,
 )
 from app.scraper.schedules import (
+    advance_fingerprint,
     advance_reads,
     record_failure,
     record_missing,
@@ -58,14 +59,17 @@ MAX_BOARD_LISTINGS = 5000
 MAX_DESCRIPTIONS_PER_CYCLE = 500
 DESCRIPTION_BATCH_SIZE = 50
 DESCRIPTION_WORKERS = 8
+BOARD_WORKERS = 4
+MAX_DESCRIPTION_ATTEMPTS = 3
 
 
-def read_board_listing(board: Board) -> tuple[BoardRead, list[Job], float]:
+def read_board_listing(board: Board, robots: Robots | None = None) -> tuple[BoardRead, list[Job], float]:
     """Read one board's listing and filter by title only (phase 1).
 
     Descriptions are fetched separately in phase 2.  Blocking: run in a
     thread.  Returns ``(result, kept_jobs, boards_s)``."""
-    robots = Robots()
+    if robots is None:
+        robots = Robots()
     t0 = time.monotonic()
     result = read_board(board, robots)
     boards_s = time.monotonic() - t0
@@ -132,8 +136,10 @@ def _work_style(job, facts) -> str | None:
     return None
 
 
-async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
+async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool = False, workers: int = BOARD_WORKERS) -> dict:
     """One full worker cycle. Returns a summary dict."""
+    if workers < 1:
+        raise ValueError(f"workers must be >= 1, got {workers}")
     worker_id = f"worker-{uuid.uuid4().hex[:8]}"
     summary = {
         "worker": worker_id,
@@ -160,7 +166,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         logger.info("Expired %d stale task leases", expired)
 
     # 3. Select due schedules and create tasks.
-    due = await select_due(conn)
+    due = await select_due(conn, full=full)
     schedule_ids = [row.id for row in due]
     summary["tasks_created"] = await create_tasks(conn, schedule_ids)
 
@@ -170,20 +176,19 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         return summary
     await conn.commit()
 
-    # 4. Claim, process and checkpoint each board independently.
-    while True:
-        task = await claim_task(conn, worker_id)
-        await conn.commit()
-        if task is None:
-            break
+    # 4. Claim, process and checkpoint boards in parallel.
+    engine = conn.engine
+    robots = Robots()
 
-        done = await _process_task(conn, task, summary)
-        if done is not None:
-            await _checkpoint_board(conn, done, summary)
+    async def _spawn(i: int) -> None:
+        async with engine.connect() as wconn:
+            await _board_worker(wconn, f"{worker_id}-{i}", summary, robots=robots)
+
+    await asyncio.gather(*(_spawn(i) for i in range(workers)))
 
     # 5. Enrich descriptions for postings that need them.
     try:
-        await _fetch_descriptions(conn, summary)
+        await _fetch_descriptions(conn, summary, robots=robots)
     except Exception:
         await conn.rollback()
         logger.exception("Description enrichment failed; continuing to closures")
@@ -206,6 +211,7 @@ class _Read:
     all_postings: list[tuple[str, str]]  # (apply_url, external_id)
     inline_urls: list[str]  # postings with inline descriptions (Lever, Ashby…)
     boards_s: float
+    fingerprint: str | None  # None = skip advance_fingerprint (quiet board)
 
 
 async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -> None:
@@ -228,18 +234,36 @@ async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -
             inline_versions={url: providers.PAGE_VERSION for url in done.inline_urls},
         )
         await advance_reads(conn, done.schedule_id)
+        if done.fingerprint is not None:
+            await advance_fingerprint(
+                conn, done.schedule_id, new_fingerprint=done.fingerprint
+            )
         await mark_done(conn, done.task_id, boards_s=done.boards_s)
         await conn.commit()
         summary["jobs_scraped"] += len(done.listings)
     except Exception as exc:
-        await conn.rollback()
-        await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
-        await conn.commit()
-        logger.exception("Board %s checkpoint failed; continuing", done.schedule_id)
+        try:
+            await conn.rollback()
+            await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
+            await conn.commit()
+        except Exception:
+            # Connection itself is broken; the task's lease will expire and
+            # another worker or the next cycle will retry it.
+            logger.exception(
+                "Board %s recovery failed (connection lost?); "
+                "original error: %s; task %s will expire and be retried",
+                done.schedule_id,
+                exc,  # noqa: TRY401 — outer exc, not the one logger.exception includes
+                done.task_id,
+            )
+        else:
+            logger.exception(
+                "Board %s checkpoint failed; continuing", done.schedule_id
+            )
         summary["boards_failed"] += 1
 
 
-async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | None:
+async def _process_task(conn: AsyncConnection, task, summary: dict, *, robots: Robots | None = None) -> _Read | None:
     """Scrape one board. A board read whole comes back as a `_Read` for
     `run_cycle` to publish and checkpoint; any other outcome is recorded here
     and comes back as None."""
@@ -267,7 +291,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     await conn.commit()
 
     board = Board(schedule.ats, schedule.token, schedule.company)
-    result, jobs, boards_s = await asyncio.to_thread(read_board_listing, board)
+    result, jobs, boards_s = await asyncio.to_thread(read_board_listing, board, robots)
     if result.status is ReadStatus.MISSING:
         logger.info("Board %s/%s: not found", schedule.ats, schedule.token)
         await record_missing(conn, task.schedule_id)
@@ -319,9 +343,55 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     )
 
     all_postings = [(job.apply_url, job.external_id) for job in result.jobs]
+
+    # Compute fingerprint only for hot boards (this read has kept OR board
+    # was already hot). Quiet boards skip the extra DB call.
+    has_kept = bool(jobs)
+    if has_kept or schedule.has_kept:
+        from workit_scraper.scheduling import fingerprint as compute_fingerprint
+
+        fp = compute_fingerprint(job.external_id for job in jobs)
+    else:
+        fp = None
+
     return _Read(
-        task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s
+        task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s, fp
     )
+
+
+async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict, *, robots: Robots | None = None) -> None:
+    """One worker: claim and process boards until none remain.
+
+    Never raises: a broken connection logs and exits the loop so that
+    ``asyncio.gather`` in ``run_cycle`` completes cleanly and phases 5–6
+    (descriptions, closures) still run."""
+    while True:
+        try:
+            task = await claim_task(conn, worker_id)
+            await conn.commit()
+        except Exception:
+            logger.exception(
+                "Worker %s: claim failed (connection lost?); stopping",
+                worker_id,
+            )
+            break
+        if task is None:
+            break
+        try:
+            done = await _process_task(conn, task, summary, robots=robots)
+            if done is not None:
+                await _checkpoint_board(conn, done, summary)
+        except Exception:
+            # _checkpoint_board's own handler already tried recovery; if we
+            # land here, the connection is unusable.  The task's lease will
+            # expire and another worker or the next cycle will retry it.
+            logger.exception(
+                "Worker %s: task %s failed unexpectedly; stopping",
+                worker_id,
+                task.id,
+            )
+            summary["boards_failed"] += 1
+            break
 
 
 # ---------------------------------------------------------------------------
@@ -340,8 +410,10 @@ _STALE_QUERY = text("""\
         FROM job_sources js
         JOIN scraper_schedules ss ON js.schedule_id = ss.id
         JOIN job_postings jp ON jp.apply_url = js.apply_url
-        WHERE (js.description_version IS NULL
-               OR js.description_version < :version)
+        WHERE ((js.description_version IS NULL
+                   AND js.description_attempts < :max_attempts)
+               OR (js.description_version IS NOT NULL
+                   AND js.description_version < :version))
           AND jp.status = 'published'
           AND jp.company_id IS NULL
           AND jp.added_by_student = FALSE
@@ -376,10 +448,17 @@ _UPDATE_POSTING = text("""\
       AND status = 'published'
 """)
 
-_STAMP_SOURCE = text("""\
+_STAMP_SOURCE_OK = text("""\
     UPDATE job_sources
     SET description_version = :version,
-        description_fetched_at = CASE WHEN :fetched THEN now() ELSE description_fetched_at END
+        description_fetched_at = now(),
+        description_attempts = 0
+    WHERE apply_url = :apply_url AND schedule_id = :schedule_id
+""")
+
+_STAMP_SOURCE_FAIL = text("""\
+    UPDATE job_sources
+    SET description_attempts = description_attempts + 1
     WHERE apply_url = :apply_url AND schedule_id = :schedule_id
 """)
 
@@ -415,7 +494,7 @@ def _describe_one(row, robots: Robots) -> tuple[object, Job | None, str | None]:
         return row, None, str(exc)[:200]
 
 
-async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
+async def _fetch_descriptions(conn: AsyncConnection, summary: dict, *, robots: Robots | None = None) -> None:
     """Phase 2: fetch descriptions for postings that lack a current one.
 
     Queries job_sources for rows whose description_version is NULL or stale,
@@ -424,7 +503,11 @@ async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
     rows = (
         await conn.execute(
             _STALE_QUERY,
-            {"version": providers.PAGE_VERSION, "cap": MAX_DESCRIPTIONS_PER_CYCLE},
+            {
+                "version": providers.PAGE_VERSION,
+                "cap": MAX_DESCRIPTIONS_PER_CYCLE,
+                "max_attempts": MAX_DESCRIPTION_ATTEMPTS,
+            },
         )
     ).all()
 
@@ -432,7 +515,8 @@ async def _fetch_descriptions(conn: AsyncConnection, summary: dict) -> None:
         return
 
     logger.info("Phase 2: %d descriptions to fetch", len(rows))
-    robots = Robots()
+    if robots is None:
+        robots = Robots()
     loop = asyncio.get_running_loop()
     with concurrent.futures.ThreadPoolExecutor(max_workers=DESCRIPTION_WORKERS) as pool:
         results = await asyncio.gather(
@@ -480,23 +564,29 @@ async def _commit_description_batch(
                     "sponsorship": facts.sponsorship if facts else None,
                 },
             )
+            await conn.execute(
+                _STAMP_SOURCE_OK,
+                {
+                    "apply_url": row.apply_url,
+                    "schedule_id": row.schedule_id,
+                    "version": providers.PAGE_VERSION,
+                },
+            )
             fetched += 1
         else:
+            await conn.execute(
+                _STAMP_SOURCE_FAIL,
+                {
+                    "apply_url": row.apply_url,
+                    "schedule_id": row.schedule_id,
+                },
+            )
             failed += 1
             logger.warning(
                 "Description fetch failed for %s: %s",
                 row.apply_url,
                 error or "provider returned no description page",
             )
-        await conn.execute(
-            _STAMP_SOURCE,
-            {
-                "apply_url": row.apply_url,
-                "schedule_id": row.schedule_id,
-                "version": providers.PAGE_VERSION,
-                "fetched": bool(described and described.page),
-            },
-        )
 
     await conn.commit()
     return fetched, failed

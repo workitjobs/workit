@@ -31,6 +31,19 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+- A careers page that frames another known job system's form (ADP, UKG, Dayforce, Taleo, SuccessFactors, Phenom,
+  iCIMS, Workday, Jobvite, SmartRecruiters, Avature, BrassRing...) gets the frame's own URL as the Posting's link, with
+  its id, company and role kept (KAN-797, `embedded.framed`). The Worker opens it as its own top page, and Claude fill
+  fills it there, files and all. In the frame, PR 556's rule closed it to every press, so such a form was handed over.
+  The URL is opened only when it is the frame's as the browser loaded it (never an attribute the page wrote), https on
+  a known job system's host (`KNOWN_HOSTS`: `upload_origin.JOB_SYSTEM_HOSTS` and `FRAMED_HOSTS`; no user part, no
+  other port), with every frame above it of the top page's own origin, and the frame shows a field or an Apply
+  button. The Fill engine's `jobOf` is not used: it names `?ats=workday` on any host Workday's. A sign-in frame (a
+  sign-in word in its path or query, or a password box) is never opened: it stays the applicant's. Any other frame of
+  another site leaves the Posting as it is, and the fill hands it over as before. Each trick a page could use to steer
+  the opened URL is a case in `tests/test_embedded.py` (`HOSTILE`). What stays open: a job system's host serves every
+  tenant, so a hostile careers page can frame another tenant's posting, and Apply fills that one (as `upload_origin`
+  notes for files).
 - A profile pop-up before the application is never the form's last page
   (KAN-647). When the button Claude names as the one that sends sits in an
   open dialog that is a profile step and nothing more
@@ -163,16 +176,75 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `browser_click` refuses any button in such a dialog, and `browser_file_upload` tells Claude to stop when its
   file brought one on (`plain.tools.CONSENT`). `CONSENT` is a fixed function (`plain/fixed.py`): run `apply
   plain prepare` (or seed again) before a plain Worker uses it.
+- A file goes only to the form's own site (KAN-795, `apply.upload_origin`): the top frame, a frame of the top
+  frame's own origin, or a job system's embedded form (`JOB_SYSTEM_HOSTS`: Greenhouse's
+  `job-boards.greenhouse.io/embed/job_app`, an iCIMS careers frame, Ashby's embed), and every frame between it and
+  the top is the top's own origin. An adversarial review found that Claude's upload tool and plain code gave a file
+  to an input in any frame, so a hostile page's frame from another site could take the resume. PR 556's review then
+  found five more ways, each now a hostile page in `tests/test_upload_origin.py`: a job system's form inside another
+  site's frame (a free tenant's form), a dispatched click on a detached input, a closed shadow root's slotted
+  label, a scriptless sandboxed frame that a scripted parent reads, and a pop-up that another site's frame opens.
+  - Every place a file is set checks the frame where and as it sets: `upload_origin.give` on a CDP Worker (the
+    input's ElementHandle first, so a frame that navigated meanwhile fails the set; a pop-up whose opener page is of
+    another site is refused), page/dom.js's `files` and ops/tile.js's `chooser.set` on a plain Worker. Plain code
+    (`attach_resume`) skips such frames, and one whose only resume input is there raises `upload_origin.Elsewhere`.
+  - While a guard is on, a frame that may not take a file is closed to every press, so Claude (Playwright MCP's own
+    set is unchecked) gets no chooser there and opens nothing from there (PR 556's re-review: a declarative closed
+    shadow root, a pop-up chain, a pop-up with no opener, a sandbox flipped then un-fenced). Every click is
+    cancelled at the window and at each shadow root the page makes or reaches (`attachShadow`,
+    `ElementInternals.shadowRoot`); a script's `click()`, `showPicker()`, dispatched click, `window.open()` and form
+    submission are refused; every frame in it is `inert`. A frame that runs no script (a sandbox without
+    `allow-scripts`) runs no guard, so it is `inert` anywhere. A fenced frame stays `inert` until the hand-over,
+    whatever its attributes say later. A top frame whose opener is a frame is such a frame. The guard notes
+    `upload_origin.BLOCKED` for a picker and "a click in another site's frame" for any other press, and Claude fill
+    hands the form over. The cost: Claude can press nothing in another site's frame (a Google sign-in button's frame
+    too). A known job system's framed form is opened as its own page first (KAN-797, above), so this cost falls
+    only on an unknown site's frame. The guard's block is off only on a page handed to Lisul (`lift()` with its note), never for the drive
+    guard's lifted copy at open.
+  - On a plain Worker, `browser_file_upload` also refuses such a frame and a tab of another origin than the drive's
+    own, and the input must be the one the chooser opened for: `plain.tools` pins it in the isolated world when a
+    tool's answer first shows the chooser, and a script's new input with the old one's mark gets nothing
+    (`SWAPPED`). Lisul's own pick from a tile goes where he picked it.
+  - `give` refuses a pop-up with a page of another origin anywhere up its chain of openers (Playwright knows the
+    opener even under COOP or `noopener`).
+  - What stays open: a job system's host serves every tenant's form, so a hostile top page could embed another
+    board's form (no worse than its own input).
 - Eightfold's dropdowns are toggles: a click on the option a list already holds (`aria-selected`) empties the
   field (KAN-767; Microsoft's "worked with Microsoft" and "subsidiary" went blank so in an Ask). On a plain Worker
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and
   tells Claude so. The engine's Eightfold Filler leaves such a dropdown alone too. A CDP Worker's Playwright MCP has
   no such rule yet.
+- A label the page shows on more fields than Apply knows is another section's question (KAN-642), but a
+  radio or checkbox group is one field, however many of its options the page labels with the question
+  (`_labelled_fields`), and a label is named as another section's at most once on a step (`_sectioned`, by
+  step and entries added). Claude lists a question it wasn't given to fill again in every round. On
+  JPMorgan's Oracle form (2026-11-10), each round named Ethnicity, Gender, Veteran Status and the military
+  questions again under new names, about 45 times, till the fill's cap of 300 turns and 6,000,000 tokens
+  (KAN-788).
+- Each fill session gets every file the plan gives the form, not only that round's (KAN-789): a slot an earlier
+  round filled may need its file again, and Claude's upload tool sees only the files passed to it. The résumé that
+  plain code attached is never passed, so Claude can't put it in another slot.
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
   page script's own list: the two counted visibility apart on Microsoft's
-  profile step, and each question opened its neighbour (KAN-646).
+  profile step, and each question opened its neighbour (KAN-646). The name is
+  the element's ARIA name, else its `<label>`: Oracle's cx-select names its box
+  only by `<label for>`, so plain code found no Oracle dropdown and Claude clicked
+  each one, leaving Honeywell's required Country empty (2026-11-25). A label read
+  under its section's heading ("Address: Country") also fits the dropdown named
+  by the part after it, and a box that shows its choice only as its value
+  (Oracle's) reads back as picked. An option a click can't reach is pressed on
+  its own element (`_press_option`, the engine's `press`): Oracle's required
+  field's error paragraph lay over the open graduation month list and took every
+  click on its options.
+- A choice question asked as a group of checkboxes (Oracle's races) is ticked by
+  plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
+  `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
+  and `_with_options` gives the planner those options. It ticks only choices the
+  group lists, never unticks a box, and skips attestations and radio groups,
+  which stay Claude's. Oracle's Ethnicity group is one box beside the race list:
+  read without its options, its question took the race (Honeywell's, 2026-11-25).
 - A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
   "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
   says its format only there, and refused "May 2028". (amazon.jobs has its own Filler since KAN-765:
@@ -211,7 +283,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 - A Filler with a `form_url(url)` method names the page that holds its
   form. The Worker opens that page, not the posting link. Lever's form is
-  on `/apply`; a link without it opens the job description.
+  on `/apply`; a link without it opens the job description. So is
+  Workable's (KAN-839): its posting link, the one WorkIt's Jobs page and
+  Workable's widget give, opens the job's overview, which holds only a
+  link to the form, and the Filler waited there for a Submit that never
+  showed. Both take the engine's `form` for the link (`job_of`).
 - A Workday step that Save and Continue refuses ("won't leave its ... step")
   is filled once more, after a second's wait, and saved again; a second
   refusal is the Handoff. ASML's Application Questions showed every pick,

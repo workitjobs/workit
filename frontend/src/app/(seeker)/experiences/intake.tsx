@@ -14,6 +14,7 @@ import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode
 import { Composer, Message, Typing, ScoutMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import {
   createEntry,
@@ -941,9 +942,7 @@ export function Intake({
       <div className="flex items-center gap-3">
         <Mark />
         <div className="min-w-0">
-          <h2 id="intake-title" className="text-subtitle text-ink">
-            Tell Scout About It
-          </h2>
+          <SectionHeading id="intake-title">Tell Scout About It</SectionHeading>
           <p className="text-note text-ink-meta">
             Talk it through, and Scout fills in an entry from your own words.
           </p>

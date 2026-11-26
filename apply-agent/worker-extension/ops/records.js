@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S5 ops (KAN-611): what a Record keeps of a page, and Apply's fixed page functions.
 //
 // - tabs.fullScreenshot: the whole page, by scroll and stitch. captureVisibleTab gives one

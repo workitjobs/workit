@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import { MatchBadge } from "@/components/match-badge";
@@ -9,10 +11,11 @@ import { isClosedSaved, type Application } from "../tracker";
 import { StageMenu } from "./[jobId]/tracker-controls";
 import { ApplicationTile } from "./application-tile";
 import { ClosedSavedControl } from "./closed-saved";
-import { applicationHref } from "./query";
+import { applicationHref, sortApplications } from "./query";
 import { StageSteps } from "./stage-steps";
 import { TailoredChip } from "@/components/tailored-chip";
 import { ViewResumeButton } from "./view-resume";
+import { useApplicationsQuery } from "./view-switcher";
 
 /**
  * The applications as a list of wide cards, one per row, after Simplify's
@@ -30,6 +33,9 @@ import { ViewResumeButton } from "./view-resume";
  * THE STAGE MENU CHANGES THE STAGE HERE (../[jobId]/tracker-controls.tsx's
  * StageMenu, the same one as on the application's page), so a student moves
  * an application without opening it. A saved job's menu reads "Saved".
+ * Its controls are the list's (KAN-821): the compact stage pill and a text
+ * View, since a bordered View and a 42px stage field made Card View heavier
+ * than List View for the same two actions. Cards sit 16px apart (`gap-4`).
  *
  * Like a list row, the whole card opens the application's own page
  * (./[jobId]): the role is the link, stretched over the card. View Resume
@@ -113,7 +119,7 @@ function ApplicationCard({
         />
 
         <div className="relative z-10 flex flex-wrap items-center gap-2 @xl:col-start-2 @xl:row-start-1 @xl:justify-end @6xl:col-start-3 @6xl:flex-nowrap">
-          {item.sentResume && <ViewResumeButton resume={item.sentResume} />}
+          {item.sentResume && <ViewResumeButton resume={item.sentResume} quiet />}
           {closed ? (
             <ClosedSavedControl app={item} className="w-40 shrink-0" />
           ) : (
@@ -121,7 +127,8 @@ function ApplicationCard({
               jobId={item.id}
               stage={item.stage}
               placeholder="Saved"
-              className="w-40 shrink-0"
+              className="shrink-0"
+              compact
             />
           )}
         </div>
@@ -130,10 +137,14 @@ function ApplicationCard({
   );
 }
 
+/** The cards in the list's order (KAN-827): the filter row's Sort moves
+ *  ?sort= in place, so they sort here, as the list does, with no round trip.
+ *  A client component for that alone. */
 export function ApplicationsCards({ applications }: { applications: Application[] }) {
+  const { sort } = useApplicationsQuery();
   return (
-    <ul className="mt-4 flex flex-col gap-3">
-      {applications.map((item, i) => (
+    <ul className="mt-4 flex flex-col gap-4">
+      {sortApplications(applications, sort).map((item, i) => (
         <Reflow key={item.id}>
           <ApplicationCard
             item={item}

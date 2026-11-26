@@ -11,14 +11,19 @@ Worker, and the extension's debugger sends only text, Backspace/Delete and a cli
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is
-  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`),
-  with Allow User Scripts on; each Worker profile starts as a copy of the seed.
+  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`:
+  Developer mode and Load unpacked; no user scripts since KAN-839), and each Worker profile starts as a
+  copy of the seed.
 - "testing": Chrome for Testing (the build Playwright installs), which still takes
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
 
 Each profile gets its own NativeMessagingHosts folder with the host's manifest, naming only
 the worker extension, and a wrapper that tells the host its socket and Worker number. Lisul's
-own Chrome folder is never touched.
+own Chrome folder is never touched. (Chrome reads that folder on macOS and Linux; on Windows it
+reads a registry key instead, and the wrapper is a shell script: both are F4's.)
+
+Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It starts in the
+background by each OS's own way (`start_in_background`).
 """
 
 import json
@@ -29,9 +34,12 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from collections.abc import Callable
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
+
+import psutil
 
 from apply.adapters import SetupError
 from apply.browsers import (
@@ -42,10 +50,12 @@ from apply.browsers import (
     _no_saved_passwords,
     chrome_pid,
 )
+from apply.chrome_finder import NO_CHROME, chrome_for_testing, find
 from apply.focus import KEEPER
 from apply.plain import extension, host
 from apply.plain.bridge import (
     OUT_OF_DATE,
+    PACKAGED,
     SETS_FROM,
     Bridge,
     Connection,
@@ -54,9 +64,10 @@ from apply.plain.bridge import (
     features,
     socket_path,
 )
+from apply.plain.script import keep_engine
 from apply.profile import load_policies
 
-BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+BRANDED = find()  # the student's Google Chrome (the Chrome finder), or None
 SEED = "plain-seed"
 # A normal, readable Chrome at 100% zoom, at the screen's top-left corner. The extension shrinks it
 # to the main screen's visible area (ops/core.js: onScreen), so it is wholly on-screen.
@@ -77,16 +88,21 @@ STOP_WAIT = 10.0  # s from SIGTERM to SIGKILL
 START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
 OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
+CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Windows)
+# In each plain Worker profile: the Apply process that started its Chrome, written before the Chrome starts
+# (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
+# reclaims (stops) a Chrome whose owner is gone, never one a live Apply owns.
+OWNER = "apply-owner.json"
 
 
-def chrome_for_testing() -> Path:
-    """The newest Chrome for Testing Playwright installed."""
-    root = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
-    found = sorted(root.glob("chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
-                   key=lambda p: int(p.parts[len(root.parts)].split("-")[1]))
-    if not found:
-        raise FileNotFoundError(f"no Chrome for Testing under {root}: run `uv run playwright install chromium`")
-    return found[-1]
+def host_command(compiled: bool = "__compiled__" in globals()) -> str:
+    """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
+    The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
+    (scripts/app_entry.py). The OS names that program: a Nuitka program's sys.executable is a `python` beside it,
+    which doesn't exist."""
+    if compiled:
+        return f"{shlex.quote(psutil.Process().exe())} {host.APP_FLAG}"
+    return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
 
 
 def developer_mode(profile: Path) -> bool:
@@ -121,7 +137,7 @@ class PlainWorker:
 
     worker: int  # 0-based, as WorkerBrowsers.open's
     profile: Path
-    process: "Chrome"
+    process: "Chrome | subprocess.Popen"
     connection: Connection
     folder: Path | None = None  # the folder its extension is loaded from
     code: str = ""  # extension.code_hash(folder) when its extension last started
@@ -155,6 +171,8 @@ class PlainWorkers:
             raise ValueError("test_flags are for Chrome for Testing in tests only")
         self.test_flags = tuple(test_flags)
         self.running: dict[int, PlainWorker] = {}
+        # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
+        self._starting: dict[int, Chrome | subprocess.Popen] = {}
 
     @property
     def seed(self) -> Path:
@@ -173,7 +191,11 @@ class PlainWorkers:
         return self.profiles / f"plain-{worker + 1}"
 
     def binary(self) -> Path:
-        return chrome_for_testing() if self.kind == "testing" else BRANDED
+        if self.kind == "testing":
+            return chrome_for_testing()
+        if BRANDED is None:
+            raise FileNotFoundError(NO_CHROME)
+        return BRANDED
 
     @staticmethod
     def position(worker: int) -> tuple[int, int]:
@@ -206,9 +228,11 @@ class PlainWorkers:
         return self.copy
 
     def prepare(self, worker: int | None = None) -> dict:
-        """Write the worker extension's generated files (the engine bundle, Playwright's injected script)
-        into this checkout's extension folder, and the same files as a write-once vendor set into the
-        folder Worker `worker` loads, which the bridge names in each welcome (KAN-645)."""
+        """Write the worker extension's generated files (the guards, the fixed page functions, Playwright's
+        injected script; never the engine, KAN-839) into this checkout's extension folder, and the same files
+        as a write-once vendor set into the folder Worker `worker` loads, which the bridge names in each
+        welcome (KAN-645). A store copy's folder is Chrome's and is never written: its own packaged files
+        are used when they are this Apply's (bridge.Bridge.packaged)."""
         identity = extension.engine_identity()
         files = extension.generated(identity)
         if self.direct:
@@ -228,6 +252,7 @@ class PlainWorkers:
                   f"load this folder's own copy ({self.copy}).", file=sys.stderr)
         self.bridge.folder = loaded
         self.bridge.vendor = roots.pop()  # one id: the same files
+        self.bridge.packaged = extension.set_id(extension.packaged_files(files))  # a package with these built in
         self.bridge._engine = identity
         return identity
 
@@ -260,7 +285,12 @@ class PlainWorkers:
                     running.code = code
                     said.append(f"its worker extension's code changed on disk but didn't reload ({error})")
                 return said
-        if self.bridge.vendor != before and running.connection.vendor:
+        if running.connection.vendor == PACKAGED:  # a store copy has no vendor sets: its built-in files stay
+            held = getattr(running.connection, "engine_kept", None)
+            keep_engine(running.connection)  # the engine is handed over again when the bundle on disk changed
+            if getattr(running.connection, "engine_kept", None) != held:
+                said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
+        elif self.bridge.vendor != before and running.connection.vendor:
             running.connection.call("vendor.use", root=self.bridge.vendor)
             running.connection.vendor = self.bridge.vendor
             said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
@@ -271,16 +301,16 @@ class PlainWorkers:
         hosts = self.profile(worker) / "NativeMessagingHosts"
         hosts.mkdir(parents=True, exist_ok=True)
         wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)} "
+        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} "
                            f"--socket {shlex.quote(str(self.bridge.path))} --worker {worker} \"$@\"\n")
         wrapper.chmod(0o700)
         manifest = hosts / f"{extension.HOST_NAME}.json"
         manifest.write_text(json.dumps({
             "name": extension.HOST_NAME,
-            "description": "Relays Apply's plain Worker extension to the Apply process on this Mac",
+            "description": "Relays Apply's plain Worker extension to the Apply process on this computer",
             "path": str(wrapper),
             "type": "stdio",
-            "allowed_origins": [extension.EXTENSION_ORIGIN],
+            "allowed_origins": list(extension.EXTENSION_ORIGINS),
         }, indent=1) + "\n")
         return manifest
 
@@ -289,6 +319,7 @@ class PlainWorkers:
         if worker in self.running:
             return self.running[worker]
         profile = self.profile(worker)
+        reclaim(profile)
         if chrome_pid(profile):
             raise ProfileInUse(f"{profile.name} {BUSY}")
         if self.kind == "chrome" and not self.seed.exists():
@@ -304,9 +335,11 @@ class PlainWorkers:
         self.prepare(worker)  # into the folder its extension loads from too: its own vendor set
         self.bridge.start()
         self.install_host(worker)
+        own(profile)
         with KEEPER.launching():
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
+        self._starting[worker] = process
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
             folder = self.loaded_folder(worker)
@@ -328,6 +361,8 @@ class PlainWorkers:
                 raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
                                    "(`uv run apply plain seed`)") from None
             raise
+        finally:
+            self._starting.pop(worker, None)
         code = extension.code_hash(folder)
         self.running[worker] = PlainWorker(worker, profile, process, connection, folder, code)
         return self.running[worker]
@@ -341,14 +376,34 @@ class PlainWorkers:
             _stop(running.process)
 
     def stop_all(self) -> None:
+        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch)."""
         for worker in list(self.running):
             self.stop(worker)
+        for worker, process in list(self._starting.items()):
+            self._starting.pop(worker, None)
+            KEEPER.forget(process.pid)
+            _stop(process)
         self.bridge.stop()
 
     def show(self, worker: int) -> bool:
-        """Bring Worker `worker`'s Chrome window to the front, as Lisul asked in the Apply window."""
+        """Bring Worker `worker`'s Chrome window to the front, as Lisul asked in the Apply window. On the Mac
+        FocusKeeper brings it, so it stays in front as his app. On Windows and Linux there is no FocusKeeper,
+        and the worker extension brings it (`windows.focus`), as it does on the Mac when FocusKeeper can't."""
         running = self.running.get(worker)
-        return bool(running) and KEEPER.bring(running.pid)
+        if not running:
+            return False
+        if KEEPER.bring(running.pid):
+            return True
+        try:
+            running.connection.call("windows.focus")
+        except (PortError, OSError):  # an extension from before windows.focus, or a Worker gone (WorkerGone)
+            return False
+        return True
+
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
+        running = self.running.get(worker)
+        return bool(running) and KEEPER.front() == running.pid
 
     @contextmanager
     def open(self, url: str, worker: int = 0):
@@ -365,26 +420,30 @@ class PlainWorkers:
 
 
 class Chrome:
-    """A Chrome that `open` started: its own PID (read from the profile's SingletonLock), not open's."""
+    """A Chrome that `open` started (the Mac), or one `reclaim` stops: its own PID (from chrome_pid), not open's.
+    It keeps the process as psutil saw it then, with its start time. A Chrome that has ended may have its PID given
+    to another program, and a bare PID would then be polled as running and sent SIGTERM, then SIGKILL (found in
+    review, 2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises."""
 
     def __init__(self, pid: int):
         self.pid = pid
+        try:
+            self._process: psutil.Process | None = psutil.Process(pid)
+        except psutil.Error:  # gone already
+            self._process = None
 
     def poll(self) -> int | None:
-        try:
-            os.kill(self.pid, 0)
-        except ProcessLookupError:
-            return 0
-        return None
+        return None if self._process is not None and self._process.is_running() else 0
 
     def send_signal(self, number: int) -> None:
-        try:
-            os.kill(self.pid, number)
-        except ProcessLookupError:
-            pass
+        with suppress(psutil.Error):  # gone, or its PID went to another program
+            if self._process is not None:
+                self._process.send_signal(number)
 
     def kill(self) -> None:
-        self.send_signal(signal.SIGKILL)
+        with suppress(psutil.Error):
+            if self._process is not None:
+                self._process.kill()  # psutil's: SIGKILL, or TerminateProcess on Windows, which has no SIGKILL
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = time.monotonic() + (timeout if timeout is not None else 1e9)
@@ -395,11 +454,25 @@ class Chrome:
         return 0
 
 
-def start_in_background(arguments: list[str], profile: Path, log: Path) -> Chrome:
-    """Start Chrome (`arguments`, the binary first) through `open -g -n`: a new instance that is
-    never activated, so it never takes Lisul's focus. Running the binary itself brings it forward."""
+def start_in_background(arguments: list[str], profile: Path, log: Path, system: str = sys.platform,
+                        popen: Callable[..., subprocess.Popen] = subprocess.Popen,
+                        front: bool = False) -> "Chrome | subprocess.Popen":
+    """Start Chrome (`arguments`, the binary first) so that it takes no one's focus, by each OS's own way.
+    `front`: the seed's Chrome, which the user works in, comes forward instead.
+
+    - macOS: through `open -g -n`, a new instance that is never activated: running the binary itself
+      brings it forward. Its PID is then read from the profile's SingletonLock (a `Chrome`). Through
+      `open`, Chrome is never this process's child: as the built app's child, macOS blamed WorkIt Auto
+      Apply when Chrome's updater changed Google Chrome.app ("prevented from modifying apps", 2026-11-21).
+    - Windows and Linux: the binary itself, as a plain background process, in a session (a process
+      group on Windows) of its own, so a Ctrl-C in Apply's terminal never reaches it, as with `open`.
+      The OS keeps it behind. The Popen is the process: it is stopped and reaped through it."""
+    if system != "darwin":
+        detached = {"creationflags": CREATE_NEW_PROCESS_GROUP} if system == "win32" else {"start_new_session": True}
+        with log.open("ab") as out:
+            return popen(arguments, stdin=subprocess.DEVNULL, stdout=out, stderr=out, **detached)
     app = Path(arguments[0]).parents[2]  # …/X.app/Contents/MacOS/X
-    subprocess.run([OPEN, "-g", "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
+    subprocess.run([OPEN, *([] if front else ["-g"]), "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
                     "--args", *arguments[1:]], check=True, stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + START_WAIT
@@ -410,12 +483,52 @@ def start_in_background(arguments: list[str], profile: Path, log: Path) -> Chrom
     return Chrome(pid)
 
 
+def own(profile: Path) -> None:
+    """Note in `profile` that this Apply process starts its Chrome: its PID and when it started, so a later PID
+    that the OS hands to another process is never taken for it."""
+    me = psutil.Process()
+    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n")
+
+
+def _owner_alive(profile: Path) -> bool | None:
+    """Whether the Apply that started `profile`'s Chrome still runs; None when no Apply noted it (a Chrome from
+    before KAN-885, or one started some other way): not Apply's to judge."""
+    try:
+        owner = json.loads((profile / OWNER).read_text())
+        pid, started = int(owner["pid"]), float(owner["started"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    try:
+        return abs(psutil.Process(pid).create_time() - started) < 1.0
+    except psutil.Error:
+        return False
+
+
+def orphan(profile: Path) -> int | None:
+    """The PID of the Chrome holding `profile` if its Apply is gone. chrome_pid counts only a browser whose
+    `--user-data-dir` is this very profile, so a stale lock's PID reused by another process (the student's own
+    Chrome) never counts."""
+    pid = chrome_pid(profile)
+    return pid if pid is not None and _owner_alive(profile) is False else None
+
+
+def reclaim(profile: Path) -> bool:
+    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: SIGTERM, then SIGKILL. Says
+    whether it stopped one."""
+    pid = orphan(profile)
+    if pid is None:
+        return False
+    print(f"Closed {profile.name}'s Chrome: the Apply that opened it is gone.", file=sys.stderr)
+    _stop(Chrome(pid))
+    return True
+
+
 def _copy(source: Path, profile: Path) -> None:
     shutil.rmtree(profile, ignore_errors=True)
     shutil.copytree(source, profile, symlinks=True, ignore=NOT_COPIED)
 
 
-def _stop(process: Chrome) -> None:
+def _stop(process: "Chrome | subprocess.Popen") -> None:
     if process.poll() is not None:
         return
     process.send_signal(signal.SIGTERM)

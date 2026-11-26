@@ -42,12 +42,12 @@ jobs:
       - name: Delete data past its retention period
         working-directory: backend
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
           # Deletes only on the schedule, on main. Anything else is a dry run.
           DRY_RUN: ${{ (github.event_name != 'schedule' || github.ref != 'refs/heads/main') && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            echo "::error::The API_DATABASE_URL secret is not set: Infisical's workit-prod/api sync writes it (docs/secrets.md)."
             exit 1
           fi
           uv run python -m app.scripts.purge_old_data ${DRY_RUN:+"$DRY_RUN"}

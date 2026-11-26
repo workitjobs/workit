@@ -27,7 +27,6 @@ scratch one, soon deleted) keeps a bundle of its own beside its profiles.
 """
 
 import json
-import os
 import plistlib
 import shlex
 import subprocess
@@ -35,6 +34,8 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+
+import psutil
 
 APP = Path.home() / "Applications" / "Apply.app"
 BUNDLE_ID = "local.apply.window"
@@ -113,7 +114,7 @@ def keep(pid: int, profile: Path, every: float = KEEP_EVERY) -> None:
     """While the window's Chrome `pid` runs: close each New Tab window a Dock
     click opens in it, and bring the window forward in its place."""
     ours = None  # the DevTools port of `pid`'s own Chrome, once checked
-    while _alive(pid):
+    while psutil.pid_exists(pid):
         try:
             port, browser = (profile / "DevToolsActivePort").read_text().split()[:2]
             # The port file outlives its Chrome: answer only the Chrome that wrote it, not one that took the port since.
@@ -124,16 +125,6 @@ def keep(pid: int, profile: Path, every: float = KEEP_EVERY) -> None:
         except (OSError, ValueError, IndexError, KeyError):
             pass  # no DevTools port yet, or Chrome going
         time.sleep(every)
-
-
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        pass
-    return True
 
 
 def _devtools(port: str, path: str):

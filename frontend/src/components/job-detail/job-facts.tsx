@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   CoinIcon,
   LevelIcon,
@@ -49,7 +49,7 @@ export function JobFacts({ posting }: { posting: JobPosting }) {
       ) : (
         <JobFact Icon={PinIcon} value={posting.locationCity} />
       )}
-      <JobFact Icon={BriefcaseIcon} value={posting.jobType} />
+      <JobFact Icon={JobTypeIcon} value={posting.jobType} />
       <JobFact Icon={CoinIcon} value={posting.salary} />
       <JobFact Icon={workStyleIcon(posting.workStyle)} value={posting.workStyle} />
       <JobFact Icon={LevelIcon} value={posting.level} />

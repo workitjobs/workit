@@ -22,8 +22,8 @@ PDF = b"%PDF-1.7 Test Person's resume"
 
 
 def logged_in(fake: FakeWorkIt, tmp_path: Path) -> WorkIt:
-    client = WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
     return client
 
 
@@ -133,7 +133,7 @@ def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_p
     client = logged_in(fake, tmp_path)
     # WorkIt's API does not answer (nothing listens on port 9).
     no_api = dataclasses.replace(fake.site, api="http://127.0.0.1:9")
-    down = WaitingWrites(WorkIt(no_api, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    down = WaitingWrites(WorkIt(no_api, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
 
     said = down.send(write("applied", resume=resume(tmp_path)))
 
@@ -148,15 +148,33 @@ def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_p
 
 
 def test_with_no_login_the_write_waits_for_apply_login(fake, tmp_path):
-    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
 
     assert "apply login" in writes.send(write("needs_you"))
     assert [w.stage for w in writes.waiting()] == ["needs_you"]
     assert fake.tracker.tracked() == []
 
 
+@pytest.mark.parametrize("fault", ["password", "save"])
+def test_a_keychain_that_wont_answer_keeps_the_write_waiting(fake, tmp_path, fault):
+    """Fault: a keychain error read as WorkIt's refusal, which drops the write for good (a Deny on macOS's
+    prompt, a locked keychain). It waits for `apply login` instead, and a failed read is no login."""
+    client = logged_in(fake, tmp_path)
+    workit._ACCESS.clear()  # a new process: it refreshes, so it reads the keychain and saves to it
+
+    def refuse(*_):
+        raise RuntimeError("the keychain would not answer")
+
+    setattr(fake.keychain, fault, refuse)
+    writes = WaitingWrites(client, tmp_path / "workit-queue.json")
+
+    assert "apply login" in writes.send(write("needs_you"))
+    assert [w.stage for w in writes.waiting()] == ["needs_you"]
+    assert client.logged_in() is (fault == "save")
+
+
 def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fake, tmp_path):
-    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
     writes.send(write("needs_you"))
     writes.send(write("applied"))
     writes.send(write("needs_you", application_id="request-2", link=LOCKHEED + "7"))

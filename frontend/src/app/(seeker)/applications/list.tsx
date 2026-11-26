@@ -39,6 +39,8 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { ClickableRow } from "@/components/clickable-row";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
@@ -48,6 +50,9 @@ import {
   STICKY_HEAD,
   STICKY_TH,
   STICKY_TH_FROZEN,
+  FROZEN_EDGE,
+  frozenFill,
+  rowFill,
   TABLE_FILL,
   useFillPage,
 } from "@/components/fill-page";
@@ -56,9 +61,10 @@ import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
+import { useTrackerPick } from "./pick";
 import { ClosedSavedControl, RemoveClosedButton } from "./closed-saved";
 import { LocalDate } from "../local-time";
-import { isClosedSaved, sortKey, type Application } from "../tracker";
+import { isClosedSaved, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
 import {
   COLUMNS,
@@ -72,16 +78,17 @@ import {
   type ColumnLayout,
   type GroupBy,
 } from "./column-layout";
-import { applicationHref, applicationsHref, type Sort } from "./query";
+import { applicationHref, applicationsHref, SORT_DESC, SORT_VALUE, type Sort } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
 import { ViewResumeButton } from "./view-resume";
 import { Missing } from "@/components/ui/missing";
+import { TEXT } from "@/components/ui/text-roles";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
  * Applied), how good it is (Match), the job's facts (Job Type;
- * Location; Work Model; Pay Range), and what was sent and whether it is still
+ * Location; Workplace; Salary), and what was sent and whether it is still
  * open (Resume; Posting). Role stays frozen at the
  * left while the rest scrolls. Company and Role were two frozen columns
  * (KAN-256) until they took so much width that few other columns showed;
@@ -109,12 +116,13 @@ import { Missing } from "@/components/ui/missing";
  * (./column-layout.ts); the frozen Role column cannot move or hide.
  *
  * SORTING IS IN THE URL, ?sort=, like every other choice on this page, so an
- * order can be shared and Back undoes it. A heading moves it in place
+ * order can be shared and Back undoes it. A heading, or the filter row's
+ * Sort (./filter-bar.tsx, KAN-827), moves it in place
  * (components/shallow-routing.tsx): the rows are already here, and the table
  * sorts them itself. Five columns sort, each one way, the way it is read
- * (SORT_DESC): Role by its company A to Z (then by role, so a company's
+ * (SORT_DESC in ./query.ts): Role by its company A to Z (then by role, so a company's
  * roles sit together; `?sort=company`), Status furthest along first, Date Applied
- * latest first, Match best first, Pay Range best first. What has no value
+ * latest first, Match best first, Salary best first. What has no value
  * to sort by goes last either way, in the order it came in. The rest do not
  * sort; the filters above the table pick those out. The heading in force
  * says so in aria-sort as well as in its chevron.
@@ -136,26 +144,6 @@ const FEATURES = tableFeatures({
   columnResizingFeature,
   columnVisibilityFeature,
 });
-
-/** Which way each sortable column runs, for the sort, aria-sort and the
- *  chevron. */
-const SORT_DESC: Record<Sort, boolean> = {
-  company: false,
-  status: true,
-  applied: true,
-  match: true,
-  pay: true,
-};
-
-/** What a sortable column sorts by; undefined sorts last. The company
- *  sort keeps a company's roles together, A to Z within it. */
-const SORT_VALUE: Record<Sort, (app: Application) => string | number | undefined> = {
-  company: (app) => `${app.company}\u0000${app.role}`,
-  status: (app) => STAGE_ORDER.indexOf(app.stage),
-  applied: (app) => (app.appliedOn ? sortKey(app.appliedOn) : undefined),
-  match: (app) => app.match ?? undefined,
-  pay: (app) => app.payPerYear ?? undefined,
-};
 
 /** The sort each sortable column's heading picks. Role's is `company`: the
  *  merged column sorts by its company, the URL keeping the older name. */
@@ -308,7 +296,7 @@ type Group<R> = {
  * (Table Settings' Group By, ./column-layout.ts). By Status, the stages in
  * the board's order, then Posting Closed: a saved job whose posting closed
  * leaves Saved for it, as Auto Apply's queue gathers its closed jobs, so
- * they can be seen and removed together. By Job Type or Work Model, A to Z,
+ * they can be seen and removed together. By Job Type or Workplace, A to Z,
  * then Not Listed. An empty group is not drawn.
  */
 function groupRows<R extends { original: Application }>(
@@ -345,10 +333,10 @@ function groupRows<R extends { original: Application }>(
  *  frontend/docs/design.md (2026-11-10). Text columns stay left-aligned. */
 const CENTRED: ColumnId[] = ["match", "resume"];
 
-const TH = "px-4 text-note text-ink-meta font-medium";
+const TH = `px-4 ${TEXT.columnHeader}`;
 /** A plain fact cell: one line of note text in ink, as easy to read as the
  *  role; it was grey, which read as disabled (KAN-256). */
-const TD = "px-4 text-note text-ink";
+const TD = `px-4 ${TEXT.tableCell}`;
 /** A frozen cell paints the row's own background (white, the hover tint
  *  with the row) so scrolled cells don't show through. FROZEN AT EVERY
  *  WIDTH (2026-11-10). Job starts at 320px, about a phone's whole table,
@@ -361,12 +349,10 @@ const TD = "px-4 text-note text-ink";
 const FROZEN_CELL = "z-1 bg-panel sticky left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-subtle)]";
 /** The Job column's width below 672px of page, over its kept width
  *  (`!`, since the kept width is an inline style): 208px leaves a phone's
  *  table room for most of Status beside it. */
 const PHONE_JOB = "@max-2xl/main:w-52!";
-const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
@@ -448,46 +434,76 @@ export function ApplicationsList({ applications }: { applications: Application[]
   const span = table.getVisibleLeafColumns().length + 1;
   const [folded, fold] = useFolds();
 
-  const drawRow = (row: (typeof rows)[number], i: number) => (
-    <Reflow key={row.id}>
-      <ClickableRow
-        href={applicationHref(row.id)}
-        className="hover:bg-hover animate-fade"
-        style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-      >
-        {row.getVisibleCells().map((cell) => {
-          const id = cell.column.id as ColumnId;
-          return (
-            <TableCell
-              key={cell.id}
-              // A click in the resume cell around View Resume is a
-              // near miss, not a wish to open the application:
-              // ClickableRow leaves a prevented click alone.
-              // The stage menu's cell too: its options open in a
-              // popup, whose clicks still reach the row in React.
-              onClick={
-                id === "status" || (id === "resume" && row.original.sentResume)
-                  ? (event) => event.preventDefault()
-                  : undefined
-              }
-              className={cn(
-                TD,
-                "overflow-hidden",
-                CENTRED.includes(id) && "text-center",
-                id === "role" && "py-3",
-                frozenClasses(id),
-                FROZEN.includes(id) && FROZEN_HOVER,
-              )}
-              style={frozenStyle(id)}
-            >
-              {CELL[id](row.original)}
-            </TableCell>
-          );
-        })}
-        <TableCell aria-hidden />
-      </ClickableRow>
-    </Reflow>
-  );
+  // The picked rows (./pick.tsx): kept within the rows shown, which the
+  // bar over the filter row reads.
+  const { picked, setPicked, setShown } = useTrackerPick();
+  useEffect(() => {
+    setShown(applications.map(({ id, role, stage }) => ({ id, role, stage })));
+  }, [applications, setShown]);
+  const shownPicked = rows.filter((row) => picked.has(row.id)).length;
+  function pick(id: string, on: boolean) {
+    setPicked(on ? [...picked, id] : [...picked].filter((other) => other !== id));
+  }
+
+  const drawRow = (row: (typeof rows)[number], i: number) => {
+    const isPicked = picked.has(row.id);
+    return (
+      <Reflow key={row.id}>
+        <ClickableRow
+          href={applicationHref(row.id)}
+          className={cn("animate-fade", rowFill(isPicked))}
+          style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+        >
+          {row.getVisibleCells().map((cell) => {
+            const id = cell.column.id as ColumnId;
+            return (
+              <TableCell
+                key={cell.id}
+                // A click in the resume cell around View Resume is a
+                // near miss, not a wish to open the application:
+                // ClickableRow leaves a prevented click alone.
+                // The stage menu's cell too: its options open in a
+                // popup, whose clicks still reach the row in React.
+                onClick={
+                  id === "status" || (id === "resume" && row.original.sentResume)
+                    ? (event) => event.preventDefault()
+                    : undefined
+                }
+                className={cn(
+                  TD,
+                  "overflow-hidden",
+                  CENTRED.includes(id) && "text-center",
+                  id === "role" && "py-3",
+                  frozenClasses(id),
+                  FROZEN.includes(id) && cn("transition-colors", frozenFill(isPicked)),
+                )}
+                style={frozenStyle(id)}
+              >
+                {id === "role" ? (
+                  // Job starts with the row's select box, as Up Next's Job
+                  // and Documents' Name do (components/selection-bar.tsx).
+                  <div className="flex min-w-0 items-center gap-3">
+                    <PickBox>
+                      <Checkbox
+                        className="border-ink-meta"
+                        checked={isPicked}
+                        onCheckedChange={(on) => pick(row.id, on === true)}
+                        aria-label={`Select ${row.original.role} at ${row.original.company}`}
+                      />
+                    </PickBox>
+                    <div className="min-w-0 flex-1">{CELL[id](row.original)}</div>
+                  </div>
+                ) : (
+                  CELL[id](row.original)
+                )}
+              </TableCell>
+            );
+          })}
+          <TableCell aria-hidden />
+        </ClickableRow>
+      </Reflow>
+    );
+  };
 
   return (
     <Card ref={edgeRef} padding="none" className="relative mt-4 overflow-hidden">
@@ -530,6 +546,23 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   )}
                   style={frozenStyle(header.column.id as ColumnId)}
                   centred={CENTRED.includes(header.column.id as ColumnId)}
+                  lead={
+                    header.column.id === "role" && (
+                      <PickBox>
+                        <Checkbox
+                          className="border-ink-meta"
+                          checked={rows.length > 0 && shownPicked === rows.length}
+                          indeterminate={shownPicked > 0 && shownPicked < rows.length}
+                          // As Up Next's: picks every shown row, or unpicks
+                          // while any is picked.
+                          onCheckedChange={() =>
+                            setPicked(shownPicked > 0 ? [] : rows.map((row) => row.id))
+                          }
+                          aria-label={shownPicked > 0 ? "Unselect All" : "Select All"}
+                        />
+                      </PickBox>
+                    )
+                  }
                 />
               ))}
               {/* The rest of the card's width, so a resize never stretches
@@ -662,9 +695,12 @@ function HeadCell({
   className,
   style,
   centred = false,
+  lead,
 }: {
   header: Header<typeof FEATURES, Application, unknown>;
   label: string;
+  /** Before the label: Job's Select All box. */
+  lead?: ReactNode;
   sort: Sort;
   onSort: (sort: Sort) => void;
   drag: Drag;
@@ -816,7 +852,10 @@ function HeadCell({
         onDrop(id, target);
       }}
     >
-      <div className={cn("flex min-w-0 items-center", centred && "justify-center")}>
+      <div
+        className={cn("flex min-w-0 items-center", centred && "justify-center", lead && "gap-3")}
+      >
+        {lead}
         {columnSort ? (
           <button
             type="button"

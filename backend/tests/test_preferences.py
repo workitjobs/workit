@@ -89,9 +89,21 @@ def test_preferences_tidy_duplicates_and_a_backwards_range():
     assert (prefs.min_pay, prefs.max_pay) == (Decimal(80), Decimal(120))
 
 
+def test_custom_roles_are_trimmed_and_kept_once_ignoring_case():
+    # A role the student typed that job_roles lacks (2026-11-16): "UX
+    # Researcher" and "ux researcher" find the same titles, so one is kept,
+    # as first typed.
+    prefs = JobPreferences(custom_role=["  UX Researcher ", "ux researcher", "Game Designer"])
+    assert prefs.custom_role == ["UX Researcher", "Game Designer"]
+
+
 @pytest.mark.parametrize(
     "bad",
     [
+        {"custom_role": ["x"]},  # too short to name a role
+        {"custom_role": ["---"]},  # no word to find in a title
+        {"custom_role": ["a" * 61]},
+        {"custom_role": [f"Role {n}" for n in range(6)]},  # over MAX_CUSTOM_ROLES
         {"location": ["California"]},  # not a place code
         {"role": ["Software Engineer"]},  # not a slug
         {"location": ["US"] * 61},  # over GET /jobs' cap
@@ -184,6 +196,7 @@ def test_get_maps_the_saved_row_back_to_query_names(client):
         levels=["new_grad"],
         job_types=["full_time"],
         start_terms=[],
+        custom_roles=["UX Researcher"],
         min_pay=Decimal("45.00"),
         max_pay=None,
         pay_per="hour",
@@ -196,6 +209,7 @@ def test_get_maps_the_saved_row_back_to_query_names(client):
     assert body["location"] == ["US-CA"]
     assert body["work_style"] == ["remote"]
     assert body["role"] == ["software_engineer"]
+    assert body["custom_role"] == ["UX Researcher"]
     assert body["pay_per"] == "hour"
     assert body["min_pay"] == 45  # a number, not "45.00"
 
@@ -225,7 +239,10 @@ async def test_a_save_reads_back_whole_in_one_query(database):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             empty = await client.get(URL)
             saved = await client.put(URL, json={**BODY, "role": ["software_engineer"]})
-            again = await client.put(URL, json={**BODY, "location": ["US-NY"], "role": []})
+            again = await client.put(
+                URL,
+                json={**BODY, "location": ["US-NY"], "role": [], "custom_role": ["UX Researcher"]},
+            )
             res = await client.get(URL)
     finally:
         app.dependency_overrides.pop(get_current_account, None)
@@ -235,6 +252,8 @@ async def test_a_save_reads_back_whole_in_one_query(database):
     body = res.json()
     # The second save replaced the first's places and roles.
     assert (body["location"], body["role"]) == (["US-NY"], [])
+    # A custom role (2026-11-16) is kept on the row, read back as typed.
+    assert body["custom_role"] == ["UX Researcher"]
     assert body["experience"] == ["new_grad"] and body["min_pay"] == 100000
     async with database() as session:
         stamped = await session.scalar(text(

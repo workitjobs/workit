@@ -11,9 +11,7 @@ import type { ReactNode } from "react";
  *
  * Drawn here rather than shipped as an image: every colour is the brand
  * violet mixed into white, or deepened toward ink for what stands nearest, so
- * it follows the palette the way onboarding's wash does
- * (onboarding/applicant/story-panel.tsx), and there is no asset to keep in
- * step with it.
+ * it follows the palette, and there is no asset to keep in step with it.
  *
  * A row is one path with a subpath for each piece of each tower, all wound
  * clockwise, so pieces that touch merge rather than cancel. A piece's shade is

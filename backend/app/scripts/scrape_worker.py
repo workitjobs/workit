@@ -3,6 +3,8 @@
 Usage:
     uv run python -m app.scripts.scrape_worker              # one cycle
     uv run python -m app.scripts.scrape_worker --dry-run    # show what would happen
+    uv run python -m app.scripts.scrape_worker --full       # bypass stagger + fingerprint rest
+    uv run python -m app.scripts.scrape_worker --workers 8  # override parallel board workers
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import logging
 import sys
 
 from app.db import get_engine
-from app.scraper.worker import run_cycle
+from app.scraper.worker import BOARD_WORKERS, run_cycle
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,10 +24,10 @@ logging.basicConfig(
 )
 
 
-async def main(*, dry_run: bool = False) -> None:
+async def main(*, dry_run: bool = False, full: bool = False, workers: int = BOARD_WORKERS) -> None:
     engine = get_engine()
     async with engine.connect() as conn:
-        summary = await run_cycle(conn, dry_run=dry_run)
+        summary = await run_cycle(conn, dry_run=dry_run, full=full, workers=workers)
     await engine.dispose()
     print(json.dumps(summary, indent=2))
     if summary.get("boards_failed"):
@@ -37,5 +39,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what would happen without scraping"
     )
+    parser.add_argument(
+        "--full", action="store_true", help="Bypass quiet board stagger and fingerprint rest"
+    )
+    parser.add_argument(
+        "--workers", type=int, default=BOARD_WORKERS, choices=range(1, 65),
+        metavar="N",
+        help=f"Parallel board workers (default: {BOARD_WORKERS})",
+    )
     args = parser.parse_args()
-    asyncio.run(main(dry_run=args.dry_run))
+    asyncio.run(main(dry_run=args.dry_run, full=args.full, workers=args.workers))

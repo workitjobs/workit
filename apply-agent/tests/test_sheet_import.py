@@ -55,8 +55,8 @@ def workit_tracker(tmp_path):
         tracker.applied_before(tracker.listed(COBALT, "Cobalt", "Backend Intern"), "offer")
         tracker.listed(DYNAMO, "Dynamo", "Platform Intern")
         tracker.applied_before(tracker.listed(IRIS, "Iris", "Infra Intern"), "saved")
-        client = WorkIt(fake.site, tmp_path / "workit-login.json")
-        workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
         fake.requests.clear()
         yield fake, tracker, client
 
@@ -178,7 +178,7 @@ def test_the_resume_is_the_one_kept_on_the_day_it_was_applied(tmp_path):
 
 
 def test_a_link_matches_as_workit_matches_it():
-    key = sheet_import.job_key
+    key = workit.job_key
     assert key("https://job-boards.greenhouse.io/embed/job_app?for=acme&token=8000001") == key(ACME)
     assert key("https://www.Example.com/jobs/1/?src=x#top") == key("http://example.com/jobs/1")
     assert key("https://example.com/jobs/1") != key("https://example.com/jobs/2")

@@ -12,14 +12,16 @@ import {
   searchWords,
   type ResumeType,
 } from "@/components/resume-list";
-import { PrimaryStar, RESUME_ROW, ROW_ACTION, TypeBadge } from "@/components/resume-row";
+import { PrimaryBadge, RESUME_ROW, TypeBadge } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 import { cn } from "@/lib/cn";
+import { headerSummary } from "@/lib/import-summary";
 import { listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
@@ -269,7 +271,7 @@ export function ResumeLists({
       {choices.length === 0 ? (
         <p className="text-note text-ink-meta py-2">{empty}</p>
       ) : shown.length === 0 ? (
-        <p className="text-note text-ink-meta py-2">None of your resumes match these filters.</p>
+        <NoMatches>None of your resumes match these filters.</NoMatches>
       ) : (
         // Its own scroll, so the dialog's footer stays put under a long list,
         // or, on a page, so the search above it stays in view.
@@ -325,8 +327,11 @@ export function ResumeListsSkeleton() {
 
 /** One resume as a pickable card: a radio, the name and its line
  *  ("Uploaded Oct 21", "Last edited Oct 21 · For …"), the type's badge as
- *  the Resumes table draws it (in a column 7rem wide, so the stars line
- *  up; its icon alone below the card's `@md`), and the primary star. The
+ *  the Resumes table draws it (in a column 7rem wide, so the badges line
+ *  up; its icon alone below the card's `@md`), with the Primary badge
+ *  beside the primary's name as the Resumes table draws it (KAN-825; a
+ *  bare purple star at the card's end until then), its word folding with
+ *  the type's. The
  *  name wraps, never truncates: two resumes tailored for one company
  *  differ only at the end of their names. */
 function PickCard({
@@ -348,7 +353,16 @@ function PickCard({
     <label className={pickRowClasses(picked)}>
       <Radio name={name} value={c.key} checked={picked} onChange={() => onPick(c.key)} />
       <span className="min-w-0 flex-1">
-        <span className="text-label text-ink block break-words">{c.label}</span>
+        {/* The Primary badge beside the name, as the Resumes table has it:
+            at the card's end it pushed the type's badge out of line */}
+        <span className="flex items-start gap-2">
+          <span className="text-label text-ink min-w-0 break-words">{c.label}</span>
+          {c.isDefault && (
+            <span className="-my-[3px] shrink-0">
+              <PrimaryBadge wordClassName="sr-only @md:not-sr-only" />
+            </span>
+          )}
+        </span>
         <span className="text-note text-ink-meta block break-words">
           {c.type === "Uploaded" ? "Uploaded" : edited ? "Last edited" : "Made"}
           {day && (
@@ -368,15 +382,14 @@ function PickCard({
       <span className="flex shrink-0 @md:w-28">
         <TypeBadge type={GROUP[c.type]} wordClassName="sr-only @md:not-sr-only" />
       </span>
-      <PrimaryStar name={c.label} primary={c.isDefault} />
       {onPreview && (
         // Inside the card's label, so the click must not reach the radio:
         // a preview never moves the pick.
         <IconButton
+          place="row"
           label={`Preview ${c.label}`}
           tooltip="Preview"
           className={cn(
-            ROW_ACTION,
             "relative z-10 shrink-0 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
           )}
           onClick={(event) => {
@@ -384,7 +397,7 @@ function PickCard({
             onPreview(c);
           }}
         >
-          <EyeIcon aria-hidden className="size-4" />
+          <EyeIcon aria-hidden />
         </IconButton>
       )}
     </label>
@@ -455,7 +468,13 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
     setNote(
       duplicateOf
         ? `${error} It is picked under Uploaded.`
-        : `Uploaded ${file.name}. It is picked under Uploaded.`,
+        : // What its header filled on the profile (KAN-436)
+          [
+            `Uploaded ${file.name}. It is picked under Uploaded.`,
+            headerSummary(resume?.bank?.header),
+          ]
+            .filter(Boolean)
+            .join(" "),
     );
   }
 

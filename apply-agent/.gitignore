@@ -23,6 +23,8 @@
 /apply-records/
 /default-probes/
 /answer-ledger.jsonl
+/answer-bank.lock
+/question-types.json
 /workday-trees.json
 /sheet-id
 /workit-login.*
@@ -37,3 +39,7 @@ private-identifiers.txt
 
 .venv/
 .pytest_cache/
+# The Chrome Web Store package `apply plain package` builds (KAN-839).
+/dist/
+# WorkIt Auto Apply's build (scripts/build_app.py): its own venv, the compile and the app (W8).
+/build/

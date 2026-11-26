@@ -67,7 +67,7 @@ changes: as the form starts filling, at each pause, as it goes on, and as each f
   A Submit press with no confirmation yet is `sent`: it stays, his.
 - **A form stays** when Lisul closes its tab, when Apply stops (Ctrl-C, SIGTERM, a crash) and when
   the Mac restarts. `apply reopen` brings it back (KAN-720).
-- **One lock** (`open-forms.lock`, `fcntl`) for every process on the data folder, and each write
+- **One lock** (`open-forms.lock`, `apply.locks`) for every process on the data folder, and each write
   replaces the file whole (`os.replace`, mode 0600). A broken file reads as an empty list.
 
 **Tests.** `tests/test_restart.py` (in CI): an entry kept and removed, 20 writers at once, a broken
@@ -101,15 +101,12 @@ with the guards of any rehearsal. It never submits.
   (`_Planned.keep`). So nothing on the form is written over. Claude may still plan the form again;
   what the form held wins. A job system that keeps no draft (Greenhouse, Lever, Ashby) is filled
   anew with what its Record held.
-- **Sign-ins are Lisul's** (`Accounts.hands_off`, `accounts.HANDS_OFF`). A reopened form stops at a
-  sign-in before Apply types or clicks anything there: Workday's (`WorkdayFiller._start`, before
-  Google or a password), Oracle's (`oracle.sign_in`, before its Apply button and email), and Claude
-  fill's account pages (`account_pages`: a page with a password box is a Handoff before Claude
-  drives it; Claude is told to type nothing on an account page; any account page it names is a
-  Handoff before plain code types or clicks). The tile says "needs sign-in". Once Lisul has signed
-  in on the page, it goes on by itself (KAN-670: Workday and Oracle); else his Resume does. A
-  captcha stops that, as in KAN-670. Residual: an email-only sign-in step that shows no password
-  box, met in the middle of a Claude fill drive, is kept by Claude's prompt alone.
+- **Sign-ins are Apply's, as in any rehearsal** (KAN-878). A reopened form signs in with the
+  Keychain password, the code from Gmail, or Google where the policy says so. Until KAN-878 it stopped
+  at every sign-in for Lisul (KAN-720's `Accounts.hands_off`), with no reason beyond caution. A
+  rehearsal never resets a password that only may exist (`Accounts.rehearsal`), so a stale password
+  can't lock the account, and a site whose password sign-in failed before (the Tracker's
+  "Sign-in failed at") is never tried again, as in a run; a captcha on a sign-in page stays his.
 - **History.** Each reopened tile's first line is "Reopened after Apply stopped (open since ...)",
   and it is in the new Record.
 - Forms Lisul pressed Submit on (`sent`) are listed, never reopened. Forms of another profiles folder

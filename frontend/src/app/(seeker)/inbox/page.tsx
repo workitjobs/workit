@@ -1,10 +1,10 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { MailIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { cn } from "@/lib/cn";
 
 import { getEmailsOnce, getTracker } from "../applications/data";
@@ -61,14 +61,13 @@ export default async function InboxPage() {
       )}
     >
       {emails == null || applications == null ? (
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="Your Inbox Isn't Loading"
+        <LoadFailed
+          title="Your Inbox Isn't Loading Right Now"
           className="mt-6"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
-          We couldn&apos;t reach your emails. Refresh the page in a few minutes.
-        </EmptyState>
+          We couldn&apos;t reach your emails. Try again in a few minutes.
+        </LoadFailed>
       ) : emails.length === 0 ? (
         <EmptyState Icon={MailIcon} title="No Emails Yet" className="mt-6">
           Once Gmail is connected in Settings, replies about your applications show up here.

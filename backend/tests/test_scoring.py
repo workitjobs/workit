@@ -11,6 +11,7 @@ from app.services.bank import Bank, Entry
 from app.services.matching.bank_input import expected_graduation, years_of_experience
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
+    CURVE_POWER,
     compute_breakdown,
     compute_score,
     eligibility,
@@ -23,17 +24,20 @@ from app.services.matching.scoring import (
 
 
 @pytest.mark.parametrize("semantic", [0.8, None, -0.2])
-@pytest.mark.parametrize("fresh", [0.7, 1.0, 2.0])
+@pytest.mark.parametrize("fresh", [0.85, 1.0, 2.0])
 def test_breakdown_reconciles_with_score(semantic, fresh):
     result = compute_breakdown(semantic, 0.6, 0.4, 1.0, fresh)
     parts = [result.semantic, result.skill_overlap, result.title_fit, result.eligibility]
     assert sum(p.weight for p in parts) == pytest.approx(1)
-    assert sum(p.points for p in parts) == pytest.approx(result.weighted_score)
-    assert result.score_before_rounding == pytest.approx(result.weighted_score * fresh)
-    expected = (0.45 * semantic + 0.25 * 0.6 + 0.15 * 0.4 + 0.15) if semantic is not None else (
+    assert sum(p.points for p in parts) == pytest.approx(result.score_before_rounding)
+    weighted = (0.45 * semantic + 0.25 * 0.6 + 0.15 * 0.4 + 0.15) if semantic is not None else (
         (0.25 * 0.6 + 0.15 * 0.4 + 0.15) / 0.55
     )
-    assert result.final_score == max(0, min(100, round(expected * fresh * 100)))
+    assert result.weighted_score == pytest.approx(weighted * 100)
+    raw = max(0.0, weighted * fresh)
+    curved = raw ** CURVE_POWER
+    assert result.score_before_rounding == pytest.approx(curved * 100)
+    assert result.final_score == max(0, min(100, round(curved * 100)))
     assert result.final_score == compute_score(semantic, 0.6, 0.4, 1.0, fresh)
     if semantic is None:
         assert result.semantic.value is None
@@ -59,9 +63,9 @@ def test_no_embedding_redistributes():
     """When semantic is None the other weights fill in."""
     with_emb = compute_score(0.5, 0.5, 0.5, 0.5, 1.0)
     without_emb = compute_score(None, 0.5, 0.5, 0.5, 1.0)
-    # Both should be reasonable mid-range scores
-    assert 30 <= with_emb <= 70
-    assert 30 <= without_emb <= 70
+    # Both should be reasonable mid-range scores (curve lifts them)
+    assert 40 <= with_emb <= 80
+    assert 40 <= without_emb <= 80
 
 
 def test_freshness_boost():
@@ -82,15 +86,15 @@ def test_freshness_today():
 
 
 def test_freshness_floor():
-    assert freshness(1000) == 0.7
+    assert freshness(1000) == 0.85
 
 
 def test_freshness_midpoint():
     f = freshness(60)
-    assert 0.7 < f < 1.0
+    assert 0.85 < f < 1.0
 
 
-@pytest.mark.parametrize(("age", "expected"), [(-30, 1), (90, .91), (150, .85), (300, .7)])
+@pytest.mark.parametrize(("age", "expected"), [(-30, 1), (90, .955), (150, .925), (300, .85)])
 def test_freshness_decay(age, expected):
     assert freshness(age) == pytest.approx(expected)
 
@@ -237,6 +241,18 @@ def test_highlights_empty_bank():
     )
     assert isinstance(hl, list)
     assert len(hl) <= 3
+
+
+def test_negative_semantic_floors_at_zero():
+    assert compute_score(-0.5, 0, 0, 0, 1.0) == 0
+
+
+def test_curve_is_monotonic():
+    prev = compute_score(0.2, 0.2, 0.2, 0.2, 1.0)
+    for v in [0.4, 0.6, 0.8]:
+        cur = compute_score(v, v, v, v, 1.0)
+        assert cur > prev
+        prev = cur
 
 
 # --- what the recommender reads from a bank ---

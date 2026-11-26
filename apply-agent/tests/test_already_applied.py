@@ -9,6 +9,7 @@ from fake_workit import FakeWorkIt
 from apply import workit
 from apply.already_applied import Check
 from apply.dashboard import verdict
+from apply.keychain import InMemoryKeychain
 from apply.model import Posting, Status
 from apply.tracker import FileTracker, Row
 from apply.workit import WorkIt
@@ -28,8 +29,8 @@ def signed_in(tmp_path):
         tracker.applied_before(tracker.listed("https://boards.greenhouse.io/astranis/jobs/4704598006", "Astranis",
                                               "Intern"), "applied", "2026-10-28T19:00:00+00:00")
         tracker.applied_before(tracker.listed("https://jobs.lever.co/bolt/1", "Bolt", "Intern"), "saved")
-        client = WorkIt(fake.site, tmp_path / "workit-login.json")
-        workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
         yield fake, client
 
 
@@ -67,7 +68,7 @@ def test_workit_is_read_once_for_every_link(tmp_path, signed_in):
 def test_no_workit_login_is_said_and_apply_s_own_tracker_still_checked(tmp_path):
     FileTracker(tmp_path / "tracker.json").add(Row("request-0001", "Astranis", "Intern", ASTRANIS, "greenhouse",
                                                    Status.SUBMITTED, date(2026, 10, 27)))
-    seen = check(tmp_path, WorkIt(workit.LIVE, tmp_path / "no-login.json"))
+    seen = check(tmp_path, WorkIt(workit.LIVE, tmp_path / "no-login.json", InMemoryKeychain()))
 
     assert "not signed in to WorkIt" in seen.problem()
     found = seen.of(posting("https://boards.greenhouse.io/astranis/jobs/4704598006?gh_src=x", id="other"))
@@ -90,7 +91,7 @@ def test_a_record_with_its_after_submit_screenshot_is_already_applied(tmp_path):
     held = tmp_path / "rehearsals" / "2026-11-04" / "bolt-request-0002"
     held.mkdir(parents=True)
     (held / "form.png").write_bytes(b"")  # held, never submitted
-    seen = check(tmp_path, WorkIt(workit.LIVE, tmp_path / "no-login.json"))
+    seen = check(tmp_path, WorkIt(workit.LIVE, tmp_path / "no-login.json", InMemoryKeychain()))
 
     assert seen.of(posting(id="request-0001")) is None
     (sent / "after-submit.png").write_bytes(b"png")

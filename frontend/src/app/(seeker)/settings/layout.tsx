@@ -21,6 +21,12 @@ import { SettingsModal } from "./settings-modal";
  * server's (2026-11-10). The wrapper's `aria-live="off"` (the default, so
  * nothing is announced) makes the whole of Home one region the modal
  * keeps and never walks into.
+ *
+ * A STREAMED SECTION IS NOT YET INSIDE THE WRAPPER: React holds it in a
+ * hidden div at the end of <body> until it reveals it, and a live region
+ * in it then made the modal walk in there and hide its siblings, with the
+ * same warning (Activity, 2026-11-12, KAN-829). So a live region in a Home
+ * section takes its `aria-live` only once hydrated (home/streak.tsx).
  */
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (

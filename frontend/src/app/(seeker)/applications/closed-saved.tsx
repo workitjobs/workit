@@ -8,7 +8,6 @@ import { useState, useTransition } from "react";
 import { TrashIcon } from "@/components/icons";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -16,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { IconButton } from "@/components/ui/icon-button";
 import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toast";
@@ -77,26 +77,24 @@ export function ClosedSavedControl({
         Posting Closed
       </span>
       <IconButton
+        place="row"
         label={`Remove ${app.role} at ${app.company}, posting closed`}
-        tooltip="Remove"
+        tooltip={false}
         disabled={pending}
         onClick={() => setAsking(true)}
       >
-        <TrashIcon className="size-4" />
+        <TrashIcon />
       </IconButton>
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">Remove {app.role}?</DialogTitle>
+            <DialogTitle>Remove {app.role}?</DialogTitle>
             <DialogDescription>
               Its posting at {app.company} has closed, so you can&apos;t save it again.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={remove}>
-              Remove
-            </Button>
+            <ConfirmButtons act="Remove" onKeep={() => setAsking(false)} onAct={remove} />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -148,7 +146,7 @@ export function RemoveClosedButton({ apps }: { apps: Pick<Application, "id" | "r
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Remove {count} closed {jobs}?
             </DialogTitle>
             <DialogDescription>
@@ -157,10 +155,11 @@ export function RemoveClosedButton({ apps }: { apps: Pick<Application, "id" | "r
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={removeAll}>
-              Remove {count}
-            </Button>
+            <ConfirmButtons
+              act={`Remove ${count}`}
+              onKeep={() => setAsking(false)}
+              onAct={removeAll}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

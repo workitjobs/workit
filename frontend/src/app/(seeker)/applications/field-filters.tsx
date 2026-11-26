@@ -4,7 +4,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useRef, useState } from "react";
 
 import { AllFiltersBody, AllFiltersDialog, FilterSection } from "@/components/all-filters-dialog";
-import { BriefcaseIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
+import { JobTypeIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
 import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import {
@@ -40,7 +40,7 @@ import {
  * (asked for 2026-10-19).
  *
  * COMPANY HAS A SEARCH FIELD at the top of its list, as the Jobs page's
- * Role dropdown does (RoleFacetOptions there), since its list grows with
+ * Role dropdown does (both are `SearchFacet`), since its list grows with
  * every application: typing narrows it, and a pick keeps the search.
  *
  * ALL FILTERS holds Status and every field, each a section of option chips
@@ -55,11 +55,11 @@ import {
 
 export type Picks = { stages: StageKey[]; filters: Filters };
 
-/** Each field's glyph: the one its list cell draws. Work Model's is the
+/** Each field's glyph: the one its list cell draws. Workplace's is the
  *  Jobs page's Workplace glyph. */
 export const FIELD_ICON: Record<FilterKey, Glyph> = {
   company: CompanyIcon,
-  track: BriefcaseIcon,
+  track: JobTypeIcon,
   workModel: workStyleIcon("On-Site"),
 };
 
@@ -74,9 +74,9 @@ export const STATUS_OPTIONS: FacetOption[] = STAGE_ORDER.map((stage) => ({
 }));
 
 /**
- * Company's dropdown: the same button and checkbox rows, with a search field
- * at the top of the list, built as the Jobs page's Role dropdown is: a Base
- * UI Combobox, whose arrow keys and Enter work from its field (a menu's
+ * Company's dropdown, and the Jobs page's Role (KAN-823): the same button
+ * and checkbox rows, with a search field at the top of the list: a Base UI
+ * Combobox, whose arrow keys and Enter work from its field (a menu's
  * cannot hold one). A pick while searching keeps the search, so "acme"
  * stays narrowed while two of its names are ticked; each opening starts
  * with an empty field.
@@ -87,6 +87,7 @@ export function SearchFacet({
   searchLabel,
   empty,
   options,
+  labelOf,
   values,
   onChange,
   className,
@@ -98,6 +99,9 @@ export function SearchFacet({
   /** What the list says when the search matches nothing. */
   empty: string;
   options: string[];
+  /** An option's name, where it is not its value (a role's slug); the
+   *  search matches the name. */
+  labelOf?: (value: string) => string;
   values: string[];
   onChange: (values: string[]) => void;
   className?: string;
@@ -111,6 +115,7 @@ export function SearchFacet({
   return (
     <Combobox
       items={options}
+      itemToStringLabel={labelOf}
       multiple
       value={values}
       onValueChange={(next: string[]) => {
@@ -151,7 +156,7 @@ export function SearchFacet({
         <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-none p-1 empty:p-0">
           {(value: string) => (
             <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
-              <span className="truncate">{value}</span>
+              <span className="truncate">{labelOf ? labelOf(value) : value}</span>
               <CheckRowBox />
             </ComboboxPrimitive.Item>
           )}
@@ -272,7 +277,7 @@ function PanelBody({
 
       <div className="grid gap-x-6 sm:grid-cols-2">
         {chipSection("track", "Job Type")}
-        {chipSection("workModel", "Work Model")}
+        {chipSection("workModel", "Workplace")}
       </div>
     </AllFiltersBody>
   );

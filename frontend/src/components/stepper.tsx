@@ -3,9 +3,10 @@ import { cn } from "@/lib/cn";
 
 /**
  * The 1-2-3 rail above a flow of steps: the job composer
- * (company/jobs/new/composer.tsx) and applicant onboarding, both its pages
- * (onboarding/applicant). Promoted from company/jobs/new/ the day onboarding
- * became the second consumer.
+ * (company/jobs/new/composer.tsx). Promoted from company/jobs/new/ the day
+ * applicant onboarding used it too; onboarding dropped it for a progress bar
+ * on 2026-11-16 (onboarding/applicant/onboarding-form.tsx), and `lg` stays
+ * for a flow that is the whole screen.
  *
  * It draws every stage from the start, because the rail is what tells a
  * recruiter how long this is going to take before they start typing. The three
@@ -18,11 +19,10 @@ import { cn } from "@/lib/cn";
  * and Continue is also where Basic Details is checked: a rail you could click
  * past would skip that check.
  *
- * TWO SIZES. `default` sits in the composer's header. `lg` is onboarding's,
- * which sets larger than the app (docs/screens.md): a 32px disc and 16px
- * labels, the size of the answers below it. At the default size onboarding's
- * steps were the smallest type on a screen whose question is 40px, and went
- * unnoticed.
+ * TWO SIZES. `default` sits in the composer's header. `lg` was onboarding's,
+ * which sets larger than the app: a 32px disc and 16px labels, the size of
+ * the answers below it. At the default size onboarding's steps were the
+ * smallest type on a screen whose question is 40px, and went unnoticed.
  *
  * ON A PHONE ONLY THE CURRENT STEP KEEPS ITS LABEL ON SCREEN. Three labels in
  * a 343px column truncate each other ("Screeni…"), so the others go to

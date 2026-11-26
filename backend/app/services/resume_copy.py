@@ -51,12 +51,12 @@ def from_copy(copy: ResumeCopy):
     choices = Choices(
         entries={e.entry_id: EntryChoice(e.shown, e.position, e.show_gpa, e.show_coursework) for e in c.entries},
         bullets={b.bullet_id: BulletChoice(b.shown, b.position, b.variant_id, b.text) for b in c.bullets},
-        skills={s.skill_id: SkillChoice(s.shown, s.position) for s in c.skills},
+        skills={s.skill_id: SkillChoice(s.shown, s.position, s.group) for s in c.skills},
     )
     i = copy.identity
     identity = HeaderIdentity(
         name=i.name, email=i.email, phone=i.phone, links=tuple(tuple(link) for link in i.links),
-        us_citizen=i.us_citizen,
+        us_citizen=i.us_citizen, location=i.location, extra=i.extra,
     )
     return bank, choices, identity
 
@@ -65,6 +65,7 @@ def identity_copy(identity: HeaderIdentity) -> IdentityCopy:
     return IdentityCopy(
         name=identity.name, email=identity.email, phone=identity.phone,
         links=[tuple(link) for link in identity.links], us_citizen=identity.us_citizen,
+        location=identity.location, extra=identity.extra,
     )
 
 

@@ -4,6 +4,7 @@ import { ChatPlusIcon } from "@/components/custom-icons";
 import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { getBank } from "@/lib/bank-actions";
 import { listResumes } from "@/lib/resume-actions";
 
@@ -29,11 +30,11 @@ export async function BankPrompt() {
 
   return (
     <Card as="section" aria-labelledby="jobs-bank-prompt" className="mt-4">
-      <h2 id="jobs-bank-prompt" className="text-subtitle text-ink">
+      <SectionHeading id="jobs-bank-prompt">
         {hasUpload ? "Import Your Resume" : "Add Your Experiences"}
-      </h2>
+      </SectionHeading>
       <p className="text-body text-ink-meta mt-1">
-        You have no experiences yet, so WorkIt cannot match roles to you.{" "}
+        You have no experiences yet, so WorkIt cannot match jobs to you.{" "}
         {hasUpload
           ? "Import your uploaded resume in one click, then fix any entry in Experiences."
           : "Upload a resume to fill them in, or tell WorkIt about one thing you did."}

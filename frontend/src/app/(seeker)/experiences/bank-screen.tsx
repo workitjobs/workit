@@ -1,17 +1,7 @@
 "use client";
 
 import { FileTextIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react/ssr";
-import {
-  Fragment,
-  startTransition,
-  useEffect,
-  useOptimistic,
-  useRef,
-  useState,
-  type FormEvent,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { ArrowRightIcon, EllipsisIcon } from "@/components/icons";
 import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
@@ -27,20 +17,16 @@ import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
-import { TextField } from "@/components/ui/text-field";
+import { IconButton } from "@/components/ui/icon-button";
+import { SectionHeading } from "@/components/ui/section-heading";
 import {
-  addSkill,
   createEntry,
   deleteEntries,
   deleteEntry,
   deleteSection,
-  deleteSkill,
-  deleteSkills,
   entryResumeCount,
   getBank,
   importResume,
-  updateSkill,
   type Bank,
   type BankEntry,
   type BankResume,
@@ -51,7 +37,7 @@ import {
 
 import { DeleteDialog } from "../resumes/delete-confirm";
 import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
-import { ClearAll, clearAllWords } from "./clear-all";
+import { clearAllWords } from "./clear-all";
 import { AddSection, RenameSection } from "./custom-sections";
 import { EntryDialog, type SaveOutcome } from "./entry-dialog";
 import { EntryRow } from "./entry-row";
@@ -70,12 +56,22 @@ import {
   type Pick,
 } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
-import { draftOf, emptyDraft, isFixed, NOUNS, SECTIONS, type EntryDraft } from "./sections";
+import {
+  draftOf,
+  emptyDraft,
+  emptyLine,
+  isFixed,
+  NOUNS,
+  SECTIONS,
+  WHAT_GOES_HERE,
+  type EntryDraft,
+} from "./sections";
 import { ResumeBar } from "./resume-bar";
-import { SECTION_ICONS, SectionMark } from "./section-icons";
+import { SectionMark } from "./section-icons";
 import { SectionDialog, type PaneSetup, type SectionAction } from "./section-dialog";
 import { SectionNav } from "./section-nav";
 import { SkillGroups } from "./skill-groups";
+import { SkillsDialog } from "./skills-dialog";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -92,6 +88,16 @@ import { SkillGroups } from "./skill-groups";
  * Scout is off (`FILL_WITH_SCOUT_LIVE`, KAN-732) the page takes no panel at
  * all. An empty bank gets no card of its own: each section's + already
  * says where to start, as Fill With Scout did too while it was offered.
+ *
+ * EVERY SECTION ALWAYS SHOWS (KAN-814), in one order: the fixed sections,
+ * Skills, then the ones the student named. An empty one is a short card,
+ * its heading with its + and pencil and one line on what goes there ("No
+ * awards yet. Add scholarships, honors and prizes.", `emptyLine`), and
+ * its link in the section nav counts 0. A search hides a card it finds
+ * nothing in. KAN-440 had put every empty group on one quiet line under
+ * the page ("Nothing yet in Awards + Certifications +"), to keep three
+ * "Nothing here yet" cards from pushing Skills off the screen; at the
+ * foot, in small grey type, students missed it.
  *
  * It opens on All Experiences, the whole bank with copies shown once, so
  * nothing is out of reach (KAN-440). The Showing card (KAN-343, KAN-361,
@@ -115,8 +121,9 @@ import { SkillGroups } from "./skill-groups";
  * Sections the student named (KAN-498) follow the fixed ones, each a card of
  * its own: Entries list as any section's, Lines as plain lines, edited as one
  * entry's bullets in the form, with Rename and Delete Section in the card's
- * ⋯, since a Lines section has no list to open. Add a Section, on the quiet
- * line under the cards, makes one in the picked resume and opens its form.
+ * ⋯, since a Lines section has no list to open. Add a Section, a text
+ * button under the last card, makes one in the picked resume and opens its
+ * form.
  * Under All Experiences two sections of one name (two uploads' Summary) show
  * apart, each named with its owner.
  */
@@ -144,18 +151,12 @@ export function BankScreen({
   /** The header's primary action, Fill With Scout. */
   action?: ReactNode;
 }) {
-  const [saved, setBank] = useState(initial);
-  // What the page draws: the bank less any skill whose delete is still on
-  // its way, so a removed skill leaves at once (KAN-388).
-  const [bank, hideSkill] = useOptimistic(saved, (b, id: string) => ({
-    ...b,
-    skills: b.skills.filter((s) => s.id !== id),
-  }));
+  const [bank, setBank] = useState(initial);
   const [pick, setPick] = useState<Pick>(() => openingPick(initial.resumes, resumeParam));
   const [open, setOpen] = useState<Open>(null);
   // Where the focus goes as a dialog closes: the control that opened it, or
-  // the next one named that is still on the page (an emptied section's
-  // card is gone; a first entry's quiet-line word is too).
+  // the next one named that is still on the page (a deleted section's card
+  // is gone).
   const returnTo = useRef<() => HTMLElement | null>(() => null);
   // The search box's words (KAN-440). It narrows what the page shows and
   // opens what it finds, since a word may be in a bullet.
@@ -252,8 +253,9 @@ export function BankScreen({
     current,
     bank.skills.filter((s) => shows(current, s)),
   ).filter((s) => !searching || skillMatches(s, query));
-  // A group draws a card while it has rows, or Scout is on it
-  const drawn = (id: Section) => rowsIn(id).length > 0 || marked?.section === id;
+  // Every group draws its card, empty too (KAN-814); a search draws the ones
+  // it finds something in, and the one Scout is on
+  const drawn = (id: Section) => !searching || rowsIn(id).length > 0 || marked?.section === id;
   // The sections the student named (KAN-498) under the pick: one the pick
   // owns or shows an entry of, and the student's own while it is empty, so
   // one made under a built resume stays in view to be filled.
@@ -288,22 +290,22 @@ export function BankScreen({
   const rowsFound =
     SECTIONS.reduce((n, s) => n + rowsIn(s.id).length, 0) +
     customsDrawn.reduce((n, s) => n + customRows(s).length, 0);
-  const emptySections = SECTIONS.filter((s) => !drawn(s.id));
+  // The page's order: the fixed sections, Skills, then the student's own
   const navSections = [
     ...SECTIONS.filter((s) => drawn(s.id)).map((s) => ({
       id: s.id,
       label: s.label,
       count: rowsIn(s.id).length,
     })),
+    ...(searching && skillsNow.length === 0
+      ? []
+      : [{ id: "skills" as const, label: "Skills", count: skillsNow.length }]),
     ...customsDrawn.map((s) => ({
       id: `custom-${s.id}`,
       label: customLabel(s),
       count: customCount(s),
       mark: "custom" as const,
     })),
-    ...(searching && skillsNow.length === 0
-      ? []
-      : [{ id: "skills" as const, label: "Skills", count: skillsNow.length }]),
   ];
 
   /** A card by its key: its name, its nouns and where a new entry goes. */
@@ -312,12 +314,14 @@ export function BankScreen({
       ? bank.sections.find((s) => `custom-${s.id}` === card)
       : undefined;
     if (section) {
+      const lines = section.layout === "lines";
       return {
         name: customLabel(section),
         noun: NOUNS.custom,
         custom: section,
-        lines: section.layout === "lines",
+        lines,
         entries: customEntries(section),
+        empty: emptyLine(lines ? "Lines" : NOUNS.custom[1], picked !== null),
         blank: (): EntryDraft => emptyDraft("custom", section.id),
       };
     }
@@ -329,6 +333,8 @@ export function BankScreen({
       custom: undefined,
       lines: false,
       entries: entriesIn(fixed.id),
+      // An empty card's line (KAN-814), and its list's
+      empty: emptyLine(NOUNS[fixed.id][1], picked !== null, WHAT_GOES_HERE[fixed.id]),
       blank: (): EntryDraft => emptyDraft(fixed.id),
     };
   }
@@ -351,20 +357,6 @@ export function BankScreen({
       return null;
     };
     setOpen(next);
-  }
-
-  // The skill leaves the page first and the delete runs behind it
-  // (KAN-388). A failed delete ends the transition with the skill still in
-  // the bank, so it comes back, with the error. A delete changes nothing
-  // else in the bank, so the page drops the skill itself and reads nothing
-  // back.
-  function removeSkill(id: string, onError: (error: string) => void) {
-    startTransition(async () => {
-      hideSkill(id);
-      const { error } = await deleteSkill(id);
-      if (error) return onError(error);
-      setBank((b) => ({ ...b, skills: b.skills.filter((s) => s.id !== id) }));
-    });
   }
 
   // An "Also on" name shows that resume (KAN-363). The entry it sat on is
@@ -607,7 +599,7 @@ export function BankScreen({
       <SectionNav sections={navSections} />
       {SECTIONS.map((section) => {
         const here = marked?.section === section.id ? marked : null;
-        // A group with nothing in it is a word on the quiet line below
+        // A search hides a group it finds nothing in
         if (!drawn(section.id)) return null;
         return (
           <EntriesCard
@@ -624,11 +616,29 @@ export function BankScreen({
             rows={rowsIn(section.id, here?.entryId)}
             searching={searching}
             scout={here}
-            empty={picked ? "Nothing from this resume." : "Nothing here yet."}
+            empty={cardOf(section.id)!.empty}
             openFrom={openFrom}
           />
         );
       })}
+
+      {searching && rowsFound === 0 && skillsNow.length === 0 && (
+        <p className="text-body text-ink-meta px-1">
+          No experiences match &ldquo;{query.trim()}&rdquo;.
+        </p>
+      )}
+
+      {/* Kept mounted while a search hides it: its form holds what is typed */}
+      <div className={cn(searching && skillsNow.length === 0 && "hidden")}>
+        <SkillsCard
+          skills={skillsNow}
+          resumeId={picked?.id}
+          resumes={bank.resumes}
+          pick={current}
+          reload={reload}
+          bankSkills={bank.skills}
+        />
+      </div>
 
       {customsDrawn.map((section) => {
         const card = `custom-${section.id}`;
@@ -649,10 +659,7 @@ export function BankScreen({
               rows={customRows(section)}
               searching={searching}
               scout={null}
-              // An empty section of the student's own can still be renamed
-              // or deleted, in its list
-              listAlways
-              empty={picked ? "Nothing from this resume." : "Nothing here yet."}
+              empty={cardOf(card)!.empty}
               openFrom={openFrom}
             />
           );
@@ -683,13 +690,10 @@ export function BankScreen({
                   }}
                 />
               ) : (
-                <h2
-                  id={`bank-${card}`}
-                  className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
-                >
+                <SectionHeading id={`bank-${card}`} className="flex min-w-0 items-center gap-2.5">
                   <SectionMark id="custom" />
                   {name}
-                </h2>
+                </SectionHeading>
               )}
               {renaming !== section.id && (
                 <CardActions
@@ -744,9 +748,7 @@ export function BankScreen({
             )}
 
             {rows.length === 0 ? (
-              <p className="text-body text-ink-meta mt-2">
-                {picked ? "Nothing from this resume." : "No lines yet."}
-              </p>
+              <p className="text-body text-ink-meta mt-2">{cardOf(card)!.empty}</p>
             ) : (
               <ul role="list" className="mt-2 flex flex-col gap-1.5">
                 {rows.flatMap(({ entry }) =>
@@ -774,38 +776,20 @@ export function BankScreen({
         />
       )}
 
-      {searching && rowsFound === 0 && skillsNow.length === 0 && (
-        <p className="text-body text-ink-meta px-1">
-          No experiences match &ldquo;{query.trim()}&rdquo;.
-        </p>
-      )}
-
-      {/* Kept mounted while a search hides it: its form holds what is typed */}
-      <div className={cn(searching && skillsNow.length === 0 && "hidden")}>
-        <SkillsCard
-          skills={skillsNow}
-          resumeId={picked?.id}
-          resumes={bank.resumes}
-          pick={current}
-          reload={reload}
-          removeSkill={removeSkill}
-        />
-      </div>
-
-      {/* Shown with no empty section too: it holds Add a Section (KAN-498) */}
-      {!searching && (
-        <EmptySections
-          sections={emptySections}
-          picked={picked !== null}
-          onAdd={(id) =>
-            openFrom(
-              { kind: "entry", target: null, card: id },
-              `bank-empty-${id}`,
-              `bank-${id}-add`,
-            )
-          }
-          onAddSection={addingSection ? undefined : () => setAddingSection(true)}
-        />
+      {/* Under the last card (KAN-814): a text button, not a filled one,
+          since a section of the student's own is rare, and a filled button
+          here would outweigh every card's + */}
+      {!searching && !addingSection && (
+        <Button
+          id="bank-add-section"
+          variant="ghost"
+          size="xs"
+          className="self-start"
+          onClick={() => setAddingSection(true)}
+        >
+          <PlusIcon aria-hidden className="text-brand" />
+          Add a Section
+        </Button>
       )}
 
       {open?.kind === "entry" && openCard && (
@@ -834,6 +818,7 @@ export function BankScreen({
           // The whole section under the pick: the list is no search result
           rows={rowsOf(current, openCard.entries, bank.resumes)}
           count={rowsOf(current, openCard.entries, bank.resumes).length}
+          empty={openCard.empty}
           renderRow={(row, pencil) => <EntryView row={row} pencil={pencil} />}
           pane={(target) => paneFor(open.card, target)}
           actions={actionsFor(open.card)}
@@ -875,6 +860,9 @@ function withDeleted(setup: PaneSetup, onDeleted: () => void) {
  * edit, and each entry's pencil is in the list it opens, as LinkedIn's
  * profile has it (the user's call, 2026-11-09). A pencil on every row
  * beside the heading's read as two ways to do one thing.
+ *
+ * With no rows it is a short card (KAN-814): the same heading, + and
+ * pencil, and one line, `empty`, on what goes there.
  */
 function EntriesCard({
   card,
@@ -884,7 +872,6 @@ function EntriesCard({
   rows,
   searching,
   scout,
-  listAlways = false,
   empty,
   openFrom,
 }: {
@@ -896,25 +883,17 @@ function EntriesCard({
   searching: boolean;
   /** What Scout is on in this section. */
   scout: IntakeFocus | null;
-  /** Show the heading's pencil with no rows: a custom section's list holds
-   *  its Rename and Delete Section. */
-  listAlways?: boolean;
+  /** The empty card's one line: what it lacks, and what goes there. */
   empty: string;
   openFrom: (next: Open, ...ids: string[]) => void;
 }) {
   const scoutAt = scout?.entryId ? rows.findIndex((r) => r.entry.id === scout.entryId) : -1;
   const whole = searching || scoutAt >= SHOWN || rows.length <= SHOWN;
   const shown = whole ? rows : rows.slice(0, SHOWN);
-  // Back on the control that opened the list, or, once Clear All or Delete
-  // Section took the card away, on the quiet line's word or Add a Section
+  // Back on the control that opened the list, the pencil once Clear All
+  // took Show All away, or Add a Section once Delete Section took the card
   const list = (from: string) =>
-    openFrom(
-      { kind: "section", card },
-      from,
-      `bank-${card}-edit`,
-      `bank-empty-${card}`,
-      "bank-add-section",
-    );
+    openFrom({ kind: "section", card }, from, `bank-${card}-edit`, "bank-add-section");
   return (
     <Card
       as="section"
@@ -926,12 +905,9 @@ function EntriesCard({
       className="scroll-mt-16 transition-colors duration-200"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id={`bank-${card}`}
-          className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
-        >
+        <SectionHeading id={`bank-${card}`} className="flex min-w-0 items-center gap-2.5">
           {heading}
-        </h2>
+        </SectionHeading>
         <CardActions
           id={`bank-${card}`}
           name={name}
@@ -940,26 +916,30 @@ function EntriesCard({
             tooltip: noun[0] === "Entry" ? "Add an entry" : `Add a ${noun[0].toLowerCase()}`,
             onAdd: () => openFrom({ kind: "entry", target: null, card }, `bank-${card}-add`),
           }}
-          onList={rows.length > 0 || listAlways ? () => list(`bank-${card}-edit`) : undefined}
+          // On an empty card too, as on a full one (KAN-814): every card's
+          // heading holds the same two buttons
+          onList={() => list(`bank-${card}-edit`)}
         />
       </div>
 
-      {rows.length === 0 && <p className="text-body text-ink-meta mt-2">{empty}</p>}
-
-      <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-        {shown.map((row) => {
-          const { entry } = row;
-          return (
-            <ScoutMarked
-              key={entry.id}
-              id={`entry-${entry.id}`}
-              active={scout?.entryId === entry.id}
-            >
-              <EntryView row={row} open={searching || scout?.entryId === entry.id} />
-            </ScoutMarked>
-          );
-        })}
-      </ul>
+      {rows.length === 0 ? (
+        <p className="text-body text-ink-meta mt-2">{empty}</p>
+      ) : (
+        <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+          {shown.map((row) => {
+            const { entry } = row;
+            return (
+              <ScoutMarked
+                key={entry.id}
+                id={`entry-${entry.id}`}
+                active={scout?.entryId === entry.id}
+              >
+                <EntryView row={row} open={searching || scout?.entryId === entry.id} />
+              </ScoutMarked>
+            );
+          })}
+        </ul>
+      )}
 
       {!whole && (
         // Full width under the rows, as the rows' dividers are
@@ -975,61 +955,6 @@ function EntriesCard({
         </div>
       )}
     </Card>
-  );
-}
-
-/**
- * The groups with nothing in them, as one quiet line under the page (KAN-440):
- * each took a full card that said "Nothing here yet", and three of them pushed
- * Skills off the screen. Each word opens its group's form, "Add Project",
- * and the card comes back once the entry is saved (KAN-740).
- */
-function EmptySections({
-  sections,
-  picked,
-  onAdd,
-  onAddSection,
-}: {
-  sections: readonly { id: Section; label: string }[];
-  /** A resume is picked, so the line says "from this resume". */
-  picked: boolean;
-  onAdd: (id: Section) => void;
-  /** Add a Section (KAN-498), at the line's end; absent while its card is
-   *  open. */
-  onAddSection?: () => void;
-}) {
-  if (sections.length === 0 && !onAddSection) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-1">
-      {sections.length > 0 && (
-        <span className="text-note text-ink-meta mr-1">
-          {picked ? "Nothing from this resume in" : "Nothing yet in"}
-        </span>
-      )}
-      {sections.map(({ id, label }) => {
-        const Glyph = SECTION_ICONS[id];
-        return (
-          <Button
-            key={id}
-            id={`bank-empty-${id}`}
-            variant="ghost"
-            size="xs"
-            aria-label={`Add an Entry to ${label}`}
-            onClick={() => onAdd(id)}
-          >
-            <Glyph aria-hidden className="text-brand" />
-            {label}
-            <PlusIcon aria-hidden className="text-ink-meta" />
-          </Button>
-        );
-      })}
-      {onAddSection && (
-        <Button id="bank-add-section" variant="ghost" size="xs" onClick={onAddSection}>
-          <PlusIcon aria-hidden className="text-brand" />
-          Add a Section
-        </Button>
-      )}
-    </div>
   );
 }
 
@@ -1118,18 +1043,19 @@ function ScoutMarked({
   );
 }
 
-/** Focus on a control once the page has drawn again. A control that takes
- *  another's place (the pencil and Done) or closes (Keep It, Cancel) took
- *  the focus with it, to the page's top, and lost a keyboard user's place. */
+/** Focus on a control once the page has drawn again. A control that closes
+ *  (Keep It, Cancel) took the focus with it, to the page's top, and lost a
+ *  keyboard user's place. */
 const focusSoon = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
 /**
  * A card's heading actions (KAN-740, after LinkedIn's profile): a + that
  * adds, then a pencil that opens the section's whole list (`onList`). A
  * Lines section has no list: its one button edits its lines (`add.pencil`)
- * and its ⋯ holds Rename and Delete Section. Skills keep a ⋯ for Clear All
- * and their edit mode's pencil, which gives way to Done (`edit`). The ids
- * are `id` plus -add, -edit, -more and -done, where the focus goes back.
+ * and its ⋯ holds Rename and Delete Section. Skills' pencil opens their
+ * dialog as the others' opens the list (KAN-816; it turned the card into an
+ * edit mode with a Done until then). The ids are `id` plus -add, -edit and
+ * -more, where the focus goes back.
  *
  * Until KAN-740 the ⋯ sat on every card with Clear All, and each entry's
  * pencil opened its editor inline (KAN-732). Under KAN-363 the heading's
@@ -1142,9 +1068,7 @@ function CardActions({
   name,
   add,
   onList,
-  onClear,
   more = [],
-  edit,
 }: {
   id: string;
   /** The card's name, for the controls' labels. */
@@ -1152,53 +1076,43 @@ function CardActions({
   add: { label: string; tooltip: string; onAdd: () => void; pencil?: boolean };
   /** Opens the section's list. Unset leaves the pencil out. */
   onList?: () => void;
-  /** Opens Clear All's confirm. Unset, with no `more`, leaves the ⋯ out. */
-  onClear?: () => void;
-  /** More of the ⋯'s items, before Clear All: a Lines section's Rename and
-   *  Delete Section (KAN-498). */
+  /** The ⋯'s items: a Lines section's Rename and Delete Section (KAN-498).
+   *  None leaves the ⋯ out. */
   more?: { label: string; icon: ReactNode; destructive?: boolean; onSelect: () => void }[];
-  /** Skills' edit mode: the pencil, or Done while it is on. Unset leaves both out. */
-  edit?: { on: boolean; onEdit: () => void; onDone: () => void };
 }) {
-  const editId = `${id}-edit`;
-  const doneId = `${id}-done`;
   return (
     <div className="flex items-center gap-3">
       <IconButton
+        place="heading"
         id={`${id}-add`}
         label={add.label}
         tooltip={add.tooltip}
-        className={HEADING_ACTION}
         onClick={add.onAdd}
       >
-        {add.pencil ? (
-          <PencilSimpleIcon aria-hidden className="size-5" />
-        ) : (
-          <PlusIcon aria-hidden className="size-5" />
-        )}
+        {add.pencil ? <PencilSimpleIcon aria-hidden /> : <PlusIcon aria-hidden />}
       </IconButton>
       {onList && (
         <IconButton
-          id={editId}
+          place="heading"
+          id={`${id}-edit`}
           label={`Edit ${name}`}
           tooltip="Edit this section"
-          className={HEADING_ACTION}
           onClick={onList}
         >
-          <PencilSimpleIcon aria-hidden className="size-5" />
+          <PencilSimpleIcon aria-hidden />
         </IconButton>
       )}
-      {(onClear || more.length > 0) && (
+      {more.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <IconButton
+                place="heading"
                 id={`${id}-more`}
                 label={`More actions for ${name}`}
-                tooltip="More actions"
-                className={HEADING_ACTION}
+                tooltip={false}
               >
-                <EllipsisIcon className="size-5" />
+                <EllipsisIcon />
               </IconButton>
             }
           />
@@ -1213,41 +1127,9 @@ function CardActions({
                 {item.label}
               </DropdownMenuItem>
             ))}
-            {onClear && (
-              <DropdownMenuItem variant="destructive" onClick={onClear}>
-                <TrashIcon aria-hidden className="size-4" />
-                Clear All
-              </DropdownMenuItem>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {edit &&
-        (edit.on ? (
-          <Button
-            id={doneId}
-            variant="section"
-            onClick={() => {
-              edit.onDone();
-              focusSoon(editId);
-            }}
-          >
-            Done
-          </Button>
-        ) : (
-          <IconButton
-            id={editId}
-            label={`Edit ${name}`}
-            tooltip="Edit this section"
-            className={HEADING_ACTION}
-            onClick={() => {
-              edit.onEdit();
-              focusSoon(doneId);
-            }}
-          >
-            <PencilSimpleIcon aria-hidden className="size-5" />
-          </IconButton>
-        ))}
     </div>
   );
 }
@@ -1285,12 +1167,13 @@ function EntryView({
       actions={
         pencil && (
           <IconButton
+            place="row"
             id={pencil.id}
             label={`Edit ${entry.title}`}
             tooltip="Edit this entry"
             onClick={pencil.onEdit}
           >
-            <PencilSimpleIcon aria-hidden className="size-4" />
+            <PencilSimpleIcon aria-hidden />
           </IconButton>
         )
       }
@@ -1377,190 +1260,77 @@ function ResumeLinks({
 
 /**
  * The skills, one row per group (`SkillGroups`, shared with onboarding's
- * resume preview). Drawn as the section cards are: the plus at the top right
- * opens the form, so the card is a list until the student adds or edits a
- * skill; a form always open under the list made Skills the only card that
- * never looked finished. The pencil opens edit mode, where each skill shows
- * its pencil and × (KAN-363); Clear All is in the ⋯, as on every card. The
- * form stays open after an add, for the next skill, and closes after an edit.
+ * resume preview), drawn as the section cards are and, like them, only read
+ * (KAN-816): the heading's + opens the Skills dialog on its add form, and the
+ * pencil the dialog (`SkillsDialog`), where groups are renamed, merged,
+ * ordered and deleted, skills added, moved and removed, and Clear All is in
+ * its ⋯. Until then the pencil turned the card itself into an edit mode, a
+ * pencil and × on every chip (KAN-363), with a form under the list: the one
+ * section that edited in place.
  */
 function SkillsCard({
   skills,
+  bankSkills,
   resumeId,
   resumes,
   pick,
   reload,
-  removeSkill,
 }: {
+  /** What the card shows: the pick's skills, a name once under All
+   *  Experiences, narrowed by the search. */
   skills: Skill[];
+  /** The whole bank's skills: the dialog lists every one the pick shows. */
+  bankSkills: Skill[];
   /** The picked resume: a skill added here goes into it. */
   resumeId: string | undefined;
-  /** For Clear All's confirm. */
   resumes: BankResume[];
   pick: Pick;
   reload: () => Promise<string | null>;
-  /** Takes the skill off the page at once, then deletes it; a failed
-   *  delete puts it back and hands over the error. */
-  removeSkill: (id: string, onError: (error: string) => void) => void;
 }) {
-  const [name, setName] = useState("");
-  const [group, setGroup] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const nameField = useRef<HTMLInputElement>(null);
-  const formOpen = adding || editingId !== null;
-  const editable = editMode && skills.length > 0;
-
-  function close() {
-    setName("");
-    setGroup("");
-    setAdding(false);
-    setEditingId(null);
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    const groupValue = group.trim() || null;
-    const res = editingId
-      ? await updateSkill(editingId, { name, group: groupValue })
-      : await addSkill(name, groupValue, resumeId);
-    setBusy(false);
-    if (res.error) return setError(res.error);
-    setError(null);
-    if (editingId) {
-      close();
-    } else {
-      // Ready for the next one, in the same group.
-      setName("");
-      nameField.current?.focus();
-    }
-    const reloadError = await reload();
-    if (reloadError) setError(reloadError);
-  }
-
-  function remove(skill: Skill) {
-    setError(null);
-    if (editingId === skill.id) close();
-    removeSkill(skill.id, setError);
-  }
+  const [open, setOpen] = useState<"list" | "add" | null>(null);
+  // Back on the control that opened the dialog
+  const returnTo = useRef<() => HTMLElement | null>(() => null);
+  const openFrom = (how: "list" | "add", from: string) => {
+    returnTo.current = () => document.getElementById(from);
+    setOpen(how);
+  };
 
   return (
     <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="bank-skills" className="text-subtitle text-ink flex min-w-0 items-center gap-2.5">
+        <SectionHeading id="bank-skills" className="flex min-w-0 items-center gap-2.5">
           <SectionMark id="skills" />
           Skills
-        </h2>
-        {!formOpen && (
-          <CardActions
-            id="bank-skills"
-            name="Skills"
-            add={{
-              label: "Add Skill",
-              tooltip: "Add a skill",
-              onAdd: () => {
-                setError(null);
-                setAdding(true);
-              },
-            }}
-            // A chip in All Experiences stands for every copy of its name:
-            // Clear All belongs to one resume's view. Its pencil and × act on
-            // the one copy, so a skill no resume holds can still be edited
-            onClear={pick !== ALL && skills.length > 0 ? () => setClearing(true) : undefined}
-            edit={
-              skills.length > 0
-                ? {
-                    on: editable,
-                    onEdit: () => setEditMode(true),
-                    onDone: () => setEditMode(false),
-                  }
-                : undefined
-            }
-          />
-        )}
+        </SectionHeading>
+        <CardActions
+          id="bank-skills"
+          name="Skills"
+          add={{
+            label: "Add Skill",
+            tooltip: "Add a skill",
+            onAdd: () => openFrom("add", "bank-skills-add"),
+          }}
+          onList={() => openFrom("list", "bank-skills-edit")}
+        />
       </div>
-      {clearing && skills.length > 0 && (
-        <ClearAll
-          items={skills}
-          resumes={resumes}
-          noun={["skill", "skills"]}
-          pick={pick}
-          remove={deleteSkills}
-          onCleared={async () => {
-            setClearing(false);
-            setEditMode(false);
-            const reloadError = await reload();
-            if (reloadError) setError(reloadError);
-          }}
-          onKeep={() => {
-            setClearing(false);
-            focusSoon("bank-skills-more");
-          }}
-        />
-      )}
-      {skills.length === 0 && !formOpen && (
-        <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
-      )}
-      {skills.length > 0 && (
-        <SkillGroups
-          skills={skills}
-          keyOf={(skill) => skill.id}
-          editable={editable}
-          editing={editingId}
-          onEdit={(skill) => {
-            setError(null);
-            setAdding(false);
-            setEditingId(skill.id);
-            setName(skill.name);
-            setGroup(skill.group ?? "");
-          }}
-          onRemove={remove}
-        />
-      )}
-
-      {formOpen && (
-        <form
-          onSubmit={submit}
-          className="mt-3 grid items-end gap-3 @lg/main:grid-cols-[1fr_1fr_auto]"
-        >
-          <TextField
-            ref={nameField}
-            id="skill-name"
-            label="Skill"
-            required
-            autoFocus
-            maxLength={60}
-            placeholder="Python"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <TextField
-            id="skill-group"
-            label="Group"
-            maxLength={60}
-            placeholder="Languages"
-            value={group}
-            onChange={(e) => setGroup(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={close}>
-              {editingId ? "Cancel" : "Done"}
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {editingId ? "Save Skill" : "Add Skill"}
-            </Button>
-          </div>
-        </form>
-      )}
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
+      {skills.length === 0 ? (
+        <p className="text-body text-ink-meta mt-2">
+          {emptyLine("Skills", resumeId !== undefined, WHAT_GOES_HERE.skills)}
         </p>
+      ) : (
+        <SkillGroups skills={skills} keyOf={(skill) => skill.id} />
+      )}
+      {open && (
+        <SkillsDialog
+          skills={bankSkills.filter((skill) => shows(pick, skill))}
+          pick={pick}
+          resumeId={resumeId}
+          resumes={resumes}
+          adding={open === "add"}
+          reload={reload}
+          returnTo={returnTo}
+          onClose={() => setOpen(null)}
+        />
       )}
     </Card>
   );

@@ -82,9 +82,13 @@ def validate(row: Candidate, robots: Robots) -> None:
     _read(row, Board(row.ats, row.token, row.companies[0]), robots)
 
 
+def _is_pool_source(source: str) -> bool:
+    return source == OPEN_JOBS or source.startswith("commoncrawl:")
+
+
 def pooled(row: Candidate) -> bool:
-    """An open-jobs pool board no other source named."""
-    return not row.companies and any(item.source == OPEN_JOBS for item in row.evidence)
+    """A pool board (open-jobs or Common Crawl) no other source named."""
+    return not row.companies and any(_is_pool_source(item.source) for item in row.evidence)
 
 
 def validate_pooled(row: Candidate, robots: Robots) -> None:

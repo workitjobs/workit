@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
 
+import { partOf } from "./auto-apply/info/sections";
 import { BAR_TITLE } from "./bar";
 
 /** Each section's title, the first match of a page's path. A nested path sits
@@ -10,7 +11,6 @@ import { BAR_TITLE } from "./bar";
 const TITLES = [
   ["/jobs", "Jobs"],
   ["/auto-apply/answers", "Written Answers"],
-  ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
   ["/applications", "Tracker"],
   ["/resumes", "Documents"],
@@ -60,9 +60,23 @@ export function BarTitle({ home }: { home: ReactNode }) {
   const found = TITLES.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
   if (!found) return null;
   const [path, title] = found;
-  const Tag = pathname === path ? "h1" : "p";
+  const Tag = pathname === path || isAutoApplyTab(pathname) ? "h1" : "p";
   return <Tag className={BAR_TITLE}>{title}</Tag>;
 }
+
+/**
+ * Auto Apply's tabs are pages of one section (./auto-apply/layout.tsx):
+ * each is under the section's tabs and draws h2s, so the bar's "Auto Apply"
+ * is the h1 on each, as on Documents' two tabs. Application Info's parts
+ * are pages of that tab (./auto-apply/info/sections.ts), so the same h1
+ * heads each. Until 2026-11-23 Application Info had a title of its own in
+ * the bar, with a Back to Auto Apply; the open tab names the page now.
+ * Written Answers is a page under the queue, not a tab, so it keeps its
+ * own title. An unknown address under the section is a 404, which is its
+ * own h1.
+ */
+const isAutoApplyTab = (pathname: string) =>
+  pathname === "/auto-apply/desktop" || partOf(pathname) != null;
 
 /** Apart from the rest because useSearchParams suspends on a prerendered route
  *  (./search/query-field.tsx). */

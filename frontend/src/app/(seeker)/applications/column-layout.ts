@@ -44,8 +44,8 @@ export const COLUMNS = [
   { id: "match", label: "Match", width: 104 },
   { id: "track", label: "Job Type", width: 120 },
   { id: "location", label: "Location", width: 200 },
-  { id: "workModel", label: "Work Model", width: 120 },
-  { id: "pay", label: "Pay Range", width: 152 },
+  { id: "workModel", label: "Workplace", width: 120 },
+  { id: "pay", label: "Salary", width: 152 },
   { id: "resume", label: "Resume", width: 104 },
 ] as const;
 
@@ -64,11 +64,11 @@ export const MAX_WIDTH = 640;
 /** How the list groups its rows (Table Settings' Group By, 2026-11-10, as
  *  Auto Apply's Up Next groups its queue): by Status (the default, a closed
  *  posting's saved job in a Posting Closed group of its own), by Job Type,
- *  by Work Model, or not at all. */
+ *  by Workplace, or not at all. */
 export const GROUP_BY = [
   { value: "status", label: "Status" },
   { value: "track", label: "Job Type" },
-  { value: "workModel", label: "Work Model" },
+  { value: "workModel", label: "Workplace" },
   { value: "none", label: "None" },
 ] as const;
 export type GroupBy = (typeof GROUP_BY)[number]["value"];

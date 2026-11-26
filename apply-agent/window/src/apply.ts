@@ -1,0 +1,94 @@
+// What Apply sends the window: `Dashboard.state()` in apply/dashboard.py, each
+// tile and item already through `verdict()`. Only the fields this window reads.
+
+export type Tone = "idle" | "filling" | "verifying" | "ready" | "submitted" | "needs" | "failed" | "ended";
+
+export type Choice = { kind?: "single" | "multi_select" | "file"; options: string[] };
+
+export type Shown = {
+  id?: string | number;
+  tone: Tone;
+  kind?: string; // a WORDS key: "missing fact", "held", "check", "needs sign-in", "needs code", "captcha", "blocked", "handoff"...
+  label?: string;
+  do?: string;
+  why?: string;
+  then?: string;
+  company?: string;
+  role?: string;
+  posting_url?: string;
+  link?: string; // the link the run was given (the queue's url), when it differs from the form's posting_url
+  system?: string; // the job system: Greenhouse, Workday...
+  company_domain?: string; // the logo's sources, from the WorkIt job posting when Apply has one (logo.ts)
+  logo_url?: string;
+  worker?: number;
+  at?: string;
+  doing?: string; // what a form being filled is doing now, in the Worker's own line (stuck.doing)
+  since?: number; // when the tile took its status (seconds since 1970): how long a form has filled or waited
+  from?: string; // "tracker": an Application from an earlier run
+  live?: boolean; // a form still filling that asks its questions now
+  answered?: boolean; // resolved in the window: it waits on the student no more
+  // A tile's page Apply holds, so /fill-again fills it anew: Ask Claude's (askable), one whose session ended
+  // (refill), or any held once its fill stopped (again).
+  askable?: boolean;
+  refill?: boolean;
+  again?: boolean;
+  let_go?: boolean; // the student isn't applying to it: its page is let go, and it shows no more
+  submitting?: boolean; // the student pressed Approve and submit: Apply presses Submit and waits for the confirmation
+  submit_said?: string; // why Apply didn't press Submit for them (dismiss a note on the form first, say)
+  auto_at?: number | null; // Auto-submit (a Developer checkout's policy): when Apply presses Submit by itself, epoch seconds
+  auto_said?: string; // why Auto-submit leaves this one to the student, or that they cancelled it
+  application_id?: string;
+  questions?: string[];
+  choices?: Record<string, Choice>;
+  required?: Record<string, boolean>;
+  planned?: Record<string, string>;
+  essays?: { question: string; text: string }[];
+  flags?: { field: string; why: string }[];
+  verified?: boolean; // the Pre-submit check found every answer agrees with the profile
+  files?: { label?: string; name?: string }[]; // each file the form was given, by the form's question for it
+  answers?: Filled[]; // each answer the form was filled with (worker._Planned.listed): never a secret, a file by name
+  fixed?: { question: string; was: string; now: string }[]; // each answer the Pre-submit review changed after checking
+  filled?: number;
+  asked?: number;
+  status?: string;
+};
+
+// One answer on the filled form, as Apply lists it: where it came from (the student's profile, their own saved answer,
+// or one WorkIt wrote), and what of it is worth a glance before Submit (worker.topic).
+export type Filled = {
+  question: string;
+  answer: string;
+  from: "profile" | "saved" | "written";
+  kind?: string; // the field's: "text", "textarea", "select", "multi_select", "file"...
+  topic?: "legal" | "eeo" | "school" | "pay" | "file" | "";
+};
+
+// What names a queued job, one shape wherever it shows (dashboard.QUEUED_JOB): its WorkIt job's company and title
+// and its logo's sources. The queue lists it by `url` (bridge.Queued); a run names it by `link` while it waits to
+// start, where a pasted link has its link alone.
+export type QueuedJob = { company?: string; title?: string; logo_url?: string | null; company_domain?: string | null };
+
+export type Waiting = QueuedJob & { link: string };
+
+export type ApplyState = {
+  tiles: Shown[];
+  items: Shown[];
+  run?: Run;
+  context?: Record<string, unknown>;
+};
+
+// The run as a whole.
+export type Run = {
+  mode?: string; // "rehearsal" while a run goes; none on the idle board
+  queued?: number;
+  waiting?: Waiting[]; // the links not started yet, named as the queue named them
+  paused?: boolean; // paused until a usage limit resets
+  reason?: string; // why it's paused: "usage cap"
+  paused_until?: string | null; // when it goes on (local time)
+  cap?: number;
+  today?: number;
+  start?: string;
+  capped?: boolean;
+  tomorrow?: number;
+  open_forms?: number; // at most this many forms open at once: the next job waits for one to close
+};

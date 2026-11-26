@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-import json
 import re
 import urllib.error
 import urllib.parse
@@ -16,6 +15,7 @@ from workit_scraper.providers.model import Incomplete, Job, Provider
 from workit_scraper.providers.registry import job_url, listing_url
 from workit_scraper.providers.text import (
     _described,
+    _ld_posting,
     _page,
     _place,
     _places,
@@ -24,10 +24,6 @@ from workit_scraper.providers.text import (
 
 #: A job's address in an iCIMS sitemap: its number, then its title as a slug.
 _ICIMS_JOB = re.compile(r"<loc>\s*(https://[^<]+?/jobs/(\d+)/([^/<]+)/job)\s*</loc>")
-
-
-#: The page's schema.org JobPosting, which search engines read too.
-_LD_JSON = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 
 
 #: What iCIMS writes in a field the employer left empty.
@@ -76,7 +72,7 @@ def describe_icims(job: Job) -> Job:
     """The same iCIMS posting with what its own page says, from the schema.org
     JobPosting it carries: the real title, the date it went up, its places, its
     employment type and the description."""
-    posting = _icims_posting(fetch._get_text(job_url("icims", job.token, job.external_id)))
+    posting = _ld_posting(fetch._get_text(job_url("icims", job.token, job.external_id)))
     title = html.unescape(str(posting.get("title") or "")).strip() or job.title
     full, roles = _described(posting.get("description"))
     places = _places(_icims_place(place) for place in posting.get("jobLocation") or [])
@@ -93,19 +89,6 @@ def describe_icims(job: Job) -> Job:
             offices=(places,) if places else (),
         ),
     )
-
-
-def _icims_posting(page: str) -> dict:
-    """The page's JobPosting, or {} when it has none."""
-    for match in _LD_JSON.finditer(page):
-        try:
-            found = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            continue
-        for item in found if isinstance(found, list) else [found]:
-            if isinstance(item, dict) and item.get("@type") == "JobPosting":
-                return item
-    return {}
 
 
 def _icims_place(place: object) -> str | None:

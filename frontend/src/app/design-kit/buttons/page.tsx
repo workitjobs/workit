@@ -1,11 +1,14 @@
 import {
+  ArrowLeftIcon,
   BellIcon,
   CheckIcon,
+  CloseIcon,
   EllipsisIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   SparkleIcon,
+  TrashIcon,
 } from "@/components/icons";
 import { SaveButton } from "@/components/save-button";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -23,6 +26,7 @@ import {
   SECTIONS,
 } from "../data";
 import { RemovableChipSpecimen } from "../interactive";
+import { ConfirmSpecimen } from "../parts";
 import { Group, KitPage, Row } from "../specimen";
 import { StateCell, StateCells } from "../states";
 
@@ -228,6 +232,60 @@ export default function ButtonsPage() {
       </Group>
 
       <Group
+        title="IconButton Places"
+        note="Where a bare glyph button sits sets its size: place, never a size class. Both are 32px and round with a grey disc on hover; a heading's glyph is 20px, every other one 16px. The job card's Save and ⋯ (glyph) and a chip's own glyphs are the only exceptions."
+      >
+        <Row
+          name={'<IconButton place="heading">'}
+          role="A card's or a section's own action at its heading's end: Experiences' Add, Edit and ⋯, My Profile's and Application Info's cards"
+        >
+          <IconButton place="heading" label="Add">
+            <PlusIcon />
+          </IconButton>
+          <IconButton place="heading" label="Edit">
+            <PencilIcon />
+          </IconButton>
+          <IconButton place="heading" label="More actions">
+            <EllipsisIcon />
+          </IconButton>
+        </Row>
+        <Row
+          name={'<IconButton place="row">'}
+          role="Everything else: a row's actions, a panel's or dialog's Close and Back, Undo, a filter's Clear"
+        >
+          <IconButton place="row" label="Back" tooltip={false}>
+            <ArrowLeftIcon />
+          </IconButton>
+          <IconButton place="row" label="Edit">
+            <PencilIcon />
+          </IconButton>
+          <IconButton place="row" label="Delete" tooltip={false}>
+            <TrashIcon />
+          </IconButton>
+          <IconButton place="row" label="More actions" tooltip={false}>
+            <EllipsisIcon />
+          </IconButton>
+          <IconButton place="row" label="Close" tooltip={false}>
+            <CloseIcon />
+          </IconButton>
+        </Row>
+        <Row name="Hover" role="Both places on hover">
+          <StateCells>
+            <StateCell label="heading" state="hover">
+              <IconButton place="heading" label="Edit">
+                <PencilIcon />
+              </IconButton>
+            </StateCell>
+            <StateCell label="row" state="hover">
+              <IconButton place="row" label="Edit">
+                <PencilIcon />
+              </IconButton>
+            </StateCell>
+          </StateCells>
+        </Row>
+      </Group>
+
+      <Group
         title="Icon Sizes"
         note="Square, for shadcn components that ask for them. A bare glyph in WorkIt's own chrome is IconButton, under Display."
       >
@@ -238,6 +296,30 @@ export default function ButtonsPage() {
             </Button>
           </Row>
         ))}
+      </Group>
+
+      <Group
+        title="Before a Delete"
+        note="Every question asked before a delete answers with one pair, whatever its shape: a dialog (DeleteDialog), a popover (DeleteResumeConfirm), a bar across a dialog's foot (ConfirmBar) or Settings' Delete Account. Keep It comes first and the red button last, so the safe answer is always on the left and takes a dialog's first focus. The way out always says Keep It; the red button names what it does to what. Discard Your Changes? alone says Keep Editing."
+      >
+        <Row
+          name="<ConfirmButtons>"
+          role="In a dialog, a bar or a Settings step: Keep It, then the red act"
+        >
+          <ConfirmSpecimen act="Delete Resumes" />
+        </Row>
+        <Row name={'<ConfirmButtons size="sm">'} role="In a popover">
+          <ConfirmSpecimen size="sm" act="Delete Resume" />
+        </Row>
+        <Row name={'<ConfirmButtons keep="Keep Editing">'} role="Discard Your Changes? only">
+          <ConfirmSpecimen keep="Keep Editing" act="Discard Changes" />
+        </Row>
+        <Row
+          name="<ConfirmButtons busy>"
+          role="While the delete runs: both held, so no second press"
+        >
+          <ConfirmSpecimen busy act="Delete Entry" />
+        </Row>
       </Group>
 
       <Group title="As a Link" note="Navigation stays an anchor rather than becoming a button.">

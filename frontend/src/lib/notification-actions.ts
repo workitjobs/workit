@@ -39,6 +39,7 @@ export async function getNotifications(): Promise<{
   return {
     items: data.notifications.map((n) => ({
       id: n.id,
+      kind: n.type,
       title: n.title,
       body: n.body,
       href: hrefFor(n),
@@ -49,8 +50,11 @@ export async function getNotifications(): Promise<{
   };
 }
 
-/** Marks every unread notification read — the bell's own "You're All
- *  Caught Up" copy already treats opening it as being caught up. */
-export async function markNotificationsRead(): Promise<void> {
-  await applicantCall<NotificationList>("/notifications/read", { method: "POST" });
+/** Marks the rows in `ids` read (the row the student opened, with its
+ *  group's repeats), or every unread one with no `ids` (Mark All Read). */
+export async function markNotificationsRead(ids?: string[]): Promise<void> {
+  await applicantCall<NotificationList>("/notifications/read", {
+    method: "POST",
+    ...(ids && { body: JSON.stringify({ ids }) }),
+  });
 }

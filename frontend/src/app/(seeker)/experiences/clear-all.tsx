@@ -1,10 +1,5 @@
-"use client";
-
-import { useState } from "react";
-
 import type { BankResume } from "@/lib/bank-actions";
 
-import { DeleteDialog } from "../resumes/delete-confirm";
 import { builtShowing, uploadsOwning, type Pick } from "./holdings";
 
 type ClearAllItems = {
@@ -23,9 +18,11 @@ type ClearAllItems = {
  * off every built resume that shows them, and under a built resume's pick
  * they leave the uploads that own them too (ADR 0005), which the line names.
  * The counts read the bank's `resume_ids` (`holdings.ts`), so the question
- * needs no call of its own, unlike Delete Entry's. A section's Clear All asks
- * in its list's foot (`section-dialog.tsx`, KAN-740); Skills' asks in a
- * modal (`ClearAll`, below).
+ * needs no call of its own, unlike Delete Entry's. Every Clear All asks
+ * across its list's foot: a section's (`section-dialog.tsx`, KAN-740), and
+ * Skills' in their dialog (`skills-dialog.tsx`, KAN-816), which asked in a
+ * modal of its own while Skills edited on the card. Skills' Delete Group
+ * reads the same words for where its skills go.
  */
 export function clearAllWords({ items, resumes, noun, bullets = false, pick }: ClearAllItems) {
   const one = items.length === 1;
@@ -42,43 +39,4 @@ export function clearAllWords({ items, resumes, noun, bullets = false, pick }: C
         ? `No built resume shows ${them}.`
         : `${one ? "It comes" : "They come"} off ${showing === 1 ? "the 1 built resume that shows" : `all ${showing} built resumes that show`} ${them}.`),
   };
-}
-
-/** Skills' Clear All, a modal since KAN-732 (`DeleteDialog`): the Skills
- *  card is on the page, not in a dialog, so its question may be one. */
-export function ClearAll({
-  remove,
-  onCleared,
-  onKeep,
-  ...what
-}: ClearAllItems & {
-  remove: (ids: string[]) => Promise<{ error: string | null }>;
-  onCleared: () => void;
-  onKeep: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { question, detail } = clearAllWords(what);
-
-  async function clear() {
-    setBusy(true);
-    setError(null);
-    const { error } = await remove(what.items.map((i) => i.id));
-    setBusy(false);
-    if (error) return setError(error);
-    onCleared();
-  }
-
-  return (
-    <DeleteDialog
-      title={question}
-      label="Clear All"
-      busy={busy}
-      error={error}
-      onDelete={clear}
-      onKeep={onKeep}
-    >
-      {detail}
-    </DeleteDialog>
-  );
 }

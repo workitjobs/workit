@@ -15,7 +15,8 @@ import { cn } from "@/lib/cn";
  *
  * A quiet band (2026-11-10): a fold (the chevron turns while it is shut),
  * an optional glyph in its colour (a stage's), the name in ink and its
- * count, centred on the row's light band, with the group's own action at
+ * count, centred on the row's light band (`--color-well` at half, open or
+ * folded alike), with the group's own action at
  * the right (Remove All on Posting Closed). A pill around the name was as
  * loud as the rows it heads, and heavier padding on top sat the words on
  * the band's floor.
@@ -44,7 +45,10 @@ export function GroupHeadingRow({
   action?: ReactNode;
 }) {
   return (
-    <TableRow className="hover:bg-transparent">
+    // The light band, its own (2026-11-11): it came from the shadcn row's
+    // grey for a row holding an open control (the fold is one), so it
+    // showed only while the group was open, and went with that rule.
+    <TableRow className="bg-well/50 hover:bg-well/50">
       <TableCell colSpan={colSpan} className="px-4 py-2">
         <div className="flex items-center justify-between gap-3">
           <button

@@ -6,7 +6,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
-of its own, so one engine pin serves both. To use another engine checkout
+of its own, so one engine pin serves both (moving it:
+`../../autofiller_extension/CLAUDE.md`, "Move the engine pointer"). To use another engine checkout
 (for example, a branch of the engine that you work on), set
 `APPLY_FILL_ENGINE` to its folder (`~` is expanded). Apply then loads
 `dist/engine.js` from that folder. The tests read the saved forms
@@ -15,7 +16,49 @@ of its own, so one engine pin serves both. To use another engine checkout
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
 
-Apply adds three rules to the engine's plan (`fill_engine.plan` and
+**Where the bundle comes from** (KAN-836, W7 of
+`../docs/desktop_application_auto_apply.md`). Every reader takes the
+bundle's text from `fill_engine.source()`, never from the file itself:
+the page through `page.evaluate`, a plain Worker over native messaging
+(`plain/script.keep_engine`), and Node as the first line on its stdin
+(`NODE_SERVER`). `plain/extension.engine_identity` hashes that text and
+reads `FillEngine.version` from it on Node's stdin. So the source can be
+either of two:
+
+- **The checkout's file** (the policy `fill_engine: checkout`, the
+  default in a Developer checkout). `fresh()` reloads the Nodes when the
+  file changes (KAN-645).
+- **WorkIt's download** (`fill_engine: workit`, and always in the Student
+  build, `build.STUDENT_POLICIES`). `engine_download.download` asks
+  `GET /apply-app/engine` for the newest build that fits the app's
+  version (the package's own version, `importlib.metadata`), asks
+  `POST /apply-app/engine-key` for that download's key, decrypts it with
+  AES-GCM and checks its Ed25519 signature with `PUBLIC_KEY`, all in
+  memory. It runs once per process. A refusal is kept, so every later
+  use raises the same `EngineRefused` at once with no new download.
+  `rehearsal.rehearse` calls `fill_engine.ready()` first, so a refusal
+  stops the run before any Worker opens. `fresh()` does nothing: a new
+  build reaches the app at its next start.
+
+**No engine file is written anywhere** for WorkIt's download: not in
+the data folder, the profiles folder or the Worker extension's folders.
+A new reader of the engine takes `fill_engine.source()`, never
+`fill_engine.ENGINE`: the path is the checkout's file only, and the
+Student build has none.
+
+**The connection is pinned** (D28). `workit._send` gives the live API's
+host, and the live Supabase Auth's (the session's hourly refresh, which a
+proxy could otherwise read and then download the engine with), a TLS
+context that trusts only the roots in `workit_roots.py`:
+Cloudflare's CAs (Let's Encrypt, Google Trust Services, SSL.com, and
+Sectigo for its backup certificates), taken from certifi by
+`scripts/workit_roots.py`. A local API is not pinned. When Cloudflare
+changes its CAs, run `uv run python scripts/workit_roots.py`, then
+`--check`, which connects to both hosts with only those roots; the
+tests never reach the network. A set the live chain is not in stops
+every student's app, so this ships before Cloudflare moves.
+
+Apply adds four rules to the engine's plan (`fill_engine.plan` and
 `worker._Planned.add`). They stay in Apply: each one is about Claude (what
 it drafts, the forms that Claude fill reads) or about Apply's own
 read-back. The engine's `fillEach` already accepts the wording that a
@@ -32,6 +75,12 @@ try-list picked, so the extension needs none of them.
   own `HOW_HEARD`): Apply keeps no copy of the pattern.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
+- A part of an address under a bare "Address" heading, as Claude fill reads
+  Oracle's Address block ("Address: Country", "Address: City"), is planned as
+  the home address's part ("Home address: Country", `fill_engine._as_home_address`);
+  its name and answer stay its own. The engine read the heading alone and
+  planned the street for every part (Honeywell's, 2026-11-25). The engine's own
+  fix (a bare "address: " in its `HOME_SECTION`) would make this rule go.
 
 The engine's plan names each field it leaves blank on purpose, with why
 (`fill_engine.Plan.blanks`). On Greenhouse's self-ID block, a race to
@@ -50,7 +99,14 @@ warrant", "I acknowledge" or "I affirm" except to a privacy or data
 notice, "under penalty", an electronic or typed-name signature, its date
 (a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
 the application is true, accurate or complete, even beside privacy words
-or an "I agree") is Lisul's alone (Lisul, 2026-11-05, KAN-676). The
+or an "I agree", any agreeing to the employer's terms, conditions, an
+agreement or a policy that is not a privacy one: T&Cs, terms of use, of
+service or of employment, the User Agreement, a EULA, "the statement
+above", and a box's own bare "I agree" or "Accept" that names no privacy
+notice, check or messages, KAN-775) is Lisul's
+alone (Lisul, 2026-11-05, KAN-676). NVIDIA's Workday box ("By selecting the
+checkbox, you agree to our Terms and Conditions and Applicant Privacy
+Policy.") was ticked under `tick_consent_when_true` before (2026-11-10). The
 engine reads it in the label, the help text and the options, with
 zero-width characters and lookalike letters made plain. The engine's plan
 never answers one, whatever a rule, `tick_consent_when_true`, the Answer
@@ -60,10 +116,45 @@ with its exact wording. Apply keeps it out of every answer
 stays blank and unticked, and the form holds with a "Yours to tick:
 <wording>" line on its Check before Submit list (`_Planned.to_tick`,
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
-`src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
-agree to the privacy policy") still follows `tick_consent_when_true`, and
-a background-check consent `willing_to_undergo_checks`, unless it attests
-that the application is true.
+`src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
+or data consent ("I agree to the privacy policy", the terms of a company's
+privacy notice) still follows `tick_consent_when_true`, and one solely a
+background-check consent `willing_to_undergo_checks`. Anything more beside
+it in its label or help text makes the whole box Lisul's: a second thing
+joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
+non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
+Each sentence of the label and help text is judged alone: it either
+agrees to that consent in its own words and nothing more, or binds Lisul
+to nothing. "; I agree to work weekends", "which forms part of my
+employment contract", "including sharing it with partner companies" and
+a help text "I accept the offer letter" under a "Privacy" label each make
+the box his. When unsure, the box is his.
+
+Under the `attest_from_sources` policy (a list of rule names, none by
+default: `policies.default.yaml` says each), the engine's plan answers an
+attestation whose every claim the profile's facts settle (KAN-761). Its
+rules are the engine's (`src/attest.ts`): `sponsorship`,
+`work_authorization`, `age_18`, and `truthful_information` only when
+listed by name. It picks the form's one affirmative option ("I Confirm",
+"Yes", "I Affirm"), which must say yes and nothing more, matched whole
+(never "Yes, and I accept the offer terms"), and never signs, types a name, consents, opts in or
+answers a clause that no listed rule settles. Each clause, its lead-in
+("I certify that") left out, must match one of a rule's wordings whole,
+or an employer's notice whole: anything else in it, a second claim or
+commitment joined by "and", "&", "/", "or", "so", "with", a parenthesis
+or a comma ("I am at least 18 years old, a US citizen", "... and accept
+an unpaid trial period"), leaves the attestation to Lisul (PR fe#126's
+adversarial reviews). Each such answer is in
+`Plan.attested`, with its fact, and not in `Plan.attestations`. Apply puts
+it on the Check before Submit list as "Attested from sources: <fact>
+(<label>)" (`_Planned.to_tick`, `fill_engine.attested_line`), which holds a
+live run, and the window asks Lisul to check what Apply attested
+(`dashboard.ATTESTED_CHECK`). Claude fill gets it in <fields> marked
+`"attested": true`, so page gates let Claude pick it; Claude never ticks
+one on its own. A review fix never replaces it. An "I understand" or "I
+confirm" of a statement about sponsorship or work status is an attestation
+too: before, the sponsorship rule answered JPMorgan's "I understand that
+JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
@@ -114,6 +205,21 @@ line. Tax District is `identity.home_address.tax_district`, else blank
 for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
 states with local income taxes, and for New York only New York City and
 Yonkers), else asked. A home outside the US, or with no state, is asked.
+
+A file, or a path on this Mac (`/Users/...`, `~/...`, `C:\...`), goes only into an upload. When the
+engine's plan gives one to any other field, `fill_engine.plan` leaves that field blank (`LOCAL_PATH` in
+`Plan.blanks`, KAN-785). On JPMorgan's Oracle form (2026-11-10), "Resume or Additional Documents Link
+1" got the resume's path, and "Resume or Additional Documents: Cover Letter" got the resume. The
+engine's resume rule matched the heading. From engine v0.3.44, that rule takes only an upload that no
+heading names as another document. A cover letter slot under any heading follows the `cover_letter`
+policy, and "Link N" is the Nth of the profile's links (the portfolio first), else blank. In the same
+version, a master's plan question ("For those of you pursuing a master's degree, do you plan to start
+...?") reads `education.plans_masters_after_bachelors`, never the degree: the form's N/A for one who
+plans none or is undecided (KAN-786). Address Line 1 under Claude fill's heading-and-help label
+("Address\n\nPlease enter your home address.: Address Line 1") is the home's line 1 (KAN-787).
+These were not regressions: engine v0.3.32, v0.3.35 and v0.3.42 planned these labels the same way.
+Each run's Claude fill words the labels in its own way. JPMorgan's "I understand that JPMorgan
+... will not provide any assistance ... OPT/CPT" is fe#126's (KAN-761).
 
 A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
 "Type of phone", a "Mobile or landline?" choice) is the profile's

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { apiFetch, extractErrorMessage, homePath, type AuthenticatedAccount } from "@/lib/auth";
-import { EXTENSION_STEP_PATH } from "@/app/onboarding/applicant/steps";
+import { signInNext } from "@/lib/sign-in-next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
@@ -83,16 +83,5 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  redirect(nextPath(formData.get("next")) ?? homePath(account));
-}
-
-/** Where a sign-in started from another page goes back to (`/login?next=`):
- *  only the connector's consent page (KAN-377) and onboarding's extension
- *  step -- reached today through `/extension-setup`'s "I Already Have One"
- *  button (KAN-495), not opened directly by the extension's install
- *  anymore (that was KAN-471; superseded) -- so the link can't send a
- *  student anywhere else. */
-function nextPath(next: FormDataEntryValue | null): string | null {
-  if (typeof next !== "string") return null;
-  return next.startsWith("/connect/claude?") || next === EXTENSION_STEP_PATH ? next : null;
+  redirect(signInNext(formData.get("next")) ?? homePath(account));
 }

@@ -134,6 +134,13 @@ export function openerOf(pathname: string): string | null {
   return openers()[pathname] ?? null;
 }
 
+/** The address `pathname` was last opened from, as recorded, whatever page
+ *  is on screen: for a page whose parts are pages (Application Info), whose
+ *  Back goes to what opened the page, not the part before. */
+export function recordedOpenerOf(pathname: string): string | null {
+  return openers()[pathname] ?? null;
+}
+
 export function ScrollMemory() {
   const pathname = usePathname();
   const query = useSearchParams().toString();

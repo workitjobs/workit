@@ -56,19 +56,21 @@ import json
 import re
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply import feed, fill_engine, submit_guard, trace
-from apply.accounts import HANDS_OFF, NEEDS_SIGN_IN, Accounts
+from apply import feed, fill_engine, google_sign_in, submit_guard, trace
+from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.home import HOME
 from apply.model import (
     Answers,
+    Closed,
     FillError,
     Handoff,
     MoreQuestions,
@@ -93,6 +95,13 @@ SUBMITTED = re.compile(r"application (has been |was )?(submitted|received)|congr
                        r"|successfully (submitted|applied)", re.IGNORECASE)
 TIMEOUT = 30.0
 GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
+# The posting's Apply, or Continue Application where the Worker profile started this application before.
+START_BUTTON = "[data-automation-id=adventureButton], [data-automation-id=continueButton]"
+# Workday's page in place of a posting it no longer has ("The page you are looking for doesn't exist.", Symbotic's,
+# J&J's, Smith+Nephew's and SNC's, live 2026-11-25; their page shells said `postingAvailable: false`): no Apply
+# button, so clicking one only timed out.
+GONE = "[data-automation-id=errorContainer]"
+PASSING_ERROR = re.compile(r"went wrong|try again", re.IGNORECASE)
 SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
@@ -114,6 +123,7 @@ UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-
 VERIFY_LOOKBACK = timedelta(days=1)
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
+ENTRIES = re.compile(r"\(entries\)\s*$")  # a repeating section's Question: "Work Experience (entries)", answered with how many
 
 
 def site_of(url: str) -> str:
@@ -125,14 +135,42 @@ def names(url: str, site: JobSite) -> tuple[str, str]:
     """The company and role the Feed lists for a Workday Posting: Workday's own
     pages name no company, or a legal entity ("2100 NVIDIA USA", live). One the
     Feed lacks is named by Workday's job API, its legal entity trimmed to the
-    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company."""
+    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company.
+    One the job API has no longer (a closed Posting: Smith+Nephew's, live 2026-11-25,
+    whose Record was "# : ") is named by its link: the Workday site's name and the job's."""
     try:
         if found := feed.names(url, site.fetch(feed.LIVE)):
             return found
     except Exception:
         pass  # the Feed unreachable: the job API still names it
-    entity, title = fill_engine.job_names(url, site)
-    return company_of(entity), title
+    try:
+        entity, title = fill_engine.job_names(url, site)
+    except Exception:
+        entity, title = "", ""  # no such job on Workday now: its link still names it
+    return company_of(entity) or site_name(url), title or role_of(url)
+
+
+def site_name(url: str) -> str:
+    """The name of the Workday site a link is on: its tenant ("smithnephew.wd5.myworkdayjobs.com" is Smithnephew,
+    "jj.wd5..." JJ), or "" for a site on the employer's own domain."""
+    parts = urlsplit(url)
+    host, path = (parts.hostname or "").casefold(), [p for p in parts.path.split("/") if p]
+    if host.endswith("myworkdaysite.com") and "recruiting" in path[:-1]:
+        tenant = path[path.index("recruiting") + 1]
+    elif host.endswith("myworkdayjobs.com"):
+        tenant = host.split(".")[0]
+    else:
+        return ""
+    return tenant.upper() if len(tenant) <= 3 else tenant.capitalize()
+
+
+def role_of(url: str) -> str:
+    """The role a Workday job link names: "/job/Andover-MA/Intern-Computer-Vision_R92964" is "Intern Computer Vision"."""
+    path = [p for p in urlsplit(url).path.split("/") if p]
+    if "job" not in path or path[-1] == "job":
+        return ""
+    slug = re.sub(r"_[A-Za-z]*-?\d[\w-]*$", "", path[-1])
+    return " ".join(slug.replace("-", " ").split())
 
 
 # What a legal entity adds to the company's name: a code in brackets, a legal form, a country.
@@ -157,6 +195,17 @@ def next_step(page: Page, step: str) -> None:
         if "would send the application" not in str(handoff):
             raise
         raise Handoff(f"{handoff}. Apply didn't click it: check the form and submit it yourself.") from None
+
+
+def _naming(page: Page, names: list[str]) -> list[str]:
+    """Which of `names` name an entry of a repeating section, by the engine (`workdayEntries.naming`); none on an engine
+    without the call (a plain Worker seeded before it), which deletes the last panels as it always did."""
+    try:
+        return fill_engine.call(page, "workdayEntries.naming", names) or []
+    except FillError as error:
+        if "has no function" not in str(error):
+            raise
+        return []
 
 
 def confirmed(page: Page) -> bool:
@@ -233,8 +282,14 @@ class WorkdayFiller:
             if new:
                 raise MoreQuestions(new)
             kept = self._his[1] if shown["step"] == self._his[0] else set()
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
-                self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
+            sections = {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}
+            # Each entry's naming answers (company, title) go with the count, so a panel holding one is never deleted
+            # (KAN-775). One Lisul changed before Resume leaves the panels as he left them: his entry is told by none.
+            naming = _naming(page, [q.name for q in fields if q.name in answers]) if sections else []
+            if sections and not kept.intersection(naming):
+                self._fill(page, sections | {name: answers[name] for name in naming})  # new panels' fields: MoreQuestions
+                # Panels added for questions known already (a step filled again, KAN-775): their fields as shown now.
+                fields = self._shown(page)["questions"]
             for q in fields:
                 if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])
@@ -259,6 +314,8 @@ class WorkdayFiller:
                     raise
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
+        if shown["review"]:
+            self._readback |= self._reviewed(page, questions, answers)
         return dict(self._readback)
 
     def _save_and_continue(self, page: Page, step: str, crashed: set[str]) -> None:
@@ -277,6 +334,23 @@ class WorkdayFiller:
             crashed.add(step)
             page.reload()
 
+    def _reviewed(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        """Each repeating section's entries as Review shows them, read back under the plan's names (the engine's
+        `workdayEntries.reviewed`, KAN-775): the section's count, and an entry Review lacks as blank. NVIDIA's keeps only
+        the entries changed on a step's last visit, so an entry read back on My Experience can be gone by Review
+        (Ask changed one date there and saved, live 2026-11-10): verifying then holds the form, and the next fill
+        goes back to put it again (`_back_to_changed`). An engine without the call (a plain Worker seeded before it)
+        reads nothing here."""
+        if not any(ENTRIES.search(q.label) and q.name in answers for q in questions):
+            return {}
+        named = {name: answer for name, answer in answers.items() if not isinstance(answer, Path)}
+        try:
+            return fill_engine.call(page, "workdayEntries.reviewed", fill_engine.questions_arg(questions), named) or {}
+        except FillError as error:
+            if "has no function" not in str(error):
+                raise
+            return {}
+
     def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
         """Back to the first step holding an answer other than the one the last fill was given there (the
         plan's answer replanned, or the Pre-submit review's fix), from the step the draft opens on (its Review,
@@ -284,6 +358,11 @@ class WorkdayFiller:
         again opens past them."""
         changed = [q for q in questions if q.name in answers and q.name in self._given and q.name in self._readback
                    and answers[q.name] != self._given[q.name]]
+        # A section Review showed with fewer entries than planned (`_reviewed`): its step is filled again, every entry
+        # typed anew, so Workday keeps them all (KAN-775).
+        short = [q for q in questions if ENTRIES.search(q.label) and q.name in answers and q.name in self._readback
+                 and str(self._readback[q.name]).strip() != str(answers[q.name]).strip()]
+        changed = short + changed
         self._given = dict(answers)
         if not changed:
             return
@@ -352,15 +431,18 @@ class WorkdayFiller:
         if _on_step(page):
             return
         # Continue Application, where the Worker profile started this application before.
-        page.locator("[data-automation-id=adventureButton], [data-automation-id=continueButton]").first.click()
+        start = page.locator(START_BUTTON).first
+        _until(page, lambda: start.is_visible() or _on_step(page) or _signing_in(page) or _gone(page))
+        if said := _gone(page):
+            raise Closed(f"Workday's page for it says \"{said}\"")
+        if start.is_visible():
+            start.click()
         manual = page.locator("[data-automation-id=applyManually]")
         _until(page, lambda: manual.is_visible() or _signing_in(page) or _on_step(page))
         if manual.is_visible():
             manual.click()
         _until(page, lambda: _signing_in(page) or _on_step(page))
         if _signing_in(page):  # else the Worker profile is still signed in
-            if getattr(self._accounts, "hands_off", False):  # a reopened form: Lisul signs in himself (KAN-720)
-                raise Handoff(HANDS_OFF)
             self._sign_in(page)
 
     def _sign_in(self, page: Page) -> None:
@@ -382,6 +464,8 @@ class WorkdayFiller:
         its Sign In page (`_create_account`): signed in, the account is made;
         refused as not verified, it is made and its link is waited for; any
         other refusal means an account was there already (`_may_exist`)."""
+        if made_since and self._signed_in_as_made(page):
+            return self._accounts.created(site)
         _by_email(page)
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
@@ -406,6 +490,17 @@ class WorkdayFiller:
                 raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} said: '{error}' Verify the account through the "
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
+
+    @staticmethod
+    def _signed_in_as_made(page: Page) -> bool:
+        """Whether Workday took the new account straight to the first step. As it goes there, its Create Account view
+        still shows once its answer made the account, which `_create_account` reads as its Sign In: on a busy machine,
+        the step came while Sign In was waited for, and the fill stopped (the fake's CACI tenant, 2026-11-25). So the
+        page is let settle on the step or the Sign In view first; neither, Sign In goes on as before."""
+        try:
+            return _until(page, lambda: "in" if _on_step(page) else _sign_in_view(page) and "sign in", SEND_WAIT) == "in"
+        except TimeoutError:
+            return False
 
     def _create_account(self, page: Page, site: str, offers_google: bool = False) -> None:
         """`offers_google`: the tenant shows Sign in with Google, so an account
@@ -446,7 +541,7 @@ class WorkdayFiller:
                     self._accounts.not_made(site)
                     raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
-            raise Handoff(f"Workday at {site} refused the new account: '{error}'")
+            raise self._accounts.refused(site, f"Workday said: '{error}'")
         if outcome == "sign in" or outcome == "unanswered" and made():
             # Workday's code goes to Sign In only when its answer made the account (a root widget), and then the
             # new password signs in, or is refused as not verified yet (Visa's, Northrop's, live). It answers an
@@ -496,7 +591,7 @@ class WorkdayFiller:
         reset not finish, that password is never tried (a sign-in failure). Both
         forms go through _send, since Workday may drop a click that comes
         straight after typing (Visa's and Northrop's, live)."""
-        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here
+        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here (Handoff)
         form = _auth_form(page, "signInLink", create=False)
         page.locator("[data-automation-id=forgotPasswordLink]").click()
         _until(page, lambda: form.locator("[data-automation-id=resetPasswordButton]").count() > 0)
@@ -525,31 +620,31 @@ class WorkdayFiller:
 
     def _google(self, page: Page, button: Locator) -> None:
         button.click()
-        account = page.locator(f'[data-identifier="{self._accounts.login}"], [data-email="{self._accounts.login}"]')
+        account = google_sign_in.account(page, self._accounts.login)
         # A Worker profile that used it before may come straight back, signed in, without the
         # chooser; and Workday may take its time over that (over 20 s on Snap's tenant, live).
-        on_google = lambda: page.url.startswith("https://accounts.google.com/")
+        on_google = lambda: google_sign_in.on_google(page)
         try:
             shown = _until(page, lambda: _on_step(page) and "in" or account.first.is_visible() and "chooser"
-                           or on_google() and _google_asks(page) and "asks" or _google_rejected(page) and "rejected",
+                           or on_google() and google_sign_in.asks(page) and "asks" or google_sign_in.rejected(page) and "rejected",
                            GOOGLE_WAIT)
         except TimeoutError:
             if on_google():
-                raise Handoff(_google_wants(page)) from None
+                raise Handoff(google_sign_in.wants(page)) from None
             raise Handoff(f"Workday didn't come back signed in from Sign in with Google within {GOOGLE_WAIT:.0f} s "
                           f"({page.url}): finish the application yourself.") from None
         if shown == "asks":
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         if shown == "rejected":
             raise Handoff(GOOGLE_REJECTED)
         if shown == "in":
             return
         account.first.click()
-        _until(page, lambda: not on_google() or _google_asks(page) or _google_rejected(page))
-        if _google_rejected(page):
+        _until(page, lambda: not on_google() or google_sign_in.asks(page) or google_sign_in.rejected(page))
+        if google_sign_in.rejected(page):
             raise Handoff(GOOGLE_REJECTED)
         if on_google():
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         _until(page, lambda: _on_step(page))
 
     # --- Steps, through the engine ---------------------------------------------------
@@ -756,6 +851,17 @@ def _signing_in(page: Page) -> bool:
     return page.locator("[data-automation-id=signInContent]").is_visible()
 
 
+def _gone(page: Page) -> str:
+    """What Workday's page says in place of a posting it no longer has, or "" on any other page. Its error page that
+    asks for a refresh ("Something went wrong") is a passing fault, never a closed posting."""
+    gone = page.locator(GONE)
+    if not gone.count() or not gone.first.is_visible():
+        return ""
+    said = gone.first.locator("[data-automation-id=errorMessage]")
+    said = (one_line(said.first.inner_text()) if said.count() else "") or "The page you are looking for doesn't exist."
+    return "" if PASSING_ERROR.search(said) else said
+
+
 def _sign_in_view(page: Page) -> bool:
     """Whether the auth form shown is Sign In, not Create Account."""
     form = page.locator("[data-automation-id=signInFormo]")
@@ -773,46 +879,16 @@ def _alert(page: Page) -> str:
     return alerts.first.inner_text().strip() if alerts.count() and alerts.first.is_visible() else ""
 
 
-def _google_asks(page: Page) -> bool:
-    """Whether Google's page asks for something typed (a password, a code, a phone number), or is one of
-    its challenges, such as a passkey, which has no box to type in (KLA, 2026-11-03)."""
-    return _google_challenge(page) or \
-        page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
-
-
-def _google_challenge(page: Page) -> bool:
-    url = urlsplit(page.url)
-    return url.hostname == "accounts.google.com" and "/signin/challenge/" in url.path
-
-
-def _google_rejected(page: Page) -> bool:
-    """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
-    return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
-
-
 # Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
 MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
-             "save it with security add-generic-password -U -s apply-ats -a {site} -w, then apply yourself.")
+             "save it with uv run keyring set apply-ats {site} (in apply-agent/), then apply yourself.")
 
 # An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
 MADE_WITH_GOOGLE = (
     f"{NEEDS_SIGN_IN}{{company}}'s Workday account was made with Google; sign in once yourself, or reset its password"
 )
 
-GOOGLE_REJECTED = (
-    f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "
-    "secure\"). Sign in with Google in your own Chrome and apply yourself."
-)
-
-
-def _google_wants(page: Page) -> str:
-    asked = "a password" if page.locator("input[type=password]").count() else "a passkey" if (
-        "/signin/challenge/pk" in urlsplit(page.url).path) else (
-        page.locator("h1").first.inner_text().strip() if page.locator("h1").count() else page.url)
-    return (
-        f"Google asked for more than an account pick ({asked}). Agents never type Google credentials: "
-        "sign the Worker profiles in to Google again by hand (see the setup checklist), then apply yourself."
-    )
+GOOGLE_REJECTED = google_sign_in.REJECTED
 
 
 def _until(page: Page, done, timeout: float = TIMEOUT):

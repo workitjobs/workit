@@ -1,14 +1,13 @@
-import { ArrowRightIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink } from "@/components/ui/button";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { TextLink } from "@/components/ui/text-link";
-import { cn } from "@/lib/cn";
 
 import { getApplicationStages } from "../auto-apply/applications";
 import { formatPosted } from "../jobs/format";
-import { isApplicant, type JobListing } from "../jobs/listings";
+import { drawnAt, isApplicant, type JobListing } from "../jobs/listings";
 import { getMatches } from "./data";
-import { LIST } from "./top-matches-frame";
+import { SectionHeader } from "./section-header";
+import { LIST, SHOWN } from "./top-matches-frame";
 import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
 import { jobLogo } from "@/lib/job-logo";
 import { Card } from "@/components/ui/card";
@@ -55,7 +54,10 @@ export function loadTopMatches() {
   // for which rows Auto Apply can still pick, as the Jobs page reads them.
   // The best matches auto apply can fill come alongside, for picking mode:
   // the top list may hold none of them (Greenhouse only, for now).
-  return Promise.all([getMatches(), isApplicant(), getApplicationStages()]);
+  // Dated before the stages are read (../jobs/listings, drawnAt): the rows
+  // lay the seeker's stage changes since over them.
+  const at = drawnAt();
+  return Promise.all([getMatches(), isApplicant(), getApplicationStages(), at]);
 }
 
 export type TopMatchesData = ReturnType<typeof loadTopMatches>;
@@ -68,7 +70,7 @@ export async function TopMatches({
   data: TopMatchesData;
   className?: string;
 }) {
-  const [matches, canMarkApplied, stages] = await data;
+  const [matches, canMarkApplied, stages, at] = await data;
   const top = matches && matches !== "empty" ? matches.top : matches;
 
   if (top === "empty" || top === null || top.length === 0) {
@@ -81,19 +83,23 @@ export async function TopMatches({
         className={className}
       >
         <StaticHeading />
-        <p className="text-body text-ink-meta mt-3">
-          {top === "empty" ? (
-            <>
-              Add what you have done to your{" "}
-              <TextLink href="/experiences">experience bank</TextLink>, and your best-fitting jobs
-              show up here.
-            </>
-          ) : top === null ? (
-            "Your matches aren't loading right now. Check back in a few minutes."
-          ) : (
-            "No open jobs to match yet. They show up here as companies post them."
-          )}
-        </p>
+        {top === null ? (
+          <LoadFailed compact title="Your Matches Aren't Loading Right Now" className="mt-3">
+            We couldn&apos;t score your jobs. Try again in a few minutes.
+          </LoadFailed>
+        ) : (
+          <p className="text-body text-ink-meta mt-3">
+            {top === "empty" ? (
+              <>
+                Add what you have done to your{" "}
+                <TextLink href="/experiences">experience bank</TextLink>, and your best-fitting jobs
+                show up here.
+              </>
+            ) : (
+              "No open jobs to match yet. They show up here as companies post them."
+            )}
+          </p>
+        )}
       </Card>
     );
   }
@@ -116,6 +122,7 @@ export async function TopMatches({
         rows={top.map(toRow)}
         autoRows={matches && matches !== "empty" ? matches.autoApply.map(toRow) : []}
         canMarkApplied={canMarkApplied}
+        drawnAt={at}
       />
     </Card>
   );
@@ -125,28 +132,24 @@ export async function TopMatches({
  *  the empty and failed states. */
 function StaticHeading() {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 id="top-matches" className="text-subtitle text-ink">
-          Top Matches
-        </h2>
-        <p className="text-body text-ink-meta mt-1">Your highest-scoring jobs right now.</p>
-      </div>
-      <ButtonLink href="/jobs?sort=match" variant="secondary" size="sm">
-        See More Matches
-        <ArrowRightIcon className="size-4" />
-      </ButtonLink>
+    <div>
+      <SectionHeader
+        id="top-matches"
+        title="Top Matches"
+        link={{ href: "/jobs?sort=match", text: "See More Matches" }}
+      />
+      <p className="text-body text-ink-meta mt-1">Your highest-scoring jobs right now.</p>
     </div>
   );
 }
 
-/** Top Matches while the scores load: its heading over rows in their own
- *  shape (a logo, a title line, a meta line, the buttons), filling the same
- *  frame, so Activity below does not jump when the jobs arrive. Below
- *  @xl/main a row's buttons take a full-width line under the text, as the
- *  real row's do (./top-matches-list.tsx); with the buttons beside the
- *  text, the skeleton stood 260px short of the list at 390px wide, and
- *  Activity jumped by that much when the jobs arrived (KAN-368). */
+/** Top Matches while the scores load: its heading over SHOWN rows in their
+ *  own shape (a logo, a title line, a meta line, the buttons) and the See
+ *  More rule under them, so Activity below does not jump when the jobs
+ *  arrive. Below @xl/main a row's buttons take a full-width line under the
+ *  text, as the real row's do (./top-matches-list.tsx); with the buttons
+ *  beside the text, the skeleton stood 260px short of the list at 390px
+ *  wide, and Activity jumped by that much when the jobs arrived (KAN-368). */
 export function TopMatchesSkeleton({ className }: { className?: string }) {
   return (
     <Card
@@ -157,7 +160,7 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
       aria-busy="true"
       className={className}
     >
-      {/* StaticHeading's lines and its button, each a bar. */}
+      {/* The heading's lines, Auto Apply and See More Matches, each a bar. */}
       <div aria-hidden="true" className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex h-[22px] items-center">
@@ -167,10 +170,13 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
             <Skeleton className="h-3.5 w-60 max-w-full" />
           </div>
         </div>
-        <Skeleton className="h-9 w-44" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-3.5 w-36" />
+        </div>
       </div>
-      <ul aria-hidden="true" className={cn(LIST, "@4xl/main:overflow-hidden")}>
-        {Array.from({ length: 6 }, (_, i) => (
+      <ul aria-hidden="true" className={LIST}>
+        {Array.from({ length: SHOWN }, (_, i) => (
           <li
             key={i}
             className="bg-well rounded-card flex shrink-0 flex-col gap-3 p-3 @xl/main:flex-row @xl/main:items-center"
@@ -184,13 +190,23 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
               {/* The match's column, against the buttons. */}
               <span className="bg-panel ml-4 hidden h-6 w-16 shrink-0 animate-pulse rounded-full @4xl/main:block" />
             </span>
-            <span className="flex shrink-0 gap-2 @max-xl/main:w-full">
-              <span className="bg-panel rounded-control size-9 shrink-0 animate-pulse" />
-              <span className="bg-panel rounded-control h-9 w-28 animate-pulse @max-xl/main:flex-1" />
+            {/* Save's bare bookmark, then Apply. */}
+            <span className="flex shrink-0 items-center gap-3 @max-xl/main:w-full">
+              <span className="bg-panel size-8 shrink-0 animate-pulse rounded-full" />
+              <span className="bg-panel rounded-control h-9 w-38 animate-pulse @max-xl/main:flex-1" />
             </span>
           </li>
         ))}
       </ul>
+      {/* See More's rule and its line. */}
+      <div
+        aria-hidden="true"
+        className="border-border-subtle -mx-5 mt-4 -mb-5 flex justify-center border-t py-2"
+      >
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-3.5 w-20" />
+        </div>
+      </div>
     </Card>
   );
 }

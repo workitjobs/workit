@@ -15,10 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
-import { useAutoApply } from "../auto-apply/auto-apply-button";
+import { REMOVE_FROM_QUEUE, useAutoApply } from "../auto-apply/auto-apply-button";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ApplyDialog } from "./apply-button";
-import { Tip } from "@/components/ui/tip";
 
 /**
  * One Apply for a job Auto Apply can fill (2026-11-09, after Simplify's):
@@ -32,7 +31,9 @@ import { Tip } from "@/components/ui/tip";
  * It is the brand fill while it can act, and steps down to the secondary
  * look once Auto Apply has the job (Queued, Working in Browser) or is done
  * with it (Needs You, Skipped, Applied), the states AutoApplyButton shows,
- * from the same hook (useAutoApply). Queued stays a toggle.
+ * from the same hook (useAutoApply). Queued stays a toggle, and taking the
+ * job out, from the main part or the menu, is Remove From Queue with the
+ * hook's toast and Undo.
  *
  * APPLY MANUALLY is a link that opens the employer's posting in a new tab,
  * from the click itself so no popup blocker stops it, and opens "Did You
@@ -96,7 +97,7 @@ export function ApplySplitButton({
       size="sm"
       disabled={auto.pending}
       aria-pressed={auto.queued}
-      title={auto.queued ? "Remove from the queue" : undefined}
+      title={auto.queued ? REMOVE_FROM_QUEUE : undefined}
       onClick={auto.toggle}
       segment="start"
     >
@@ -119,27 +120,25 @@ export function ApplySplitButton({
       <div className={cn("inline-flex shrink-0", className)}>
         {main}
         <DropdownMenu>
-          <Tip label="Ways to apply">
-            <DropdownMenuTrigger
-              aria-label="Ways to apply"
-              render={
-                <Button
-                  variant={variant}
-                  size="sm"
-                  segment="end"
-                  className={cn(
-                    // A hairline between the two parts: white on the brand
-                    // fill, the edge's own grey on the secondary look.
-                    acting
-                      ? "shadow-[inset_1px_0_0_rgb(255_255_255/0.3)]"
-                      : "shadow-[inset_1px_0_0_var(--color-border-surface)]",
-                  )}
-                />
-              }
-            >
-              <ChevronDownIcon className="size-4" />
-            </DropdownMenuTrigger>
-          </Tip>
+          <DropdownMenuTrigger
+            aria-label="Ways to apply"
+            render={
+              <Button
+                variant={variant}
+                size="sm"
+                segment="end"
+                className={cn(
+                  // A hairline between the two parts: white on the brand
+                  // fill, the edge's own grey on the secondary look.
+                  acting
+                    ? "shadow-[inset_1px_0_0_rgb(255_255_255/0.3)]"
+                    : "shadow-[inset_1px_0_0_var(--color-border-surface)]",
+                )}
+              />
+            }
+          >
+            <ChevronDownIcon className="size-4" />
+          </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 p-1.5">
             {!auto.done && (
               <DropdownMenuItem
@@ -149,7 +148,7 @@ export function ApplySplitButton({
                 <LightningRoundedIcon aria-hidden className="text-brand mt-0.5 size-4" />
                 <span className="flex flex-col gap-0.5">
                   <span className="text-body text-ink font-medium">
-                    {auto.queued ? "Remove from Auto Apply" : "Auto Apply"}
+                    {auto.queued ? REMOVE_FROM_QUEUE : "Auto Apply"}
                   </span>
                   <span className="text-label text-ink-meta">
                     {auto.queued

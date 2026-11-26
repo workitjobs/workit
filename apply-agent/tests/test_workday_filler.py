@@ -19,9 +19,9 @@ from fakes import FakeClaude, FakeClock, FakeMailbox
 
 from apply import workday
 from apply.accounts import Accounts
-from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
-from apply.model import FillError, Handoff, MoreQuestions
+from apply.model import Closed, FillError, Handoff, MoreQuestions
+from apply.one_page import OnePage
 from apply.plain.bridge import PortTimeoutError
 from apply.rescue import Rescue
 from apply.workday import WorkdayFiller
@@ -110,6 +110,22 @@ def test_creates_an_account_fills_every_step_reads_it_back_and_stops_before_subm
     assert [q.label for q in questions][:3] == ["How Did You Hear About Us?", "Have you previously worked for this company?", "Country"]
     assert {q.label: q.kind for q in questions}["Resume/CV"] == "file"
     assert readback == {**answers, next(q.name for q in questions if q.label == "Resume/CV"): "one-pager.pdf"}
+    assert server.submissions == []
+
+
+def test_a_new_account_that_lingers_on_create_account_goes_on_to_its_first_step_without_signing_in():
+    # On a busy machine (the CACI tenant, 2026-11-25), Create Account still showed once the account was made, and the
+    # Filler waited for a sign-in form that never came, until the step came and the fill stopped.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, made_delay=3) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            fill_all(filler, page, questions)
+
+    [account] = server.created
+    assert account["host"] == CACI
+    assert server.sign_ins == []  # signed in as made: never with the new password
     assert server.submissions == []
 
 
@@ -315,6 +331,79 @@ def test_entries_filled_again_on_a_later_visit_are_kept():
     assert [job["companyName"] for job in sent.application["workExperience"]] == ["Hitachi Rail", "Cloud Data Pro"]
 
 
+REVIEW_URL = f"https://{CACI}/__fake__/apply/{len(EXPERIENCE_STEPS) + 1}"
+SECTION = "My Experience / Work Experience"  # the section's Question: "Work Experience (entries)"
+
+
+def test_an_entry_review_lacks_reads_back_blank_and_the_next_fill_puts_it_again():
+    # NVIDIA's, live 2026-11-10 (KAN-775): Ask went back to My Experience, changed one entry's date and saved; Workday
+    # kept only that entry, and Review showed one of the profile's jobs. Verifying read My Experience as it was filled.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS, drops_untouched=True) as server, \
+            OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, answers, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            # Ask's visit: one entry changed and saved, so Workday kept that entry alone.
+            server.save(CACI, workExperience=server.saved(CACI)["workExperience"][1:])
+            page.goto(REVIEW_URL)
+            held = filler.fill(page, questions, answers)  # Resume: from Review
+            again = filler.fill(page, questions, answers)  # the fill after verifying found it short
+            filler.submit(page)
+
+    named = {q.label: q.name for q in questions}
+    assert held[SECTION] == "1"
+    assert held[named["Work Experience 1 / Company"]] == ""  # Hitachi Rail: gone, wherever Review would show it
+    assert held[named["Work Experience 2 / Company"]] == "Cloud Data Pro"
+    assert again[SECTION] == "2"
+    assert again[named["Work Experience 1 / Company"]] == "Hitachi Rail"
+    [sent] = server.submissions
+    assert [job["companyName"] for job in sent.application["workExperience"]] == ["Hitachi Rail", "Cloud Data Pro"]
+
+
+def test_a_fill_again_over_entries_shown_with_an_extra_one_deletes_only_the_extra():
+    # A fill again over the applicant's entries, their dates set from Workday's Calendar (read back blank), and before
+    # them a panel holding none of them: only that panel goes, and each entry keeps what the plan doesn't answer.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    job = lambda title, company, about: {"jobTitle": title, "companyName": company, "location": "Remote",
+                                         "currentlyWorkHere": False, "startDate": "", "endDate": "", "roleDescription": about}
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, _, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            server.save(CACI, workExperience=[job("Barista", "Corner Cafe", "Coffee."),
+                                              job(EXPERIENCE["Work Experience 1 / Job Title"], "Hitachi Rail", "Rail."),
+                                              job(EXPERIENCE["Work Experience 2 / Job Title"], "Cloud Data Pro", "Data.")])
+            page.goto(f"https://{CACI}/__fake__/apply/2")
+            fill_all(filler, page, questions, ANSWERS | EXPERIENCE)  # the third panel's fields: planned, none answered
+            filler.submit(page)
+
+    [sent] = server.submissions
+    assert [(j["companyName"], j["roleDescription"]) for j in sent.application["workExperience"]] == [
+        ("Hitachi Rail", "Rail."), ("Cloud Data Pro", "Data.")]
+
+
+def test_extra_panels_that_hold_the_applicants_entries_stop_the_fill_and_none_is_deleted():
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    hitachi = {"jobTitle": "Intern", "companyName": "Hitachi Rail", "location": "Remote", "currentlyWorkHere": False,
+               "startDate": "06/2026", "endDate": "08/2026", "roleDescription": ""}
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, _, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            server.save(CACI, workExperience=[hitachi, {**hitachi, "companyName": "Cloud Data Pro"}, hitachi])
+            page.goto(f"https://{CACI}/__fake__/apply/2")
+            with pytest.raises(Handoff, match="each holds one of yours"):
+                fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            assert page.locator("[data-fake-section=workExperience] [data-fake-panel]").count() == 3
+
+
 def test_a_searched_major_is_the_tenants_own_computer_science_where_it_has_one():
     # Beside the wordings Lisul accepts where a tenant has none (AmFam's, live).
     majors = (*FIELDS_OF_STUDY, "Computer Science", "Computer Science and Engineering")
@@ -385,6 +474,17 @@ def test_continues_an_application_its_worker_profile_already_started():
         questions = filler.question_set(CACI_URL, site)
 
     assert questions[0].label == "How Did You Hear About Us?"
+    assert server.created == [] and server.sign_ins == []
+
+
+def test_a_posting_workday_no_longer_has_is_closed_not_a_timeout_on_its_apply_button():
+    # Fault: `_start` clicks Apply without looking for Workday's "doesn't exist" page (four postings, live 2026-11-25).
+    filler = WorkdayFiller(Accounts(InMemoryKeychain(), FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, gone=True) as server, OnePage(server) as site, \
+            pytest.raises(Closed, match="The page you are looking for doesn't exist"):
+        filler.question_set(CACI_URL, site)
+
     assert server.created == [] and server.sign_ins == []
 
 

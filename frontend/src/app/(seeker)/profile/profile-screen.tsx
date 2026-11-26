@@ -2,6 +2,7 @@
 
 import { PhoneIcon } from "@phosphor-icons/react/ssr";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { MailIcon, PencilIcon, PinIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading, SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { TextInput } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
@@ -71,9 +73,11 @@ import { Missing } from "@/components/ui/missing";
  * (KAN-211). The extension's older versions still open
  * /profile#writing-samples, which this page forwards to Application Info.
  *
- * A FAILED LOAD IS ONE NOTICE AT THE TOP, NOT A RED LINE UNDER EACH THING.
+ * A FAILED LOAD IS ONE CARD AT THE TOP, NOT A RED LINE UNDER EACH THING.
  * The photo and the profile each come back with their own error, and a
- * single outage printed as scattered faults.
+ * single outage printed as scattered faults. The card is the app's failed
+ * read, `LoadFailed` with Try Again (KAN-819); it was an amber banner that
+ * said to refresh the page.
  */
 export function ProfileScreen({ school, extras }: { school: ReactNode; extras: ReactNode }) {
   // The last visit's data, if any, read once. A return visit renders it at
@@ -99,27 +103,31 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
   // reads the hash once, as it mounts.
   useEffect(() => {
     if (window.location.hash === "#writing-samples") {
-      window.location.replace("/auto-apply/info/writing-samples");
+      window.location.replace("/auto-apply/info#writing-samples");
     }
   }, []);
 
   // One action for both reads, never two calls from here: Next runs server
   // actions one at a time, so separate calls waited for each other
   // (@/lib/profile-page-actions). Each part still has its own error, and a
-  // failed refetch keeps the part a return visit already shows.
+  // failed refetch keeps the part a return visit already shows. The failed
+  // card's Try Again runs it again.
+  const load = useCallback(
+    () =>
+      getProfilePage()
+        .then(({ avatar, profile }) => {
+          if (!avatar.error) setAvatarUrl(avatar.url);
+          if (!profile.error && profile.profile) setApplicantProfile(profile.profile);
+          setLoadFailed(Boolean(avatar.error || profile.error));
+        })
+        // The action call itself failed, e.g. stale action IDs after a deploy.
+        .catch(() => setLoadFailed(true))
+        .finally(() => setSettled(true)),
+    [],
+  );
   useEffect(() => {
-    getProfilePage()
-      .then(({ avatar, profile }) => {
-        if (avatar.error) setLoadFailed(true);
-        else setAvatarUrl(avatar.url);
-
-        if (profile.error) setLoadFailed(true);
-        else if (profile.profile) setApplicantProfile(profile.profile);
-      })
-      // The action call itself failed, e.g. stale action IDs after a deploy.
-      .catch(() => setLoadFailed(true))
-      .finally(() => setSettled(true));
-  }, []);
+    void load();
+  }, [load]);
 
   // Save each settled state for the next visit. Not mid-load, and not
   // after a failed load, which would show the next visit an empty profile.
@@ -132,12 +140,13 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {loadFailed && (
-        <p
-          role="status"
-          className="bg-warning-tint text-ink rounded-control text-body mb-6 px-4 py-3"
+        <LoadFailed
+          title="Some of Your Profile Isn't Loading Right Now"
+          onRetry={load}
+          className="mb-4"
         >
-          Some of your profile didn&apos;t load. Refresh the page to try again.
-        </p>
+          We couldn&apos;t reach your profile or your photo. Try again in a few minutes.
+        </LoadFailed>
       )}
 
       <div className="grid items-start gap-4 @4xl/main:grid-cols-[17rem_minmax(0,1fr)]">

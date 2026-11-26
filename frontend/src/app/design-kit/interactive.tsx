@@ -1,6 +1,6 @@
 "use client";
 
-import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
+import { FileArrowUpIcon, GearIcon, NotePencilIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -8,7 +8,11 @@ import { Avatar } from "@/components/avatar";
 import { DateField } from "@/components/date-field";
 import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
+import { ChoiceCard } from "@/components/ui/choice-card";
+import { SuggestField } from "@/components/ui/suggest-field";
+import { suggestDegrees } from "@/lib/degrees";
 import { ChoiceTile } from "@/components/ui/choice-tile";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
@@ -17,7 +21,6 @@ import { useShallowParams } from "@/components/shallow-routing";
 import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -55,21 +58,23 @@ import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-color
  */
 
 export function DialogSpecimen() {
+  const [open, setOpen] = useState(false);
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            Withdraw This Application?
-          </DialogTitle>
+          <DialogTitle>Withdraw This Application?</DialogTitle>
           <DialogDescription>
             Northwind will no longer see your profile for this role. You can apply again later.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-          <DialogClose render={<Button variant="destructive">Withdraw</Button>} />
+          <ConfirmButtons
+            act="Withdraw"
+            onKeep={() => setOpen(false)}
+            onAct={() => setOpen(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -283,6 +288,56 @@ export function MonthFieldSpecimen() {
   );
 }
 
+/** A field that suggests as you type and keeps what is typed, as the
+ *  Education form's Degree draws it (the list is lib/degrees.ts). */
+export function SuggestFieldSpecimen() {
+  const [degree, setDegree] = useState("");
+  return (
+    <div className="w-72">
+      <SuggestField
+        id="dk-degree"
+        label="Degree"
+        placeholder="Bachelor of Science"
+        openOnFocus
+        browse
+        value={degree}
+        onValueChange={setDegree}
+        suggest={(typed) => suggestDegrees(typed).map((name) => ({ name }))}
+      />
+    </div>
+  );
+}
+
+/** Two big answers side by side, as onboarding's "Do you have a resume?"
+ *  draws them: each its own tint, a check badge and a bounce on the pick. */
+export function ChoiceCardSpecimen() {
+  const [plan, setPlan] = useState<"upload" | "build">("build");
+  return (
+    <div
+      role="group"
+      aria-label="Do You Have a Resume?"
+      className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2"
+    >
+      <ChoiceCard
+        pressed={plan === "upload"}
+        onClick={() => setPlan("upload")}
+        Icon={(props) => <FileArrowUpIcon weight="duotone" {...props} />}
+        tone="bg-brand-tint text-brand"
+        title="Yes, I have one"
+        line="Upload a PDF or Word file."
+      />
+      <ChoiceCard
+        pressed={plan === "build"}
+        onClick={() => setPlan("build")}
+        Icon={(props) => <NotePencilIcon weight="duotone" {...props} />}
+        tone="bg-positive-tint text-positive-ink"
+        title="No, build one for me"
+        line="Answer three short questions."
+      />
+    </div>
+  );
+}
+
 /** Two tiles of a one-pick question and a radio list, as onboarding and
  *  the uninstall survey draw them. */
 export function ChoiceSpecimen() {
@@ -389,9 +444,10 @@ export function ResumeUploadSpecimen() {
   );
 }
 
+/** The seeker menu's rows as the app draws them: Help is hidden until its
+ *  page exists (`HELP_LIVE` in (seeker)/account-status.tsx). */
 const ACCOUNT_ROWS: AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

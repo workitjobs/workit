@@ -42,15 +42,20 @@ const ROW_GAP = 16;
  *
  * `flush` is the split view's (./jobs-rail.tsx, KAN-519): the frame has no
  * page padding to take over, and nothing scrolls under it, so it has no rule.
+ *
+ * `below` goes under the filter row: a search's fact chips in the split view
+ * (KAN-917), where nothing over the list but this header holds them.
  */
 export function FeedHeader({
   top,
   flush = false,
+  below,
   className,
   children,
 }: {
   top: ReactNode;
   flush?: boolean;
+  below?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
@@ -115,6 +120,7 @@ export function FeedHeader({
       >
         {children}
       </div>
+      {below}
     </div>
   );
 }

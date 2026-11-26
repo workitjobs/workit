@@ -2,6 +2,7 @@ import { ChatTextIcon } from "@phosphor-icons/react/ssr";
 import type { ReactNode } from "react";
 
 import { FileIcon } from "@/components/icons";
+import { StatTile } from "@/components/stat-tile";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -10,7 +11,7 @@ import type { SentResume } from "@/lib/sent-resume-actions";
 import type { JobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
 import { LocalDate } from "../../local-time";
-import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../../stage-colors";
+import { STAGE_COLOR, STAGE_LABEL, type StageKey } from "../../stage-colors";
 import {
   eventsOf,
   isUpcoming,
@@ -22,6 +23,7 @@ import {
 import { Timeline } from "../timeline";
 import { SentResumeRow } from "../view-resume";
 import { ApplyBy } from "./apply-by";
+import { EmptySlot } from "./empty-slot";
 import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -64,6 +66,8 @@ function daysBetween(from: string, to: string | Date) {
  * request's time (`getNow`). First whether the posting is still open, then
  * how long: since the seeker applied, or, for a saved job, since the
  * posting went up (the sooner they apply, the fewer applicants are ahead).
+ * Each is the app's one stat tile (components/stat-tile.tsx, KAN-828), on
+ * the tinted card: its label, its figure, then a line under it.
  * They replaced counts that read 0 for every Apply ("save to apply": Apply
  * saves and applies at once) or told the student only about the past
  * ("posted before you applied"). A suggested follow-up day was tried and
@@ -88,36 +92,46 @@ export function YourApplication({
    *  and the score shows here. */
   matchAbove?: boolean;
 }) {
-  const cards: { label: string; value: string | number }[] = [];
+  const cards: { label: string; value: string | number; unit?: string; note?: ReactNode }[] = [];
   // Every live application has `open`; the type leaves it optional.
   if (app.open != null) {
-    cards.push(
-      app.open
-        ? {
-            label: app.appliedOn ? "Still taking applications" : "Apply while it's open",
-            value: "Open",
-          }
-        : {
-            label: app.appliedOn ? "No longer taking applications" : "You can no longer apply",
-            value: "Closed",
-          },
-    );
+    cards.push({
+      label: "Posting",
+      value: app.open ? "Open" : "Closed",
+      note: app.open
+        ? app.appliedOn
+          ? "Still taking applications"
+          : "Apply while it's open"
+        : app.appliedOn
+          ? "No longer taking applications"
+          : "You can no longer apply",
+    });
   }
   if (app.appliedOn) {
     const days = daysBetween(app.appliedOn, now);
     cards.push({
-      label: days === 1 ? "Day since you applied" : "Days since you applied",
+      label: "Since You Applied",
       value: days,
+      unit: days === 1 ? "day" : "days",
+      note: (
+        <>
+          Applied <LocalDate at={app.appliedOn} />
+        </>
+      ),
     });
   } else if (job?.posted_at) {
     const days = daysBetween(job.posted_at, now);
     cards.push({
-      label: days === 1 ? "Day since it was posted" : "Days since it was posted",
+      label: "Since It Was Posted",
       value: days,
+      unit: days === 1 ? "day" : "days",
+      note: (
+        <>
+          Posted <LocalDate at={job.posted_at} />
+        </>
+      ),
     });
   }
-  const StageIcon = STAGE_ICON[app.stage];
-
   return (
     <>
       {/* ONE TINTED CARD for the seeker's record, holding rounded white
@@ -141,29 +155,13 @@ export function YourApplication({
             left side, so it never stops short and leaves an empty corner. */}
         <div className="flex flex-col gap-4 @xl:flex-row">
           <div className="min-w-0 flex-1">
-            {/* The stage as the board's column headers drew it: its glyph on
-                a solid disc, then its name. A badge's fill is the card's own
-                tint, so a badge vanished into it. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
-                  STAGE_COLOR[app.stage].fill,
-                )}
-              >
-                <StageIcon className="size-3.5" />
-              </span>
-              <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
-                {STAGE_LABEL[app.stage]}
-              </span>
-              {/* The stage menu (KAN-413): the student says where it
-                  stands once the employer answers. */}
-              <span className="ml-auto">
-                <StageMenu jobId={app.id} stage={app.stage} />
-              </span>
-            </div>
-            <h2 className="text-title text-ink mt-3 font-bold">{HEADLINE[app.stage]}</h2>
+            {/* The stage, once, in the stage menu (KAN-413): its glyph and
+                name, and the student says where it stands once the
+                employer answers. A saved job's reads Saved, as the
+                Tracker's rows do. A disc and the stage's name sat before
+                it until KAN-824, so the card said the stage twice. */}
+            <StageMenu jobId={app.id} stage={app.stage} placeholder={STAGE_LABEL.saved} />
+            <h2 className="text-title text-ink mt-3">{HEADLINE[app.stage]}</h2>
             {/* No applied date here: the days-since card and the timeline
                 both carry it. */}
             <p className="text-body text-ink-meta mt-1">
@@ -191,25 +189,14 @@ export function YourApplication({
 
             <Timeline steps={timeline(app, sent, now)} horizontal className="mt-5" />
 
-            {/* The cards: a figure over its words, a rounded white
-                box each. justify-end puts the figure at the top (the column
-                is reversed), so the figures line up when one label wraps.
-                A closed posting says so here only, not in a badge too. */}
-            <dl className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
-              {cards.map(({ label, value }) => (
-                // The figure first to the eye, the words first to a screen
-                // reader (a <dt> leads its <dd>).
-                <Card
-                  key={label}
-                  padding="md"
-                  elevated={false}
-                  className="flex flex-col-reverse justify-end"
-                >
-                  <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
-                  <dd className="text-title text-ink font-bold tabular-nums">{value}</dd>
-                </Card>
+            {/* The cards: the app's one stat tile on this tinted card, a
+                white box with a hairline as the match box beside it is. A
+                closed posting says so here only, not in a badge too. */}
+            <div className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
+              {cards.map((card) => (
+                <StatTile key={card.label} on="tint" {...card} />
               ))}
-            </dl>
+            </div>
           </div>
 
           {app.match != null && !matchAbove && (
@@ -232,13 +219,14 @@ export function YourApplication({
 
       {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
           rows, then the answers the application asked for, in one white
-          card under the heading, as Interviews & Dates above it is.
+          card under the heading, built as Interviews & Dates above it is
+          (KAN-824: `Section`, an elevated `Card`, `EmptySlot`).
           Answers are not stored yet; the empty line holds their place so
           the section's shape does not change when they arrive. The empty
           slots were the upload dropzone's dashed outline on the grey
           ground until 2026-11-10, and read as places to drop a file. */}
       <Section title="What You Sent">
-        <Card padding="lg" elevated={false} className="mt-3">
+        <Card padding="lg" className="mt-3">
           <h3 className="text-label text-ink font-semibold">Resume</h3>
           {sent.length > 0 ? (
             <ul>
@@ -251,30 +239,21 @@ export function YourApplication({
               ))}
             </ul>
           ) : (
-            <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+            <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />} className="mt-2">
               No resume sent yet
             </EmptySlot>
           )}
 
           <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-          <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
+          <EmptySlot
+            icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}
+            className="mt-2"
+          >
             Your answers to this application&apos;s questions will show here.
           </EmptySlot>
         </Card>
       </Section>
     </>
-  );
-}
-
-/** An empty slot: the place a sent resume or the answers fill, as one
- *  quiet line with its glyph, the height of a resume row so nothing jumps
- *  when one arrives. */
-function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <div className="mt-2 flex min-h-13 items-center gap-2">
-      {icon}
-      <p className="text-body text-ink-meta">{children}</p>
-    </div>
   );
 }
 

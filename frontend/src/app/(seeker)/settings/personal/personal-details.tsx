@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { Avatar } from "@/components/avatar";
 import { TrashIcon, UploadIcon } from "@/components/icons";
@@ -39,7 +39,18 @@ const namesOf = (p: ApplicantProfile): Names => ({
  * (KAN-326). My Profile shows them and links here, so no value has two
  * editors (docs/screens.md, My Profile). The photo saves the moment one is
  * picked, as it did on My Profile: the picked file shows at once and rolls
- * back if the upload fails. The name is asked as signup asks it, first,
+ * back if the upload fails.
+ *
+ * **Remove Photo waits on its toast** (KAN-818), as Application Info's
+ * Transcript does (KAN-562): the photo goes from the card at once and a
+ * toast offers Undo, but the DELETE is sent only when the toast closes
+ * without it (`onClose`). A removed photo can't come back, so Undo is the
+ * DELETE never sent. A photo picked while the toast shows sends the held
+ * DELETE first, as one sent after the upload would remove the new photo; a
+ * failed DELETE puts the photo back and says why in a toast. Leaving the
+ * page sends it at once. The bar's photo follows once it is sent.
+ *
+ * The name is asked as signup asks it, first,
  * middle (optional) and last; the API joins them into the full name every
  * other screen prints. The name and headline save together with Save.
  * Both refresh the route, so the bar's name and photo follow.
@@ -58,6 +69,16 @@ export function PersonalDetails({
   const [avatarUrl, setAvatarUrl] = useState(initialAvatar);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  // The toast whose close sends the held DELETE; null once it is sent or taken back.
+  const held = useRef<number | null>(null);
+
+  // Leaving the page sends a held DELETE at once: back here, the photo it removes would show.
+  useEffect(
+    () => () => {
+      if (held.current !== null) toast.dismiss(held.current);
+    },
+    [toast],
+  );
 
   const [saved, setSaved] = useState(profile);
   const [names, setNames] = useState<Names>(() => namesOf(profile));
@@ -86,6 +107,13 @@ export function PersonalDetails({
     setAvatarUrl(preview);
     setPhotoError(null);
     setPhotoBusy(true);
+    if (held.current !== null) {
+      // Sent now, before the upload: sent after it, it would remove the new photo.
+      const id = held.current;
+      held.current = null;
+      toast.dismiss(id);
+      await removeAvatar().catch(() => null);
+    }
     const fd = new FormData();
     fd.append("file", file);
     try {
@@ -106,23 +134,40 @@ export function PersonalDetails({
     }
   }
 
-  async function dropPhoto() {
-    if (photoBusy) return;
+  function dropPhoto() {
+    const removed = avatarUrl;
+    if (photoBusy || !removed) return;
     setPhotoError(null);
-    setPhotoBusy(true);
-    try {
-      const { error: removeError } = await removeAvatar();
-      if (removeError) {
-        setPhotoError(removeError);
-        return;
-      }
-      setAvatarUrl(null);
-      router.refresh();
-    } catch {
-      setPhotoError("Could not reach the server.");
-    } finally {
-      setPhotoBusy(false);
+    setAvatarUrl(null);
+    const id = toast.show({
+      message: "Your photo is removed.",
+      action: {
+        label: "Undo",
+        onClick: () => {
+          held.current = null;
+          setAvatarUrl(removed);
+        },
+      },
+      onClose: () => {
+        if (held.current !== id) return;
+        held.current = null;
+        void sendRemoval(removed);
+      },
+    });
+    held.current = id;
+  }
+
+  /** The held DELETE, once the toast has closed without Undo. */
+  async function sendRemoval(removed: string) {
+    const { error: removeError } = await removeAvatar().catch(() => ({
+      error: "Could not reach the server.",
+    }));
+    if (removeError) {
+      setAvatarUrl(removed);
+      toast.show({ message: `Your photo wasn't removed. ${removeError}` });
+      return;
     }
+    router.refresh();
   }
 
   async function save(event: FormEvent) {

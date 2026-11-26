@@ -142,11 +142,11 @@ async def test_the_word_file_has_every_entry_in_section_order_newest_first(stude
     assert res.headers["content-disposition"] == 'attachment; filename="General SWE.docx"'
     assert _docx_lines(res.content) == [
         "Sam Seeker",
-        f"555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
+        f"+1 555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
         "EDUCATION",
         "Stony Brook University\tStony Brook, NY",
         "Bachelor of Science in Computer Science\tAug. 2023 – Expected May 2027",
-        "GPA: 3.8/4.0",
+        "GPA: 3.80/4.00",
         "Relevant Coursework: Data Structures, Algorithms",
         "EXPERIENCE",
         "Software Intern\tJune 2025 – Aug. 2025",
@@ -267,6 +267,23 @@ def test_generate_shows_each_skill_name_once():
     skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group="Languages") for n in names]
     choices = base_choices(SimpleNamespace(entries=[], skills=skills))
     assert [choices.skills[s.id].shown for s in skills] == [True, True, False, False, True]
+
+
+def test_a_blank_resume_prints_its_header_alone():
+    # 2026-11-18: onboarding's "No, build one for me" starts from scratch.
+    # Every bank entry and skill gets a choice row, hidden, so the page
+    # prints the header and Add Experiences can still show any of them.
+    from types import SimpleNamespace
+
+    from app.services.built_resumes import blank_choices
+
+    bullet = SimpleNamespace(id=uuid.uuid4())
+    entry = SimpleNamespace(row=SimpleNamespace(id=uuid.uuid4(), section="experience"), bullets=[bullet])
+    skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group=None) for n in ("Go", "Rust")]
+    choices = blank_choices(SimpleNamespace(entries=[entry], skills=skills))
+    assert choices.entries[entry.row.id].shown is False
+    assert [choices.skills[s.id].shown for s in skills] == [False, False]
+    assert bullet.id in choices.bullets
 
 
 async def test_generate_shows_a_skill_two_uploads_hold_once(student, monkeypatch):
@@ -737,7 +754,7 @@ async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(st
 async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template, page):
+    def missing(view, identity, template, page, **_):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.routers.built_resumes.render", missing)

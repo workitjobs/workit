@@ -1,0 +1,31 @@
+name: Apply test setup
+description: >-
+  The fill-engine pin, Python, uv and Apply's packages, for the jobs that run
+  Apply's tests (ci.yml's apply-fast on Ubuntu, apply and apply-hostile on macOS,
+  apply-nightly.yml; KAN-780, KAN-837).
+  Runs after the checkout, which must bring the fill-engine submodule
+  (FILL_ENGINE_TOKEN): a local action can't check out its own repo. The browsers
+  are apply-browsers, apart, since the fast tests must run before them.
+runs:
+  using: composite
+  steps:
+    # .github/CLAUDE.md says why (the pinned fill-engine commit). Paths from the repo root.
+    - name: Pin fill-engine to the commit this branch actually records
+      shell: bash
+      working-directory: .
+      run: |
+        PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+        git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+        git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+        echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    # uv's download cache, keyed on uv.lock (KAN-780).
+    - uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: apply-agent/uv.lock
+    - shell: bash
+      working-directory: apply-agent
+      run: uv sync --locked

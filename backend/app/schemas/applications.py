@@ -353,6 +353,27 @@ class PostingAnswers(BaseModel):
     questions: list[AnsweredQuestion]
 
 
+class CoverLetter(BaseModel):
+    """A cover letter WorkIt wrote, as the Cover Letters tab lists it
+    (KAN-766): a saved written answer whose Question type is
+    `cover-letter`. `name` and `job_id` are the answer's key; `closed` when
+    the Jobs page no longer lists the posting, so its page is a 404;
+    `own` when the student wrote it."""
+
+    job_id: uuid.UUID
+    name: str
+    label: str
+    text: str
+    own: bool
+    answered_at: datetime.datetime | None
+    company: str | None
+    title: str | None
+    logo_url: str | None
+    company_domain: str | None
+    closed: bool
+    stage: application_stage
+
+
 class PastedAnswer(BaseModel):
     """An answer the student pasted for one question, by its `name`."""
 

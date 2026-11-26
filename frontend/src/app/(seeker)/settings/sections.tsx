@@ -43,9 +43,19 @@ export function allSections() {
         <PersonalSection />
       </Suspense>
     ),
-    // Suspense for the notice's useSearchParams (./security/notice.tsx).
+    // Its two lists of rows, the sign-in and its methods (KAN-819): with no
+    // fallback the section stood blank while it read the session, the one
+    // section of the five with no skeleton. The boundary also covers the
+    // notice's useSearchParams (./security/notice.tsx).
     security: (
-      <Suspense>
+      <Suspense
+        fallback={
+          <>
+            <SectionSkeleton title="Sign-In" rows={2} />
+            <SectionSkeleton title="Sign-In Methods" rows={2} />
+          </>
+        }
+      >
         <SecuritySection />
       </Suspense>
     ),
@@ -71,18 +81,41 @@ export function allSections() {
  * A section while it reads: its card, its heading as a bar (`title` still
  * names it to a screen reader), then, for Personal Details, the photo's 72px
  * circle beside its buttons, and a field's label and 42px box for each field (`fields`), so the card
- * is about the height it will be. The modal shows one section at a time and
+ * is about the height it will be. A section of setting rows (./setting-row.tsx,
+ * Sign-In & Security) passes `rows` instead: each row's 36px glyph tile, its
+ * name and value lines and its button. The modal shows one section at a time and
  * each scrolls alone, so nothing outside the card moves when it fills.
  */
 export function SectionSkeleton({
   title,
   photo = false,
   fields = 3,
+  rows,
 }: {
   title: string;
   photo?: boolean;
   fields?: number;
+  rows?: number;
 }) {
+  if (rows) {
+    return (
+      <Card as="section" aria-label={title} aria-busy="true" className="flex flex-col gap-4">
+        <SectionHeadingSkeleton />
+        <div aria-hidden="true" className="divide-border-subtle flex flex-col divide-y">
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <Skeleton className="rounded-control size-9 shrink-0" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+              </div>
+              <Skeleton className="h-9 w-24 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card as="section" aria-label={title} aria-busy="true" className="flex flex-col gap-4">
       <SectionHeadingSkeleton />

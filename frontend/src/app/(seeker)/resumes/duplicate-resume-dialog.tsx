@@ -33,17 +33,20 @@ export type Duplicate =
  * copy but did not say what it meant or let the student go on.
  *
  * It opens before Generate's steps dialog: the button says "Checking…"
- * while the API compares, and only a check that passed, or a Confirm,
+ * while the API compares, and only a check that passed, or Make a Copy,
  * opens "Generating Your Resume". Under the sentence, the resume it matches
  * as a card (name and when it was created and edited) and its first page,
  * so the student sees which one it is.
  *
- * - **Generate**: "<name> has the same content." Confirm makes the copy
- *   anyway (`onConfirm`, Generate with `allow_duplicate`); Cancel makes
+ * - **Generate**: "<name> has the same content." Make a Copy makes it
+ *   anyway (`onConfirm`, Generate with `allow_duplicate`); Close makes
  *   nothing. A copy is cheap and edits on its own, so the student decides.
- * - **Upload**: "Your upload <name> has the same text." with OK. An
+ * - **Upload**: "Your upload <name> has the same text." with Close. An
  *   upload stays refused: the database keeps one upload per text
  *   (`resumes_text_hash_key`), and a copy would take one of the 5 slots.
+ *
+ * Its buttons name what they do (KAN-817, `docs/design.md`): they said
+ * Confirm and OK, which name nothing.
  *
  * Open while `duplicate` is set.
  */
@@ -61,12 +64,10 @@ export function DuplicateResumeDialog({
     <Dialog open={duplicate != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            You Already Have This Resume
-          </DialogTitle>
+          <DialogTitle>You Already Have This Resume</DialogTitle>
           <DialogDescription>
             {generate
-              ? `${duplicate.name} has the same content. Confirm to make a copy anyway.`
+              ? `${duplicate.name} has the same content. You can still make a copy.`
               : `Your upload ${duplicate?.name ?? ""} has the same text.`}
           </DialogDescription>
         </DialogHeader>
@@ -74,11 +75,11 @@ export function DuplicateResumeDialog({
         <DialogFooter>
           {generate ? (
             <>
-              <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-              <Button onClick={onConfirm}>Confirm</Button>
+              <DialogClose render={<Button variant="secondary">Close</Button>} />
+              <Button onClick={onConfirm}>Make a Copy</Button>
             </>
           ) : (
-            <DialogClose render={<Button>OK</Button>} />
+            <DialogClose render={<Button>Close</Button>} />
           )}
         </DialogFooter>
       </DialogContent>

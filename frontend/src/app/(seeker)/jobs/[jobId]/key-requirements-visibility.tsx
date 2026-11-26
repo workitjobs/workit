@@ -53,14 +53,14 @@ export function KeyRequirementsVisibility({ children }: { children: ReactNode })
 
   // A section of the job's panel (`JobPanel`, ./job-view.tsx), not a card
   // of its own (2026-11-10): its heading is drawn as the description's
-  // sections' are (./description.tsx, `Heading`), 20px bold beside a 24px
-  // brand glyph, since the two sit one under the other in the same panel.
+  // sections' are (./description.tsx, `Heading`), 20px at 600 beside a 24px
+  // grey glyph, since the two sit one under the other in the same panel.
   // As a 16px card title above 20px section headings it read upside down.
   return (
     <section aria-labelledby={titleId}>
       <div className="flex items-center justify-between gap-4">
-        <h2 id={titleId} className="text-title text-ink flex items-center gap-2 font-bold">
-          <TargetIcon aria-hidden className="text-brand size-6 shrink-0" />
+        <h2 id={titleId} className="text-title text-ink flex items-center gap-2">
+          <TargetIcon aria-hidden className="text-ink-meta size-6 shrink-0" />
           Key Requirements
         </h2>
         <Button

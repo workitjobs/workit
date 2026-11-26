@@ -24,7 +24,10 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
 - the final application request of each job system, by fetch (a Request
   object's body read too), XHR or beacon:
   Greenhouse `POST <board>/jobs/<id>`, Lever `POST .../<posting>/apply`,
-  Ashby's `ApiSubmit...` mutation, BambooHR `POST /careers/<id>/add`,
+  Ashby's submit mutation (KAN-791: each body to Ashby read as its GraphQL server
+  reads it, JSON, a batch, a form or multipart body, and each operation's query
+  parsed; a mutation whose root field or name says submit is the application,
+  and a body to its GraphQL the guard can't read is blocked), BambooHR `POST /careers/<id>/add`,
   Workable `POST /api/v1/jobs/<shortcode>/apply`, Jobvite
   `POST <company>/job/<id>/submitApplication` (Enter in any field of its last
   step sends it, which the click guard alone can't stop), and on any job
@@ -32,8 +35,15 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
   has a segment that names a submit (`/submit/123` too).
 
 A worker (dedicated, shared or service) runs none of the page's script, so
-the route stops its requests: a non-GET whose URL names a submit (ROUTED) is
-aborted, from the page or any worker. Only those URLs are routed, matched
+while the guard is on the page makes none (KAN-791): a Worker or SharedWorker
+from any URL (blob: and data: too), a service worker's registration and a
+worklet's module are refused, and a dedicated worker made while the page was
+lifted ends as the guard comes back on. As the rehearsal's guard goes on a CDP
+Worker (guard, on_open, rearm), its context's shared workers are closed and its
+service workers unregistered (_end_workers). Under that, the route stops the
+requests of the page, its dedicated workers and its service workers (Playwright
+routes no shared worker's): a non-GET whose URL names a submit (ROUTED) is
+aborted. Only those URLs are routed, matched
 by Playwright itself, so every other request goes straight through even
 while the Worker's thread is in `claude -p`; one that matches waits there
 until the thread is back, unsent, then is aborted (a GET goes on then). A
@@ -44,10 +54,15 @@ A link's ping (hyperlink auditing, a POST no script sees) never leaves a
 guarded page: the guard takes it off as the link is clicked, and no script
 can set one back while the page is guarded.
 
+A file goes only to the form's own site (KAN-795, apply.upload_origin): in a frame of another site (not the top
+frame's origin, nor a job system's embedded form), a file input opens no picker while the guard is on, by a click on
+it or its label, or a script's click() or showPicker(), so Claude's upload tool has no chooser there; the guard notes
+it, and Claude fill hands the form over.
+
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
-(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small "Apply rehearsal" note on the page,
+(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small WorkIt card on the page (BLOCKED_CARD),
 once the page has had a click or key: one its own script makes first (a
 cookie banner, analytics) is blocked without one.
 
@@ -95,7 +110,7 @@ form, Submit and all), and a frame with scripts off runs no guard.
 
 Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
-through, and a green note says so, with a Fill again button. The page tells
+through, and a purple WorkIt card says so, with a Fill again button. The page tells
 Apply when he clicks a button that sends, so a rehearsal can keep his
 submission in the Tracker. A rehearsal paused mid-form is lifted the same
 way while Lisul fixes its page; Resume puts both guards back on with
@@ -105,12 +120,13 @@ import json
 import re
 import secrets
 import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 
 from playwright.sync_api import Page, Route
 
-from apply import captcha, send_click
+from apply import captcha, send_click, upload_origin
 from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
@@ -243,7 +259,7 @@ _TEMPLATE = r"""
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
              asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
-             start: false};
+             start: false, signIn: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   // startSent: a post of it was let go (the guard's copy, or a form's submit()); startGone: one has left as a navigation.
   let starting = null, startSent = false, startGone = false;
@@ -272,7 +288,7 @@ _TEMPLATE = r"""
     // A copy put into a page already open (LATE: after the page's own code, which may have heard this event's name)
     // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
     if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
-      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
+      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing', 'signIn'], (k) => has(cmd, k) && !!cmd[k]))) return;
     if (has(cmd, 'arm') && cmd.arm === true && fresh) { fresh = false; S.lifted = false; }
     if (has(cmd, 'lift') && !fresh) {
       const n = cmd.lift;
@@ -289,7 +305,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing', 'signIn'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -302,9 +318,12 @@ _TEMPLATE = r"""
     for (let i = 0; i < args.length; i++) said += (i ? ',' : '') + json(typeof args[i] === 'boolean' ? args[i] : Str(args[i]));
     said += ']]';@TELL@
   };
-  // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
+  // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application. By its path alone
+  // (reCAPTCHA's /recaptcha/) only on reCAPTCHA's own host (KAN-791): a page can serve that path from its own site or
+  // any other, and such a frame ran no guard, so it posted the application, or the page did through its fetch and Worker.
   const host = location.hostname, path = location.pathname;
-  if (any(@CAPTCHA_HOSTS@, (h) => host === h || endsWith(host, '.' + h)) || any(@CAPTCHA_PATHS@, (p) => startsWith(path, p))) {
+  const onHost = (hosts) => any(hosts, (h) => host === h || endsWith(host, '.' + h));
+  if (onHost(@CAPTCHA_HOSTS@) || (onHost(@CAPTCHA_PATH_HOSTS@) && any(@CAPTCHA_PATHS@, (p) => startsWith(path, p)))) {
 @CAPTCHA@
     return;
   }
@@ -330,12 +349,12 @@ _TEMPLATE = r"""
       if (!box) {
         box = D.createElement('div');
         box.id = '@BOX@';
-        // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
-          + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
+        box.setAttribute('role', 'status');
+        box.setAttribute('data-tone', 'fix');
+        box.style.cssText = @BLOCKED_CSS@;  // a WorkIt card (BLOCKED_CARD), under a captcha's challenge
         (D.body || D.documentElement).appendChild(box);
       }
-      box.textContent = '@NAME@: blocked ' + what + '. Nothing was sent.';
+      box.textContent = @BLOCKED_WORDS@;  // what it blocked is in the console line above, never on the page
     } catch (e) {}
   };
   // A guard listener that throws blocks what it was judging, as a page that could make it throw would want it not to.
@@ -353,6 +372,17 @@ _TEMPLATE = r"""
   // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
   const armed = () => S.account;
   let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
+  // The forms that had a button that sends as the last press went down (KAN-868): a page's pointerdown or mousedown
+  // handler can rename or take away a Submit before the click, which is when a press is recorded. The guard's own
+  // listener runs before any of the page's, so this is the form as it stood (pointerdown's, then mousedown's: each
+  // adds, as mousedown comes once a pointerdown handler may have renamed it). It only ever adds to what is blocked.
+  let downSending = [];
+  const wentDown = judged(() => {
+    const now_ = sendingForms();
+    for (let i = 0; i < now_.length; i++) if (!any(downSending, (f) => f === now_[i])) push(downSending, now_[i]);
+  });
+  on('pointerdown', wentDown);
+  on('mousedown', wentDown);
   let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
   const user = (event) => event.isTrusted || event === userClick;
   on('click', judged((event) => {
@@ -365,8 +395,9 @@ _TEMPLATE = r"""
     if (!userClick) return;
     const target = targetGet(event);
     press = isEl(target) && (!at || at === true || contains(at, target))
-      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sendingForms()}
+      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sentAll()}
       : null;
+    downSending = [];  // each press's own: what went down before this click is in its record now
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -381,6 +412,8 @@ _TEMPLATE = r"""
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
   const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  // Those as the press went down, and as it landed.
+  const sentAll = () => { const out = sendingForms(); for (let i = 0; i < downSending.length; i++) push(out, downSending[i]); return out; };
   const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
@@ -481,6 +514,278 @@ _TEMPLATE = r"""
   // Eightfold's (Netflix, Lockheed Martin) sends POST /api/user_interaction/submit as each page loads.
   const NOT_FINAL = [/^https?:\/\/[^\/?#]+\/api\/user_interaction\//i];
   const FINAL_BODIES = [/"operationName"\s*:\s*"ApiSubmit/];
+  // Ashby's submit, read as its server reads it (KAN-791): one regex on the body's operationName let through escaped
+  // JSON, a submit named only in its query, a batch, and a form or multipart body. A body to Ashby is read as JSON (an
+  // object or a batch), a form's fields or a multipart body's (operations, query, operationName); each operation's
+  // query is parsed as GraphQL. A mutation whose root field names a submit (submitMultipleFormsAction,
+  // submitSingleApplicationFormAction: under an alias, through a fragment or an inline one too), or an operation
+  // whose name does, is the application. A body to Ashby's GraphQL that can't be read so is blocked: not JSON, a
+  // duplicate key, an operation with no query text (a persisted query's hash), a query that isn't GraphQL.
+  // Everything here is the guard's own: its lists and maps have no prototype, so a page's setter on one runs nowhere.
+  const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i, ASHBY_GQL = /^https?:\/\/[^\/?#]*ashbyhq\.com\/[^?#]*graphql/i;
+  const SUBMIT = /submit/i, indexOf = fn(SP, 'indexOf');
+  const bag = () => ({__proto__: null, n: 0});
+  const put = (b, x) => { b[b.n] = x; b.n = b.n + 1; };
+  const own = (o, k) => apply(ownP, o, [k]);
+  const unreadable = () => { throw new TypeErr('not a GraphQL request'); };
+  const sticky = (re, s, i) => { re.lastIndex = i; const m = match(re, s); return m === null ? null : m[0]; };
+  // JSON as a server's JSON.parse reads it, but a duplicate key, which two servers may read two ways, is unreadable.
+  const J_STR = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
+  const J_NUM = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y, J_WS = /[ \t\n\r]*/y;
+  const readJSON = (s) => {
+    let i = 0;
+    const ws = () => { i += sticky(J_WS, s, i).length; };
+    const str = () => { const t = sticky(J_STR, s, i); if (t === null) unreadable(); i += t.length; return parse(t); };
+    const value = (depth) => {
+      if (depth > 64) unreadable();
+      ws();
+      const c = s[i];
+      if (c === '{') {
+        i++;
+        const o = {__proto__: null};
+        ws();
+        if (s[i] === '}') { i++; return {k: 'o', o}; }
+        for (;;) {
+          ws();
+          const key = str();
+          if (own(o, key)) unreadable();
+          ws();
+          if (s[i] !== ':') unreadable();
+          i++;
+          o[key] = value(depth + 1);
+          ws();
+          if (s[i] === ',') { i++; continue; }
+          if (s[i] === '}') { i++; return {k: 'o', o}; }
+          unreadable();
+        }
+      }
+      if (c === '[') {
+        i++;
+        const b = bag();
+        ws();
+        if (s[i] === ']') { i++; return {k: 'a', b}; }
+        for (;;) {
+          put(b, value(depth + 1));
+          ws();
+          if (s[i] === ',') { i++; continue; }
+          if (s[i] === ']') { i++; return {k: 'a', b}; }
+          unreadable();
+        }
+      }
+      if (c === '"') return {k: 's', v: str()};
+      if (startsWith(s, 'true', i)) { i += 4; return {k: 'true'}; }
+      if (startsWith(s, 'false', i)) { i += 5; return {k: 'false'}; }
+      if (startsWith(s, 'null', i)) { i += 4; return {k: 'null'}; }
+      const t = sticky(J_NUM, s, i);
+      if (t === null) unreadable();
+      i += t.length;
+      return {k: 'x'};
+    };
+    const v = value(0);
+    ws();
+    if (i !== s.length) unreadable();
+    return v;
+  };
+  // GraphQL's tokens: names, punctuators, and the strings and numbers that say nothing here. Anything else: not GraphQL.
+  const G_NAME = /[_A-Za-z][_0-9A-Za-z]*/y, G_NUM = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+  const G_STR = /"(?:[^"\\\n\r]|\\.)*"/y, G_BLOCK = /"{3}(?:[^"\\]|\\"{3}|\\|"(?!"{2}))*"{3}/y;
+  const PUNCT = '!$&()[]{}:=@|';
+  const gqlTokens = (s) => {
+    const out = bag();
+    for (let i = 0; i < s.length; ) {
+      const c = s[i];
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === ',' || c === '﻿') { i++; continue; }
+      if (c === '#') { while (i < s.length && s[i] !== '\n' && s[i] !== '\r') i++; continue; }
+      if (c === '.') { if (slice(s, i, i + 3) !== '...') unreadable(); put(out, {k: 'p', v: '...'}); i += 3; continue; }
+      if (indexOf(PUNCT, c) >= 0) { put(out, {k: 'p', v: c}); i++; continue; }
+      let t;
+      if (c === '"') {
+        t = sticky(G_BLOCK, s, i) || sticky(G_STR, s, i);
+        if (t === null) unreadable();
+        put(out, {k: 'v', v: ''});
+      } else if ((t = sticky(G_NAME, s, i)) !== null) {
+        put(out, {k: 'n', v: t});
+      } else if ((t = sticky(G_NUM, s, i)) !== null) {
+        put(out, {k: 'v', v: ''});
+      } else {
+        unreadable();
+      }
+      i += t.length;
+    }
+    return out;
+  };
+  // Whether a query document holds a mutation that reaches a submit: its name, or a root field's (aliased, in an
+  // inline fragment, or in a fragment it spreads at its root).
+  const gqlSubmits = (query) => {
+    const t = gqlTokens(query);
+    let p = 0;
+    const peek = () => p < t.n ? t[p] : null;
+    const next = () => { if (p >= t.n) unreadable(); const tok = t[p]; p++; return tok; };
+    const isP = (tok, c) => tok !== null && tok.k === 'p' && tok.v === c;
+    const nameOf = (tok) => tok !== null && tok.k === 'n' ? tok.v : null;
+    const group = (open, close) => {  // at `open`: past its match
+      let depth = 0;
+      do { const tok = next(); if (isP(tok, open)) depth++; else if (isP(tok, close)) depth--; } while (depth > 0);
+    };
+    const directives = () => {
+      while (isP(peek(), '@')) { next(); if (nameOf(next()) === null) unreadable(); if (isP(peek(), '(')) group('(', ')'); }
+    };
+    const roots = (fields, spreads) => {  // a selection set's root fields, and the fragments it spreads
+      if (!isP(next(), '{')) unreadable();
+      while (!isP(peek(), '}')) {
+        const tok = next();
+        if (isP(tok, '...')) {
+          const n = nameOf(peek());
+          if (n !== null && n !== 'on') { next(); put(spreads, n); directives(); continue; }
+          if (n === 'on') { next(); if (nameOf(next()) === null) unreadable(); }
+          directives();
+          roots(fields, spreads);  // an inline fragment's fields are the root's
+          continue;
+        }
+        let n = nameOf(tok);
+        if (n === null) unreadable();
+        if (isP(peek(), ':')) { next(); n = nameOf(next()); if (n === null) unreadable(); }
+        put(fields, n);
+        if (isP(peek(), '(')) group('(', ')');
+        directives();
+        if (isP(peek(), '{')) group('{', '}');
+      }
+      next();
+    };
+    const mutations = bag(), fragments = {__proto__: null};
+    while (p < t.n) {
+      const tok = peek(), kw = nameOf(tok);
+      if (isP(tok, '{')) { roots(bag(), bag()); continue; }  // a query's shorthand
+      next();
+      if (kw === 'query' || kw === 'mutation' || kw === 'subscription') {
+        const name = nameOf(peek());
+        if (name !== null) next();
+        if (isP(peek(), '(')) group('(', ')');
+        directives();
+        const fields = bag(), spreads = bag();
+        roots(fields, spreads);
+        if (kw === 'mutation') put(mutations, {name: name || '', fields, spreads});
+      } else if (kw === 'fragment') {
+        const name = nameOf(next());
+        if (name === null || nameOf(next()) !== 'on' || nameOf(next()) === null) unreadable();
+        directives();
+        const fields = bag(), spreads = bag();
+        roots(fields, spreads);
+        fragments[name] = {fields, spreads};
+      } else {
+        unreadable();
+      }
+    }
+    const seen = {__proto__: null};
+    const reaches = (fields, spreads) => {
+      for (let i = 0; i < fields.n; i++) if (test(SUBMIT, fields[i])) return true;
+      for (let i = 0; i < spreads.n; i++) {
+        const name = spreads[i];
+        if (seen[name] === true) continue;
+        seen[name] = true;
+        const f = fragments[name];
+        if (f === undefined) unreadable();
+        if (reaches(f.fields, f.spreads)) return true;
+      }
+      return false;
+    };
+    for (let i = 0; i < mutations.n; i++) {
+      const m = mutations[i];
+      if (test(SUBMIT, m.name) || reaches(m.fields, m.spreads)) return true;
+    }
+    return false;
+  };
+  // One operation of a JSON body: its query text and its name, or unreadable.
+  const jsonOp = (v, ops) => {
+    if (v.k !== 'o') unreadable();
+    const q = own(v.o, 'query') ? v.o.query : null, name = own(v.o, 'operationName') ? v.o.operationName : null;
+    if (q === null || q.k !== 's' || (name !== null && name.k !== 's' && name.k !== 'null')) unreadable();
+    put(ops, {query: q.v, name: name !== null && name.k === 's' ? name.v : ''});
+  };
+  const jsonOps = (s, ops) => {
+    const v = readJSON(s);
+    if (v.k !== 'a') return jsonOp(v, ops);
+    if (v.b.n === 0) unreadable();
+    for (let i = 0; i < v.b.n; i++) jsonOp(v.b[i], ops);
+  };
+  // A form's or a multipart body's fields: operations (JSON, the multipart spec's), query and operationName.
+  const fieldOps = (fields, ops) => {
+    let names = '', found = false;
+    for (let i = 0; i < fields.n; i++) {
+      const f = fields[i];
+      if (f.name !== 'operations' && f.name !== 'query' && f.name !== 'operationName') continue;
+      if (typeof f.value !== 'string') unreadable();  // a file the guard can't read at once
+      found = true;
+      if (f.name === 'operations') jsonOps(f.value, ops);
+      else if (f.name === 'query') put(ops, {query: f.value, name: ''});
+      else names += ' ' + f.value;
+    }
+    if (!found) unreadable();
+    put(ops, {query: '', name: names});  // every name the form gives, judged once
+  };
+  const USP = URLSearchParams, uspEntries = fn(USP.prototype, 'entries');
+  const uspNext = (() => { try { return fn(Object.getPrototypeOf(uspEntries(new USP(''))), 'next'); } catch (e) { return null; } })();
+  const formFields = (s) => {
+    const out = bag(), it = uspEntries(new USP(s));
+    for (let r = uspNext(it); !r.done; r = uspNext(it)) put(out, {name: r.value[0], value: r.value[1]});
+    return out;
+  };
+  const MP_NAME = /;\s*name="([^"]*)"/i;
+  const multipartFields = (s) => {
+    const eol = indexOf(s, '\r\n');
+    if (eol < 3) unreadable();
+    const boundary = '\r\n' + slice(s, 0, eol), out = bag();
+    for (let at = eol + 2; ; ) {
+      const head = indexOf(s, '\r\n\r\n', at);
+      if (head < 0) unreadable();
+      const end = indexOf(s, boundary, head + 4);
+      if (end < 0) unreadable();
+      const name = match(MP_NAME, slice(s, at, head));
+      put(out, {name: name === null ? '' : name[1], value: slice(s, head + 4, end)});
+      at = end + boundary.length;
+      if (slice(s, at, at + 2) === '--') return out;
+      if (slice(s, at, at + 2) !== '\r\n') unreadable();
+      at += 2;
+    }
+  };
+  const isFormData = (b) => { try { fdHas(b, ''); return true; } catch (e) { return false; } };
+  const formDataFields = (b) => {
+    const out = bag(), it = fdEntries(b);
+    for (let r = fdNext(it); !r.done; r = fdNext(it)) put(out, {name: r.value[0], value: r.value[1]});
+    return out;
+  };
+  // A body (text, or a FormData) to Ashby: 'submit', 'unreadable', or '' (a request that sends no application).
+  const ashbyBody = (b) => {
+    try {
+      const ops = bag();
+      if (typeof b !== 'string') fieldOps(formDataFields(b), ops);
+      else {
+        const s = trim(b);
+        if (startsWith(s, '{') || startsWith(s, '[')) jsonOps(s, ops);
+        else if (startsWith(b, '--')) fieldOps(multipartFields(b), ops);
+        else fieldOps(formFields(b), ops);
+      }
+      for (let i = 0; i < ops.n; i++) if (test(SUBMIT, ops[i].name) || gqlSubmits(ops[i].query)) return 'submit';
+      return '';
+    } catch (e) {
+      return 'unreadable';
+    }
+  };
+  // An Ashby request's URL alone: GraphQL in its query string (a GET's) is judged as a form's fields.
+  const searchOf = get(URL_.prototype, 'search');
+  const ashbyURL = (href) => {
+    let q;
+    try { q = slice(searchOf(new URL_(href)), 1); } catch (e) { return false; }
+    return ashbyBody(q) === 'submit';
+  };
+  // A non-GET to Ashby: a body that sends its submit, or one to its GraphQL the guard can't read. `body` undefined is
+  // a request that carries none the guard was given (a form's post, a ping): to Ashby's GraphQL, never one of its own.
+  const ashbyFinal = (href, body) => {
+    if (!test(ASHBY, href) || body === null) return false;
+    if (body === undefined) return test(ASHBY_GQL, href);
+    const said = ashbyBody(body);
+    return said === 'submit' || (said === 'unreadable' && test(ASHBY_GQL, href));
+  };
   const SENDS = /\b(submit|send|finish|complete)\b/i;
   const APPLY = /\bapply\b/i;
   const READS = /^(GET|HEAD|OPTIONS)$/i;
@@ -488,13 +793,13 @@ _TEMPLATE = r"""
 @NOTE@
   const isFinal = (method, url, body) => {
     if (lifted()) return false;
-    if (test(READS, text(method) || 'GET')) return false;
     const href = resolve(text(url), base()) || text(url);
+    if (test(READS, text(method) || 'GET')) return test(ASHBY_GQL, href) && ashbyURL(href);
     // The Posting's Apply went through: nothing else is posted to its own site from the page (KAN-725), its
     // other hosts included (an API on another subdomain).
     if (starting !== null) { try { if (site(hostGet(new URL_(href))) === site(location.hostname)) return true; } catch (e) { return true; } }
     if (any(NOT_FINAL, (r) => test(r, href))) return false;
-    return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body));
+    return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body)) || ashbyFinal(href, body);
   };
 
   // A button's words as a person reads them (KAN-710): its text, its value, its labels, its title, an image's alt, or
@@ -741,9 +1046,89 @@ _TEMPLATE = r"""
   const BUTTONS = 'button, input[type=submit], input[type=image], input[type=button], [role=button]';
   const formSends = (form) => any(all(form, BUTTONS), (n) => buttonSends(n)) || any(fields(form), (n) => buttonSends(n));
   const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image|button)$/i, typeOf(n)) || attr(n, 'role') === 'button') && sends(n);
-  const posts = (form, submitter) => {
-    const method = (isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get';
-    return lower(method) === 'post';
+  const methodOf = (form, submitter) =>
+    lower((isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get');
+  const posts = (form, submitter) => methodOf(form, submitter) === 'post';
+  // A form whose submit only its own handlers can send by (GET, an unknown method, or a dialog's: a dialog's submit
+  // event runs the page's handlers all the same, round 2 of KAN-868's review).
+  const gets = (form, submitter) => !posts(form, submitter);
+  // A sign-in or account step (iCIMS's email step, KAN-703): its only boxes are an email or user name, passwords,
+  // ticks and hidden ones, and the page shows no other answer box, in or out of the form (a textarea or file box
+  // anywhere, or a shown box another form doesn't hold: round 2 of KAN-868's review put the answers outside the
+  // form, or moved them out as the Next was pressed). Its GET submit goes on as before (KAN-868).
+  const LOGIN_BOX = /e-?mail|user|login|account/i;
+  const iframeDoc = get(HTMLIFrameElement.prototype, 'contentDocument'), frameDoc = get(HTMLFrameElement.prototype, 'contentDocument');
+  const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
+  // A form with a password box that plain code's sign-in posts: a POST form, as ever, or one that doesn't POST only
+  // under Apply's own sign-in press and as a sign-in step (round 5 of KAN-868's review: an application that makes an
+  // account as it applies, a GET form with a password box, went through every path's account click).
+  const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
+  const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
+  // A bot trap beside a sign-in form (Workday's "beecatcher", a 1-pixel "website" box on every tenant, KAN-886): an
+  // empty text box no person sees that says it is one ("This input is for robots only"). It holds no answer, so it
+  // doesn't make the page an application's. A box with a value, now or in its markup, one a person sees, or one that
+  // doesn't say it is a trap (a dropdown's see-through typing box beside its hidden answer) still does.
+  const TRAP = /robot|\bbots?\b|human|honey ?pot|beecatcher|leave (?:this |it )?(?:blank|empty)/i;
+  const labelsOf = get(HTMLInputElement.prototype, 'labels');
+  const trapSays = (n) => {
+    let said = text(attr(n, 'data-automation-id')) + ' ' + text(attr(n, 'aria-label'));
+    const found = labelsOf(n), labels = found ? nodes(found) : [];
+    for (let i = 0; i < labels.length; i++) { try { said += ' ' + text(textOf(labels[i])); } catch (e) { /* says nothing */ } }
+    return test(TRAP, said);
+  };
+  const trap = (n) => tag(n) === 'INPUT' && test(/^(text|email|url|tel|search)$/, lower(typeOf(n))) && valueOf(n) === ''
+    && text(attr(n, 'value')) === '' && !visibly(n) && trapSays(n);
+  // A shut pop-up's empty long-answer box: Oracle's AI Assist "Work Summary" dialog, hidden on every Candidate
+  // Experience page beside its email step (Honeywell's, live). No person sees it or the pop-up around it, and it holds
+  // no text, now or in its markup, so it holds no answer. One a person sees, one with text, or one in no pop-up counts.
+  const areaValueGet = getter(HTMLTextAreaElement, 'value');
+  const shutBox = (n) => {
+    if (tag(n) !== 'TEXTAREA' || trim(text(read([areaValueGet], n, '?'))) !== '' || trim(text(textOf(n))) !== ''
+      || visibly(n)) return false;
+    const pop = up(n, '[role=dialog], dialog, [aria-modal=true]');
+    return !!pop && !visibly(pop);
+  };
+  const loginForm = (form) => {
+    const all_ = fields(form);
+    let named = false;
+    for (let i = 0; i < all_.length; i++) {
+      const n = all_[i], kind = lower(typeOf(n));
+      if (test(/^(hidden|password|checkbox|submit|button|reset|image)$/, kind) || tag(n) === 'FIELDSET' || tag(n) === 'BUTTON') continue;
+      if (trap(n)) continue;  // a bot trap in the form itself (Oracle's honeypot box beside its email)
+      if (tag(n) !== 'INPUT' || !test(/^(email|text)$/, kind)) return false;
+      if (kind !== 'email' && !test(LOGIN_BOX, text(attr(n, 'name')) + ' ' + text(attr(n, 'id')) + ' ' + text(attr(n, 'autocomplete'))
+        + ' ' + text(attr(n, 'aria-label')))) return false;
+      if (named) return false;  // one such box: a second is a field of something else
+      named = true;
+    }
+    if (!named) return false;
+    if (any(all(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]'), (n) => !shutBox(n))) return false;
+    const boxes = all(D, 'input, select');
+    for (let i = 0; i < boxes.length; i++) {
+      const n = boxes[i];
+      if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
+      if (formOf(n) === form || trap(n)) continue;
+      return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
+    }
+    // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
+    // can't be read: the residual of this exemption, with answers a script holds.
+    const BOX = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]';
+    // Every root the guard has heard, closed ones too, and each frame of the page's own origin (round 4).
+    for (let i = 0; i < knownRoots.length; i++) { try { if (qs(knownRoots[i], BOX)) return false; } catch (e) { return false; } }
+    const frames = all(D, 'iframe, frame');
+    for (let i = 0; i < frames.length; i++) {
+      let doc = null;
+      try { doc = frameDocOf(frames[i]); } catch (e) { continue; }  // another site's frame: null, its own document
+      try { if (doc && docQs(doc, BOX)) return false; } catch (e) { return false; }
+    }
+    const hosts = all(D, '*');
+    for (let i = 0; i < hosts.length; i++) {
+      let root = null;
+      try { root = apply(openRootOf.get, hosts[i], []); } catch (e) {}
+      if (root && qs(root, 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]')) return false;
+    }
+    return true;
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -858,7 +1243,7 @@ _TEMPLATE = r"""
       const href = text(postTarget(form, by));
       const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
       const words = isEl(by) ? slice(trim(innerText(by) || valueOf(by) || text(attr(by, 'aria-label'))), 0, 40) : '';
-      return 'a form submission (POST ' + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
+      return 'a form submission (' + (posts(form, by) ? 'POST ' : 'GET ') + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
         + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
     } catch (e) {
       return 'a form submission';
@@ -892,28 +1277,106 @@ _TEMPLATE = r"""
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     const apply_ = fromPress(form, by);
-    if (apply_ && password(form) && !postsFinal(form, by)) return;
+    if (apply_ && password(form) && !postsFinal(form, by) && passwordStep(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by) : formSends(form);
     // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
     // that has a Submit, goes on only by his own press of it, never by a script's requestSubmit() (KAN-710).
     if (held() && !final && (!by || !formSends(form) || (!!press && contains(by, press.target)))) return;
-    if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
-    if (final || (posts(form, by) && !step)) {
+    // A GET form's submit reaches none of the page's handlers, whatever pressed it (KAN-868). Its own submit handler
+    // is how it sends (a React form's onSubmit posts the application by fetch, to any URL), so it can't be told from
+    // a step by where it goes, and the review of KAN-868 sent it past every test of the form's buttons: a Submit the
+    // press renamed or took away, one outside the form, a <div> of no role, words only in CSS. Only a POST form was
+    // judged, and the adversarial review of KAN-861 sent the application this way past both guards. So a wizard
+    // whose Next submits a GET form is a step no code presses: a Handoff, and the student's press on the held page.
+    // A sign-in step goes on only under plain code's own sign-in press (apply.account_pages, `signIn`), never a Next's
+    // account click: a page alone can't be told from an app dressed as one (round 3 of the review: answers kept in
+    // script, and plain code's Next arms the account click too).
+    const scripted = gets(form, by) && !(apply_ && S.signIn === true && loginForm(form));
+    if (final || scripted) stopNow(event);
+    if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
       note(formNamed(form, by));
     }
   });
   on('submit', judgeSubmit);
+  // A press that would submit a form that doesn't POST is cancelled at the window, before the press reaches the page
+  // (round 4 of KAN-868's review): a listener of the page's own on a shadow root, added before the guard heard that
+  // root (by a script inside it), heard the submit first, so the submit event can't be the only place it is stopped.
+  // A sign-in step under plain code's own sign-in press goes on, as at the submit; a held page's own press too.
+  const wouldSubmit = (event) => {
+    const path = composedPath(event);
+    const at = path.length ? path[0] : targetGet(event);
+    const button = up(at, 'button, input');
+    if (!button || !submitButton(button)) return null;
+    const form = formOf(button);
+    return form && !posts(form, button) ? {form, button} : null;
+  };
+  // What the submit judge lets go on, judged as the press comes: the Posting's Apply (KAN-725), plain code's sign-in
+  // with a password, a profile step's own click (KAN-647), and a sign-in step under plain code's sign-in press.
+  const pressAllowed = (form, button) => (starting !== null && button === starting)
+    || (fromPress(form, button) && password(form) && !postsFinal(form, button) && passwordStep(form, button))
+    || (profileClick() && profileStep(button))
+    || (fromPress(form, button) && S.signIn === true && loginForm(form));
+  on('click', judged((event) => {
+    if (lifted() || held()) return;
+    const found = wouldSubmit(event);
+    if (!found) return;
+    if (pressAllowed(found.form, found.button)) return;
+    prevent(event);
+    note(formNamed(found.form, found.button));
+  }));
   // A form in a shadow root: its submit event stays in the root (it isn't composed), so the guard hears it at each
   // root a script makes, and at each one a press passes through (one the page wrote, KAN-710). Such a form is never a
   // step's, a relay or an upload's: the guard can't be sure what of it the window misses. Its post is judged as it
   // leaves (the navigate check) all the same.
   const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
-  const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  const hearRoot = (root) => {
+    if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); push(knownRoots, root); listen(root, 'submit', judgeSubmit, true); }
+  };
+  // A root the page wrote (a declarative shadow root) that no press passes through: heard as a script submits a form
+  // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
+  // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
+  const hearRootOf = (node) => { try { const root = rootOf(node); if (isRoot(root)) hearRoot(root); } catch (e) {} };
+  // A listener the page adds for submit, anywhere: the guard hears that node's root first, so its own listener there
+  // comes before the page's whatever way the page reached the root (round 5 of KAN-868's review: code inside a
+  // declarative root walked parentNode up to it, past every wrapped getter).
+  const pageListen = EventTarget.prototype.addEventListener;
+  defineProp(EventTarget.prototype, 'addEventListener', {value: function addEventListener(...args) {
+    try { if (lower(Str(args[0])) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
+    return apply(pageListen, this, args);
+  }, writable: true, configurable: true});
+  const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+  if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
+    hearRootOf(this);
+    // A script's submit of a form that doesn't POST, while guarded: refused before any listener hears it (round 4),
+    // but a sign-in step's under plain code's own sign-in press.
+    try {
+      if (isForm(this) && !lifted() && !held() && !posts(this, args[0])
+          && !pressAllowed(this, args[0] || null)) {
+        return note(formNamed(this, args[0] || null));
+      }
+    } catch (e) { return note('what the guard could not read (a form a script submitted)'); }
+    return apply(pageRequestSubmit, this, args);
+  }, writable: true, configurable: true});
+  // A closed root the page wrote is reached only through its element's internals; a press there by script is its
+  // click(): both hear the root first (round 2 of KAN-868's review: a Next outside it clicked its Submit).
+  const pageClick = HTMLElement.prototype.click;
+  defineProp(HTMLElement.prototype, 'click', {value: function click(...args) {
+    hearRootOf(this);
+    return apply(pageClick, this, args);
+  }, writable: true, configurable: true});
+  const closedRootOf = typeof ElementInternals === 'function' && gopd(ElementInternals.prototype, 'shadowRoot');
+  if (closedRootOf && closedRootOf.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...closedRootOf,
+    get() { const root = apply(closedRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(...args) {
+    hearRootOf(this);
+    return apply(pageDispatch, this, args);
+  }, writable: true, configurable: true});
   const attachShadowOf = EP.attachShadow;
   EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
   const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
@@ -921,6 +1384,24 @@ _TEMPLATE = r"""
   for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
     try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
   });
+  // A root the page wrote is heard as soon as a script reaches it, before it can add a listener of its own there: by
+  // an element's shadowRoot, getRootNode() or an event's composedPath() (round 3 of KAN-868's review: the page's
+  // listener on a declarative root, added first, heard the submit before the guard's).
+  const openRootOf = gopd(EP, 'shadowRoot');
+  if (openRootOf && openRootOf.get) defineProp(EP, 'shadowRoot', {...openRootOf,
+    get() { const root = apply(openRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageRootNode = NP.getRootNode;
+  defineProp(NP, 'getRootNode', {value: function getRootNode(...args) {
+    const root = apply(pageRootNode, this, args);
+    try { if (isRoot(root)) hearRoot(root); } catch (e) {}
+    return root;
+  }, writable: true, configurable: true});
+  const pagePath = EvP.composedPath;
+  defineProp(EvP, 'composedPath', {value: function composedPath(...args) {
+    const path = apply(pagePath, this, args);
+    try { for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
+    return path;
+  }, writable: true, configurable: true});
   const inShadow = (form) => { try { return rootOf(form) !== ownerDoc(form); } catch (e) { return true; } };
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
@@ -1079,9 +1560,14 @@ _TEMPLATE = r"""
     }
     return Str(b);
   };
-  const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i;
-  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && b !== undefined && b !== null
-    && bodyText(b) === null && test(ASHBY, resolve(text(url), base()) || '');
+  // What the guard judges of a body sent as it is: its text, a FormData, undefined for none, or null for one it can't
+  // read at once (a Blob, a document), which to Ashby is blocked (unread).
+  const readable = (b) => {
+    if (b === undefined || b === null) return undefined;
+    const t = bodyText(b);
+    return t !== null ? t : isFormData(b) ? b : null;
+  };
+  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && readable(b) === null && test(ASHBY, resolve(text(url), base()) || '');
   // What each XHR opened, kept where its page can't change it: only once the browser's open() took it, so an open()
   // that throws (a forbidden method, a bad URL) leaves the request and what is kept of it as they were (KAN-783).
   const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');
@@ -1104,7 +1590,7 @@ _TEMPLATE = r"""
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
     const method = kept ? kept[0] : '', url = kept ? kept[1] : '', sent = once(body, true);
-    if (isFinal(method, url, bodyText(sent)) || unread(method, url, sent)) {
+    if (isFinal(method, url, readable(sent)) || unread(method, url, sent)) {
       note(named(method, url));
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
@@ -1115,10 +1601,180 @@ _TEMPLATE = r"""
   if (beacon) {
     Navigator.prototype.sendBeacon = function (url, data) {
       const u = Str(url), sent = once(data, false);  // each read once, and sent as read (KAN-783)
-      if (isFinal('POST', u, bodyText(sent)) || unread('POST', u, sent)) { note(named('POST', u)); return false; }
+      if (isFinal('POST', u, readable(sent)) || unread('POST', u, sent)) { note(named('POST', u)); return false; }
       return apply(beacon, this, arguments.length > 1 ? [u, sent] : [u]);
     };
   }
+
+  // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). A frame that may not take one
+  // (another site's: an ad, a widget, a hostile page's trap, any frame under one, or a pop-up a frame opened) is
+  // closed to Claude and to page tricks alike while the guard is on (PR 556's reviews):
+  // - every click is cancelled at the window before the page hears it: the input behind a closed shadow root's
+  //   label, one in the page's HTML (declarative) too, then opens no picker, and nothing else there is pressed;
+  // - a script's click(), showPicker(), dispatched click, window.open() and form submission are refused, a detached
+  //   element's too: it opens no picker and no pop-up;
+  // - every frame in it is inert, and stays so until the page is handed to Lisul, whatever its attributes say later.
+  // In a frame that may take one, a file input's picker opens as ever, but a frame that runs no script (a sandbox
+  // without allow-scripts) runs no guard, so it is inert there too, and stays so. Each shadow root the page makes or
+  // reaches (attachShadow, ElementInternals.shadowRoot) is watched the same way.
+  // The frame's origin and its ancestors' are read once, as the document starts: they never change. A top frame whose
+  // opener is a frame, not a top frame, is a pop-up a frame opened.
+  const ancestorList = [];
+  { const found = location.ancestorOrigins; for (let i = 0; found && found[i] !== undefined; i++) push(ancestorList, found[i]); }
+  const uploadOrigin = location.protocol === 'about:' ? (ancestorList[0] || 'null') : location.origin;
+  let openedByFrame = false;
+  try { const by = W.opener; openedByFrame = !!by && by.top !== by; } catch (e) { openedByFrame = true; }
+  const frameUploads = !(ancestorList.length === 0 && openedByFrame) && (@UPLOAD_RULE@)(uploadOrigin, ancestorList, @UPLOAD_HOSTS@);
+  // Off only on a page handed to Lisul (lift() with its note): the drive guard's copy on_open puts on a live run's
+  // page starts lifted with no note, and a pop-up's stays so (no DriveGuard arms it), so that is no hand-over.
+  const handedOver = () => lifted() && S.note !== null;
+  const uploadsNow = () => handedOver() || frameUploads;
+  const closed = () => !uploadsNow();  // a frame closed to every press
+  const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
+  const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
+  const labelControl = getter(HTMLLabelElement, 'control');  // composedPath and eventType: the ping section's
+  const picker = (el) => {
+    if (isFile(el)) return true;
+    const label = up(el, 'label');
+    const control = label && labelControl ? read([labelControl], label, null) : null;
+    return !!control && isFile(control);
+  };
+  const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
+  const refusePress = (what) => note(what + " in another site's frame (" + uploadFrom + ')');
+  const pressIn = judged((event) => {
+    if (!closed()) return;
+    const path = composedPath(event), at = path.length ? path[0] : targetGet(event);
+    prevent(event);
+    stopNow(event);
+    if (picker(at)) refusePicker();
+    else if (user(event)) refusePress('a click');
+  });
+  on('click', pressIn);
+  on('submit', judged((event) => { if (closed()) { prevent(event); stopNow(event); refusePress('a form'); } }));
+  const nativeOpen = W.open;
+  if (typeof nativeOpen === 'function') defineProp(W, 'open', {value: function open(...args) {
+    if (closed()) { refusePress('a pop-up'); return null; }
+    return apply(nativeOpen, this, args);
+  }, writable: true, configurable: true});
+  const FP = HTMLFormElement.prototype;
+  for (const name of ['submit', 'requestSubmit']) {
+    const native = FP[name];
+    if (typeof native === 'function') defineProp(FP, name, {value: function (...args) {
+      if (closed()) { refusePress('a form'); return undefined; }
+      return apply(native, this, args);
+    }, writable: true, configurable: true});
+  }
+  // Every frame of a closed frame, and a frame that runs no script anywhere, is inert while the guard is on; once
+  // fenced, it stays so until the hand-over (a sandbox flipped to allow-scripts runs no script until it navigates).
+  const ALLOW_SCRIPTS = /(^|\s)allow-scripts(\s|$)/i, FRAMES = 'iframe, frame, object, embed, fencedframe';
+  const MO = MutationObserver, observe = fn(MO.prototype, 'observe');
+  const fenced = [];
+  const isFenced = (f) => any(fenced, (x) => x === f);
+  const scriptless = (f) => tag(f) === 'IFRAME' && hasAttr(f, 'sandbox') && !test(ALLOW_SCRIPTS, text(attr(f, 'sandbox')));
+  const fence = (f) => {
+    if (handedOver() || !isEl(f) || !matches(f, FRAMES)) return;
+    if (!isFenced(f) && !closed() && !scriptless(f)) return;
+    if (!isFenced(f)) push(fenced, f);
+    if (!hasAttr(f, 'inert')) setAttr(f, 'inert', '');
+  };
+  const fenceIn = (scope) => { const found = all(scope, FRAMES); for (let i = 0; i < found.length; i++) fence(found[i]); };
+  const fencer = new MO((records) => {
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i];
+      fence(r.target);
+      const added = r.addedNodes;
+      for (let j = 0; added && j < nlLen(added); j++) {
+        const n = nlItem(added, j);
+        if (!isEl(n)) continue;
+        fence(n);
+        fenceIn(n);
+      }
+    }
+  });
+  const fenceWatch = (root) => observe(fencer, root, {childList: true, subtree: true, attributes: true, attributeFilter: ['sandbox', 'inert']});
+  fenceWatch(D);
+  const watched = [];
+  const watchRoot = (root) => {
+    if (!root || any(watched, (x) => x === root)) return;
+    push(watched, root);
+    listen(root, 'click', pressIn, true);
+    try { fenceWatch(root); fenceIn(root); } catch (e) {}
+  };
+  onControl[onControl.length] = () => {
+    if (!handedOver()) { fenceIn(D); for (let i = 0; i < watched.length; i++) { try { fenceIn(watched[i]); } catch (e) {} } return; }
+    for (let i = 0; i < fenced.length; i++) { try { removeAttr(fenced[i], 'inert'); } catch (e) {} }
+    fenced.length = 0;
+  };
+  const nativeAttach = EP.attachShadow;
+  if (typeof nativeAttach === 'function') defineProp(EP, 'attachShadow', {value: function attachShadow(...args) {
+    const root = apply(nativeAttach, this, args);
+    watchRoot(root);
+    return root;
+  }, writable: true, configurable: true});
+  const internalsRoot = W.ElementInternals ? gopd(ElementInternals.prototype, 'shadowRoot') : null;
+  if (internalsRoot && internalsRoot.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...internalsRoot, get() {
+    const root = apply(internalsRoot.get, this, []);
+    watchRoot(root);
+    return root;
+  }});
+  const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
+  const nativeDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(HP, 'click', {value: function click() {
+    if (closed()) { if (isFile(this)) refusePicker(); return undefined; }
+    return apply(nativeClick, this, []);
+  }, writable: true, configurable: true});
+  if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
+    if (closed() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
+    return apply(nativePicker, this, []);
+  }, writable: true, configurable: true});
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(event) {
+    let type = '';
+    try { type = eventType(event); } catch (e) {}
+    if (type === 'click' && isEl(this) && closed()) { if (picker(this)) refusePicker(); return false; }
+    return apply(nativeDispatch, this, [event]);
+  }, writable: true, configurable: true});
+
+  // Workers (KAN-791): a worker runs none of this script, so its fetch, XHR and beacon go unjudged. While the guard is
+  // on, the page makes none: a dedicated or shared worker (from any URL, blob: and data: too), a service worker's
+  // registration and a worklet's module are refused, by every name the page could reach the browser's own by (its
+  // prototype's constructor too). A dedicated worker made while the page was lifted ends as the guard comes back on.
+  // Below this, a CDP Worker closes the shared and service workers as the guard goes on (submit_guard.guard, rearm),
+  // and a plain Worker's rules block the final URLs from every worker, and Ashby's GraphQL from a shared or service one.
+  const construct = Reflect.construct;
+  const refusedWorker = (what) => { note('a ' + what + ' while the page is guarded'); return new DOMExc('Blocked by the @NAME@', 'SecurityError'); };
+  const madeLifted = bag(), terminate = W.Worker ? fn(Worker.prototype, 'terminate') : null;
+  const wrapWorker = (name, what) => {
+    const Native = W[name];
+    if (typeof Native !== 'function') return;
+    const proto = Native.prototype;
+    const Guarded = function (...args) {
+      if (new.target === undefined) throw new TypeErr("Failed to construct '" + name + "': Please use the 'new' operator.");
+      if (!lifted()) throw refusedWorker(what);
+      const made = construct(Native, args, new.target === Guarded ? Native : new.target);
+      if (name === 'Worker') put(madeLifted, made);  // ended when the guard comes back on
+      return made;
+    };
+    defineProp(Guarded, 'prototype', {value: proto});
+    defineProp(proto, 'constructor', {value: Guarded, writable: true, configurable: true});
+    defineProp(W, name, {value: Guarded, writable: true, configurable: true});
+  };
+  wrapWorker('Worker', 'worker');
+  wrapWorker('SharedWorker', 'shared worker');
+  const refuseCall = (owner, name, what) => {
+    const native = owner && owner.prototype[name];
+    if (typeof native !== 'function') return;
+    defineProp(owner.prototype, name, {value: function (...args) {
+      if (!lifted()) return reject(refusedWorker(what));
+      return apply(native, this, args);
+    }, writable: true, configurable: true});
+  };
+  refuseCall(W.ServiceWorkerContainer, 'register', 'service worker');
+  refuseCall(W.Worklet, 'addModule', 'worklet');
+  onControl[onControl.length] = () => {
+    if (lifted()) return;
+    for (let i = 0; i < madeLifted.n; i++) { try { terminate(madeLifted[i]); } catch (e) {} }
+    madeLifted.n = 0;
+  };
 })();
 """
 
@@ -1258,6 +1914,17 @@ ASK_ELEMENT = "(() => {" + NATIVES + "  return (" + send_click.ELEMENT_BODY + ")
 # there is refused before the captcha's own code hears it, so Claude never ticks, types in or solves one.
 # Lisul's own clicks go through once Claude stops (DriveGuard.rest), for the captcha wait.
 CAPTCHA_TRY = "a click or key in a captcha"
+# The page's own worker, refused while the page is guarded (KAN-791, the guard script's `refusedWorker`): the
+# page's code made it, not a model's click, and the refusal sent nothing. So a drive goes on past it, and the
+# worker stays refused. As a Handoff it stopped every SmartRecruiters form (live, 2026-11-13: "Apply blocked a
+# worker while the page is guarded while Claude filled the form"), whose page makes one as it opens.
+PAGE_WORKER = re.compile(r"^a (?:worker|shared worker|service worker|worklet) while the page is guarded$")
+
+
+def drive_blocks(blocked: list[str]) -> list[str]:
+    """What in `blocked` (DriveGuard.blocked) stops a model's drive: all but a click or key it tried in a
+    captcha (refused there, untouched) and a worker the page itself made (refused, PAGE_WORKER)."""
+    return [b for b in blocked if b != CAPTCHA_TRY and not PAGE_WORKER.match(b)]
 _IN_CAPTCHA = r"""
     const eventType = get(EvP, 'type');
     const refuse = (event) => {
@@ -1289,10 +1956,15 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@TELL@": "" if key != REHEARSAL else TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
                                "@EXTRA@": extra, "@CAPTCHA@": in_captcha, "@HELD@": held,
                                "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
-                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
+                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS),
+                               "@CAPTCHA_PATH_HOSTS@": json.dumps(captcha.PATH_HOSTS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
-                               "@AT_OPEN@": _js(at_open)}.items():
+                               "@AT_OPEN@": _js(at_open), "@UPLOAD_RULE@": upload_origin.RULE_JS,
+                               "@UPLOAD_HOSTS@": json.dumps(upload_origin.JOB_SYSTEM_HOSTS),
+                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED),
+                               "@BLOCKED_CSS@": json.dumps(BLOCKED_CARD[0]), "@BLOCKED_WORDS@": json.dumps(BLOCKED_CARD[1]),
+                               "@CARD@": json.dumps(CARD), "@CORNER@": json.dumps(CORNER), "@TONES@": json.dumps(TONES)}.items():
         script = script.replace(placeholder, value)
     return script
 
@@ -1337,45 +2009,82 @@ PORT_TOUCH = ("\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; co
 PORT_SAID = "\n      dispatch(D, new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 NO_NOTE = "  const showNote = () => {};"
+# How Apply's notes on a job site's page look: a WorkIt card (the Apply window's colors and face, theme.css), styled
+# from `all:initial` so the site's own CSS changes nothing in it. It lets clicks through to the page under it but for
+# its buttons, so it never stands between the student and a field. Its tone is a colored edge and its data-tone.
+CARD = ("all:initial;box-sizing:border-box;display:block;width:340px;max-width:calc(100vw - 32px);padding:12px 36px 12px 14px;"
+        "background:#fff;color:#121a28;font:14px/20px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;"
+        "border:1px solid #e8e8e8;border-radius:10px;box-shadow:0 2px 4px rgba(18,26,40,.04),0 10px 24px rgba(18,26,40,.12);"
+        "pointer-events:none;text-align:left;white-space:pre-line;")
+# Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+CORNER = "position:fixed;bottom:16px;right:16px;z-index:1999999999;"
+TONES = {"fix": "#c02a3d", "check": "#f2a516", "done": "#6d3fd8"}  # WorkIt's danger, warning and brand
+# The card the guard shows when it blocked a send the student or Apply's own press caused: what it blocked goes to
+# the console (`warn`) and Apply's logs, never the card.
+BLOCKED_CARD = (CARD + CORNER + "border-left:4px solid " + TONES["fix"] + ";", "WorkIt blocked this step, so nothing was sent.")
 # Lisul's note on a lifted page (lift): what Apply found wrong, its Fill again, a held Submit's Dismiss and a × that
 # hides it; and on a held page of a Posting he applied to already (KAN-621) the red "You already applied" note,
-# whose second press of Dismiss tells Apply. Only his own press of a button counts.
+# whose second press of Dismiss tells Apply. Only his own press of a button counts. Its words are the student's:
+# Apply's detail stays in its logs (rehearsal.Rehearsed.line).
 NOTE = r"""
   const onBody = (f) => { if (document.body) f(); else document.addEventListener('DOMContentLoaded', f); };
+  const FONT = "font:500 13px/18px 'Inter Variable',Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;";
+  const PRIMARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#6d3fd8;color:#fff;border:1px solid #6d3fd8';
+  const SECONDARY = 'all:initial;' + FONT + 'pointer-events:auto;cursor:pointer;margin:10px 8px 0 0;padding:6px 12px;'
+    + 'border-radius:8px;background:#fff;color:#121a28;border:1px solid #d9d9d9';
+  const CLOSE = 'all:initial;position:absolute;top:6px;right:8px;pointer-events:auto;cursor:pointer;padding:2px 6px;'
+    + 'font:18px/20px system-ui,sans-serif;color:#8893a4';
+  const span = (words, css) => { const s = document.createElement('span'); s.textContent = words; s.style.cssText = 'all:initial;display:block;' + css; return s; };
   const button = (words, act, css) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = words;
-    b.style.cssText = css || 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+    b.style.cssText = css || SECONDARY;
     b.addEventListener('click', (event) => {
       event.stopPropagation();
       if (user(event)) act(b);
     });
     return b;
   };
+  // The card's head: WorkIt's name in its purple, then what the note asks in a line.
+  const head = (title) => {
+    const h = document.createElement('div');
+    h.style.cssText = 'all:initial;display:block';
+    h.appendChild(span('WorkIt', "display:inline;font:700 12px/16px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#6d3fd8"));
+    h.appendChild(document.createTextNode(' '));
+    h.appendChild(span(title, "display:inline;font:600 14px/20px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#121a28"));
+    return h;
+  };
+  const body = (words) => span(words, "margin-top:4px;font:400 13px/18px 'Inter Variable',Inter,-apple-system,system-ui,sans-serif;color:#3b3e46;white-space:pre-line");
   const showNote = () => onBody(() => {
     const n = S.note;
     if (!S.lifted || !n) return;
     const warning = String(n.warning || ''), wrong = n.wrong !== false, holding = String(n.held || '');
     const box = document.getElementById('@BOX@') || document.createElement('div');
     box.id = '@BOX@';
-    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (holding || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20')
-      + ';color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
-    box.textContent = holding
-      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + holding
-      : warning
-      ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
-      : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
-    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold')));  // his say that it is fixed
-    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain')));
-    const close = button('×', () => { box.style.display = 'none'; },  // hides the note on this page only
-      'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;background:none;border:none;color:#fff;padding:0 2px');
+    box.setAttribute('role', 'status');
+    const tone = holding || (warning && wrong) ? 'fix' : warning ? 'check' : 'done';
+    box.setAttribute('data-tone', tone);
+    box.style.cssText = @CARD@ + @CORNER@ + 'border-left:4px solid ' + @TONES@[tone];
+    box.textContent = '';
+    if (holding) {
+      box.appendChild(head('Check this answer before you submit'));
+      box.appendChild(body(holding + '\nFix it on the form, then press Dismiss.'));
+    } else if (warning) {
+      box.appendChild(head(wrong ? 'Please fix this before you submit' : 'Please check before you submit'));
+      box.appendChild(body(warning));
+    } else {
+      box.appendChild(head('Your application is filled in'));
+      box.appendChild(body('Look it over, then press Submit on the form when you are ready.'));
+    }
+    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold'), PRIMARY));  // his say that it is fixed
+    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain'), holding ? SECONDARY : PRIMARY));
+    const close = button('×', () => { box.style.display = 'none'; }, CLOSE);  // hides the note on this page only
     close.setAttribute('aria-label', 'Hide this note');
     box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
-    box.style.display = '';
+    box.style.display = 'block';
   });
   const dropNote = () => onBody(() => { const box = document.getElementById('@BOX@'); if (box) box.remove(); });
   const showApplied = () => {
@@ -1384,12 +2093,11 @@ NOTE = r"""
       const box = document.createElement('div');
       box.id = 'apply-already-applied';
       box.setAttribute('role', 'alert');
-      box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
-        + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
-        + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-      const words = document.createElement('span');
-      words.textContent = 'You already applied on ' + S.applied + ', don’t submit. Apply keeps Submit blocked on this page.';
-      box.appendChild(words);
+      box.setAttribute('data-tone', 'fix');
+      box.style.cssText = @CARD@ + 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+        + 'width:420px;border-left:4px solid ' + @TONES@.fix;
+      box.appendChild(head('You already applied on ' + S.applied));
+      box.appendChild(body('WorkIt keeps Submit blocked on this page, so you don’t apply twice.'));
       let asked = false;
       box.appendChild(button('Dismiss', (b) => {
         if (!asked) {
@@ -1400,7 +2108,7 @@ NOTE = r"""
         S.appliedDismissed = true;
         box.remove();
         tell('__applyDismissApplied');
-      }, 'margin-left:10px;cursor:pointer;font:13px sans-serif'));
+      }, SECONDARY));
       (document.body || document.documentElement).appendChild(box);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
@@ -1494,6 +2202,7 @@ def on_open(page: Page) -> None:
             page.context.route(ROUTED, _refuse)
             page.context.add_init_script(SCRIPT)
             setattr(page.context, GUARDED, True)
+            _end_workers(page)
     setattr(page, GUARDED, True)
 
 
@@ -1510,8 +2219,41 @@ def guard(page: Page) -> None:
         return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(SCRIPT)
+    _end_workers(page)
     # Its document is enough: a page whose last tracker never loads (Scale AI's, Coinbase's, live) would time out.
     page.reload(wait_until="domcontentloaded")
+
+
+def _end_workers(page) -> None:
+    """As the rehearsal's guard goes on a CDP Worker's context (KAN-791): its shared workers closed and its service
+    workers unregistered and stopped. Neither runs the guard script, and Playwright routes no shared worker's request,
+    so one made before the guard (or while Lisul had the page) could post the application after it. The guard script
+    refuses new ones and ends the dedicated workers itself. A plain Worker's rules block what these would send."""
+    session = page.context.new_cdp_session(page)
+    try:
+        for target in session.send("Target.getTargets")["targetInfos"]:
+            if target["type"] == "shared_worker":
+                try:
+                    session.send("Target.closeTarget", {"targetId": target["targetId"]})
+                except Exception:
+                    pass  # it closed on its own meanwhile
+        heard: list[list[dict]] = []
+        session.on("ServiceWorker.workerRegistrationUpdated", lambda event: heard.append(event["registrations"]))
+        session.send("ServiceWorker.enable")
+        for _ in range(200):  # its first event lists every registration (an empty list too); each send hears events
+            if heard:
+                break
+            session.send("Target.getTargets")
+            time.sleep(0.01)
+        if not heard:
+            raise RuntimeError("the service workers never listed: the guard can't tell none is left")
+        for registration in heard[0]:
+            if not registration.get("isDeleted"):
+                session.send("ServiceWorker.unregister", {"scopeURL": registration["scopeURL"]})
+        session.send("ServiceWorker.stopAllWorkers")
+        session.send("ServiceWorker.disable")
+    finally:
+        session.detach()
 
 
 def _drive_at_open(page) -> None:
@@ -1670,8 +2412,9 @@ def _tells(page) -> dict:
 
 def let_account_click(page, let: bool = True) -> None:
     """Let Apply's own next click on an account form's button through both guards (Workday's "Submit" in its Sign
-    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back."""
-    control(page, {"account": let})
+    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back. It is a sign-in's press
+    (`signIn`, KAN-868), so a sign-in step's form that doesn't POST goes on too."""
+    control(page, {"account": let, "signIn": let})
 
 
 @contextmanager
@@ -1693,7 +2436,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
     or verification code step's (the script's signInStep: it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread, and only for his own press (the guard tells
-    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber when
+    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber (WorkIt's warning) when
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so what hears his presses is there already, and
     its note keeps the Fill again button. A `held` reason (a legal answer the
@@ -1726,6 +2469,7 @@ def rearm(page: Page) -> None:
     page.context.route(ROUTED, _refuse)
     _init(page, {"lift": None})
     control(page, {"lift": None})
+    _end_workers(page)
 
 
 def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") -> None:
@@ -1855,18 +2599,19 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self, element=None) -> bool:
+    def let_account_click(self, element=None, sign_in: bool = False) -> bool:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
         that sends the form, a form that has one, and the application request
         are blocked still. Given the `element` it presses, only in that
         element's frame and only for a press on it (KAN-710): a frame inside
         it, or another form a script posts meanwhile, is blocked still. False when
-        the element holds a frame, where the press could land: it must not be pressed."""
+        the element holds a frame, where the press could land: it must not be pressed. `sign_in`: the press is
+        a sign-in step's own (apply.account_pages), whose GET form may go on when it is one (KAN-868)."""
         if element is None:
-            control(self._page, {"account": True})
+            control(self._page, {"account": True, "signIn": sign_in})
             return True
-        return control(self._page, {"account": "element"}, element=element) != "frame"
+        return control(self._page, {"account": "element", "signIn": sign_in}, element=element) != "frame"
 
     def may_press(self, element) -> bool:
         """Whether plain code may press `element`: False when it holds a frame (KAN-710), where the press could land
@@ -1890,8 +2635,10 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
-        control(self._page, {"arm": True, "lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
-        control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
+        control(self._page, {"arm": True, "lift": None, "account": False, "profile": False, "upload": False, "start": False,
+                             "signIn": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
+                (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

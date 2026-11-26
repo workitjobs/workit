@@ -60,7 +60,11 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        // The app's own hover grey. No has-aria-expanded fill (2026-11-11): it
+        // greyed a group heading while open (its fold button is expanded) and
+        // left it white folded; a data row's open menu is rowFill's
+        // (components/fill-page.ts).
+        "hover:bg-hover data-[state=selected]:bg-muted border-b transition-colors",
         className,
       )}
       {...props}

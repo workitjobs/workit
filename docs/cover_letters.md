@@ -1,9 +1,9 @@
 # Cover letters in Documents (KAN-766)
 
-Status: **draft for review, 2026-11-10.** Nothing here is built except the
-Cover Letters tab's placeholder ("Cover Letters Are Coming",
-`frontend/src/app/(seeker)/cover-letters/page.tsx`). The team decides the
-open questions at the end before a build step starts.
+Status: **step 1 built, 2026-11-11; steps 2 to 4 a draft for review.**
+The Cover Letters tab lists the letters WorkIt wrote
+(`frontend/src/app/(seeker)/cover-letters/`). The team decides the open
+questions at the end before step 2 starts.
 
 ## What exists today
 
@@ -35,11 +35,19 @@ Each step is one PR and works without the next.
   or else whose label's class, is `cover-letter`, with the job's company,
   title, link and logo, the application's stage, `answered_at`, and whether
   the student wrote it (`own`). Read-only, newest first.
-- The Cover Letters tab lists them as the Resumes tab lists resumes: a card
-  per letter with the company logo, the role, "For <company>", when it was
-  written and the stage (sent once the application is applied). The whole
-  card opens the letter read-only in a dialog with **Copy** and **Open
-  Application**.
+- The Cover Letters tab lists them as the Resumes tab lists resumes. Built
+  (2026-11-11) as the Resumes table, not cards, since that tab became a
+  table on 2026-11-10: Job (the company's logo, the role over the
+  company, the Resumes table's Target Job cell), Status (the Tracker's
+  stage badge; Queued, Needs You and Skipped in grey), Date Written, and
+  Copy, with a search over the job and the text. A click anywhere on a
+  row opens the letter read-only in a dialog with **Copy** and **Open
+  Application** (`/applications/<job_id>`).
+- Built as `written.cover_letters` over `queries.fetch_text_answers`: the
+  type is read per row in Python (`written.question_type`), since neither
+  the plan's type nor the label's class is a column. Ordered by
+  `answered_at`, last saved first. `own` is in the response but the tab
+  does not show it yet. Tests: `backend/tests/test_pasted_answers.py`.
 
 ### Step 2: Upload your own (migration)
 

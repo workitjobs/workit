@@ -200,8 +200,8 @@ export function MatchRail({
           {score === null && (
             <>
               <p className="sr-only">
-                This role has no match score yet. Reasons it fits you will show here once matching
-                is built.
+                This job has no match score yet. Reasons it fits you will show here once matching is
+                built.
               </p>
               {/* Where the reasons will go: a caveat's dot and a bar per row, at
               the rows' own 15px rhythm. */}
@@ -268,6 +268,18 @@ export function MatchRail({
  * job beside the list shows them. It replaced a pill in the card's footer, so
  * the score reads the same way on both cards.
  */
+/** The compact card's score where the card is narrow (KAN-917): the tile's
+ *  ring alone, 48px, with its tier for a screen reader only. Beside the
+ *  88px tile the title had about 64px of a 296px card, and broke inside a
+ *  word ("Business Develop…"). */
+export function MatchScoreRing({ score, className }: { score: number; className?: string }) {
+  return (
+    <div role="img" aria-label={`${score}% match, ${matchTier(score)}`} className={className}>
+      <MatchRing score={score} small />
+    </div>
+  );
+}
+
 export function MatchScoreTile({ score, className }: { score: number; className?: string }) {
   return (
     <div

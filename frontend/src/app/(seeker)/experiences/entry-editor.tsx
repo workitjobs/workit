@@ -1,18 +1,30 @@
 "use client";
 
-import { PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { DotsSixVerticalIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 
 import { MonthField } from "@/components/month-field";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SelectField } from "@/components/ui/select-field";
+import { SuggestField } from "@/components/ui/suggest-field";
 import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-field";
 import type { BankEntry, EndKind, EntrySection } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
+import { suggestDegrees } from "@/lib/degrees";
+import { suggestFields, suggestSchools } from "@/lib/education-actions";
 
-import { holdsTools, savable, sectionOf, splitList, TOOL_COMMA, type EntryDraft } from "./sections";
+import {
+  graduationEnd,
+  holdsTools,
+  savable,
+  sectionOf,
+  splitList,
+  TOOL_COMMA,
+  type EntryDraft,
+} from "./sections";
 
 /**
  * The one entry editor (spec: one screen for forms, intake and import). It
@@ -47,6 +59,12 @@ import { holdsTools, savable, sectionOf, splitList, TOOL_COMMA, type EntryDraft 
  * of it.
  */
 
+/** This month, "yyyy-MM", in the student's own time zone. */
+function thisMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 const END_OPTIONS = [
   { value: "none", label: "No End Date" },
   { value: "month", label: "Ended" },
@@ -75,6 +93,9 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   lines = false,
   framed = false,
   foot,
+  resumeMode = false,
+  resumeSwitches,
+  focusBullet,
 }: {
   initial: EntryDraft<S>;
   onSave: (draft: EntryDraft<S>) => void;
@@ -114,8 +135,37 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   /** A question in the foot's place while it is asked: Delete's or Discard
    *  Your Changes? (`ConfirmBar`), never a dialog over the dialog. */
   foot?: ReactNode;
+  /** The resume editor's form (KAN-586): a saved bullet has a check box, on
+   *  this resume or off, in place of its ×, which deletes from the bank, and
+   *  the bullets' order is that resume's. Every form has the handles
+   *  (KAN-815); on the Experiences page the order is the bank's. */
+  resumeMode?: boolean;
+  /** A school in the resume editor's form (KAN-586): whether that resume
+   *  prints its GPA and its coursework. They were the toolbar's Hide GPA and
+   *  Hide Coursework on an open line until the line kept only its arrows. */
+  resumeSwitches?: {
+    gpa: boolean;
+    coursework: boolean;
+    onChange: (next: { gpa: boolean; coursework: boolean }) => void;
+  };
+  /** The bullet box that takes the cursor as the form opens: the empty row
+   *  a page's + opened (KAN-920). The form's dialog reads it
+   *  (`data-initial-focus`); without it the School field took the cursor,
+   *  and the student had to find the new row to type. */
+  focusBullet?: number;
 }) {
-  const [draft, setDraft] = useState(initial);
+  // AN ENTRY WITH NO BULLETS OPENS ON ONE EMPTY BOX (2026-11-17), ready to
+  // type into as every other field is. A dashed Add Bullet Point alone sat
+  // indented by the handles' column with no handle beside it, and asked for
+  // a click before the student could write. The empty box is never saved
+  // (`savable` drops it) and is not an edit, so it marks nothing changed.
+  const [draft, setDraft] = useState(() =>
+    initial.bullets.length > 0 ? initial : { ...initial, bullets: [{ text: "" }] },
+  );
+  /** The bullet the student just added, which takes the cursor. Only that
+   *  one: the empty first box must not take it from the form's first field
+   *  as the form opens. */
+  const [added, setAdded] = useState<number | null>(null);
   const uid = useId();
   const section = sectionOf(draft.section);
   const set = (changes: Partial<EntryDraft<S>>) => {
@@ -124,6 +174,15 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     onChange?.(next);
   };
   const field = (name: string) => `${uid}-${name}`;
+  // The drag: the bullet dragged, and the gap it would land in
+  const [dragged, setDragged] = useState<number | null>(null);
+  const [gap, setGap] = useState<number | null>(null);
+  function moveBullet(from: number, to: number) {
+    if (to < 0 || to >= draft.bullets.length || from === to) return;
+    const bullets = [...draft.bullets];
+    bullets.splice(to, 0, ...bullets.splice(from, 1));
+    set({ bullets });
+  }
 
   /** A new bullet box at the end, or back to the last one while it is empty. */
   function addBullet() {
@@ -131,6 +190,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     if (last >= 0 && draft.bullets[last].text.trim() === "") {
       document.getElementById(field(`bullet-${last}`))?.focus();
     } else {
+      setAdded(draft.bullets.length);
       set({ bullets: [...draft.bullets, { text: "" }] });
     }
   }
@@ -143,22 +203,32 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   const education = draft.section === "education";
   // A custom section's entries print no location (as a project's)
   const custom = draft.section === "custom";
+  // A project's heading prints its name, its context, link, dates and tools
+  // (resume_render/fields.py), never a place, so a project has no Location
+  // (2026-11-17), as a custom section's entry has none: a box whose text
+  // never reaches the resume only read as a job's form.
+  const located = !custom && draft.section !== "projects";
+  // A project's name and context share a row where the form is wide
+  // (2026-11-17), as a job's company and location do: each is short, and on
+  // a row of their own the project form ran past onboarding's window.
+  const pairs = draft.section === "projects";
   const noun = lines ? "Line" : "Bullet";
 
   // Stacked where the form is narrow (Scout's panel), side by side where it
   // is wide (the bank page).
   const place = (
     <>
-      <div className="col-span-2 @lg/main:col-span-1">
+      <div className={cn("col-span-2", (located || pairs) && "@lg/main:col-span-1")}>
         <TextField
           id={field("organization")}
           label={section.organization}
+          placeholder={"organizationHint" in section ? section.organizationHint : undefined}
           maxLength={200}
           value={draft.organization ?? ""}
           onChange={(e) => set({ organization: text(e.target.value) })}
         />
       </div>
-      {!custom && (
+      {located && (
         <div className="col-span-2 @lg/main:col-span-1">
           <TextField
             id={field("location")}
@@ -174,7 +244,29 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   );
 
   const dates =
-    draft.section === "awards" ? (
+    draft.section === "education" ? (
+      // A school's end is its Graduation Date, one month and year
+      // (2026-11-17): End's four kinds (No End Date, Ended, Present,
+      // Expected) asked a student what a date already says.
+      <>
+        <MonthField
+          id={field("start")}
+          label="Start Month"
+          clearable
+          value={draft.start_month ?? ""}
+          onValueChange={(start_month) => set({ start_month: text(start_month) })}
+        />
+        <MonthField
+          id={field("graduation")}
+          label="Graduation Date"
+          clearable
+          value={draft.end_kind === "present" ? "" : (draft.end_month ?? "")}
+          onValueChange={(month) =>
+            set(graduationEnd(month, thisMonth()) as Partial<EntryDraft<S>>)
+          }
+        />
+      </>
+    ) : draft.section === "awards" ? (
       <MonthField
         id={field("award-date")}
         label="Award Date"
@@ -220,33 +312,58 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
         hidden={lines}
         className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]"
       >
-        <div className="col-span-2">
-          <TextField
-            id={field("title")}
-            label={section.title}
-            required
-            maxLength={200}
-            value={draft.title}
-            onChange={(e) => set({ title: e.target.value })}
-          />
+        <div className={cn("col-span-2", pairs && "@lg/main:col-span-1")}>
+          {/* A school, a degree and a field of study are suggested from
+              lists as the student types (2026-11-17): the schools and
+              fields from the API (the US Department of Education's lists
+              and Hipo's world list), the degrees from lib/degrees.ts. Each
+              still saves whatever is typed. */}
+          {education ? (
+            <SuggestField
+              id={field("title")}
+              label={section.title}
+              required
+              maxLength={200}
+              placeholder="Search for your school"
+              value={draft.title}
+              onValueChange={(title) => set({ title } as Partial<EntryDraft<S>>)}
+              suggest={suggestSchools}
+            />
+          ) : (
+            <TextField
+              id={field("title")}
+              label={section.title}
+              required
+              maxLength={200}
+              value={draft.title}
+              onChange={(e) => set({ title: e.target.value })}
+            />
+          )}
         </div>
 
         {education && (
           <>
-            <TextField
+            <SuggestField
               id={field("degree")}
               label="Degree"
-              placeholder="B.S."
+              placeholder="Bachelor of Science"
               maxLength={200}
+              openOnFocus
+              browse
               value={draft.degree ?? ""}
-              onChange={(e) => set({ degree: text(e.target.value) })}
+              onValueChange={(degree) => set({ degree: text(degree) } as Partial<EntryDraft<S>>)}
+              suggest={(typed) => suggestDegrees(typed).map((name) => ({ name }))}
             />
-            <TextField
+            <SuggestField
               id={field("field-of-study")}
               label="Field of Study"
+              placeholder="Computer Science"
               maxLength={200}
               value={draft.field_of_study ?? ""}
-              onChange={(e) => set({ field_of_study: text(e.target.value) })}
+              onValueChange={(field_of_study) =>
+                set({ field_of_study: text(field_of_study) } as Partial<EntryDraft<S>>)
+              }
+              suggest={suggestFields}
             />
           </>
         )}
@@ -255,27 +372,31 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
 
         {education && (
           <>
-            <TextField
-              id={field("gpa")}
-              label="GPA"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              value={draft.gpa ?? ""}
-              onChange={(e) => set({ gpa: number(e.target.value) })}
-            />
-            <TextField
-              id={field("gpa-scale")}
-              label="GPA Scale"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              placeholder="4.0"
-              value={draft.gpa_scale ?? ""}
-              onChange={(e) => set({ gpa_scale: number(e.target.value) })}
-            />
+            {
+              <>
+                <TextField
+                  id={field("gpa")}
+                  label="GPA"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  value={draft.gpa ?? ""}
+                  onChange={(e) => set({ gpa: number(e.target.value) })}
+                />
+                <TextField
+                  id={field("gpa-scale")}
+                  label="GPA Scale"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="4.0"
+                  value={draft.gpa_scale ?? ""}
+                  onChange={(e) => set({ gpa_scale: number(e.target.value) })}
+                />
+              </>
+            }
             {place}
             <div className="col-span-2">
               <ListField
@@ -286,6 +407,39 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                 onChange={(coursework) => set({ coursework })}
               />
             </div>
+            {resumeSwitches && (
+              <div
+                role="group"
+                aria-labelledby={field("on-resume")}
+                className="col-span-2 flex flex-wrap items-center gap-x-6 gap-y-2"
+              >
+                <span id={field("on-resume")} className={FIELD_LABEL}>
+                  On this resume
+                </span>
+                {(
+                  [
+                    ["gpa", "Show GPA"],
+                    ["coursework", "Show Coursework"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="text-body text-ink flex items-center gap-2">
+                    <Checkbox
+                      checked={resumeSwitches[key]}
+                      onCheckedChange={(on) => {
+                        resumeSwitches.onChange({
+                          gpa: resumeSwitches.gpa,
+                          coursework: resumeSwitches.coursework,
+                          [key]: on === true,
+                        });
+                        // Marks the form changed, so leaving it asks first
+                        onChange?.(draft);
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="col-span-2">
               <TextField
                 id={field("honors")}
@@ -349,14 +503,79 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
           line. A bullet is one line on the resume, so it never holds a line
           break: Enter goes to the next box, as Add Bullet Point does from
           the last, and a pasted break becomes a space. */}
-      <div role="group" aria-labelledby={field("bullets")} className="flex flex-col gap-1">
+      <div
+        role="group"
+        aria-labelledby={field("bullets")}
+
+        className="flex flex-col gap-1"
+      >
         <span id={field("bullets")} className={FIELD_LABEL}>
           {noun}s
         </span>
         <div className="flex flex-col gap-2">
           {draft.bullets.map((bullet, i) => (
-            <div key={bullet.id ?? `new-${i}`} className="flex items-start gap-2">
-              <div className="relative min-w-0 flex-1">
+            <div
+              key={bullet.id ?? `new-${i}`}
+              className={cn(
+                "relative flex items-start gap-2",
+                dragged === i && "opacity-50",
+                gap === i &&
+                  "before:bg-brand before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5",
+                gap === i + 1 &&
+                  i === draft.bullets.length - 1 &&
+                  "after:bg-brand after:absolute after:inset-x-0 after:-bottom-1.5 after:h-0.5",
+              )}
+              onDragOver={(e) => {
+                if (dragged === null) return;
+                e.preventDefault();
+                const box = e.currentTarget.getBoundingClientRect();
+                setGap(e.clientY < box.top + box.height / 2 ? i : i + 1);
+              }}
+              onDrop={(e) => {
+                if (dragged === null || gap === null) return;
+                e.preventDefault();
+                // Taking the bullet out moves every later one up one
+                moveBullet(dragged, gap > dragged ? gap - 1 : gap);
+                setDragged(null);
+                setGap(null);
+              }}
+            >
+              <button
+                type="button"
+                draggable
+                aria-label={`Move ${noun} ${i + 1}`}
+                title="Drag to move, or use the arrow keys"
+                className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring mt-1.25 flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", bullet.text.slice(0, 40));
+                  setDragged(i);
+                }}
+                onDragEnd={() => {
+                  setDragged(null);
+                  setGap(null);
+                }}
+                onKeyDown={(e) => {
+                  const to = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : null;
+                  if (to === null) return;
+                  e.preventDefault();
+                  moveBullet(i, to);
+                  // The handle keeps the focus at the bullet's new place
+                  requestAnimationFrame(() =>
+                    document
+                      .querySelector<HTMLElement>(`[aria-label="Move ${noun} ${to + 1}"]`)
+                      ?.focus(),
+                  );
+                }}
+              >
+                <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
+              </button>
+              <div
+                className={cn(
+                  "relative min-w-0 flex-1 transition-opacity",
+                  bullet.off && "opacity-60",
+                )}
+              >
                 {!lines && (
                   <span
                     aria-hidden
@@ -371,7 +590,8 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                   rows={1}
                   maxLength={500}
                   placeholder={lines ? "One line" : "One thing you did"}
-                  autoFocus={!bullet.id && bullet.text === ""}
+                  autoFocus={i === added}
+                  data-initial-focus={i === focusBullet ? "" : undefined}
                   className={cn(
                     FIELD_CONTROL,
                     "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5",
@@ -396,18 +616,41 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                   }}
                 />
               </div>
-              <IconButton
-                label={`Remove ${noun}`}
-                tooltip={`Remove this ${noun.toLowerCase()}`}
-                // Centred on the box's first line, beside the mark.
-                className="mt-1.25 size-8"
-                onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
-              >
-                <XIcon aria-hidden className="size-4" />
-              </IconButton>
+              {resumeMode && bullet.id ? (
+                // A saved bullet ticks on or off this resume; the bank keeps it
+                <span className="mt-1.25 flex size-8 shrink-0 items-center justify-center">
+                  <Checkbox
+                    checked={!bullet.off}
+                    aria-label={`Show ${noun} ${i + 1} on this resume`}
+                    onCheckedChange={(on) =>
+                      set({
+                        bullets: draft.bullets.map((b, j) => (j === i ? { ...b, off: !on } : b)),
+                      })
+                    }
+                  />
+                </span>
+              ) : (
+                <IconButton
+                  place="row"
+                  label={`Remove ${noun}`}
+                  tooltip={false}
+                  // Centred on the box's first line, beside the mark.
+                  className="mt-1.25"
+                  onClick={() => {
+                    // The rows after it move up a place and remount, and
+                    // none of them was just added.
+                    setAdded(null);
+                    set({ bullets: draft.bullets.filter((_, j) => j !== i) });
+                  }}
+                >
+                  <XIcon aria-hidden />
+                </IconButton>
+              )}
             </div>
           ))}
           <div className="flex items-center gap-2">
+            {/* Level with the bullets' boxes, past their handles */}
+            <span aria-hidden className="w-5 shrink-0" />
             <button
               type="button"
               onClick={addBullet}

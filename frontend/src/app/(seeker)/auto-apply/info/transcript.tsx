@@ -1,15 +1,13 @@
 "use client";
 
-import { ScrollIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { useToast } from "@/components/ui/toast";
 import {
   deleteTranscript,
@@ -18,7 +16,7 @@ import {
   type Transcript as TranscriptFile,
 } from "@/lib/transcript-actions";
 
-import { SECTION_CARD } from "../../profile/field-styles";
+import { INFO_CARD, InfoCardHead } from "./card-head";
 import { SectionAction } from "../../profile/section-action";
 
 /**
@@ -51,17 +49,22 @@ export function Transcript() {
   // The toast whose close sends the held DELETE; null once it is sent or taken back.
   const held = useRef<number | null>(null);
 
+  const read = useCallback(
+    () =>
+      getTranscript()
+        .then(({ transcript: t, error: err }) => {
+          if (err) setStatus("error");
+          else {
+            setTranscript(t);
+            setStatus("loaded");
+          }
+        })
+        .catch(() => setStatus("error")),
+    [],
+  );
   useEffect(() => {
-    getTranscript()
-      .then(({ transcript: t, error: err }) => {
-        if (err) setStatus("error");
-        else {
-          setTranscript(t);
-          setStatus("loaded");
-        }
-      })
-      .catch(() => setStatus("error"));
-  }, []);
+    void read();
+  }, [read]);
 
   // Leaving the page sends a held DELETE at once: back here, the card would show the file it removes.
   useEffect(
@@ -138,56 +141,37 @@ export function Transcript() {
     <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
   );
 
-  // None yet: the app's empty state, its action a bordered button (it starts
-  // something), in place of the card (2026-11-11). It was a grey "No
-  // transcript yet." line under the card's description, with Upload as the
-  // heading's glyph.
-  if (status === "loaded" && !transcript) {
-    return (
-      <>
-        <EmptyState
-          Icon={ScrollIcon}
-          title="No Transcript Yet"
-          action={
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={uploading}
-              onClick={() => picker.current?.click()}
-            >
-              <UploadIcon className="size-4" />
-              {uploading ? "Uploading…" : "Upload Transcript"}
-            </Button>
-          }
-        >
-          Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
-          autofiller attaches it for you.
-        </EmptyState>
-        {error && (
-          <p role="alert" className="text-note text-danger">
-            {error}
-          </p>
-        )}
-        {input}
-      </>
-    );
-  }
-
   return (
     <Card
       as="section"
       padding="none"
       id="section-transcript"
       aria-labelledby="transcript-heading"
-      className={SECTION_CARD}
+      className={INFO_CARD}
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <SectionHeading id="transcript-heading">Transcript</SectionHeading>
-      </div>
-      <p className="text-body text-ink-meta mt-1">
-        Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
-        autofiller attaches it for you.
-      </p>
+      <InfoCardHead
+        part="transcript"
+        id="transcript-heading"
+        title="Transcript"
+        description="Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the autofiller attaches it for you."
+      />
+
+      {/* None yet: a bordered button in the card's body, as Workday Sign-Up's
+          (2026-11-23), since it starts something. From 2026-11-11 a centred
+          empty state stood in the card's place, a second look among the
+          page's cards. */}
+      {status === "loaded" && !transcript && (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={uploading}
+          onClick={() => picker.current?.click()}
+          className="mt-4"
+        >
+          <UploadIcon className="size-4" />
+          {uploading ? "Uploading…" : "Upload Transcript"}
+        </Button>
+      )}
 
       {/* The empty line's place while the read runs, so nothing below
           moves when it lands (KAN-561). */}
@@ -198,13 +182,20 @@ export function Transcript() {
         </div>
       )}
       {status === "error" && (
-        <p role="status" className="text-note text-ink-meta mt-4">
-          Your transcript didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed
+          compact
+          title="Your Transcript Isn't Loading Right Now"
+          onRetry={read}
+          className="mt-4"
+        >
+          We couldn&apos;t reach your file. Try again in a few minutes.
+        </LoadFailed>
       )}
 
+      {/* A plain row under the line, not a bordered box: a card holds no
+          second card (docs/design.md, KAN-821). */}
       {transcript && (
-        <div className="bg-panel border-border-surface rounded-card mt-5 flex items-center gap-4 border p-4">
+        <div className="mt-4 flex items-center gap-4">
           <FileIcon className="text-ink-meta size-5 shrink-0" />
           <p className="text-body text-ink min-w-0 flex-1 truncate">
             {transcript.original_filename}

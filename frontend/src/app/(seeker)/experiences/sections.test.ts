@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { BankEntry } from "@/lib/bank-actions";
+import type { BankEntry, EntryFields } from "@/lib/bank-actions";
 
 import {
   changesOf,
   draftOf,
+  graduationEnd,
   emptyDraft,
+  emptyLine,
+  formatDates,
   holdsTools,
   isFixed,
   rowGaps,
@@ -14,6 +17,18 @@ import {
   TOOL_COMMA,
   toolsLine,
 } from "./sections.ts";
+
+test("an empty card says what it lacks under the pick, then what goes there", () => {
+  assert.equal(
+    emptyLine("Awards", false, "Add scholarships, honors and prizes."),
+    "No awards yet. Add scholarships, honors and prizes.",
+  );
+  assert.equal(
+    emptyLine("Jobs", true, "Add internships."),
+    "No jobs on this resume. Add internships.",
+  );
+  assert.equal(emptyLine("Lines", false), "No lines yet.");
+});
 
 test("only a project holds tools", () => {
   assert.equal(holdsTools("projects"), true);
@@ -155,4 +170,40 @@ test("a row's gaps are badge labels: dates, organization and bullets", () => {
   // An empty bullet box is no bullet
   const project = { ...emptyDraft("projects"), title: "Robot", bullets: [{ text: " " }] };
   assert.deepEqual(rowGaps(project), ["Bullets"]);
+});
+
+test("a date given as a year alone shows as the year (KAN-808)", () => {
+  const school = {
+    section: "education",
+    start_month: "2019-01",
+    end_month: "2023-01",
+    end_kind: "month",
+    year_only: ["start_month", "end_month"],
+  } as EntryFields;
+  assert.equal(formatDates(school), "2019 – 2023");
+  assert.equal(formatDates({ ...school, year_only: ["end_month"] }), "Jan 2019 – 2023");
+  assert.equal(formatDates({ ...school, year_only: undefined }), "Jan 2019 – Jan 2023");
+  const award = {
+    section: "awards",
+    award_date: "2024-01",
+    year_only: ["award_date"],
+  } as EntryFields;
+  assert.equal(formatDates(award), "2024");
+});
+
+test("a graduation date is Expected after this month, Ended before, none when cleared", () => {
+  assert.deepEqual(graduationEnd("2027-05", "2026-11"), {
+    end_kind: "expected",
+    end_month: "2027-05",
+  });
+  assert.deepEqual(graduationEnd("2026-05", "2026-11"), {
+    end_kind: "month",
+    end_month: "2026-05",
+  });
+  // This month has come: the student graduates now, not later.
+  assert.deepEqual(graduationEnd("2026-11", "2026-11"), {
+    end_kind: "month",
+    end_month: "2026-11",
+  });
+  assert.deepEqual(graduationEnd("", "2026-11"), { end_kind: null, end_month: null });
 });

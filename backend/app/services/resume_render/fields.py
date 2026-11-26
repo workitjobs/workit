@@ -5,10 +5,11 @@ escapes or styles it itself. Stdlib only, like the rest of this package.
 '''
 
 import datetime
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.services.resume_view import ViewEntry
+from app.services.resume_view import ViewEntry, grouped_skills
 
 SECTION_LABELS = {
     "education": "Education",
@@ -47,37 +48,61 @@ def month(day: datetime.date, date_format: str = "short") -> str:
 def dates(entry: ViewEntry, date_format: str = "short") -> str:
     '''"Aug. 2018 – May 2021", "June 2020 – Present", "Expected May 2027",
     or "" when the entry has no dates.'''
+    def when(field: str) -> str:
+        # A date given as a year alone prints as the year (KAN-808): it is
+        # January of it, which printed "Jan. 2019 – Jan. 2023" for "2019 – 2023"
+        day = getattr(entry, field)
+        return "" if day is None else str(day.year) if field in entry.year_only else month(day, date_format)
+
     if entry.section == "awards":
-        return month(entry.award_date, date_format) if entry.award_date else ""
+        return when("award_date")
     if entry.end_kind == "present":
         end = "Present"
     elif entry.end_month:
-        end = ("Expected " if entry.end_kind == "expected" else "") + month(entry.end_month, date_format)
+        end = ("Expected " if entry.end_kind == "expected" else "") + when("end_month")
     else:
         end = ""
-    start = month(entry.start_month, date_format) if entry.start_month else ""
-    # Year only can make the two ends one: "2020 – 2020" reads as a slip
-    if date_format == "year" and start == end:
-        return start
+    start = when("start_month")
+    # One month, or one year in the year format, names it once: "June 2024
+    # – June 2024" and "2020 – 2020" read as a slip
+    if start and end in (start, f"Expected {start}"):
+        return end
     return f"{start} – {end}" if start and end else start or end
 
 
 def _number(value: Decimal) -> str:
-    # 3.80 -> "3.8", 4.00 -> "4.0", 3.85 -> "3.85"
-    text = f"{value:f}".rstrip("0")
+    # 3.80 -> "3.8", 4.00 -> "4.0", 3.85 -> "3.85"; a whole number of ten or
+    # more as written: 90 -> "90" and 100 -> "100". Zeros came off the end
+    # of a number with no decimal point too, so "GPA: 90/100" printed
+    # "GPA: 9/100", and 85.0 from the database printed "85.0/100.0"
+    # a float from the editor's copy reads as the decimal it was typed as
+    value = value if isinstance(value, Decimal) else Decimal(str(value))
+    if value == value.to_integral_value() and value >= 10:
+        return f"{value:.0f}"
+    text = f"{value:f}"
+    if "." not in text:
+        return text + ".0"
+    text = text.rstrip("0")
     return text + "0" if text.endswith(".") else text
 
 
+def _grade(value: Decimal) -> str:
+    # Under ten, two decimals: "3.80", "4.00", "8.50"; ten or more as
+    # `_number` reads it: "90", "92.5"
+    value = value if isinstance(value, Decimal) else Decimal(str(value))
+    return f"{value:.2f}" if value < 10 else _number(value)
+
+
 def gpa(entry: ViewEntry) -> str | None:
+    '''"GPA: 3.80/4.00": a GPA under ten with two decimals, as career
+    centers ask ("to two decimal points") and a transcript prints it, and a
+    scale under ten the same; "90/100" and "8.50/10" stay whole. The
+    database keeps two decimals and nothing of how many were typed, so
+    "3.80/4.00" printed "3.8/4.0" until KAN-813.'''
     if entry.gpa is None:
         return None
-    score = _number(entry.gpa)
-    scale = ""
-    if entry.gpa_scale is not None:
-        # the scale as precise as the GPA: "3.81/4.00", "3.8/4.0"
-        places = len(score.partition(".")[2])
-        scale = "/" + max(_number(entry.gpa_scale), f"{entry.gpa_scale:.{places}f}", key=len)
-    return f"GPA: {score}{scale}"
+    scale = f"/{_grade(entry.gpa_scale)}" if entry.gpa_scale is not None else ""
+    return f"GPA: {_grade(entry.gpa)}{scale}"
 
 
 @dataclass(frozen=True)
@@ -95,7 +120,13 @@ class Heading:
 
 
 def _degree_line(entry: ViewEntry) -> str:
-    degree = " in ".join(x for x in (entry.degree, entry.field_of_study) if x)
+    # A field the degree already names prints once: "B.S. in Computer
+    # Science" with "Computer Science" read "in Computer Science in Computer
+    # Science"
+    field = entry.field_of_study
+    if field and entry.degree and field.lower() in entry.degree.lower():
+        field = None
+    degree = " in ".join(x for x in (entry.degree, field) if x)
     return ", ".join(x for x in (degree, entry.organization) if x)
 
 
@@ -105,19 +136,75 @@ def degree_leads(entry: ViewEntry, education_first: str) -> bool:
     return education_first == "degree" and entry.section == "education" and bool(_degree_line(entry))
 
 
-def heading(entry: ViewEntry, date_format: str = "short", education_first: str = "school") -> Heading:
+def company_leads(entry: ViewEntry, experience_first: str) -> bool:
+    '''Whether a job or a club role prints its company over its role
+    (`experience_first`, 2026-11-17): the company and its place on the top
+    row, the role and its dates under it. An entry with no company keeps
+    the role on top, or that row would print empty.'''
+    return (
+        experience_first == "company"
+        and entry.section in TWO_ROW
+        and entry.section != "education"
+        and bool(entry.organization)
+    )
+
+
+def tools_lead(entry: ViewEntry, project_tools: str) -> bool:
+    '''Whether an entry prints its tools after its name ("Gitlytics |
+    Python, Flask", `project_tools`, 2026-11-17), its context then on the
+    line under it. Only an entry with tools: one without keeps its context
+    after the name.'''
+    return (
+        project_tools == "after_name"
+        and entry.section not in TWO_ROW
+        and entry.section != "certifications"
+        and bool(entry.tools)
+    )
+
+
+def heading(
+    entry: ViewEntry,
+    date_format: str = "short",
+    education_first: str = "school",
+    experience_first: str = "role",
+    project_tools: str = "below",
+) -> Heading:
     when = dates(entry, date_format)
     if entry.section == "education":
         if degree_leads(entry, education_first):
             return Heading(_degree_line(entry), entry.location or "", entry.title, when)
         return Heading(entry.title, entry.location or "", _degree_line(entry), when)
     if entry.section in TWO_ROW:
+        if company_leads(entry, experience_first):
+            return Heading(entry.organization or "", entry.location or "", entry.title, when)
         return Heading(entry.title, when, entry.organization or "", entry.location or "")
+    # the link as the header prints one ("github.com/jd/robot"), not its
+    # whole address; the PDF makes it clickable (`jakes._entry`)
+    link = entry.link and link_text(entry.link)
     if entry.section == "certifications":
         tag = entry.issuer or entry.organization or ""
+    elif tools_lead(entry, project_tools):
+        return Heading(
+            entry.title, when, tag=" | ".join(x for x in (tools(entry), link) if x),
+            subtitle=entry.organization or "",
+        )
     else:  # projects, awards, and a custom section's entries (KAN-498)
-        tag = " | ".join(x for x in (entry.organization, entry.link) if x)
+        tag = " | ".join(x for x in (entry.organization, link) if x)
     return Heading(entry.title, when, tag=tag, subtitle=tools(entry))
+
+
+def one_row(h: Heading, kinds: dict[str, str]) -> list[str] | None:
+    '''A two-row heading with nothing at the left of its second row (a school
+    with no degree line, a job with no organization) prints as one row
+    (KAN-503): drawn as two, the second row's place or dates sat alone on a
+    line of their own. Answers the right slots that row shows, the place
+    first and then the dates, so the dates keep the right edge every other
+    entry's dates sit on; each slot only when it has text. None while the
+    second row has words at its left, so the heading stays two rows.'''
+    if h.subtitle:
+        return None
+    names = sorted(("right", "subright"), key=lambda name: kinds[name] != "location")
+    return [name for name in names if getattr(h, name)]
 
 
 def tools(entry: ViewEntry) -> str:
@@ -125,17 +212,39 @@ def tools(entry: ViewEntry) -> str:
     return ", ".join(entry.tools)
 
 
-def heading_fields(section: str, degree_first: bool = False) -> dict[str, str]:
+def heading_fields(
+    section: str, degree_first: bool = False, company_first: bool = False, tools_first: bool = False
+) -> dict[str, str]:
     '''Which entry field each of heading()'s slots shows, by slot name: the
     `kind` of the slot's click target in the editor (KAN-209). Education's
     subtitle is the degree line, which also names the school; `degree_first`
-    swaps the two rows (`degree_leads`).'''
+    swaps the two rows (`degree_leads`), `company_first` a job's
+    (`company_leads`), and `tools_first` a project's tools and context
+    (`tools_lead`).'''
     if section == "education":
         top, under = ("degree", "title") if degree_first else ("title", "degree")
         return {"title": top, "right": "location", "subtitle": under, "subright": "dates"}
     if section in TWO_ROW:
+        if company_first:
+            return {"title": "organization", "right": "location", "subtitle": "title", "subright": "dates"}
         return {"title": "title", "right": "dates", "subtitle": "organization", "subright": "location"}
+    if tools_first:
+        return {"title": "title", "tag": "tools", "right": "dates", "subtitle": "organization"}
     return {"title": "title", "tag": "organization", "right": "dates", "subtitle": "tools"}
+
+
+def page_heading(entry: ViewEntry, page) -> tuple[Heading, dict[str, str]]:
+    '''An entry's heading and its slots' kinds on this page: every layout
+    choice of the page's (`resume_render.PageSettings`) read in one place,
+    for the PDF and the Word file alike.'''
+    h = heading(entry, page.date_format, page.education_first, page.experience_first, page.project_tools)
+    kinds = heading_fields(
+        entry.section,
+        degree_leads(entry, page.education_first),
+        company_leads(entry, page.experience_first),
+        tools_lead(entry, page.project_tools),
+    )
+    return h, kinds
 
 
 def details(entry: ViewEntry) -> list[tuple[str, str]]:
@@ -154,13 +263,25 @@ def details(entry: ViewEntry) -> list[tuple[str, str]]:
 def skill_lines(skills) -> list[tuple[str, tuple]]:
     '''(label, skills) per group, in the order groups first appear; a layout
     joins the names with ", ". Ungrouped skills are "Other" beside groups,
-    or unlabeled ("") alone.'''
-    groups: dict[str | None, list] = {}
-    for skill in skills:
-        groups.setdefault(skill.group, []).append(skill)
-    if list(groups) == [None]:
-        return [("", tuple(groups[None]))]
-    return [(group or "Other", tuple(members)) for group, members in groups.items()]
+    or unlabeled ("") alone. Names that differ only in case or "&" are one
+    group (`resume_view.grouped_skills`, KAN-810).'''
+    groups = grouped_skills(skills)
+    if [label for label, _ in groups] == [None]:
+        return [("", tuple(groups[0][1]))]
+    return [(label or "Other", tuple(members)) for label, members in groups]
+
+
+def phone_text(phone: str) -> str:
+    '''How a phone number prints, as the Profile shows it (the web app's
+    `phoneText`, frontend/src/lib/profile-links.ts): a U.S. number of 10
+    digits, or 11 starting with 1, as "+1 646-555-0142" however it was
+    typed; any other as typed. The profile keeps what was typed, and the
+    resume printed it bare ("16465550142"), unlike the profile beside it.'''
+    digits = re.sub(r"\D", "", phone)
+    us = digits[1:] if len(digits) == 11 and digits.startswith("1") else digits
+    if len(us) != 10 or re.search(r"[^\d\s()+.-]", phone):
+        return phone
+    return f"+1 {us[:3]}-{us[3:6]}-{us[6:]}"
 
 
 def link_text(url: str) -> str:

@@ -11,7 +11,12 @@ Nothing is focused, raised or moved, and a covered window still streams.
 It needs Screen Recording permission for the app Apply runs in (macOS gives it to the app at
 the top of the process chain: Terminal, iTerm, Paradev, or Apply.app). Apply never asks for it
 or changes it: without it, `allowed()` is False, the tile keeps the captureVisibleTab path, and
-`PERMISSION` says where Lisul turns it on. `APPLY_TILE_CAPTURE=extension` forces that path.
+`PERMISSION` says where Lisul turns it on. `APPLY_TILE_CAPTURE=extension` forces that path, and off the Mac
+the tile always takes it (`mode`).
+
+The built app (W8, KAN-833) builds nothing: a student's Mac has no swiftc, so scripts/build_app.py compiles the
+helper and ships it beside the app's program (BUNDLED), signed with the app. As the app's child process it has the
+app's own Screen Recording permission, which first run asks for.
 """
 
 import hashlib
@@ -21,12 +26,19 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
+import psutil
+
+from apply.home import CODE
+
 SOURCE = Path(__file__).with_name("window_capture.swift")
+BUNDLED_NAME = "window-capture"  # the built app's helper, beside its program (scripts/build_app.py)
+BUNDLED = CODE / BUNDLED_NAME if "__compiled__" in globals() else None
 CACHE = Path.home() / "Library" / "Caches" / "apply"
 FPS = 30
 QUALITY = 0.85
@@ -34,14 +46,21 @@ SETTINGS = "System Settings > Privacy & Security > Screen & System Audio Recordi
 OFF = 3  # the helper's exit code without permission
 
 
-def mode() -> str:
-    """"native" (ScreenCaptureKit when allowed, the default) or "extension" ($APPLY_TILE_CAPTURE)."""
-    return "extension" if os.environ.get("APPLY_TILE_CAPTURE") == "extension" else "native"
+def mode(system: str = sys.platform) -> str:
+    """"native" (ScreenCaptureKit when allowed, the Mac's default) or "extension" ($APPLY_TILE_CAPTURE). Off the Mac
+    it is always "extension": the helper is ScreenCaptureKit's, and the permission note names the app through `ps`,
+    which Windows lacks, so every plain Worker's tile failed on each watch turn there (KAN-929)."""
+    if system != "darwin" or os.environ.get("APPLY_TILE_CAPTURE") == "extension":
+        return "extension"
+    return "native"
 
 
 @cache
 def helper() -> Path | None:
-    """The built helper, built now if its source changed; None without swiftc or if it won't build."""
+    """The built helper, built now if its source changed; None without swiftc or if it won't build. The built app's
+    is the one it ships (None if that is missing)."""
+    if BUNDLED is not None:
+        return BUNDLED if BUNDLED.is_file() else None
     built = CACHE / f"window-capture-{hashlib.sha256(SOURCE.read_bytes()).hexdigest()[:12]}"
     if built.exists():
         return built
@@ -49,11 +68,14 @@ def helper() -> Path | None:
     if not swiftc:
         return None
     CACHE.mkdir(parents=True, exist_ok=True)
-    partial = built.with_suffix(".partial")
+    # Each process builds into its own file: test processes (pytest -n) build at once, and one's rename took the
+    # shared .partial from under another's (nightly, 2026-11-14, KAN-841). The last rename wins; each is whole.
+    partial = built.with_suffix(f".{os.getpid()}.partial")
     made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True)
     if made.returncode != 0:
+        partial.unlink(missing_ok=True)
         return None
-    partial.rename(built)
+    partial.replace(built)
     return built
 
 
@@ -86,11 +108,16 @@ def permission_note() -> str:
 
 
 def chrome_of(host_pid: int | None) -> int | None:
-    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID."""
+    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID. psutil reads the
+    parent on every OS: `ps` is not on Windows, where the tile's check that a connection is its Worker's own failed
+    on each watch turn."""
     if not host_pid:
         return None
-    found = subprocess.run(["ps", "-o", "ppid=", "-p", str(host_pid)], capture_output=True, text=True).stdout.strip()
-    return int(found) if found.isdigit() and int(found) > 1 else None
+    try:
+        parent = psutil.Process(host_pid).ppid()
+    except psutil.Error:  # gone, or another user's
+        return None
+    return parent if parent > 1 else None
 
 
 # What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,

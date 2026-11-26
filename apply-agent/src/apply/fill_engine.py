@@ -10,6 +10,12 @@ it, so every call loads it again if the page no longer has it; a call a
 navigation cut short (Workday's Save and Continue loads the next step) is made
 again on the new page.
 
+Where the bundle comes from (`source`): the engine checkout's file in a Developer checkout, or WorkIt's
+download in the Student build and wherever the policies say `fill_engine: workit` (apply.engine_download, W7):
+fetched once per process, checked, and kept only in memory. Either way every reader takes its text from
+`source`: the page through page.evaluate, a plain Worker over native messaging, and Node on its stdin, so no
+plain engine file is written anywhere.
+
 What needs no page runs the bundle in Node, the copy that ships inside
 Playwright (call_without_page): reading a job from its link, the planner, which
 plans before the form opens, and the engine's other pure functions. They run in
@@ -32,7 +38,7 @@ import re
 import subprocess
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -41,7 +47,7 @@ from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from apply import tracker
+from apply import asking, tracker
 from apply.adapters import JobSite, SetupError
 from apply.answer_bank import LISUL, AnswerBank
 from apply.model import (
@@ -68,16 +74,15 @@ CALL = "({name, args}) => FillEngine.call(name, args)"
 NAVIGATED = re.compile(r"context was destroyed|navigat|FillEngine is not defined", re.IGNORECASE)
 CALLS = 5  # times a call is made, each cut short by a navigation, before its error stands
 
-# Runs engine functions in one long-lived Node: the bundle's path is an argument; each call is a
-# line on stdin, {name, args, questions}, and its answer a line on stdout, {value} or {error}. Inside
-# args, {"$q": i} is questions[i], {"$date": "YYYY-MM-DD"} a Date, and {"$host": name} a function that
-# calls Apply back: it writes {"ask": name, "args": [...]} and reads Apply's {"answer": ...} or
-# {"failed": message} (a thrown Error) before going on. The answer's Questions go back as {"$q": i}.
-# Calls run in the bundle's own context (given URL, which the engine reads links with), so its Dates
-# are the engine's. The process stays because the engine's first plan compiles every rule's pattern.
+# Runs engine functions in one long-lived Node: its first line on stdin is the bundle's text, as a JSON string
+# (never a file: it may be WorkIt's download); each call is then a line on stdin, {name, args, questions}, and its
+# answer a line on stdout, {value} or {error}. Inside args, {"$q": i} is questions[i], {"$date": "YYYY-MM-DD"} a
+# Date, and {"$host": name} a function that calls Apply back: it writes {"ask": name, "args": [...]} and reads
+# Apply's {"answer": ...} or {"failed": message} (a thrown Error) before going on. The answer's Questions go back as
+# {"$q": i}. Calls run in the bundle's own context (given URL, which the engine reads links with), so its Dates are
+# the engine's. The process stays because the engine's first plan compiles every rule's pattern.
 NODE_SERVER = """const vm = require("vm"), fs = require("fs");
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
 let pending = Buffer.alloc(0);  // bytes read past the last line: a character may straddle two reads
 function readLine() {
   const buffer = Buffer.alloc(65536);
@@ -90,6 +95,7 @@ function readLine() {
     pending = Buffer.concat([pending, buffer.subarray(0, n)]);
   }
 }
+vm.runInContext(JSON.parse(readLine()), context);
 const write = (value) => fs.writeSync(1, JSON.stringify(value) + "\\n");
 function askHost(name, args) {
   write({ask: name, args});
@@ -121,12 +127,60 @@ _nodes: dict[int, subprocess.Popen] = {}
 _node_locks: dict[int, threading.Lock] = {}  # Workers share each Node, a call at a time
 _depth = threading.local()
 _loaded: dict[str, object] = {}  # the bundle the Nodes run: its "stat" (mtime, size) and "sha256"
+_download: dict[str, object] = {}  # WorkIt's engine, once per process: its "text", or the "refused" error
+_download_lock = threading.Lock()
+
+
+def from_workit() -> bool:
+    """Whether this process runs WorkIt's downloaded engine, not the checkout's file: always in the Student build."""
+    from apply import build
+
+    return build.STUDENT or _policy_says_workit()
+
+
+@functools.cache
+def _policy_says_workit() -> bool:
+    from apply.profile import load_policies
+
+    return load_policies().get("fill_engine") == "workit"
+
+
+def source() -> str:
+    """The engine bundle's text, from WorkIt or from the checkout (see the module's docstring). WorkIt's is
+    downloaded once per process and kept in memory. A lasting refusal (a wrong signature, no engine key) is refused
+    again at once, with no new download, until Apply restarts; any other is tried again at the next use."""
+    if not from_workit():
+        _built()
+        return ENGINE.read_text()
+    with _download_lock:
+        if "text" not in _download:
+            if "refused" in _download:
+                raise _download["refused"]
+            from apply.engine_download import EngineRefused, download
+
+            try:
+                _download["text"] = download()
+            except EngineRefused as refused:
+                if refused.lasting:
+                    _download["refused"] = refused
+                raise
+        return _download["text"]
+
+
+def ready() -> None:
+    """Before a run opens any Worker: WorkIt's engine downloaded and checked, so a refusal stops the run with its
+    one sentence. Nothing for the checkout's file, whose absence each Application reports as it did."""
+    if from_workit():
+        source()
 
 
 def fresh() -> bool:
     """Before a new posting is planned: if the bundle on disk is not the one the long-lived Nodes run
     (a merged engine fix, `git submodule update`), stop them, so the next call starts a Node on the new
-    one. Waits for each Node's call in progress. True when it reloaded (KAN-645)."""
+    one. Waits for each Node's call in progress. True when it reloaded (KAN-645). WorkIt's engine stays the one
+    downloaded at launch."""
+    if from_workit():
+        return False
     try:
         stat = ENGINE.stat()
     except OSError:
@@ -183,11 +237,12 @@ def call_without_page(name: str, *args: Any, questions: QuestionSet = ()) -> Any
     with _node_locks.setdefault(depth, threading.Lock()):
         node = _nodes.get(depth)
         if node is None or node.poll() is not None:
-            _built()
+            bundle = source()
             if not _loaded:
                 fresh()  # what the first Node runs
-            node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER, str(ENGINE)], stdin=subprocess.PIPE,
+            node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER], stdin=subprocess.PIPE,
                                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
+            node.stdin.write(json.dumps(bundle) + "\n")
         node.stdin.write(payload + "\n")
         node.stdin.flush()
         while (line := node.stdout.readline()) and "ask" in (asked := json.loads(line)):
@@ -239,12 +294,21 @@ class Plan:
     # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
     # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
     attestations: dict[str, str] = field(default_factory=dict)
+    # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
+    # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
+    attested: dict[str, str] = field(default_factory=dict)
     # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
     # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
     optional: list[Question] = field(default_factory=list)
 
 
 TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
+ATTESTED = "Attested from sources"  # starts each line that names an attestation the plan answered from the facts
+
+
+def attested_line(label: str, fact: str) -> str:
+    """The Check before Submit line for an attestation the plan answered from the profile's facts (KAN-761)."""
+    return f"{ATTESTED}: {' '.join(fact.split())} ({' '.join(label.split()).replace('; ', ', ')})"
 
 
 def to_tick(wording: str) -> str:
@@ -310,8 +374,9 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
                for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
-    result = call_without_page("plan", list(questions), _facts(profile, posting), profile.policies(), entries, context,
-                               questions=questions)
+    asked = [_as_home_address(q) for q in questions]
+    result = call_without_page("plan", asked, _facts(profile, posting), profile.policies(), entries, context,
+                               questions=asked)
     answers = {name: _answer(value) for name, value in result["answers"].items()}
     accepted = {name: tuple(wordings) for name, wordings in result["accepted"].items()}
     if posting.job_system == "workday":
@@ -328,15 +393,56 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
             answer = answers.get(question.name)
             if isinstance(answer, str) and "|" in answer and source:
                 accepted[question.name] = (*accepted.get(question.name, ()), *answer.split("|"))
+    blanks = dict(result.get("blanks") or {})
+    for question in questions:  # a file, or a path on this Mac, goes only into an upload (KAN-785)
+        if question.kind != "file" and _local_path(answers.get(question.name)):
+            del answers[question.name]
+            blanks[question.name] = LOCAL_PATH
+    # A quiz, test or challenge to take at a link is answered by its result, which only Lisul has: no rule, bank
+    # answer or draft answers it, and he is asked it, with its link. The engine's GitHub rule answered Ramp's
+    # "Take this builder's quiz: https://awu-ramp.github.io/..." with his GitHub profile (2026-11-26).
+    sources = result.get("sources") or {}
+    takes = [q for q in questions if asking.takes_elsewhere(q) and sources.get(q.name) != "student"]
+    for question in takes:
+        answers.pop(question.name, None)
+    essays, drafts = ([q for q in result[kind] if q not in takes] for kind in ("essays", "drafts"))
+    missing = result["missing"] + [q for q in takes if q not in result["missing"]]
     return Plan(
         answers=answers,
-        essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
-        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
-        accepted=accepted, blanks=dict(result.get("blanks") or {}),
+        essays=essays, missing=missing, not_eligible=result["not_eligible"],
+        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=drafts, banked=result["banked"],
+        accepted=accepted, blanks=blanks,
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
+        attested=dict(result.get("attested") or {}),
         optional=list(result.get("optional") or []),
     )
+
+
+# A part of an address under a bare "Address" heading (Oracle's Address block, read as "Address: Country"): the
+# engine read the heading alone, and planned the street for each part (Honeywell's Country got "204 ...", 2026-11-25).
+ADDRESS_HEADED = re.compile(r"^\s*address\s*:\s*((street )?address( line)? ?\d?|city( ?/ ?town)?|town|(county ?/ ?)?state"
+                            r"( ?/ ?province)?|county|province|(zip|postal|postcode)\S*( ?/ ?\S+)?( code)?|country( ?/ ?\w+)?)"
+                            r"\s*\*?\s*$", re.IGNORECASE)
+
+
+def _as_home_address(question: Question) -> Question:
+    """`question`, a part of the address under a bare "Address" heading asked as the home address's part, which the
+    engine plans from that part's fact: "Home address: Country". Its name, and so its answer, stay its own."""
+    found = ADDRESS_HEADED.match(question.label)
+    return replace(question, label=f"Home address: {found[1]}") if found else question
+
+
+# Why a field was left blank rather than given a file's path (KAN-785).
+LOCAL_PATH = "A file on this Mac goes only into an upload, never typed into a field"
+# A path on this Mac or a teammate's Windows PC: never "/r/cscareerquestions", which may answer How did you hear.
+LOCAL = re.compile(r"^(~/|/(Users|private|tmp|var|Volumes|home|opt)/|[A-Za-z]:\\|file:)", re.IGNORECASE)
+
+
+def _local_path(answer: Any) -> bool:
+    """Whether a planned answer is a file, or names a path on this Mac. JPMorgan's Oracle form got the resume's
+    path in its "Link 1" box (2026-11-10)."""
+    return isinstance(answer, Path) or (isinstance(answer, str) and LOCAL.match(answer.strip()) is not None)
 
 
 def remember(profile: ApplicantProfile, posting: Posting, question: Question, answer: str) -> None:
@@ -420,8 +526,18 @@ def with_past_applications(facts: dict, posting: Posting) -> dict:
     if interviewed:
         known = screeners.get("previously_interviewed_at") or []
         screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+    if here := [c for c in applied if _same_company(c, posting.company)]:
+        # Said outright too: the Pre-submit review's small model missed Anduril Industries in a list of 46 (live,
+        # 2026-11-25) and called the plan's Yes to "previously applied to Anduril?" wrong.
+        screeners["applied_to_this_company_before"] = here
     facts["screeners"] = screeners
     return facts
+
+
+def _same_company(name: str, other: str) -> bool:
+    """Whether two names are one company's: "Anduril Industries" and "Anduril", but not "Amazon" and "Amazonia"."""
+    a, b = (" ".join(re.findall(r"[a-z0-9]+", n.lower())) for n in (name, other))
+    return bool(a and b) and (a == b or a.startswith(b + " ") or b.startswith(a + " "))
 
 
 def _answer(value: Any) -> Any:
@@ -557,12 +673,11 @@ def _returned(answer: dict, name: str) -> Any:
 
 def load(page: Page) -> None:
     """Put the engine in the page, unless it is there already."""
-    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension loads the same bundle as a file
+    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension runs the bundle Apply kept in it
         page.load_engine()
         return
     if not page.evaluate("() => typeof FillEngine !== 'undefined'"):
-        _built()
-        page.evaluate(ENGINE.read_text())
+        page.evaluate(source())
 
 
 class EngineMissing(FillError, SetupError):

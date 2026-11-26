@@ -3,13 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 
 import { keep, keepSnapshot, readKept, readSnapshot, subscribe } from "./feed-pages";
 import { leavesFeed, onFeed, stagesNow } from "./feed-stages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
-import { CompactJobCard } from "./compact-job-card";
 import { ListingCard } from "./listing-card";
 import { useHydrated } from "../local-time";
 import { nextPage, type ListSource } from "./list-pages";
@@ -66,9 +64,6 @@ import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-l
  * shows a job saved since as gone. Load More asks from the offset less every
  * job that has left: more than the API moved up at worst, and a role it
  * sends twice is dropped by id.
- *
- * `compact` draws the compact cards in a plain list (/search's List view,
- * KAN-519) rather than the large cards.
  */
 export function FeedList({
   initial,
@@ -78,7 +73,6 @@ export function FeedList({
   tailored,
   canMarkApplied,
   source = "feed",
-  compact = false,
   drawnAt,
 }: {
   initial: JobListing[];
@@ -92,7 +86,6 @@ export function FeedList({
   /** An applicant account, which a card's Apply Now may ask "Did You Apply?". */
   canMarkApplied: boolean;
   source?: ListSource;
-  compact?: boolean;
   /** When the server drew the first page and `stages` (ms since the epoch). */
   drawnAt: number;
 }) {
@@ -184,7 +177,7 @@ export function FeedList({
         offset: Math.max(0, offset - gone.length),
       });
       if (page.error != null) {
-        setError("Couldn't load more roles. Try again in a moment.");
+        setError("Couldn't load more jobs. Try again in a moment.");
         return;
       }
       const { fresh } = page;
@@ -198,69 +191,52 @@ export function FeedList({
       });
       setSaid(
         fresh.length === 0
-          ? "No more roles."
-          : `${fresh.length} more ${fresh.length === 1 ? "role" : "roles"} loaded.`,
+          ? "No more jobs."
+          : `${fresh.length} more ${fresh.length === 1 ? "job" : "jobs"} loaded.`,
       );
       setFocusId(fresh[0]?.id ?? null);
     });
   }
 
-  const card = (job: JobListing) =>
-    compact ? (
-      <CompactJobCard job={job} stage={now[job.id] ?? null} />
-    ) : (
-      <ListingCard
-        job={job}
-        stage={now[job.id] ?? null}
-        tailored={tailoredIds.has(job.id)}
-        canMarkApplied={canMarkApplied}
-        onApplied={() => markedApplied(job)}
-      />
-    );
-
-  const items = (
-    <ul
-      ref={list}
-      className={compact ? "divide-border-subtle divide-y" : "mt-4 flex flex-col gap-3"}
-    >
-      {first.map((job, i) => (
-        // The cards rise in as the feed arrives, 50ms apart and capped at
-        // the sixth, about a screenful, so the list never makes anyone wait.
-        <li
-          key={job.id}
-          data-job-id={job.id}
-          style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
-          className={fromSnapshot ? undefined : "animate-rise"}
-        >
-          {card(job)}
-        </li>
-      ))}
-      {loaded.map((job, i) => (
-        // A loaded page rises in the same way, counted within its own page.
-        <li
-          key={job.id}
-          data-job-id={job.id}
-          style={
-            fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
-          }
-          className={fromSnapshot ? undefined : "animate-rise"}
-        >
-          {card(job)}
-        </li>
-      ))}
-    </ul>
+  const card = (job: JobListing) => (
+    <ListingCard
+      job={job}
+      stage={now[job.id] ?? null}
+      tailored={tailoredIds.has(job.id)}
+      canMarkApplied={canMarkApplied}
+      onApplied={() => markedApplied(job)}
+    />
   );
 
   return (
     <>
-      {/* The compact list is one white card, as on /jobs (./jobs-rail.tsx). */}
-      {compact ? (
-        <Card padding="none" className="mt-4 max-w-3xl overflow-hidden">
-          {items}
-        </Card>
-      ) : (
-        items
-      )}
+      <ul ref={list} className="mt-4 flex flex-col gap-3">
+        {first.map((job, i) => (
+          // The cards rise in as the feed arrives, 50ms apart and capped at
+          // the sixth, about a screenful, so the list never makes anyone wait.
+          <li
+            key={job.id}
+            data-job-id={job.id}
+            style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className={fromSnapshot ? undefined : "animate-rise"}
+          >
+            {card(job)}
+          </li>
+        ))}
+        {loaded.map((job, i) => (
+          // A loaded page rises in the same way, counted within its own page.
+          <li
+            key={job.id}
+            data-job-id={job.id}
+            style={
+              fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
+            }
+            className={fromSnapshot ? undefined : "animate-rise"}
+          >
+            {card(job)}
+          </li>
+        ))}
+      </ul>
 
       <div className="mt-6 flex flex-col items-center gap-2">
         {more ? (
@@ -274,7 +250,7 @@ export function FeedList({
           </Button>
         ) : (
           loaded.length > 0 && (
-            <p className="text-body text-ink-meta">That&apos;s every role that matches.</p>
+            <p className="text-body text-ink-meta">That&apos;s every job that matches.</p>
           )
         )}
         {error && (

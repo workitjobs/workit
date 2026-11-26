@@ -1,0 +1,63 @@
+name: Harvest Common Crawl boards
+
+# Queries Common Crawl's CDX index for ATS board URLs and updates the
+# committed commoncrawl-boards.json. New crawls appear ~every 5 weeks;
+# running monthly catches each one. The daily discover-boards workflow
+# reads the file with no HTTP.
+on:
+  schedule:
+    # 1st and 15th of each month, off the hour.
+    - cron: "17 9 1,15 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: harvest-commoncrawl
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  harvest:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # The CDX API is slow (~1s per request, 17 patterns, many pages each).
+    # A full harvest can take 30-60 minutes when the API is healthy.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Harvest board slugs from CDX
+        run: |
+          python3 scraper/harvest_commoncrawl.py --verbose || \
+          python3 scraper/harvest_commoncrawl.py --verbose --direct
+
+      - name: Open PR if the pool changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd scraper
+          if git diff --quiet commoncrawl-boards.json; then
+            echo "No changes to commoncrawl-boards.json"
+            exit 0
+          fi
+          CRAWL=$(python3 -c "import json; print(json.load(open('commoncrawl-boards.json'))['crawl'])")
+          BRANCH="chore/commoncrawl-harvest-${CRAWL}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add commoncrawl-boards.json
+          git commit -m "chore(scraper): harvest boards from ${CRAWL}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Update Common Crawl board pool (${CRAWL})" \
+            --body "Harvested board slugs from Common Crawl crawl \`${CRAWL}\`. Review the diff to \`scraper/commoncrawl-boards.json\` and merge to update the pool the daily discovery reads."

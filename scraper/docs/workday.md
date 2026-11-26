@@ -39,14 +39,15 @@ What it does, measured on every board on 2026-10-10:
 **Each board is read whole or not at all** (`providers.workday`), which keeps
 "Nothing closes" true: every page is read, and the read counts only if the distinct
 postings add up to the count Workday gave; otherwise it raises `Incomplete` and is a
-failed read, evidence of nothing. A capped board is read in slices by one of its own
-filters (`_workday_slices`): a filter whose counts add up to the real size, which two
-filters must agree on, with no value itself at 2,000 (NVIDIA: 15 job families, the
-largest 1,723). 22 of the 39 capped boards split this way (Abbott, Booz Allen,
-Applied Materials, Leidos, PNC, T-Mobile, NVIDIA); the rest (Walmart, Target,
-Airbus, Hitachi Energy, Sysco, ...) are skipped as "too large to read whole". So is
-any board past `WORKDAY_MAX` (5,000 postings, 250 requests): Accenture, Dollar Tree,
-CVS, TJX and other retail and hospital chains. 20 boards in all.
+failed read, evidence of nothing. A capped board is split recursively by its own
+facets (`_split_capped`), up to `MAX_FACET_DEPTH` (3) dimensions deep: the real size
+is the sum two or more facets agree on (`_real_size`), and each level picks the
+dimension whose largest value is smallest (`_pick_dimension`), skipping dimensions
+already used and those whose sum is below the cap. A slice under the cap is paged to
+exhaustion; one still at the cap recurses with a fresh dimension from that slice's own
+facets. Boards that cannot be split (no usable dimension, or depth exhausted) raise
+`TooLarge`. So does any board past `WORKDAY_MAX` (5,000 postings, 250 requests):
+Accenture, Dollar Tree, CVS, TJX and other retail and hospital chains.
 
 **A run reads as many boards as fit in its `Provider.budget_s` (12 minutes)**,
 least recently read first (`Store.to_read`), and leaves the rest for a later run

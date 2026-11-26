@@ -1,0 +1,788 @@
+{
+ "order": [
+  "cover-letter",
+  "anything-else",
+  "ai-tools",
+  "values",
+  "not-on-resume",
+  "about-me",
+  "preference",
+  "what-youd-build",
+  "failure",
+  "opinion",
+  "why-field",
+  "named-area",
+  "best-project",
+  "why-role",
+  "why-company"
+ ],
+ "types": {
+  "about-me": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    100,
+    160
+   ],
+   "match": [
+    "about yourself|tell us about you\\b|introduce yourself",
+    "(deeply|really) interested in\\?",
+    "obsess(ed|ion)",
+    "hobb(y|ies)|outside of (work|engineering|school)",
+    "just for fun|favorite (food|junk food|book|movie)",
+    "numbers that describe you",
+    "best writing",
+    "first learn(ed)? to code",
+    "who you are"
+   ],
+   "slots": [
+    {
+     "holds": "light questions only: the thing asked for (the book, the food, the nerdiest thing), as one past act or one concrete preference they have stated",
+     "name": "pick",
+     "required": "asked"
+    },
+    {
+     "holds": "light questions only: one small detail that makes the pick theirs (a count, a place, why, in their words)",
+     "name": "pick-detail",
+     "required": false
+    },
+    {
+     "holds": "serious questions only: where they are now, in one plain sentence (what they study, the work they do)",
+     "name": "now",
+     "required": "asked"
+    },
+    {
+     "holds": "serious questions only: one or two facts only @NAME@ has, told as events with their details",
+     "name": "shaping-events",
+     "required": "asked"
+    },
+    {
+     "holds": "serious questions only: what they are after next, as a kind of work",
+     "name": "next",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "ai-tools": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    80,
+    130
+   ],
+   "match": [
+    "\\bai\\b[- ](tools?|technolog\\w*|setup|assist\\w*|specific)",
+    "(use|using|leverage) (agentic )?ai\\b",
+    "(how|way) (has|have) ai",
+    "ai (has|have) (improved|changed|shown up)",
+    "coding agent|copilot|claude code|chatgpt|llm tools?",
+    "with (claude|another ai tool)",
+    "single prompt"
+   ],
+   "slots": [
+    {
+     "holds": "the tool, the named project, and the part of the work they used it for",
+     "name": "use",
+     "required": true
+    },
+    {
+     "holds": "how they checked its output on that work (tests, reading the diff, running it on hardware, comparing to the docs)",
+     "name": "check",
+     "required": true
+    },
+    {
+     "holds": "a time its output was wrong and how they noticed",
+     "name": "caught",
+     "required": false
+    },
+    {
+     "holds": "the check they run now because of that time, stated as an action",
+     "name": "new-check",
+     "required": false
+    },
+    {
+     "holds": "a decision they kept for themselves, or work they do without it, and why",
+     "name": "kept-decision",
+     "required": false
+    },
+    {
+     "holds": "what changed, with a number only if it was timed or counted",
+     "name": "effect",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "anything-else": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    20,
+    45
+   ],
+   "match": [
+    "anything (else|additional|to share|you'd like us to know|you would like us to know|you want)",
+    "additional (information|info|comments?|message|note)",
+    "^comments\\b|^extra$|comments or additional",
+    "clarify any answers",
+    "would like us to consider",
+    "anything to share re",
+    "is there anything"
+   ],
+   "slots": [
+    {
+     "holds": "one fact not used anywhere else on this form, of the kind the box's label asks for (a project or result, a link to their work, availability, a course in progress, a clarification)",
+     "name": "new-fact",
+     "required": true
+    },
+    {
+     "holds": "one clause on what the fact means for the reader or what they can do with it (a link to open, a date to plan around)",
+     "name": "meaning",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "best-project": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    80,
+    120
+   ],
+   "match": [
+    "project",
+    "(proud|proudest)",
+    "accomplish(ed|ment|ments)",
+    "achieve(d|ment)",
+    "(something|thing|one thing|what) (you('ve| have)?|did you) (built|build|shipped|made|put into the world|led|owned|worked on)",
+    "(built|shipped|owned|led) .*end[- ]to[- ]end",
+    "you('ve| have)? (personally )?(built|shipped|completed|delivered|owned)",
+    "impressive|phd research",
+    "most (impressive|technically|complex|ambitious|significant|exciting|interesting)",
+    "highlight reel|technical artifact|best represents your work",
+    "your favorite (thing|work|personal)"
+   ],
+   "slots": [
+    {
+     "holds": "what they built, for whom, and what it does, in plain words",
+     "name": "project",
+     "required": true
+    },
+    {
+     "holds": "the parts that were theirs alone (what they wrote, owned or decided), or that they built it alone",
+     "name": "own-part",
+     "required": true
+    },
+    {
+     "holds": "the specific obstacle they hit (a bug, a hardware or timing limit, a data fact), not the size of the work",
+     "name": "hard-part",
+     "required": true
+    },
+    {
+     "holds": "one engineering choice they made, with the option they rejected or the reason",
+     "name": "decision",
+     "required": true
+    },
+    {
+     "holds": "what changed because of it (a number with its baseline, a named user effect, a result, or a link)",
+     "name": "effect",
+     "required": true
+    },
+    {
+     "holds": "an honest limit on the result (what it did not do, what is still unproven)",
+     "name": "limit",
+     "required": false
+    },
+    {
+     "holds": "the real reason they picked or cares about it, in the sources; used only when the question asks why",
+     "name": "why",
+     "required": "asked"
+    }
+   ],
+   "stock": true
+  },
+  "cover-letter": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    200,
+    260
+   ],
+   "match": [
+    "cover letter",
+    "note to (the )?hiring manager",
+    "letter of (interest|motivation)",
+    "motivation letter"
+   ],
+   "slots": [
+    {
+     "holds": "opening, sentence 1: that they study computer science at @SCHOOL@, their graduation date as the sources give it, and the posting's title said plainly",
+     "name": "opening-who",
+     "required": true
+    },
+    {
+     "holds": "opening, sentence 2: what they built most recently that fits this role, as what it did for the people who used it",
+     "name": "opening-built",
+     "required": true
+    },
+    {
+     "holds": "opening, sentence 3: one specific thing this company or team builds, from the posting or Company brief, and their true same-kind link to it",
+     "name": "opening-company",
+     "required": true
+    },
+    {
+     "holds": "proof: their strongest experience for the work the role most needs, where they did it, and the problem in plain words",
+     "name": "proof-problem",
+     "required": true
+    },
+    {
+     "holds": "proof: what they themselves did, step by step, with a number, scope or link when the sources give one",
+     "name": "proof-steps",
+     "required": true
+    },
+    {
+     "holds": "proof: why they built it that way, or what it showed them, as the sources state it",
+     "name": "proof-why",
+     "required": false
+    },
+    {
+     "holds": "second_proof: a second thing the role needs, from a different experience, with what they did",
+     "name": "second-proof",
+     "required": false
+    },
+    {
+     "holds": "closing: their internship term or availability, as the sources state it",
+     "name": "closing-availability",
+     "required": true
+    }
+   ],
+   "stock": false
+  },
+  "failure": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    120,
+    160
+   ],
+   "match": [
+    "\\bfail(ed|ure)?\\b",
+    "mistake",
+    "challenging (bug|problem|situation)|(a|biggest|hardest|toughest) challenge|overc[oa]me",
+    "\\bbug\\b",
+    "(didn't|did not|didn\u2019t) work",
+    "setback|obstacle|struggle",
+    "disagree|conflict",
+    "changed your mind",
+    "lessons? (learned|you learned)",
+    "a time (when )?you",
+    "initiative|perseverance|resilien",
+    "lead a team|led a team",
+    "complete this sentence"
+   ],
+   "slots": [
+    {
+     "holds": "what went wrong, with its size (a number, a date, a deadline) when the sources give one",
+     "name": "miss",
+     "required": true
+    },
+    {
+     "holds": "who or what it hurt (a teammate's testing, a release date, a demo, a score)",
+     "name": "cost",
+     "required": true
+    },
+    {
+     "holds": "the specific thing they did or didn't do that caused it",
+     "name": "own-cause",
+     "required": true
+    },
+    {
+     "holds": "what they did once they found it (who they told, how they fixed or contained it)",
+     "name": "response",
+     "required": true
+    },
+    {
+     "holds": "what they do differently since, stated as an action they take",
+     "name": "habit",
+     "required": true
+    },
+    {
+     "holds": "a later time they used that habit, and what happened",
+     "name": "habit-held",
+     "required": false
+    },
+    {
+     "holds": "how it felt, in their own words; one short clause at most",
+     "name": "feeling",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "general": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    60,
+    120
+   ],
+   "match": [],
+   "slots": [
+    {
+     "holds": "the direct answer to the exact question, in plain words (the thing, the choice, what they would do)",
+     "name": "answer",
+     "required": true
+    },
+    {
+     "holds": "one backed episode or fact from the sources that supports the answer, with their own part in it",
+     "name": "episode",
+     "required": true
+    },
+    {
+     "holds": "what came of the episode, with its number when the sources give one",
+     "name": "result",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "named-area": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    60,
+    100
+   ],
+   "match": [
+    "(your|any) (experience|background|familiarity|knowledge)",
+    "experience (with|in|using|creating|building)",
+    "(have you|do you have) .*(experience|worked|done|built|contributed|knowledge)",
+    "what tools have you used",
+    "describe (a|one|your) .*(model|web application|application|database|pipeline|system you)",
+    "most advanced",
+    "(tools|frameworks|languages) .*(worked with|used)",
+    "^skills$",
+    "foundational knowledge"
+   ],
+   "slots": [
+    {
+     "holds": "the plain yes or no, when the question asks one; unused otherwise",
+     "name": "direct-answer",
+     "required": "asked"
+    },
+    {
+     "holds": "one project of theirs in the area the question names, and what it did",
+     "name": "project",
+     "required": true
+    },
+    {
+     "holds": "what they wrote or decided in it, fenced off from the team's part",
+     "name": "own-part",
+     "required": true
+    },
+    {
+     "holds": "a step or finding particular to the area that only someone who did the work would name (a data problem, a protocol detail, a bug in it)",
+     "name": "area-fact",
+     "required": true
+    },
+    {
+     "holds": "one line per detail the question lists (stack, team, challenges, validation, tools), in its order; unused when it lists none",
+     "name": "listed-details",
+     "required": "asked"
+    },
+    {
+     "holds": "how they knew it worked (a number with its baseline, a test, a user effect)",
+     "name": "result",
+     "required": true
+    },
+    {
+     "holds": "how long and in what they have used it",
+     "name": "scope",
+     "required": false
+    },
+    {
+     "holds": "what is still unproven or where their experience stops",
+     "name": "limit",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "not-on-resume": {
+   "company_link": "never",
+   "high_stakes": true,
+   "length": [
+    50,
+    90
+   ],
+   "match": [
+    "(not|isn't|isn\u2019t|won't|can't|cannot) (on|see on|find on|in) your (resume|cv)",
+    "not on your (resume|cv)",
+    "exceptional|excellence|outstanding",
+    "top 0\\.01|superpower",
+    "teach us|learn from you|taught yourself",
+    "makes you, you|what makes you stand out",
+    "^(second|third|fourth) example",
+    "something (surprising|interesting) about you"
+   ],
+   "slots": [
+    {
+     "holds": "the one thing, named concretely, that is not on the one-pager or in another answer on this form",
+     "name": "thing",
+     "required": true
+    },
+    {
+     "holds": "what they did, as a checkable event or activity, not a trait",
+     "name": "act",
+     "required": true
+    },
+    {
+     "holds": "how they did it or the reasoning behind it (the mechanism, the trick, the calculation)",
+     "name": "method",
+     "required": true
+    },
+    {
+     "holds": "what came of it (a number, an outcome, a thing that now works)",
+     "name": "result",
+     "required": true
+    },
+    {
+     "holds": "a fact that makes it rare to a non-specialist (odds, selectivity, a baseline, time)",
+     "name": "rarity",
+     "required": false
+    },
+    {
+     "holds": "how it shows in their work, one clause at most, from the sources",
+     "name": "tie-back",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "opinion": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    80,
+    120
+   ],
+   "match": [
+    "\\btrends?\\b|advancements?\\b|recent advances?\\b",
+    "(paper|blog post|documentation) you('ve| have)? read",
+    "(favorite|top|best) .*courses?|courses? (taken|you took)",
+    "in your opinion|your take",
+    "(technology|tool|project) .*caught your attention|most interesting topic",
+    "favorite (software )?(product|paper)",
+    "what would you change",
+    "feedback to change",
+    "how would you (approach|measure)",
+    "\\$1 million|1 million",
+    "code sample",
+    "^why should we",
+    "problem would you happily",
+    "may not accurately reflect"
+   ],
+   "slots": [
+    {
+     "holds": "a narrow, specific view about a technology, technique, course or product, naming the concrete thing",
+     "name": "claim",
+     "required": true
+    },
+    {
+     "holds": "why they hold it, from something they built, measured, broke or saw in their own work",
+     "name": "reason",
+     "required": true
+    },
+    {
+     "holds": "what they did because of it (built, migrated, measured, chose); used when the question asks",
+     "name": "did",
+     "required": false
+    },
+    {
+     "holds": "where the view stops being true, or what it costs, from their own work",
+     "name": "limit",
+     "required": false
+    },
+    {
+     "holds": "what they read that shaped the view, when it came from reading",
+     "name": "read",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "preference": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    60,
+    100
+   ],
+   "match": [
+    "which (team|teams|track|tracks|area|areas|product area|office|location|group|org)",
+    "(team|track|area|location|office)s? .*(prefer|preference|interest(s|ed)? you most)",
+    "(your|team|location|office) preferences?",
+    "something specific at",
+    "specific types? of work",
+    "(most|particularly) interested in focusing",
+    "(rank|ranked) .*(team|area|choice)",
+    "second choice"
+   ],
+   "slots": [
+    {
+     "holds": "one area, team or track (two at most), by the exact name the form or the Company brief uses",
+     "name": "pick",
+     "required": true
+    },
+    {
+     "holds": "their closest real project to that area, with their part and the outcome",
+     "name": "closest-project",
+     "required": true
+    },
+    {
+     "holds": "the property of that project's work that makes it their pick (correctness, scale, reach), as the sources state it",
+     "name": "pull",
+     "required": false
+    },
+    {
+     "holds": "for a location pick only, a true, small reason from the sources",
+     "name": "location-reason",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "values": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    80,
+    140
+   ],
+   "match": [
+    "\\bvalues?\\b",
+    "\\bmission\\b",
+    "principles?",
+    "work (environment|culture)",
+    "what motivates you to do what you do"
+   ],
+   "slots": [
+    {
+     "holds": "exactly one of the company's values (or the mission), quoted from the Company brief in their words, picked for the strongest true story",
+     "name": "value",
+     "required": true
+    },
+    {
+     "holds": "one episode where they acted on that value, told as their own acts, with a named tool, count or duration when the sources give one",
+     "name": "act",
+     "required": true
+    },
+    {
+     "holds": "what came of it, or what others did with what they made",
+     "name": "result",
+     "required": true
+    },
+    {
+     "holds": "what acting on it cost them or pulled against (a deadline, pressure to move on, a metric that said it was fine)",
+     "name": "tension",
+     "required": false
+    },
+    {
+     "holds": "what they do now because of it, stated as an action",
+     "name": "habit",
+     "required": false
+    },
+    {
+     "holds": "what they took from it, specific to this episode; one clause at most",
+     "name": "lesson",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "what-youd-build": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    60,
+    120
+   ],
+   "match": [
+    "didn't exist|did not exist|didn\u2019t exist",
+    "what (would|do) you (want to )?(build|work on)",
+    "\\b(build|building|work on|working on|contribute to|focus on|focusing on|explore|exploring)\\b(?! an? (\\w+ )?career).*\\b(here|with us|at [a-z]|during (your|the|my)|in (your|the|my) (next )?internship|tonight)",
+    "(products?|features?) .*(interested in|excited about|want to) (build|work)",
+    "which .*(projects?|problems?).*(resonates|excit|interest)",
+    "one thing .* (is|are) working on",
+    "research question",
+    "what are you most excited to work on",
+    "particular aspect of"
+   ],
+   "slots": [
+    {
+     "holds": "one real problem of theirs or their users, quoted from the Company brief or the posting; a problem, not a feature label",
+     "name": "problem",
+     "required": true
+    },
+    {
+     "holds": "what makes it hard, from the brief or from the same kind of problem in their own work",
+     "name": "obstacle",
+     "required": true
+    },
+    {
+     "holds": "one modest first step and what they would measure, built from a method the sources show they have used",
+     "name": "first-step",
+     "required": true
+    },
+    {
+     "holds": "their own work on the same kind of problem, with what exists now (a link, a prototype, a result)",
+     "name": "progress",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "why-company": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    70,
+    120
+   ],
+   "match": [
+    "^why (?!do you think|are you (a|the) )",
+    "why .*(work|join|intern|interning|apply|applied) (at|for|with|us|the team)",
+    "why .*interested in (working|joining|interning|an internship|this|the|[a-z0-9])",
+    "(excites?|interests?|drew|draws|attracts?|stood out|stands? out|caught your attention|motivat\\w*|prompted|sparked)",
+    "what do you know about",
+    "how .* makes money",
+    "your (interest|understanding) (in|of)"
+   ],
+   "slots": [
+    {
+     "holds": "one checkable thing of theirs from the Company brief or the posting, at the level of a product, a technical choice, an engineering post or a launch; never the mission or the values",
+     "name": "company-fact",
+     "required": true
+    },
+    {
+     "holds": "the same kind of thing from their own work (same domain, constraint or user), with a size or count when the sources give one",
+     "name": "his-match",
+     "required": true
+    },
+    {
+     "holds": "what @NAME@ has not had that they have (a scale, a kind of user, a problem @NAME@ has only met small)",
+     "name": "gap",
+     "required": false
+    },
+    {
+     "holds": "the work they would do on it there, stated modestly",
+     "name": "contribution",
+     "required": false
+    }
+   ],
+   "stock": false
+  },
+  "why-field": {
+   "company_link": "never",
+   "high_stakes": false,
+   "length": [
+    70,
+    120
+   ],
+   "match": [
+    "\\bmajor\\b|field of study|chosen discipline",
+    "(career|professional|short-term|long-term|educational) (goals?|plans?)",
+    "goals for the next",
+    "plans after",
+    "(hoping|hope|looking|want) to (gain|develop|learn|get)",
+    "skills .*(develop|gain)",
+    "^what motivates you\\??$",
+    "why .*career in",
+    "(interested|interest) in .*(career(?! at)|trading|analytics|data processing|the .* space)",
+    "looking for in your next role|optimizing for",
+    "steepest learning curve",
+    "prepare for a career",
+    "what type of engineering work",
+    "why .*(choose|chose|pick|picked|study|studying|pursue|pursuing|interested in|get into|got into) .*(computer science|\\bcs\\b|software engineering|engineering|programming|coding|this field|your field|tech\\b)"
+   ],
+   "slots": [
+    {
+     "holds": "the reason, as an event the sources date or name (the first problem they solved or got stuck on, a course, a job) or the plain practical reason; for a goals question, what their work so far has not taught them",
+     "name": "draw",
+     "required": true
+    },
+    {
+     "holds": "what they have done in the field since, with a number or a name (a project, a competition result, an internship)",
+     "name": "since",
+     "required": true
+    },
+    {
+     "holds": "the specific, near thing they want next (a kind of work, a problem, a step already in motion)",
+     "name": "next",
+     "required": true
+    },
+    {
+     "holds": "for a goals question, what they give in return, as a fact about their work",
+     "name": "brings",
+     "required": false
+    },
+    {
+     "holds": "the size of the problem that drew them, only as a number the sources give",
+     "name": "problem-size",
+     "required": false
+    },
+    {
+     "holds": "how it felt, in their own words; one short clause at most",
+     "name": "feeling",
+     "required": false
+    }
+   ],
+   "stock": true
+  },
+  "why-role": {
+   "company_link": "same-kind",
+   "high_stakes": true,
+   "length": [
+    60,
+    120
+   ],
+   "match": [
+    "good fit|great fit|a fit|your fit|right fit",
+    "why (are you|you are|you're) (a|the) (good|great|best|right)",
+    "best (person|candidate)",
+    "what (will|would|can) you bring",
+    "what makes (you|someone)",
+    "make an impact at",
+    "your strengths",
+    "why (this|the) role",
+    "interest(ed|s)? .*(in|about) (this|the) (role|position|opportunity|internship)",
+    "about this role"
+   ],
+   "slots": [
+    {
+     "holds": "one to three duties or stack items this role needs, quoted from the posting or the Company brief",
+     "name": "role-need",
+     "required": true
+    },
+    {
+     "holds": "for each need, one episode from their own work where they did it, with what they did and a size or result",
+     "name": "proof",
+     "required": true
+    },
+    {
+     "holds": "a true, small reason for this role over others, or a plain answer to the reader's likely worry about them",
+     "name": "why-this-role",
+     "required": false
+    },
+    {
+     "holds": "the answer to any extra part the question asks (a weakness, work they are not interested in), taken from the sources",
+     "name": "other-part",
+     "required": "asked"
+    }
+   ],
+   "stock": false
+  }
+ }
+}

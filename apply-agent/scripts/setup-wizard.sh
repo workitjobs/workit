@@ -213,7 +213,8 @@ RECORDS="${APPLY_RECORDS_REPO:-}"
 apply_cli() { (cd "$APPLY_DIR" && uv run apply "$@"); }
 in_apply() { (cd "$APPLY_DIR" && "$@"); }
 already() { printf '  %s✓ %s%s\n' "$GREEN" "$1" "$RESET"; }
-keychain_has() { [[ -n "$(security find-generic-password -s "$1" -a "$2" -w 2>/dev/null || true)" ]]; }
+# Keychain items go through keyring (macOS Keychain, Windows Credential Manager), as Apply reads them.
+keychain_has() { [[ -n "$(in_apply uv run keyring get "$1" "$2" 2>/dev/null || true)" ]]; }
 policy_on() { grep -qE "^$1: true$" "$POLICIES"; }
 # A Chrome has this profile open (a run, a rehearsal, or a sign-in window).
 profile_open() { pgrep -f "user-data-dir=$1( |$)" >/dev/null 2>&1; }
@@ -255,9 +256,9 @@ else
   open_url "https://myaccount.google.com/apppasswords"
   step "Sign in if Google asks. No app passwords page? Turn on 2-Step Verification first."
   step "Name it Apply, click Create, and copy the 16 letters Google shows."
-  step "Paste them at the prompt below, without the spaces. It's hidden and asked twice."
-  until security add-generic-password -U -s apply-gmail -a "$EMAIL" -w && gmail_works; do
-    warn "Gmail didn't accept that one (or the two didn't match)."
+  step "Paste them at the prompt below, without the spaces. It's hidden."
+  until in_apply uv run keyring set apply-gmail "$EMAIL" && gmail_works; do
+    warn "Gmail didn't accept that one."
     confirm "Try again?" || { SKIPPED+=("Gmail app password (docs/accounts-setup.md, step 1)"); break; }
   done
   gmail_works && already "Gmail signs in with the new app password."
@@ -306,10 +307,10 @@ fi
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Phone pushes (ntfy)"
 say "After every run, Apply pushes what waits on you to the ntfy app."
-TOPIC=$(security find-generic-password -s apply-ntfy -a ntfy.sh -w 2>/dev/null || true)
+TOPIC=$(in_apply uv run keyring get apply-ntfy ntfy.sh 2>/dev/null || true)
 if [[ -z "$TOPIC" ]]; then
   TOPIC="apply-$(openssl rand -hex 12)"
-  security add-generic-password -U -s apply-ntfy -a ntfy.sh -w "$TOPIC"
+  printf '%s' "$TOPIC" | in_apply uv run keyring set apply-ntfy ntfy.sh  # on stdin, never in argv
   already "Made a private topic and saved it in Keychain."
 fi
 step "On your phone, install ntfy (App Store or Google Play) and open it."

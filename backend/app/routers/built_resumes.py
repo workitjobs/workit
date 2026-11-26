@@ -11,7 +11,10 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        "built_resume_id", "name"}} when the new resume would print the same
        as one the student has (KAN-267); nothing is written. With
        `allow_duplicate` (the student confirmed a copy, KAN-444) it skips
-       that check.
+       that check. With `blank` (2026-11-18, onboarding's "No, build one
+       for me") the resume starts from scratch: every bank entry and skill
+       gets a hidden choice row, so it prints its header alone, with no
+       duplicate check (`services/built_resumes.blank_choices`).
 POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
        The same Generate, streamed so the Resumes page can show its steps
        (KAN-444): `{"type": "phase", "phase": "checking"}` before the
@@ -255,7 +258,9 @@ async def generate(
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
     try:
-        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
+        resume = await service.generate(
+            session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate, blank=body.blank
+        )
     except service.DuplicateResume as exc:
         raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id), "name": exc.resume.name})
     default_id = await service.default_built_id(session, applicant_id)
@@ -301,7 +306,9 @@ async def _generated(
 ) -> AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]:
     """Generate's lines: each step as it starts, then `done` once the
     resume is committed, or `error` with what the JSON route answers."""
-    steps = service.generate_steps(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
+    steps = service.generate_steps(
+        session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate, blank=body.blank
+    )
     try:
         async for step in steps:
             if isinstance(step, Built_Resume):
@@ -405,11 +412,20 @@ FIT_RENDER_TRIES = 2
 
 
 async def _render(
-    view, identity: HeaderIdentity, template: str, page: resume_render.PageSettings, tries: int = 1
+    view,
+    identity: HeaderIdentity,
+    template: str,
+    page: resume_render.PageSettings,
+    tries: int = 1,
+    *,
+    bookmarks: bool = True,
 ) -> Rendered:
+    # `bookmarks` False for a PDF only the editor's page shows (an edit, a
+    # fit): one TeX pass, no outline (resume_render.compile_document). GET
+    # .../render keeps it, since Download and the first page read it
     for attempt in range(1, tries + 1):
         try:
-            return await asyncio.to_thread(render, view, identity, template, page)
+            return await asyncio.to_thread(render, view, identity, template, page, bookmarks=bookmarks)
         except TectonicUnavailable as exc:
             if attempt == tries:
                 logger.error("resume render failed: %s", exc)
@@ -449,7 +465,7 @@ async def fit(
     page = service.page_of(resume)
 
     async def draw(view) -> Rendered:
-        return await _render(view, identity, resume.template, page, tries=FIT_RENDER_TRIES)
+        return await _render(view, identity, resume.template, page, tries=FIT_RENDER_TRIES, bookmarks=False)
 
     cuts, rendered = await service.fit_to_one_page(session, applicant_id, resume_id, draw)
     await _commit(session, "Failed to save the resume")
@@ -599,7 +615,7 @@ async def render_edit(
         raise HTTPException(404, "Resume or bank item not found")
     page = resume_render.PageSettings(**(body.page or source.page_settings).model_dump())
     try:
-        rendered = await _render(build_view(held, after), identity, source.template, page)
+        rendered = await _render(build_view(held, after), identity, source.template, page, bookmarks=False)
     except ValueError:
         raise HTTPException(422, "Unknown template")
     response = _render_response(rendered, "", identity, source.template, page)
@@ -612,7 +628,7 @@ async def render_edit(
 
 
 def _parse(line) -> resume_lines.Line:
-    parsed = resume_lines.parse(line.kind, line.text)
+    parsed = resume_lines.parse(line.kind, line.text, header=line.item_id == HEADER)
     if (parsed.target == "header") != (line.item_id == HEADER):
         raise resume_lines.LineError("This line is not typed here.")
     return parsed
@@ -627,6 +643,10 @@ def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
         return dataclasses.replace(identity, name=name_columns(value)["full_name"])
     if field == "phone_number":
         return dataclasses.replace(identity, phone=value)
+    if field == "location":
+        return dataclasses.replace(identity, location=value)
+    if field == "resume_header_extra":
+        return dataclasses.replace(identity, extra=value)
     links = dict(identity.links)
     links[field] = value
     order = ("linkedin_url", "github_url", "portfolio_url", "other_url")

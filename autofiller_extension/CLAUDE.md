@@ -43,9 +43,9 @@ The form is filled by the **Fill engine**, the TypeScript engine Apply
 (Lisul's autopilot) fills with too: one copy of every job system's filler
 and of the answer rules, so a fix lands in both. It lives in the private
 repo `workitjobs/fill-engine` and sits here as the submodule
-`fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
-autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
-a change to the engine reaches students only when someone here chooses it.
+`fill-engine/`, **pinned to a commit on its `main`**. A person moves the
+pin ("Move the engine pointer", at the end of this section), so a change
+to the engine reaches students only when someone here chooses it.
 Nothing else changes with the pin: `ENGINE_VERSION` (`src/background/engine.js`,
 what a problem report and a fill event name) is the bundle's own `version`
 (the engine's package.json version and a hash of its src/), and
@@ -356,6 +356,79 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and that nothing was submitted. Run: `npm --prefix autofiller_extension/test ci`,
   then `npm --prefix autofiller_extension/test test` (Chromium:
   `npx playwright install chromium` once).
+
+### Move the engine pointer
+
+The pointer (`fill-engine/`, a gitlink: the one engine commit this repo
+records) picks the engine for three things at once: this extension, Apply
+in a Developer checkout, and WorkIt Auto Apply, which downloads the build
+that `publish-engine.yml` signs on each merge to `main` that moves it. One
+PR moves it for all three. Nothing moves it for you: a merge in
+`workitjobs/fill-engine` changes nothing here.
+
+1. **Merge the engine change** into `workitjobs/fill-engine`'s `main`,
+   with its built `dist/` committed. The pointer names a commit on the
+   engine's `main`, usually that merge commit. CI checks that the commit's
+   `dist/` is built from its `src/`, but not that the commit is on the
+   engine's `main`: a commit from another branch would ship code that no
+   engine PR reviewed. The engine stopped making tags after v0.3.5. Its
+   `package.json` version names it (v0.3.48 at `66d8403`).
+2. **Branch here from a fresh `main`:**
+   `npm run worktree -- KAN-123-engine-v0-3-49`.
+3. **Move the pointer.** `<commit>` is the engine commit, or `origin/main`
+   for the newest one:
+
+   ```bash
+   git submodule update --init autofiller_extension/fill-engine
+   git -C autofiller_extension/fill-engine fetch origin main
+   git -C autofiller_extension/fill-engine checkout --detach <commit>
+   git -C autofiller_extension/fill-engine merge-base --is-ancestor HEAD origin/main && echo "on the engine's main"
+   git -C autofiller_extension/fill-engine show HEAD:package.json | grep '"version"'
+   git add autofiller_extension/fill-engine
+   git commit -m "KAN-123: Point the engine at v0.3.49"
+   ```
+
+   `git show --stat HEAD` then lists one path,
+   `autofiller_extension/fill-engine`. Nothing else changes with the
+   pointer.
+4. **Decide two things in the same PR.**
+   - **Can the apps that students have run it?** When the engine needs
+     something that only a newer WorkIt Auto Apply has, raise
+     `backend/app/scripts/engine_min_app.txt` to that app version. Older
+     apps then keep the build before it. Otherwise leave the file alone.
+   - **Must Store users get it now?** A pointer move alone publishes no
+     extension: Store users get the engine with the next `store/store.json`
+     bump. To ship it now, raise `version` there in this PR
+     (`../.github/CLAUDE.md`, "Publish extension to Chrome Web Store").
+5. **Try it on your Mac.** Reload the unpacked extension in
+   `chrome://extensions` and fill a posting that the change touches. For
+   Apply, run `uv run apply rehearse <url>` from `apply-agent/`: a
+   rehearsal never submits. The specs under **Tests** above run on the new
+   engine too.
+6. **Open the PR.** CI's `extension` job checks the pinned commit's
+   `dist/` against its `src/` and runs the smoke specs. The `apply` job
+   runs Apply's fast tests on the new engine. A stale `dist/` fails: build
+   and commit it in the engine repo, then point at that commit.
+7. **After the merge:**
+   - `publish-engine.yml` signs and publishes the build in about 30 s.
+     Check it: `gh run list --repo workitjobs/workit --workflow
+     publish-engine.yml --limit 1` shows success, and the run's log says
+     "Published". A failed run leaves students on the last build. Fix the
+     cause, then run `gh workflow run publish-engine.yml --ref main`
+     (`../.github/CLAUDE.md`, "Publish the Fill engine").
+   - WorkIt Auto Apply gets the build at its next launch, within 60 s of
+     the publish. An app that is running keeps its engine until it
+     restarts.
+   - Each teammate runs `git submodule update` after the pull. `git pull`
+     does not move a checkout's engine, so it keeps the old one.
+
+**Roll back a bad engine** with a PR that moves the pointer back to the
+last good commit, by the same steps. Keep `engine_min_app.txt` as it is,
+even when the bad PR raised it. An app takes the build with the highest
+min app that fits it, so a rollback that lowers the min app leaves the
+apps at the higher version on the bad build (found in a dry run,
+2026-11-16). The Store extension rolls back only with another
+`store.json` bump.
 
 ## Two surfaces, one engine
 
@@ -1808,6 +1881,28 @@ for; a 401 for the table gets one new token and one more fetch.
   nothing. A practice form is Lever's form on WorkIt's own site: it asks for
   Lever's table with a Lever link for its job (`tokenLink`), since the API
   names no job system on WorkIt's site.
+- **The extension's own job-system names come from the table too (KAN-778).**
+  The stepped systems' scripts (`workday.js`, `oracle.js`, `icims.js`,
+  `successfactors.js`, `workday-walk.js`, `primary.js`) and the panel's
+  Workday step line (`panel-top.js`) hold no selector or pattern of a job
+  system: they read the table's names through `window.WIA.site(site)`
+  (`content/site-data.js`, first of `SHELL_FILES`), `SEL.NAME` and
+  `PAT.NAME`, at each use. The background gives the page's isolated world
+  its job system's data (`giveSiteData`: the background engine's
+  `FillEngine.siteRules(site)`, the held table's else the bundled data) before
+  the panel's shell (`panel/shell`) and in `injectFill` after
+  `loadRulesIn`. The background's own checks read it the same way
+  (`signInFirst`'s TikTok sign-in path, `tab-load.js`'s Workable Submit).
+  With no data (the Store package before its table comes) a name is a
+  selector and a pattern that match nothing, so a script finds nothing
+  rather than throwing. A list is used only whole (a served copy's lists
+  are watermarked). Names only the extension reads are marked so in the
+  engine's `src/systems-table.ts` (Workday's sign-in and Apply buttons, each
+  system's footer buttons, review pages and error banners). Plain words
+  stay in code: Workday's sign-in and verification wordings, its Apply
+  button words, and the walk's words that send (`SENDS`), which no served
+  table may loosen. A test that injects the fill's scripts itself gives the
+  data as `injectFill` does (`siteData: { site, data: FillEngine.siteRules(site) }`).
 - **The Store package bundles no job system's data (KAN-777).** It ships the
   engine's Store bundle (fill-engine `dist/engine.store.js`, packaged as
   `dist/engine.js`): the same code, every site `{}` and only the basic answer
@@ -1842,8 +1937,8 @@ KAN-283's `autofill_answers` (`backend/app/models/autofill_answers.py`) holds
 the nine answers hiring systems repeat on every form:
 `work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
 `security_clearance`, `gender`, `hispanic_latino`, `race`,
-`veteran_status`, `disability_status`. Onboarding's Profile step and My
-Profile write it, and the extension writes only the self-identification a
+`veteran_status`, `disability_status`. Onboarding's Authorization page
+(the first two) and Application Info write it, and the extension writes only the self-identification a
 form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 `engineProfile` turns each option key into the fact the engine's rules
 read (yes/no as true/false, "declined" as "decline", the rest in
@@ -2911,7 +3006,11 @@ was: a guess with Looks right, or a change with Save for next time. A
 failed delete says "WorkIt couldn't undo it. Try again." Tests:
 `test/batch.extension.spec.ts` (the walk, the save, Undo of a change, the
 next form), `test/greenhouse.spec.ts` (the batch skips self-ID and legal;
-Undo after Looks right ×N).
+Undo after Looks right ×N). Since KAN-775 the engine guesses no box that
+names arbitration (Coinbase's is the student's, Needs you), so that test
+puts its own guessed legal box in the panel to check the batch skips it;
+it had expected Coinbase's box guessed, and failed on every PR that ran
+the extension's tests after the pin moved.
 
 Both of the extension's surfaces, the popup and the panel, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are
@@ -2975,7 +3074,8 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
 - `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
   of them skips a null one, so nothing probes or calls localhost),
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
-- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`, and
+- only what Chrome loads, plus the extension's own `LICENSE` and `NOTICE`
+  (KAN-849): `manifest.json`, `icons`, `fonts`, `src`, and
   the engine's Store bundle as `fill-engine/dist/engine.js` (KAN-777, "The
   Rules table from the API" above). Not its full bundle or the rest of its
   `dist/`: `rules-table.json` (fill-engine KAN-756) is for other hosts, and
@@ -2993,12 +3093,15 @@ The build fails if any packaged file still names localhost, vercel.app or
 (`perSiteData`): the packaged engine must bundle no site's data and only
 basic answer rules, and no packaged file may hold a selector, wording or
 pattern of the full table (`fill-engine/dist/rules-table.json`, the copy kept
-outside the package), nor a field-kind map (all its `type: "kind"` pairs) or
-a timeout written out (its name given its ms); the engine's own `{}` for
-every site covers all four parts, `kinds` and `timeouts` too, other than two generic label patterns (`GENERIC`) and
-the stepped systems' walk's own copies listed by file in
-`store/extension-site-data.json`, which KAN-778 moves behind the served
-table. A new one anywhere fails the build. A new dev-only line in `config.js` must be one
+outside the package), nor one of its class, id or attribute names (one word
+of 10 characters or more with a `-` or `_`), nor a field-kind map (all its
+`type: "kind"` pairs) or a timeout written out (its name given its ms); the
+engine's own `{}` for every site covers all four parts, `kinds` and
+`timeouts` too. The only values allowed are generic ones the code keeps on
+purpose (`GENERIC`: two label patterns and the step walk's words that send;
+`NAMED_IN_CODE`: a Greenhouse question name and the attribute a field is
+found by with its own name). No file is exempt (KAN-778, "The extension's
+own job-system names come from the table too" above). A new one anywhere fails the build. A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
 the zip back (minified, the banner, no source map, one engine file);
 `test/store-build.extension.spec.ts` loads the built package

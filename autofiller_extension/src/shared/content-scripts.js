@@ -6,7 +6,7 @@
 // engine (the fill-engine submodule, pinned to a tag) must see the page's
 // React state and wrap its fetch (Ashby), which an extension's isolated world
 // can't. CONTENT_SCRIPT_FILES run in the isolated world, where chrome.runtime
-// is: lib-status/tokens/ui/report-parts/panel/coverage/row-card/overlay/card-flag/card-waiting/card-guess/letter-preview/captured-notice/workday/oracle/successfactors/icims/steps/workday-walk/written-answers/batch-tab/marks/card-failed/submit-warning/presubmit/primary/progress/closed-posting/smartrecruiters/fill-event populate window.WIA and content-script.js (last)
+// is: lib-status/site-data/tokens/ui/report-parts/panel/coverage/row-card/overlay/card-flag/card-waiting/card-guess/letter-preview/captured-notice/workday/oracle/successfactors/icims/steps/workday-walk/written-answers/batch-tab/marks/card-failed/submit-warning/presubmit/primary/progress/closed-posting/smartrecruiters/fill-event populate window.WIA and content-script.js (last)
 // runs the fill, reaching the engine through the background
 // (background/engine.js). Content scripts can't be ES modules, so the order
 // here is what makes the globals exist.
@@ -42,10 +42,30 @@ export async function loadRulesIn(target, table) {
   }).catch((error) => console.warn("[fill] the Rules table wasn't loaded:", error.message));
 }
 
+/**
+ * Gives the page's isolated world its job system's data (`window.WIA.siteData`, content/site-data.js): the
+ * selectors and patterns the extension's own scripts read by name (KAN-778), as the background's engine
+ * fills with them now (the held table's for the site, else its bundled data: none in the Store package).
+ * Memory only. Never throws: a script with no data finds nothing.
+ * @param {chrome.scripting.InjectionTarget} target
+ * @param {string | null} site
+ */
+export async function giveSiteData(target, site) {
+  const data = site ? globalThis.FillEngine.siteRules(site) : {};
+  await chrome.scripting.executeScript({
+    target,
+    func: (site, data) => {
+      window.WIA = window.WIA || {};
+      window.WIA.siteData = { site, data };
+    },
+    args: [site, data],
+  }).catch((error) => console.warn("[fill] the job system's data wasn't given:", error.message));
+}
+
 // The panel's shell, before any fill: what the launcher's panel/shell loads on a job page (launcher.js, KAN-749)
 // and the toolbar icon or Alt+W where no panel is yet (background.js openShell). The manifest loads only the
 // launcher, so other pages get none of these. The same files, in the same order, lead CONTENT_SCRIPT_FILES.
-export const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/coverage.js", "src/content/panel-states.js"];
+export const SHELL_FILES = ["src/content/site-data.js", "src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/coverage.js", "src/content/panel-states.js"];
 
 export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", ...SHELL_FILES, "src/content/row-card.js", "src/content/groups.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/letter-preview.js", "src/content/card-written.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/oracle.js", "src/content/successfactors.js", "src/content/icims.js", "src/content/steps.js", "src/content/workday-walk.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/presubmit.js", "src/content/primary.js", "src/content/progress.js", "src/content/closed-posting.js", "src/content/smartrecruiters.js", "src/content/fill-event.js", "src/content/content-script.js"];
 
@@ -83,6 +103,7 @@ export async function injectFill(tabId, { batch = false, frameId = undefined } =
   try {
     await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
     await loadRulesIn(target, await rulesFor(jobSystem, claim.rules, href).catch(() => null));
+    await giveSiteData(target, jobSystem);
   } catch (error) {
     await release();
     throw error;

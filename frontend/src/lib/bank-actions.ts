@@ -54,6 +54,9 @@ export type EntryFields<S extends EntrySection = EntrySection> = {
   tools: string[];
   issuer: string | null;
   award_date: string | null;
+  /** The dates given as a year alone (KAN-808), shown as the year. Read
+   *  only: an edit leaves it out, and a date the edit changes loses its mark. */
+  year_only?: ("start_month" | "end_month" | "award_date")[];
 };
 
 export type Bullet = { id: string; position: number; text: string };
@@ -244,9 +247,19 @@ export async function deleteSection(sectionId: string): Promise<Result<null>> {
   return call<null>(`/sections/${id(sectionId)}`, { method: "DELETE" });
 }
 
-/** Clear All for the Skills card, as `deleteEntries`. */
+/** Deletes these skills in one call, all or none, as `deleteEntries`:
+ *  Skills' Clear All and a group's Delete Group (KAN-816). */
 export async function deleteSkills(skillIds: string[]): Promise<Result<null>> {
   return call<null>("/skills/delete", { method: "POST", body: JSON.stringify({ ids: skillIds }) });
+}
+
+/** The Skills dialog's save (KAN-816): these skills in this order, each in
+ *  its group (null: no group), so a rename, a merge and a move are one call.
+ *  They take the places they held in the bank; the rest keep theirs. */
+export async function orderSkills(
+  skills: { id: string; group: string | null }[],
+): Promise<Result<null>> {
+  return call<null>("/skills/order", { method: "PUT", body: JSON.stringify({ skills }) });
 }
 
 /** What one import wrote into the bank: an upload's own reading, or Import
@@ -265,7 +278,29 @@ export type ImportResult = {
   read_by: "parser" | "model";
   /** AI readings the student has left today. */
   uses_left: number;
+  /** What the resume's header filled on the profile (KAN-436). Absent
+   *  from an API a deploy behind. */
+  header?: HeaderFill;
 };
+
+/** A resume header's effect on the profile (the API's `HeaderFill`,
+ *  KAN-436): each empty field it filled, with the value; a value that
+ *  differs from the profile's, offered with Use This; and whether it held
+ *  more free text than the Additional line takes. It never overwrites. */
+export type HeaderFill = {
+  added: Partial<Record<HeaderFillField, string>>;
+  offers: { field: HeaderFillField; value: string }[];
+  overflow: boolean;
+};
+export type HeaderFillField =
+  | "contact_email"
+  | "phone_number"
+  | "location"
+  | "linkedin_url"
+  | "github_url"
+  | "portfolio_url"
+  | "other_url"
+  | "resume_header_extra";
 export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
 /** Import Again: reads an uploaded resume (`resumeId`, else the default one,

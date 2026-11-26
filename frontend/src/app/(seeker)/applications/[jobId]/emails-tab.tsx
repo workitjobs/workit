@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 
 import type { Email } from "../tracked";
 import { EmailRowContent, type EmailJob } from "../../inbox/email-row";
@@ -12,14 +13,15 @@ import { EmailRowContent, type EmailJob } from "../../inbox/email-row";
  * Inbox lists them (../../inbox/email-row.tsx), newest first. A row opens
  * the email in the Inbox's reading pane (`/inbox?email=`), whose Back
  * returns here, so an email is read and decided in one place. `emails` is
- * null when the read failed: that says so, never "no emails yet".
+ * null when the read failed: that is the failed read's card with Try Again
+ * (KAN-819), never "no emails yet".
  */
 export function EmailsTab({ emails, job }: { emails: Email[] | null; job: EmailJob }) {
   if (emails == null) {
     return (
-      <p className="text-body text-ink-meta mt-6">
-        We couldn&apos;t load this application&apos;s emails. Refresh the page in a few minutes.
-      </p>
+      <LoadFailed title="This Application's Emails Aren't Loading Right Now" className="mt-6">
+        We couldn&apos;t reach your emails. Try again in a few minutes.
+      </LoadFailed>
     );
   }
   if (emails.length === 0) {

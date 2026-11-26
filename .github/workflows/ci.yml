@@ -1,8 +1,8 @@
 name: CI
 
+# Every pull request, stacked ones too: a PR on another PR's branch got no checks, and failures sat unseen on it.
 on:
   pull_request:
-    branches: [main]
 
 jobs:
   frontend:
@@ -86,7 +86,12 @@ jobs:
       pull-requests: read
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
-      apply: ${{ steps.filter.outputs.apply }}
+      # Apply's jobs: apply-fast (Ubuntu) on any Apply change; the Mac jobs (apply, apply-hostile) on one a Mac step
+      # can read, which leaves out the student page and the docs (KAN-837).
+      apply: ${{ steps.filter.outputs.apply_shared == 'true' || steps.filter.outputs.apply_agent == 'true' }}
+      apply_mac: ${{ steps.filter.outputs.apply_shared == 'true' || steps.apply_code.outputs.code == 'true' }}
+      apply_window: ${{ steps.filter.outputs.apply_window }}
+      hostile_pages: ${{ steps.filter.outputs.hostile_pages }}
       backend: ${{ steps.filter.outputs.backend }}
     steps:
       # A PR's files come from the API; any other event diffs the checkout.
@@ -109,13 +114,50 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
               - .github/actions/extension-setup/**
-            apply:
+            apply_agent:
               - apply-agent/**
+            # What every Apply job reads outside apply-agent/
+            apply_shared:
               - autofiller_extension/fill-engine
               # Apply's truth check is a copy of this file; its test compares them
               - backend/app/auto_apply/truth.py
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
+              - .github/actions/apply-setup/**
+              - .github/actions/apply-browsers/**
+            # The student page's source and the built file a Student build ships (KAN-867)
+            apply_window:
+              - apply-agent/window/**
+              - apply-agent/src/apply/student_page/**
+              - .nvmrc
+              - .github/workflows/ci.yml
+            # What the hostile pages' control reads (KAN-780): the pages, the fake site, Chromium (uv.lock pins
+            # Playwright) and the runner's setup. The control runs no Apply code, so no other change can turn it red.
+            # A module of tests/ that the hostile file or conftest.py imports joins the list.
+            hostile_pages:
+              - apply-agent/tests/test_submit_guard_hostile.py
+              - apply-agent/tests/plain_fakes.py
+              - apply-agent/tests/conftest.py
+              - apply-agent/tests/network_block.py
+              - apply-agent/pyproject.toml
+              - apply-agent/uv.lock
+              - .github/workflows/ci.yml
+              - .github/actions/apply-setup/**
+              - .github/actions/apply-browsers/**
+      # apply-agent/ less what no Mac step reads: the student page (its own job, apply-window, and apply-fast's
+      # test_app_window.py check it), its built file and the docs (KAN-837). A file counts only when it matches every
+      # pattern here, so each `!` takes a folder out; under the first step's default ('some') a `!` takes nothing out.
+      - uses: dorny/paths-filter@v3
+        id: apply_code
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - apply-agent/**
+              - '!apply-agent/window/**'
+              - '!apply-agent/src/apply/student_page/**'
+              - '!apply-agent/docs/**'
+              - '!apply-agent/**/*.md'
 
   # The extension's smoke specs (autofiller_extension/test/ci-smoke.txt),
   # headless, on the engine the submodule pins (KAN-464). The whole suite, 40
@@ -168,52 +210,42 @@ jobs:
           path: autofiller_extension/test/test-results
           retention-days: 7
 
-  # Apply (apply-agent/, KAN-535): ruff, the fast tests (the files that need no
-  # browser, no network and no `claude` CLI) and the plain-Worker tests (KAN-667).
-  # The tests read the engine's saved forms, so the job needs the fill-engine
-  # submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
-  apply:
+  # Apply (apply-agent/, KAN-535) in three jobs side by side. apply-fast, on Ubuntu: ruff, the fast tests (the files
+  # that need no browser, no network and no `claude` CLI) and the tile's tests. apply, on macOS: the plain-Worker
+  # tests (KAN-667). apply-hostile, on macOS: the hostile pages (KAN-780). The tests read the engine's saved forms, so
+  # each job needs the fill-engine submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  #
+  # Why apart (KAN-837): the organization runs at most 5 macOS jobs at once, shared by every PR and the nightly
+  # runs, and a Mac job waited in the queue while Ubuntu runners stood free. Only what needs a Mac runs on one,
+  # and a PR that changes only the student page or the docs starts no Mac job (apply_mac).
+  #
+  # Each step has its own limit, and the job's is their sum, so a hang fails in its own step and the
+  # job's limit never stops a run whose every step is inside its own (KAN-780).
+  apply-fast:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
-    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
-    # (apply/plain/launcher.py), as on the Macs Apply runs on.
-    runs-on: macos-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
     defaults:
       run:
         working-directory: apply-agent
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
         with:
           submodules: true
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
-      # See the same step's comment in extension-store-build, above.
-      - name: Pin fill-engine to the commit this branch actually records
-        working-directory: .
-        run: |
-          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
-          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
-          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
-          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      # uv's download cache, keyed on uv.lock (KAN-780).
-      - uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-          cache-dependency-glob: apply-agent/uv.lock
-      - run: uv sync --locked
-        timeout-minutes: 3
+      - uses: ./.github/actions/apply-setup
+        timeout-minutes: 5
       - run: uv run ruff check .
         timeout-minutes: 2
       # The files that need no browser, network or `claude` CLI. A new test
       # file that needs none of them joins the list. Each step runs its tests
       # on the runner's cores with pytest-xdist (-n auto: each process has its
       # own APPLY_HOME, fake servers on port 0 and its own plain Worker), and
-      # each has its own limit, so a hang fails that step, not the job at 20
-      # minutes (KAN-780). `nightly` tests run in apply-nightly.yml instead.
+      # each has its own limit, so a hang fails that step (KAN-780). `nightly`
+      # tests run in apply-nightly.yml instead.
       - name: Fast tests
         timeout-minutes: 5
         run: |
@@ -224,11 +256,16 @@ jobs:
             tests/test_answer_sync.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
+            tests/test_app_control.py \
+            tests/test_app_window.py \
+            tests/test_first_run.py \
             tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
+            tests/test_back_to_app.py \
             tests/test_bot_signals.py \
             tests/test_captcha.py \
+            tests/test_chrome_reaper.py \
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
@@ -237,18 +274,25 @@ jobs:
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_each_os.py \
             tests/test_eightfold_filler.py \
+            tests/test_engine_download.py \
             tests/test_employer_mail.py \
             tests/test_fill_engine.py \
             tests/test_focus.py \
             tests/test_form_steps.py \
+            tests/test_form_tree.py \
+            tests/test_guard_scripts_compile.py \
             tests/test_gates.py \
             tests/test_gmail.py \
             tests/test_graduate_only.py \
+            tests/test_ask_model.py \
             tests/test_into.py \
             tests/test_keepalive.py \
             tests/test_left_behind.py \
+            tests/test_locks.py \
             tests/test_preflight.py \
+            tests/test_queued_names.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_masked.py \
@@ -256,9 +300,11 @@ jobs:
             tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_optional_ask.py \
+            tests/test_other_roles.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
+            tests/test_plain_channel.py \
             tests/test_plain_seed_setup.py \
             tests/test_plain_trusted_rules.py \
             tests/test_presubmit_check.py \
@@ -268,6 +314,7 @@ jobs:
             tests/test_records_contract.py \
             tests/test_regenerate.py \
             tests/test_repair_requests.py \
+            tests/test_report.py \
             tests/test_requests.py \
             tests/test_rescue_elsewhere.py \
             tests/test_resume_check.py \
@@ -282,12 +329,16 @@ jobs:
             tests/test_story_map.py \
             tests/test_tailored_resume.py \
             tests/test_temp_state.py \
+            tests/test_third_party_notices.py \
+            tests/test_strip_js_comments.py \
             tests/test_tracker_cleanup.py \
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
             tests/test_truth.py \
+            tests/test_student_build.py \
             tests/test_worker_date.py \
+            tests/test_worker_extension_store.py \
             tests/test_workit_login.py
       # The tile's tests time frames and retries in real seconds: in one
       # process, as beside other test processes they missed their timing (KAN-780).
@@ -300,39 +351,113 @@ jobs:
             tests/test_plain_stale_extension.py \
             tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py
-      # Playwright's Chromium and its Chrome for Testing follow the Playwright that uv.lock
-      # pins. A miss costs one download. The plain-Worker tests skip without it, so the
-      # check below makes a failed install fail the job instead.
-      - uses: actions/cache@v4
+      # No apply-browsers here: the fast tests' and the tile's files have browser cases that skip without one, and
+      # with the browsers installed first they ran in parallel and hung the fast tests (2026-11-15).
+
+  apply:
+    needs: [changes, engine]
+    if: needs.changes.outputs.apply_mac == 'true' && needs.engine.outputs.set == 'true'
+    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
+    # (apply/plain/launcher.py), as on the Macs Apply runs on.
+    runs-on: macos-latest
+    timeout-minutes: 24
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 3
         with:
-          path: ~/Library/Caches/ms-playwright
-          key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
-      - run: uv run playwright install chromium
-        timeout-minutes: 4
-      - name: Chrome for Testing is installed
-        timeout-minutes: 1
-        run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
-      # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
-      # On PRs every page and every path at least once; every pair nightly.
-      # PR 477's guard holes run on PRs too (KAN-710): every CDP path, and PLAIN_HOLES on a
-      # plain Worker. 350 cases took 505 s here and 398 (KAN-783's pages too) 547 s (2026-11-11), so the limit is 12.
-      - name: Submit guard hostile pages
-        timeout-minutes: 12
-        run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/apply-setup
+        timeout-minutes: 5
+      - uses: ./.github/actions/apply-browsers
+        timeout-minutes: 5
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
         timeout-minutes: 2
         run: uv run pytest -q tests/test_plain_focus.py
-      # A real plain Worker on a fake job system. A new suite this fast joins the list.
-      # One process: in parallel each pays a 40 s Worker start and the typing
-      # tests' timing slips, for no gain (KAN-780).
+      # test_upload_origin.py's CDP cases (KAN-795): Playwright's Chromium, a server on port 0 and a tmp_path
+      # each, so they run in parallel, apart from its plain Worker cases below (22 took 64 s in one process
+      # on a 10-core Mac, 24 s in 3; KAN-780).
+      - name: Upload origin on CDP
+        timeout-minutes: 3
+        run: uv run pytest -q -n auto --durations=5 -m "not nightly" tests/test_upload_origin.py -k "upload_origin and test_cdp"
+      # A real plain Worker on a fake job system. A new suite this fast joins the list, as do
+      # test_upload_origin.py's plain Worker and no-browser cases. One process: in parallel each pays
+      # a 40 s Worker start and the typing tests' timing slips, for no gain (KAN-780). 101 tests took
+      # 233 s (2026-11-14), so the limit is 6; a CDP case runs in a parallel step, as above.
       - name: Plain-Worker tests
-        timeout-minutes: 4
+        timeout-minutes: 6
         run: |
-          uv run pytest -q -rs --durations=15 -m "not nightly" \
+          uv run pytest -q -rs --durations=15 -m "not nightly" -k "not (upload_origin and test_cdp)" \
             tests/test_plain_guards.py \
             tests/test_plain_routing.py \
-            tests/test_plain_typing.py
+            tests/test_plain_typing.py \
+            tests/test_upload_origin.py
+
+  # The student page (apply-agent/window/, KAN-867): its view model's tests, then its build, which must match the file
+  # committed into the package (apply/student_page/index.html), so the page a Student build ships can't drift from its
+  # source. Rebuild it with `npm run build` in apply-agent/window and commit the file.
+  apply-window:
+    needs: changes
+    if: needs.changes.outputs.apply_window == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apply-agent/window
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apply-agent/window/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # The page's logos load from Brandfetch with the website's public client id (KAN-871), as deploy.yml builds
+      # the website with it; the committed page is built with it too.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_BRANDFETCH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID }}
+      - run: git diff --exit-code -- ../src/apply/student_page
+
+  # The submit guard's hostile pages (KAN-666) on a runner of their own, beside the apply job, so a PR waits for the
+  # longer of the two, not their sum (KAN-780). Limits as in the apply job: the job's is its steps' sum.
+  apply-hostile:
+    needs: [changes, engine]
+    if: needs.changes.outputs.apply_mac == 'true' && needs.engine.outputs.set == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 29
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 3
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/apply-setup
+        timeout-minutes: 5
+      - uses: ./.github/actions/apply-browsers
+        timeout-minutes: 5
+      # No-browser, CDP and plain Worker cases. On PRs every page and every path at least once, each page on its own
+      # path; every pair nightly. One process per core: on 8 processes (2026-11-15) 220 cases took 237 s, no less than
+      # 303 had on 3, the held-page tests ran half again as long, and three plain-Worker cases missed their timing.
+      - name: Submit guard hostile pages
+        timeout-minutes: 12
+        run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
+      # Every page's control, on a PR that changes what the control reads (the hostile_pages filter); the others
+      # run three on PRs and the rest nightly. Runs even after a red step above, so neither hides the other.
+      - name: Every hostile page's control
+        if: ${{ !cancelled() && needs.changes.outputs.hostile_pages == 'true' }}
+        timeout-minutes: 4
+        run: uv run pytest -q -n auto --durations=5 "tests/test_submit_guard_hostile.py::test_without_the_guard_each_hostile_page_sends"
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

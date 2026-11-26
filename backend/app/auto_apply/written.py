@@ -17,7 +17,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks, plans, truth
+from app.auto_apply import briefs, checks, plans, question_types, truth
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
@@ -33,6 +33,7 @@ from app.auto_apply.queries import (
     fetch_saved_answers,
     fetch_sent_plans,
     fetch_stage,
+    fetch_text_answers,
     fetch_unanswered,
     fetch_written,
     put_questions,
@@ -46,6 +47,7 @@ from app.queries import writing
 from app.schemas.applications import (
     AnsweredQuestion,
     Application,
+    CoverLetter,
     NamedFact,
     OwnAnswer,
     PostingAnswers,
@@ -129,6 +131,37 @@ async def answered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[
             for r in rows
         ])
         for job_id, company, title, rows in await fetch_answered(db, applicant_id)
+    ]
+
+
+COVER_LETTER = "cover-letter"
+
+
+def question_type(label: str, review: dict | None) -> str:
+    """A saved answer's Question type: its Essay plan's, when their Claude
+    wrote it, else its label's class (a pasted answer or the student's own
+    words have no plan)."""
+    plan = (review or {}).get("plan")
+    kind = plan.get("type") if isinstance(plan, dict) else None
+    return kind if isinstance(kind, str) and kind else question_types.classify(label)
+
+
+async def cover_letters(db: AsyncSession, applicant_id: uuid.UUID) -> list[CoverLetter]:
+    """
+    Every cover letter WorkIt wrote for the student's applications, at any
+    stage, last saved first (KAN-766, step 1 of docs/cover_letters.md):
+    each saved written answer whose Question type is `cover-letter`, with
+    its posting and its application's stage, for the Cover Letters tab.
+    Read-only.
+    """
+    return [
+        CoverLetter(
+            job_id=r.answer.job_id, name=r.answer.name, label=r.answer.label, text=r.answer.answer or "",
+            own=r.answer.own, answered_at=r.answer.answered_at, company=r.company, title=r.title,
+            logo_url=r.logo_url, company_domain=r.company_domain, closed=not r.listed, stage=r.stage,
+        )
+        for r in await fetch_text_answers(db, applicant_id)
+        if question_type(r.answer.label, r.answer.review) == COVER_LETTER
     ]
 
 

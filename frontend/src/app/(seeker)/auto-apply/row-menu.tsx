@@ -2,7 +2,7 @@
 
 import { FileTextIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
-import { useRef, useTransition } from "react";
+import { useState } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
 import {
@@ -12,11 +12,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { IconButton } from "@/components/ui/icon-button";
-import { useToast } from "@/components/ui/toast";
 
+import { ApplyDialog } from "../jobs/apply-button";
 import { STAGE_ICON } from "../stage-colors";
 import type { ActivityItem } from "./activity-list";
-import { markSubmitted } from "./actions";
+import { REMOVE_FROM_QUEUE } from "./auto-apply-button";
 
 /**
  * Up Next's ⋯ on each row (KAN-424), in its own column: the row's rarer
@@ -30,20 +30,26 @@ import { markSubmitted } from "./actions";
  *   Change Resume        the row's resume picker (./resume-dialog.tsx), as
  *                        its Resume cell opens
  *   I Already Applied    an application the student sent that the
- *                        extension didn't see. It finishes it as submitted
- *                        (markSubmitted); the row leaves Up Next, and the
- *                        Tracker shows it Applied.
+ *                        extension didn't see. It opens Did You Apply?
+ *                        (`ApplyDialog`, ../jobs/apply-button.tsx), as a job
+ *                        card's ⋯ does (../jobs/job-more-menu.tsx), so it
+ *                        asks first and keeps the resume they sent
+ *                        (KAN-818); it marked the job at once, with no
+ *                        resume and no Undo, until then. Yes marks it
+ *                        applied, the row leaves Up Next on the refresh,
+ *                        and the Tracker shows it Applied.
  *   Remove From Queue    destructive, last, on every row (`onRemove`,
  *                        ./up-next.tsx): a queued job leaves the queue with
  *                        Undo, a started one whose tab closed is skipped, and one open
  *                        in a tab has its tab closed first.
  *
+ * Its rows are the menu's own (no padding or type of their own), with ink
+ * glyphs, as the job card's ⋯ and a resume row's ⋯ draw theirs.
+ *
  * The row leaves a click on a button or a menu item alone, and any click
- * from outside it, as this menu's portal is (components/clickable-row.tsx),
- * so neither opening the menu nor an item opens the job posting: each item
- * did until KAN-566. One action per row at a
- * time (`busy`, a ref): `pending` lands a render late, and a fast double
- * press sent two requests.
+ * from outside it, as this menu's portal and the dialog's are
+ * (components/clickable-row.tsx), so neither opening the menu, an item nor
+ * the dialog opens the job posting: each item did until KAN-566.
  */
 export function RowMenu<T extends ActivityItem>({
   item,
@@ -55,60 +61,43 @@ export function RowMenu<T extends ActivityItem>({
   onRemove: (item: T) => void;
 }) {
   const router = useRouter();
-  const toast = useToast();
-  const [pending, start] = useTransition();
-  const busy = useRef(false);
-
-  const markApplied = () => {
-    if (busy.current) return;
-    busy.current = true;
-    start(async () => {
-      try {
-        const result = await markSubmitted(item.id);
-        if (result.error) return void toast.show({ message: result.error });
-        router.refresh();
-        toast.show({
-          message: (
-            <>
-              <span className="font-medium">{item.role}</span> is marked Applied.
-            </>
-          ),
-        });
-      } finally {
-        busy.current = false;
-      }
-    });
-  };
-
+  const [asking, setAsking] = useState(false);
   const Applied = STAGE_ICON.applied;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <IconButton
-            label={`More actions for ${item.role}`}
-            tooltip="More actions"
-            className="size-8"
-            disabled={pending}
-          >
-            <EllipsisIcon className="size-4" />
-          </IconButton>
-        }
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <IconButton place="row" label={`More actions for ${item.role}`} tooltip={false}>
+              <EllipsisIcon />
+            </IconButton>
+          }
+        />
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => onResume(item)}>
+            <FileTextIcon aria-hidden className="text-ink size-4" />
+            Change Resume
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setAsking(true)}>
+            <Applied className="text-ink size-4" />I Already Applied
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={() => onRemove(item)}>
+            <XIcon aria-hidden className="size-4" />
+            {REMOVE_FROM_QUEUE}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ApplyDialog
+        jobId={item.id}
+        title={item.role}
+        open={asking}
+        onOpenChange={setAsking}
+        onApplied={() => {
+          setAsking(false);
+          router.refresh();
+        }}
       />
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={() => onResume(item)}>
-          <FileTextIcon aria-hidden className="text-ink size-4" />
-          Change Resume
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={markApplied}>
-          <Applied className="text-ink size-4" />I Already Applied
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={() => onRemove(item)}>
-          <XIcon aria-hidden className="size-4" />
-          Remove From Queue
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    </>
   );
 }

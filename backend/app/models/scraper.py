@@ -57,6 +57,16 @@ class Scraper_Schedule(BaseModel):
     rest_until: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    fingerprint: Mapped[str | None] = mapped_column(Text)
+    unchanged_reads: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
+    fingerprint_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    has_kept: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
 
 
 class Scraper_Task(Base):
@@ -127,6 +137,9 @@ class Job_Source(Base):
     apply_url: Mapped[str] = mapped_column(Text, index=True)
     external_id: Mapped[str | None] = mapped_column(Text)
     description_version: Mapped[int | None] = mapped_column(SmallInteger)
+    description_attempts: Mapped[int] = mapped_column(
+        SmallInteger, default=0, server_default=text("0")
+    )
     description_fetched_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True)
     )

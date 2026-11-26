@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from apply.plain import extension, host
+from apply.plain import channel, extension, host
 from apply.plain.bridge import (
     CHUNK_OVER,
     FEATURES,
@@ -55,13 +55,14 @@ def bridge():
     bridge.stop()
 
 
-def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None) -> socket.socket:
+def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None, packaged=None,
+                install_type=None) -> socket.socket:
     """A relay plus extension: says relay and hello, as the host and the worker extension do."""
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(str(bridge.path))
+    sock = channel.connect(bridge.path)  # as the host connects: the check in both directions first
     sock.sendall(frame({"type": "relay", "protocol": 1, "worker": worker, "origin": origin, "host_pid": 1}))
     sock.sendall(frame({"type": "hello", "protocol": protocol, "extension": "0.1.0", "engine": engine,
-                        "userScripts": False, "webdriver": False, **({} if features is None else {"features": features})}))
+                        "packaged": packaged, "installType": install_type, "webdriver": False,
+                        **({} if features is None else {"features": features})}))
     return sock
 
 
@@ -81,7 +82,9 @@ def serve(sock, answer):
 
 
 def test_the_socket_is_only_lisuls(bridge):
+    """Fault: the socket or its secret is readable by other users (the secret proves a host is Apply's, P4)."""
     assert stat.S_IMODE(os.stat(bridge.path).st_mode) == 0o600
+    assert stat.S_IMODE(os.stat(channel.secret_path(bridge.path)).st_mode) == 0o600
 
 
 def test_a_long_data_folder_puts_the_socket_under_tmp():
@@ -131,6 +134,31 @@ def test_an_extension_with_vendor_sets_gets_apply_s_own_set_whatever_its_folder_
     sock = fake_worker(bridge, engine={"version": "0.3.12+old", "sha256": "zzz"}, features=3)
     assert read(sock) == {"type": "welcome", "worker": 0, "protocol": 1, "vendor": "vendor/sets/0123456789abcdef"}
     assert bridge.wait_for(0, timeout=5).vendor == "vendor/sets/0123456789abcdef"
+
+
+def test_a_package_that_holds_apply_s_own_files_is_welcomed_to_them(bridge):
+    # A store copy (KAN-839): its folder is Chrome's, so no set is written there; its packaged files are Apply's.
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="3254a38b1604313f", install_type="normal")
+    assert read(sock) == {"type": "welcome", "worker": 0, "protocol": 1, "vendor": "vendor"}
+    assert bridge.wait_for(0, timeout=5).vendor == "vendor"
+
+
+def test_a_store_copy_that_holds_other_files_is_refused(bridge):
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="ffffffffffffffff", install_type="normal")
+    refused = read(sock)
+    assert refused["type"] == "refuse" and "Chrome Web Store" in refused["reason"]
+    assert "ffffffffffffffff" in refused["reason"] and "3254a38b1604313f" in refused["reason"]
+    with pytest.raises(Refused):
+        bridge.wait_for(0, timeout=5)
+
+
+def test_an_unpacked_package_with_other_files_reads_apply_s_own_set(bridge):
+    # A package a developer loaded unpacked can take Apply's vendor set, as any unpacked copy does.
+    bridge.vendor, bridge.packaged = "vendor/sets/0123456789abcdef", "3254a38b1604313f"
+    sock = fake_worker(bridge, features=5, packaged="ffffffffffffffff", install_type="development")
+    assert read(sock)["vendor"] == "vendor/sets/0123456789abcdef"
 
 
 def test_a_vendor_set_is_written_once_and_never_changed(tmp_path):

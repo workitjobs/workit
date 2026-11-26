@@ -189,14 +189,21 @@ AUTH_SCRIPT = r"""
       const box = document.getElementById('fake-auth-message');
       if (box) box.innerHTML = '';
     }
-    const button = event.target.closest && event.target.closest('[data-automation-id=click_filter],[data-automation-id=createAccountSubmitButton],[data-automation-id=signInSubmitButton]');
-    if (!button) return;
-    const form = button.closest('[data-automation-id=signInFormo]');
-    if (!form) return;
+    // A click Workday drops, sending nothing (Axiom's first Create Account, live).
+    const overlay = event.target.closest && event.target.closest('[data-automation-id=click_filter]');
+    if (overlay && overlay.closest('[data-automation-id=signInFormo]') && window.__fakeIgnoredClicks > 0) {
+      window.__fakeIgnoredClicks--;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  }, true);
+  // Workday's own code clicks the form's hidden submit button on a click on its overlay, and sends the form
+  // (no method: a GET form) from its submit handler, as on the live tenants (Trimble's, KAN-886).
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form.matches || !form.matches('[data-automation-id=signInFormo]')) return;
     event.stopImmediatePropagation();
     event.preventDefault();
-    // A click Workday drops, sending nothing (Axiom's first Create Account, live).
-    if (window.__fakeIgnoredClicks > 0) { window.__fakeIgnoredClicks--; return; }
     const value = (id) => { const el = form.querySelector(`[data-automation-id=${id}]`); return el ? el.value : null; };
     const box = form.querySelector('[data-automation-id=createAccountCheckbox]');
     const creating = !!form.querySelector('[data-automation-id=verifyPassword]');
@@ -211,7 +218,7 @@ AUTH_SCRIPT = r"""
       body: JSON.stringify({email: value('email'), password: value('password'), verify: value('verifyPassword'),
                             accepted: box ? box.checked : null, page: location.href}),
     }).then(r => r.json()).then(r => {
-      if (r.next) location.href = r.next;
+      if (r.next) setTimeout(() => { location.href = r.next; }, creating ? window.__fakeMadeDelay : 0);
       else if (r.signIn) document.querySelector('[data-automation-id=signInLink]').click();  // a bare Sign In view
       else if (!(creating && r.error && window.__fakeHidesErrors)) show(r.error || r.notice, r.error ? 'error' : 'verify');
     });
@@ -267,6 +274,12 @@ CONTINUE_SCRIPT = r"""
   });
   watch.observe(document, {childList: true, subtree: true});
 })();
+"""
+
+# Workday's page for a posting it no longer has (Symbotic's, live 2026-11-25), as its code renders it: no Apply button.
+GONE_PAGE = """
+<div data-automation-id="errorContainer"><span data-automation-id="errorMessage">The page you are looking for doesn't
+exist.</span><button data-automation-id="searchForJobsButton">Search for Jobs</button></div>
 """
 
 CHOOSER_SCRIPT = r"""
@@ -335,6 +348,8 @@ class FakeWorkdayServer:
     `exists_quietly`: Create Account for an email that has an account goes
     to the bare Sign In view, with no error (ASML's, live). `hides_errors`:
     Create Account's refusal is in Workday's answer only, never on the page.
+    `made_delay`: seconds the Create Account view still shows once the account
+    is made, before Workday goes to the first step (on a busy machine, live).
     `plain`: open each page in a plain Worker (Chrome for Testing driven by the worker
     extension, no CDP: tests/plain_fakes.py) in place of Playwright's Chromium; by default
     when $APPLY_TEST_PLAIN is set, so the same tests run on either."""
@@ -347,8 +362,9 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
-                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False):
+                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False, made_delay: float = 0,
+                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False,
+                 gone: bool = False):
         self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
@@ -388,7 +404,9 @@ class FakeWorkdayServer:
         self._to_sign_in = to_sign_in
         self._exists_quietly = exists_quietly
         self._hides_errors = hides_errors
+        self._made_delay = made_delay
         self._dates_need_calendar = dates_need_calendar
+        self._gone = gone  # each posting is one Workday no longer has: its page says so a second after it loads
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -425,6 +443,7 @@ class FakeWorkdayServer:
                 f"window.__fakeDroppedSaves = {self._dropped_saves}",
                 f"window.__fakeBoxWiring = {self._box_wiring}",
                 f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}",
+                f"window.__fakeMadeDelay = {int(self._made_delay * 1000)}",
                 # Each date says what it holds and has a Calendar; typed dates are held wrong (NVIDIA's, live, KAN-716).
                 f"window.__fakeHeldLine = {str(self._dates_need_calendar).lower()}",
                 f"window.__fakeTypedDatesWrong = {str(self._dates_need_calendar).lower()}",
@@ -459,6 +478,11 @@ class FakeWorkdayServer:
         tenant = self._tenant(host)
         return dict(tenant.saved.get((tenant.signed_in, tenant.posting), {}))
 
+    def save(self, host: str, **values) -> None:
+        """Change what the tenant at `host` holds of the application in progress, as another visit would have."""
+        tenant = self._tenant(host)
+        tenant.saved.setdefault((tenant.signed_in, tenant.posting), {}).update(values)
+
     def account(self, host: str, email: str) -> dict | None:
         return self._tenant(host).accounts.get(email)
 
@@ -484,6 +508,8 @@ class FakeWorkdayServer:
             return _page(route, f"<script>location.replace({json.dumps(f'{GOOGLE}/v3/signin/accountchooser?continue=' + quote(back))})</script>")
         if url.startswith(GOOGLE):
             return self._google_page(route, parts)
+        if self._gone and request.method == "GET" and "/job/" in parts.path and not parts.path.startswith("/wday/"):
+            return _page(route, _later(GONE_PAGE, 1))
         if request.method == "GET" and url in self._responses:
             status, mime, body = self._responses[url]
             return route.fulfill(status=status, content_type=mime, body=body)
@@ -649,7 +675,7 @@ class FakeWorkdayServer:
             fields_html = "".join(
                 f"<p><b>{html.escape(label)}</b> {html.escape(str(_shown(value)))}</p>"
                 for _, fields in self._steps for f in fields for label, value in _review_rows(f, saved.get(f.key))
-            )
+            ) + _review_sections([f for _, fields in self._steps for f in fields if isinstance(f, Section)], saved)
             footer = "Submit"
         else:
             fields_html = "".join(_field_html(f, saved.get(f.key)) for f in self._steps[step - 1][1])
@@ -734,6 +760,25 @@ def _review_rows(f: "Field | Section", value) -> list[tuple[str, object]]:
     if isinstance(f, Field):
         return [(f.label, value)]
     return [(f"{f.title} {n} {g.label}", panel.get(g.key)) for n, panel in enumerate(value or [], 1) for g in f.fields]
+
+
+def _review_sections(sections: list[Section], saved: dict) -> str:
+    """Each repeating section saved, as live Review shows it (NVIDIA's, 2026-11-10): a group titled by its section, a
+    group per entry titled "<section> <n>", and each field shown as a label and the value beside it, by the field's id."""
+    out = []
+    for s in sections:
+        if not isinstance(saved.get(s.key), list):
+            continue
+        ref = re.sub(r"\W+", "-", s.title)
+        entries = "".join(
+            f'<div role="group" aria-labelledby="{ref}-{n}-panel"><h5 id="{ref}-{n}-panel">{html.escape(s.title)} {n}</h5>'
+            + "".join(f'<div><label for="{g.key}">{html.escape(g.label)}</label><div><span id="{g.key}">'
+                      f"{html.escape(str(_shown(entry.get(g.key))))}</span></div></div>"
+                      for g in s.fields if entry.get(g.key) not in EMPTY)
+            + "</div>" for n, entry in enumerate(saved[s.key], 1))
+        out.append(f'<div role="group" aria-labelledby="{ref}-section"><h4 id="{ref}-section">{html.escape(s.title)}</h4>'
+                   f"{entries}</div>")
+    return "".join(out)
 
 
 def _section_html(s: Section, panels: list[dict] | None) -> str:

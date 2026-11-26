@@ -199,7 +199,7 @@ def test_push_test_with_no_topic_says_how_to_set_one_up():
     with pytest.raises(SystemExit) as refused:
         main(["push-test"], adapters=adapters_with(None))
 
-    assert "security add-generic-password -s apply-ntfy -a ntfy.sh -w" in str(refused.value)
+    assert "uv run keyring set apply-ntfy ntfy.sh" in str(refused.value)
 
 
 def test_push_test_that_fails_says_why():
