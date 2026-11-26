@@ -290,6 +290,7 @@ jobs:
             tests/test_keepalive.py \
             tests/test_left_behind.py \
             tests/test_preflight.py \
+            tests/test_queued_names.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_masked.py \

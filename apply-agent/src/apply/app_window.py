@@ -55,7 +55,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
-from apply import first_run, report, sign_in_link, workit
+from apply import first_run, queued_names, report, sign_in_link, workit
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
@@ -378,9 +378,10 @@ class Bridge:
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
                  start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
-                 forward: Callable[[], object] = lambda: bring_forward()):
+                 forward: Callable[[], object] = lambda: bring_forward(), name: Callable[[str], dict] | None = None):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
-        (apply.student.Runs.run); the window then shows the student page."""
+        (apply.student.Runs.run); the window then shows the student page. `name(link)` names a link that waits to
+        start and no queue named (default apply.queued_names's, with plain reads)."""
         self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
@@ -389,6 +390,7 @@ class Bridge:
         self._remove = remove
         self._link = link  # the sign-in page's link, handed to this window (apply.sign_in_link: ready, clear, take)
         self._forward = forward  # the window brought in front of the browser
+        self._name = name or queued_names.namer(self._client)
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
@@ -603,8 +605,10 @@ class Bridge:
             self._waiting = links
 
     def show_board(self, board: Dashboard) -> None:
-        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo."""
+        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo,
+        and names each other link as it waits to start (a link sent in or pasted)."""
         board.logos(self._queued)
+        board.names_by(self._name)
         self._dashboard = board
         if self._window is not None:
             self._window.load_html(self._page())

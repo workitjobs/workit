@@ -708,6 +708,8 @@ class Dashboard:
         self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
         self._cancelling: set[int] = set()  # the tiles whose Auto-submit countdown the student ended (auto_cancel_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
+        self._named: dict[str, dict] = {}  # each other waiting link's names, found in the background (names_by)
+        self._namer: Callable[[str], dict] | None = None
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
@@ -886,10 +888,42 @@ class Dashboard:
         with self._lock:
             self._logos = {link: {k: v for k, v in job.items() if k in QUEUED_JOB and v} for link, job in by_link.items()}
 
+    def names_by(self, namer: Callable[[str], dict]) -> None:
+        """`namer(link)` names each link waiting to start that no queue named (one sent in or pasted) with its
+        QUEUED_JOB, in the background (apply.queued_names), so its row names the job as soon as it waits. Till then,
+        or when nothing names it, the row shows the link's host; the run never waits on it."""
+        with self._lock:
+            self._namer = namer
+        self._name_waiting()
+
+    def _name_waiting(self) -> None:
+        with self._lock:
+            if (namer := self._namer) is None:
+                return
+            links = [link for link in dict.fromkeys(map(str, self._run.get("waiting") or []))
+                     if link not in self._logos and link not in self._named]
+            self._named |= {link: {} for link in links}  # being named: each link once
+        for link in links:
+            threading.Thread(target=self._name, args=(namer, link), daemon=True, name="queued-name").start()
+
+    def _name(self, namer: Callable[[str], dict], link: str) -> None:
+        try:
+            found = namer(link) or {}
+        except Exception:
+            return  # unnamed: its row keeps the host
+        with self._lock:
+            self._named[link] = {k: v for k, v in found.items() if k in QUEUED_JOB and v}
+
+    def _queued_job(self, link: object) -> dict:
+        """What names the job at `link`: the queue's, else what names_by found. Under the lock."""
+        link = str(link or "")
+        return self._logos.get(link) or self._named.get(link) or {}
+
     def _logo(self, shown: dict) -> dict:
-        """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave. A form that
+        """The logo sources of a tile or item, by its link or its form's: none for a link nothing named. A form that
         hasn't read its company or role yet takes the queued job's, so its row names it."""
-        job = self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
+        with self._lock:
+            job = self._queued_job(shown.get("link")) or self._queued_job(shown.get("posting_url"))
         names = {"company": job.get("company"), "role": job.get("title")}
         return {key: job[key] for key in LOGO if key in job} | {k: v for k, v in names.items() if v and not shown.get(k)}
 
@@ -925,6 +959,8 @@ class Dashboard:
     def run(self, **fields: object) -> None:
         with self._lock:
             self._run.update(fields)
+        if "waiting" in fields:
+            self._name_waiting()
 
     def wait_for_start(self, timeout: float | None) -> None:
         self.run(start="ready")
@@ -1276,8 +1312,8 @@ class Dashboard:
             captions = [dict(caption) for caption in self._captions]
             items = [dict(item) for item in reversed(self._items)]
             run = dict(self._run)
-            if "waiting" in run:  # each link not started yet, named as the queue named it
-                run["waiting"] = [{"link": link} | self._logos.get(link, {}) for link in run["waiting"]]
+            if "waiting" in run:  # each link not started yet, named as the queue or names_by named it
+                run["waiting"] = [{"link": link} | self._queued_job(link) for link in run["waiting"]]
         # Paused until a usage limit resets (paused_until): the student's window says so, and when it goes on.
         run["paused"] = bool(run.get("paused_until"))
         if run["paused"]:
