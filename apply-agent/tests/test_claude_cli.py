@@ -434,3 +434,19 @@ def test_a_kind_needs_the_checkouts_backend_and_a_kind_it_has(tmp_path):
         local_prompts.build("probe.typical", {}, backend=tmp_path)
     with pytest.raises(SetupError, match="no kind"):
         local_prompts.build("no.such", {})
+
+
+def test_a_saved_setup_token_signs_every_call_in_before_the_claude_login(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    run = FakeRun(recorded("answer"), recorded("answer"))
+    assert claude_cli.saved_token() is None  # the tests' keychain keeps nothing
+    assert claude_cli.login() == "your claude login"
+    ask(ClaudeCLI(run=run))
+
+    monkeypatch.setattr(claude_cli, "saved_token", lambda: "sk-ant-oat-test-token")
+    ask(ClaudeCLI(run=run))
+
+    [(_, _, before), (_, _, after)] = run.calls
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in before
+    assert after["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat-test-token"
+    assert claude_cli.login() == "your setup token in Keychain"

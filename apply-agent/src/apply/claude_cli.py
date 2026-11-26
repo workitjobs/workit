@@ -4,7 +4,9 @@ Every call replaces the system prompt and loads no settings, plugins, MCP
 servers or tools, so its fixed context is about 1k tokens instead of about
 29k. `ANTHROPIC_API_KEY` is removed from the call's environment, because in
 `-p` mode a key always wins over the Max login and would bill the API.
-`--bare` is not used: it ignores the Max login. See
+`--bare` is not used: it ignores the Max login. A setup token the developer
+saved (`apply claude-token`, from `claude setup-token`) is passed as
+`CLAUDE_CODE_OAUTH_TOKEN`, which `claude -p` uses before its own login. See
 research/max-orchestrator.md on branch research/max-orchestrator.
 
 Every call runs from an empty folder with auto-memory off. Run from inside
@@ -37,6 +39,7 @@ from apply.adapters import (
     UsageReading,
 )
 from apply.browsers import cdp_endpoint
+from apply.keychain import CLAUDE, CLAUDE_ACCOUNT, SystemKeychain
 from apply.plain.page import PortPage
 from apply.plain.tools import ToolServer
 
@@ -379,8 +382,36 @@ def _argv(model: str, system: str, schema: dict, extra: list[str] = (), tools: l
     ]
 
 
+TOKEN = "CLAUDE_CODE_OAUTH_TOKEN"
+
+
+def saved_token() -> str | None:
+    """The setup token `apply claude-token` saved in the keychain, or None: none saved, or the keychain refused."""
+    try:
+        return SystemKeychain(CLAUDE).password(CLAUDE_ACCOUNT)
+    except RuntimeError:
+        return None
+
+
+def save_token(token: str) -> None:
+    SystemKeychain(CLAUDE).save(CLAUDE_ACCOUNT, token)
+
+
+def forget_token() -> None:
+    SystemKeychain(CLAUDE).forget(CLAUDE_ACCOUNT)
+
+
+def login() -> str:
+    """Which login `claude -p` signs in with: Settings names it."""
+    if saved_token():
+        return "your setup token in Keychain"
+    return "the CLAUDE_CODE_OAUTH_TOKEN you set" if os.environ.get(TOKEN) else "your claude login"
+
+
 def _env() -> dict:
-    return {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"} | {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+    token = saved_token()
+    return ({k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"} | {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+            | ({TOKEN: token} if token else {}))
 
 
 def _events(stdout: str) -> list[dict]:

@@ -167,6 +167,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     app.add_argument("--max-plan", action="store_true",
                      help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
                           "route and its Usage cap. Only for a window this opens")
+    claude_token = commands.add_parser(
+        "claude-token", help="developer checkout: keep the token `claude setup-token` prints in Keychain, so every "
+                             "claude -p call signs in with it before your claude login. Paste it when asked")
+    claude_token.add_argument("--forget", action="store_true", help="remove the kept token: back to your claude login")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
@@ -370,6 +374,19 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
+    elif args.command == "claude-token":
+        import getpass
+
+        from apply import claude_cli
+
+        if args.forget:
+            claude_cli.forget_token()
+            print("Removed the setup token: claude -p signs in with your claude login.")
+        elif not (token := getpass.getpass("Paste the token `claude setup-token` printed (hidden): ").strip()):
+            sys.exit("No token given: nothing changed.")
+        else:
+            claude_cli.save_token(token)
+            print("Kept the setup token in Keychain (apply-claude): every claude -p call signs in with it.")
     elif args.command == "app":
         from apply import app_window, student
 
