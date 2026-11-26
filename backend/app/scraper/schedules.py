@@ -81,14 +81,19 @@ async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> 
 
 
 async def sync_catalog_diff(
-    conn: AsyncConnection, boards_csv: Path = BOARDS_CSV
+    conn: AsyncConnection, boards_csv: Path | None = None
 ) -> tuple[list, int, datetime.datetime]:
     """Read all schedules with db_now, diff with boards.csv, write only changes.
 
     Returns (all_rows, new_count, db_now). Usually 0 writes between deploys.
     The db_now comes from the same SELECT as the rows, so Python-side due
     checks use the database clock (H4).
+
+    *boards_csv* defaults to the module-level ``BOARDS_CSV`` at call time
+    (not definition time), so a monkeypatch on the module attribute works.
     """
+    if boards_csv is None:
+        boards_csv = BOARDS_CSV
     result = await conn.execute(
         select(*_schedules.c, func.now().label("db_now"))
     )
@@ -116,8 +121,13 @@ async def sync_catalog_diff(
 
     new_rows: list = []
     if to_insert:
-        stmt = insert(_schedules).values(to_insert).returning(*_schedules.c)
-        new_rows = list((await conn.execute(stmt)).all())
+        # Batch inserts to stay under asyncpg's 32 767 parameter limit.
+        # Each row binds ~8 params (3 from the dict + Python-side defaults).
+        batch_size = 32_767 // 10  # generous headroom
+        for i in range(0, len(to_insert), batch_size):
+            chunk = to_insert[i : i + batch_size]
+            stmt = insert(_schedules).values(chunk).returning(*_schedules.c)
+            new_rows.extend((await conn.execute(stmt)).all())
 
     if to_update:
         for schedule_id, company in to_update:
