@@ -167,7 +167,11 @@ and twice GitHub cancelled them after 15 minutes with no step run. So:
   browsers**: some of the fast tests' files have browser cases that skip
   without one, and with the browsers installed first they ran in parallel
   and hung the fast tests at 96% until the step's 5 minutes ran out
-  (2026-11-15).
+  (2026-11-15). **When the step times out, read its `--durations=15`
+  list** in a passing run of the same branch against another PR's: on
+  2026-11-26 `test_profile.py`'s save loop starved the threads it waited
+  for and took 140 s instead of 8 s, and once past the 5 minutes. A test
+  that loops until other threads finish pauses between turns.
 - **`apply` (macOS)** runs `test_plain_focus.py`, `test_plain_guards.py`,
   `test_plain_routing.py` and `test_upload_origin.py`, the last three on a
   real plain Worker (KAN-667; `test_upload_origin.py`'s hostile upload pages
