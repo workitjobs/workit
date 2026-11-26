@@ -502,8 +502,18 @@ def with_past_applications(facts: dict, posting: Posting) -> dict:
     if interviewed:
         known = screeners.get("previously_interviewed_at") or []
         screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+    if here := [c for c in applied if _same_company(c, posting.company)]:
+        # Said outright too: the Pre-submit review's small model missed Anduril Industries in a list of 46 (live,
+        # 2026-11-25) and called the plan's Yes to "previously applied to Anduril?" wrong.
+        screeners["applied_to_this_company_before"] = here
     facts["screeners"] = screeners
     return facts
+
+
+def _same_company(name: str, other: str) -> bool:
+    """Whether two names are one company's: "Anduril Industries" and "Anduril", but not "Amazon" and "Amazonia"."""
+    a, b = (" ".join(re.findall(r"[a-z0-9]+", n.lower())) for n in (name, other))
+    return bool(a and b) and (a == b or a.startswith(b + " ") or b.startswith(a + " "))
 
 
 def _answer(value: Any) -> Any:
