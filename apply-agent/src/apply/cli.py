@@ -162,7 +162,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
     app = commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then "
                                           "the Apply window with your answers. Given links, it fills them: a window "
-                                          "already open takes them, else one opens and starts them. Never submits")
+                                          "already open takes them, else one opens and starts them. Submits only what "
+                                          "you approve")
     app.add_argument("links", nargs="*", help="job posting links to fill and hold for you to check and submit")
     app.add_argument("--max-plan", action="store_true",
                      help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "

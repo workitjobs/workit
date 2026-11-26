@@ -265,10 +265,10 @@ export function flagged(s: Shown): string[] {
   });
 }
 
-// What to do about a flagged answer: the app never submits, so the student fixes it on the form and submits there.
-export const FIX_IN_FORM = "Fix it in the form, then press Submit there.";
+// What to do about a flagged answer: fix it on the form, or submit it as it is (ADR 0006).
+export const FIX_IN_FORM = "Fix it in the form, or submit it as it is if it's right.";
 
-// What each handoff card says to do, in the student's voice: how to hand the form back, since the app never presses Submit,
+// What each handoff card says to do, in the student's voice: how to hand the form back, since on these the app never presses Submit,
 // types into an employer's sign-in, solves a captcha or reads email.
 export const WAITING_IN_CHROME = "Waiting for you in Chrome…";
 

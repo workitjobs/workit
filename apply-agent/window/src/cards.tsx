@@ -31,7 +31,7 @@ export function TodoCard(props: Props) {
       </div>
       <div className="px-6 pt-5 pb-6">
         <Body {...props} />
-        {job.held && job.worker !== undefined && <LetGo key={job.key} {...props} />}
+        {job.held && job.worker !== undefined && !job.source.submitting && <LetGo key={job.key} {...props} />}
         <Report key={job.key} job={job} app={props.app} at="mt-5" />
       </div>
     </div>
@@ -322,11 +322,12 @@ function Approve(props: Props) {
   );
 }
 
+// The Review card (ADR 0006): what was checked, what changed, the answers worth a look first, then the decision.
 function Submit(props: Props) {
   const s = props.job.source;
   return (
     <>
-      <Title>Take a quick look</Title>
+      <Title>Ready to submit</Title>
       <ul className="mt-3 grid gap-2">
         {checks(s).map((line) => (
           <li key={line} className="flex items-center gap-2.5 text-ink-muted">
@@ -338,9 +339,50 @@ function Submit(props: Props) {
         ))}
       </ul>
       <Changed {...props} />
-      <OpenForm label="Open form to submit" {...props} />
-      <Note>Look it over, then press Submit at the bottom of the form. We never submit for you.</Note>
       <WhatWeFilled {...props} />
+      <Decide {...props} />
+    </>
+  );
+}
+
+export const SUBMITTING = "Submitting. We'll mark it applied once the job site confirms it.";
+export const WE_SUBMIT = "We press Submit for you, once. Or open the form and submit it yourself.";
+
+// Approve and submit, and Fix in the form. On a form with something to check, fixing comes first and submitting it
+// as it is comes second. A form not held open (an earlier run's) can only be opened.
+function Decide({ fix, ...props }: Props & { fix?: boolean }) {
+  const { job, bridge, fail } = props;
+  const s = job.source;
+  const [pressed, setPressed] = useState(false);
+  if (!job.held || job.worker === undefined) return <OpenForm label={fix ? "Open the form" : "Open form to submit"} {...props} />;
+  if (s.submitting || (pressed && !s.submit_said))
+    return (
+      <p role="status" className="mt-5 animate-pulse font-medium text-ink-muted">
+        {SUBMITTING}
+      </p>
+    );
+  const submit = () => {
+    setPressed(true);
+    bridge.submit(`tile-${job.worker}`).catch((e: Error) => (setPressed(false), fail(e.message)));
+  };
+  return (
+    <>
+      {s.submit_said && (
+        <p role="alert" className="mt-4 flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
+          <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
+          {said(s.submit_said)}
+        </p>
+      )}
+      <div className="mt-5 flex flex-wrap gap-2.5">
+        <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={submit}>
+          {fix ? "Submit as it is" : "Approve and submit"}
+        </Button>
+        <Button tone={fix ? "primary" : "secondary"} size="lg" onClick={() => show(props)}>
+          Fix in the form
+          <ArrowSquareOutIcon className="size-4" />
+        </Button>
+      </div>
+      <Note>{WE_SUBMIT}</Note>
     </>
   );
 }
@@ -391,9 +433,8 @@ function Check(props: Props) {
       </ul>
       <p className="mt-3 font-medium">{FIX_IN_FORM}</p>
       <Changed {...props} />
-      <OpenForm label="Open the form" {...props} />
-      <Note>We never submit for you.</Note>
       <WhatWeFilled {...props} />
+      <Decide fix {...props} />
     </>
   );
 }

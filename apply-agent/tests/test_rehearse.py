@@ -2091,3 +2091,66 @@ def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_en
 
     assert asked == [0] and board.captions[0]["again"] is False  # held, then let go: held no more
     assert submissions == [] and rehearsal.STOPPED_APPLYING not in lines
+
+
+def test_approve_and_submit_presses_the_held_forms_submit_once_and_waits_for_the_confirmation(monkeypatch, tmp_path):
+    """ADR 0006. Fault: Approve and submit leaves the form unsent, presses Submit twice, or calls it submitted before
+    the job system confirms it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    asked = []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:  # held: the student approves it, and presses again after
+            if self.captions.get(worker, {}).get("again") and len(asked) < 2:
+                asked.append(worker)
+                return True
+            return False
+
+    board, lines = Board(), []
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert len(submissions) == 1  # one press: the second approve finds it pressed already
+    assert board.captions[0]["status"] == "submitted"
+    assert board.captions[0]["submit_said"] == rehearsal.PRESSED_ALREADY
+
+
+def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pressed_again(monkeypatch, tmp_path):
+    """ADR 0006. Fault: a press with no confirmation shows as submitted, or as held to be approved and sent again."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    asked = []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            caption = self.captions.get(worker, {})
+            if caption.get("again") and caption.get("status") != "handoff":
+                asked.append(worker)
+                return True
+            return False
+
+        def let_go_asked(self, worker: int) -> bool:  # the student closes it once it is theirs
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert len(submissions) == 1  # pressed once; each approve after found it pressed already
+    assert board.captions[0]["why"] == rehearsal.UNCONFIRMED
+    assert board.captions[0]["submit_said"] == ""
