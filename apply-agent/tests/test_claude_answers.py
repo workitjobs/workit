@@ -1315,6 +1315,20 @@ def test_an_edit_that_is_not_the_same_letter_is_dropped(edited):
     assert writing.edit(claude, {"q1": drafted}, "", frozenset({"q1"})) == {"q1": drafted}
 
 
+@pytest.mark.parametrize(("sources", "kept"), [("It broke on 51 of the first 60 postings.", True), ("", False)])
+def test_a_shorter_edit_with_a_number_only_the_sources_hold_is_kept(sources, kept):
+    # Sierra (live, 2026-11-26): the claim check gave the count a vague claim stood for, and the
+    # editor wrote it in. Every edit, the cut to the length too, was dropped for a number the draft
+    # didn't hold, and both essays stayed at 157 and 145 words of 120. A number no source holds is still dropped.
+    drafted = "My form reader crashed on most of its postings, and I fixed it and added a nightly check."
+    edited = "My form reader broke on 51 of 60 postings, so I fixed it."
+    claude = FakeClaude()
+    claude.ask_kind = lambda kind, data: {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {}}
+
+    assert writing.repair(claude, {"q1": drafted}, sources, {"q1": ["too long"]}) == {"q1": edited if kept else drafted}
+    assert writing.edit(claude, {"q1": drafted}, sources) == {"q1": edited if kept else drafted}
+
+
 def test_an_answer_still_holding_a_tell_is_edited_once_more_with_it_flagged():
     claude, sent = FakeClaude(), []
     answers = iter(["It was a pivotal project!", "It was an important project."])
