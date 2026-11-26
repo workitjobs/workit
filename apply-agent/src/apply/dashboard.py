@@ -507,6 +507,11 @@ class Board(Protocol):
         Apply presses its Submit. Each press is given once."""
         ...
 
+    def auto_cancel_asked(self, worker: int) -> bool:
+        """Whether the student pressed Cancel on tile `worker`'s Auto-submit countdown (`POST /auto-cancel`). Each
+        press is given once."""
+        ...
+
     def let_go_asked(self, worker: int) -> bool:
         """Whether the student pressed Not applying to this one on tile `worker`'s held form (`POST /let-go`):
         its page is let go, unsubmitted. Each press is given once."""
@@ -573,6 +578,9 @@ class NoBoard:
         return False
 
     def submit_asked(self, worker: int) -> bool:
+        return False
+
+    def auto_cancel_asked(self, worker: int) -> bool:
         return False
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
@@ -698,6 +706,7 @@ class Dashboard:
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
         self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
+        self._cancelling: set[int] = set()  # the tiles whose Auto-submit countdown the student ended (auto_cancel_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
@@ -853,6 +862,7 @@ class Dashboard:
                 self._picked[worker] = []
                 self._letting_go.discard(worker)  # a let go asked of the last one's form isn't this one's
                 self._submitting.discard(worker)
+                self._cancelling.discard(worker)
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
@@ -964,7 +974,38 @@ class Dashboard:
                 raise Refused("It still needs your answers: answer them, then approve it.", 409)
             caption["submitting"], caption["submit_said"] = True, ""
             self._submitting.add(k)
+            caption["auto_at"] = None  # approved before Auto-submit's countdown ran out: the countdown ends
         return "Submitting it."
+
+    def auto_cancel_asked(self, worker: int) -> bool:
+        with self._lock:
+            asked = worker in self._cancelling
+            self._cancelling.discard(worker)
+            return asked
+
+    def auto_go(self, worker: int) -> bool:
+        """Auto-submit's wait is over on tile `worker`: whether it may press, claimed under the lock, so a Cancel
+        either lands first (False) or finds no countdown to cancel."""
+        with self._lock:
+            if worker in self._cancelling:
+                self._cancelling.discard(worker)
+                return False
+            self._captions[worker]["auto_at"] = None
+            return True
+
+    def cancel_auto(self, key: str) -> str:
+        """Cancel, on a tile's Auto-submit countdown ("tile-<k>"): nothing is submitted, and the form waits for
+        the student's approval. Raises Refused when no countdown runs there."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            caption = self._captions[k]
+            if not caption.get("auto_at"):
+                raise Refused("It isn't counting down to submit.", 409)
+            caption["auto_at"] = None
+            self._cancelling.add(k)
+        return "Cancelled. It waits for you to approve it."
 
     def let_go(self, key: str) -> str:
         """Not applying to this one, on a tile's held form ("tile-<k>"): its page is let go, unsubmitted, and the
@@ -1494,6 +1535,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._let_go()
         if parts.path == "/submit":
             return self._submit_form()
+        if parts.path == "/auto-cancel":
+            return self._cancel_auto()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/stop":
@@ -1828,6 +1871,22 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Approved and submitting, in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _cancel_auto(self) -> None:
+        """Cancel an Auto-submit countdown, from the page itself. Body {"id": "tile-<k>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may cancel a submit."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a form to cancel."})
+        try:
+            message = self.dashboard.cancel_auto(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Auto-submit cancelled, in the window ({key})")
         self._json(200, {"message": message})
 
     def _let_go(self) -> None:

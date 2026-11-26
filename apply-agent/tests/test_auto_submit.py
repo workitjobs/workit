@@ -98,3 +98,39 @@ def test_it_is_off_unless_the_policy_says_true_and_never_in_the_student_build(mo
     monkeypatch.setattr(build, "STUDENT", True)
     assert auto_submit.on(Profile()) is False
 
+
+def countdown(monkeypatch, board):
+    from datetime import datetime
+
+    from fakes import FakeClock
+
+    from apply import rehearsal
+    from apply.notify import RecordingNotifier
+
+    monkeypatch.setattr(auto_submit, "desktop", lambda notifier: None)
+    monkeypatch.setattr(auto_submit, "WAIT_S", 0)
+    run = SimpleNamespace(board=board, clock=FakeClock(datetime(2026, 11, 26, 9)), notifier=RecordingNotifier(), phone=None)
+    return rehearsal._Auto(done(outcome=rehearsal.READY), run, Profile(phone_push=False), 0, Tracker())
+
+
+def test_an_answer_apply_changes_on_the_page_ends_the_countdown(monkeypatch):
+    """Fault: an answer changed in the wait (Ask Claude, a regenerate, the window) goes out unchecked."""
+    from fakes import RecordingBoard
+
+    board = RecordingBoard()
+    auto = countdown(monkeypatch, board)
+    assert board.captions[0]["auto_at"]
+    auto.stop()
+    assert board.captions[0]["auto_at"] is None
+    assert board.captions[0]["auto_said"] == auto_submit.CHANGED_SAID
+    assert auto.due() is False
+
+
+def test_the_countdown_presses_once_and_a_hand_approval_ends_it(monkeypatch):
+    from fakes import RecordingBoard
+
+    board = RecordingBoard()
+    auto = countdown(monkeypatch, board)
+    assert [auto.due(), auto.due()] == [True, False]
+    auto = countdown(monkeypatch, board)
+    assert [auto.due(asked=True), auto.due()] == [True, False]

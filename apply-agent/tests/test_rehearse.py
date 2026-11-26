@@ -61,7 +61,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import rehearsal, rescue, worker
+from apply import auto_submit, rehearsal, rescue, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -2154,3 +2154,61 @@ def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pre
     assert len(submissions) == 1  # pressed once; each approve after found it pressed already
     assert board.captions[0]["why"] == rehearsal.UNCONFIRMED
     assert board.captions[0]["submit_said"] == ""
+
+
+def test_auto_submit_presses_a_clean_held_forms_submit_once_its_wait_is_over(monkeypatch, tmp_path):
+    """ADR 0006. Fault: a form Auto-submit may send waits for an approval anyway, or goes before its countdown."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(auto_submit, "on", lambda profile: True)
+    monkeypatch.setattr(auto_submit, "why_not", lambda *args: "")
+    monkeypatch.setattr(auto_submit, "WAIT_S", 1)
+    monkeypatch.setattr(auto_submit, "desktop", lambda notifier: None)  # no real notification from a test
+    board, notifier = RecordingBoard(), RecordingNotifier()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board, notifier=notifier), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert len(submissions) == 1
+    assert board.captions[0]["status"] == "submitted"
+    assert board.captions[0]["auto_at"] is None
+    assert [title for title, _ in notifier.sent] == [auto_submit.TITLE]  # told it was coming
+
+
+def test_cancel_stops_auto_submit_and_the_form_waits_for_the_student(monkeypatch, tmp_path):
+    """ADR 0006. Fault: Cancel in the window doesn't stop the press."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(auto_submit, "on", lambda profile: True)
+    monkeypatch.setattr(auto_submit, "why_not", lambda *args: "")
+    monkeypatch.setattr(auto_submit, "WAIT_S", 1)
+    monkeypatch.setattr(auto_submit, "desktop", lambda notifier: None)  # no real notification from a test
+    seen = []
+
+    class Board(RecordingBoard):
+        def auto_cancel_asked(self, worker: int) -> bool:  # Cancel, as soon as the countdown shows
+            return bool(self.captions.get(worker, {}).get("auto_at"))
+
+        def let_go_asked(self, worker: int) -> bool:  # then, well past the wait, the student closes it
+            if self.captions.get(worker, {}).get("auto_said") != auto_submit.CANCELLED:
+                return False
+            seen.append(time.monotonic())
+            return time.monotonic() - seen[0] > 2.5
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert submissions == []
+    assert board.captions[0]["auto_said"] == auto_submit.CANCELLED
