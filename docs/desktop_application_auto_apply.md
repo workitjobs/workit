@@ -214,9 +214,10 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Each link the student sends in or pastes, to find WorkIt's job and name it while it waits | When it waits to start (`apply.queued_names`) |
 | WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
-| Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting or a careers page's own host), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
 | Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
@@ -228,7 +229,10 @@ profile links, and each reference's name, email and phone
 placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
 wherever it is in what a call sends, as a whole word, and comes back into
 the answer on the computer (`apply/private.py`). A name matches in its
-own case only, so a student named Will never masks "will". No answer
+own case only, so a student named Will never masks "will". A value that
+says there is none ("N/A", "None") is no private value and is never
+masked: a native-script name of "N/A" once turned every N/A in the
+Pre-submit review into that name's placeholder. No answer
 needs these values, since the Fill engine types them from the profile;
 a draft or an essay that needs one (a reference's details, the ZIP code
 an essay box asks for, live at Applied Materials) writes the placeholder,
@@ -524,7 +528,7 @@ by hand (W8).
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -1239,7 +1243,9 @@ window:
    Not Now. Without it, Fix here's view is about two frames a second (W2).
 4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
    the window and its "press Return" as Try Again, till a real Worker says
-   hello. The way in until a store copy can be used (W6).
+   hello. The way in until a store copy can be used (W6). Skipped when
+   the Workers run on Chrome for Testing (`plain_chrome: testing`), which
+   loads the worker extension itself.
 
 Chrome and the seed are looked at again at each launch; the disclosure,
 the Screen Recording ask and the Worker count are kept in the data
@@ -1592,8 +1598,8 @@ itself (D17, D18, D20).
   installs at the next restart.
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
-  (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
-  Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+  (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
+  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
 - **Build by hand:** one script, `scripts/build_app.py`, that compiles,
   signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
   A release builds from the commit's own files (`git archive`), never the

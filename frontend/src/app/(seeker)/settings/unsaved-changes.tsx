@@ -15,6 +15,8 @@ import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 
 type Api = {
   setDirty: (id: string, dirty: boolean) => void;
+  /** Whether any form holds unsaved changes now. */
+  hasUnsaved: () => boolean;
   /** Runs `leave` at once when nothing is unsaved, else asks first. */
   guard: (leave: () => void) => void;
   pending: (() => void) | null;
@@ -41,6 +43,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         if (isDirty) dirty.current.add(id);
         else dirty.current.delete(id);
       },
+      hasUnsaved: () => dirty.current.size > 0,
       guard(leave) {
         if (dirty.current.size === 0) leave();
         // A function, so React stores it rather than calling it.
@@ -85,6 +88,14 @@ export function useUnsavedChanges(dirty: boolean) {
 export function useLeaveGuard(): (leave: () => void) => void {
   const api = useContext(Unsaved);
   return api ? api.guard : (leave) => leave();
+}
+
+/** Whether anything is unsaved, asked at the moment of a way out a page
+ *  cannot route through `guard` first: Application Info's link clicks
+ *  (auto-apply/info/unsaved.tsx). */
+export function useHasUnsaved(): () => boolean {
+  const api = useContext(Unsaved);
+  return api ? api.hasUnsaved : () => false;
 }
 
 /** The question while it is asked, for the modal's own ways out: Escape

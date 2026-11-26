@@ -19,7 +19,7 @@ import type { FeedFilters } from "@/app/(seeker)/jobs/filter-query";
  * Claude page (KAN-507) and a practice batch (KAN-378). Setup no longer
  * leads into it. Only `EXTENSION_STEP_PATH` opens it, from
  * `/extension-setup`'s "I Already Have One" (KAN-495), and Auto Apply's
- * setup row asks for the extension where it is needed. It was setup's last
+ * notice asks for the extension where it is needed. It was setup's last
  * three pages until 2026-11-16, so a student reached the Jobs page only
  * after a Chrome install and a practice run.
  *

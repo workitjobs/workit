@@ -7,7 +7,12 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
   // The Experiences page was /bank until KAN-440: old links and bookmarks land.
   async redirects() {
-    return [{ source: "/bank", destination: "/experiences", permanent: true }];
+    return [
+      { source: "/bank", destination: "/experiences", permanent: true },
+      // The desktop app's page was a rail row of its own (KAN-835) until it
+      // became Auto Apply's Desktop App tab (2026-11-23).
+      { source: "/auto-apply-desktop", destination: "/auto-apply/desktop", permanent: true },
+    ];
   },
   // Company logos on the Jobs feed, as the scraper found them on each job board's
   // page. The hosts below must match scraper/workit_scraper/logos.py's PATTERN

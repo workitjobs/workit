@@ -65,6 +65,8 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   macOS may ask whether the app may use the item: Always Allow.
 - **First run** asks, one step at a time: Google Chrome, the disclosure and
   license, Screen Recording, then the Worker setup (`docs/apply-window.md`).
+  Workers on Chrome for Testing (`plain_chrome: testing`) need no Worker
+  setup, so first run skips it.
   - Screen Recording: with today's ad-hoc signature, macOS forgets the
     permission after each build. Turn it on again in System Settings and
     reopen the app; remove an old entry with "-" first.

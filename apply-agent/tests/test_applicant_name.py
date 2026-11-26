@@ -179,6 +179,15 @@ def test_a_kinds_answer_gets_the_private_values_back(tmp_path):
         "You will mark it, @FIRST_NAME@ @LAST_NAME@."  # a name, in its own case only
 
 
+def test_a_private_field_that_says_there_is_none_masks_nothing(tmp_path):
+    # A native-script name of "N/A" once masked every N/A, so the review read a moot follow-up's N/A as that name.
+    profile = ApplicantProfile({"identity": {"legal_first_name": "Test", "name_in_native_script": "N/A",
+                                             "home_address": {"line2": "None"}}}, tmp_path, {})
+    assert set(private.values(profile)) == {"@FIRST_NAME@"}
+    assert private.mask({"answer": "N/A", "note": "None, Test"}, private.values(profile)) == \
+        {"answer": "N/A", "note": "None, @FIRST_NAME@"}
+
+
 def test_an_essay_that_shares_something_private_is_flagged_for_the_student(tmp_path):
     profile = ApplicantProfile({"identity": {"legal_first_name": "Test", "phone": "+15550100199"},
                                 "voluntary_self_id": {"race": "East Asian", "veteran": False}}, tmp_path, {})

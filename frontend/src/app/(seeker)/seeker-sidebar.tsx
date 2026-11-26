@@ -3,7 +3,6 @@
 import {
   BriefcaseIcon,
   CalendarDotsIcon,
-  DesktopIcon,
   FileTextIcon,
   ListChecksIcon,
   HouseIcon,
@@ -41,10 +40,10 @@ import { INBOX_LIVE } from "./inbox/live";
  * find the jobs, apply to them, track what was sent. It carries the queue's
  * count (./queue-badge.tsx, 2026-11-09), the queue's one status outside its
  * page; the Inbox's count was taken out as out of place, but a queue's is a
- * count of work waiting on the seeker's own pipeline. Auto Apply Desktop
- * sits right under it (KAN-835): the page that promotes and downloads WorkIt
- * Auto Apply, the desktop app that fills the same queue. Its name is the
- * one row that takes two lines on its tile, which the tile's 64px holds.
+ * count of work waiting on the seeker's own pipeline. The desktop app's
+ * download page is a tab of Auto Apply (/auto-apply/desktop, 2026-11-23),
+ * not a row: it was the Auto Apply Desktop row right under this one
+ * (KAN-835), a page read one time among the places a student works in.
  *
  * Applications' glyph is ListChecks, what the page is for (tracking what was
  * sent), not how it is laid out. It was SquareKanban, the board's shape, and
@@ -93,10 +92,6 @@ const GROUPS: SidebarNavGroup[] = [
       // left no row lit, and the row lit again on the first result opened.
       { href: "/jobs", also: ["/search"], label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      // KAN-835: the desktop app's download page, right under the row whose
-      // queue it fills. Its own address, not /auto-apply/desktop: the row
-      // above owns every path under /auto-apply and would light there.
-      { href: "/auto-apply-desktop", label: "Auto Apply Desktop", Icon: DesktopIcon },
       { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
       // KAN-766: Experiences is the source every resume, match and answer
       // reads, so it has its own row, before the documents made from it.

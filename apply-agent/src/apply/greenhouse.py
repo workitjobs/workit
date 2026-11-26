@@ -33,6 +33,18 @@ NO_SECURITY_CODE = ("Greenhouse asked for the security code it emails before it 
                     "Apply yourself from the posting link; the Record has every answer")
 NOT_SET_UP = "Apply can't read Gmail here"
 NOT_A_BOARD = {"www", "careers", "career", "jobs", "job", "join", "apply", "work", "com", "io", "co", "ai", "org", "net"}
+# The fields the engine fills from a search's results, by Question name (greenhouse.ts's SEARCHED): it picks
+# the result worded exactly like the answer, else the one result that names it ("Stony Brook University - SUNY"
+# for "Stony Brook University"). Only these may show a wording of the answer other than the one typed.
+SEARCHED = ("location", "school--0", "country")
+
+
+def names(option: str, answer: str) -> bool:
+    """Whether a search result `option` names `answer`, as the engine's searchAndPick judges it (on one line,
+    ignoring case), and only as whole words: "Stony Brook University - SUNY" names "Stony Brook University";
+    "Stony Point University", "SUNY Buffalo" and "University of Stony Brook" don't."""
+    option, answer = (" ".join(text.split()).casefold() for text in (option, answer))
+    return bool(answer) and re.search(rf"(?<!\w){re.escape(answer)}(?!\w)", option) is not None
 
 
 def board_behind(posting: Posting, site: JobSite) -> Posting:
@@ -119,6 +131,14 @@ class GreenhouseFiller:
         """A question the form never shows (it depends on another's answer) is
         left out, and reads back blank."""
         return fill_engine.fill(page, "greenhouse", questions, answers)
+
+    def picked(self, answers: Answers, readback: Readback) -> dict[str, tuple[str, ...]]:
+        """The search results the fill picked that word an answer in the form's own way, by Question name
+        ({"school--0": ("Stony Brook University - SUNY",)}): the Pre-submit check accepts them as that answer.
+        The engine keeps what it picked inside the page, out of Apply's reach, so its rule is judged here again."""
+        return {name: (" ".join(shown.split()),) for name in SEARCHED
+                if isinstance(meant := answers.get(name), str) and isinstance(shown := readback.get(name), str)
+                and shown != meant and names(shown, meant)}
 
     def submit(self, page: Page) -> tuple[str, ...]:
         """Returns the security code step as a Bot signal when Greenhouse

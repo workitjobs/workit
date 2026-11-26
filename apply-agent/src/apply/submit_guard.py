@@ -1070,12 +1070,23 @@ _TEMPLATE = r"""
   };
   const trap = (n) => tag(n) === 'INPUT' && test(/^(text|email|url|tel|search)$/, lower(typeOf(n))) && valueOf(n) === ''
     && text(attr(n, 'value')) === '' && !visibly(n) && trapSays(n);
+  // A shut pop-up's empty long-answer box: Oracle's AI Assist "Work Summary" dialog, hidden on every Candidate
+  // Experience page beside its email step (Honeywell's, live). No person sees it or the pop-up around it, and it holds
+  // no text, now or in its markup, so it holds no answer. One a person sees, one with text, or one in no pop-up counts.
+  const areaValueGet = getter(HTMLTextAreaElement, 'value');
+  const shutBox = (n) => {
+    if (tag(n) !== 'TEXTAREA' || trim(text(read([areaValueGet], n, '?'))) !== '' || trim(text(textOf(n))) !== ''
+      || visibly(n)) return false;
+    const pop = up(n, '[role=dialog], dialog, [aria-modal=true]');
+    return !!pop && !visibly(pop);
+  };
   const loginForm = (form) => {
     const all_ = fields(form);
     let named = false;
     for (let i = 0; i < all_.length; i++) {
       const n = all_[i], kind = lower(typeOf(n));
       if (test(/^(hidden|password|checkbox|submit|button|reset|image)$/, kind) || tag(n) === 'FIELDSET' || tag(n) === 'BUTTON') continue;
+      if (trap(n)) continue;  // a bot trap in the form itself (Oracle's honeypot box beside its email)
       if (tag(n) !== 'INPUT' || !test(/^(email|text)$/, kind)) return false;
       if (kind !== 'email' && !test(LOGIN_BOX, text(attr(n, 'name')) + ' ' + text(attr(n, 'id')) + ' ' + text(attr(n, 'autocomplete'))
         + ' ' + text(attr(n, 'aria-label')))) return false;
@@ -1083,8 +1094,8 @@ _TEMPLATE = r"""
       named = true;
     }
     if (!named) return false;
-    if (one(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
-      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]')) return false;
+    if (any(all(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]'), (n) => !shutBox(n))) return false;
     const boxes = all(D, 'input, select');
     for (let i = 0; i < boxes.length; i++) {
       const n = boxes[i];
