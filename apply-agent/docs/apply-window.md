@@ -29,6 +29,13 @@ docstring first.
   stops it when the run ends. `-w` ends it with Apply too, even on a crash
   or SIGKILL. Windows and Linux do nothing yet (F4); `awake.py` is the one
   place for that OS call (`tests/test_each_os.py`).
+- Links sent in (`uv run apply app <link>...`): an agent or a script hands
+  the window links with no port and no clicks. `send_links` writes them as
+  one file in `APPLY_HOME/app-inbox/`; the window takes them every 2 s
+  (`Bridge._take_inbox`) once signed in and set up. With no run going they
+  start one, as Start does; during a run each joins it (`Dashboard.into`),
+  else it waits for the next run. With no window open, the command opens
+  one, which starts them. `APPLY_HOME/app.pid` names the running window.
 - `Dashboard(serve=False)` binds nothing. The window loads the Apply
   window's page as a string, with `app_window.SHIM` right after its first
   `<meta charset="utf-8">`, before the page's scripts.
