@@ -582,6 +582,30 @@ class ReformatsPhones(ResearchForm):
         return readback
 
 
+class PicksASearchResult(ResearchForm):
+    """Its first text field is a search box: the result it picks words the answer the form's own way
+    (Greenhouse's "Stony Brook University - SUNY" for "Stony Brook University"), and its Filler says so."""
+
+    def fill(self, page, questions, answers):
+        readback = super().fill(page, questions, answers)
+        self.searched = next(q.name for q in questions if q.kind == "text" and q.name in answers)
+        readback[self.searched] = f"{answers[self.searched]} - SUNY"
+        return readback
+
+    def picked(self, answers, readback):
+        return {self.searched: (readback[self.searched],)}
+
+
+def test_a_search_result_the_filler_picked_in_the_forms_wording_passes_the_pre_submit_check(monkeypatch):
+    form, claude = PicksASearchResult("Northwood Space"), FakeClaude()
+
+    row = run(monkeypatch, form, claude)
+
+    assert row.status == "submitted", row.reason
+    assert len(form.filled) == 1  # not filled again, nor planned again
+    assert "presubmit.replan" not in [k["kind"] for k in claude.kinds]
+
+
 def test_a_readback_mismatch_is_planned_again_by_sonnet_and_filled_once_more(monkeypatch):
     form = ReformatsPhones("Northwood Space")
     claude = FakeClaude(replans={"Phone Number": "(555) 010-0199"})

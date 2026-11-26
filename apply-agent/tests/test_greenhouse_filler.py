@@ -20,9 +20,9 @@ from conftest import (
 from fakes import FakeClock, FakeJobServer, FakeMailbox
 
 from apply.accounts import Accounts
-from apply.fill_engine import job_of
-from apply.greenhouse import SECURITY_CODE_SEARCH, GreenhouseFiller, board_behind
-from apply.model import FillError, Handoff, Posting, Status
+from apply.fill_engine import job_of, readback_problems
+from apply.greenhouse import SECURITY_CODE_SEARCH, GreenhouseFiller, board_behind, names
+from apply.model import FillError, Handoff, Posting, Question, Status
 from apply.orchestrator import by_filler
 from apply.worker import Result
 
@@ -206,8 +206,54 @@ def test_picks_the_one_school_named_like_the_answer_when_none_is_named_exactly(t
         with board.open(ANDURIL_URL) as page:
             readback = filler.fill(page, questions, {"school--0": "Example State University"})
 
-    # Read back as the page words it, for the Pre-submit check's re-plan to adopt.
+    # Read back as the page words it, which the Pre-submit check accepts as the answer it picked.
     assert readback == {"school--0": "Example State University - SUNY"}
+    assert filler.picked({"school--0": "Example State University"}, readback) == {"school--0": ("Example State University - SUNY",)}
+
+
+SCHOOL = Question("school--0", "School", "text")
+
+
+@pytest.mark.parametrize("shown", [
+    "Stony Brook University - SUNY",  # Airbnb's list (live, 2026-11-26)
+    "Stony Brook University (SUNY)",
+    "Stony Brook University, The",
+    "The Stony Brook University",
+    "stony  brook university - Main Campus",
+])
+def test_a_school_picked_in_the_forms_own_wording_passes_the_pre_submit_check(shown):
+    answers, readback = {"school--0": "Stony Brook University"}, {"school--0": shown}
+
+    accepted = GreenhouseFiller().picked(answers, readback)
+
+    assert accepted == {"school--0": (" ".join(shown.split()),)}
+    assert readback_problems([SCHOOL], answers, readback, accepted) == []
+
+
+@pytest.mark.parametrize("shown", ["Stony Point University", "SUNY Buffalo", "University of Stony Brook",
+                                   "Stony Brook Universityville", "Stony Brook"])
+def test_another_school_on_the_page_still_fails_the_pre_submit_check(shown):
+    answers, readback = {"school--0": "Stony Brook University"}, {"school--0": shown}
+
+    accepted = GreenhouseFiller().picked(answers, readback)
+
+    assert accepted == {}
+    assert readback_problems([SCHOOL], answers, readback, accepted) == [
+        f"School: meant 'Stony Brook University', page shows '{shown}'"]
+
+
+def test_a_typed_field_gets_no_wording_of_its_answer_but_its_own():
+    # Only a field the engine fills from search results shows what it picked; a typed one shows what was typed.
+    answers = {"first_name": "Test", "school--0": "Stony Brook University"}
+    readback = {"first_name": "Test - SUNY", "school--0": "Stony Brook University"}
+
+    assert GreenhouseFiller().picked(answers, readback) == {}
+
+
+def test_a_search_result_names_an_answer_only_as_whole_words():
+    assert names("Massachusetts Institute of Technology (MIT)", "MIT")
+    assert not names("Smith College", "MIT")
+    assert not names("Example State University - SUNY", "")
 
 
 def test_two_schools_named_like_the_answer_are_not_guessed_between(tmp_path):
