@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
+import { addsJobs, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -467,6 +467,14 @@ test("the review's changes say each question, from what to what, and nothing whe
 test("each flag is said with its question and in WorkIt's words, never Apply's", () => {
   const flags = [{ field: "Pay", why: "Pre-submit review: Claude wrote $90, more than the posting's range" }, { field: "", why: "Verify: a file is empty" }];
   assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
+});
+
+test("a form with no flags lists its reason's checks, never Something went wrong", () => {
+  // Fault: a Review card whose reason named the Pre-submit review said "Something went wrong. Try again."
+  const why = "Pre-submit review: Claude wrote May 2027 for the graduation date; Verify: a file is empty";
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why })), ["WorkIt wrote May 2027 for the graduation date", "A file is empty"]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why: "Pre-submit check failed. Handoff: Browser 2" })), [ONE_ANSWER]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check" })), [ONE_ANSWER]);
 });
 
 test("a handoff's fields are named once each, from the reason's Error- lines", () => {

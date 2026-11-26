@@ -1754,6 +1754,9 @@ class _Kept:
                         try:
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
+                        except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
+                            heard(unsure.words)
+                            pressing = time.monotonic()
                         except send_button.NotPressed as refused_press:
                             why = str(refused_press)
                         except Exception:

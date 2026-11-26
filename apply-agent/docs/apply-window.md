@@ -204,9 +204,12 @@ for a student, not from `dashboard_page.py`.
   (the tile's `fixed`, from `_Planned.fix`), the card says "We changed
   N answers after checking" with each "question: old → new"
   (`changes`).
-- **The Check card** (`flagged`) lists every flag verifying says needs
-  the student, each with its question, in WorkIt's words, then "Fix it
-  in the form, then press Submit there." Like every card, it has no
+- **The Check card** (`toCheck`) lists every flag verifying says needs
+  the student, each with its question, in WorkIt's words (`flagged`).
+  With no flags it lists each part of the form's reason in the same
+  words, never "Something went wrong" for a reason that names the
+  Pre-submit review; with no part left, "One answer doesn't match your
+  WorkIt profile." Then "Fix it in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
 - **Handing back.** Each to-do card says how the student hands the form
   back (`HANDOFF` in `view.ts`): sign in yourself in the window that
@@ -315,7 +318,9 @@ for a student, not from `dashboard_page.py`.
   Send button, in the page or a frame, and with none or several it
   presses nothing and the card says why. It refuses while an answer is
   still needed, while Submit is held on the page (a red note, an earlier
-  application), and after any Submit. The job system's confirmation is
+  application), and after any Submit. A click that never answers, as a
+  Submit that sends the whole page away can end it (`send_button.Unsure`),
+  counts as pressed. The job system's confirmation is
   read as for the student's own press; with none within two minutes
   (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
   form becomes a Handoff that says it may have gone in, and Apply never

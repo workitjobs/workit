@@ -6,7 +6,7 @@ import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged, wantedFields } from "./view.ts";
+import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, toCheck, wantedFields } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -454,13 +454,13 @@ function LetGo({ job, bridge, fail }: Props) {
 }
 // A form verifying found answers in that need the student: each one first, in plain words, and what to do.
 function Check(props: Props) {
-  const lines = flagged(props.job.source);
-  const n = Math.max(1, lines.length);
+  const lines = toCheck(props.job.source);
+  const n = lines.length;
   return (
     <>
       <Title>{n === 1 ? "Check one answer before you submit" : `Check ${n} answers before you submit`}</Title>
       <ul className="mt-3 grid gap-2">
-        {(lines.length ? lines : [said(props.job.source.why || "One answer doesn't match your WorkIt profile.")]).map((line) => (
+        {lines.map((line) => (
           <li key={line} className="flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
             <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
             {line}

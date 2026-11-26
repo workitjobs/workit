@@ -28,8 +28,19 @@ class NotPressed(Exception):
     """Apply couldn't tell which button sends the form: it pressed nothing, and the student presses it."""
 
 
+class Unsure(Exception):
+    """Apply pressed the one Submit button, but the press never answered: a Submit that sends the page away (Lever's
+    is a whole-page post) can end the click before its reply comes back. It may have gone in, so it counts as a press:
+    the job system's confirmation is watched, and Apply never presses it again."""
+
+    def __init__(self, words: str):
+        super().__init__(words)
+        self.words = words
+
+
 def press(page) -> str:
-    """Press the held form's one Submit button; its words. Raises NotPressed when there is none, or more than one."""
+    """Press the held form's one Submit button; its words. Raises NotPressed when there is none, or more than one,
+    and Unsure when the click was sent but never answered."""
     found = []
     for frame in page.frames:
         try:
@@ -42,5 +53,8 @@ def press(page) -> str:
     if len(found) > 1:
         raise NotPressed(SEVERAL.format(", ".join(f"'{w}'" for _, w in found)))
     frame, words = found[0]
-    frame.locator("[data-apply-send]").click(timeout=10_000)
+    try:
+        frame.locator("[data-apply-send]").click(timeout=10_000)
+    except Exception as lost:
+        raise Unsure(words) from lost
     return words

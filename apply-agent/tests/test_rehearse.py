@@ -61,7 +61,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import auto_submit, rehearsal, rescue, worker
+from apply import auto_submit, rehearsal, rescue, send_button, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -2157,6 +2157,39 @@ def test_approve_and_submit_presses_the_held_forms_submit_once_and_waits_for_the
     assert len(submissions) == 1  # one press: the second approve finds it pressed already
     assert board.captions[0]["status"] == "submitted"
     assert board.captions[0]["submit_said"] == rehearsal.PRESSED_ALREADY
+
+
+def test_an_approved_submit_whose_click_never_answered_counts_as_pressed_and_is_confirmed(monkeypatch, tmp_path):
+    """Fault: a Submit that sends the page away (Lever's whole-page post) ends the click with an error, so Apply
+    says it found no Submit button, never watches the job site's confirmation, and the card never shows it applied."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    real_press, asked = send_button.press, []
+
+    def press_lost(page) -> str:  # the press lands, but its reply is lost to the page it sent away
+        raise send_button.Unsure(real_press(page))
+    monkeypatch.setattr(send_button, "press", press_lost)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            if self.captions.get(worker, {}).get("again") and not asked:
+                asked.append(worker)
+                return True
+            return False
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert len(submissions) == 1
+    assert board.captions[0]["status"] == "submitted"
+    assert board.captions[0].get("submit_said") != send_button.NONE
 
 
 def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pressed_again(monkeypatch, tmp_path):

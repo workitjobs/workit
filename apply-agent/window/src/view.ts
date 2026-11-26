@@ -256,13 +256,27 @@ export function changes(s: Shown): { heading: string; lines: string[] } | null {
 
 // Each answer verifying says needs the student, in plain words: its question, then why. Apply's own names for itself
 // and its checks (words.ts' DEVELOPER) are said as WorkIt's.
+const checkWords = (why: string) =>
+  why.replace(/^(Verify|Pre-submit (review|check failed\.?)):?\s*/i, "").replace(/\bClaude\b/g, "WorkIt");
+const capital = (line: string) => line.charAt(0).toUpperCase() + line.slice(1);
+
 export function flagged(s: Shown): string[] {
   return (s.flags ?? []).map((f) => {
-    const why = f.why
-      .replace(/^(Verify|Pre-submit (review|check failed\.?)):?\s*/i, "")
-      .replace(/\bClaude\b/g, "WorkIt");
-    return f.field ? `${f.field}: ${why}` : why.charAt(0).toUpperCase() + why.slice(1);
+    const why = checkWords(f.why);
+    return f.field ? `${f.field}: ${why}` : capital(why);
   });
+}
+
+export const ONE_ANSWER = "One answer doesn't match your WorkIt profile.";
+
+// What a Check card lists: each flag, else each part of the form's reason ("; " between), in the same words. The
+// reason said whole named the Pre-submit review, so the card said "Something went wrong" over a form that only
+// needed a look (KAN-839). A part still in Apply's own words is left out; with none left, ONE_ANSWER.
+export function toCheck(s: Shown): string[] {
+  const lines = flagged(s);
+  if (lines.length) return lines;
+  const parts = (s.why ?? "").split("; ").map((part) => capital(checkWords(part.trim()))).filter((part) => part && !DEVELOPER.test(part));
+  return parts.length ? parts.map(said) : [ONE_ANSWER];
 }
 
 // What to do about a flagged answer: fix it on the form, or submit it as it is (ADR 0006).
