@@ -66,6 +66,16 @@ def set_workers(count: int, state: Path | None = None) -> int:
     return workers(state)
 
 
+def best_model(state: Path | None = None) -> bool:
+    """Whether a Developer checkout's large calls run on the Best model (GLOSSARY): on unless Settings turned it off."""
+    return _kept(state or STATE).get("best_model", True) is not False
+
+
+def set_best_model(on: bool, state: Path | None = None) -> bool:
+    _keep(state or STATE, best_model=bool(on))
+    return best_model(state)
+
+
 def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None) -> str:
     """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item), each job-site password
     Apply made (the keychain's apply-ats item of each Employer account in the Tracker), and its whole data folder,

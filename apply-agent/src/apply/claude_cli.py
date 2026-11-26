@@ -4,7 +4,9 @@ Every call replaces the system prompt and loads no settings, plugins, MCP
 servers or tools, so its fixed context is about 1k tokens instead of about
 29k. `ANTHROPIC_API_KEY` is removed from the call's environment, because in
 `-p` mode a key always wins over the Max login and would bill the API.
-`--bare` is not used: it ignores the Max login. See
+`--bare` is not used: it ignores the Max login. A setup token the developer
+saved (`apply claude-token`, from `claude setup-token`) is passed as
+`CLAUDE_CODE_OAUTH_TOKEN`, which `claude -p` uses before its own login. See
 research/max-orchestrator.md on branch research/max-orchestrator.
 
 Every call runs from an empty folder with auto-memory off. Run from inside
@@ -37,6 +39,7 @@ from apply.adapters import (
     UsageReading,
 )
 from apply.browsers import cdp_endpoint
+from apply.keychain import CLAUDE, CLAUDE_ACCOUNT, SystemKeychain
 from apply.plain.page import PortPage
 from apply.plain.tools import ToolServer
 
@@ -168,6 +171,13 @@ def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator
         process.wait()
 
 
+# Past either share of the plan's windows, the Best model's calls drop to Sonnet, which leaves the rest of the
+# windows for the run (Opus spends them several times as fast; apply.orchestrator stops at 0.85 and 0.70).
+BEST_FIVE_HOUR, BEST_WEEKLY = 0.70, 0.60
+# Why the latest kind that would have run on the Best model ran on Sonnet instead; None once one ran on it.
+dropped: str | None = None
+
+
 class ClaudeCLI:
     """Implements both the Claude and the Usage adapter: every call's
     rate_limit_event updates the usage reading."""
@@ -187,9 +197,11 @@ class ClaudeCLI:
     def ask_kind(self, kind: str, data: dict) -> dict:
         """`kind` on `claude -p`, its prompt built here from WorkIt's own (apply.local_prompts): `apply app
         --max-plan`, on the developer's own Claude plan."""
-        from apply import local_prompts
+        from apply import first_run, local_prompts
 
-        model, built = local_prompts.build(kind, data)
+        model, built = local_prompts.build(kind, data, best=first_run.best_model())
+        if model == local_prompts.BEST:
+            model = self._best_or_sonnet(kind)
         return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
@@ -199,6 +211,21 @@ class ClaudeCLI:
         self._spend(sum((result.get("usage") or {}).get(k) or 0 for k in TOKENS))
         trace.event("claude", block="ask", model=model, answer=result["structured_output"])
         return result["structured_output"]
+
+    def _best_or_sonnet(self, kind: str) -> str:
+        """The Best model, or Sonnet near the plan's limits, with `dropped` saying so."""
+        global dropped
+        reading = self._reading or UsageReading()
+        if reading.five_hour >= BEST_FIVE_HOUR:
+            window, share = "5-hour", reading.five_hour
+        elif reading.weekly >= BEST_WEEKLY:
+            window, share = "weekly", reading.weekly
+        else:
+            dropped = None
+            return "opus"
+        dropped = f"Opus paused: your plan is at {share:.0%} of its {window} limit, so large calls run on Sonnet until it resets."
+        trace.event("claude", block="dropped", prompt_kind=kind, why=dropped)
+        return "sonnet"
 
     def spent(self) -> int:
         return getattr(self._spent, "tokens", 0)
@@ -379,8 +406,36 @@ def _argv(model: str, system: str, schema: dict, extra: list[str] = (), tools: l
     ]
 
 
+TOKEN = "CLAUDE_CODE_OAUTH_TOKEN"
+
+
+def saved_token() -> str | None:
+    """The setup token `apply claude-token` saved in the keychain, or None: none saved, or the keychain refused."""
+    try:
+        return SystemKeychain(CLAUDE).password(CLAUDE_ACCOUNT)
+    except RuntimeError:
+        return None
+
+
+def save_token(token: str) -> None:
+    SystemKeychain(CLAUDE).save(CLAUDE_ACCOUNT, token)
+
+
+def forget_token() -> None:
+    SystemKeychain(CLAUDE).forget(CLAUDE_ACCOUNT)
+
+
+def login() -> str:
+    """Which login `claude -p` signs in with: Settings names it."""
+    if saved_token():
+        return "your setup token in Keychain"
+    return "the CLAUDE_CODE_OAUTH_TOKEN you set" if os.environ.get(TOKEN) else "your claude login"
+
+
 def _env() -> dict:
-    return {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"} | {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+    token = saved_token()
+    return ({k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"} | {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+            | ({TOKEN: token} if token else {}))
 
 
 def _events(stdout: str) -> list[dict]:

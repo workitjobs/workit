@@ -268,6 +268,14 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
 <div id="disclosure" hidden>{disclosure}</div>
+<section id="claude" hidden><h2>Claude (Developer)</h2>
+<label><input type="checkbox" id="best"> Write essays, cover letters and the final check with Opus 5.5</label>
+<p>Off, they run on Sonnet: slower to use up your plan, a little weaker.</p>
+<p id="claude-dropped" role="status"></p>
+<p id="claude-login"></p>
+<p>To use another subscription, run <code>claude setup-token</code>, then <code>uv run apply claude-token</code>
+and paste the token. <code>uv run apply claude-token --forget</code> goes back to your claude login.</p>
+</section>
 <h2>Report a Problem</h2>
 <form id="report">
 <label>What is it about <select id="report-category">{categories}</select></label>
@@ -293,6 +301,8 @@ document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
 document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
+const best = document.getElementById('best');
+best.addEventListener('change', async () => { await ready; await window.pywebview.api.set_best_model(best.checked); });
 document.addEventListener('click', async event => {
   const button = event.target.closest('button[data-do]');
   if (!button) return;
@@ -323,6 +333,12 @@ ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
   count.value = String(state.workers);
   document.getElementById('notices').hidden = !state.notices;
+  if (state.claude) {
+    document.getElementById('claude').hidden = false;
+    best.checked = state.claude.best;
+    document.getElementById('claude-login').textContent = `Claude signs in with ${state.claude.login}.`;
+    document.getElementById('claude-dropped').textContent = state.claude.dropped || '';
+  }
 });
 </script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
     "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
@@ -611,7 +627,19 @@ class Bridge:
         return {}
 
     def settings_state(self) -> dict:
-        return {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
+        `claude -p` uses, and why the Best model last paused."""
+        state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        from apply import build, student
+
+        if not build.STUDENT and os.environ.get(student.MAX_PLAN):
+            from apply import claude_cli
+
+            state["claude"] = {"best": first_run.best_model(), "login": claude_cli.login(), "dropped": claude_cli.dropped}
+        return state
+
+    def set_best_model(self, on: bool) -> dict:
+        return {"best": first_run.set_best_model(on)}
 
     def set_workers(self, count: int) -> dict:
         return {"workers": first_run.set_workers(count)}
