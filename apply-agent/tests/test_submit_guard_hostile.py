@@ -470,6 +470,29 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+
+# PR 477's third review (KAN-710): an XHR one realm opens and another sends, Ashby's submit in form data, and a pop-up
+# the page opened before the guards came on.
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_NEXT_THEN = """<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>%s
+    <script>%s document.getElementById('b').addEventListener('click', () => { %s });</script>"""
+PAGES |= {
+    "an XHR one realm opens and another sends": {START: _NEXT_THEN % ("<iframe id=i></iframe>", "", f"""
+        const w = document.getElementById('i').contentWindow;
+        try {{ const x = new XMLHttpRequest(); w.XMLHttpRequest.prototype.open.call(x, 'POST', '{FINAL}'); x.send('first=Test'); }} catch (e) {{}}
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); w.XMLHttpRequest.prototype.send.call(x, 'first=Test'); }} catch (e) {{}}""")},
+    "Ashby's submit in form data by XHR and beacon": {START: _NEXT_THEN % ("", "", f"""
+        const data = () => {{ const d = new FormData();
+          d.append('operations', JSON.stringify({{operationName: 'ApiSubmitSingleApplicationFormAction', variables: {{}}}})); return d; }};
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{ASHBY_GQL}'); x.send(data()); }} catch (e) {{}}
+        try {{ navigator.sendBeacon('{ASHBY_GQL}', data()); }} catch (e) {{}}""")},
+    "a pop-up opened before the guards came on": {
+        START: _NEXT_THEN % ("", "const w = window.open('/acme/jobs/123/side', 'side');", f"""
+        try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+        try {{ const d = w.document, f = d.createElement('form'); f.method = 'post'; f.action = '{FINAL}';
+          d.body.append(f); w.HTMLFormElement.prototype.submit.call(f); }} catch (e) {{}}"""),
+        "/acme/jobs/123/side": "<title>Side</title><body></body>"},
+}
 # KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
 # submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
 # alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
@@ -1114,6 +1137,9 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # PR 477's third review.
+    "an XHR one realm opens and another sends", "Ashby's submit in form data by XHR and beacon",
+    "a pop-up opened before the guards came on",
     # KAN-791's: Ashby's submit the operationName regex missed, and the application posted from a worker.
     "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
     "a Next whose workers post the application", "a Next whose shared worker posts the application",
