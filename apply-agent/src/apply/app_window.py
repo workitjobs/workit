@@ -867,11 +867,15 @@ def guard_close(window, bridge: Bridge) -> None:
 
 
 def _guard_closes(window, bridge: Bridge) -> None:
+    said = ""
     while True:
         try:
             guard_close(window, bridge)
-        except Exception as error:  # a bad read never ends the guard
-            print(f"Couldn't count the held forms: {type(error).__name__}: {error}", file=sys.stderr)
+            said = ""
+        except Exception as error:  # a bad read never ends the guard, and says so once, not every second
+            if (line := f"Couldn't count the held forms: {type(error).__name__}: {error}") != said:
+                print(line, file=sys.stderr)
+            said = line
         time.sleep(CLOSE_GUARD_EVERY)
 
 
