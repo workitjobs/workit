@@ -77,33 +77,29 @@ has neither.
 - **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
   KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
   and Linux later (F4). A general library comes first: Python's standard
-  library, `psutil` (a process's arguments, and whether it still runs:
-  `psutil.pid_exists`), `platformdirs` (each OS's data and
-  cache folders), `portalocker` (file locks, only through `apply.locks`),
+  library, `psutil` (a process's arguments; `pid_exists`), `platformdirs`
+  (each OS's data and cache folders), `portalocker` (file locks, only through
+  `apply.locks`),
   `pyperclip` (the seed guide's clipboard), the window's own
   `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
   extension's `windows.focus`). Per-OS code lives in one place for each job,
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
-  Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`:
-  its SingletonLock, or every process's arguments on Windows), the plain
-  Workers' channel (`plain/channel.py`: a Unix socket, or a named pipe on
-  Windows, checked in both directions), the native host's folder
+  Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`),
+  the plain Workers' channel (`plain/channel.py`), the native host's folder
   (`native_host.chrome_hosts`), a
   Worker's background start (`plain/launcher.start_in_background`), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder
-  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`:
-  ScreenCaptureKit on the Mac, the extension's frames elsewhere), and keeping
-  the computer awake during a run
+  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
+  and keeping the computer awake during a run
   (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
-  (`tests/test_each_os.py` reads the source for the last three). What W4 left for F4 is in its "Found on
-  the way" list; `../docs/windows_desktop.md` takes each item in turn, with
-  where it is and how to fix it (KAN-929).
+  (`tests/test_each_os.py` reads the source for the last three). Porting to
+  Windows: `../docs/windows_desktop.md` (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the
   generic Filler: code reads the form from the accessibility tree and does
@@ -518,13 +514,10 @@ into it and the window shows "Sample data".
   starts a browser outside those two calls `chrome_reaper.watch` itself. Test
   runs leave their `/tmp/apw-*` folders, finished or not; the reaper stops
   processes only.
-- **A profile that a browser has open is a stand-in process, never the
-  test's own PID** (KAN-929). `browsers.chrome_pid` takes a
-  `SingletonLock`'s PID only while that process is a browser whose
-  `--user-data-dir` is the profile, so a lock that names `os.getpid()`
-  counts as no browser. Use the `browser_on` fixture (`conftest.py`): it
-  starts a process whose command line names the profile, and gives its
-  PID for the lock.
+- **Open a profile in a test with the `browser_on` fixture** (`conftest.py`,
+  KAN-929): `browsers.chrome_pid` counts a `SingletonLock`'s PID only when
+  that process is a browser on that profile, so a lock with the test's own
+  PID counts as closed.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

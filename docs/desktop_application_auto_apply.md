@@ -1903,15 +1903,14 @@ Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
-lock, signals, the hosts' wrappers, the seed guide's words).
-`windows_desktop.md` takes each one in turn, in the order to solve them
-(KAN-929).
+lock, signals, the hosts' wrappers, the seed guide's words), and
+`windows_desktop.md` (KAN-929) takes them one at a time.
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port), with a check in both directions on every OS (`windows_desktop.md`, P4) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port; `windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |

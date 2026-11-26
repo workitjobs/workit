@@ -52,12 +52,9 @@ Apply process                                   Worker k (plain Chrome)
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
   `Bridge.path` says which. The channel's code is `apply.plain.channel`, which the host loads by
   its file path.
-- **Windows (KAN-929):** a named pipe in place of the socket file, made and opened by
-  `multiprocessing.connection`: `\\.\pipe\workit-apply-<16 hex>`, the SHA-256 of the same
+- **Windows (KAN-929):** a named pipe in place of the socket file, named from the
   `workers.sock` path (`channel.pipe_name`), with `workers.key` beside that path. A second Apply
-  on the folder gets `BridgeBusy`: Windows refuses to make the pipe twice. The pipe carries whole
-  messages; `channel.Messages` reads them as the same stream of bytes, so the framing below is
-  unchanged.
+  on the folder gets `BridgeBusy`. The framing below is unchanged.
 - **The check (KAN-929).** Before any frame, both ends prove that they know the channel's
   secret: `workers.key` beside the socket, mode 0600, new each time the Bridge starts, and
   written only once the Bridge holds the address. Raw bytes, with no framing:
@@ -66,9 +63,8 @@ Apply process                                   Worker k (plain Chrome)
      challenge, 32 bytes.
   3. Bridge to host: `HMAC-SHA256(secret, "server" + the host's challenge)`.
 
-  The host reads the secret only once the challenge came: the Bridge holds the address a
-  moment before its new secret is on disk, and challenges only after that. Each side
-  compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
+  The host reads the secret once the challenge came, never sooner: the Bridge writes its new
+  secret just after it takes the address. Each side compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
   (`channel.GREET_WAIT`), closes the connection with no other message. Then the host sends its
   `relay` frame, as below. A stranger can't connect, and a program that took the address after
   Apply went can't pass for Apply to a Worker's next host.
@@ -367,9 +363,9 @@ events of its own.
 
 ### Apply's MCP server
 
-`claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a Unix socket of its own
-for that drive, 0600 in `/tmp/apply-<uid>/`, 0700, with its own secret beside it and the same
-check as the Bridge's) and gives `claude -p` this server as
+`claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a channel of its own for
+that drive, with its own secret and the Bridge's check; on macOS and Linux a socket, 0600 in
+`/tmp/apply-<uid>/`, 0700) and gives `claude -p` this server as
 `playwright`: `python -I -m apply.plain.mcp --socket <path>`. That stdio process (stdlib only)
 answers `initialize` and `tools/list` itself (`apply/plain/mcp_tools.json`: @playwright/mcp@0.0.83's
 own schemas for `claude_cli.BROWSER_TOOLS`, nothing else) and sends each `tools/call` as one JSON

@@ -41,7 +41,7 @@ OFF = 3  # the helper's exit code without permission
 def mode(system: str = sys.platform) -> str:
     """"native" (ScreenCaptureKit when allowed, the Mac's default) or "extension" ($APPLY_TILE_CAPTURE). Off the Mac
     it is always "extension": the helper is ScreenCaptureKit's, and the permission note names the app through `ps`,
-    which Windows lacks, so every plain Worker's tile failed on each watch turn there (docs/windows_desktop.md, P11)."""
+    which Windows lacks, so every plain Worker's tile failed on each watch turn there (KAN-929)."""
     if system != "darwin" or os.environ.get("APPLY_TILE_CAPTURE") == "extension":
         return "extension"
     return "native"
