@@ -55,7 +55,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
-from apply import first_run, report, sign_in_link, workit
+from apply import build, first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
@@ -631,7 +631,7 @@ class Bridge:
         """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
         `claude -p` uses, and why the Best model last paused."""
         state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
-        from apply import build, student
+        from apply import student
 
         if not build.STUDENT and os.environ.get(student.MAX_PLAN):
             from apply import claude_cli
@@ -879,6 +879,10 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()))
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
+        from apply import app_control
+
+        threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
