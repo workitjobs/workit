@@ -880,7 +880,7 @@ def upload() -> None:
     """`apply upload`: this checkout's own files onto WorkIt (W11), where WorkIt Auto Apply reads its profile, Story
     bank and voice, a Developer checkout's `apply app` too. WorkIt keeps only what it lacks, so a second upload
     changes nothing edited there since; the files stay, for every other command. Never Test Person's."""
-    from apply import essays, regenerate, writing
+    from apply import writing
 
     if not DEFAULT_PROFILE.is_file():
         sys.exit(f"apply upload: there is no {DEFAULT_PROFILE.name} in {HOME} to send.")
@@ -889,21 +889,13 @@ def upload() -> None:
         sys.exit("apply upload: this is Test Person's sample data, which never goes to WorkIt.")
     bank = home.story_bank()
     voice = writing.VOICE.read_text() if writing.VOICE.is_file() else ""
-    lines = [{"section": section, "line": line} for section in (essays.ANSWERED_SECTION, regenerate.ADDED_SECTION)
-             for line in _section_lines(bank, section.split("\n", 1)[0])]
     try:
-        took = workit.WorkIt().upload_profile(facts, bank, voice, lines)
+        took = workit.WorkIt().upload_profile(facts, bank, voice)
     except workit.WorkItError as error:
         sys.exit(f"apply upload: {error}. Run `uv run apply login` if you aren't signed in, then try again.")
-    print(f"WorkIt took {took['facts']} profile facts, {took['answered']} answers, {took['story']} Story bank lines "
+    print(f"WorkIt took {took['facts']} profile facts, {took['answered']} answers "
           f"and {took['samples']} writing samples{', and your voice' if took['style_card'] else ''}: only what it "
           "lacked. Your files stay as they are.")
-
-
-def _section_lines(bank: str, heading: str) -> list[str]:
-    """The Story bank's "- " lines under `heading`, up to the next section."""
-    _, found, rest = bank.partition(f"{heading}\n")
-    return [line for line in rest.split("\n## ", 1)[0].splitlines() if found and line.startswith("- ")]
 
 
 def _answer_bank(profile: ApplicantProfile) -> AnswerBank:

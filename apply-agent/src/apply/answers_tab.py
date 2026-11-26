@@ -272,8 +272,6 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
         essays,
         on_page,
     )
-    from apply.clock import SystemClock
-
     def answer(item: dict, question: str, text: str) -> str:
         if not text.strip():
             if question.startswith(essays.ASK) or on_page.bare(question):
@@ -284,8 +282,8 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
             tracker().answer(item["application_id"], text)
             return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
         if question.startswith(essays.ASK):
-            essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
-            return "Saved to your Story bank: the essay is written with it next time."
+            essays.tell(item.get("posting_url") or "", question, text)
+            return "Kept for this application only: the essay is written with it next time."
         if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
             return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
         tab.save_answered(question, text)

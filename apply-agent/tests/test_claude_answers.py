@@ -1006,12 +1006,18 @@ def proud_plan(decision: list[str], ask: str = "") -> dict:
     return {PROJECT: {"type": "best-project", "slots": [*slots, {"slot": "decision", "quotes": decision, "ask": ask}]}}
 
 
-def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the_story_bank(monkeypatch):
+def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_writes_that_essay_unsaved(monkeypatch,
+                                                                                                   tmp_path):
+    """Fault: the essay was written without his answer, or the answer was saved (to his profile, or a Story bank line
+    every essay's prompt would carry)."""
     form, tracker = ResearchForm("Northwood Space"), InMemoryTracker()
     waiting = proud_plan([], DECISION)
     first = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[waiting, waiting])
 
-    [row] = run_all(monkeypatch, form, first, ["Example Co"], tracker=tracker)
+    profile = tmp_path / PROFILE.name  # his answer is saved into it: never into the fixture
+    for fixture in (PROFILE, PROFILE.parent / "policies.yaml"):
+        (tmp_path / fixture.name).write_text(fixture.read_text())
+    [row] = run_all(monkeypatch, form, first, ["Example Co"], profile, tracker=tracker)
 
     assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {DECISION}")
     assert form.submitted == []
@@ -1019,10 +1025,10 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the
     tracker.answer(row.application_id, PICKED)
     second = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[proud_plan([PICKED])])
 
-    [row] = run_all(monkeypatch, form, second, ["Example Co"], tracker=tracker)
+    [row] = run_all(monkeypatch, form, second, ["Example Co"], profile, tracker=tracker)
 
-    assert f"- {DECISION} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
-    assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from the Story bank
+    assert ApplicantProfile.load(profile).answered(DECISION) is None and PICKED not in home.STORY_BANK.read_text()
+    assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from this form's answers
     assert row.status == "submitted", row.reason
     assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
 
@@ -1039,26 +1045,20 @@ def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with
     assert planned._holds(essay, False) == [f"'{PROJECT}' is written once you answer: {DECISION}"]
 
 
-def test_an_essays_question_answered_in_a_rehearsals_window_joins_the_story_bank_not_the_profile():
+def test_an_essays_question_answered_in_a_rehearsals_window_is_kept_for_that_form_alone():
+    """Fault: the answer was saved (to the profile, or the Story bank), or kept for another form."""
     from apply import cli
 
     class Tab:
         def save_answered(self, question, text):
-            raise AssertionError("not a profile fact")
+            raise AssertionError("never saved")
 
-    said = cli._answering(lambda: None, Tab())({"company": "Figma"}, f"Essay fact: {DECISION}", PICKED)
+    item = {"company": "Figma", "posting_url": "https://jobs.example.com/figma/1"}
+    said = cli._answering(lambda: None, Tab())(item, f"Essay fact: {DECISION}", f"  {PICKED}\n")
 
-    assert said == "Saved to your Story bank: the essay is written with it next time."
-    assert f"- {DECISION} {PICKED} (asked for Figma, " in home.STORY_BANK.read_text()
-
-
-def test_an_answer_saved_twice_joins_the_story_bank_once():
-    for _ in range(2):
-        essays.remember_fact(f"Essay fact: {DECISION}", f"  {PICKED}\n", "Figma", NOW.date())
-    bank = home.STORY_BANK.read_text()
-    assert bank.count(PICKED) == 1 and bank.count(essays.ANSWERED) == 1
-    assert bank.endswith(f"{essays.ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word.\n"
-                         f"- {DECISION} {PICKED} (asked for Figma, 2026-10-15)\n")
+    assert said == "Kept for this application only: the essay is written with it next time."
+    assert essays.TOLD == {"https://jobs.example.com/figma/1": {DECISION: PICKED}}
+    assert PICKED not in home.STORY_BANK.read_text()
 
 
 def test_the_pre_submit_review_checks_drafted_answers_against_the_profile(monkeypatch):

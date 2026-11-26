@@ -661,9 +661,9 @@ class _Planned:
             # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
             if q.label.strip() in self._answered and not context_free(q.label):
                 remember(profile, posting, q, self._answered[q.label.strip()])
-        for asked, answer in self._answered.items():  # what an essay asked him: its answer joins the Story bank
+        for asked, answer in self._answered.items():  # what an essay asked him: for this form alone, never saved
             if asked.startswith(essays.ASK):
-                essays.remember_fact(asked, answer, posting.company, self._today)
+                essays.tell(posting.url, asked, answer)
         self.questions = self.questions + list(questions)
         planned = plan(self.questions, posting, profile, self._bank, posting_text=self.posting_text,
                        employer_text=f"{self.text}\n{self.material or ''}", today=self._today)

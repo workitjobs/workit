@@ -36,6 +36,7 @@ export type Shown = {
   required?: Record<string, boolean>;
   planned?: Record<string, string>;
   essays?: { question: string; text: string }[];
+  written?: { name: string; label: string }[]; // each answer the AI wrote on the form, marked there (regenerate.form_of)
   flags?: { field: string; why: string }[];
   verified?: boolean; // the Pre-submit check found every answer agrees with the profile
   files?: { label?: string; name?: string }[]; // each file the form was given, by the form's question for it

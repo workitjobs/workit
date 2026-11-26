@@ -20,7 +20,6 @@ import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
 from pathlib import Path
 
 from apply import (
@@ -150,6 +149,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     text (apply.description), which the call gets in its <posting> block.
     `answered` is the form's answers already planned, by Question: the
     essays see those form_answers lets through, in a <form_answers> block.
+    Lisul's answers to this form's Essay facts (TOLD) join that block, so
+    the plan quotes them however it words its ask this time.
     An essay that gives away how it was written is drafted again once, in a
     second call; `redraft` names, for that call, what each essay gave away.
     `redo` gives, by Question, the earlier answer and the context Lisul typed
@@ -172,12 +173,13 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     Sonnet call."""
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
         written, _ = answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
-                            redo, sections)
+                            redo, sections, mine)
         return written, answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
-                               sections=sections)[1]
+                               sections=sections, mine=mine)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {}, private.self_id(profile))
+    shown = form_answers(answered or {}, private.self_id(profile)) | {
+        one_line(asked): one_line(told) for asked, told in TOLD.get(posting.url, {}).items() if told.strip()}
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -294,7 +296,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     is dropped (a story or company fact to "", parts to the question itself,
     a quote no source holds) rather than hold the form. Only a required slot
     that no quote backs then waits: its question for Lisul goes in the Plan's
-    asks, and the essay is written once they answer it (remember_fact).
+    asks, and the essay is written once they answer it (TOLD).
     `redo` is the earlier answer and Lisul's added context of each essay he
     asked to have written again (apply.regenerate)."""
     claude = as_applicant(claude, profile)
@@ -571,17 +573,18 @@ CUT = ("rewrite it shorter, under the most the line above gives, counted over th
 SHORTER = f"{CUT} The form refuses a longer answer."
 
 
-# Heads the Story bank's section of Lisul's answers to the questions essays asked them (ASK).
-ANSWERED = "## Answered during applications"
-ANSWERED_SECTION = f"{ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word."
+# Lisul's answers to the Essay facts a form asked (ASK), by its Posting's URL, then by what each asked: kept in memory
+# for that form alone, until he submits it (rehearsal's `submitted`) or the app quits, and never saved (2026-11-26),
+# so its essays are written with them when it is filled again. A later form that asks the same asks again: an ask's
+# words change from plan to plan, and one essay's fact seldom fits another's. Never a Story bank line, which every
+# essay's prompt carries.
+TOLD: dict[str, dict[str, str]] = {}
 
 
-def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
-    """Lisul's answer to a question an essay asked them (`asked`, opened by
-    ASK), as a Story bank line under ANSWERED, so this essay and every one
-    after can quote it. An answer already there is not added again."""
-    fact = f"- {one_line(asked.removeprefix(ASK))} {one_line(answer)}"
-    data_folder.add_story_line(ANSWERED_SECTION, f"{fact} (asked for {company}, {today.isoformat()})", fact)
+def tell(url: str, asked: str, answer: str) -> None:
+    """Keep Lisul's answer to an Essay fact (`asked`, opened by ASK; several the window joined with "; ") for the
+    form at `url` (TOLD)."""
+    TOLD.setdefault(url, {})[one_line(asked.removeprefix(ASK))] = answer.strip()
 
 
 def form_answers(answered: Mapping[Question, object], self_ids: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:

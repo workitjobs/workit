@@ -117,11 +117,9 @@ export default function PrivacyPage() {
       </p>
       <p>
         The AI model providers WorkIt uses are Google (Gemini) and Groq. Job matching sends text to
-        Google (Gemini) only when that is turned on. If you add the WorkIt connector to your own
-        Claude account, your Claude (Anthropic) also reads what the connector gives it, as the
-        section on the connector below says. Some of these providers&apos; free plans let them use
-        the text they receive to improve their services. Because we remove your identity details
-        first, that text does not include your name or contact details.
+        Google (Gemini) only when that is turned on. Some of these providers&apos; free plans let
+        them use the text they receive to improve their services. Because we remove your identity
+        details first, that text does not include your name or contact details.
       </p>
       <p>
         AI output can be wrong. WorkIt checks that tailored resume text and written answers do not
@@ -189,14 +187,14 @@ export default function PrivacyPage() {
           <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
           private details hidden (next item); your applications&apos; stages; the answers you
           approve or edit, and the short answers its AI drafts for your Answer bank, marked for your
-          review; the answers you give to the questions it asks you, and what you add when you ask
-          it to write an answer again, kept with your WorkIt profile; and your Auto Apply queue, as
-          the Chrome extension does; and, only when you send a report from the app&apos;s
-          &ldquo;Report a problem&rdquo; form, what you write there and, if you choose to include
-          them, one application&apos;s record and its step-by-step log, with your personal details
-          hidden in the log. If you allow it, we may email you about your report. We use a report
-          only to fix the problem it shows, and we delete it once that problem is fixed. The app
-          sends no analytics and no automatic crash reports.
+          review; the answers you give to the questions it asks you, kept with your WorkIt profile,
+          except an answer for one essay, which goes only into that essay&apos;s AI calls and is not
+          kept; and your Auto Apply queue, as the Chrome extension does; and, only when you send a
+          report from the app&apos;s &ldquo;Report a problem&rdquo; form, what you write there and,
+          if you choose to include them, one application&apos;s record and its step-by-step log,
+          with your personal details hidden in the log. If you allow it, we may email you about your
+          report. We use a report only to fix the problem it shows, and we delete it once that
+          problem is fixed. The app sends no analytics and no automatic crash reports.
         </li>
         <li>
           <strong>Your Answer bank.</strong> Your answers to short questions that forms ask once,
@@ -212,14 +210,15 @@ export default function PrivacyPage() {
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
           (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The
           app sends what the answers need, such as the job posting, the form&apos;s questions, your
-          answers on it (self-identification answers included) and your experiences. When the app
-          can&apos;t match one of your answers to a field&apos;s choices, it sends that question,
-          your answer and the choices, and AI picks the one that fits; when two buttons could go on
-          to a form&apos;s next page, it sends their names, and AI says which one. It replaces
-          private details, such as your contact details and street address, with placeholders, and
-          puts the real values back into the answer on your Mac. Before a prompt goes on,
-          WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other
-          people&apos;s names inside your stories, so leave out anything private about other people.
+          answers on it (self-identification answers included), your experiences and your writing
+          samples. When the app can&apos;t match one of your answers to a field&apos;s choices, it
+          sends that question, your answer and the choices, and AI picks the one that fits; when two
+          buttons could go on to a form&apos;s next page, it sends their names, and AI says which
+          one. It replaces private details, such as your name, contact details and street address,
+          with placeholders, and puts the real values back into the answer on your Mac. Before a
+          prompt goes on, WorkIt&apos;s server also hides contact details it finds in it. The app
+          cannot find other people&apos;s names inside your stories, so leave out anything private
+          about other people.
         </li>
         <li>
           <strong>What the AI providers can do with it.</strong> Google&apos;s free tier lets Google

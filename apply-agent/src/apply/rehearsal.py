@@ -73,7 +73,7 @@ from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
-from apply.essays import ASK
+from apply.essays import ASK, TOLD
 from apply.model import Posting, Question, Site, Status, one_line
 from apply.orchestrator import (
     CALIBRATION,
@@ -364,6 +364,7 @@ def rehearse(
             note += _keep_confirmation(page, done, adapters)
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
+            TOLD.pop(done.posting.url, None)  # his answers to its Essay facts: never kept past its submit
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))

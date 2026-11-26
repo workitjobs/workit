@@ -308,11 +308,13 @@ def test_an_answer_typed_on_the_form_is_saved_as_a_cards_answer_and_a_bare_date_
         [item] = board.state()["items"]
 
     assert saved.startswith("Saved to your facts") and bare.startswith("Kept on this form only")
-    assert essay.startswith("Saved to your Story bank")
+    assert essay.startswith("Kept for this application only")
     assert item["questions"] == [] and item["answered"]  # it leaves Needs you
     answered = ApplicantProfile.load(profile_file).get("answered_questions") or {}
     assert "he/him" in json.dumps(answered) and "08/01/2024" not in json.dumps(answered)
-    assert "- what did the robot do?; what did you learn? It solved the maze" in story.read_text()
+    assert essays.TOLD["https://p.example/1"] == {
+        "what did the robot do?; what did you learn?": "It solved the maze, and I learned to test early."}
+    assert "It solved the maze" not in json.dumps(answered) + story.read_text()
 
 
 def test_an_essay_facts_field_is_its_essays():

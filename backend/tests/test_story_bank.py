@@ -18,17 +18,13 @@ STUDENT = {
          "bullets": [{"text": "Shows a checked-out book within minutes.", "position": 1}]},
     ], "skills": [{"name": "Python", "group": "Languages"}, {"name": "Git", "group": None},
                   {"name": "Go", "group": "Languages"}]},
-    "fill": {"profile": {"story_lines": [
-        {"section": "## Answers to essay questions\nThe applicant's own answers.", "line": "- Favorite book? Dune"},
-        {"section": "## Added context\nWhat they added.", "line": "- For \"Why us?\": boats"},
-        {"section": "## Answers to essay questions\nThe applicant's own answers.", "line": "- Hometown? Albany"},
-    ]}},
+    "fill": {"profile": {"answered_questions": {"Favorite book?": "Dune"}}},
 }
 
 
-def test_the_story_bank_holds_the_students_writing_entries_skills_and_added_lines_in_apples_layout():
+def test_the_story_bank_holds_the_students_writing_entries_and_skills_in_apples_layout():
     """Fault: an entry on two resumes told twice, a section's bullets out of the student's order, the own writing
-    under a heading Apply's readers miss, or an added line lost or split from its section."""
+    under a heading Apply's readers miss, or a Needs you answer in it, which every essay's prompt would carry."""
     assert story_bank(STUDENT, ("I built a shelf scanner.", "  The robot drifted left.  ")) == """\
 # Story bank: Sam Seeker
 
@@ -50,15 +46,6 @@ The robot drifted left.
 ## Skills
 - Languages: Python, Go.
 - Git.
-
-## Answers to essay questions
-The applicant's own answers.
-- Favorite book? Dune
-- Hometown? Albany
-
-## Added context
-What they added.
-- For "Why us?": boats
 """
 
 

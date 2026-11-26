@@ -528,7 +528,7 @@ by hand (W8).
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. Built 2026-11-26: the Story bank and voice from WorkIt, the lines a fill adds sent back, and a Developer checkout's `apply upload` (`POST /apply-app/profile/upload`, only what WorkIt lacks). The extension is unchanged. Left: the old route, once no Store extension calls it; company briefs are W9's |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. Built 2026-11-26: the Story bank and voice from WorkIt (an Essay fact's answer never saved), and a Developer checkout's `apply upload` (`POST /apply-app/profile/upload`, only what WorkIt lacks). The extension is unchanged. Left: the old route, once no Store extension calls it; company briefs are W9's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -2038,10 +2038,16 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       them too (`apply-agent/docs/workit.md`).
     - **The Story bank and voice come from WorkIt too** (decided and built
       2026-11-26): the same read answers the Story bank, built from the
-      student's writing samples, experience bank and the lines the app's
-      fills added (`backend/app/services/story_bank.py`), and their style
-      card as the voice. The app holds them in memory and sends each line
-      a fill adds with the profile's next save. The Stock answers the
+      student's writing samples and experience bank
+      (`backend/app/services/story_bank.py`), and their style card as the
+      voice. The app holds them in memory. A fill adds nothing to it on
+      WorkIt, since every essay's prompt carries the whole Story bank. An
+      answer to an essay's Essay fact is never saved: the app keeps it in
+      memory for the form that asked, until that form is submitted, and
+      gives it to that form's essays; a later form asks again. Every
+      answer the AI wrote on a form is marked there, and the Submit card
+      counts them for the student's review. Context typed on Regenerate stays in
+      memory for that answer's checks. The Stock answers the
       profile holds come with it. A Developer checkout sends its own files
       once with `uv run apply upload`, and WorkIt keeps only what it
       lacks, so developers fill through the students' pipeline. Company

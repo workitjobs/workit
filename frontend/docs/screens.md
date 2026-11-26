@@ -2567,10 +2567,13 @@ goes into the other.
 
 **Writing Samples (KAN-384, KAN-387)** is the last card
 (`writing-samples.tsx`, at `#writing-samples`): up to three
-pieces of the student's own writing (a class essay, a cover letter), from
-which their own Claude builds a style card through the connector, so the
-answers it writes read the way they write. Optional; WorkIt's own AI never
-reads them.
+pieces of the student's own writing (a class essay, a cover letter), so the
+answers written for them read the way they write: WorkIt Auto Apply's essays
+read them through WorkIt's AI, and the student's own Claude builds a style
+card from them through the connector. Optional. The card promises only that
+the student's name and contact details are hidden before an AI reads them
+(2026-11-26, the team's call); it said only their Claude reads them until
+then. Student-facing copy names no Claude.
 
 - **Asked for once, after the first written batch.** The extension's panel
   asks, with Add Samples and Skip, once the first batch's answers from the

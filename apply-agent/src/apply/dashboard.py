@@ -968,7 +968,7 @@ class Dashboard:
         when it can't: no context, an answer Claude did not write, or a form
         that is gone or filling again."""
         if not context.strip():
-            raise Refused("Type what Claude should know or change first.", 400)
+            raise Refused("Type what the AI should know or change first.", 400)
         state = self.state()
         if key.startswith("tile-") and key.removeprefix("tile-").isdigit():
             k = int(key.removeprefix("tile-"))

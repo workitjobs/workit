@@ -226,8 +226,13 @@ writes that one answer again.
 
 - **Which answers.** `regenerate.form_of` (the Worker's `Result.regenerable`,
   rehearsals only) lists each essay, Answer bank draft and company-only
-  one-off that went into a text field. A profile fact, a pick from a list, a
-  file and Lisul's own Answer bank answer get no button.
+  one-off that went into a text field, and an Answer bank draft from an
+  earlier form that Lisul hasn't reviewed yet (2026-11-26). A profile fact,
+  a pick from a list, a file and Lisul's own Answer bank answer get no
+  button. **The button is the form's mark for AI answers**: it reads "↻ AI
+  wrote this · Add context and regenerate", every line of it says "the AI",
+  never "Claude", and the student window's Submit card counts these answers
+  (`apply-window.md`).
 - **On the form (the main place).** When the page is lifted for Lisul
   (`_Kept.hold`), `regenerate.offer` draws the button over the page, above
   the field's top right. It is on the page's body, fixed, never inside the
@@ -394,8 +399,9 @@ fact, a one-off that Claude left for Lisul, a Handoff's questions) passes
 through `worker._Planned._missing` first.
 
 - `asking.known(asked, profile, bank)` is the never-ask-twice check. It
-  looks in the profile's `answered_questions`, the Answer bank, the Story
-  bank (an earlier Essay fact's answer) and the applicant's links. A link
+  looks in the profile's `answered_questions`, the Answer bank and the
+  applicant's links. An Essay fact's answer is never kept, so an earlier
+  form's never answers a later one (`essays.TOLD`). A link
   question is known when each kind that it names (GitHub, LinkedIn, a site,
   a repo) is among the links. A known text field gets that answer
   (`_Planned.found`), and a known ask is dropped.
@@ -565,8 +571,9 @@ on the held form itself, not only in its Needs you card.
   engine fills that job system, else what the page shows.
 - Then `rehearsal._answered_on_page` saves it as a card's answer is saved
   (`Board.typed`, then the window's `answer`: `cli._answering`), so it
-  joins the profile, or the Story bank for an Essay fact. All the Essay
-  facts of one essay are saved as one Story bank line. The card leaves
+  joins the profile; an Essay fact's answer is kept in memory for that
+  form's essay only, never saved (`essays.tell`), all the Essay facts of
+  one essay answered at once as one. The card leaves
   Needs you, the tile's counts and the note on the form change, and the
   Record (its plan and read-back) is saved again (`_record_again`).
 - A bare date (From, To, Start date: `on_page.bare`, the engine's

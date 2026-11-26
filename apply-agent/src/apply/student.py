@@ -241,18 +241,7 @@ def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None)
     got["policies"].pop("how_heard", None)  # "How did you hear about us?" stays Apply's: the extension answers "WorkIt"
     profile.refresh(facts, layered(load_policies(), got["policies"]))
     writing = got.get("writing") or {}
-    home.WORKIT = home.FromWorkIt(writing.get("story_bank") or "", writing.get("voice") or "",
-                                  send=lambda section, line: story_to_workit(profile, section, line))
-
-
-def story_to_workit(profile: ApplicantProfile, section: str, line: str) -> None:
-    """A line a fill added to the Story bank, sent to WorkIt with the profile's changes. One WorkIt doesn't answer
-    stays with them, and goes with the next save: the fill goes on."""
-    profile.add_story(section, line)
-    try:
-        profile.save()
-    except WorkItError:
-        pass
+    home.WORKIT = home.FromWorkIt(writing.get("story_bank") or "", writing.get("voice") or "")
 
 
 def to_workit(changes: list[tuple]) -> None:
@@ -260,9 +249,8 @@ def to_workit(changes: list[tuple]) -> None:
     read from them. A file's path is this Mac's, never sent."""
     answered = {question: answer for kind, question, answer in changes if kind == "answered"}
     facts = {key: value for kind, key, value in changes if kind == "set" and not key.startswith("files.")}
-    story = [{"section": section, "line": line} for kind, section, line in changes if kind == "story"]
-    if answered or facts or story:
-        WorkIt().save_answered(answered, facts, story)
+    if answered or facts:
+        WorkIt().save_answered(answered, facts)
 
 
 def layered(under: dict, over: dict) -> dict:
@@ -285,7 +273,7 @@ def app() -> None:
     profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
     # The Story bank and voice are WorkIt's too, read with the profile at each Start: never the data folder's files,
     # which a Developer checkout's `apply app` would read.
-    home.WORKIT = home.FromWorkIt(send=lambda section, line: story_to_workit(profile, section, line))
+    home.WORKIT = home.FromWorkIt()
     bank = AnswerBank(WorkItSource())
     bank.load_in_background()
     answers = AnswersTab(bank, profile)

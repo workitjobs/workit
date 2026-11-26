@@ -333,17 +333,16 @@ class WorkIt:
         extension builds them, and where each file it names is read (`files`)."""
         return self.call("GET", "/apply-app/profile")
 
-    def save_answered(self, answered: dict, facts: dict, story: list[dict] | None = None) -> None:
+    def save_answered(self, answered: dict, facts: dict) -> None:
         """What the student answered in Needs you, into their profile on WorkIt (`PATCH /apply-app/profile`): answers
-        by question, facts the Fill engine read from an answer by dotted key, and the Story bank lines a fill added
-        ({section, line}), sent only when there are some."""
-        self.call("PATCH", "/apply-app/profile", {"answered": answered, "facts": facts} | ({"story": story} if story else {}))
+        by question (an Essay fact's too), and facts the Fill engine read from an answer by dotted key."""
+        self.call("PATCH", "/apply-app/profile", {"answered": answered, "facts": facts})
 
-    def upload_profile(self, profile: dict, story_bank: str, voice: str, story: list[dict]) -> dict:
+    def upload_profile(self, profile: dict, story_bank: str, voice: str) -> dict:
         """A Developer checkout's own files onto WorkIt, once (`apply upload`, `POST /apply-app/profile/upload`):
         WorkIt keeps only what it lacks, and answers how much it took."""
         return self.call("POST", "/apply-app/profile/upload",
-                         {"profile": profile, "story_bank": story_bank, "voice": voice, "story": story})
+                         {"profile": profile, "story_bank": story_bank, "voice": voice})
 
     def profile_file(self, where: dict) -> bytes:
         """A file the profile names, by its `files` entry: the default resume (an upload's bytes, or a built resume's

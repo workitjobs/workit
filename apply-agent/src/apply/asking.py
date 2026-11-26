@@ -85,8 +85,8 @@ def resume_links(pdf: Path, mtime: float) -> tuple[tuple[str, str], ...]:
 def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None) -> tuple[str, ...]:
     """What Apply already holds that answers `asked`, a line a fact; () when
     it holds nothing, and Lisul must be asked. An answer Lisul gave before
-    (the profile's answered questions, the Answer bank, a Story bank line
-    from an earlier Essay fact) answers the same question. A question for
+    (the profile's answered questions, the Answer bank) answers the same
+    question; an Essay fact's is never kept (essays.TOLD). A question for
     links is answered by the links Apply holds when each kind it names
     (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds."""
     from apply.essays import ASK  # imported here: essays imports this module
@@ -98,10 +98,6 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None)
         return (_shown(answered[key(asked)]),)
     if bank and (entry := bank.get(asked)) and entry.answer:
         return (_shown(entry.answer),)
-    story_bank = data_folder.story_bank()
-    if line := next((one_line(line)[2:] for line in story_bank.splitlines()
-                     if one_line(line).casefold().startswith(f"- {asked}".casefold())), ""):
-        return (line,)
     if not LINK_ASK.search(asked):
         return ()
     held = links(profile)

@@ -158,6 +158,16 @@ export function checks(s: Shown): string[] {
   ].filter((line): line is string => !!line);
 }
 
+// The Submit card's line for the answers the AI wrote on the form (regenerate.form_of: its essays and drafts, and an
+// Answer bank draft not reviewed yet), each marked there for the student's review. None when the AI wrote none.
+export function aiReview(s: Shown): string | undefined {
+  const n = s.written?.length ?? 0;
+  if (!n) return undefined;
+  return n === 1
+    ? "1 answer was written by AI and needs your review. It has a mark beside it on the form."
+    : `${n} answers were written by AI and need your review. Each has a mark beside it on the form.`;
+}
+
 // How far a job still being worked on has got, for its bar: the share of questions filled, or "unknown" while Apply
 // hasn't counted them (it counts them when a fill pauses or ends) or checks the answers. Never a made-up share.
 export const bar = (job: Job): number | "unknown" => (job.progress === undefined ? "unknown" : job.progress);
@@ -247,6 +257,12 @@ export function asking(source: Shown, done: string[]): Asked | undefined {
     choice?.kind === "file" ? "file" : !options.length ? "text" : choice?.kind === "multi_select" ? "checks" : options.length > 4 ? "list" : "buttons";
   return { question, form, options, optional: source.required?.[question] === false, planned: source.planned?.[question] ?? "" };
 }
+
+// What the card says becomes of an answer: an Essay fact's (apply.essays.ASK) is kept for that application's essay
+// alone and never saved, so it is never "every application that asks" (2026-11-26).
+export const ESSAY_FACT = "Essay fact: ";
+export const reuse = (question: string) =>
+  question.startsWith(ESSAY_FACT) ? "We use this for this application's essay only." : "You answer this once. We'll use it on every application that asks.";
 
 // What /answer gets for the options picked: several joined by "; " in the form's order, as the Answer cell holds them.
 export const answerOf = (asked: Asked, picks: string[]) => asked.options.filter((o) => picks.includes(o)).join("; ");

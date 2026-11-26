@@ -30,10 +30,13 @@ const WRITING_SAMPLES_ID = "writing-samples";
 
 /**
  * Writing Samples (KAN-384, KAN-387): up to three pieces of the student's own
- * writing, a class essay or a cover letter, from which their own Claude
- * builds a style card, so the answers it writes read the way they write.
- * Optional: without samples, Claude writes plainly. WorkIt's own AI never
- * reads them. The extension asks for them once, after a student's first
+ * writing, a class essay or a cover letter, so the answers written for them
+ * read the way they write: WorkIt Auto Apply's essays read them in its Story
+ * bank (W11), through WorkIt's AI, and the connector hands them to the
+ * student's own Claude, which builds a style card from them. Optional. The
+ * page's one promise is that the student's name and contact details are
+ * hidden before an AI reads them (2026-11-26, the team's call; it said only
+ * the student's Claude reads them until then). The extension asks for them once, after a student's first
  * batch whose answers their Claude wrote, and opens /auto-apply/info#writing-samples
  * (Application Info; /profile#writing-samples forwards there for older
  * versions),
@@ -148,9 +151,9 @@ export function WritingSamples() {
             </Button>
           }
         >
-          Up to three pieces of your own writing, such as a class essay or a cover letter. Your
-          Claude reads them so the answers it writes sound like you. Optional, and only your Claude
-          reads them.
+          Up to three pieces of your own writing, such as a class essay or a cover letter, so the
+          answers written for you sound like you. Optional. Your name and contact details are hidden
+          before any AI reads them.
         </EmptyState>
         {error && (
           <p role="alert" className="text-note text-danger">
@@ -178,9 +181,9 @@ export function WritingSamples() {
         )}
       </div>
       <p className="text-body text-ink-meta mt-1">
-        Up to three pieces of your own writing, such as a class essay or a cover letter. Your Claude
-        reads them so the answers it writes sound like you. Optional, and only your Claude reads
-        them.
+        Up to three pieces of your own writing, such as a class essay or a cover letter, so the
+        answers written for you sound like you. Optional. Your name and contact details are hidden
+        before any AI reads them.
       </p>
 
       {/* The empty line's place while the read runs (KAN-561). */}

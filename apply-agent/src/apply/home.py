@@ -24,7 +24,6 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -78,11 +77,10 @@ def fill_from_sample() -> bool:
 @dataclass
 class FromWorkIt:
     """WorkIt Auto Apply's Story bank and voice (W11): WorkIt's, read at each Start (student.profile_from_workit)
-    and kept in memory, never in a file. `send` takes a line a fill adds, with its section, to WorkIt."""
+    and kept in memory, never in a file. A line a fill adds stays in memory until the next Start."""
 
     story_bank: str = ""
     voice: str = ""
-    send: Callable[[str, str], None] = lambda section, line: None
 
 
 WORKIT: FromWorkIt | None = None  # None in a Developer command: the data folder's files
@@ -99,8 +97,8 @@ def story_bank() -> str:
 
 def add_story_line(section: str, line: str, seen: str) -> bool:
     """`line` at the Story bank's end, under `section` (its heading line, then what it holds) unless the bank has
-    that heading already, and not when `seen` is in the bank. In WorkIt Auto Apply it goes to WorkIt too. False
-    when it was there."""
+    that heading already, and not when `seen` is in the bank. In WorkIt Auto Apply only in memory, for the checks
+    of the answer it was added for: WorkIt never keeps it. False when it was there."""
     with _ADDING:
         bank = story_bank()
         if seen in bank:
@@ -112,5 +110,4 @@ def add_story_line(section: str, line: str, seen: str) -> bool:
             STORY_BANK.write_text(bank)
             return True
         WORKIT.story_bank = bank
-    WORKIT.send(section, line)
     return True

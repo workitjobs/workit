@@ -136,24 +136,12 @@ AnsweredText = Annotated[str, StringConstraints(max_length=20000)]
 
 # A fact's dotted key in the engine profile ("identity.pronouns"): never a file's path, which only the Mac knows.
 def _not_reserved(key: str) -> str:
-    if key.split(".")[0] in ("files", "answered_questions", "story_lines"):
-        raise ValueError("files, answered_questions and story_lines are not facts")
+    if key.split(".")[0] in ("files", "answered_questions"):
+        raise ValueError("files and answered_questions are not facts")
     return key
 
 
 FactKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"), AfterValidator(_not_reserved)]
-
-
-class StoryLine(BaseModel):
-    """A line WorkIt Auto Apply added to the Story bank during a fill (the
-    student's answer to what an essay asked, or what they added when they
-    asked for an answer again), under its section: its heading and what it
-    holds, as the app wrote them."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    section: str = Field(min_length=1, max_length=500)
-    line: str = Field(min_length=1, max_length=4000)
 
 
 class AnsweredChange(BaseModel):
@@ -166,20 +154,18 @@ class AnsweredChange(BaseModel):
 
     answered: dict[AnsweredQuestion, AnsweredText | list[AnsweredText]] = Field(default={}, max_length=100)
     facts: dict[FactKey, AnsweredText | list[AnsweredText] | bool | int | float] = Field(default={}, max_length=100)
-    story: list[StoryLine] = Field(default=[], max_length=100)
 
 
 class ProfileUpload(BaseModel):
     """POST /apply-app/profile/upload: a Developer checkout's own files
-    (`apply upload`): its applicant-profile.yaml as data, its story-bank.md
-    and voice.md as text, and the Story bank's lines a fill added."""
+    (`apply upload`): its applicant-profile.yaml as data, and its
+    story-bank.md and voice.md as text."""
 
     model_config = ConfigDict(extra="forbid")
 
     profile: dict = {}
     story_bank: str = Field(default="", max_length=200_000)
     voice: str = Field(default="", max_length=20_000)
-    story: list[StoryLine] = Field(default=[], max_length=2_000)
 
 
 class UploadTaken(BaseModel):
@@ -187,6 +173,5 @@ class UploadTaken(BaseModel):
 
     facts: int
     answered: int
-    story: int
     samples: int
     style_card: bool

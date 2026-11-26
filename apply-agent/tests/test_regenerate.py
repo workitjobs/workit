@@ -119,26 +119,36 @@ def test_no_context_asks_for_some_and_changes_nothing(tmp_path):
     before = home.STORY_BANK.read_text()
     claude = FakeClaude()
     redone = regenerate.regenerate(claude, form, "why", "   ", profile, AnswerBank(), TODAY)
-    assert not redone.text and "Type what Claude should know" in redone.why
+    assert not redone.text and "Type what the AI should know" in redone.why
     assert claude.asked == [] and home.STORY_BANK.read_text() == before
 
 
-def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():
+def test_only_answers_the_ai_wrote_into_a_text_field_are_marked_and_can_be_regenerated():
+    """Fault: an AI draft from an earlier form that he hasn't reviewed went on the form with no mark, or his own
+    Answer bank answer was marked as the AI's."""
+    reviewed, unreviewed = Question("mine", "Why this team?", "text"), Question("draft", "Why this city?", "text")
+
     class Planned:
         posting, text, material = POSTING, "", None
         pick = Question("pick", "Which team?", "select", True, ("A", "B"))
-        questions = [WHY, CLUB, pick, FROM]
-        answers = {"why": EARLIER, "club": "The coding club", "pick": "A", "from": "May 2027"}
+        questions = [WHY, CLUB, pick, FROM, reviewed, unreviewed]
+        answers = {"why": EARLIER, "club": "The coding club", "pick": "A", "from": "May 2027",
+                   "mine": "My own words.", "draft": "The AI's words."}
         written = [Essay(WHY, EARLIER)]
         drafted = [type("D", (), {"question": CLUB, "answer": "The coding club"}),
                    type("D", (), {"question": pick, "answer": "A"})]  # a pick from a list: not offered
         unbanked = []
+        banked = [reviewed, unreviewed]  # the Answer bank's: his own (reviewed), and an AI draft from an earlier form
 
         def known(self):
             return ""
 
+        def own(self):
+            return {"mine"}
+
     form = regenerate.form_of(Planned())
-    assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT)]
+    assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT),
+                                                                  ("draft", regenerate.DRAFT)]
     assert not form.read  # no Company material yet: a regenerate of an essay reads it
 
 

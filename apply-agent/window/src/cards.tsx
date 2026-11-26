@@ -1,11 +1,11 @@
 // The one card the student acts on: the to-do at the top of the pile.
-import { ArrowSquareOutIcon, CheckIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, CheckIcon, InfoIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, type Job, answerOf, asking, checks } from "./view.ts";
+import { type Asked, type Job, aiReview, answerOf, asking, checks, reuse } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -247,7 +247,7 @@ function Ask(props: Props & { asked: Asked; answered: () => void }) {
         </form>
       )}
       {(form === "buttons" || form === "list") && skip && <div className="mt-3">{skip}</div>}
-      {form !== "file" && <Note>You answer this once. We'll use it on every application that asks.</Note>}
+      {form !== "file" && <Note>{reuse(question)}</Note>}
     </>
   );
 }
@@ -300,6 +300,7 @@ function Approve(props: Props) {
 
 function Submit(props: Props) {
   const s = props.job.source;
+  const review = aiReview(s);
   return (
     <>
       <Title>Take a quick look</Title>
@@ -313,6 +314,14 @@ function Submit(props: Props) {
           </li>
         ))}
       </ul>
+      {review && (
+        <p className="mt-2 flex items-start gap-2.5 text-ink-muted">
+          <span className="mt-0.5 grid size-4.5 shrink-0 place-items-center rounded-full bg-brand-tint text-brand-ink">
+            <InfoIcon weight="bold" className="size-3" />
+          </span>
+          {review}
+        </p>
+      )}
       <Button tone="primary" size="lg" className="mt-5" onClick={() => show(props)}>
         Open form to submit
         <ArrowSquareOutIcon className="size-4" />

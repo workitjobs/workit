@@ -277,7 +277,7 @@ In a rehearsal, its tile has a Fill it anyway button. The button fills the form 
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:
-A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. Lisul's answers to Essay facts are added under "Answered during applications". In WorkIt Auto Apply, WorkIt builds it from the student's writing samples and experience bank.
+A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. In a Developer command, Lisul's answers to Essay facts from before 2026-11-26 sit under "Answered during applications"; since then an answer is kept in memory for the essay that asked, until its form is submitted, and never saved. In WorkIt Auto Apply, WorkIt builds it from the student's writing samples and experience bank, and a fill adds nothing to it there.
 _Avoid_: context, notes, bio
 
 **Story map**:

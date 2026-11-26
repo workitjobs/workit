@@ -39,8 +39,7 @@ export function InfoNav() {
       // said "Only you can see them here" again.
       foot={
         <p className="text-note text-ink-meta mt-4 px-3 sm:max-w-52">
-          What WorkIt and your Claude fill into your applications, beyond your resume. Only you can
-          see these.
+          What WorkIt fills into your applications, beyond your resume. Only you can see these.
         </p>
       }
       head={<BackLink parent={PARENT} named within={INFO_ROOT} />}

@@ -120,7 +120,7 @@ A question the student's data doesn't answer, left for the student to fill in. A
 _Avoid_: unknown field, blank, unanswered
 
 **Essay fact**:
-A fact a written answer's essay plan needs for a required slot that nothing in the student's experience states, such as what they do differently since a release slipped. Their Claude asks for it ("Essay fact: ...") rather than invent it; the question shows on the Written Answers page and in the batch tab, and the student's answer joins the experience entry it is about as a bullet, so the next plan can quote it. A fact that belongs to no entry stays a question for the student.
+A fact a written answer's essay plan needs for a required slot that nothing in the student's experience states, such as what they do differently since a release slipped. Their Claude asks for it ("Essay fact: ...") rather than invent it; the question shows on the Written Answers page and in the batch tab, and the student's answer joins the experience entry it is about as a bullet, so the next plan can quote it. A fact that belongs to no entry stays a question for the student. In WorkIt Auto Apply the app asks it in Needs you, and the answer goes only to that application's essay, kept in memory until that form is submitted and never saved.
 _Avoid_: missing info, follow-up question, gap
 
 **Application answers**:
@@ -168,7 +168,7 @@ The student's one answer to each one-off question (one a form asks that no profi
 _Avoid_: saved answers, cached answers, template
 
 **Writing sample**:
-A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. Their Claude reads them to build the style card, and a written answer must copy no run of words from them.
+A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. WorkIt Auto Apply's essays read them in its Story bank, through WorkIt's AI with the student's private details hidden; their own Claude reads them to build the style card; and a written answer must copy no run of words from them.
 _Avoid_: example, voice sample
 **Style card**:
 How a student writes, as their own Claude described it from their writing samples: sentence length, how they open, explain and end, the words they use and avoid. Their Claude writes their answers in that voice; without one, it writes in a plain, neutral voice. It describes how they write, never what they did.

@@ -62,7 +62,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import rehearsal, rescue, worker
+from apply import essays, rehearsal, rescue, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -746,11 +746,13 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
     profile, tracker = ApplicantProfile.load(profile_with(tmp_path)), InMemoryTracker()
+    essays.TOLD[ARC_URL] = {"What did the boat do?": "It floated."}  # his answer to this form's Essay fact
 
     with FakeJobServer(ARC_FORM) as fake:
         lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker)
         submissions = fake.submissions
 
+    assert ARC_URL not in essays.TOLD  # never kept past its submit
     assert len(submissions) == 1  # Lisul's, sent from the held page
     [row] = tracker.rows()
     assert (row.status, row.date_applied, row.posting_url) == ("submitted", NOW.date(), ARC_URL)

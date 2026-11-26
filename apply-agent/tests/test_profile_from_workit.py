@@ -8,6 +8,7 @@ import pytest
 from apply import cli, essays, home, regenerate, student, writing
 from apply.adapters import SetupError
 from apply.answer_bank import AnswerBank
+from apply.answers_tab import AnswersTab, saving_answers
 from apply.model import Question
 from apply.profile import ApplicantProfile
 from apply.workit import Unreachable
@@ -32,14 +33,14 @@ class WorkIt:
     def profile_file(self, where: dict) -> bytes:
         return b"%PDF resume " + where["uploaded_resume_id"].encode()
 
-    def save_answered(self, answered: dict, facts: dict, story: list[dict] | None = None) -> None:
+    def save_answered(self, answered: dict, facts: dict) -> None:
         if self.down:
             raise Unreachable("api.workitjobs.ai: timed out")
-        self.saved.append((answered, facts) + ((story,) if story else ()))
+        self.saved.append((answered, facts))
 
-    def upload_profile(self, profile: dict, story_bank: str, voice: str, story: list[dict]) -> dict:
-        self.uploaded.append((profile, story_bank, voice, story))
-        return {"facts": 3, "answered": 1, "story": len(story), "samples": 2, "style_card": True}
+    def upload_profile(self, profile: dict, story_bank: str, voice: str) -> dict:
+        self.uploaded.append((profile, story_bank, voice))
+        return {"facts": 3, "answered": 1, "samples": 2, "style_card": True}
 
 
 def test_a_start_reads_the_profile_and_its_files_from_workit(tmp_path, monkeypatch):
@@ -118,38 +119,38 @@ def test_a_start_reads_the_story_bank_and_voice_from_workit_and_leaves_the_data_
     profile = ApplicantProfile({}, tmp_path, {}, saver=lambda changes: None)
 
     student.profile_from_workit(profile, WorkIt())
-    essays.remember_fact(f"{essays.ASK}What did the report cut?", "Four minutes to twenty seconds", "Acme",
-                         date(2026, 11, 26))
+    regenerate.keep_context(Question("q1", "Why Acme?", "textarea"), [], "I ride their trains", "Acme",
+                            date(2026, 11, 26))
 
     assert essays.sources(profile).startswith(f"<story_bank>\n{STORY}")
-    assert "- What did the report cut? Four minutes to twenty seconds (asked for Acme, 2026-11-26)" in home.story_bank()
+    assert '- For "Why Acme?" at Acme: I ride their trains (2026-11-26)' in home.story_bank()
     assert writing.style_card() == "Short sentences. No dashes." and "shelf scanner" in writing.samples()
     assert home.STORY_BANK.read_text() == mine
 
 
-def test_a_line_a_fill_adds_goes_to_workit_and_waits_when_it_doesnt_answer(tmp_path, monkeypatch):
-    """Fault: a Story bank line was lost when WorkIt didn't answer, or stopped the fill."""
+def test_neither_an_essay_facts_answer_nor_a_regenerates_context_goes_to_workit(tmp_path, monkeypatch):
+    """Fault: an Essay fact's answer was saved on WorkIt (in the profile, or as a Story bank line every essay's
+    prompt carries), or what the student typed for Regenerate went to WorkIt."""
     monkeypatch.setattr(student, "FILES", tmp_path / "files")
     workit = WorkIt()
     monkeypatch.setattr(student, "WorkIt", lambda: workit)
     profile = ApplicantProfile({}, tmp_path, {}, saver=student.to_workit)
     student.profile_from_workit(profile, workit)
-    workit.down = True
+    answer = saving_answers(lambda: None, AnswersTab(AnswerBank(), profile))
 
     regenerate.keep_context(Question("q1", "Why Acme?", "textarea"), [], "I ride their trains", "Acme",
                             date(2026, 11, 26))
-    workit.down = False
-    student.profile_from_workit(profile, workit)  # the next Start, with the line still waiting: it is no fact
-    assert profile.facts() == {"identity": {"legal_first_name": "Sam"},
-                               "files": {"resume_pdf": str(tmp_path / "files" / "Sam_Resume.pdf")}}
-    profile.save_answered("Which shift?", "Nights")
+    said = answer({"company": "Acme", "posting_url": "https://acme.example/1"}, f"{essays.ASK}What did the report cut?",
+                  "Twenty seconds")
 
-    line = '- For "Why Acme?" at Acme: I ride their trains (2026-11-26)'
-    assert workit.saved == [({"Which shift?": "Nights"}, {}, [{"section": regenerate.ADDED_SECTION, "line": line}])]
+    assert said == "Kept for this application only: the essay is written with it next time."
+    assert workit.saved == [] and profile.facts().get("answered_questions") is None
+    assert essays.TOLD == {"https://acme.example/1": {"What did the report cut?": "Twenty seconds"}}
+    assert "Twenty seconds" not in home.story_bank() and "I ride their trains" in home.story_bank()
 
 
 def test_apply_upload_sends_the_data_folders_own_files_and_never_test_persons(monkeypatch, capsys):
-    """Fault: `apply upload` left out the Story bank's added lines or the voice, or sent Test Person's sample."""
+    """Fault: `apply upload` left out the Story bank or the voice, or sent Test Person's sample."""
     workit = WorkIt()
     monkeypatch.setattr(cli.workit, "WorkIt", lambda: workit)
     with pytest.raises(SystemExit, match="Test Person"):
@@ -157,12 +158,10 @@ def test_apply_upload_sends_the_data_folders_own_files_and_never_test_persons(mo
     profile = ApplicantProfile.load(cli.DEFAULT_PROFILE)
     profile.set("sample_data", False)
     profile.save()
-    home.STORY_BANK.write_text(home.STORY_BANK.read_text() + f"\n{essays.ANSWERED_SECTION}\n- Favorite book? Dune\n")
 
     cli.upload()
 
-    facts, bank, voice, story = workit.uploaded[0]
+    facts, bank, voice = workit.uploaded[0]
     assert facts["identity"]["legal_first_name"] and bank == home.STORY_BANK.read_text()
-    assert voice == writing.VOICE.read_text() and story == [{"section": essays.ANSWERED_SECTION,
-                                                             "line": "- Favorite book? Dune"}]
+    assert voice == writing.VOICE.read_text()
     assert "only what it lacked" in capsys.readouterr().out

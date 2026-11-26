@@ -169,7 +169,14 @@ for a student, not from `dashboard_page.py`.
 - **The Submit card** (`checks`) lists only what Apply says it did:
   "Checked against your WorkIt profile" when `verified`, and "Resume
   attached" when a file the form was given answers its resume question
-  (`files`' label).
+  (`files`' label). **No AI answer goes on a form unsaid** (2026-11-26):
+  under the checks, with an info mark and never a green check, `aiReview`
+  says how many answers the AI wrote on it and that each has a mark beside
+  it on the form (the tile's `written`, `regenerate.form_of`: its essays,
+  its drafts and an Answer bank draft not reviewed yet). The mark is the
+  form's "↻ AI wrote this · Add context and regenerate" button
+  (`held-forms.md`). An Essay fact's card says its answer is for that
+  application's essay only (`reuse`).
 - **The Approve card stays (decided, stories 16 and 17)** with its mock,
   though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,

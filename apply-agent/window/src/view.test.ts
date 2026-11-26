@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, shortcut, startWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, aiReview, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, reuse, shortcut, startWords, usageLine, usedShare, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -393,4 +393,18 @@ test("a run whose board never showed brings the queue back, saying why it didn't
   );
   assert.equal(notStarted({ running: false, said: "The run stopped: KeyError: 'x'" }), "Applying stopped because something went wrong. Press Start to try again.");
   assert.equal(notStarted(new Error("Apply didn't take that.")), "Your applications didn't start. Press Start to try again."); // status() itself failed
+});
+
+test("an Essay fact's card never says its answer is used on every application", () => {
+  // Fault: the card promised to reuse an answer the app keeps for one application's essay and never saves.
+  assert.equal(reuse("Essay fact: What made you pick YOLOv8-OBB?"), "We use this for this application's essay only.");
+  assert.match(reuse("Which shift can you work?"), /every application that asks/);
+});
+
+test("the Submit card says how many answers the AI wrote for the student to review, and nothing when it wrote none", () => {
+  // Fault: an AI answer went on a form with no word of it before the student submits.
+  const essay = { name: "why", label: "Why us?" };
+  assert.equal(aiReview({ tone: "ready", written: [essay] }), "1 answer was written by AI and needs your review. It has a mark beside it on the form.");
+  assert.match(aiReview({ tone: "ready", written: [essay, { name: "city", label: "Why this city?" }] }) ?? "", /^2 answers were written by AI/);
+  assert.equal(aiReview({ tone: "ready" }), undefined);
 });

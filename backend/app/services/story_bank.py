@@ -8,11 +8,11 @@ layout Apply's essays read (apply-agent/sample/story-bank.md):
 2. one section for each school, job, project or other entry of their
    experience bank, one story for each bullet, newest first; a copy of an
    entry on another resume (its `copy_group`) once;
-3. Skills;
-4. the lines the app added during its fills (`fill_profile.story_lines`:
-   the student's answers to what an essay asked, and what they added when
-   they asked for an answer again), each under its section as the app
-   wrote it.
+3. Skills.
+
+Nothing a fill adds: every essay's prompt carries the whole Story bank, so it
+holds only what the student keeps on the website. An answer to what an essay
+asked is a Needs you answer (fill_profile's answered_questions).
 
 Pure: it takes the student as engine_student assembles them.
 """
@@ -39,10 +39,6 @@ def story_bank(student: dict, samples: tuple[str, ...]) -> str:
         for s in skills:
             groups.setdefault(s.get("group") or "", []).append(s["name"])
         parts.append("## Skills\n" + "".join(f"- {g + ': ' if g else ''}{', '.join(n)}.\n" for g, n in groups.items()))
-    lines: dict[str, list[str]] = {}
-    for kept in ((student.get("fill") or {}).get("profile") or {}).get("story_lines") or []:
-        lines.setdefault(kept["section"], []).append(kept["line"])
-    parts += [f"{section.strip()}\n" + "".join(f"{line}\n" for line in held) for section, held in lines.items()]
     return "\n".join(parts)
 
 

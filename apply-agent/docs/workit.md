@@ -356,31 +356,40 @@ Developer checkout keeps its profile file and Test Person. Tests:
 
 **The Story bank and voice are WorkIt's too** (2026-11-26). The same read
 answers `writing`: the Story bank WorkIt builds from the student's writing
-samples, experience bank and the lines the app's fills added, in the
-layout essays read, and their style card as the voice. The app holds them
+samples and experience bank, in the layout essays read, and their style
+card as the voice. The app holds them
 in memory (`home.WORKIT`, set at launch and at each Start), and every
 reader goes through `home.story_bank()` and `writing.style_card()`, so it
 never reads the data folder's `story-bank.md` or `voice.md`: in a
-Developer checkout's `apply app`, those are the developer's own. A line a
-fill adds (an essay's asked fact, `essays.remember_fact`; context added
-on Regenerate, `regenerate.keep_context`) goes through
-`home.add_story_line`: into the file in a Developer command, and in the
-app into memory and to WorkIt with the profile's next save
-(`student.story_to_workit`, the PATCH's `story`). One WorkIt doesn't take
-stays with the profile's changes and goes with the next save; until then
-the next Start's Story bank lacks it. The Stock answers the profile holds
+Developer checkout's `apply app`, those are the developer's own. **A fill
+adds nothing to the Story bank on WorkIt**, since every essay's prompt and
+truth check carries all of it, and it would grow with every application.
+**The student's answer to an Essay fact is never saved** (2026-11-26, the
+user's call): not on WorkIt, not in the profile, not in a file. The app
+keeps it in memory for the form that asked (`essays.TOLD`, by the
+Posting's URL: `essays.tell`, from the window or a held Application's
+Tracker row) until the student submits that form (rehearsal's
+`submitted` drops it) or the app quits, and that form's essays get it in `<form_answers>` when it
+is filled again, so the new plan quotes it however it words the ask. A
+later form that asks the same asks again: an ask's words change from
+plan to plan, and one essay's fact seldom fits another's, so a kept
+answer would be a copy nothing reads. After a quit, the student answers
+again. The window's card says so ("We use this for this application's
+essay only", `window/src/view.ts`'s `reuse`). Context typed on
+Regenerate (`regenerate.keep_context`) goes through `home.add_story_line`:
+into the file in a Developer command, and in the app into memory only, for
+the checks of the answer it was typed for. The Stock answers the profile holds
 (`stock_answers`) come and go as its other facts. A developer's
 `stock-answers.yaml` and story map are still read in their `apply app`,
 and each entry that the Story bank's lines no longer back is left out,
 as in any command. Company briefs are W9's: the app reads none yet.
 
 **`uv run apply upload`** (`cli.upload`) sends a Developer checkout's own
-`applicant-profile.yaml`, `story-bank.md`, `voice.md` and the Story
-bank's added lines to WorkIt (`POST /apply-app/profile/upload`), so its
+`applicant-profile.yaml`, `story-bank.md` and `voice.md` to WorkIt (`POST /apply-app/profile/upload`), so its
 `apply app` fills with the developer's own data, through the students'
 pipeline. WorkIt keeps only what it lacks: a fact with no value there
-(never a file: upload the resume on WorkIt's website), a new answer or
-line, and writing samples and a style card only for an account with
+(never a file: upload the resume on WorkIt's website), a new answer, and
+writing samples and a style card only for an account with
 none. A second upload changes nothing edited on WorkIt since. The files
 stay, for every other command, and Test Person's sample is never sent.
 

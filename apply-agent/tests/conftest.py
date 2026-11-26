@@ -82,6 +82,7 @@ from apply import (
     cli,
     cover_letter,
     doctor,
+    essays,
     fill_engine,
     gates,
     home,
@@ -191,6 +192,7 @@ def data_folder() -> Path:
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)
     home.WORKIT = None  # a Developer command's files, unless the test makes them WorkIt Auto Apply's
+    essays.TOLD.clear()  # the Essay facts' answers a test gave, kept in memory only
     # WorkIt's Question types, as a run fetches them (GET /apply-app/types), saved from the server's own copy.
     shutil.copy(FIXTURES / "question-types.json", answering.CACHE)
     answering._served.cache_clear()

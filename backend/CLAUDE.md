@@ -430,11 +430,12 @@ Find files with a directory listing; these are the rules for where code goes.
   (never `files.*`), in `fill_profile`, under WorkIt's own fields, so the
   extension fills them too. **The Story bank and voice are WorkIt's too**
   (2026-11-26): the same read answers `writing`, the Story bank built from
-  the student's writing samples, experience bank and the lines the app's
-  fills added (`services/story_bank.py`, in Apply's layout, each entry
-  once across resumes), and the style card as the voice. Those lines come
-  by the same PATCH (`story`) and live in `fill_profile.story_lines`,
-  which the read keeps out of the profile. **`POST
+  the student's writing samples and experience bank
+  (`services/story_bank.py`, in Apply's layout, each entry once across
+  resumes), and the style card as the voice. Nothing a fill adds joins it,
+  since every essay's prompt carries all of it, and an answer to an
+  essay's Essay fact never reaches WorkIt: the app keeps it in memory for
+  that one form's essay. **`POST
   /apply-app/profile/upload` is a Developer checkout's** (`apply upload`):
   its own files, taking only what WorkIt lacks, so a second upload changes
   nothing the student edited since. Writing samples and the style card
