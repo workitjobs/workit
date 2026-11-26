@@ -114,6 +114,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (`submit_guard.let_account_click`, the guards' own control: KAN-710).
   The guard then lets a click or submit in a form with a password box go
   through. No application's final button is in such a form.
+- Claude fill's account pages (`account_pages.AccountPages._click`) keep
+  the account click allowed until the page answers the click, not only for
+  the click itself, so a page whose script posts the form after the click
+  goes through (KAN-640). A page that carries a captcha never gets this
+  click: it is a Handoff first (KAN-703). Apply never clicks a button whose
+  own text or value says submit, send, apply, finish, complete or confirm,
+  whatever name Claude gave it.
 - **Lisul's own press on a sign-in step is never the application's Submit
   (KAN-688, KAN-781).** On a held page, the guard script tells Apply of each
   press whose words send. A sign-in, account or code step's press is marked
