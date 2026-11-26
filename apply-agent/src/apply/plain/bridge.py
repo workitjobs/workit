@@ -28,7 +28,6 @@ from pathlib import Path
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply.home import HOME
 from apply.plain import channel
 from apply.plain.extension import EXTENSION_ORIGINS, code_hash, engine_identity
 
@@ -212,8 +211,8 @@ class Bridge:
     """Listens for the Workers' relays. `start` before launching a Worker; `wait_for(k)` then
     gives that Worker's Connection once its hello passed."""
 
-    def __init__(self, path: Path | None = None, engine: dict | None = None, expects: int = FEATURES):
-        self.path = path or channel.socket_path(HOME)
+    def __init__(self, path: Path, engine: dict | None = None, expects: int = FEATURES):
+        self.path = path
         self._engine = engine
         # The vendor set this Apply wrote into the Workers' extension folder ("vendor/sets/<id>"), named
         # in each welcome: a Worker whose extension takes it is never refused for another checkout's engine.

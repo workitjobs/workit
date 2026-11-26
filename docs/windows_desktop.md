@@ -188,8 +188,8 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
   - So a Bridge listens only there: `PlainWorkers` takes no Bridge of its
     own. The long-path fallback is always `/tmp`, never `$TMPDIR`: the
     host runs in its Chrome's environment, launchd's on the Mac.
-  - The host imports psutil (decided 2026-11-26): no other library reads
-    a process's arguments on Windows.
+  - The host imports psutil (decided 2026-11-26): the standard library
+    can't read another process's arguments on Windows.
 - **Still to build.**
   - Write the key with `winreg`, and a `.bat` wrapper in one fixed folder
     (`home.APP_FOLDER`): a key that named a test's temporary folder would
