@@ -1,21 +1,18 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/cn";
 
 import { BackLink } from "../../back-link";
-import { SEEKER_GUTTER } from "../../gutter";
 
 /**
- * Written Answers while its three reads land (KAN-561): the page's frame
- * (./page.tsx) with Back live, then one job posting's card as bars: its
- * title and company, then two questions, each a label and an answer box.
- * Up Next's own skeleton sits in ../(queue), so it never stands in for
- * this page. It is the page's own width (`max-w-dashboard`): at `max-w-app`
- * the frame jumped wider as the page landed (KAN-821).
+ * Written Answers while its three reads land (KAN-561), in Auto Apply's
+ * frame (../layout.tsx): Back live, then one job posting's card as bars:
+ * its title and company, then two questions, each a label and an answer
+ * box. Up Next's own skeleton sits in ../(queue), so it never stands in
+ * for this page.
  */
 export default function WrittenAnswersLoading() {
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <>
       <BackLink parent={{ href: "/auto-apply", name: "Auto Apply" }} named className="group/back" />
       <div role="status" className="mt-6">
         <span className="sr-only">Loading your written questions</span>
@@ -36,6 +33,6 @@ export default function WrittenAnswersLoading() {
           </div>
         </Card>
       </div>
-    </div>
+    </>
   );
 }

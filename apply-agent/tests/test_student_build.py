@@ -104,6 +104,16 @@ def test_even_ask_model_claude_builds_no_claude_cli():
     assert isinstance(live_claude({"ask_model": "claude"}, student.NoClaude()), student.NoClaude)
 
 
+def test_only_a_developer_checkouts_max_plan_asks_claude(monkeypatch):
+    from apply.claude_cli import ClaudeCLI
+
+    workit = {"ask_model": "workit"}
+    assert isinstance(student.asking(workit, environ={}).__dict__.get("_claude"), student.NoClaude)
+    assert isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert not isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+
+
 @pytest.mark.parametrize("call", ["ask", "drive", "research"])
 def test_no_claude_refuses_every_call_to_claude(call):
     with pytest.raises(ClaudeError, match="WorkIt Auto Apply doesn't"):

@@ -77,6 +77,8 @@ ENTRIES = re.compile(r"^work (?:experience|history)\b.*\(entries\)$", re.IGNOREC
 SECTION_ENTRIES = re.compile(r"^(?:work (?:experience|history)|education)\b.*\(entries\)$", re.IGNORECASE)
 PAY_QUESTION = re.compile(r"salary|compensation|desired (?:pay|rate)|hourly rate|pay expectation|expected pay", re.IGNORECASE)
 YEAR = re.compile(r"\b(20\d\d)\b")
+# A month and its year, as a graduation option names each end of its span ("December 2027 - June 2028").
+MONTH_YEAR = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? (20\d\d)\b", re.IGNORECASE)
 MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
 MONTHS = {m: n for n, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
 DATES = [
@@ -381,7 +383,12 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
             continue
         if GRADUATION.search(q.label) and graduation[:4].isdigit() and q.kind != "textarea":
             years = YEAR.findall(shown)
-            if years and graduation[:4] not in years:
+            # A span of months must hold the graduation month: Airbnb's "Bachelors - Senior (December 2026 - June
+            # 2027)" names 2027 but ends before a December 2027 graduation (live, 2026-11-26).
+            ends = sorted((int(y), MONTHS[m.lower()]) for m, y in MONTH_YEAR.findall(shown))
+            month = re.match(r"(\d{4})-(\d{1,2})\b", graduation)
+            outside = len(ends) >= 2 and month and not ends[0] <= (int(month[1]), int(month[2])) <= ends[-1]
+            if (years and graduation[:4] not in years) or outside:
                 flags.append(Flag(one_line(q.label), f"shows {shown!r}; your graduation is {graduation}", DATE))
         if START.search(q.label) and not HISTORY.search(q.label) and (when := _date_in(shown)) and when < today:
             flags.append(Flag(one_line(q.label), f"shows {shown!r}, a date already past", DATE))

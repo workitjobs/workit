@@ -1,26 +1,20 @@
 "use client";
 
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
-import { PencilIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Missing } from "@/components/ui/missing";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { SelectField } from "@/components/ui/select-field";
+import { useToast } from "@/components/ui/toast";
 import { type AutofillAnswers, type ProfileQuestion } from "@/lib/autofill-answers";
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 
-import {
-  FACT_LABEL,
-  FACT_VALUE,
-  FIELD_GRID,
-  FIELD_LABEL,
-  SECTION_CARD,
-} from "../../profile/field-styles";
+import { FIELD_GRID, FIELD_LABEL } from "../../profile/field-styles";
 import { SectionAction } from "../../profile/section-action";
+import { useUnsavedChanges } from "../../settings/unsaved-changes";
 import { AnsweredCount } from "./answered-count";
+import { INFO_CARD, InfoCardHead } from "./card-head";
+import { SaveRow } from "./save-row";
 
 /** The picker's value for an unanswered question: Base UI's Select shows its
  *  placeholder for "", and clearing an answer needs an item to pick. */
@@ -37,22 +31,28 @@ const UNANSWERED = "unanswered";
  * save through the same PATCH, which merges only the answers sent, so no
  * screen erases what another saved, and neither card what the other saved.
  *
- * TWO MODES, AS CONTACT & LINKS HAS. Reading, each question is its name,
- * small and grey, over its answer, or a faint dash (../../profile/
- * field-styles.ts), with no glyph since 2026-11-11, and a card with no
- * answer at all is one "Not answered" line; under the description, how
- * many are answered, on every card. Edit
- * turns every answer into a picker in place, the first one focused, each
- * over the question as forms word it, with Cancel and Save under them;
- * Escape cancels. "Not Answered" in a picker clears that answer. A picker,
- * not onboarding's tiles: nine questions of up to seven tiles made a
- * screen-long form on a page of settings.
+ * AN OPEN FORM, AS SETTINGS' CARDS ARE (2026-11-24). Every answer is a
+ * picker, each over the question as forms word it, with Settings' Save row
+ * under them (./save-row.tsx): Save is off until an answer changes, and
+ * Discard puts the saved answers back. "Not Answered" in a picker clears
+ * that answer. Until then the card read first (each question's name over
+ * its answer) and a pencil opened the pickers with Cancel and Save: a
+ * student comes here to change an answer, so the pencil was one more click
+ * on every visit, and a picker that shows "Yes" reads as well as the word.
+ * A picker, not onboarding's tiles: nine questions of up to seven tiles
+ * made a screen-long form on a page of settings.
  *
- * `concealed` CLOSES THE ANSWERS WHILE READING (KAN-550): the card says how
- * many are answered, as every card does, and Show Answers opens them until
- * the page is left.
- * Self-identification in plain view on My Profile, a page students open often
- * and show on shared screens, told anyone looking their race and disability.
+ * SAVE IS A BUTTON, NEVER EACH PICK. These answers go into real
+ * applications (visa sponsorship, authorization to work), and an open
+ * picker can change on a stray click: nothing is kept until Save. Unsaved
+ * answers hold a leave guard (./unsaved.tsx).
+ *
+ * `concealed` KEEPS THE FORM CLOSED UNTIL SHOW (KAN-550), the one card that
+ * does not open with its page: the card says how many are answered, as
+ * every card does, and Show Answers opens the form until the page is left.
+ * Self-identification in plain view on My Profile, a page students open
+ * often and show on shared screens, told anyone looking their race and
+ * disability. Hide Answers closes it again and keeps what was picked.
  */
 export function ApplicationQuestions({
   id,
@@ -63,8 +63,9 @@ export function ApplicationQuestions({
   answers,
   onSaved,
 }: {
-  /** The heading's id; the card is `section-<id>`, the page nav's target. */
-  id: string;
+  /** The part this card is (./sections.ts), for its glyph, and the
+   *  heading's id; the card is `section-<id>`. */
+  id: "work-authorization" | "self-identification";
   title: string;
   description: string;
   questions: ProfileQuestion[];
@@ -72,41 +73,28 @@ export function ApplicationQuestions({
   answers: AutofillAnswers;
   onSaved: (answers: AutofillAnswers) => void;
 }) {
+  const toast = useToast();
   const [shown, setShown] = useState(!concealed);
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(answers);
-  // The answers this edit started from. Save sends what differs from these,
-  // not from the latest prop: a refetch landing mid-edit turned another
-  // tab's newer answers into "changes", which Save then overwrote.
+  // The answers the form was last in step with. Save sends what differs
+  // from these, not from the latest prop: another card's Save landing here
+  // turned its newer answers into "changes", which Save then overwrote.
   const [base, setBase] = useState(answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const form = useRef<HTMLFormElement>(null);
-  const first = questions[0].key;
 
-  useEffect(() => {
-    if (editing) document.getElementById(`answer-${first}`)?.focus();
-  }, [editing, first]);
-
-  function startEditing() {
-    setDraft(answers);
-    setBase(answers);
-    setError(null);
-    setEditing(true);
-  }
+  // Only this card's changed answers: the API merges them into what it
+  // holds, so the other card's are never sent.
+  const changed = Object.fromEntries(
+    questions.filter((q) => draft[q.key] !== base[q.key]).map((q) => [q.key, draft[q.key]]),
+  );
+  const isChanged = Object.keys(changed).length > 0;
+  useUnsavedChanges(isChanged);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!isChanged || saving) return;
     setError(null);
-    // Only this card's changed answers: the API merges them into what it
-    // holds, so the other card's are never sent.
-    const changed = Object.fromEntries(
-      questions.filter((q) => draft[q.key] !== base[q.key]).map((q) => [q.key, draft[q.key]]),
-    );
-    if (Object.keys(changed).length === 0) {
-      setEditing(false);
-      return;
-    }
     setSaving(true);
     try {
       const { answers: saved, error: err } = await saveAutofillAnswers(changed);
@@ -114,8 +102,12 @@ export function ApplicationQuestions({
         setError(err);
         return;
       }
-      if (saved) onSaved(saved);
-      setEditing(false);
+      if (saved) {
+        onSaved(saved);
+        setBase(saved);
+        setDraft(saved);
+      }
+      toast.show({ message: "Your answers are saved." });
     } catch {
       // The action call itself failed (a dropped connection).
       setError("Could not reach the server. Check your connection and try again.");
@@ -132,46 +124,34 @@ export function ApplicationQuestions({
       padding="none"
       id={`section-${id}`}
       aria-labelledby={id}
-      className={SECTION_CARD}
+      // Read by the leave guard, which opens the part that holds the
+      // changes it asks about (./unsaved.tsx).
+      data-unsaved={isChanged || undefined}
+      className={INFO_CARD}
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <SectionHeading id={id}>{title}</SectionHeading>
-        {!editing && (
-          <div className="flex shrink-0 items-baseline gap-4">
-            {concealed && (
-              <SectionAction
-                label={`${shown ? "Hide" : "Show"} ${title} Answers`}
-                aria-expanded={shown}
-                aria-controls={`${id}-answers`}
-                onClick={() => setShown((s) => !s)}
-                tooltip={shown ? "Hide Answers" : "Show Answers"}
-              >
-                {shown ? <EyeSlashIcon /> : <EyeIcon />}
-              </SectionAction>
-            )}
-            <SectionAction label={`Edit ${title}`} onClick={startEditing} tooltip="Edit">
-              <PencilIcon />
+      <InfoCardHead
+        part={id}
+        id={id}
+        title={title}
+        description={description}
+        under={<AnsweredCount answered={answered} total={questions.length} />}
+        actions={
+          concealed && (
+            <SectionAction
+              label={`${shown ? "Hide" : "Show"} ${title} Answers`}
+              aria-expanded={shown}
+              aria-controls={`${id}-answers`}
+              onClick={() => setShown((s) => !s)}
+              tooltip={shown ? "Hide Answers" : "Show Answers"}
+            >
+              {shown ? <EyeSlashIcon /> : <EyeIcon />}
             </SectionAction>
-          </div>
-        )}
-      </div>
-      <p className="text-body text-ink-meta mt-1">{description}</p>
-      <AnsweredCount answered={answered} total={questions.length} />
+          )
+        }
+      />
 
-      {editing ? (
-        <form
-          ref={form}
-          onSubmit={handleSubmit}
-          // Escape inside a picker's open list closes the list alone: the list
-          // is portalled outside the form, so only a key from the form's own
-          // fields cancels the edit.
-          onKeyDown={(e) =>
-            e.key === "Escape" &&
-            !saving &&
-            form.current?.contains(e.target as Node) &&
-            setEditing(false)
-          }
-        >
+      {shown ? (
+        <form id={`${id}-answers`} onSubmit={handleSubmit}>
           <div className={FIELD_GRID}>
             {questions.map((q) => {
               const fieldId = `answer-${q.key}`;
@@ -208,44 +188,16 @@ export function ApplicationQuestions({
               );
             })}
           </div>
-
-          {error && (
-            <p role="alert" className="text-note text-danger mt-4">
-              {error}
-            </p>
-          )}
-          <div className="mt-6 flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={saving}
-              onClick={() => setEditing(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </div>
+          <SaveRow
+            changed={isChanged}
+            saving={saving}
+            error={error}
+            onDiscard={() => {
+              setDraft(base);
+              setError(null);
+            }}
+          />
         </form>
-      ) : shown && answered === 0 ? (
-        // One line for a card with no answers, not "Not answered" per question.
-        <p id={`${id}-answers`} className="text-body text-ink-meta mt-4">
-          Not answered
-        </p>
-      ) : shown ? (
-        <dl id={`${id}-answers`} className={FIELD_GRID}>
-          {questions.map((q) => {
-            const value = answers[q.key];
-            const label = q.options.find((o) => o.value === value)?.label;
-            return (
-              <div key={q.key} className="min-w-0">
-                <dt className={FACT_LABEL}>{q.label}</dt>
-                <dd className={FACT_VALUE}>{label ?? <Missing word="Not answered" />}</dd>
-              </div>
-            );
-          })}
-        </dl>
       ) : (
         <p id={`${id}-answers`} className="text-body text-ink-muted mt-4">
           Hidden so they stay private on a shared screen.

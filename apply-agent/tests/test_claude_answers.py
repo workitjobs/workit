@@ -23,6 +23,7 @@ from fakes import (
 
 from apply import (
     answering,
+    asking,
     essays,
     home,
     probe,
@@ -582,6 +583,30 @@ class ReformatsPhones(ResearchForm):
         return readback
 
 
+class PicksASearchResult(ResearchForm):
+    """Its first text field is a search box: the result it picks words the answer the form's own way
+    (Greenhouse's "Stony Brook University - SUNY" for "Stony Brook University"), and its Filler says so."""
+
+    def fill(self, page, questions, answers):
+        readback = super().fill(page, questions, answers)
+        self.searched = next(q.name for q in questions if q.kind == "text" and q.name in answers)
+        readback[self.searched] = f"{answers[self.searched]} - SUNY"
+        return readback
+
+    def picked(self, answers, readback):
+        return {self.searched: (readback[self.searched],)}
+
+
+def test_a_search_result_the_filler_picked_in_the_forms_wording_passes_the_pre_submit_check(monkeypatch):
+    form, claude = PicksASearchResult("Northwood Space"), FakeClaude()
+
+    row = run(monkeypatch, form, claude)
+
+    assert row.status == "submitted", row.reason
+    assert len(form.filled) == 1  # not filled again, nor planned again
+    assert "presubmit.replan" not in [k["kind"] for k in claude.kinds]
+
+
 def test_a_readback_mismatch_is_planned_again_by_sonnet_and_filled_once_more(monkeypatch):
     form = ReformatsPhones("Northwood Space")
     claude = FakeClaude(replans={"Phone Number": "(555) 010-0199"})
@@ -1040,6 +1065,7 @@ def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with
     planned.questions, planned._rehearse, planned._approved = [], True, None
     planned.missing, planned._on_missing = (), lambda *heard: None
     planned.found, planned.written, planned.profile, planned._bank = {}, [], ApplicantProfile.load(PROFILE, POLICIES), None
+    planned.posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/figma/1")
     assert planned._missing([], [f"Essay fact: {DECISION}"]) is None
     assert planned.missing == (f"Essay fact: {DECISION}",)
     essay = essays.Essay(Question("p", PROJECT, "textarea", True), "",
@@ -1287,6 +1313,20 @@ def test_an_edit_that_is_not_the_same_letter_is_dropped(edited):
     claude.ask = lambda **call: {"edited": {"q1": edited}}
 
     assert writing.edit(claude, {"q1": drafted}, "", frozenset({"q1"})) == {"q1": drafted}
+
+
+@pytest.mark.parametrize(("sources", "kept"), [("It broke on 51 of the first 60 postings.", True), ("", False)])
+def test_a_shorter_edit_with_a_number_only_the_sources_hold_is_kept(sources, kept):
+    # Sierra (live, 2026-11-26): the claim check gave the count a vague claim stood for, and the
+    # editor wrote it in. Every edit, the cut to the length too, was dropped for a number the draft
+    # didn't hold, and both essays stayed at 157 and 145 words of 120. A number no source holds is still dropped.
+    drafted = "My form reader crashed on most of its postings, and I fixed it and added a nightly check."
+    edited = "My form reader broke on 51 of 60 postings, so I fixed it."
+    claude = FakeClaude()
+    claude.ask_kind = lambda kind, data: {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {}}
+
+    assert writing.repair(claude, {"q1": drafted}, sources, {"q1": ["too long"]}) == {"q1": edited if kept else drafted}
+    assert writing.edit(claude, {"q1": drafted}, sources) == {"q1": edited if kept else drafted}
 
 
 def test_an_answer_still_holding_a_tell_is_edited_once_more_with_it_flagged():
@@ -1857,6 +1897,45 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
+
+
+def test_an_essay_fact_that_names_its_company_is_read_only_on_that_companys_forms():
+    # Fault: a Strava-only answer in the Story bank reaches another company's essays or questions (Strava, 2026-11-26).
+    asked = "Essay fact: Are you applying to any Strava internship besides this one?"
+    essays.remember_fact(asked, "No. This is the only Strava internship I'm applying to.", "Strava", NOW.date())
+    essays.remember_fact("Essay fact: Which club did you lead?", "The robotics club.", "Strava", NOW.date())
+
+    assert "only Strava internship" in essays.story_bank("Strava")
+    assert "only Strava internship" not in essays.story_bank("Acme")
+    assert "only Strava internship" not in essays.story_bank()
+    assert "The robotics club." in essays.story_bank("Acme")  # true anywhere: every company's
+    # One that doesn't name its company but asks of other roles there is that company's too.
+    essays.remember_fact("Essay fact: Are you applying to other internships here?", "No, only this one I'm applying to.",
+                         "Strava", NOW.date())
+    assert "only this one" in essays.story_bank("Strava") and "only this one" not in essays.story_bank("Acme")
+    assert "only Strava internship" not in essays.sources(ApplicantProfile.load(PROFILE, POLICIES), employer="Acme")
+    profile = ApplicantProfile({}, home.HOME, {})
+    assert asking.known(asked, profile, employer="Strava")
+    assert not asking.known(asked, profile, employer="Acme")
+
+
+def test_a_cover_letter_asking_which_graduation_date_to_give_is_written_with_the_profiles(monkeypatch):
+    # Anduril's (2026-11-25): the Story bank gave an older date than the profile, whose date the form's education
+    # block had planned, and the plan asked Lisul which one the letter should give, so no letter was written.
+    ask = ("Your story bank says you graduate December 2027 but this form says May 2028: "
+           "which graduation date should the cover letter give?")
+    letter = Question("cl", "Cover Letter", "file", True)
+    slots = [{"slot": s.name, "quotes": [FIX], "ask": ""} for s in answering.load()["cover-letter"].slots if s.required is True]
+    slots = [s if s["slot"] != "opening-who" else {"slot": "opening-who", "quotes": [], "ask": ask} for s in slots]
+    claude = FakeClaude(plans=[{"Cover Letter": {"type": "cover-letter", "slots": slots}}] * 2)
+
+    [essay] = write_figma(claude, [letter])
+
+    assert essay.plan.asks == () and essay.text  # written, not asked
+    assert {b.slot: b.quotes for b in essay.plan.slots}["opening-who"] == ("Expected graduation: May 2028",)
+    # The plan and the draft see the profile's date beside the Story bank's, and the truth check holds it.
+    assert _block_text(plans(claude)[0]["prompt"], "graduation") == "Expected graduation: May 2028"
+    assert _block_text(asks(claude)[0]["prompt"], "graduation") == "Expected graduation: May 2028"
 
 
 def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):

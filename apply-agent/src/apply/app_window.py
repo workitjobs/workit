@@ -32,6 +32,12 @@ the window shows what it holds, and Send Report sends that same report (send_rep
 its Application's id with the same call, for its record and log; its Send Report sends that id too, so a report
 another form reviewed since is never the one that goes.
 
+Links sent in (`uv run apply app <link>...`): an agent or a script hands the running window links with no
+port and no clicks. `send_links` writes them as one file in INBOX; the window takes them each INBOX_EVERY
+(Bridge._take_inbox) once it is signed in and set up. With no run going they start one, as Start does; while one
+goes, each is filled beside its forms (Dashboard.into), else it waits for the next run. Either way, Apply submits a
+form only once the student approves it (ADR 0006).
+
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
@@ -47,10 +53,11 @@ import time
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
-from apply import first_run, report, sign_in_link, workit
+from apply import build, first_run, queued_names, report, sign_in_link, workit
 from apply.adapters import SetupError
+from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
@@ -67,6 +74,12 @@ PROFILE = HOME / "applicant-profile.yaml"
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
 FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
+# Links sent to the window (send_links), one JSON file each, and how often the window looks; the window's PID note.
+INBOX = HOME / "app-inbox"
+INBOX_EVERY = 2.0
+CLOSE_GUARD_EVERY = 1.0  # how often the quit question's count of held forms is read again (guard_close)
+PID_NOTE = HOME / "app.pid"
+LINK = re.compile(r"^https?://\S+$")
 READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
                                    : addEventListener('pywebviewready', () => done(), {once: true}));"""
 
@@ -256,6 +269,14 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
 <div id="disclosure" hidden>{disclosure}</div>
+<section id="claude" hidden><h2>Claude (Developer)</h2>
+<label><input type="checkbox" id="best"> Write essays, cover letters and the final check with Opus 5.5</label>
+<p>Off, they run on Sonnet: slower to use up your plan, a little weaker.</p>
+<p id="claude-dropped" role="status"></p>
+<p id="claude-login"></p>
+<p>To use another subscription, run <code>claude setup-token</code>, then <code>uv run apply claude-token</code>
+and paste the token. <code>uv run apply claude-token --forget</code> goes back to your claude login.</p>
+</section>
 <h2>Report a Problem</h2>
 <form id="report">
 <label>What is it about <select id="report-category">{categories}</select></label>
@@ -281,6 +302,8 @@ document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
 document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
+const best = document.getElementById('best');
+best.addEventListener('change', async () => { await ready; await window.pywebview.api.set_best_model(best.checked); });
 document.addEventListener('click', async event => {
   const button = event.target.closest('button[data-do]');
   if (!button) return;
@@ -311,6 +334,12 @@ ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
   count.value = String(state.workers);
   document.getElementById('notices').hidden = !state.notices;
+  if (state.claude) {
+    document.getElementById('claude').hidden = false;
+    best.checked = state.claude.best;
+    document.getElementById('claude-login').textContent = `Claude signs in with ${state.claude.login}.`;
+    document.getElementById('claude-dropped').textContent = state.claude.dropped || '';
+  }
 });
 </script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
     "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
@@ -349,9 +378,10 @@ class Bridge:
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
                  start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
-                 forward: Callable[[], object] = lambda: bring_forward()):
+                 forward: Callable[[], object] = lambda: bring_forward(), name: Callable[[str], dict] | None = None):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
-        (apply.student.Runs.run); the window then shows the student page."""
+        (apply.student.Runs.run); the window then shows the student page. `name(link)` names a link that waits to
+        start and no queue named (default apply.queued_names's, with plain reads)."""
         self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
@@ -360,12 +390,14 @@ class Bridge:
         self._remove = remove
         self._link = link  # the sign-in page's link, handed to this window (apply.sign_in_link: ready, clear, take)
         self._forward = forward  # the window brought in front of the browser
+        self._name = name or queued_names.namer(self._client)
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
+        self._waiting: list[str] = []  # links sent in (send_links) that wait for the next run
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
         """One of the page's requests, answered as the Apply window's server answers it."""
@@ -391,6 +423,16 @@ class Bridge:
         if listed:
             self._open_link(listed.as_uri())
         return listed is not None
+
+    def open_posting(self, url: str) -> bool:
+        """A job's posting, in the student's own browser, for "Apply on the company's site": only a web link a tile or
+        item of this run lists as its posting. Any other link opens nothing."""
+        state = self._dashboard.state()
+        listed = {str(s.get("posting_url") or "") for s in [*state.get("tiles", []), *state.get("items", [])]}
+        if str(url) not in listed or urlsplit(str(url)).scheme not in ("http", "https"):
+            return False
+        self._open_link(str(url))
+        return True
 
     def signed_in(self) -> bool:
         return self._client.logged_in()
@@ -543,9 +585,31 @@ class Bridge:
         threading.Thread(target=self._run, args=(links,), daemon=True).start()
         return {"started": len(links)}
 
+    def _take_inbox(self, inbox: Path = INBOX) -> None:
+        """Links sent in (send_links): a run of them when none goes, once signed in and set up; while one goes,
+        each into its Workers beside its forms (Dashboard.into), else it waits for the next run."""
+        if self._start is None or not (self._waiting or any(inbox.glob("*.json"))):
+            return
+        if not self.signed_in() or self._first.step() != READY:
+            return  # they stay in the inbox till the student is signed in and set up
+        waiting = {workit.job_key(link) for link in self._waiting}
+        links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
+        if self._running.is_set():
+            for link in links:
+                try:
+                    self._dashboard.into(link)
+                except Refused:  # this run takes no new links (a CDP Worker), or it is ending
+                    self._waiting.append(link)
+            return
+        links, self._waiting = self._waiting + links, []
+        if links and "error" in self.start(links):
+            self._waiting = links
+
     def show_board(self, board: Dashboard) -> None:
-        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo."""
+        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo,
+        and names each other link as it waits to start (a link sent in or pasted)."""
         board.logos(self._queued)
+        board.names_by(self._name)
         self._dashboard = board
         if self._window is not None:
             self._window.load_html(self._page())
@@ -569,7 +633,19 @@ class Bridge:
         return {}
 
     def settings_state(self) -> dict:
-        return {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
+        `claude -p` uses, and why the Best model last paused."""
+        state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        from apply import student
+
+        if not build.STUDENT and os.environ.get(student.MAX_PLAN):
+            from apply import claude_cli
+
+            state["claude"] = {"best": first_run.best_model(), "login": claude_cli.login(), "dropped": claude_cli.dropped}
+        return state
+
+    def set_best_model(self, on: bool) -> dict:
+        return {"best": first_run.set_best_model(on)}
 
     def set_workers(self, count: int) -> dict:
         return {"workers": first_run.set_workers(count)}
@@ -714,6 +790,20 @@ def notify(title: str, message: str) -> None:
     center.deliverNotification_(notice)
 
 
+def badge(count: int) -> None:
+    """The Dock icon's badge: how many forms wait on the student, none for 0 (Dashboard's `badge`). On a Mac only, and
+    never an error where there is no Dock (a test, a Developer checkout without an app bundle)."""
+    if sys.platform != "darwin":
+        return
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        from PyObjCTools import AppHelper
+    except ImportError:
+        return
+    label = str(count) if count > 0 else ""
+    AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""
@@ -726,6 +816,62 @@ def bring_forward() -> bool:
     return True
 
 
+def links_given(arguments: list[str]) -> tuple[list[str], list[str]]:
+    """The links in `apply app`'s arguments, and the words that aren't links. An argument may hold several links on
+    lines of their own: zsh passes a variable's lines as one argument (`apply app $links`), which once sent the window
+    a single unusable link, so a 28-job run never started."""
+    words = [word for argument in arguments for word in argument.split()]
+    return [w for w in words if LINK.match(w)], [w for w in words if not LINK.match(w)]
+
+
+def send_links(links: list[str], inbox: Path = INBOX) -> Path:
+    """Hand `links` to the running window (Bridge._take_inbox): one file in `inbox`, only the user's to read, written
+    whole before it is named .json so the window never reads half of it."""
+    inbox.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = inbox / f"{time.time_ns()}-{os.getpid()}.json"
+    part = path.with_suffix(".part")
+    part.write_text(json.dumps({"links": list(links)}))
+    part.chmod(0o600)
+    part.rename(path)
+    return path
+
+
+def take_links(inbox: Path = INBOX) -> list[str]:
+    """The links sent in since the last take, oldest first, one per posting (workit.job_key: a Greenhouse board's
+    link and its embed's are one job); every file read is removed. A file that isn't a list of links is dropped."""
+    links: list[str] = []
+    for path in sorted(inbox.glob("*.json")):
+        try:
+            links += [str(link).strip() for link in json.loads(path.read_text())["links"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        path.unlink(missing_ok=True)
+    kept: dict[str, str] = {}
+    for link in links:
+        if LINK.match(link):
+            kept.setdefault(workit.job_key(link), link)
+    return list(kept.values())
+
+
+def running(note: Path = PID_NOTE) -> int | None:
+    """The PID of the WorkIt Auto Apply window running now (run() notes it), or None."""
+    try:
+        pid = int(note.read_text())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return None
+    return pid
+
+
+def _watch_inbox(bridge: Bridge) -> None:
+    while True:
+        try:
+            bridge._take_inbox()
+        except Exception as error:  # a bad take never ends the watch
+            print(f"Couldn't take the links sent in: {type(error).__name__}: {error}", file=sys.stderr)
+        time.sleep(INBOX_EVERY)
+
+
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
@@ -735,9 +881,85 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window
+    late_replies(window)
     closing(window)
+    window.events.closing += lambda: guard_close(window, bridge)
+    threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
-    webview.start()  # no http_server: the page is a string, so pywebview opens no port either
+    PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
+    PID_NOTE.write_text(str(os.getpid()))
+    threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
+        from apply import app_control
+
+        threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
+    try:
+        webview.start()  # no http_server: the page is a string, so pywebview opens no port either
+    finally:
+        PID_NOTE.unlink(missing_ok=True)
+
+
+def line_by_line(*streams) -> None:
+    """Each line goes out as it is written: under nohup, stdout and stderr are files, so Python held the run's lines
+    in a block buffer, and its log could not be followed live (nor read whole after a crash). A stream that can't
+    change (a test's capture) stays as it is."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+REPLY = 'window.pywebview._returnValuesCallbacks["'  # how pywebview hands a js_api method's return to the page
+
+
+def late_replies(window) -> None:
+    """A js_api method's return that comes back after its page was replaced (load_html: Go on, Back, the board) finds
+    no callback there: pywebview's reply thread raised JavascriptException ("... is not a function") and logged a
+    traceback with the whole reply, a long `matches` wait's 30 jobs in it. No page waits on it, so it is dropped. Any
+    other script's error still raises."""
+    evaluate = window.evaluate_js
+
+    def replying(script, *args, **kwargs):
+        try:
+            return evaluate(script, *args, **kwargs)
+        except Exception as error:
+            gone = type(error).__name__ == "JavascriptException" and "TypeError" in str(error)
+            if isinstance(script, str) and script.startswith(REPLY) and gone:
+                return None
+            raise
+    window.evaluate_js = replying
+
+
+def close_words(held: int) -> str:
+    """The question before the app quits with `held` forms open and waiting for the student: quitting closes them."""
+    forms = "Your filled form" if held == 1 else f"Your {held} filled forms"
+    return f"Quit WorkIt Auto Apply? {forms} waiting for you will close. Nothing gets submitted."
+
+
+def guard_close(window, bridge: Bridge) -> None:
+    """Ask before the window closes (or the app quits) only while a form is held for the student, naming how many
+    (close_words): pywebview's `confirm_close` and its question's words, read when the window is asked to close. The
+    `closing` event runs this just before `confirm_close` is read; the words are read before it on a Mac, so
+    _guard_closes keeps them fresh too."""
+    held = bridge._dashboard.held()
+    words = getattr(window, "localization", None)  # pywebview makes it once the window starts
+    if held and words is not None:
+        words["global.quitConfirmation"] = close_words(held)
+    window.confirm_close = held > 0
+
+
+def _guard_closes(window, bridge: Bridge) -> None:
+    said = ""
+    while True:
+        try:
+            guard_close(window, bridge)
+            said = ""
+        except Exception as error:  # a bad read never ends the guard, and says so once, not every second
+            if (line := f"Couldn't count the held forms: {type(error).__name__}: {error}") != said:
+                print(line, file=sys.stderr)
+            said = line
+        time.sleep(CLOSE_GUARD_EVERY)
 
 
 def closing(window) -> None:

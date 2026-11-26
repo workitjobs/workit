@@ -18,7 +18,8 @@ reads: it does not click, type or submit.
   and not left blank on purpose (`_Planned.left`), the read-back
   (`fill_engine.readback_problems`), an empty file or a file in the wrong
   field, a value that is not one of the field's options, a graduation
-  year that is not the profile's, a start date in the past, pay out of the
+  year that is not the profile's or a span of months that does not hold
+  its month, a start date in the past, pay out of the
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
@@ -34,6 +35,10 @@ reads: it does not click, type or submit.
   section read back with more entries than the plan gave it (JPMorgan's
   Oracle kept a Princeton entry the profile doesn't list), and an employer
   field of a work entry Apply didn't fill that names no job on file.
+  The engine reads Greenhouse's location from the form's own state, not
+  from the text of its box. A place that the box shows but that the form
+  does not hold reads back blank, so the read-back flags it. Submit
+  refuses such a place with "Please enter your location" (Addepar's).
   Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
@@ -393,12 +398,23 @@ Every question that reaches the Needs you tab (a Missing fact, an Essay
 fact, a one-off that Claude left for Lisul, a Handoff's questions) passes
 through `worker._Planned._missing` first.
 
-- `asking.known(asked, profile, bank)` is the never-ask-twice check. It
-  looks in the profile's `answered_questions`, the Answer bank, the Story
-  bank (an earlier Essay fact's answer) and the applicant's links. A link
-  question is known when each kind that it names (GitHub, LinkedIn, a site,
-  a repo) is among the links. A known text field gets that answer
-  (`_Planned.found`), and a known ask is dropped.
+- `asking.known(asked, profile, bank, employer)` is the never-ask-twice
+  check. It looks in the profile's `answered_questions`, the Answer bank,
+  the Story bank (an earlier Essay fact's answer) and the applicant's links.
+  It reads the Story bank as `essays.story_bank(employer)` reads it: an
+  Essay fact answer that names the company it was asked for ("the only
+  Strava internship"), or that asks of other roles there, is read only on
+  that company's forms, as are `essays.sources` and the Essay plan. Other
+  answers hold for every company. A link question is known when each kind
+  that it names (GitHub, LinkedIn, a site, a repo) is among the links. A
+  known text field gets that answer (`_Planned.found`), and a known ask is
+  dropped.
+- `asking.graduation(profile)` is the profile's expected graduation as one
+  line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
+  (`essays.sources`), and `known` answers an ask for the graduation date
+  with it. The profile's date wins over a Story bank date: the form's own
+  graduation answer comes from the profile, and a Story bank line can be
+  older (Anduril's cover letter, 2026-11-25, waited on that question).
 - `asking.links(profile)` is the profile's `links`, each Story bank line
   with a URL, and each web link on the resume PDF with the words it is on.
   Essays get them as `<links>` (`essays.sources`). An Essay plan's slot
@@ -414,6 +430,40 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+### Other roles at the same company (`apply.other_roles`)
+
+"Are you applying to any Strava internship besides this one? If so, which
+ones and why?" is never a question for Lisul and never goes to Claude.
+Strava's form (2026-11-26) asked it, the Essay plan made it an Essay fact,
+and his answer, true of Strava only, joined the Story bank for every
+company.
+
+- `worker._Planned._other_roles` runs before Needs you. `other_roles.asks`
+  finds the question: it asks of other roles, internships or postings and
+  names this company (or "here", "with us", "besides"), and it does not ask
+  of other companies.
+- `other_roles.others` reads Apply's Tracker for his applications to the
+  same company (`model.is_company`): a submitted row is "applied", a row
+  still on its way is "applying". A Request on the same job board is
+  "applying". This posting is never one of them.
+- `other_roles.openings` reads the company's open postings from its board's
+  public API (Greenhouse, Lever, Ashby). The board names a Request's role
+  and gives the text for a why sentence. A board that can't be read leaves
+  the Tracker alone to say.
+- `other_roles.answer` names each other application, or says "No, <role> is
+  the only <company> internship I'm applying to." It never names a role he
+  has not applied to. When the question asks why, each named role (2 at
+  most) gets one sentence from the profile only: an area of
+  `experience_facts.role_interests` its title names, else the
+  `experience_facts.skills` its text lists. A yes/no list gets Yes or No:
+  "Have you applied" counts sent applications only, and "Is this the only
+  role" turns Yes and No round, typed or picked.
+- The answer goes on this form and its Record only. It is dropped from the
+  plan's essays, drafts and Missing facts, and it never joins the Answer
+  bank or the Story bank.
+
+**Tests.** `tests/test_other_roles.py`.
 
 ## An optional question no source answers (KAN-759)
 

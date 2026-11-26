@@ -707,3 +707,14 @@ def test_a_plain_seed_whose_extension_holds_older_code_fails_with_how_to_update_
 def test_protected_worker_mode_checks_both_kinds_of_worker(tmp_path):
     m = machine(tmp_path, profile=profile(tmp_path, worker_mode="protected", plain_chrome="chrome"))
     assert checks_named(m, "worker-") and checks_named(m, "Plain seed")
+
+
+def test_plain_workers_on_chrome_for_testing_need_no_seed(tmp_path, monkeypatch):
+    """Fault: doctor fails the Plain seed check whatever the Workers' Chrome, though Workers on Chrome for Testing
+    load the worker extension with --load-extension and never copy the seed."""
+    monkeypatch.delenv("APPLY_PLAIN_CHROME", raising=False)
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="testing")
+
+    found = check(machine(tmp_path, profile=plain, profiles=tmp_path / "none"), "Plain seed")
+
+    assert found.level == doctor.OK and "not needed" in found.detail

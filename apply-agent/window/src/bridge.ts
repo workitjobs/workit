@@ -44,6 +44,8 @@ export type App = Partial<{
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;
+  // A job's posting in the student's own browser: only a link a tile or item of this run lists. False: it opened nothing.
+  open_posting(url: string): Promise<boolean>;
   // Report a problem with one Application (D26): what the report holds, a line each; then Send Report sends that
   // same report, named by the same id.
   review_report(category: string, note: string, contact_ok: boolean, application_id: string, include: boolean): Promise<{ parts: string[] }>;
@@ -56,7 +58,12 @@ export type Bridge = {
   approve(id: string, essays?: string[]): Promise<void>;
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
-  stop(): Promise<void>; // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again
+  letGo(id: string): Promise<void>; // Not applying to this one: its held form closes, unsubmitted
+  submit(id: string): Promise<void>; // Approve and submit: Apply presses the held form's Submit, once
+  cancelAuto(id: string): Promise<void>; // Cancel an Auto-submit countdown: the form waits for the student
+  // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again. `newOnly`: no job
+  // waiting starts, and every filled form stays open for the student.
+  stop(newOnly?: boolean): Promise<void>;
   remove(link: string): Promise<void>; // take a job that hasn't started out of the run
   app: Promise<App>; // never settles in a window with no app methods
 };
@@ -83,7 +90,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {
@@ -132,7 +139,10 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     approve: (id, essays) => post("/approve", essays ? { id, essays } : { id }),
     open: (worker) => post(`/show/${worker}`, {}),
     fillAgain: (id) => post("/fill-again", { id }),
-    stop: () => post("/stop", {}),
+    letGo: (id) => post("/let-go", { id }),
+    submit: (id) => post("/submit", { id }),
+    cancelAuto: (id) => post("/auto-cancel", { id }),
+    stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),
     app,
   };

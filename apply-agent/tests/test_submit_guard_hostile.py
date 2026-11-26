@@ -831,6 +831,21 @@ GET_FORM_PAGES = {
     "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": {START: _LOGIN_DRESS
         % """<label for=bee>For robots only</label><input id=bee name=why value=Because
         style="position:absolute;width:1px;height:0;border:0;padding:0"><script>document.getElementById('bee').value = ''</script>"""},
+    # Honeywell's Oracle site (live): its email step's form holds a honeypot box beside the email, and the page a shut
+    # AI Assist pop-up's empty text box; neither counts as an answer. A shut pop-up's box that holds an answer, an
+    # empty box no one sees in no pop-up, and a box in the form no one sees that holds an answer still do.
+    "a GET form dressed as a sign-in step with a bot trap inside it": {START: _LOGIN_DRESS.replace("<button id=b>",
+        """<label for=hp>honeypot</label><input id=hp name=honey-pot value=""
+        style="position:absolute;width:1px;height:0;border:0;padding:0"><button id=b>""") % ""},
+    "a GET form dressed as a sign-in step beside a shut pop-up's empty text box": {START: _LOGIN_DRESS
+        % '<div role=dialog style="display:none"><h1>Work Summary</h1><textarea name=summary>\n  </textarea></div>'},
+    "a GET form dressed as a sign-in step beside a shut pop-up's text box that holds an answer": {START: _LOGIN_DRESS
+        % '<div role=dialog style="display:none"><label>Why us? <textarea name=why>Because</textarea></label></div>'},
+    "a GET form dressed as a sign-in step beside an empty text box no one sees in no pop-up": {START: _LOGIN_DRESS
+        % '<label>Why us? <textarea name=why style="display:none"></textarea></label>'},
+    "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": {START: _LOGIN_DRESS.replace(
+        "<button id=b>", """<label for=hp>For robots only</label><input id=hp name=why value=Because
+        style="position:absolute;width:1px;height:0;border:0;padding:0"><button id=b>""") % ""},
     # Round 5: a GET application with a password box (one that makes an account as it applies); and a declarative
     # root that code inside it listens on, its form submitted by a Next the page turns into a submit as it is
     # clicked, or by an Enter with no button at all.
@@ -843,9 +858,12 @@ GET_FORM_PAGES = {
 PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
 # plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868), and so
-# does one whose only box outside the form is an empty one no one sees (a bot trap, KAN-886).
+# does one whose only box outside the form is an empty one no one sees (a bot trap, KAN-886), or whose only other boxes
+# are an empty bot trap in the form or a shut pop-up's empty text box (Oracle's).
 LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script",
-                                 "a GET form dressed as a sign-in step beside an empty bot trap"})
+                                 "a GET form dressed as a sign-in step beside an empty bot trap",
+                                 "a GET form dressed as a sign-in step with a bot trap inside it",
+                                 "a GET form dressed as a sign-in step beside a shut pop-up's empty text box"})
 BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
           "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
@@ -1223,7 +1241,10 @@ PATH_FOR = {"a frame that forges the extension's touch": "the account click",
             # Only plain code's sign-in press reaches the sign-in exemption a box no one sees could get past (KAN-886).
             "a GET form dressed as a sign-in step with its answers in a box no one sees": "the account click",
             "a GET form dressed as a sign-in step with a dropdown's empty typing box": "the account click",
-            "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": "the account click"}
+            "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": "the account click",
+            "a GET form dressed as a sign-in step beside a shut pop-up's text box that holds an answer": "the account click",
+            "a GET form dressed as a sign-in step beside an empty text box no one sees in no pop-up": "the account click",
+            "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": "the account click"}
 # Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
 # and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
 DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")

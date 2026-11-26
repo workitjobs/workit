@@ -3,6 +3,8 @@ pywebview's bridge in this process, its tiles' frames and files, and the sign-in
 and no browser: in CI. tests/test_app_window_page.py runs the page's shim in Chromium."""
 
 import base64
+import sys
+import types
 
 import pytest
 from fake_workit import FakeWorkIt
@@ -109,6 +111,18 @@ def test_only_a_file_a_tile_lists_opens(board, tmp_path):
     board.update(0, files=[{"label": "Resume", "path": str(sent)}])
     assert bridge.open("/file/0/0") and opened == [sent.as_uri()]
     assert not bridge.open("/file/0/1")
+
+
+def test_only_a_posting_a_tile_lists_opens_in_the_browser(board):
+    """Fault: the page names any link, or a non-web one, and it opens on the computer."""
+    opened = []
+    bridge = Bridge(board, WorkIt(workit.LIVE), opened.append)
+    assert not bridge.open_posting("https://jobs.example/1") and opened == []
+    board.update(0, posting_url="https://jobs.example/1")
+    board.update(1, posting_url="file:///etc/hosts")
+    assert bridge.open_posting("https://jobs.example/1") and opened == ["https://jobs.example/1"]
+    assert not bridge.open_posting("file:///etc/hosts") and not bridge.open_posting("https://jobs.example/2")
+    assert opened == ["https://jobs.example/1"]
 
 
 def test_the_shim_comes_before_the_pages_scripts(board):
@@ -503,6 +517,29 @@ def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, t
     assert saved == [("When can you start?", "June 2027")]
 
 
+def test_closing_asks_first_only_while_forms_wait_for_the_student_naming_how_many(monkeypatch):
+    """Fault: quitting closes held forms with no question, or asks with nothing held, or a submitted form counts."""
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    window = type("Closing", (), {"confirm_close": False, "localization": {"global.quitConfirmation": "Quit?"}})()
+    with Dashboard(3, OneFrame(), serve=False) as run_board:
+        bridge = Bridge(run_board, WorkIt(workit.LIVE))
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+        run_board.update(0, status="ready", again=True)
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is True
+        assert window.localization["global.quitConfirmation"] == app_window.close_words(1) == (
+            "Quit WorkIt Auto Apply? Your filled form waiting for you will close. Nothing gets submitted.")
+        run_board.update(1, status="missing fact", again=True)
+        run_board.update(2, status="submitted", again=True)  # sent: it waits for no one
+        app_window.guard_close(window, bridge)
+        assert "Your 2 filled forms waiting" in window.localization["global.quitConfirmation"]
+        run_board.update(0, again=False)
+        run_board.update(1, again=False)  # let go: nothing held, nothing asked
+        app_window.guard_close(window, bridge)
+        assert window.confirm_close is False
+
+
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
     """Fault: a Developer checkout's own data folder deleted, data removed under a running run, or the login left in
     the keychain after the folder went."""
@@ -603,3 +640,158 @@ def test_app_pages_stay_light():
         assert "prefers-color-scheme: dark" not in page
         assert '<meta name="color-scheme" content="light">' in page
     assert "prefers-color-scheme: dark" in app_window.STYLE  # the Developer dashboard keeps its dark scheme
+
+
+def test_links_sent_in_start_a_run_once_signed_in_then_join_it_or_wait(board, tmp_path):
+    """`apply app <link>...`. Fault: links sent while signed out are lost, a link is taken twice, a non-link starts a
+    run, or a link sent during a run that takes none is dropped instead of starting the next run."""
+    import threading
+
+    inbox, runs, go, took = tmp_path / "inbox", [], threading.Event(), []
+
+    def start(links, show):
+        runs.append(links)
+        with Dashboard(len(links), OneFrame(), serve=False) as run_board:
+            if len(runs) == 1:
+                run_board.taking(lambda url, worker: took.append(url) or {"tile": 1, "worker": worker})
+            show(run_board)
+            go.wait(5)
+
+    def wait(done):
+        for _ in range(100):
+            if done():
+                return
+            threading.Event().wait(0.02)
+
+    steps = Steps(SHOWN)
+    bridge = Bridge(board, WorkIt(workit.LIVE), first_run=steps, start=start)
+    bridge.signed_in = lambda: True
+    app_window.send_links(["https://jobs.lever.co/acme/1", "not a link", "https://jobs.lever.co/acme/1"], inbox)
+    bridge._take_inbox(inbox)
+    assert not runs and list(inbox.glob("*.json"))  # first run isn't done: they wait in the inbox
+    steps.now = READY
+    bridge._take_inbox(inbox)
+    wait(lambda: runs)
+    assert runs == [["https://jobs.lever.co/acme/1"]] and not list(inbox.glob("*"))
+    app_window.send_links(["https://jobs.lever.co/acme/2"], inbox)
+    bridge._take_inbox(inbox)
+    assert took == ["https://jobs.lever.co/acme/2"]  # into the run going, beside its forms
+    go.set()
+    wait(lambda: not bridge.status()["running"])
+    go.clear()
+    bridge._start = lambda links, show: (runs.append(links), go.wait(5))
+    bridge._running.set()  # a run whose board takes no links
+    app_window.send_links(["https://jobs.lever.co/acme/3"], inbox)
+    bridge._take_inbox(inbox)
+    assert len(runs) == 1 and bridge._waiting == ["https://jobs.lever.co/acme/3"]
+    bridge._running.clear()
+    bridge._take_inbox(inbox)  # the next run takes it
+    wait(lambda: len(runs) == 2)
+    assert runs[-1] == ["https://jobs.lever.co/acme/3"]
+    go.set()
+
+
+def test_links_given_on_lines_of_one_argument_are_each_a_link():
+    # zsh passes `apply app $links` as one argument, its links on lines of their own (live, 2026-11-25).
+    one = "https://jobs.lever.co/acme/1\nhttps://jobs.lever.co/acme/2\n"
+    assert app_window.links_given([one, "https://jobs.lever.co/acme/3"]) == (
+        ["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2", "https://jobs.lever.co/acme/3"], [])
+    assert app_window.links_given(["acme.com/jobs/1"]) == ([], ["acme.com/jobs/1"])
+
+
+def test_running_names_only_a_live_windows_pid(tmp_path):
+    import os
+
+    note = tmp_path / "app.pid"
+    assert app_window.running(note) is None
+    note.write_text(str(os.getpid()))
+    assert app_window.running(note) == os.getpid()
+    note.write_text("2147483646")
+    assert app_window.running(note) is None
+
+
+def test_the_dock_badge_never_breaks_a_run_off_a_mac_or_without_pyobjc(monkeypatch):
+    monkeypatch.setattr(app_window.sys, "platform", "linux")
+    app_window.badge(3)  # no Dock: nothing happens
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", None)  # pyobjc missing: importing it raises ImportError
+    app_window.badge(3)
+
+
+def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
+    labels = []
+
+    class DockTile:
+        def setBadgeLabel_(self, label):
+            labels.append(label)
+
+    appkit = types.SimpleNamespace(NSApplication=types.SimpleNamespace(sharedApplication=lambda: types.SimpleNamespace(dockTile=DockTile)))
+    helper = types.SimpleNamespace(callAfter=lambda call: call())
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "PyObjCTools", types.SimpleNamespace(AppHelper=helper))
+    monkeypatch.setitem(sys.modules, "PyObjCTools.AppHelper", helper)
+    app_window.badge(3)
+    app_window.badge(0)
+    assert labels == ["3", ""]
+
+
+def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(monkeypatch):
+    from apply import claude_cli, student
+
+    monkeypatch.delenv(student.MAX_PLAN, raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert "claude" not in bridge.settings_state()  # WorkIt's Model route answers: no Claude to choose
+        monkeypatch.setenv(student.MAX_PLAN, "1")
+        monkeypatch.setattr(claude_cli, "dropped", None)
+        assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
+        assert bridge.set_best_model(False) == {"best": False}
+        assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
+    """Fault: a js_api method's return that comes back after load_html replaced its page (a long `matches` wait,
+    then Go on) raises JavascriptException in pywebview's reply thread, and its traceback floods the log."""
+    class JavascriptException(Exception):
+        pass
+
+    class Window:
+        def evaluate_js(self, script):
+            if "missing" in script or "broken" in script:
+                raise JavascriptException({"name": "TypeError" if "missing" in script else "ReferenceError"})
+            return "ran"
+
+    window = Window()
+    app_window.late_replies(window)
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["missing"]({value: "[]"})') is None
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["7"]({value: "[]"})') == "ran"
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("broken()")
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("missing()")  # not a reply: its error is the page's own
+
+
+def test_the_apps_output_goes_out_a_line_at_a_time_even_to_a_file(tmp_path):
+    """Fault: under nohup stdout is a file, so the run's lines sat in a block buffer and its log couldn't be followed."""
+    import io
+
+    from apply import masked
+
+    with open(tmp_path / "app.log", "w") as log:
+        app_window.line_by_line(masked._Scrubbing(log))
+        assert log.line_buffering
+        log.write("Took a link\n")
+        assert (tmp_path / "app.log").read_text() == "Took a link\n"
+    app_window.line_by_line(io.StringIO())  # a stream that can't change stays as it is
+
+
+def test_links_sent_in_are_taken_once_per_posting(tmp_path):
+    """Fault: a Greenhouse job sent in by its board link, then by its embed link (one token), was queued twice."""
+    inbox = tmp_path / "inbox"
+    app_window.send_links(["https://job-boards.greenhouse.io/acme/jobs/6270727004"], inbox)
+    app_window.send_links(["https://job-boards.greenhouse.io/embed/job_app?for=acme&token=6270727004",
+                           "https://jobs.lever.co/acme/2"], inbox)
+    assert app_window.take_links(inbox) == ["https://job-boards.greenhouse.io/acme/jobs/6270727004",
+                                            "https://jobs.lever.co/acme/2"]

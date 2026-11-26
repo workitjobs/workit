@@ -54,7 +54,9 @@ none.
   It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
-  `apply-agent/CLAUDE.md` before any change there.
+  `apply-agent/CLAUDE.md` before any change there. To read or drive a
+  running WorkIt Auto Apply window, use `uv run apply window ...` (from
+  `apply-agent/`) before any screen automation.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `.sandcastle/` — Sandcastle, an unattended agent loop that works through
   KAN issues labelled `sandcastle` in a sandbox and leaves each on a branch
