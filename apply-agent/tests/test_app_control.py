@@ -1,6 +1,7 @@
-"""WorkIt Auto Apply's window read from a terminal (apply.app_control): what the window shows, over the window's
-request folder. No window and no browser: in CI."""
+"""WorkIt Auto Apply's window read and driven from a terminal (apply.app_control): what the window shows, and its
+buttons through their own routes, over the window's request folder. No window and no browser: in CI."""
 
+import json
 import threading
 import time
 from contextlib import contextmanager
@@ -111,9 +112,42 @@ def through(board, action, body=None, folder=app_control.CONTROL):
         return app_control.ask(action, body, folder, 5.0)
 
 
-def test_the_state_comes_through_the_windows_folder_and_nothing_else_does(board, tmp_path):
-    """Fault: a request names any route (/start, /closed), so the folder reaches past what the window shows."""
-    for action in ("/start", "closed"):
+def test_submit_through_the_folder_is_the_buttons_own_route_with_its_refusals(board, tmp_path):
+    """Fault: submit reaches the run some other way than POST /submit, so a form still missing an answer is pressed,
+    or an approved one is never handed to the run."""
+    held(board, 0, ACME, missing=["When can you start?"], required={"When can you start?": True})
+    held(board, 1, GLOBEX)
+
+    refused = through(board, "submit", {"id": "tile-0"}, tmp_path)
+    assert refused["status"] == 409 and "needs your answers" in refused["error"]
+    assert not board.submit_asked(0)
+    assert through(board, "submit", {"id": "tile-1"}, tmp_path) == {"status": 200, "message": "Submitting it."}
+    assert board.submit_asked(1)
+    assert not list(tmp_path.iterdir())  # nothing left behind
+
+
+def test_a_request_taken_too_late_does_nothing(board, tmp_path):
+    """Fault: a submit the command gave up on is pressed later, when the window next looks."""
+    held(board, 0, ACME)
+    app_control._write(tmp_path / "1-1.request", {"action": "submit", "body": {"id": "tile-0"}, "expires": 0})
+    for thread in app_control.serve(Bridge(board, WorkIt(workit.LIVE)), tmp_path):
+        thread.join()
+    assert json.loads((tmp_path / "1-1.reply").read_text())["status"] == 408
+    assert not board.submit_asked(0)
+
+
+def test_a_request_that_isnt_one_is_answered_400(board, tmp_path):
+    """Fault: a request the window can't read is never answered, so the command waits and can't tell it did nothing."""
+    app_control._write(tmp_path / "1-1.request", {"action": "submit", "body": {"id": "tile-0"}, "expires": "soon"})
+    for thread in app_control.serve(Bridge(board, WorkIt(workit.LIVE)), tmp_path):
+        thread.join()
+    assert json.loads((tmp_path / "1-1.reply").read_text())["status"] == 400
+    assert not list(tmp_path.glob("*.taken"))
+
+
+def test_only_the_windows_buttons_are_actions(board, tmp_path):
+    """Fault: a request names any route (/start, /closed, /dismiss), so the folder reaches past the buttons."""
+    for action in ("/start", "closed", "dismiss"):
         assert through(board, action, {}, tmp_path)["status"] == 404
     assert through(board, "state", None, tmp_path)["state"]["window"]["shows"] == "sign-in"
     assert not list(tmp_path.iterdir())  # nothing left behind

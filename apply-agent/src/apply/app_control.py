@@ -1,13 +1,16 @@
-"""WorkIt Auto Apply's window, read from a terminal: what the window shows, for an agent with no screen to look
-at. A Developer checkout's window only (apply.build.DEVELOPER).
+"""WorkIt Auto Apply's window, read and driven from a terminal (`uv run apply window ...`): what the window shows, and
+its buttons, for an agent with no screen to look at. A Developer checkout's window only (apply.build.DEVELOPER).
 
 The running window watches CONTROL every CONTROL_EVERY (`watch`, started by app_window.run). A command writes one
 request file there, whole before it is named `.request`; the window takes it, answers it in a thread of its own and
 writes the reply beside it, whole before it is named `.reply`. A request names an action, never a path: `state`
-(what the window shows, through its own /state) and `applied`.
+(what the window shows, through its own /state), `applied`, or one of ROUTES. Each of ROUTES goes through the same
+route the page's button posts to (Bridge.request, with the board's token, as the page sends it), so its rules and
+refusals are the button's: Approve and submit is POST /submit, and the run presses the form's Submit as for the
+button (apply.send_button), reads the job site's confirmation and makes a Handoff without one.
 
-A request carries when it expires: one the window takes too late is refused, so an action a command gave up on is
-never done later. The command removes its request when it gives up, if the window hasn't taken it.
+A request carries when it expires: one the window takes too late is refused, so a submit a command gave up on is
+never pressed later. The command removes its request when it gives up, if the window hasn't taken it.
 
 `view` is the student page's own sorting (window/src/view.ts: Needs you, Still working on, Applied, Didn't go
 through), with every filled form's answers, flags, Missing facts, Essays, Auto-submit's reason and its Record's
@@ -27,6 +30,10 @@ CONTROL = HOME / "app-control"
 CONTROL_EVERY = 0.25  # how often the window looks for a request
 ASK_WAIT = 30.0  # how long a command waits for the window's reply: /answer may save to WorkIt first
 REPLY_KEPT = 300.0  # a reply no command read (it gave up) is removed after this long
+
+# Each action and the route its button posts to. The body is the page's own (window/src/bridge.ts).
+ROUTES = {"submit": "/submit", "cancel": "/auto-cancel", "skip": "/let-go", "fill-again": "/fill-again",
+          "answer": "/answer", "remove": "/remove", "stop": "/stop"}
 
 # What a to-do asks of the student, by its verdict's kind, and the order the window lists them in (view.ts's ASKS,
 # ORDER): a sign-in blocks every job on its site, so it comes first; a form to submit is done, so it comes last.
@@ -108,10 +115,11 @@ def _answer(bridge, taken: Path) -> None:
         request = json.loads(taken.read_text())
         if not isinstance(request, dict) or not isinstance(request.get("body", {}), dict):
             raise TypeError
+        expires = float(request.get("expires") or 0)
     except (OSError, ValueError, TypeError):
         reply = {"status": 400, "error": "Not a request."}
     else:
-        if float(request.get("expires") or 0) < time.time():
+        if expires < time.time():
             reply = {"status": 408, "error": "Too late: the command stopped waiting, so nothing was done."}
         else:
             try:
@@ -123,7 +131,8 @@ def _answer(bridge, taken: Path) -> None:
 
 
 def handle(bridge, action: str, body: dict) -> dict:
-    """One action, as the window's page does it: `state` and `applied` read what the window shows."""
+    """One action, as the window's page does it: `state` and `applied` read what the window shows; each of ROUTES
+    posts its button's route with the board's token."""
     if action == "state":
         got = bridge.request("GET", "/state")
         if got["status"] != 200:
@@ -132,7 +141,16 @@ def handle(bridge, action: str, body: dict) -> dict:
     if action == "applied":
         got = bridge.applied()
         return {"status": 502, **got} if isinstance(got, dict) else {"status": 200, "applied": got}
-    return {"status": 404, "error": f"No such action: {action}. Use one of: state, applied."}
+    if action not in ROUTES:
+        return {"status": 404, "error": f"No such action: {action}. Use one of: state, applied, {', '.join(ROUTES)}."}
+    board = bridge._dashboard
+    got = bridge.request("POST", ROUTES[action], {"X-Apply-Token": board.token, "Content-Type": "application/json"},
+                         json.dumps(body))
+    try:
+        said = json.loads(got["body"]) if got["body"] else {}
+    except ValueError:
+        said = {"error": got["body"]}
+    return {"status": got["status"], **(said if isinstance(said, dict) else {"reply": said})}
 
 
 def screen(bridge) -> dict:
