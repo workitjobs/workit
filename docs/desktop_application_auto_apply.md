@@ -1498,7 +1498,7 @@ and comes only from WorkIt (D3, D27, D28).
    moved back serves the older build again, unless the bad build had a
    higher min app (`autofiller_extension/CLAUDE.md`, "Move the engine
    pointer"). `make-key <file>` makes the key
-   once; its private half is a secret of the `apply-engine` environment,
+   once; its private half is a secret of the `auto-apply-desktop` environment,
    which takes jobs from `main` only, since whoever holds it can make every
    app run their code (`.github/CLAUDE.md`, "Publish the Fill engine").
 2. **Serve.** `GET /apply-app/engine?app_version=` (signed in) answers the
@@ -1537,7 +1537,8 @@ and comes only from WorkIt (D3, D27, D28).
 `.github/CLAUDE.md`, "Publish the Fill engine"). Done 2026-11-17: the key
 (`make-key`), with its public half in `engine_download.PUBLIC_KEY`. Left:
 make the private `ApplyEngine` bucket in the Supabase dashboard; give the
-`apply-engine` environment its branch rule, then its secret; run the
+`apply-engine` environment its branch rule, then its secret (the environment is
+`auto-apply-desktop` since 2026-11-26, KAN-941); run the
 workflow once by hand for the first build. Until that build is published,
 the API answers 503 and the app says that WorkIt did not send the Fill
 engine.

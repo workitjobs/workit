@@ -37,7 +37,7 @@ the split by who may read is a split into projects.
 | Project | Who | Environment (slug) | Folders |
 |---|---|---|---|
 | `workit-dev` | everyone, as Member | `dev` | `/root_env`, `/frontend_env`, `/scraper` |
-| `workit-prod` | Admins only | `prod` | `/api`, `/web`, `/github`, `/auto-apply-desktop`, `/auto-apply-mac`, `/team-computer`, `/ec2-job-alerts` |
+| `workit-prod` | Admins only | `prod` | `/api`, `/web`, `/github`, `/auto-apply-desktop`, `/auto-apply-desktop-private-keys`, `/team-computer`, `/ec2-job-alerts` |
 | `workit-logins` | Admins only | one | one folder per service |
 
 Where each folder goes:
@@ -50,8 +50,8 @@ Where each folder goes:
 | `workit-prod/api` | GitHub repo secrets named `API_*`, then the `workit-api` Worker (the Python API) | sync with key schema `API_{{secretKey}}`; `deploy.yml` sends them on |
 | `workit-prod/web` | GitHub repo secrets named `WEB_*`, then the `workit-web` Worker (the website) | sync with key schema `WEB_{{secretKey}}`; `deploy.yml` sends them on |
 | `workit-prod/github` | GitHub repo secrets, same names | sync, scope Repository |
-| `workit-prod/auto-apply-desktop` | secrets of the GitHub environment `apply-engine` | sync, scope Repository Environment |
-| `workit-prod/auto-apply-mac` | the login Keychain of the Mac that publishes WorkIt Auto Apply | no sync: the publisher imports it by hand (below) |
+| `workit-prod/auto-apply-desktop` | secrets of the GitHub environment `auto-apply-desktop` | sync, scope Repository Environment |
+| `workit-prod/auto-apply-desktop-private-keys` | the login Keychain of the Mac that publishes WorkIt Auto Apply | no sync: the publisher imports it by hand (below) |
 | `workit-prod/team-computer` | `C:\workit-bank-job\.env` on the team computer (`ASGAMINGPC`) | an Admin exports it with the CLI and copies the file there (References) |
 | `workit-prod/ec2-job-alerts` | the EC2 crontab's environment | an Admin exports it with the CLI and copies the values there |
 
@@ -60,16 +60,17 @@ Where each folder goes:
   `/desktop-fill-engine` until 2026-11-26) holds every secret that a
   workflow of the desktop app (WorkIt Auto Apply, KAN-723) reads, and each
   one is an environment secret, never a repo secret: the
-  `apply-engine` environment takes jobs from `main` only, and a repo secret
+  `auto-apply-desktop` environment takes jobs from `main` only, and a repo secret
   reaches every branch's workflows. In `/github`, the repo-scoped sync would
-  make them repo secrets. Keep the GitHub environment's name
-  `apply-engine`, which `publish-engine.yml` and `.github/CLAUDE.md` name.
-  - A job that reads one must name `environment: apply-engine`. Any other
+  make them repo secrets. The GitHub environment has the folder's name
+  (2026-11-26, KAN-941); it was `apply-engine` when it held only the Fill
+  engine's key.
+  - A job that reads one must name `environment: auto-apply-desktop`. Any other
     job, and any run from a tag or another branch, gets an empty value.
   - The app itself holds no secret: anyone who installs an app can read
     what it ships, as with the extension.
-- **`/auto-apply-mac` never syncs: it holds what only the publisher's Mac
-  uses** (KAN-941). The app's update key signs every update, and every
+- **`/auto-apply-desktop-private-keys` never syncs: it holds what only
+  the publisher's Mac uses** (KAN-941). The app's update key signs every update, and every
   installed app runs what it signs, so it stays out of GitHub (D32: the
   Mac builds and signs, a workflow only copies). In `/auto-apply-desktop`,
   the sync would make it a GitHub secret.
@@ -185,7 +186,7 @@ computer's Ollama; the repo copies were deleted on 2026-11-20),
 `CF_API_SECRETS_JSON` (`/api` replaced it; deleted on 2026-11-21), `APPLY_ENGINE_SIGNING_KEY` (`/auto-apply-desktop`),
 `GEMINI_API_KEY` (no workflow reads it).
 
-### `workit-prod/auto-apply-desktop` (environment `apply-engine`)
+### `workit-prod/auto-apply-desktop` (environment `auto-apply-desktop`)
 
 | Key | Read by | Needed | Value or source |
 |---|---|---|---|
@@ -194,7 +195,7 @@ computer's Ollama; the repo copies were deleted on 2026-11-20),
 | `R2_SECRET_ACCESS_KEY` | `publish-app.yml` | Required to publish the app | The same token's secret, which Cloudflare shows once. |
 | `R2_ENDPOINT` | `publish-app.yml` | Required to publish the app | `https://<account id>.r2.cloudflarestorage.com`, the S3 address on the same page. Not a secret. |
 
-### `workit-prod/auto-apply-mac` (no sync)
+### `workit-prod/auto-apply-desktop-private-keys` (no sync)
 
 | Key | Read by | Needed | Value or source |
 |---|---|---|---|
@@ -396,7 +397,7 @@ folder to one place:
 | `workit-prod/api` | Repository | `API_{{secretKey}}` | on, checked |
 | `workit-prod/github` | Repository | none | on, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a deploy passed with them) and `CHROME_EXTENSION_ID`; `DATABASE_URL` and `SCOUT_ENDPOINTS` only until this change is on `main` (Still open) |
 | `workit-prod/web` | Repository | `WEB_{{secretKey}}` | off: the folder is empty until `GOOGLE_CLIENT_SECRET` is issued again |
-| `workit-prod/auto-apply-desktop` | Repository Environment, `apply-engine` | none | off: to turn on now that the folder holds the R2 keys (Still open) |
+| `workit-prod/auto-apply-desktop` | Repository Environment, `auto-apply-desktop` | none | set up 2026-11-26; that day the environment still held no secret (Still open) |
 
 **Only GitHub holds these keys (2026-11-21):** `FILL_ENGINE_TOKEN`,
 `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_PUBLISHER_ID` and
@@ -453,22 +454,31 @@ again.
 2. **Revoke the old Cloudflare token.** "Deploy to Cloudflare" passed with
    the new one on 2026-11-21.
 3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
-4. **Turn on the `/auto-apply-desktop` sync.** The folder holds
+4. **Finish the `/auto-apply-desktop` sync and the move to the
+   `auto-apply-desktop` environment** (KAN-941). The folder holds
    `APPLY_ENGINE_SIGNING_KEY` (the backup, 2026-11-21) and the three `R2_*`
-   keys (2026-11-26); GitHub holds only the first, which the publish of
-   2026-11-17 passed with. In this order:
-   1. Move `SPARKLE_PRIVATE_KEY` to `/auto-apply-mac` if it is in this
-      folder: the sync would make it a GitHub secret.
-   2. Make the sync: destination GitHub, scope Repository Environment,
-      environment `apply-engine`, no key schema, Disable Secret Deletion
-      on (Syncs, above).
-   3. `gh secret list --env apply-engine` lists the four names.
-   4. Run "Publish the Fill engine" from `main` (`gh workflow run
-      publish-engine.yml --ref main`). The sync replaced GitHub's working
-      `APPLY_ENGINE_SIGNING_KEY` with the folder's backup, and a publish
-      refuses a key whose public half the apps don't hold, so a pass shows
-      the backup is right. A run with nothing new changes nothing. On a
-      failure, paste the PEM file into the folder again.
+   keys. The environment is made, with its `main` rule, and the sync is
+   set up (2026-11-26), but that day the environment held no secret: only
+   the old `apply-engine` held one, the engine key set by hand on
+   2026-11-17. In this order:
+   1. `SPARKLE_PRIVATE_KEY` stays in `/auto-apply-desktop-private-keys`,
+      never in this folder: the sync would make it a GitHub secret.
+   2. The sync: destination GitHub, scope Repository Environment,
+      environment `auto-apply-desktop`, no key schema, Disable Secret
+      Deletion on (Syncs, above). If the environment stays empty, read the
+      sync's status in Infisical and start it once by hand.
+   3. `gh secret list --env auto-apply-desktop` lists the four names.
+      Merge KAN-941, which moves both workflows to this environment, only
+      then: from that merge, `publish-engine.yml` reads its key here.
+   4. After the merge, run "Publish the Fill engine" from `main` (`gh
+      workflow run publish-engine.yml --ref main`). Its key is now the
+      folder's backup, and a publish refuses a key whose public half the
+      apps don't hold, so a pass shows the backup is right. A run with
+      nothing new changes nothing. On a failure, paste the PEM file into
+      the folder again.
+   5. Then delete the old environment, which holds only the old copy of
+      the engine key: `gh api -X DELETE
+      repos/workitjobs/workit/environments/apply-engine`.
 
    To check a PEM file against the key the apps hold, run this from
    `backend/`:

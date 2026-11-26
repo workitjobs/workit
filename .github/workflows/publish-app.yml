@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # The R2 keys are secrets of this environment, which takes jobs from main only.
-    environment: apply-engine
+    environment: auto-apply-desktop
     env:
       BUILD: ${{ inputs.build }}
       BUCKET: auto-apply-desktop
@@ -72,7 +72,7 @@ jobs:
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
           if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$R2_ENDPOINT" ]; then
-            echo "::error::R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY or R2_ENDPOINT is not set in the apply-engine environment (docs/secrets.md, workit-prod/auto-apply-desktop)."
+            echo "::error::R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY or R2_ENDPOINT is not set in the auto-apply-desktop environment (docs/secrets.md, workit-prod/auto-apply-desktop)."
             exit 1
           fi
           put() { aws s3 cp --endpoint-url "$R2_ENDPOINT" --no-progress "$@"; }

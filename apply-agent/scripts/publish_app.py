@@ -49,9 +49,11 @@ def main() -> None:
     number, shown, commit = plist["CFBundleVersion"], plist["CFBundleShortVersionString"], plist[build.COMMIT_KEY]
     if not plist.get(build.RELEASE_KEY):
         sys.exit("That's a test build: publish only a release (python3 scripts/build_app.py --release).")
-    if output(TOOLS / "generate_keys", "-p") != plist["SUPublicEDKey"]:
-        sys.exit("This computer's Keychain holds another update key than the app's: every app would refuse what it signs. "
-                 "Import the team's key from Infisical (docs/app-build.md, Publish).")
+    # Only the public half: sign_update reads the private half from the Keychain itself, below.
+    keychain = subprocess.run([TOOLS / "generate_keys", "-p"], capture_output=True, text=True, check=False)
+    if keychain.returncode or keychain.stdout.strip() != plist["SUPublicEDKey"]:
+        sys.exit("This computer's Keychain has no update key, or another one than the app's, which every app would "
+                 "refuse. Import the team's key from Infisical (docs/app-build.md, Publish a release).")
     build.git("fetch", "--quiet", "origin", "main")
     if subprocess.run(["git", "-C", str(build.ROOT), "merge-base", "--is-ancestor", commit, "origin/main"],
                       check=False).returncode:
@@ -60,6 +62,7 @@ def main() -> None:
     PUBLISH.mkdir()
     dmg = PUBLISH / f"WorkIt-Auto-Apply-{number}.dmg"  # one name per build: an app may be downloading the last one
     shutil.copyfile(build.DMG, dmg)
+    # sign_update reads the private key from this user's login Keychain: this script never sees it.
     signature = output(TOOLS / "sign_update", dmg)  # the enclosure's sparkle:edSignature and length
     if not re.fullmatch(r'sparkle:edSignature="[A-Za-z0-9+/]+=*" length="\d+"', signature):
         sys.exit(f"sign_update printed no signature: {signature}")

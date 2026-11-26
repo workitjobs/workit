@@ -740,7 +740,10 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
   `publish_engine.APP_KEY` must read the key from there.
 - **Secrets:**
   - `APPLY_ENGINE_SIGNING_KEY`, the private key's PEM from `make-key`, is a
-    secret of the **`apply-engine` environment**, never a repo secret. The
+    secret of the **`auto-apply-desktop` environment** (`apply-engine` until
+    2026-11-26: it holds the desktop app's other publish secrets too),
+    never a repo secret. Infisical's `workit-prod/auto-apply-desktop` sync
+    writes it (`../docs/secrets.md`). The
     environment takes jobs from `main` only, so a workflow pushed to any
     other branch can't read it; a repo secret reaches every branch's
     workflows. A job that names an environment that doesn't exist makes it
@@ -767,15 +770,15 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
      A new key needs a new app: every installed app refuses its builds.
   2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
      bucket, Public off.
-  3. The environment, then its secret:
-     `gh api -X PUT repos/workitjobs/workit/environments/apply-engine -F
+  3. The environment, then its secret (done 2026-11-17 as `apply-engine`,
+     again 2026-11-26 as `auto-apply-desktop`):
+     `gh api -X PUT repos/workitjobs/workit/environments/auto-apply-desktop -F
      'deployment_branch_policy[protected_branches]=false' -F
      'deployment_branch_policy[custom_branch_policies]=true'`, then
      `gh api -X POST
-     repos/workitjobs/workit/environments/apply-engine/deployment-branch-policies
-     -f name=main -f type=branch`, then `gh secret set
-     APPLY_ENGINE_SIGNING_KEY --env apply-engine --repo workitjobs/workit <
-     <file>`.
+     repos/workitjobs/workit/environments/auto-apply-desktop/deployment-branch-policies
+     -f name=main -f type=branch`. The secret comes from the Infisical
+     sync, never `gh secret set`.
   4. `gh workflow run publish-engine.yml --ref main`, then check its log for
      "Published".
 
@@ -813,7 +816,7 @@ installed app reads the feed there, `appcast.xml`, and updates itself
   ID didn't sign. Until step 2 the DMG opens on no other Mac, so the
   website's `DOWNLOAD_URL` stays null.
 - **Secrets:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
-  `R2_ENDPOINT`, secrets of the `apply-engine` environment (`main` only),
+  `R2_ENDPOINT`, secrets of the `auto-apply-desktop` environment (`main` only),
   from Infisical's `workit-prod/auto-apply-desktop` (`../docs/secrets.md`).
   The token writes only this bucket. `contents: write` is there because
   GitHub shows a draft release only to a token that may write.

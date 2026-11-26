@@ -115,7 +115,7 @@ publish only a release that you launched and tested.
 
 **The update key** is in the login Keychain of the Mac that made it
 (2026-11-26); its backup is `SPARKLE_PRIVATE_KEY` in Infisical's
-`workit-prod/auto-apply-mac` (`../../docs/secrets.md`). To publish from
+`workit-prod/auto-apply-desktop-private-keys` (`../../docs/secrets.md`). To publish from
 another Mac, save the backup to a file, run
 `build/sparkle-2.10.1/bin/generate_keys -f <file>`, and delete the file.
 `generate_keys -p` prints the Keychain key's public half, which must be
