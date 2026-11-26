@@ -13,7 +13,7 @@ type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?
 export function TodoCard(props: Props) {
   const { job, at, of, skip } = props;
   return (
-    <div key={job.key} className="rise overflow-hidden rounded-shell border border-border bg-panel shadow-lift">
+    <div key={job.key} className="rise overflow-clip rounded-shell border border-border bg-panel shadow-lift">
       <div className="flex items-center gap-3 px-6 pt-5">
         <Logo company={job.company} src={job.source} />
         <div className="min-w-0">
@@ -365,15 +365,16 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
     setPressed(true);
     bridge.submit(`tile-${job.worker}`).catch((e: Error) => (setPressed(false), fail(e.message)));
   };
+  // The decision stays in sight: it sticks to the window's foot while the answers above it scroll by.
   return (
-    <>
+    <div className="sticky bottom-0 z-[1] -mx-6 mt-1 border-t border-border bg-panel/95 px-6 pb-3 backdrop-blur">
       {s.submit_said && (
         <p role="alert" className="mt-4 flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
           <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
           {said(s.submit_said)}
         </p>
       )}
-      <div className="mt-5 flex flex-wrap gap-2.5">
+      <div className="mt-4 flex flex-wrap gap-2.5">
         <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={submit}>
           {fix ? "Submit as it is" : "Approve and submit"}
         </Button>
@@ -383,7 +384,7 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
         </Button>
       </div>
       <Note>{WE_SUBMIT}</Note>
-    </>
+    </div>
   );
 }
 

@@ -126,8 +126,9 @@ for a student, not from `dashboard_page.py`.
   to-do: a sign-in, a question, an emailed code, a captcha, an answer to
   check, an Essay to approve, a form to finish or to submit. The window
   shows one at a time, most blocking first, with "1 of 4" and Skip for
-  now. Over the card, "Needs you" lists every to-do in one row each, forms
-  ready to submit first, with what it asks and how long it has waited
+  now. The card comes first, right under the headline, so the one thing
+  to do is the first thing seen. Under it, when there is more than one,
+  "Needs you" lists every to-do in one row each, forms ready to submit first, with what it asks and how long it has waited
   ("Ready to submit · 12 min", from the tile's `since` or the item's `at`);
   a row jumps to its card. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. A job WorkIt hasn't counted the
@@ -241,7 +242,7 @@ for a student, not from `dashboard_page.py`.
   finish it yourself" while its page is held, and "Apply on the company's
   site", which calls `Bridge.open_posting` (opens only a posting this run
   lists, in the student's own browser).
-- **Today's usage (KAN-837).** On top of every page, a bar shows the
+- **Today's usage (KAN-837).** At the foot of every page, a bar shows the
   share of today's Usage cap used ("66% used · resets at 7:00 PM"), like
   Claude's usage bar, never a token count, which means nothing to a
   student. The window reads `usage` (`GET /apply-app/usage`) each minute,
@@ -287,7 +288,9 @@ for a student, not from `dashboard_page.py`.
   is a Review card: what was checked, what the Pre-submit review changed,
   the answers worth a look (Essays, work authorization, demographics,
   school, pay, files), and every other answer folded under What we
-  filled. Approve and submit (`POST /submit`) has the run press the held
+  filled. The decision (Approve and submit, Fix in the form) sticks to
+  the window's foot while the answers scroll by, so it never sits below
+  the fold. Approve and submit (`POST /submit`) has the run press the held
   form's own Submit (`apply.send_button`): only the one visible Submit or
   Send button, in the page or a frame, and with none or several it
   presses nothing and the card says why. It refuses while an answer is
