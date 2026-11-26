@@ -1,30 +1,37 @@
-"""Orchestrate one scrape cycle: sync catalog, create tasks, claim, scrape,
-publish to job_postings via import_feed, update per-board source records and
-close jobs gone from all boards.
+"""Orchestrate one scrape cycle: sync catalog, read boards and batch-write
+results, enrich descriptions and close stale jobs.
 
-Each board publishes independently right after it is scraped, so fast boards
-checkpoint without waiting for slow ones and only one board's payload is in
-memory at a time. After every board is done, one final transaction detects
-jobs stale on every board (two-complete-read rule) and closes them.
+Architecture (plan rev 2):
+- 4 async reader tasks pull boards from an asyncio.Queue, read them over the
+  network via to_thread, compare fingerprints in memory and put results on a
+  results queue.  No database access.
+- 1 writer task collects results, batches them (BATCH_BOARDS or BATCH_SECONDS)
+  and writes each batch in one transaction: import_feed for changed boards,
+  update_sources, bulk schedule updates and a task-log INSERT.
+- A cycle lease (D5) prevents two workers from running at the same time.
 """
 
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import datetime
 import logging
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from workit_scraper import providers
 from workit_scraper.board_read import BoardRead, ReadStatus, read_board
 from workit_scraper.polite import Robots
 from workit_scraper.providers import PROVIDERS, Board, Job
+from workit_scraper.scheduling import fingerprint as compute_fingerprint
 from workit_scraper.shortlist import classify
 
+from app.models.job_roles import Job_Role
+from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
 from app.scraper.closures import (
     detect_and_close,
@@ -35,17 +42,15 @@ from app.scraper.schedules import (
     advance_reads,
     record_failure,
     record_missing,
-    select_due,
-    sync_catalog,
+    release_lease,
+    renew_lease,
+    select_due_from_rows,
+    sync_catalog_diff,
+    take_lease,
 )
-from app.scraper.tasks import (
-    claim_task,
-    create_tasks,
-    expire_leases,
-    mark_done,
-    mark_failed,
-    mark_started,
-)
+from app.scraper.tasks import bulk_log_tasks
+from app.services.location_resolver import LocationResolver
+from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,40 @@ DESCRIPTION_BATCH_SIZE = 50
 DESCRIPTION_WORKERS = 8
 BOARD_WORKERS = 4
 MAX_DESCRIPTION_ATTEMPTS = 3
+
+# Batch writer (D7).
+BATCH_BOARDS = 50
+BATCH_SECONDS = 60
+
+# Sentinel value placed on the results queue after all readers finish.
+_SENTINEL = object()
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Read:
+    """One board's read result, produced by a reader and consumed by the writer."""
+
+    schedule: object  # the schedule row from the initial SELECT
+    status: str  # "done", "failed", or "missing"
+    listings: list[JobListing] = field(default_factory=list)
+    all_postings: list[tuple[str, str]] = field(default_factory=list)
+    inline_urls: list[str] = field(default_factory=list)
+    boards_s: float = 0.0
+    fingerprint: str | None = None
+    unchanged: bool = False
+    error: str | None = None
+    started_at: datetime.datetime | None = None
+    finished_at: datetime.datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers (preserved from the old worker)
+# ---------------------------------------------------------------------------
 
 
 def read_board_listing(board: Board, robots: Robots | None = None) -> tuple[BoardRead, list[Job], float]:
@@ -136,18 +175,370 @@ def _work_style(job, facts) -> str | None:
     return None
 
 
-async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool = False, workers: int = BOARD_WORKERS) -> dict:
-    """One full worker cycle. Returns a summary dict."""
+# ---------------------------------------------------------------------------
+# Reader (network only, no database)
+# ---------------------------------------------------------------------------
+
+
+async def _reader(
+    queue: asyncio.Queue,
+    results: asyncio.Queue,
+    robots: Robots,
+) -> None:
+    """Take boards from *queue*, read them over the network, put _Read results
+    on *results*.  Runs until it gets None from the queue (sentinel)."""
+    while True:
+        schedule = await queue.get()
+        if schedule is None:
+            break
+
+        started_at = datetime.datetime.now(tz=datetime.UTC)
+        provider = PROVIDERS.get(schedule.ats)
+        if provider is None:
+            results.put_nowait(_Read(
+                schedule=schedule,
+                status="failed",
+                error=f"unknown provider: {schedule.ats}",
+                started_at=started_at,
+                finished_at=datetime.datetime.now(tz=datetime.UTC),
+            ))
+            continue
+
+        board = Board(schedule.ats, schedule.token, schedule.company)
+        try:
+            result, jobs, boards_s = await asyncio.to_thread(
+                read_board_listing, board, robots
+            )
+        except Exception as exc:
+            results.put_nowait(_Read(
+                schedule=schedule,
+                status="failed",
+                error=str(exc)[:200],
+                boards_s=0.0,
+                started_at=started_at,
+                finished_at=datetime.datetime.now(tz=datetime.UTC),
+            ))
+            continue
+
+        finished_at = datetime.datetime.now(tz=datetime.UTC)
+
+        if result.status is ReadStatus.MISSING:
+            logger.info("Board %s/%s: not found", schedule.ats, schedule.token)
+            results.put_nowait(_Read(
+                schedule=schedule,
+                status="missing",
+                boards_s=boards_s,
+                started_at=started_at,
+                finished_at=finished_at,
+            ))
+            continue
+
+        if result.status is not ReadStatus.OK:
+            error = f"{result.reason}: {result.error}" if result.error else result.reason
+            logger.warning(
+                "Board %s/%s unread: %s", schedule.ats, schedule.token, error
+            )
+            results.put_nowait(_Read(
+                schedule=schedule,
+                status="failed",
+                error=error,
+                boards_s=boards_s,
+                started_at=started_at,
+                finished_at=finished_at,
+            ))
+            continue
+
+        # Oversized board guard.
+        listings = [job_to_listing(job, schedule.company) for job in jobs]
+        if len(listings) > MAX_BOARD_LISTINGS:
+            error = f"oversized: {len(listings)} listings (max {MAX_BOARD_LISTINGS})"
+            logger.warning("Board %s/%s: %s", schedule.ats, schedule.token, error)
+            results.put_nowait(_Read(
+                schedule=schedule,
+                status="failed",
+                error=error,
+                boards_s=boards_s,
+                started_at=started_at,
+                finished_at=finished_at,
+            ))
+            continue
+
+        # Compute fingerprint for hot boards (D1).
+        has_kept = bool(jobs)
+        if has_kept or schedule.has_kept:
+            fp = compute_fingerprint(job.external_id for job in jobs)
+        else:
+            fp = None
+
+        # Compare fingerprint to decide unchanged (D2, D8).
+        unchanged = (
+            fp is not None
+            and schedule.fingerprint is not None
+            and fp == schedule.fingerprint
+        )
+
+        inline_urls = [
+            job.apply_url
+            for job in jobs
+            if job.page and job.page.version == providers.PAGE_VERSION
+        ]
+
+        all_postings = [(job.apply_url, job.external_id) for job in result.jobs]
+
+        logger.info(
+            "Board %s/%s: %d of %d postings kept (%d inline), %.1fs%s",
+            schedule.ats,
+            schedule.token,
+            len(jobs),
+            len(result.jobs),
+            len(inline_urls),
+            boards_s,
+            " [unchanged]" if unchanged else "",
+        )
+
+        results.put_nowait(_Read(
+            schedule=schedule,
+            status="done",
+            listings=[] if unchanged else listings,
+            all_postings=[] if unchanged else all_postings,
+            inline_urls=[] if unchanged else inline_urls,
+            boards_s=boards_s,
+            fingerprint=fp,
+            unchanged=unchanged,
+            started_at=started_at,
+            finished_at=finished_at,
+        ))
+
+
+# ---------------------------------------------------------------------------
+# Writer (single connection, batch transactions)
+# ---------------------------------------------------------------------------
+
+
+async def _write_batch(
+    conn: AsyncConnection,
+    batch: list[_Read],
+    summary: dict,
+    *,
+    resolver: LocationResolver,
+    role_resolver: RoleResolver,
+    lease_id: uuid.UUID,
+    holder: str,
+) -> bool:
+    """Write one batch of board results in a single transaction (D7).
+
+    Returns True on success, False if the lease was lost (H2) or the
+    transaction failed."""
+    try:
+        # 1. import_feed for changed boards only (D2).
+        changed = [r for r in batch if r.status == "done" and not r.unchanged]
+        if changed:
+            all_listings: list[JobListing] = []
+            for r in changed:
+                all_listings.extend(r.listings)
+
+            if all_listings:
+                # Deduplicate by apply_url (H6): keep the listing with more data
+                # (description_version set > unset, i.e. has description).
+                seen: dict[str, JobListing] = {}
+                for listing in all_listings:
+                    existing = seen.get(listing.apply_url)
+                    if existing is None or listing.description and not existing.description:
+                        seen[listing.apply_url] = listing
+                all_listings = list(seen.values())
+
+                from app.scripts.import_jobs import import_feed
+
+                await import_feed(
+                    conn,
+                    all_listings,
+                    close_missing=False,
+                    resolver=resolver,
+                    role_resolver=role_resolver,
+                )
+
+        # 2. update_sources for changed boards only (D2).
+        for r in changed:
+            if r.all_postings:
+                await update_sources(
+                    conn,
+                    r.schedule.id,
+                    r.all_postings,
+                    inline_versions={
+                        url: providers.PAGE_VERSION for url in r.inline_urls
+                    },
+                )
+
+        # 3. Bulk schedule updates.
+        for r in batch:
+            if r.status == "done":
+                # advance_reads for ALL done boards, changed and unchanged (D2).
+                await advance_reads(conn, r.schedule.id)
+                if r.fingerprint is not None:
+                    await advance_fingerprint(
+                        conn, r.schedule.id, new_fingerprint=r.fingerprint
+                    )
+                summary["boards_ok"] += 1
+                summary["jobs_scraped"] += len(r.listings)
+            elif r.status == "missing":
+                await record_missing(conn, r.schedule.id)
+                summary["boards_missing"] += 1
+            elif r.status == "failed":
+                await record_failure(conn, r.schedule.id)
+                summary["boards_failed"] += 1
+
+        # 4. Bulk task log INSERT (D4, H3).
+        task_rows = []
+        for r in batch:
+            task_rows.append({
+                "schedule_id": r.schedule.id,
+                "status": "done" if r.status in ("done", "missing") else "failed",
+                "started_at": r.started_at,
+                "finished_at": r.finished_at,
+                "boards_s": r.boards_s if r.boards_s else None,
+                "error": r.error,
+            })
+        await bulk_log_tasks(conn, task_rows)
+
+        # 5. Renew cycle lease (H2).
+        if not await renew_lease(conn, lease_id, holder):
+            logger.error("Lease lost: another process took it; aborting batch")
+            await conn.rollback()
+            return False
+
+        # 6. Commit.
+        await conn.commit()
+        return True
+
+    except Exception:
+        logger.exception("Batch write failed for %d boards", len(batch))
+        try:
+            await conn.rollback()
+        except Exception:
+            logger.exception("Rollback also failed")
+        # Count the boards as failed in summary.
+        for r in batch:
+            if r.status == "done":
+                summary["boards_failed"] += 1
+                summary["boards_ok"] -= 1  # undo the count from above
+                summary["jobs_scraped"] -= len(r.listings)
+            elif r.status == "missing":
+                summary["boards_failed"] += 1
+                summary["boards_missing"] -= 1
+        return False
+
+
+async def _writer(
+    conn: AsyncConnection,
+    results: asyncio.Queue,
+    summary: dict,
+    *,
+    resolver: LocationResolver,
+    role_resolver: RoleResolver,
+    lease_id: uuid.UUID,
+    holder: str,
+) -> None:
+    """Collect reader results, batch them and write each batch (D7).
+
+    Batches when BATCH_BOARDS results are collected or BATCH_SECONDS have
+    elapsed since the batch started, whichever comes first."""
+    batch: list[_Read] = []
+    batch_start = time.monotonic()
+
+    async def flush() -> bool:
+        nonlocal batch, batch_start
+        if not batch:
+            return True
+        ok = await _write_batch(
+            conn,
+            batch,
+            summary,
+            resolver=resolver,
+            role_resolver=role_resolver,
+            lease_id=lease_id,
+            holder=holder,
+        )
+        batch = []
+        batch_start = time.monotonic()
+        return ok
+
+    while True:
+        # Wait for the next result, with a timeout so we flush partial batches.
+        remaining = max(0.1, BATCH_SECONDS - (time.monotonic() - batch_start))
+        try:
+            item = await asyncio.wait_for(results.get(), timeout=remaining)
+        except TimeoutError:
+            # Timeout: flush the partial batch.
+            if not await flush():
+                # Lease lost: drain and discard remaining results.
+                break
+            continue
+
+        if item is _SENTINEL:
+            break
+
+        batch.append(item)
+
+        if len(batch) >= BATCH_BOARDS and not await flush():
+            break
+
+    # Final flush (the last partial batch).
+    await flush()
+
+
+# ---------------------------------------------------------------------------
+# Resolver construction (D9)
+# ---------------------------------------------------------------------------
+
+
+async def _build_resolvers(
+    conn: AsyncConnection,
+) -> tuple[LocationResolver, RoleResolver]:
+    """Build LocationResolver and RoleResolver once per cycle (D9)."""
+    countries = set((await conn.scalars(select(Country.code))).all())
+    states = {
+        row.code: row.name
+        for row in await conn.execute(select(State.code, State.name))
+    }
+    resolver = await asyncio.to_thread(LocationResolver, countries, states)
+
+    job_roles = {
+        row.slug: row.name
+        for row in await conn.execute(select(Job_Role.slug, Job_Role.name))
+    }
+    role_resolver = RoleResolver(job_roles)
+
+    return resolver, role_resolver
+
+
+# ---------------------------------------------------------------------------
+# Main cycle
+# ---------------------------------------------------------------------------
+
+
+async def run_cycle(
+    engine: AsyncEngine,
+    *,
+    dry_run: bool = False,
+    full: bool = False,
+    workers: int = BOARD_WORKERS,
+) -> dict:
+    """One full worker cycle.  Returns a summary dict.
+
+    Takes an *engine* (not a connection) because readers use no database and
+    the writer opens its own connection."""
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
-    worker_id = f"worker-{uuid.uuid4().hex[:8]}"
-    summary = {
-        "worker": worker_id,
+
+    holder = f"worker-{uuid.uuid4().hex[:8]}"
+    summary: dict = {
+        "worker": holder,
         "synced": 0,
-        "tasks_created": 0,
         "boards_ok": 0,
+        "boards_unchanged": 0,
         "boards_missing": 0,
         "boards_failed": 0,
+        "boards_changed": 0,
         "jobs_scraped": 0,
         "descriptions_fetched": 0,
         "descriptions_failed": 0,
@@ -155,247 +546,133 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool 
         "dry_run": dry_run,
     }
 
-    # 1-3 in one transaction, which a dry run rolls back: it reports what the
-    # cycle would sync and queue, and writes nothing.
-    # 1. Sync boards.csv into scraper_schedules.
-    summary["synced"] = await sync_catalog(conn)
+    async with engine.connect() as conn:
+        # 1. Catalog diff + schedule read + db_now (D6, H4).
+        all_rows, new_count, db_now = await sync_catalog_diff(conn)
+        summary["synced"] = new_count
 
-    # 2. Expire any stale leases from prior crashes.
-    expired = await expire_leases(conn)
-    if expired:
-        logger.info("Expired %d stale task leases", expired)
+        # 2. Take cycle lease (D5).
+        lease_id = await take_lease(conn, holder)
+        if lease_id is None:
+            logger.warning("Another cycle is running; exiting")
+            await conn.rollback()
+            summary["lease_held"] = True
+            return summary
+        await conn.commit()
 
-    # 3. Select due schedules and create tasks.
-    due = await select_due(conn, full=full)
-    schedule_ids = [row.id for row in due]
-    summary["tasks_created"] = await create_tasks(conn, schedule_ids)
+        # 3. Select due schedules (D6).
+        due = select_due_from_rows(all_rows, db_now, full=full)
 
-    if dry_run:
-        await conn.rollback()
-        logger.info("Dry run: would process %d boards; nothing was written", len(due))
-        return summary
-    await conn.commit()
+        if dry_run:
+            await release_lease(conn, lease_id, holder)
+            await conn.commit()
+            logger.info(
+                "Dry run: would process %d boards; nothing was written", len(due)
+            )
+            summary["due_count"] = len(due)
+            return summary
 
-    # 4. Claim, process and checkpoint boards in parallel.
-    engine = conn.engine
+        # 4. Build resolvers once (D9).
+        resolver, role_resolver = await _build_resolvers(conn)
+        await conn.commit()
+
+    # 5. Read boards in parallel (D4, D8), write batches (D7).
+    input_queue: asyncio.Queue = asyncio.Queue()
+    results_queue: asyncio.Queue = asyncio.Queue()
+
+    for schedule in due:
+        input_queue.put_nowait(schedule)
+    # Sentinel per reader so each one stops.
+    for _ in range(workers):
+        input_queue.put_nowait(None)
+
     robots = Robots()
 
-    async def _spawn(i: int) -> None:
-        async with engine.connect() as wconn:
-            await _board_worker(wconn, f"{worker_id}-{i}", summary, robots=robots)
+    reader_tasks = [
+        asyncio.create_task(_reader(input_queue, results_queue, robots))
+        for _ in range(workers)
+    ]
 
-    await asyncio.gather(*(_spawn(i) for i in range(workers)))
+    async with engine.connect() as write_conn:
+        writer_task = asyncio.create_task(
+            _writer(
+                write_conn,
+                results_queue,
+                summary,
+                resolver=resolver,
+                role_resolver=role_resolver,
+                lease_id=lease_id,
+                holder=holder,
+            )
+        )
 
-    # 5. Enrich descriptions for postings that need them.
-    try:
-        await _fetch_descriptions(conn, summary, robots=robots)
-    except Exception:
-        await conn.rollback()
-        logger.exception("Description enrichment failed; continuing to closures")
+        # Wait for all readers to finish.
+        reader_results = await asyncio.gather(
+            *reader_tasks, return_exceptions=True
+        )
 
-    # 6. All boards committed; detect closures globally.
-    summary["jobs_closed"] = await detect_and_close(conn)
-    await conn.commit()
+        # H1: drain the input queue for boards no reader picked up (crash).
+        for exc in reader_results:
+            if isinstance(exc, BaseException):
+                logger.error("Reader crashed: %s", exc)
+
+        drained = 0
+        while not input_queue.empty():
+            item = input_queue.get_nowait()
+            if item is None:
+                continue  # skip sentinels
+            results_queue.put_nowait(_Read(
+                schedule=item,
+                status="failed",
+                error="reader crashed",
+                started_at=datetime.datetime.now(tz=datetime.UTC),
+                finished_at=datetime.datetime.now(tz=datetime.UTC),
+            ))
+            drained += 1
+        if drained:
+            logger.warning("Drained %d unread boards as failed", drained)
+
+        # Signal the writer that all results are in.
+        results_queue.put_nowait(_SENTINEL)
+        await writer_task
+
+        # Count changed vs unchanged from the results the writer processed.
+        summary["boards_changed"] = (
+            summary["boards_ok"] - summary.get("boards_unchanged", 0)
+        )
+
+    # 6. Description enrichment (phase 2).
+    async with engine.connect() as conn:
+        try:
+            await _fetch_descriptions(conn, summary, robots=robots)
+        except Exception:
+            await conn.rollback()
+            logger.exception(
+                "Description enrichment failed; continuing to closures"
+            )
+
+        # 7. Closure detection (D10: skip when no boards changed).
+        if summary["boards_changed"] > 0:
+            summary["jobs_closed"] = await detect_and_close(conn)
+            await conn.commit()
+        else:
+            logger.info(
+                "All %d boards unchanged; skipping closure detection (D10)",
+                summary["boards_ok"],
+            )
+
+        # 8. Release cycle lease.
+        try:
+            await release_lease(conn, lease_id, holder)
+            await conn.commit()
+        except Exception:
+            logger.exception("Failed to release lease; it will expire")
 
     return summary
 
 
-@dataclass(frozen=True)
-class _Read:
-    """A board read whole, waiting for its jobs to publish before its task is
-    marked done and its schedule advanced."""
-
-    task_id: object
-    schedule_id: object
-    listings: list[JobListing]
-    all_postings: list[tuple[str, str]]  # (apply_url, external_id)
-    inline_urls: list[str]  # postings with inline descriptions (Lever, Ashby…)
-    boards_s: float
-    fingerprint: str | None  # None = skip advance_fingerprint (quiet board)
-
-
-async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -> None:
-    """Publish one board's listings and advance its schedule, in one commit.
-    On failure, roll back this board alone and mark it failed."""
-    try:
-        if done.listings:
-            from app.scripts.import_jobs import import_feed
-
-            await import_feed(conn, done.listings, close_missing=False)
-            logger.info(
-                "Published %d listings for schedule %s",
-                len(done.listings),
-                done.schedule_id,
-            )
-        await update_sources(
-            conn,
-            done.schedule_id,
-            done.all_postings,
-            inline_versions={url: providers.PAGE_VERSION for url in done.inline_urls},
-        )
-        await advance_reads(conn, done.schedule_id)
-        if done.fingerprint is not None:
-            await advance_fingerprint(
-                conn, done.schedule_id, new_fingerprint=done.fingerprint
-            )
-        await mark_done(conn, done.task_id, boards_s=done.boards_s)
-        await conn.commit()
-        summary["jobs_scraped"] += len(done.listings)
-    except Exception as exc:
-        try:
-            await conn.rollback()
-            await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
-            await conn.commit()
-        except Exception:
-            # Connection itself is broken; the task's lease will expire and
-            # another worker or the next cycle will retry it.
-            logger.exception(
-                "Board %s recovery failed (connection lost?); "
-                "original error: %s; task %s will expire and be retried",
-                done.schedule_id,
-                exc,  # noqa: TRY401 — outer exc, not the one logger.exception includes
-                done.task_id,
-            )
-        else:
-            logger.exception(
-                "Board %s checkpoint failed; continuing", done.schedule_id
-            )
-        summary["boards_failed"] += 1
-
-
-async def _process_task(conn: AsyncConnection, task, summary: dict, *, robots: Robots | None = None) -> _Read | None:
-    """Scrape one board. A board read whole comes back as a `_Read` for
-    `run_cycle` to publish and checkpoint; any other outcome is recorded here
-    and comes back as None."""
-    schedule = (
-        await conn.execute(
-            text("SELECT * FROM scraper_schedules WHERE id = :sid"),
-            {"sid": task.schedule_id},
-        )
-    ).first()
-
-    if schedule is None:
-        await mark_failed(conn, task.id, error="schedule not found")
-        await conn.commit()
-        return None
-
-    provider = PROVIDERS.get(schedule.ats)
-    if provider is None:
-        await mark_failed(conn, task.id, error=f"unknown provider: {schedule.ats}")
-        await record_failure(conn, task.schedule_id)
-        await conn.commit()
-        summary["boards_failed"] += 1
-        return None
-
-    await mark_started(conn, task.id)
-    await conn.commit()
-
-    board = Board(schedule.ats, schedule.token, schedule.company)
-    result, jobs, boards_s = await asyncio.to_thread(read_board_listing, board, robots)
-    if result.status is ReadStatus.MISSING:
-        logger.info("Board %s/%s: not found", schedule.ats, schedule.token)
-        await record_missing(conn, task.schedule_id)
-        await mark_done(conn, task.id, boards_s=boards_s)
-        await conn.commit()
-        summary["boards_missing"] += 1
-        return None
-    if result.status is not ReadStatus.OK:
-        # FAILED, or SKIPPED (robots.txt, too large): no complete read, which
-        # is evidence of nothing, and the board rests after enough of them.
-        error = f"{result.reason}: {result.error}" if result.error else result.reason
-        logger.warning("Board %s/%s unread: %s", schedule.ats, schedule.token, error)
-        await record_failure(conn, task.schedule_id)
-        await mark_failed(conn, task.id, error=error)
-        await conn.commit()
-        summary["boards_failed"] += 1
-        return None
-
-    # Convert provider Jobs to JobListing objects.
-    listings = [job_to_listing(job, schedule.company) for job in jobs]
-
-    if len(listings) > MAX_BOARD_LISTINGS:
-        error = f"oversized: {len(listings)} listings (max {MAX_BOARD_LISTINGS})"
-        logger.warning("Board %s/%s: %s", schedule.ats, schedule.token, error)
-        await record_failure(conn, task.schedule_id)
-        await mark_failed(conn, task.id, error=error)
-        await conn.commit()
-        summary["boards_failed"] += 1
-        return None
-
-    summary["boards_ok"] += 1
-
-    # Postings with inline descriptions (Lever, Ashby, Recruitee) already
-    # have a current Page; phase 2 will skip them.
-    inline_urls = [
-        job.apply_url
-        for job in jobs
-        if job.page and job.page.version == providers.PAGE_VERSION
-    ]
-
-    logger.info(
-        "Board %s/%s: %d of %d postings kept (%d inline), %.1fs",
-        schedule.ats,
-        schedule.token,
-        len(jobs),
-        len(result.jobs),
-        len(inline_urls),
-        boards_s,
-    )
-
-    all_postings = [(job.apply_url, job.external_id) for job in result.jobs]
-
-    # Compute fingerprint only for hot boards (this read has kept OR board
-    # was already hot). Quiet boards skip the extra DB call.
-    has_kept = bool(jobs)
-    if has_kept or schedule.has_kept:
-        from workit_scraper.scheduling import fingerprint as compute_fingerprint
-
-        fp = compute_fingerprint(job.external_id for job in jobs)
-    else:
-        fp = None
-
-    return _Read(
-        task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s, fp
-    )
-
-
-async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict, *, robots: Robots | None = None) -> None:
-    """One worker: claim and process boards until none remain.
-
-    Never raises: a broken connection logs and exits the loop so that
-    ``asyncio.gather`` in ``run_cycle`` completes cleanly and phases 5–6
-    (descriptions, closures) still run."""
-    while True:
-        try:
-            task = await claim_task(conn, worker_id)
-            await conn.commit()
-        except Exception:
-            logger.exception(
-                "Worker %s: claim failed (connection lost?); stopping",
-                worker_id,
-            )
-            break
-        if task is None:
-            break
-        try:
-            done = await _process_task(conn, task, summary, robots=robots)
-            if done is not None:
-                await _checkpoint_board(conn, done, summary)
-        except Exception:
-            # _checkpoint_board's own handler already tried recovery; if we
-            # land here, the connection is unusable.  The task's lease will
-            # expire and another worker or the next cycle will retry it.
-            logger.exception(
-                "Worker %s: task %s failed unexpectedly; stopping",
-                worker_id,
-                task.id,
-            )
-            summary["boards_failed"] += 1
-            break
-
-
 # ---------------------------------------------------------------------------
-# Phase 2: description enrichment
+# Phase 2: description enrichment (unchanged from the old worker)
 # ---------------------------------------------------------------------------
 
 _STALE_QUERY = text("""\

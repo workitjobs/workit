@@ -26,8 +26,7 @@ logging.basicConfig(
 
 async def main(*, dry_run: bool = False, full: bool = False, workers: int = BOARD_WORKERS) -> None:
     engine = get_engine()
-    async with engine.connect() as conn:
-        summary = await run_cycle(conn, dry_run=dry_run, full=full, workers=workers)
+    summary = await run_cycle(engine, dry_run=dry_run, full=full, workers=workers)
     await engine.dispose()
     print(json.dumps(summary, indent=2))
     if summary.get("boards_failed"):
