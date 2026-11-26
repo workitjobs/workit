@@ -577,3 +577,13 @@ test("a form being worked on says how long, and the step only when Apply's line 
   assert.equal(other.step, undefined);
   assert.equal(view({ tiles: [job({ doing: "Handoff to Browser 2" })], items: [] }).working[0].step, undefined);
 });
+
+test("the window says jobs wait because the open-form cap is full, and only then", () => {
+  const held = (url: string) => job({ tone: "ready", again: true, posting_url: url });
+  const full = view({ tiles: [held("https://a"), held("https://b")], items: [], run: { mode: "rehearsal", queued: 3, open_forms: 2 } });
+  assert.equal(full.full, 2);
+  const filling = view({ tiles: [held("https://a"), job({ tone: "filling", posting_url: "https://b" })], items: [], run: { mode: "rehearsal", queued: 3, open_forms: 2 } });
+  assert.equal(filling.full, undefined); // a job still fills: nothing waits on the cap yet
+  const none = view({ tiles: [held("https://a"), held("https://b")], items: [], run: { mode: "rehearsal", queued: 0, open_forms: 2 } });
+  assert.equal(none.full, undefined);
+});

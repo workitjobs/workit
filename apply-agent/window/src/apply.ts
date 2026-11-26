@@ -86,4 +86,5 @@ export type Run = {
   start?: string;
   capped?: boolean;
   tomorrow?: number;
+  open_forms?: number; // at most this many forms open at once: the next job waits for one to close
 };

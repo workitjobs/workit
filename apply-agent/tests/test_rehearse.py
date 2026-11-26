@@ -2029,6 +2029,43 @@ def test_stop_new_ones_only_keeps_the_filled_form_held_and_starts_no_waiting_job
     assert rehearsal.STOPPED_NEW in lines and lines[-1] == rehearsal.STOPPED_APPLYING
 
 
+def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypatch, tmp_path):
+    """Fault: every job opens its own window while forms wait on the student, and a long run slows the computer to
+    a halt (live, 2026-11-26)."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    servers, held_at, opened_while_held = [], {}, []
+
+    class Board(RecordingBoard):
+        def let_go_asked(self, worker: int) -> bool:  # each held form, let go a second after it is held
+            if not self.captions.get(worker, {}).get("again"):
+                return False
+            since = held_at.setdefault(worker, time.monotonic())
+            if time.monotonic() - since < 1.0:
+                return False
+            if len(held_at) == 1:
+                opened_while_held.append(len(servers[0].workers))
+            return True
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            servers.append(fake)
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               2, keep_open=True, out=lambda line: None)
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert opened_while_held == [1]  # a second after the first was held, the second job still hadn't opened
+    assert opened == 2 and len(held_at) == 2  # once it was let go, the second opened and was held in turn
+    assert submissions == []
+    assert {"open_forms": 1} in board.runs
+
+
 def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_ends(monkeypatch, tmp_path):
     """Fault: Not applying to this one leaves the page held (the run never ends), or submits it."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))

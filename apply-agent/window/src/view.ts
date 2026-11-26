@@ -33,6 +33,7 @@ export type View = {
   applied: Job[];
   stopped: Job[]; // failed or skipped: "Didn't go through"
   queued: number; // waiting to start
+  full?: number; // the open-form cap, when every slot holds a form waiting on the student and jobs wait for one
   waiting: Waits[]; // those of them Apply names: Remove takes one out
   running: boolean; // a run's board, which Stop applying ends; not the idle board
   held: number; // forms open and waiting for the student, which a full Stop closes
@@ -177,6 +178,7 @@ export function view(state: ApplyState): View {
     waiting: (state.run?.waiting ?? []).map((w) => ({ link: w.link, company: w.company || site(w.link), role: w.title || "", source: w })),
     running: !!state.run?.mode,
     held: jobs.filter((j) => j.held).length,
+    full: fullAt(state, jobs),
   };
 }
 
@@ -297,6 +299,13 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 // Stop applying's question, and its buttons. With jobs still waiting to start, Stop new ones only comes first: it
 // keeps every filled form open. A full Stop names the filled forms it closes, so none is lost unawares.
+// The open-form cap reached (rehearsal.OPEN_FORMS): nothing fills, jobs wait, and the to-dos fill every slot.
+function fullAt(state: ApplyState, jobs: Job[]): number | undefined {
+  const cap = state.run?.open_forms;
+  const working = jobs.some((j) => j.status === "filling" || j.status === "checking");
+  return cap && (state.run?.queued ?? 0) > 0 && !working && jobs.filter((j) => j.ask).length >= cap ? cap : undefined;
+}
+
 export function stopWords(v: Pick<View, "held" | "queued">): { ask: string; newOnly?: string; all: string } {
   const forms = plural(v.held, "filled form");
   if (v.queued > 0)

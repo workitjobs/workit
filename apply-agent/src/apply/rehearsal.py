@@ -183,6 +183,9 @@ STOPPED_APPLYING = "Stopped applying: nothing was submitted, and each filled for
 STOP_WAIT = 10.0
 # Stop new ones only (KAN-874): no job waiting starts, and each form already filled stays held for the student.
 STOPPED_NEW = "Stopped starting new jobs: each filled form stays open for you."
+# At most this many forms open at once: each is a browser window, and a long run's held forms slowed the student's
+# computer to a halt (live, 2026-11-26). The next job opens once the student sends, lets go of, or closes one.
+OPEN_FORMS = 5
 # The history line of a reopened form, first on its tile.
 REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
 
@@ -290,6 +293,11 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
+    # Forms open at once (OPEN_FORMS): taken before a form opens, given back when its page closes. Start together
+    # opens every form before any fills, so it isn't capped.
+    room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
+    if not together:
+        adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
     start = _Together(len(urls) if together else 0, adapters.board.wait_for_start)
     if together:
         adapters.board.run(start="waiting")
@@ -548,10 +556,19 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
+        roomy = [False]
+        while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
+            roomy[0] = room.acquire(timeout=0.5)
+
+        def leave_room() -> None:  # its page closed, or it never opened: the next job may open its form
+            if roomy[0]:
+                roomy[0] = False
+                room.release()
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
-        if not started(n):  # removed while it waited for its turn
+        if not roomy[0] or not started(n):  # removed while it waited for its turn, or the run ended
             gate.release()
+            leave_room()
             start.leave(n)
             settles(n).set()
             return
@@ -597,6 +614,8 @@ def rehearse(
                     return how
 
                 # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends.
+                if done.outcome == ALREADY:
+                    leave_room()
                 how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
                 while True:
                     if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
@@ -614,6 +633,7 @@ def rehearse(
                     how = after.pop() if after else hold()
             finally:
                 site.close()
+                leave_room()
 
     on = reopening.workers if reopening else [None] * len(urls)  # each link's Worker: its own, unless reopened
     threads = [threading.Thread(target=one, args=(n, url, on[n]), daemon=True) for n, url in enumerate(urls)]

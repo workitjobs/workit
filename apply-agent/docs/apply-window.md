@@ -275,6 +275,14 @@ for a student, not from `dashboard_page.py`.
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
+- **At most five forms open.** Each open form is a browser window, so a
+  rehearsal opens at most `rehearsal.OPEN_FORMS` (5) at once: a job takes
+  a slot before its form opens and gives it back when its page closes
+  (sent, let go, or its window closed). The run says the cap
+  (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
+  every slot, "Still working on" says the next starts when the student
+  submits, lets go of, or closes one (`view`'s `full`). Start together is
+  not capped.
 - **Not applying to this one.** A to-do card whose form is held (its
   tile's `again`) has Not applying to this one, asked once more before it
   posts `/let-go` with the tile (`Dashboard.let_go`). The tile gets

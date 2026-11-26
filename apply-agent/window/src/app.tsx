@@ -289,6 +289,12 @@ function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge;
             <Row key={job.key} job={job} watch={app.frames} now={now} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
+          {v.full && (
+            <p className="px-0.5 pt-1 text-note text-ink-meta">
+              Up to {v.full} filled forms stay open at once, so your computer stays fast. The next job starts when you
+              submit, let go of, or close one.
+            </p>
+          )}
           {v.waiting.map((w) => (
             <Waiting key={w.link} job={w} bridge={bridge} fail={fail} />
           ))}
