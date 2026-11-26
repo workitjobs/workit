@@ -262,6 +262,15 @@ export function mock(
       const held = id.startsWith("tile-") ? state.tiles[Number(id.slice(5))] : find(id);
       if (held) later(() => Object.assign(held, { tone: "filling", kind: undefined, status: "filling", label: undefined, again: false, filled: 2, asked: 22 }), 800);
     },
+    async submit(id) {
+      // Apply presses Submit; the job site confirms a moment later.
+      const held = state.tiles[Number(id.slice(5))];
+      if (held) {
+        Object.assign(held, { submitting: true, submit_said: "" });
+        later(() => Object.assign(held, { tone: "submitted", submitting: false, again: false }), 1800);
+      }
+      push();
+    },
     async letGo(id) {
       const held = state.tiles[Number(id.slice(5))];
       if (held) Object.assign(held, { let_go: true, again: false });

@@ -35,7 +35,8 @@ another form reviewed since is never the one that goes.
 Links sent in (`uv run apply app <link>...`): an agent or a script hands the running window links with no
 port and no clicks. `send_links` writes them as one file in INBOX; the window takes them each INBOX_EVERY
 (Bridge._take_inbox) once it is signed in and set up. With no run going they start one, as Start does; while one
-goes, each is filled beside its forms (Dashboard.into), else it waits for the next run. Apply never submits either way.
+goes, each is filled beside its forms (Dashboard.into), else it waits for the next run. Either way, Apply submits a
+form only once the student approves it (ADR 0006).
 
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """

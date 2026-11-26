@@ -11,7 +11,8 @@ submission and each job system's final application request in the page.
 Claude fill hears what it blocked while Claude drove, so a Submit click of
 Claude's ends the rehearsal in the Handoff a run would make, unsent.
 Once a link has ended, Apply no longer drives its page, so the guard comes
-off the page held open for Lisul: he checks it and may press Submit himself.
+off the page held open for Lisul: he checks it and may press Submit himself,
+or approve it in the window, and Apply presses that Submit for him (ADR 0006).
 If the job system then asks for a code it emails, Apply types it in from
 Gmail (email_code.py) and presses nothing: the Submit after it is his too.
 
