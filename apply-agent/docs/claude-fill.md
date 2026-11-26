@@ -216,7 +216,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
   page script's own list: the two counted visibility apart on Microsoft's
-  profile step, and each question opened its neighbour (KAN-646).
+  profile step, and each question opened its neighbour (KAN-646). The name is
+  the element's ARIA name, else its `<label>`: Oracle's cx-select names its box
+  only by `<label for>`, so plain code found no Oracle dropdown and Claude clicked
+  each one, leaving Honeywell's required Country empty (2026-11-25). A label read
+  under its section's heading ("Address: Country") also fits the dropdown named
+  by the part after it, and a box that shows its choice only as its value
+  (Oracle's) reads back as picked.
 - A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
   "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
   says its format only there, and refused "May 2028". (amazon.jobs has its own Filler since KAN-765:

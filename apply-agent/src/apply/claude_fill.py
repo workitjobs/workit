@@ -1148,18 +1148,24 @@ def _with_formats(page: Page, questions: QuestionSet) -> QuestionSet:
 
 
 def _comboboxes(page: Page) -> list[tuple[Locator, str]]:
-    """Every visible dropdown on the page, each with its name, read off that same element."""
-    return [(box, box.evaluate(COMBOBOX_NAME)) for box in page.locator("[role=combobox]:visible").all()]
+    """Every visible dropdown on the page, each with its name, read off that same element: its ARIA name, else the
+    <label> it has (Oracle's cx-select names its box only by `<label for>`, so no Oracle dropdown was found, and Claude
+    clicked through each one, live on Honeywell's form, 2026-11-25)."""
+    return [(box, box.evaluate(BOX_NAME)) for box in page.locator("[role=combobox]:visible").all()]
 
 
 def _combobox_for(label: str, names: list[str]) -> int:
     """The index of the dropdown named as the question is: exactly, else by a
     name its label adds help text after, else by one that adds the choice it
-    shows (Airtable's "Which role are you applying to? Software Engineering");
-    -1 if none or two are."""
+    shows (Airtable's "Which role are you applying to? Software Engineering"),
+    else by the part of a label after its section's heading (Oracle's Address
+    block's "Country", read as "Address: Country"); -1 if none or two are."""
     key = _key(label)
+    bare = label.strip().rstrip(":")
+    part = _key(bare.rsplit(":", 1)[1]) if ":" in bare else ""
     keys = [_key(name) for name in names]
-    for fits in (lambda k: key == k, lambda k: key.startswith(k + " "), lambda k: k.startswith(key + " ")):
+    for fits in (lambda k: key == k, lambda k: key.startswith(k + " "), lambda k: k.startswith(key + " "),
+                 lambda k: k == part):
         found = [i for i, k in enumerate(keys) if k and fits(k)]
         if found:
             return found[0] if len(found) == 1 else -1
@@ -1207,9 +1213,10 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
 
 
 def _shows_choice(combobox, choice: str) -> bool:
-    """Whether the dropdown, or the field it sits in, shows the choice."""
+    """Whether the dropdown, or the field it sits in, shows the choice: a box's own value too (Oracle's cx-select
+    shows the choice in its input, which no innerText holds)."""
     try:
-        shown = combobox.evaluate(FIELD_TEXT)
+        shown = combobox.evaluate(FIELD_TEXT) + "\n" + (combobox.evaluate("el => el.value || ''") or "")
     except Exception:
         return False
     return any(line.strip() == choice for line in shown.splitlines())
