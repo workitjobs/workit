@@ -38,7 +38,7 @@ import re
 import subprocess
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -374,8 +374,9 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
                for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
-    result = call_without_page("plan", list(questions), _facts(profile, posting), profile.policies(), entries, context,
-                               questions=questions)
+    asked = [_as_home_address(q) for q in questions]
+    result = call_without_page("plan", asked, _facts(profile, posting), profile.policies(), entries, context,
+                               questions=asked)
     answers = {name: _answer(value) for name, value in result["answers"].items()}
     accepted = {name: tuple(wordings) for name, wordings in result["accepted"].items()}
     if posting.job_system == "workday":
@@ -407,6 +408,20 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         attested=dict(result.get("attested") or {}),
         optional=list(result.get("optional") or []),
     )
+
+
+# A part of an address under a bare "Address" heading (Oracle's Address block, read as "Address: Country"): the
+# engine read the heading alone, and planned the street for each part (Honeywell's Country got "204 ...", 2026-11-25).
+ADDRESS_HEADED = re.compile(r"^\s*address\s*:\s*((street )?address( line)? ?\d?|city( ?/ ?town)?|town|(county ?/ ?)?state"
+                            r"( ?/ ?province)?|county|province|(zip|postal|postcode)\S*( ?/ ?\S+)?( code)?|country( ?/ ?\w+)?)"
+                            r"\s*\*?\s*$", re.IGNORECASE)
+
+
+def _as_home_address(question: Question) -> Question:
+    """`question`, a part of the address under a bare "Address" heading asked as the home address's part, which the
+    engine plans from that part's fact: "Home address: Country". Its name, and so its answer, stay its own."""
+    found = ADDRESS_HEADED.match(question.label)
+    return replace(question, label=f"Home address: {found[1]}") if found else question
 
 
 # Why a field was left blank rather than given a file's path (KAN-785).

@@ -2,14 +2,20 @@
 Filler): its dropdowns picked before Claude drives, on one step of Honeywell Aerospace's form as it showed live
 (tests/fixtures/oracle/honeywell-step.html)."""
 
+from datetime import date
+
 import pytest
-from conftest import FIXTURES
+from conftest import APPLY, FIXTURES
 from playwright.sync_api import sync_playwright
 
-from apply import claude_fill
-from apply.model import Question
+from apply import claude_fill, fill_engine
+from apply.model import Posting, Question
+from apply.profile import ApplicantProfile
 
 STEP = FIXTURES / "oracle" / "honeywell-step.html"
+PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+POSTING = Posting("p", "Honeywell Aerospace", "Embedded Engineering Intern",
+                  "https://icfcjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Aerospace/job/120770")
 
 
 @pytest.fixture
@@ -49,3 +55,15 @@ def test_a_choice_under_the_error_paragraph_that_covers_the_open_list_is_still_p
     assert found.options[0] == "January" and found.options[-1] == "December"
     assert picked == {"q32": "December"}
     assert page.input_value("[id=\"300000007362128-25\"]") == "December"
+
+
+def test_each_part_of_the_address_block_is_planned_from_its_own_fact_not_the_street():
+    # Live: the read named the block's fields under its heading, and the plan put the street in "Address: Country".
+    questions = [Question("q8", "Address: Country", "select", True, ("Canada", "United States")),
+                 Question("q9", "Address: Address Line 1", "text", True),
+                 Question("q10", "Address: City", "text", True)]
+
+    plan = fill_engine.plan(questions, POSTING, PROFILE, today=date(2026, 11, 25))
+
+    assert {name: plan.answers.get(name) for name in ("q8", "q9", "q10")} == \
+        {"q8": "United States", "q9": "1 Main St", "q10": "Springfield"}
