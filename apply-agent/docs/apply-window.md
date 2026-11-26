@@ -34,7 +34,11 @@ docstring first.
   one file in `APPLY_HOME/app-inbox/`; the window takes them every 2 s
   (`Bridge._take_inbox`) once signed in and set up. With no run going they
   start one, as Start does; during a run each joins it (`Dashboard.into`),
-  else it waits for the next run. With no window open, the command opens
+  else it waits for the next run. Each posting is taken once
+  (`workit.job_key`): a Greenhouse board's link and its embed's link with
+  the same token are one job, both in one take and against the links
+  already waiting or in the run (`rehearse`'s `into` answers with the
+  tile that has it). With no window open, the command opens
   one, which starts them. `APPLY_HOME/app.pid` names the running window.
   Its stdout and stderr are line-buffered (`line_by_line`), so a log
   written under nohup can be followed live.

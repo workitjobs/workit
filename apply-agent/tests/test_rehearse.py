@@ -2130,6 +2130,37 @@ def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_en
     assert submissions == [] and rehearsal.STOPPED_APPLYING not in lines
 
 
+def test_a_posting_sent_in_again_by_another_link_joins_the_run_no_more(monkeypatch, tmp_path):
+    """Fault: a Greenhouse job sent in by its board link, then by its embed link (one token), was queued twice."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    took = []
+
+    class Board(RecordingBoard):
+        def taking(self, into):
+            self.into = into
+
+        def let_go_asked(self, worker: int) -> bool:  # held: the same job comes in again, then it is let go
+            if not self.captions.get(worker, {}).get("again"):
+                return False
+            if not took:
+                took.append(self.into(ARC_URL.replace("arcboatcompany/jobs/", "embed/job_app?for=arcboatcompany&token="),
+                                      0, running=False))
+            return True
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert took == [{"tile": 0, "worker": 0, "already": True}]
+    assert list(board.captions) == [0]  # no second tile
+
+
 def test_approve_and_submit_presses_the_held_forms_submit_once_and_waits_for_the_confirmation(monkeypatch, tmp_path):
     """ADR 0006. Fault: Approve and submit leaves the form unsent, presses Submit twice, or calls it submitted before
     the job system confirms it."""

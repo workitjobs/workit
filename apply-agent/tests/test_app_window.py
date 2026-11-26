@@ -785,3 +785,13 @@ def test_the_apps_output_goes_out_a_line_at_a_time_even_to_a_file(tmp_path):
         log.write("Took a link\n")
         assert (tmp_path / "app.log").read_text() == "Took a link\n"
     app_window.line_by_line(io.StringIO())  # a stream that can't change stays as it is
+
+
+def test_links_sent_in_are_taken_once_per_posting(tmp_path):
+    """Fault: a Greenhouse job sent in by its board link, then by its embed link (one token), was queued twice."""
+    inbox = tmp_path / "inbox"
+    app_window.send_links(["https://job-boards.greenhouse.io/acme/jobs/6270727004"], inbox)
+    app_window.send_links(["https://job-boards.greenhouse.io/embed/job_app?for=acme&token=6270727004",
+                           "https://jobs.lever.co/acme/2"], inbox)
+    assert app_window.take_links(inbox) == ["https://job-boards.greenhouse.io/acme/jobs/6270727004",
+                                            "https://jobs.lever.co/acme/2"]

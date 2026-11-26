@@ -590,7 +590,8 @@ class Bridge:
             return
         if not self.signed_in() or self._first.step() != READY:
             return  # they stay in the inbox till the student is signed in and set up
-        links = [link for link in take_links(inbox) if link not in self._waiting]
+        waiting = {workit.job_key(link) for link in self._waiting}
+        links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
         if self._running.is_set():
             for link in links:
                 try:
@@ -832,8 +833,8 @@ def send_links(links: list[str], inbox: Path = INBOX) -> Path:
 
 
 def take_links(inbox: Path = INBOX) -> list[str]:
-    """The links sent in since the last take, oldest first, each once; every file read is removed. A file that isn't
-    a list of links is dropped."""
+    """The links sent in since the last take, oldest first, one per posting (workit.job_key: a Greenhouse board's
+    link and its embed's are one job); every file read is removed. A file that isn't a list of links is dropped."""
     links: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
@@ -841,7 +842,11 @@ def take_links(inbox: Path = INBOX) -> list[str]:
         except (OSError, ValueError, KeyError, TypeError):
             pass
         path.unlink(missing_ok=True)
-    return list(dict.fromkeys(link for link in links if LINK.match(link)))
+    kept: dict[str, str] = {}
+    for link in links:
+        if LINK.match(link):
+            kept.setdefault(workit.job_key(link), link)
+    return list(kept.values())
 
 
 def running(note: Path = PID_NOTE) -> int | None:

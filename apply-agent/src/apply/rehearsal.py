@@ -70,6 +70,7 @@ from apply import (
     upload_origin,
     verify,
     workday,
+    workit,
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
 from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
@@ -329,6 +330,9 @@ def rehearse(
     writing = threading.Lock()
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
+    # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
+    # to that posting (a Greenhouse board's link, then its embed's), joins it no more (KAN-839).
+    posted = {workit.job_key(url): n for n, url in reversed(list(enumerate(urls)))}
 
     def told() -> None:  # under `writing`
         adapters.board.run(queued=len(waiting), waiting=list(waiting.values()))
@@ -671,7 +675,11 @@ def rehearse(
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
+            if (same := posted.get(workit.job_key(url))) is not None and same not in dropped:
+                out(f"{url} | already in this run: it is the same posting, so it isn't taken twice")
+                return {"tile": same, "worker": worker, "already": True}
             n = adapters.board.add_tile(worker)
+            posted[workit.job_key(url)] = n
             waiting[n] = url
             told()
             thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
