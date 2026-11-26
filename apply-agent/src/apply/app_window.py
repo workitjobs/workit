@@ -70,6 +70,23 @@ FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
 READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
                                    : addEventListener('pywebviewready', () => done(), {once: true}));"""
 
+
+def _light(style: str) -> str:
+    """The Apply window's style without its dark scheme: the student page is light only, so the app's own pages
+    (sign-in, first run, Settings) stay light too, and the window never turns dark between them."""
+    start = style.find("@media (prefers-color-scheme: dark)")
+    if start < 0:
+        return style
+    depth = 0
+    for at in range(style.index("{", start), len(style)):
+        depth += {"{": 1, "}": -1}.get(style[at], 0)
+        if not depth:
+            return style[:start] + _light(style[at + 1:])
+    return style
+
+
+APP_STYLE = _light(STYLE)
+
 # The page's requests through the bridge (D11): fetch of a path, the /frames stream, the close beacon, a file link.
 SHIM = r"""<script>
 (() => {
@@ -113,7 +130,7 @@ SHIM = r"""<script>
 </script>"""
 
 SIGN_IN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
-<meta name="color-scheme" content="light dark"><style>{style}
+<meta name="color-scheme" content="light"><style>{style}
   main.signin { max-width: 26rem; margin: 18vh auto; display: flex; flex-direction: column; gap: 0.9rem; }
   main.signin input { width: 100%; box-sizing: border-box; }
 </style>
@@ -147,7 +164,7 @@ form.addEventListener('submit', async event => {
   const got = await window.pywebview.api.trade(document.getElementById('pasted').value);
   if (got.error) said.textContent = got.error;
 });
-</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
+</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS)
 
 # What leaves the computer (section 3.4, /privacy): first run and Settings show it.
 DISCLOSURE = """<ul>
@@ -164,7 +181,7 @@ Without one there, the logo comes from the company's job board or Google's websi
 Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>"""
 
 FIRST_RUN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
-<meta name="color-scheme" content="light dark"><style>{style}
+<meta name="color-scheme" content="light"><style>{style}
   main.first { max-width: 34rem; margin: 12vh auto; display: flex; flex-direction: column; gap: 0.9rem; }
   main.first section { display: flex; flex-direction: column; gap: 0.8rem; }
   main.first .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
@@ -223,15 +240,16 @@ ready.then(async () => {
   show(await window.pywebview.api.first_run());
   setInterval(async () => show(await window.pywebview.api.first_run()), 1500);  // Chrome installed, the seed's steps
 });
-</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
+</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
 
 SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
-<meta name="color-scheme" content="light dark"><style>{style}
+<meta name="color-scheme" content="light"><style>{style}
   main.settings { max-width: 34rem; margin: 8vh auto; display: flex; flex-direction: column; gap: 0.8rem; }
   main.settings .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  main.settings .top { justify-content: space-between; align-items: center; }
 </style>
 <main class="settings">
-<h1>Settings</h1>
+<div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
 <label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
 <p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
@@ -294,7 +312,7 @@ ready.then(async () => {
   count.value = String(state.workers);
   document.getElementById('notices').hidden = !state.notices;
 });
-</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
+</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
     "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
 
 
@@ -718,6 +736,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
                                    min_size=(900, 600))
     bridge._window = window
     closing(window)
+    sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     webview.start()  # no http_server: the page is a string, so pywebview opens no port either
 
 

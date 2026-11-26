@@ -69,6 +69,14 @@ The Vercel project (Root Directory `frontend`) is retired: it still builds each
 PR until KAN-296 deletes it, and nothing is set or checked there (root
 `CLAUDE.md`).
 
+- **A branch can be shown at https://preview.workitjobs.ai** before it
+  merges (`../.github/workflows/deploy-preview.yml`; how to run it is in
+  `../.github/CLAUDE.md`, "Deploy preview"). It is a second Worker,
+  `workit-web-preview`, configured in `wrangler.preview.jsonc`: keep that
+  file in step with `wrangler.jsonc` (the same settings but the name, the
+  self-reference and the address). It reads the production API, so it is
+  for the marketing pages; to sign in there, its `/auth/callback` and
+  `/auth/google/callback` must first be allow-listed (below).
 - **Scripts**: `cf:build` runs `next build` and turns `.next/` into
   `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
@@ -261,6 +269,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a tab shows about 30 characters); its preview carries the whole tagline.
   After a deploy, check a link in a preview debugger: a platform caches the
   old card for days.
+- **The home page redesign is off `main`, kept on its branch** (2026-11-23,
+  the team's call). PR #660 (KAN-923, KAN-933: the pipeline hero, the
+  drafting grid, the problems hub, the new product sections and the Mac
+  app's offers) was reverted whole, so the site is the page below again.
+  Its work is on `KAN-933-home-hero-and-product-sections`, and its notes
+  are in that branch's `frontend/CLAUDE.md` and `docs/`. To show it to the
+  team, deploy that branch to the preview (`../.github/CLAUDE.md`, "Deploy
+  preview"). **To bring it back, revert the revert commit**: a new PR from
+  the old branch shows no changes, since git counts it as merged.
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
@@ -2866,9 +2883,31 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. **One bar
   shape** (KAN-799): the editor's own page, Tailor's review and an upload's
-  page draw the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
+  page draw the same box (`DESK_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
   was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
-  review's icons in the title row were 40px.
+  review's icons in the title row were 40px. **The bar and the pages are
+  one surface, the desk** (`DESK`, 2026-11-23, the user's pick of three):
+  the bar is the desk's top row with a hairline under it, sticking at the
+  very top, and the pages lie as paper on its grey (`--color-well`),
+  centred at every zoom. It was a rounded white card 8px over a
+  square-cornered page on the near-white ground, which read as two
+  objects with a seam: the corners differed, the gap neither joined nor
+  parted them, the edges met only at 125%, and a strip of the page showed
+  over the bar once it stuck. The desk clips its corners with
+  `overflow-clip`, never `overflow-hidden`, which would make it a scroll
+  box and stop the bar sticking. The phone keeps `SLIM_BAR`. **From @4xl
+  the desk is a window of its own**, as a Google Doc's is (2026-11-23):
+  it ends at the window's foot, level with the review's panel
+  (`DESK_FIT`, its height from `useFitToWindow` in
+  `[resumeId]/fit-to-window.ts`), and the pages scroll inside it
+  (`DESK_SCROLL`, marked `data-page-scroll`) under a bar that stays. So a
+  zoom or a pinch scrolls the pages alone and never the website (the
+  title, Tailor's step bar): keeping the line being read in place
+  scrolled the whole website on every zoom, and the user saw it as the
+  website's scroll changing. What measures room on screen reads that box
+  where it scrolls, never `main` alone: an open line's card
+  (`LinePopup`) and a drag's scroll at the edges (`page-handles.tsx`).
+  Below @4xl the website scrolls the pages, as before.
   **The bar holds editing tools only; the title row holds the file**
   (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
   Primary badge and Download (a "Saving…" and "Saved" status stood
@@ -2949,9 +2988,69 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   same kept step for a PDF, `useZoom`, so both resume pages open at one zoom:
   it opened at 100% and kept nothing until KAN-825):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
-  inch), opening at 125% (1020px), capped by its column, kept per browser through
+  inch), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
-  survives). The page filled its column
+  survives). **It opens on Fit Width** (`FIT`, 2026-11-23): the page as
+  wide as the desk, up to 200%, flush with the desk's sides and toolbar,
+  with no grey round it (the desk's margin read as the gaps Fit was meant
+  to close); every other zoom keeps the margin. **Fit Width is the biggest
+  the page can be, by every route** (`room` in `zoom.tsx`, the desk's
+  width read as it changes): Zoom In ends on it, the menu turns off the
+  steps at or past it, a pinch stops at it, and a pick at or past it
+  draws as Fit Width, flush (`fitted`). The pick is kept, so a 150% drawn
+  as Fit Width while the side panel is open is 150% again once it closes.
+  Until then each route had its own ceiling (the user, 2026-11-23): Fit
+  stopped at 150%, a pinch from Fit reached the whole desk (169% with the
+  panel closed) and one from a step the desk less its margin (163%), and
+  a step past the desk drew a few percent short of Fit. `useZoomView`
+  holds all of it for both resume pages; the desk's scroll box keeps its
+  scroll bar's room (`scrollbar-gutter`), or a bar that takes room
+  (Windows) would move Fit's percent as the pages' height changed.
+  **Every zoom change keeps the line being read where it is**
+  (`useZoomTo`), by scrolling the desk's own box (the desk, above), so
+  the website stays where it is. From the bar or its menu: while the page's top shows,
+  the window does not move at all; once scrolled into the page, the first
+  line in view stays first, placed by its page and its share of that
+  page's height (each frame carries `data-page-frame`), so the fixed gaps
+  between pages add no drift. From a pinch: the line under the fingers.
+  The page jumped on every change until then, since the scroll stayed at
+  its pixel while the pages' height changed. Keeping the middle of what
+  showed came first, and from a page shown whole at 50% it scrolled the
+  window half a page at 150% (the user). Near the page's foot a zoom out
+  can still move the line, since the scroll cannot pass its new end. A
+  fixed 125% left about 350px of grey
+  either side of the page on a wide screen with the panel closed, and
+  filling 1730px would print the text at about 21pt. The bar shows what a
+  zoom comes to (`usePageZoom`), and Zoom In and Out go to the next step
+  from there; Zoom In is off on Fit Width, where it once stayed pressable
+  and did nothing. **A pinch zooms the pages** (`usePinchZoom`): a trackpad's
+  pinch (Ctrl and the wheel; Safari's gesture events), Ctrl or Cmd with a
+  mouse wheel (each event held to a tenth, or one notch jumped 60%), two
+  fingers on a touch screen, any percent from 50 to Fit Width's, over the desk
+  round the pages (a pinch begun on its grey zoomed the whole browser).
+  While it moves the pages are only stretched, and the bar's percent
+  follows the fingers (a store of its own in `zoom.tsx`, so only the
+  label draws again, never the editor; it stood still until the pinch
+  ended). Once it ends they draw again at their new width and the line
+  under the fingers stays there. **A zoom lands in one frame**:
+  `useZoomTo` sets it inside `flushSync`, then lets go of the stretch and
+  scrolls before the browser paints. It did both two frames later at
+  first, so a pinch's end showed the page at its new width still
+  stretched (half size for two frames after a pinch out), then moved it:
+  the user saw the editor flash. The canvases keep their old drawing,
+  stretched, until pdf.js draws them sharp (`PageCanvas`), so nothing
+  blanks.
+  **The first version jumped** (the user, 2026-11-23), for four reasons
+  the hook's comment lists: it drew again at any short pause mid-pinch, it
+  stretched about the pointer while the centred page grows about its
+  middle, it stretched past the column, and the browser's scroll
+  anchoring moved the page too. A Ctrl and wheel gesture now ends after
+  400ms with no step, the stretch is about the page's middle across, it
+  stops at Fit Width's, and the pages are out of scroll anchoring
+  (`overflow-anchor: none`). Measured: the line under the pointer stayed
+  within a pixel from 65% to 90%; at the page's top a zoom out cannot
+  keep it, since there is nothing above to scroll to. A browser that kept a step before this keeps it until Fit Width
+  is picked. The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
   list, in the system's blue, in the middle of the app's menus.
@@ -3668,6 +3767,238 @@ engine version, from `GET /admin/fill-health` under the same
 `WORKIT_ADMINS` gate (403 → the 404). A job system that breaks shows as its
 No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
 query, the percent; `node --test`); its read is `getFillHealth` in
+`fill-report-queries.ts`.
+
+**The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
+sidebar that links every admin page, beside the page; below lg it is a bar
+above the page. From lg up its button collapses it to a rail of icons,
+each row keeping its name for screen readers and as a tooltip. A new admin
+page joins `ADMIN_PAGES` in `admin/pages.ts`, or nothing links to it. **The
+sidebar wears WorkIt's rail tokens** (`rail`, `rail-hover`,
+`rail-border`: the company shell's pale violet), its current page a white
+pill in `brand-ink`. It was dark ink, then a violet gradient under two
+lights: a design review (2026-11-19) found the gradient was decoration,
+and a label on it fell to 3.9:1. **It clips with `overflow-clip`, never
+`overflow-hidden`**: a hidden box still scrolls, and on the collapsed rail
+the rows' screen-reader-only words scrolled every icon out of view. The
+shell reads no session: a page's `notFound()` draws the root 404 in place
+of the shell (checked with a bad report id), so a student still never sees
+it. Never add a `not-found.tsx` under `app/admin/`: it would draw the 404
+inside the sidebar and show a student that the admin pages exist.
+
+**An admin page follows `docs/design.md` as a seeker page does**: the
+page's frame (`ADMIN_FRAME` in `admin/panel.tsx`: `max-w-dashboard`, the
+gutters, 24px under the top), white cards 16px apart on the near-white
+ground, type tokens only, and WorkIt's own parts (`SectionHeading` through
+`Panel`, `StatTile`, `SegmentedLinks`, `SelectField`, `Tip`). Colour marks
+a state or what acts, never rank: red is a failure only, and violet is a
+pick, a link or a chart's one series. The first builds (2026-11-19) drew
+four filled tiles, hand-made headings and buttons, raw sizes and a
+gradient sidebar; the review above replaced them.
+
+**A number has no line of words under it**, the user's rule (2026-11-22).
+Scrape Health's four numbers each had one ("56% of all reads", "43 open
+now", "of 5,043, ever"); the user had them removed, since they did not
+help and read as written by a machine. A stat is a label and a number. A
+second fact that matters is a second labelled number, and secondary text
+earns its place only when the reader cannot get it from the label and the
+number (a date, a unit, an error).
+
+**Every box on an admin page has a shadow**, the user's rule
+(2026-11-19). A card is `Card tone="tile"`, as Home's sections and the
+stat tiles are: no outline, set apart by `--shadow-tile`, the 20px corner.
+`Panel` sets it. The default card's `--shadow-panel` is a 1px halo, which
+read as no shadow at all beside the tiles. A tile has no outline, so a
+card that marks a state (the status card, red or amber) draws its own
+full edge in that colour. A box inside a card that is a button (a hiring
+system's row) rests on `--shadow-card` and lifts onto `--shadow-lift`.
+
+**The sidebar links each page's sections under the page**, and a section
+link goes to its section (the user's request, 2026-11-19):
+
+- **`admin/pages.ts` is the one list** of the pages and each page's
+  sections (`ADMIN_PAGES`, `SCRAPE_SECTIONS`, `REPORT_SECTIONS`). A
+  section is an id and a label. `Panel` takes its `section` from there,
+  never a title of its own, so a card's title and its sidebar link say the
+  same words and the link always has a target. A new card on an admin
+  page joins its page's sections first. The file is not a client file: the
+  pages and the sidebar both read it (the rule on `HISTORY`, below).
+- **On the page itself the link is the fragment alone** (`#board-reads`),
+  so the address keeps its period and position; from another page it is
+  that page's address with the fragment. Every admin page has sections
+  now, so the sidebar draws the arrow on every row.
+- **`goTo` in `admin-nav.tsx` scrolls on every press.** Next scrolls to a
+  fragment only when the fragment changes (`url.hash !== oldUrl.hash` in
+  its navigation), so a second press on the same section, after the admin
+  scrolled away, did nothing: the address already said `#status`. `goTo`
+  calls `scrollIntoView()` itself, and stops the press when the address
+  already has the fragment, since a link to the address the page is at
+  would only read the page again.
+- **Never a plain `<a href="#id">` for these.** The browser then makes a
+  history entry Next does not know (`history.state` is null), and Next's
+  `popstate` handler leaves such an entry alone, so Back to it after a
+  period change would show the old address over the new page.
+- **A section stops 24px under the top** (`SECTION_TARGET`,
+  `scroll-mt-6`). A page's first section takes `FIRST_SECTION_TARGET`
+  (192px), more than the title row's height, so its link shows the page
+  from the top with the title and the time controls; at 24px the link
+  scrolled the title row out of view.
+- **The page glides to the section** (`motion-safe:lg:scroll-smooth` on
+  the shell's page box), so the admin sees where the page went. With
+  reduced motion it jumps. A section at the page's foot stops where the
+  page ends, lower than 24px.
+- **A page's section links are closed until its arrow opens them**
+  (2026-11-22). Each page with sections has a small arrow at the end of
+  its row: a button of its own beside the page's link, never inside it,
+  that shows or hides that page's links and goes nowhere
+  (`aria-expanded`, `aria-controls`). The links were always open at first,
+  seven lines under three pages, and the user asked for the arrow so they
+  show only when wanted. Which lists are open is plain state, as the
+  collapse is: a reload closes them.
+- **The arrow and the links show from lg up on the open sidebar only.**
+  The collapsed rail has icons alone, and the bar below lg is one row.
+  From lg up the links' own box scrolls when the window is short (4px of
+  padding inside it keeps a focus ring whole), so Back to WorkIt stays in
+  reach.
+- **Still open:** no link is marked as the section in view, and a phone
+  has no section links.
+- **A read with no data goes through `refuse`** (`admin/refuse.ts`):
+  signed out to the sign-in page, a 403 or 404 to the 404 page, and any
+  other answer thrown to `admin/error.tsx` (This Page Isn't Loading Right
+  Now, with Try Again, inside the shell). Every failed read went to the
+  404 page until 2026-11-23, so a broken scraper query told an admin the
+  page did not exist. A new admin page calls `refuse(status)`, never
+  `notFound()` itself.
+- **Shared admin parts, each used by more than one page**:
+  `admin/format.ts` (`count`, `when`: seven files had their own
+  `count`), `admin/sort-heads.tsx` (`SortHeads` and `bySort`, the
+  sortable header both tables draw, so their `aria-sort` cannot drift),
+  and `Key` from `reads-chart.tsx`. A third admin table takes
+  `SortHeads`; it never copies the header.
+- **A table's pick can outlive its option** (`fills-table.tsx`, `held`):
+  the Job System and Errors options come from the window's rows, and the
+  window moves under the table. A pick the rows no longer hold counts as
+  no pick, or the table says nothing matches while rows exist. Board
+  Reads lists every hiring system whatever the window, so it needs none.
+- **A time arrow is one `Link` in both states** (`window-arrow.tsx`): off, it is
+  `aria-disabled`, points at the window in view and stops its own click.
+  It was a plain `<a>` when off and a `Link` otherwise, so React removed
+  the node as an arrow reached its limit and a keyboard lost its focus
+  (WCAG 2.4.3). A control that can switch off keeps one element type.
+- **The sidebar's section arrow is `IconButton`** (`place="row"`, no
+  tooltip, `[--hit-grow:0px]` so a mouse press beside it still reaches the
+  page's link): it gets the 44px touch target from the part. It was a
+  hand-built 28px button.
+- **A chart column has a 2px floor** (`min-h-0.5`, `reads-chart.tsx`): 3
+  failed reads on a 5,000 axis drew 0.13px, so a day with failures showed
+  no red.
+
+`/admin/fill-reports` gives its two sections ids (Groups, Reports) and
+now always draws the Groups heading, with "No groups for these filters."
+when none match, so its link has a target.
+
+`/admin/scrape-health` (the scraper's health, KAN-879) answers one
+question first, whether the scrape is running, then gives the detail in
+one scroll, read from `GET /admin/scrape-health` under the same
+`WORKIT_ADMINS` gate (403 → the 404). Top to bottom, each part its own
+file in `admin/scrape-health/`:
+
+- **The title row and the one time control** (`window-controls.tsx`): the
+  period (7, 14, 30 or 90 days), and two arrows around the days in view
+  ("Nov 9 to Nov 22") that move those days one period earlier or later.
+  All are links, so **the address holds the window** (`?days=&back=`, read
+  by `lib/scrape-status.ts`'s `windowOf`): a reload, Back and a shared
+  link keep it, and the numbers, the chart and the table all show the same
+  days. **One vocabulary, days, and the period is the arrows' step**
+  (2026-11-22). The arrows had a switch of their own, Move By (Week or
+  Month), beside the periods: two rows of lengths of time in two sets of
+  words, and the user could not tell what each did. So 7 Days moves week
+  by week and 30 Days month by month. `moved` cuts the last step back to
+  the days the 90 still hold, and a step forward first returns to a whole
+  number of periods; `resized` keeps the window's last day when the period
+  changes. An arrow is named by the days it shows ("Show Oct 26 to Nov
+  8"), and has no tooltip: a Previous or Next arrow is read on sight
+  (`ui/tip.tsx`). Before all this the chart had its own zoom and arrows
+  beside the page's day pills, which a review found was two time controls
+  on one page.
+- **The status card** (`status-line.tsx`): Not Running, Needs Attention or
+  Healthy, with a glyph, the reason in a sentence, and the counts now
+  (stale, failing and resting boards, tasks pending and claimed), three a
+  row at most. The rule is `statusOf` in `lib/scrape-status.ts` (tested):
+  red when no board was read in 24 hours, amber when more than 5% of
+  boards are failing.
+- **The numbers box** (`numbers.tsx`), beside the status card from 896px
+  of page (`@4xl/main`, two thirds and one third, as the chart and Needs
+  Attention under them): boards ever read, and the window's new jobs,
+  reads done and reads failed, each `StatTile` in its `plain` form, two a
+  row there and four where the box has the page's width. They were four
+  tiles in a row of their own, which the user found took a whole row for
+  four numbers (2026-11-22).
+- **Board Reads per Day** (`reads-chart.tsx`): stacked columns, done in
+  brand under failed in red, on one axis whose top follows the tallest day
+  in view. A day with no reads is a gap. A day with reads is a button, so
+  its numbers show in a `Tip` on hover and on keyboard focus; a `title`
+  never reaches a keyboard.
+- **Needs Attention** (`needs-attention.tsx`): Failed Reads by Reason,
+  then the failing boards with their last error. A reason line (the
+  API's `errors`) shows its boards, its reads and its newest day, with
+  the newest read's whole error behind a native `<details>`. It comes
+  first because it holds boards the second list lacks (a failed publish
+  is no board failure: 2 failing boards beside 90 failed reads on
+  2026-11-15). **It covers all `HISTORY` days and says so, not the page's
+  window**: the page cuts days itself, and a group cannot be cut that
+  way. The header's count is the API's total ("25 of 161 failing
+  boards"), since the list stops at 25; it printed the list's length.
+  Each list shows 5 rows, then See More (a native `<details>`): a list in
+  a tile never scrolls inside it (KAN-828). A scroll box was built first
+  and a review caught it. Tabs in this box (Needs Attention,
+  Runs) were planned and dropped in review (2026-11-22): they hide a list
+  behind a click, and no admin page uses tabs. It was a card in a rail the
+  admin could close, beside counts the page already showed; the rail is
+  gone.
+- **Fill Health is built from the same parts** (`fill-health/`,
+  2026-11-23): `WindowControls` with its own `path` and the engine version
+  in `keep`, so it reads all `HISTORY` days once and cuts them to the
+  window; Metrics (`metrics.tsx`), the window's fills in total and per job
+  system; and Fills (`fills-table.tsx`), the table with sortable columns.
+  **Job System, Needs You Rate and Errors filter the rows in the browser**
+  (`matchesFilters` in `lib/fill-health.ts`, tested); **Engine Version is
+  the API's filter**, so its pick opens the address and every window link
+  keeps it. **Metrics shows sums only, never a rate for the window**: a
+  true rate needs the pages and fields behind each row, which the API does
+  not answer, and a mean of the rows' rates is another number. A new admin
+  page takes its time control from `WindowControls`, never a form of its
+  own: Fill Health had a Days select with a Filter button until then.
+- **Fill Reports and a report's page use the same parts** (`fill-reports/`,
+  2026-11-23): the filters in a card, then Groups and Reports as a `Panel`
+  each, a status as `StatusPill`, and on a report's page the summary, the
+  triage, Fields and Fix Brief as a card each (`fill-reports/parts.tsx`
+  holds the pill, the field classes and the time format). **Their forms
+  stay native** (a GET form for the filters, a server action for the
+  triage), so the address holds the filters and both work with no script.
+  **Not seen with data**: the shared database held no report when they
+  were restyled, so the two tables, the pills and a report's page were
+  checked by types and lint only. Look at them with the first real report.
+- **Boards by Hiring System and Board Reads** (`reads-explorer.tsx`, one
+  client component, since they share a pick): a bar per system, the five
+  largest until Show All, each row a button that filters the table to its
+  system. **A row lifts under the pointer only because it acts**: the rows
+  lifted before they did anything, which promised a click that did
+  nothing. Bars, never a donut: 13 systems are compared. The table also
+  filters by result and sorts by any column (`aria-sort`). Its rows are
+  the page's own, so nothing here asks the API.
+
+**The page always asks the API for `HISTORY` (90) days** and cuts the
+window itself, so the API keeps one answer for 10 minutes whatever the
+window; the page says when it was read and has no Refresh. Its sentence
+about the scheduled scrape's last import goes when the worker takes over
+(`backend/CLAUDE.md`). A hiring system's name comes from `systemName`
+(`iCIMS`, `TikTok`), never CSS `capitalize`. **A value a server file reads
+never lives in a `"use client"` file**: the page read `HISTORY` from a
+client file, got Next's client stub (a function) in its place, sent that
+as `?days=`, and the API's 422 drew the 404, with typecheck and lint both
+passing. Shared constants go in `lib/`. `ScrapeHealth` is in
+`lib/fill-health.ts`; the read is `getScrapeHealth` in
 `fill-report-queries.ts`.
 
 ## Screens, design and motion

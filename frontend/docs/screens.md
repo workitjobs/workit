@@ -3840,11 +3840,13 @@ editor's h1 at the same size, renamed in place) with the star after it
 trash (`ResumeDelete`, which asks first; a ⋯ with Rename, Make Primary and
 Delete until 2026-11-19). Until KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
-it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
-a lavender bar with a ring and a shadow until KAN-576) holds the page's one
+it the editor's desk (`DESK`, `[resumeId]/slim-bar.ts`, 2026-11-23), its
+sticky bar (a lavender bar with a ring and a shadow until KAN-576, then the
+editor's white card until the desk) holding the page's one
 tool, the zoom, at its end: the editor's control and its kept step
-(`useZoom`, opening at 125%), so both resume pages open at one zoom
-(KAN-825; it opened at 100% and kept nothing until then); then the PDF, drawn page by page with the
+(`useZoom`, opening on Fit Width, with pinch to zoom), so both resume pages open at one zoom
+(KAN-825; it opened at 100% and kept nothing until then); the desk ends at the window's foot and
+the PDF scrolls inside it, so a zoom never scrolls the page (`DESK_SCROLL`); then the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The buttons and the date sat in
 the bar until KAN-799, which wrapped the date under them on purpose. The
@@ -3883,14 +3885,27 @@ student who opened a resume from Experiences landed on another view.
 - **The page is its own outline** (KAN-920): teammates and students found
   the editor too like Jobright's, a preview beside a side list of sections,
   entries and bullets, so the page itself moves and adds, and the Sections
-  panel is optional.
+  panel is optional. **Both pages have it**: the editor's own page and
+  Tailor's review (2026-11-23). The review had none at first, as a page
+  for reading its changes; the user wanted to move and add there too. A
+  move or an edit of a changed line drops its suggestion, as any edit
+  there does.
+  - **The entry form opens from anywhere** (2026-11-23): the page's Edit
+    and Add and the Sections outline share one form, drawn beside both
+    layouts (`entryDialog` in the editor). It was drawn inside the
+    outline, so the page's Edit and Add did nothing while the Sections tab
+    was not showing: the panel closed, the Format tab, or Tailor's review.
   - **Hover a section heading, an entry or a bullet**, and a + and a drag
     handle (the Sections panel's six dots) show in the margin beside its
     first line (`page-handles.tsx`). Where each block sits is read from the
     line boxes (`page-outline.ts`, tested): an entry is its fields' and
     bullets' boxes, and a section, whose heading has no box, starts where
     the block above it ends. A section's handle clears its heading (Jake's
-    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`).
+    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`). The
+    Skills section's left edge is where its lines start (the render's
+    `skillrow` points), not its first skill's box: only skills have boxes,
+    and they start after each line's bold label, so its handle sat inside
+    the heading's words until 2026-11-23.
   - **Drag the handle** (pointer events, not HTML drag and drop): a brand
     drop line shows where it lands, among its siblings only (a bullet in
     its entry, an entry in its section, a section between sections). The
@@ -3914,8 +3929,25 @@ student who opened a resume from Experiences landed on another view.
     entry in that section's form, put first in it (`place`).
     An entry's own rows (title, organization, dates) take only the handle:
     a + there read as either another entry or another bullet, which the
-    user found made no sense (2026-11-18). Skills and a Lines section have
-    no + yet. Each button is 24px, WCAG 2.2's smallest target.
+    user found made no sense (2026-11-18). A Lines section has no + yet.
+    Each button is 24px, WCAG 2.2's smallest target.
+  - **Each skill line is a block too** (2026-11-23, `group` in
+    `page-outline.ts`): "Design: Figma, Prototyping" has the six dots, and
+    no +. The dots drag the whole line up or down among the lines
+    (`arrangeSkills`), and its menu holds Edit Skill Group, Move Up, Move
+    Down and Remove From Resume. **Edit Skill Group is the one place a
+    line's skills change** (`SkillGroupDialog`): its name, its skills as
+    chips in print order, each chip a handle (drag, or the arrow keys)
+    with its ×, and Add a Skill, in the Experiences page's Skills dialog's
+    frame and chips. A + on each line, with a small form beside it, came
+    first; the user chose the dialog. Every change there is this resume's,
+    at once, with Undo; a × takes the skill off this resume, never out of
+    the bank. Technical Skills' heading's + adds a new line with its first
+    skill, from a short form hung from the section's tint
+    (`SkillPopover`, `PICKED_BLOCK`). Both hold the usual shape: a group
+    name at most 40 characters, a skill at most 60, and no name another
+    line already prints. Moving one skill sideways on the page itself is
+    not built: every move there reads only the pointer's height.
   - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the
@@ -4133,6 +4165,11 @@ student who opened a resume from Experiences landed on another view.
   (`FitNotice`, the phone's until KAN-586, now removed), a Done button, and
   Download and Ask Scout in both states, while Tailor's review had the
   slim one: a student saw two editor designs.
+- **Tailor's review opens its views from a rail** (2026-11-23,
+  `ReviewRail` in `[resumeId]/toolbar.tsx`): icons down the page's right
+  edge for Suggestions, Sections, Format and Original, which fold away to
+  a tab at the window's edge; `../../docs/tailor_resume.md`, "Suggestions",
+  has why and what was tried.
 - **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page

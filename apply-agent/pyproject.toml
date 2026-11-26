@@ -22,6 +22,9 @@ dependencies = [
 apply = "apply.cli:main"
 
 [dependency-groups]
+build = [
+    "nuitka==4.3.5",
+]
 dev = ["pytest>=8", "pytest-xdist>=3.8.0", "ruff==0.16.8"]
 
 [build-system]

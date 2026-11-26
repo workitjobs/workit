@@ -3,6 +3,7 @@
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CaretLeftIcon,
   CloudSlashIcon,
   ScissorsIcon,
   StackIcon,
@@ -26,6 +27,7 @@ import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { closeScout, setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -63,7 +65,7 @@ import { markResumesStale } from "@/lib/resumes-stale";
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { Assistant } from "./assistant";
 import { overText } from "./fit-notice";
-import { useZoom, zoomWidth } from "./zoom";
+import { FIT, useZoomView, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import { Walkthrough, type WalkApi } from "./walkthrough";
 import {
@@ -76,6 +78,7 @@ import {
 import { Notice } from "@/components/ui/notice";
 import {
   addCuts,
+  arrangeSkills,
   bulletsWithNew,
   customKey,
   shownBullets,
@@ -86,9 +89,12 @@ import {
   NO_CUTS,
   mergeChoices,
   move,
+  moveItem,
   moveTo,
+  groupKey,
   orderSwaps,
   printedSections,
+  printedSkills,
   sectionOrderAfter,
   withWording,
   swapsOf,
@@ -125,8 +131,11 @@ import {
 } from "./page-format";
 import { PHONE_FIELD, PhoneEditor, usePhone } from "./phone";
 import { HeaderPanel } from "./header-panel";
+import { SkillGroupDialog } from "./skill-group-dialog";
+import { SkillPopover } from "./skill-popover";
 import { SectionsOutline } from "./sections-panel";
-import { SLIM_BAR } from "./slim-bar";
+import { useFitToWindow } from "./fit-to-window";
+import { DESK, DESK_BAR, DESK_FIT, DESK_PAGES, DESK_SCROLL } from "./slim-bar";
 import {
   Bar,
   ReviewButtons,
@@ -137,6 +146,7 @@ import {
   PanelTabs,
   type PanelTab,
   type Side,
+  ReviewRail,
 } from "./toolbar";
 import { readMarked, runs, showMarked } from "./text-marks";
 import {
@@ -802,6 +812,26 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<Side>("suggestions");
+  // Tailor's review's rail of views (2026-11-23, the user's pick of three
+  // trials): folded away to a tab at the window's edge, kept per browser
+  const [railFolded, setRailFolded] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the browser's choice once mounted
+      setRailFolded(localStorage.getItem(RAIL_FOLDED) === "1");
+    } catch {
+      // No storage (a private window): the rail shows
+    }
+  }, []);
+  const foldRail = (folded: boolean) => {
+    setRailFolded(folded);
+    if (folded) setSide(null);
+    try {
+      localStorage.setItem(RAIL_FOLDED, folded ? "1" : "0");
+    } catch {
+      // Kept for this page only
+    }
+  };
   // What the editor shows in Scout's panel (KAN-440): the assistant, or the
   // Experiences picker, opened from the toolbar. The panel shows one at a
   // time, so they share it, and there is no switch in it: the top bar's Scout
@@ -882,9 +912,14 @@ export function Editor({
     cutsNow.current = readFitCuts(resumeId);
     setCuts(cutsNow.current);
   }, [resumeId]);
-  const [zoom, setZoom] = useZoom();
+  // The zoom as drawn, the page's percent, Fit Width's, and a pinch
+  const { zoom, shown: shownZoom, room: zoomRoom, zoomTo } = useZoomView(pages);
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
+  // The rail, down to the window's foot
+  const fitRail = useFitToWindow(0);
+  // The desk, down to the panel's foot: the pages scroll inside it
+  const fitDesk = useFitToWindow();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -2639,52 +2674,120 @@ export function Editor({
       openPanel("sections");
     },
   };
+  /** Puts a skill in a group on this resume, from the outline or a skill
+   *  line's +: one the bank already has (any case) shows, at its group's
+   *  end, with Undo, since the API refuses a second copy; a new one is saved
+   *  into the bank for this resume. An error, or null. */
+  const addSkillTo = async (group: string, name: string): Promise<string | null> => {
+    const key = name.trim().toLowerCase();
+    const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
+    if (held) {
+      if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
+        return `${held.name} is already on this resume.`;
+      const last = Math.max(-1, ...choices.skills.map((c) => c.position));
+      apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
+      return null;
+    }
+    const { error } = await addSkill(name, group || null, resumeId);
+    if (error) return error;
+    reload(null);
+    return null;
+  };
+  // The skill lines as they print, a group each
+  const skillGroups = printedSkills(bank, choices);
+  // Technical Skills' heading's + asks for a new line, hung from the
+  // section: the section is picked first, so its tint stays put under the
+  // form while the pointer moves and the shared handle follows it
+  // (`PICKED_BLOCK`)
+  const [newGroupFrom, setNewGroupFrom] = useState<HTMLElement | null>(null);
+  const askNewGroup = (anchor: HTMLElement) => {
+    pick({ kind: "section", id: "skills" });
+    // A frame later, once the new tint is drawn: the form measures where to
+    // hang as it opens, and in the same commit it found the last pick's tint
+    requestAnimationFrame(() => setNewGroupFrom(anchor));
+  };
+  // Edit Skill Group, from a line's six dots: the line it edits, by its key
+  // (its name, which a rename changes), and where the focus goes back
+  const [editGroup, setEditGroup] = useState<string | null>(null);
+  const editGroupFrom = useRef<() => HTMLElement | null>(() => null);
+  const editedGroup = skillGroups.find((g) => g.key === editGroup);
+  const lineNamed = (name: string, except?: string) =>
+    skillGroups.some((g) => g.key !== except && groupKey(g.label) === groupKey(name));
   const sectionsOutline = (
+    <SectionsOutline
+      bank={bank}
+      choices={choices}
+      order={page.section_order}
+      onOrder={(section_order) => void applyPage({ ...page, section_order })}
+      onApply={apply}
+      header={headerPanel}
+      lit={walkChapter ? [walkChapter] : []}
+      reveal={walkChapter}
+      headerOpen={headerOpen}
+      onHeaderOpen={setHeaderOpen}
+      onEditEntry={(entryId, opener) => {
+        const target = bank.entries.find((e) => e.id === entryId);
+        if (target)
+          openEntryForm(
+            {
+              target,
+              section: target.section,
+              customSectionId: target.custom_section_id ?? null,
+            },
+            opener,
+          );
+      }}
+      onAddEntry={(sectionId, opener) =>
+        openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
+      }
+      onAddSkill={addSkillTo}
+    />
+  );
+  // The entry form (KAN-586), opened by the page's menu and + (KAN-920) and
+  // by the outline. Drawn once, beside both layouts: inside the outline it
+  // drew only while the Sections tab showed, so the page's Edit and Add did
+  // nothing with the panel closed, on Format, or on Tailor's review
+  const entryDialog = (
     <>
-      <SectionsOutline
-        bank={bank}
-        choices={choices}
-        order={page.section_order}
-        onOrder={(section_order) => void applyPage({ ...page, section_order })}
-        onApply={apply}
-        header={headerPanel}
-        lit={walkChapter ? [walkChapter] : []}
-        reveal={walkChapter}
-        headerOpen={headerOpen}
-        onHeaderOpen={setHeaderOpen}
-        onEditEntry={(entryId, opener) => {
-          const target = bank.entries.find((e) => e.id === entryId);
-          if (target)
-            openEntryForm(
-              {
-                target,
-                section: target.section,
-                customSectionId: target.custom_section_id ?? null,
-              },
-              opener,
+      {newGroupFrom && (
+        <SkillPopover
+          anchor={newGroupFrom}
+          onClose={() => setNewGroupFrom(null)}
+          onAdd={addSkillTo}
+          taken={(name) => lineNamed(name)}
+        />
+      )}
+      {editedGroup && (
+        <SkillGroupDialog
+          group={editedGroup}
+          returnTo={editGroupFrom}
+          onClose={() => setEditGroup(null)}
+          onRename={(name) => {
+            if (lineNamed(name, editedGroup.key))
+              return `${name} is already on this resume. Pick another name.`;
+            void apply(
+              arrangeSkills(
+                bank,
+                choices,
+                skillGroups.map((g) => (g.key === editedGroup.key ? { ...g, key: name } : g)),
+              ),
             );
-        }}
-        onAddEntry={(sectionId, opener) =>
-          openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
-        }
-        onAddSkill={async (group, name) => {
-          // A skill the bank already has (any case) goes on this resume in
-          // this group, at its end, with Undo: the API refuses a second copy
-          const key = name.trim().toLowerCase();
-          const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
-          if (held) {
-            if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
-              return `${held.name} is already on this resume.`;
-            const last = Math.max(-1, ...choices.skills.map((c) => c.position));
-            apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
+            setEditGroup(name);
             return null;
+          }}
+          onReorder={(skills) =>
+            void apply(
+              arrangeSkills(
+                bank,
+                choices,
+                skillGroups.map((g) => (g.key === editedGroup.key ? { ...g, skills } : g)),
+              ),
+            )
           }
-          const { error } = await addSkill(name, group || null, resumeId);
-          if (error) return error;
-          reload(null);
-          return null;
-        }}
-      />
+          onRemove={(skillId) => void apply({ skills: [{ skill_id: skillId, shown: false }] })}
+          onAdd={(name) => addSkillTo(editedGroup.key, name)}
+        />
+      )}
       {entryForm && (
         <OutlineEntryDialog
           bank={bank}
@@ -2805,12 +2908,22 @@ export function Editor({
       });
       return;
     }
+    if (block.kind === "group") {
+      const groups = printedSkills(held.current.bank, held.current.choices);
+      const from = groups.findIndex((g) => g.label === block.id);
+      if (from < 0 || to < 0 || to >= groups.length || to === from) return;
+      void apply(
+        arrangeSkills(held.current.bank, held.current.choices, moveItem(groups, from, to)),
+      );
+      return;
+    }
     const changes = moveTo(held.current.bank, held.current.choices, block.kind, block.id, to);
     if (changes) void apply(changes);
   };
   /** A block's place among its siblings, for a move by one. */
   const indexOf = (block: Picked): number => {
     if (block.kind === "section") return printed.findIndex((s) => s.id === block.id);
+    if (block.kind === "group") return skillGroups.findIndex((g) => g.label === block.id);
     if (block.kind === "entry")
       return sectionHolding(block.id)?.entries.findIndex((e) => e.id === block.id) ?? -1;
     for (const section of printed)
@@ -2822,6 +2935,7 @@ export function Editor({
   };
   const siblingCount = (block: Picked): number => {
     if (block.kind === "section") return printed.length;
+    if (block.kind === "group") return skillGroups.length;
     if (block.kind === "entry") return sectionHolding(block.id)?.entries.length ?? 0;
     const entry = printed
       .flatMap((s) => s.entries)
@@ -2863,6 +2977,7 @@ export function Editor({
     };
     if (pickedNow?.kind === "section") return [sectionStep(pickedNow.id, true)];
     if (pickedNow?.kind === "entry") return entryStep(pickedNow.id, true);
+    if (pickedNow?.kind === "group") return [sectionStep("skills", false), { label: pickedNow.id }];
     if (pickedNow?.kind === "bullet") {
       const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === pickedNow.id));
       return entry ? bulletStep(entry.id, pickedNow.id) : [];
@@ -2889,6 +3004,7 @@ export function Editor({
       const section = sectionHolding(pickedNow.id);
       return section ? { kind: "section", id: section.id } : null;
     }
+    if (pickedNow?.kind === "group") return { kind: "section", id: "skills" };
     return null;
   };
   const keysNow: typeof keys.current = {
@@ -2919,6 +3035,16 @@ export function Editor({
       if (!entry) return null;
       return { noun: "Bullet", add: () => openNew(entry.id, block.id) };
     }
+    // Technical Skills' heading's + adds a new line, from a short form at
+    // the + (`SkillPopover`)
+    // A skill line takes no +: its six dots open Edit Skill Group, the one
+    // place a line's skills change (the user's call, 2026-11-23)
+    if (block.kind === "group") return null;
+    if (block.kind === "section" && block.id === "skills")
+      return {
+        noun: "Skill Group",
+        add: askNewGroup,
+      };
     // An entry's own rows (its title, organization, dates) take no +: one
     // there read as either another entry or another bullet. A section's
     // heading adds an entry, first in it; a bullet adds a bullet
@@ -3001,6 +3127,24 @@ export function Editor({
         remove({ bullets: [{ bullet_id: block.id, shown: false }] }),
       ];
     }
+    if (block.kind === "group") {
+      const group = skillGroups.find((g) => g.label === block.id);
+      if (!group) return moves;
+      return [
+        {
+          key: "edit",
+          text: "Edit Skill Group",
+          group: "change",
+          icon: <PencilIcon />,
+          onClick: (opener) => {
+            editGroupFrom.current = () => opener;
+            setEditGroup(group.key);
+          },
+        },
+        ...moves,
+        remove({ skills: group.skills.map((k) => ({ skill_id: k.id, shown: false })) }),
+      ];
+    }
     if (block.kind === "entry") {
       const entry = bank.entries.find((e) => e.id === block.id);
       if (!entry) return moves;
@@ -3067,18 +3211,25 @@ export function Editor({
       ),
     ];
   };
-  // The page's own handles, on the editor's own page (not Tailor's review,
-  // whose page is for reading its changes)
-  const pageOutline: PageOutline | undefined = suggestions
-    ? undefined
-    : {
-        blocksOf: (boxes) => outlineOf(boxes, bank, choices, page.section_order),
-        picked: pickedNow,
-        onPick: (block) => pick({ kind: block.kind, id: block.id }),
-        onMove: (block, to) => moveBlock(block, to),
-        addOf: addAfter,
-        actionsOf,
-      };
+  // The page's own handles, on both pages: Tailor's review had none until
+  // 2026-11-23 ("its page is for reading its changes"), and the user wanted
+  // to move and add there as on the editor's own page. A move or an edit of
+  // a changed line drops its suggestion, as any edit there does
+  const pageOutline: PageOutline = {
+    blocksOf: (boxes) =>
+      outlineOf(
+        boxes,
+        bank,
+        choices,
+        page.section_order,
+        (rendered?.points ?? []).filter((p) => p.name === "skillrow"),
+      ),
+    picked: pickedNow,
+    onPick: (block) => pick({ kind: block.kind, id: block.id }),
+    onMove: (block, to) => moveBlock(block, to),
+    addOf: addAfter,
+    actionsOf,
+  };
   if (phone) {
     const start = line && box && startText(line, box);
     // A bullet's field is a rich one, as on the desktop, so the sheet's bold
@@ -3161,6 +3312,7 @@ export function Editor({
           history={history}
           cuts={cuts}
         />
+        {entryDialog}
       </>
     );
   }
@@ -3206,14 +3358,15 @@ export function Editor({
             }
           : null
       }
-      zoom={{ zoom, onZoom: setZoom }}
+      zoom={{ zoom, shown: shownZoom, room: zoomRoom, onZoom: (to) => zoomTo(to) }}
       history={history}
       format={{
         page,
         disabled: !rendered,
         onChange: applyPage,
         panelOpen,
-        onPanel: togglePanel,
+        // Tailor's review opens its views beside the page, not from the bar
+        onPanel: suggestions ? undefined : togglePanel,
       }}
     />
   );
@@ -3225,19 +3378,58 @@ export function Editor({
   const comparing = Boolean(shownOriginal);
   const compareHeading = "text-label text-ink font-semibold";
 
+  // The rail shows from @4xl; below, the title row's buttons open the views
+  const rail = Boolean(reviewing) && !railFolded;
   const grid = (
     <div
       className={cn(
         "grid items-start gap-5",
         // The column docks beside the page from @6xl only; below it floats
         // over the page (`floating`)
-        (shownPanel || shownTabs || shownCut) && "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
+        (shownPanel || shownTabs || shownCut) &&
+          (rail
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem] @6xl/main:grid-cols-[minmax(0,1fr)_24rem_3.5rem]"
+            : "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]"),
         // The two resumes at one width, so a line reads against its twin
-        shownOriginal && "@4xl/main:grid-cols-2",
+        shownOriginal &&
+          (rail
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3.5rem]"
+            : "@4xl/main:grid-cols-2"),
+        rail && !side && "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem]",
       )}
     >
+      {/* The rail: the grid's last column from @4xl, level with the desk,
+          on the page's ground with no box, in a 56px column of its own
+          (bled across the gutter first, it ran past the window on a page
+          with a narrower gutter), down to the window's foot, sticking as
+          the page scrolls */}
+      {rail && (
+        <aside
+          ref={fitRail}
+          aria-label="Views beside the page"
+          className="sticky top-0 hidden w-14 self-start pb-4 @4xl/main:col-end-[-1] @4xl/main:row-start-1 @4xl/main:block @4xl/main:h-(--fit-height)"
+        >
+          <ReviewRail
+            review={{
+              count: suggestionCount,
+              side,
+              onSide: showSide,
+              hasOriginal: Boolean(original),
+            }}
+            onFold={() => foldRail(true)}
+          />
+        </aside>
+      )}
       {/* Placed, so a column floating in the same cell never pushes it down */}
-      <div className="flex min-w-0 flex-col gap-2 @4xl/main:col-start-1 @4xl/main:row-start-1">
+      {/* One surface, the desk (./slim-bar.ts): the bar on top, the pages on
+          its grey. The comparison only reads, so it draws the page alone */}
+      <div
+        ref={comparing ? undefined : fitDesk}
+        className={cn(
+          "flex min-w-0 flex-col @4xl/main:col-start-1 @4xl/main:row-start-1",
+          comparing ? "gap-2" : cn(DESK, DESK_FIT),
+        )}
+      >
         {comparing ? (
           <div className="flex min-h-9 items-center">
             <h2 className={compareHeading}>Tailored Resume</h2>
@@ -3246,59 +3438,68 @@ export function Editor({
           bar
         )}
         {error && (
-          <p role="alert" className="text-note text-danger">
+          <p role="alert" className={cn("text-note text-danger", !comparing && "px-4 pt-3")}>
             {error}
           </p>
         )}
+        {/* The paper on the desk: the margin is the desk's, so the page
+            keeps its zoom's width */}
+        {/* Fit Width lies flush with the desk, no grey round it (the user,
+            2026-11-23): its margin read as the gaps Fit was meant to close */}
         <div
-          ref={pages}
-          data-keeps-selection
-          className="mx-auto w-full"
-          style={{ maxWidth: zoomWidth(zoom) }}
-          onPointerDownCapture={(e) => {
-            const origin = e.currentTarget.getBoundingClientRect();
-            pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
-          }}
-          // A press on the paper off every line saves the open line and
-          // closes it, as a press off the page does: the page keeps the
-          // selection for its lines, so until then only Enter or Escape
-          // left a line once it was open. A line's own target opens that
-          // line, and the field and the margin dots keep it. So does a
-          // block's menu (KAN-920): React passes a press in its portal up
-          // through the page, and it let go of the block it acts on
-          onPointerDown={(e) => {
-            if (
-              !(e.target as Element).closest(
-                "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
-              )
-            ) {
-              select(null);
-              setPicked(null);
-            }
-          }}
+          data-page-scroll={comparing ? undefined : true}
+          className={cn(!comparing && DESK_SCROLL, !comparing && zoom !== FIT && DESK_PAGES)}
         >
-          {pdfPane((pdf) => (
-            <PdfPages
-              pdf={pdf.pdf}
-              boxes={pdf.boxes}
-              readOnly={comparing}
-              popup={selected && popupNode ? { line: selected, node: popupNode } : undefined}
-              selected={selected}
-              onSelect={onLine}
-              overlay={overlay}
-              overlaid={overlaid}
-              shiftOf={shiftOf}
-              inserts={insertsOn}
-              swaps={swapsOn}
-              gaps={gapsOn}
-              onDrawn={drawn}
-              placeholder={<PageSkeleton />}
-              outline={pageOutline}
-              marks={showMarks ? allMarks : undefined}
-              lit={lit}
-              focus={showMarks ? focus : undefined}
-            />
-          ))}
+          <div
+            ref={pages}
+            data-keeps-selection
+            className="mx-auto w-full"
+            style={{ maxWidth: zoomWidth(zoom) }}
+            onPointerDownCapture={(e) => {
+              const origin = e.currentTarget.getBoundingClientRect();
+              pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
+            }}
+            // A press on the paper off every line saves the open line and
+            // closes it, as a press off the page does: the page keeps the
+            // selection for its lines, so until then only Enter or Escape
+            // left a line once it was open. A line's own target opens that
+            // line, and the field and the margin dots keep it. So does a
+            // block's menu (KAN-920): React passes a press in its portal up
+            // through the page, and it let go of the block it acts on
+            onPointerDown={(e) => {
+              if (
+                !(e.target as Element).closest(
+                  "[data-box], [data-popup], input, textarea, button, [contenteditable], [data-block-menu]",
+                )
+              ) {
+                select(null);
+                setPicked(null);
+              }
+            }}
+          >
+            {pdfPane((pdf) => (
+              <PdfPages
+                pdf={pdf.pdf}
+                boxes={pdf.boxes}
+                readOnly={comparing}
+                popup={selected && popupNode ? { line: selected, node: popupNode } : undefined}
+                selected={selected}
+                onSelect={onLine}
+                overlay={overlay}
+                overlaid={overlaid}
+                shiftOf={shiftOf}
+                inserts={insertsOn}
+                swaps={swapsOn}
+                gaps={gapsOn}
+                onDrawn={drawn}
+                placeholder={<PageSkeleton />}
+                outline={pageOutline}
+                marks={showMarks ? allMarks : undefined}
+                lit={lit}
+                focus={showMarks ? focus : undefined}
+              />
+            ))}
+          </div>
         </div>
       </div>
       {/* The assistant lives in Scout's panel, opened from the top bar's
@@ -3431,15 +3632,28 @@ export function Editor({
           className={cn(
             "max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:order-none @4xl/main:max-h-(--fit-height)",
             FLOATING,
+            // It slides out from the rail, as Gmail's side panels do; still
+            // with reduced motion
+            reviewing &&
+              "animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none",
           )}
         >
-          {shownTabs ? (
-            <section
-              aria-label="Side Panel"
-              className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-3 sm:p-3 sm:ring-1"
+          {reviewing && (side === "sections" || side === "format") ? (
+            // Each view its own panel, named, opened from the rail
+            <SidePanel
+              title={side === "sections" ? "Sections" : "Format"}
+              onClose={() => showSide(null)}
             >
+              {side === "sections" ? (
+                sectionsOutline
+              ) : (
+                <FormatOptions page={page} onChange={applyPage} />
+              )}
+            </SidePanel>
+          ) : shownTabs ? (
+            <section aria-label="Side Panel" className={cn(SIDE_SHELL, "gap-3")}>
               <PanelTabs tab={tab} onTab={showTab} onClose={() => showSide(null)} />
-              <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5">
+              <div className={SIDE_SCROLL}>
                 {side === "sections" ? (
                   sectionsOutline
                 ) : (
@@ -3499,7 +3713,9 @@ export function Editor({
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
         {reviewing && (
-          <div className="flex shrink-0 items-center gap-1">
+          // Below @4xl, where the rail does not show, the views open from
+          // here; from @4xl they are the rail's
+          <div className="flex shrink-0 items-center gap-1 @4xl/main:hidden">
             <ReviewButtons
               review={{
                 count: suggestionCount,
@@ -3528,55 +3744,52 @@ export function Editor({
         />
       )}
       {grid}
+      {reviewing && railFolded && (
+        // The folded rail: a tab at the window's right edge, near its foot,
+        // as Gmail's "Show side panel"
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Show Side Panel"
+                onClick={() => foldRail(false)}
+                className="bg-panel ring-border-surface text-ink-muted hover:text-ink hover:bg-hover focus-visible:ring-brand-ring fixed right-0 bottom-6 z-30 hidden h-10 w-9 items-center justify-center rounded-l-full pl-1 shadow-(--shadow-panel) ring-1 focus-visible:ring-2 focus-visible:outline-none @4xl/main:flex"
+              />
+            }
+          >
+            <CaretLeftIcon aria-hidden className="size-4" weight="bold" />
+          </TooltipTrigger>
+          <TooltipContent side="left">Show Side Panel</TooltipContent>
+        </Tooltip>
+      )}
+      {entryDialog}
     </div>
   );
 }
 
-/**
- * A sticky column's height cap, as `--fit-height` on it: the window below
- * its top, less a 24px foot. Read again on any scroll (the page scrolls in
- * `main`, not the window, so the listener captures) and on resize, once a
- * frame. Before the page scrolls the column's top sits under the title
- * row; stuck, at its `top`; a fixed cap fitted one and not the other.
- * Its top is read no higher than where it sticks: at the page's end the
- * grid pushes a sticky column up past that, and reading that top grew the
- * cap, so the panel kept growing as the page scrolled. Never under 240px,
- * so a short window still shows the panel's top.
- */
-function useFitToWindow(foot = 24) {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    if (!el) return;
-    let frame = 0;
-    const fit = () => {
-      frame = 0;
-      const stuck =
-        (el.closest("main")?.getBoundingClientRect().top ?? 0) +
-        (parseFloat(getComputedStyle(el).top) || 0);
-      const room = window.innerHeight - Math.max(el.getBoundingClientRect().top, stuck) - foot;
-      el.style.setProperty("--fit-height", `${Math.max(240, Math.round(room))}px`);
-    };
-    const queue = () => {
-      if (!frame) frame = requestAnimationFrame(fit);
-    };
-    fit();
-    document.addEventListener("scroll", queue, { capture: true, passive: true });
-    window.addEventListener("resize", queue);
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener("scroll", queue, { capture: true });
-      window.removeEventListener("resize", queue);
-    };
-  }, [el, foot]);
-  return setEl;
-}
+/** Where the browser keeps whether the review's rail is folded away. */
+const RAIL_FOLDED = "workit:review-rail-folded";
+
+/** A panel beside the page: white with the desk's outline (2026-11-23).
+ *  It was the brand tint, the colour every picked control wears, so the
+ *  panel read as picked, a third material beside the desk's grey and the
+ *  page's white, and one more purple area beside the step bar and Finish.
+ *  Bare in a phone's sheet, its own panel. */
+const SIDE_SHELL =
+  "sm:bg-panel sm:ring-border-surface sm:rounded-card flex min-h-0 flex-col sm:p-3 sm:ring-1";
+/** The panel's list under its top, which stays put. Never wider than the
+ *  panel: a row that is would scroll it sideways and cut its left edge. */
+const SIDE_SCROLL =
+  "relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-none pr-1.5";
 
 /** The review's column from @4xl to @6xl: in the page's cell, at its right,
- *  over the page, below the 44px bar (`SLIM_BAR`) at rest and when stuck.
- *  From @6xl it docks in the grid's second column, level with the bar. */
+ *  over the desk, 12px under its 44px bar (`DESK_BAR`) at rest and when
+ *  stuck, and 12px in from its edge. From @6xl it docks in the grid's
+ *  second column, level with the bar. */
 const FLOATING = cn(
-  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
-  "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
+  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-14 @4xl/main:mr-3 @4xl/main:top-14 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
+  "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:mr-0 @6xl/main:top-0 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
 );
 
 /**
@@ -3636,12 +3849,14 @@ export function EditorSkeleton() {
         <Skeleton className="ml-auto h-9 w-28" />
         <Skeleton className="size-8 rounded-full" />
       </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className={SLIM_BAR}>
+      <div className={cn("min-w-0", DESK)}>
+        <div className={DESK_BAR}>
           <Skeleton className="h-6 w-14" />
           <Skeleton className="ml-auto h-7 w-40" />
         </div>
-        <PageSkeleton />
+        <div className={DESK_PAGES}>
+          <PageSkeleton />
+        </div>
       </div>
     </div>
   );

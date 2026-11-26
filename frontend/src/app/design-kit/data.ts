@@ -8,6 +8,8 @@
  * globals.css.
  */
 
+import type { TextRole } from "@/components/ui/text-roles";
+
 /**
  * The kit's sections, in the order the nav lists them.
  *
@@ -24,7 +26,7 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "Inter for every word in the app, Plus Jakarta Sans for the marketing pages' headlines only, and Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
+    note: "Inter for every word in the app, Plus Jakarta Sans for the marketing pages' headlines only, and Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries tracking and weight 600 (a place that wants capitals adds them), meta carries neither. The Roles groups say which size each kind of text takes. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
   },
   shape: {
     slug: "shape",
@@ -335,6 +337,167 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
 /** The faces themselves come from next/font: Inter and Geist Mono in
  *  app/layout.tsx, Plus Jakarta Sans in app/fonts.ts (loaded by this kit's
  *  layout and the marketing pages' only). */
+/**
+ * The Type page's Roles groups (KAN-927): each kind of text that several
+ * screens draw, by its job. A `text` row is a role in
+ * components/ui/text-roles.ts; a `part` row is drawn by the `ui/` part that
+ * owns it (type/page.tsx says how). `differs` repeats design.md's Still open
+ * line for a role whose value is not the Legibility table's, and goes when
+ * the size decision settles it.
+ */
+export type RolePart =
+  | "pageTitle"
+  | "sectionHeading"
+  | "fieldLabel"
+  | "button"
+  | "ghostButton"
+  | "sectionButton"
+  | "chip"
+  | "textLink";
+
+export type RoleRow = {
+  name: string;
+  role: string;
+  sample: string;
+  differs?: string;
+} & ({ text: TextRole } | { part: RolePart });
+
+export const ROLE_GROUPS: { title: string; note?: string; rows: RoleRow[] }[] = [
+  {
+    title: "Roles: Structure",
+    note: "Each kind of text by its job. A screen imports TEXT from components/ui/text-roles.ts, or draws the part a row names, and never copies the classes. The line under each sample is read from the stylesheet. An amber line marks a role whose value differs from design.md's Legibility table, until the size decision settles it.",
+    rows: [
+      {
+        name: "BAR_TITLE",
+        part: "pageTitle",
+        role: "A section's title in the top bar: 26px from md, 20px on a phone",
+        sample: "Tracker",
+      },
+      {
+        name: "<SectionHeading>",
+        part: "sectionHeading",
+        role: "A section's or a card's heading",
+        sample: "Interviews & Dates",
+      },
+    ],
+  },
+  {
+    title: "Roles: Reading",
+    rows: [
+      {
+        name: "TEXT.body",
+        text: "body",
+        role: "Body copy: a dialog's text, a message, Scout's answer",
+        sample: "Your resume covers most of what this posting asks for.",
+      },
+      {
+        name: "TEXT.longReading",
+        text: "longReading",
+        role: "Long reading: a job's description and requirements",
+        sample: "You will build the tools our support team uses every day.",
+        differs: "No 16px reading token yet: Tailwind's stock text-base.",
+      },
+      {
+        name: "TEXT.secondaryLine",
+        text: "secondaryLine",
+        role: "One line under a name: the employer, the place",
+        sample: "Stripe · Seattle, WA",
+      },
+      {
+        name: "TEXT.meta",
+        text: "meta",
+        role: "A date or a count beside other text, never a sentence",
+        sample: "Nov 18",
+      },
+    ],
+  },
+  {
+    title: "Roles: Tables",
+    rows: [
+      {
+        name: "TEXT.columnHeader",
+        text: "columnHeader",
+        role: "A table's column heading: every seeker table",
+        sample: "Location",
+      },
+      {
+        name: "TEXT.tableCell",
+        text: "tableCell",
+        role: "A fact in a row: a place, a date, a count",
+        sample: "Seattle, WA",
+        differs: "design.md: table cells are text-body, 14px.",
+      },
+      {
+        name: "TEXT.rowTitle",
+        text: "rowTitle",
+        role: "A row's name when it names a job",
+        sample: "Software Engineer Intern",
+        differs: "design.md has no 13px at 600; resume and letter rows draw 450.",
+      },
+    ],
+  },
+  {
+    title: "Roles: Forms",
+    rows: [
+      {
+        name: "<TextField> label",
+        part: "fieldLabel",
+        role: "A field's label, drawn by every field part",
+        sample: "School Email",
+      },
+      {
+        name: "TEXT.hint",
+        text: "hint",
+        role: "A sentence under a field that says what goes in it",
+        sample: "The line under your name on your Profile",
+      },
+      {
+        name: "TEXT.error",
+        text: "error",
+        role: "What went wrong, under the field or button that caused it",
+        sample: "Enter an email address with an @",
+      },
+    ],
+  },
+  {
+    title: "Roles: Controls",
+    rows: [
+      {
+        name: "<Button>",
+        part: "button",
+        role: "A button's label, sm and default",
+        sample: "Upload Resume",
+      },
+      {
+        name: '<Button variant="ghost">',
+        part: "ghostButton",
+        role: "A text button on what is already shown; link is the same size",
+        sample: "See More",
+        differs: "12px, where the section text button is 13px and design.md's buttons are 13px.",
+      },
+      {
+        name: '<Button variant="section">',
+        part: "sectionButton",
+        role: "A section heading's own action",
+        sample: "View All",
+      },
+      {
+        name: "<Chip>",
+        part: "chip",
+        role: "A choice made in place",
+        sample: "Remote",
+      },
+      {
+        name: "<TextLink>",
+        part: "textLink",
+        role: "A link inside a sentence; it takes the sentence's size",
+        sample: "Profile",
+        differs: "No underline; design.md: a link in running text is underlined.",
+      },
+    ],
+  },
+];
+
 export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   { token: "--font-sans", cls: "font-sans", role: "Inter · every word in the app" },
   {

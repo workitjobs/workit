@@ -9,6 +9,7 @@ import {
 import { Avatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { TEXT } from "@/components/ui/text-roles";
 import { cn } from "@/lib/cn";
 import { matchColor } from "@/lib/match";
 
@@ -113,7 +114,7 @@ const STAGE_BY_NAME: Record<string, Stage> = {
 };
 
 /** The full list's heading style (its SortHeader), not shadcn's 14px ink. */
-const TH = "px-4 text-note text-ink-meta font-medium";
+const TH = `px-4 ${TEXT.columnHeader}`;
 
 export function ApplicantsPreview() {
   return (
