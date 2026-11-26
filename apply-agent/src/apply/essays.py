@@ -48,6 +48,9 @@ from apply.records import SECRET
 # The text fields' kinds, as a question names them to Claude.
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
 DESCRIBED = 400  # characters of a question's description Claude is shown
+# The most options a one-off question may send (backend/app/apply_prompts/essays.py's MAX_OPTIONS). A longer list
+# (Oracle's 500 cities) is Lisul's to pick: the server refuses it, and no one answer could be read back from it.
+MAX_OPTIONS = 300
 
 # A number in an essay: a count, a percentage, a year, a score.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -171,6 +174,10 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     it fails its check), the draft 1 Opus, the claim check 1 Opus and the
     editor 1-3 Opus: 4-7 calls. A form with no essays still costs one
     Sonnet call."""
+    if too_long := [q for q in drafts if len(q.options) > MAX_OPTIONS]:
+        written, drafted = answer(claude, posting, essays, [q for q in drafts if q not in too_long], profile, company,
+                                  posting_text, redraft, answered, planned, redo, sections)
+        return written, drafted + [Draft(q, "", needs_lisul=True) for q in too_long]
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
         written, _ = answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
                             redo, sections)
