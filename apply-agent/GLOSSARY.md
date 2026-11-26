@@ -52,6 +52,22 @@ _Avoid_: cache, saved answers, FAQ
 The state of a filled Application that waits for Lisul's approval before it is submitted. Every Target company Application, every Application with a High-stakes essay, every Application with an Essay that still fails its code gates after the editor's pass, every Application that fails its Pre-submit check, every Application in the Calibration run, and (once Lisul opts in with `max_unreviewed_uses`) every Application answered by an unreviewed draft used that many times is held.
 _Avoid_: draft, pending, queue
 
+**Review card**:
+The Apply window's one card for a Hold: only what needs the student's eyes (flags, Essays, guessed answers, legal and eligibility answers), with every other answer folded under What we filled. Its actions are Approve and submit, Fix, and Let go.
+_Avoid_: quick review, approval screen, summary
+
+**Approve and submit**:
+The student's approval of a Hold in the Apply window, after which Apply itself submits that form. Opening the page and pressing Submit by hand stays possible.
+_Avoid_: one-click apply, confirm, send
+
+**Auto-submit**:
+Apply submitting a filled Application with no approval, after a countdown the student can cancel. Only an Application that passed the Pre-submit check with no flags, no Essay and no reason to Hold is eligible; it is an opt-in policy, in a Developer checkout first.
+_Avoid_: autopilot, full auto, blind submit
+
+**Best model**:
+The strongest Claude model a Developer checkout uses for its large calls (Essays, Cover letters, the Pre-submit review) on the developer's own Claude subscription, signed in once with a setup token.
+_Avoid_: max model, premium model, big model
+
 **Calibration run**:
 The first ten Applications, all held, so Lisul can judge Claude's answers before anything is submitted unseen.
 _Avoid_: test run, pilot
