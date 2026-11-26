@@ -155,7 +155,7 @@ async def detect_and_close(conn: AsyncConnection) -> int:
             _DETECT_AND_CLOSE_SQL,
             {"floor": MASS_CLOSE_FLOOR, "share": MASS_CLOSE_SHARE},
         )
-    ).first()
+    ).one()
 
     closing, total, closed, allowed = row.closing, row.total, row.closed, row.allowed
 
