@@ -83,7 +83,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           )}
         </nav>
       </header>
-      <main className={cx("mx-auto px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
+      <main className={cx("mx-auto flex flex-col px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
         <Limit app={app} run={state?.run} filling={v.working.map((j) => j.key).join("\n")} />
         {lost && (
           <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
@@ -164,7 +164,8 @@ function Stop({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
 // whenever a form leaves "Still working on" (`filling` changes), so the bar moves on by what that form used. A failed
 // reading keeps the last one, so a WorkIt hiccup doesn't make the bar vanish; a reading from before a newer one
 // started is dropped (`live`), so a slow one can't move the bar back. From 80% the words say so; at the cap (or a run
-// paused at it) a banner on top, so no "We're on it" below reads as if applying goes on.
+// paused at it) a banner on top, so no "We're on it" below reads as if applying goes on. The bar itself sits at the
+// foot of the page (`order-last`): it is worth a glance, never the first thing to read.
 function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: string }) {
   const [usage, setUsage] = useState<Usage | null>(null);
   useEffect(() => {
@@ -183,10 +184,10 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
   if (!usage && !line) return null;
   const share = usage ? usedShare(usage) : 0;
   return (
-    <section className="mb-6">
-      {reached && line && <p role="status" className="mb-3 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>}
+    <>
+      {reached && line && <p role="status" className="mb-6 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>}
       {usage && (
-        <>
+        <section className="order-last mt-12 border-t border-border pt-4">
           <div className="flex items-baseline justify-between gap-4 text-note text-ink-meta">
             <span>Today's usage</span>
             <span>{usageLine(usage)}</span>
@@ -195,9 +196,9 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
             <span className={cx("block h-full rounded-full transition-[width] duration-700", share >= 80 ? "bg-warning-fill" : "bg-brand")} style={{ width: `${share}%` }} />
           </div>
           {!reached && line && <p role="status" className="mt-1.5 text-note text-ink-meta">{line}</p>}
-        </>
+        </section>
       )}
-    </section>
+    </>
   );
 }
 
@@ -211,10 +212,13 @@ function useNow(): number {
   return now;
 }
 
-// Every to-do in one list, so the student sees what waits on them before the card: a row jumps to its card.
+// Every to-do in one list, under the card, so the one to act on comes first and the rest stay in sight: a row jumps
+// to its card. Shown only when there is more than one.
 function Needs({ v, at, go, now }: { v: View; at: number; go: (at: number) => void; now: number }) {
   return (
-    <ul aria-label="Needs you" className="mt-5 overflow-hidden rounded-card border border-border bg-panel">
+    <section className="mt-8">
+      <h3 className="mb-2 text-note font-semibold text-ink-meta">Needs you</h3>
+    <ul aria-label="Needs you" className="overflow-hidden rounded-card border border-border bg-panel">
       {needsYou(v.todo, now).map((n) => (
         <li key={n.key} className="border-b border-border last:border-0">
           <button
@@ -229,6 +233,7 @@ function Needs({ v, at, go, now }: { v: View; at: number; go: (at: number) => vo
         </li>
       ))}
     </ul>
+    </section>
   );
 }
 
@@ -249,11 +254,13 @@ function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge;
     <>
       <h1 className="text-heading">{headline(v)}</h1>
       {runLine(v) && <p className="mt-1 text-body text-ink-meta">{runLine(v)}</p>}
-      {v.todo.length > 0 && <Needs v={v} at={i} go={setAt} now={now} />}
       {v.todo.length ? (
-        <div className="mt-4">
-          <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
-        </div>
+        <>
+          <div className="mt-5">
+            <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
+          </div>
+          {more && <Needs v={v} at={i} go={setAt} now={now} />}
+        </>
       ) : (
         <div className="rise mt-6 flex items-center gap-4 rounded-shell border border-border bg-panel px-6 py-5">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-positive-tint text-positive-ink">
