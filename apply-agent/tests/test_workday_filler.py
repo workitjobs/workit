@@ -113,6 +113,22 @@ def test_creates_an_account_fills_every_step_reads_it_back_and_stops_before_subm
     assert server.submissions == []
 
 
+def test_a_new_account_that_lingers_on_create_account_goes_on_to_its_first_step_without_signing_in():
+    # On a busy machine (the CACI tenant, 2026-11-25), Create Account still showed once the account was made, and the
+    # Filler waited for a sign-in form that never came, until the step came and the fill stopped.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, made_delay=3) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            fill_all(filler, page, questions)
+
+    [account] = server.created
+    assert account["host"] == CACI
+    assert server.sign_ins == []  # signed in as made: never with the new password
+    assert server.submissions == []
+
+
 def test_a_checkbox_ticked_before_workday_wires_it_is_ticked_again_until_workday_holds_it():
     # Axiom's Self Identify (live): the box showed ticked, but Workday said it had no value.
     statuses = ("Yes, I have a disability, or have had one in the past",

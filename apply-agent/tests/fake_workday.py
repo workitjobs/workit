@@ -218,7 +218,7 @@ AUTH_SCRIPT = r"""
       body: JSON.stringify({email: value('email'), password: value('password'), verify: value('verifyPassword'),
                             accepted: box ? box.checked : null, page: location.href}),
     }).then(r => r.json()).then(r => {
-      if (r.next) location.href = r.next;
+      if (r.next) setTimeout(() => { location.href = r.next; }, creating ? window.__fakeMadeDelay : 0);
       else if (r.signIn) document.querySelector('[data-automation-id=signInLink]').click();  // a bare Sign In view
       else if (!(creating && r.error && window.__fakeHidesErrors)) show(r.error || r.notice, r.error ? 'error' : 'verify');
     });
@@ -348,6 +348,8 @@ class FakeWorkdayServer:
     `exists_quietly`: Create Account for an email that has an account goes
     to the bare Sign In view, with no error (ASML's, live). `hides_errors`:
     Create Account's refusal is in Workday's answer only, never on the page.
+    `made_delay`: seconds the Create Account view still shows once the account
+    is made, before Workday goes to the first step (on a busy machine, live).
     `plain`: open each page in a plain Worker (Chrome for Testing driven by the worker
     extension, no CDP: tests/plain_fakes.py) in place of Playwright's Chromium; by default
     when $APPLY_TEST_PLAIN is set, so the same tests run on either."""
@@ -360,7 +362,7 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
+                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False, made_delay: float = 0,
                  crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False,
                  gone: bool = False):
         self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
@@ -402,6 +404,7 @@ class FakeWorkdayServer:
         self._to_sign_in = to_sign_in
         self._exists_quietly = exists_quietly
         self._hides_errors = hides_errors
+        self._made_delay = made_delay
         self._dates_need_calendar = dates_need_calendar
         self._gone = gone  # each posting is one Workday no longer has: its page says so a second after it loads
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
@@ -440,6 +443,7 @@ class FakeWorkdayServer:
                 f"window.__fakeDroppedSaves = {self._dropped_saves}",
                 f"window.__fakeBoxWiring = {self._box_wiring}",
                 f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}",
+                f"window.__fakeMadeDelay = {int(self._made_delay * 1000)}",
                 # Each date says what it holds and has a Calendar; typed dates are held wrong (NVIDIA's, live, KAN-716).
                 f"window.__fakeHeldLine = {str(self._dates_need_calendar).lower()}",
                 f"window.__fakeTypedDatesWrong = {str(self._dates_need_calendar).lower()}",
