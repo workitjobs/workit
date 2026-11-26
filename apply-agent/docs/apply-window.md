@@ -62,7 +62,11 @@ docstring first.
   temp folder) the code box still works. `docs/workit.md` has the PKCE flow.
 - First run's steps and the app's settings (`app.json` in the data folder:
   the disclosure, the Screen Recording ask, the Worker count) are in
-  `apply/first_run.py`, each check a callable that tests replace.
+  `apply/first_run.py`, each check a callable that tests replace. The seed
+  step (Set Up the Worker Extension) comes only when the Workers run on
+  Google Chrome (`plain_chrome: chrome`, the default). With
+  `plain_chrome: testing` or `APPLY_PLAIN_CHROME=testing`, Workers load the
+  worker extension with `--load-extension`, so first run skips the step.
 - A run is `student.Runs.run` in a thread of the bridge's: one at a time,
   its own `Dashboard(serve=False)` shown while it goes, the queue's again
   after. A `SetupError` (no engine, a profile in use) is its one-line

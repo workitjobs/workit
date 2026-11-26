@@ -1239,7 +1239,9 @@ window:
    Not Now. Without it, Fix here's view is about two frames a second (W2).
 4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
    the window and its "press Return" as Try Again, till a real Worker says
-   hello. The way in until a store copy can be used (W6).
+   hello. The way in until a store copy can be used (W6). Skipped when
+   the Workers run on Chrome for Testing (`plain_chrome: testing`), which
+   loads the worker extension itself.
 
 Chrome and the seed are looked at again at each launch; the disclosure,
 the Screen Recording ask and the Worker count are kept in the data
