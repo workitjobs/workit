@@ -426,6 +426,40 @@ through `worker._Planned._missing` first.
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
+### Other roles at the same company (`apply.other_roles`)
+
+"Are you applying to any Strava internship besides this one? If so, which
+ones and why?" is never a question for Lisul and never goes to Claude.
+Strava's form (2026-11-26) asked it, the Essay plan made it an Essay fact,
+and his answer, true of Strava only, joined the Story bank for every
+company.
+
+- `worker._Planned._other_roles` runs before Needs you. `other_roles.asks`
+  finds the question: it asks of other roles, internships or postings and
+  names this company (or "here", "with us", "besides"), and it does not ask
+  of other companies.
+- `other_roles.others` reads Apply's Tracker for his applications to the
+  same company (`model.is_company`): a submitted row is "applied", a row
+  still on its way is "applying". A Request on the same job board is
+  "applying". This posting is never one of them.
+- `other_roles.openings` reads the company's open postings from its board's
+  public API (Greenhouse, Lever, Ashby). The board names a Request's role
+  and gives the text for a why sentence. A board that can't be read leaves
+  the Tracker alone to say.
+- `other_roles.answer` names each other application, or says "No, <role> is
+  the only <company> internship I'm applying to." It never names a role he
+  has not applied to. When the question asks why, each named role (2 at
+  most) gets one sentence from the profile only: an area of
+  `experience_facts.role_interests` its title names, else the
+  `experience_facts.skills` its text lists. A yes/no list gets Yes or No:
+  "Have you applied" counts sent applications only, and "Is this the only
+  role" turns Yes and No round, typed or picked.
+- The answer goes on this form and its Record only. It is dropped from the
+  plan's essays, drafts and Missing facts, and it never joins the Answer
+  bank or the Story bank.
+
+**Tests.** `tests/test_other_roles.py`.
+
 ## An optional question no source answers (KAN-759)
 
 Lisul answers optional questions too (Lisul, 2026-11-10: "if it's optional
