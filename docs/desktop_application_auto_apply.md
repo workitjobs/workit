@@ -124,7 +124,7 @@ builds it.
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
 | D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
-| D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags in CI | GitHub Actions minutes are limited | W0 |
+| D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags on PRs. **One exception (revised 2026-11-26, KAN-941): a release builds, signs and publishes in one workflow on a GitHub-hosted Mac**, run by hand from `main` (`publish-app.yml`) | GitHub Actions minutes are limited. The exception: a release built on a person's Mac put the update key on each publisher's computer, and a release built anywhere but a clean checkout of `main` could hold code no one reviewed | W0, W8 |
 | D33 | **One mode:** Apply fills each form and stops on its last page; a person always presses Submit. Rehearsals and `live_runs` go. Not a v1 blocker | Simpler and safer: Apply never sends an application | W12 |
 | D34 | **The student's data comes through the Fill engine's code as it does now.** Its redesign is a teammate's work | Out of this design's scope | W11 |
 | D35 | **Keeping a job-site password from the student is not a requirement** (2026-11-14). The passwords Apply makes are the student's. Copy password writes through the window's own clipboard function, as the window's other copy buttons do, with no secret marks and no clear after a minute | It works on every OS with no clipboard code in Apply; the student can already see each password with Show password | W4 |
@@ -498,8 +498,8 @@ against `https://api.workitjobs.ai`.
    The form stops on its last page; never press Submit on a real posting
    in a test.
 3. **As a real app.** A developer runs the build script on a Mac (W8)
-   and installs the result, or sends it to testers through Sparkle's beta
-   channel. Testers outside the team need the Apple enrollment first,
+   and installs the result, or, later, sends a release to testers through
+   Sparkle's beta channel. Testers outside the team need the Apple enrollment first,
    because macOS blocks an app signed by no one.
 
 There is no staging server. Tests that reach production use the shared
@@ -509,8 +509,10 @@ test account.
 
 GitHub-hosted Linux runners, on PRs only: `uv run ruff check .` and a
 short list of fast tests (no browser, no network, no `claude`), a few
-minutes in all. No macOS runners, no builds, no version tags. Builds run
-by hand (W8).
+minutes in all. No macOS runners, no builds, no version tags on PRs. A
+release is the one build in CI (revised 2026-11-26): `publish-app.yml`, run
+by hand from `main` on a GitHub-hosted Apple Silicon Mac, builds, signs
+and publishes it (W8). Test builds run on a developer's Mac.
 
 ## 6. Workstreams
 
@@ -524,7 +526,7 @@ by hand (W8).
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle is in every build, and `publish-app.yml` builds, signs and publishes a release on a GitHub Mac (KAN-941, 2026-11-26). Left: sign and notarize (step 2), the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -1595,10 +1597,16 @@ itself (D17, D18, D20).
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
   (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
   Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
-- **Build by hand:** one script, `scripts/build_app.py`, that compiles,
-  signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
-  A release builds from the commit's own files (`git archive`), never the
-  working tree, and writes the commit into `Info.plist` (`WorkItCommit`).
+- **Build a release in one workflow** (D32, revised 2026-11-26):
+  `.github/workflows/publish-app.yml`, run by hand from `main`, builds on
+  a GitHub-hosted Apple Silicon Mac with `scripts/build_app.py
+  --release`, signs (from step 2, Developer ID and notarizing too), signs
+  the DMG for Sparkle with `scripts/publish_app.py`, and uploads it. The
+  keys are secrets of the GitHub environment `auto-apply-desktop`, from
+  Infisical: no person's computer holds them. A developer's Mac builds
+  test builds only. A release builds from the commit's own files (`git
+  archive`), never the working tree, and writes the commit into
+  `Info.plist` (`WorkItCommit`).
 
 **Steps.**
 
@@ -1621,20 +1629,20 @@ itself (D17, D18, D20).
    `https://downloads.workitjobs.ai/appcast.xml`, checks and installs with
    no question, and `apply.updates` to start it; tested end to end on one
    Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
-   Decided 2026-11-24: the key lives in the publisher's Keychain with a
-   backup in Infisical, and a GitHub Actions workflow, not a Mac, uploads
-   to R2. The key is made and in every build (2026-11-26). Left: a beta
-   channel.
+   The key is made and its public half is in every build (2026-11-26).
+   Its private half is in Infisical and the `auto-apply-desktop`
+   environment only (revised 2026-11-26: first planned for the
+   publisher's Keychain). Left: a beta channel.
 4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
    app, a link to Applications, and the license and notices beside them.
-   Publishing is built (KAN-941, 2026-11-26): `scripts/publish_app.py` on
-   the Mac signs a release and makes a draft GitHub Release, and
-   `.github/workflows/publish-app.yml`, run by hand from `main`, copies it
-   to the R2 bucket `auto-apply-desktop` behind `downloads.workitjobs.ai`.
-   Left: Infisical's sync of the R2 keys, the first publish, the
-   signature and notarization (step 2), and `DOWNLOAD_URL`, which waits on
-   step 2.
+   Publishing is built (KAN-941, 2026-11-26): `.github/workflows/publish-app.yml`,
+   run by hand from `main`, builds the release on a GitHub Mac, signs it
+   for Sparkle (`scripts/publish_app.py`) and puts it in the R2 bucket
+   `auto-apply-desktop` behind `downloads.workitjobs.ai`. Left: the
+   environment's secrets (`docs/secrets.md`, Still open), the first
+   publish, the signature and notarization (step 2), and `DOWNLOAD_URL`,
+   which waits on step 2.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
@@ -2164,7 +2172,7 @@ their value on their servers; WorkIt Auto Apply does the same.
 | Nuitka | Free (AGPLv3 with a runtime exception); Nuitka Commercial, for extra protection, about €400 |
 | Model calls in the beta | Free tiers (D7); paid tiers later (F3), cost per Application from W13 |
 | Tavily (F2, not v1) | 1,000 free credits a month, then $0.008 a credit |
-| GitHub Actions | Small Linux jobs on PRs only (D32) |
+| GitHub Actions | Small Linux jobs on PRs, and a Mac runner for each release (D32). Free while the repo is public. Once W0 makes Apply's repo private, a Mac minute counts as about 10 of the plan's free minutes: check GitHub's prices then |
 | **Fixed total for v1** | **About $99 a year** |
 
 ## 10. Open questions

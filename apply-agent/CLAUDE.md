@@ -589,8 +589,9 @@ Tools, uv and the network, and any `python3` runs the script, macOS's own
 with only the system folders and uv on the `PATH`).
 The app has only the compiler's ad-hoc signature, so it opens on the Mac
 that built it and nowhere else until step 2 (Developer ID and
-notarizing). Sparkle (step 3) is in every build, and
-`scripts/publish_app.py` publishes a release (step 4). `--release` makes
+notarizing). Sparkle (step 3) is in every build. A release is built,
+signed and published only by `../.github/workflows/publish-app.yml` on a
+GitHub Mac (step 4, D32), never on a person's computer. `--release` makes
 the notices strict (above).
 
 - **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
@@ -715,15 +716,17 @@ the notices strict (above).
   update"): with ad-hoc signatures, an older build found, downloaded and,
   on quit, installed a newer one; one signed with another key was
   downloaded and refused.
-- **Only a release is published** (W8 step 4, KAN-941).
-  `scripts/publish_app.py` signs a `--release` build's DMG with the update
-  key in the publisher's Keychain, writes the feed (one item, the newest
-  build) and makes a draft GitHub Release; `../.github/workflows/publish-app.yml`,
-  run by hand from `main`, copies them to R2 (`../.github/CLAUDE.md`). The
+- **Only a release is published, and only from a GitHub Mac** (W8 step 4,
+  KAN-941, D32). `../.github/workflows/publish-app.yml`, run by hand from
+  `main`, builds with `--release`, then `scripts/publish_app.py` signs the
+  DMG with the update key, which it gets from the environment and gives
+  `sign_update` on stdin, and writes the feed (one item, the newest
+  build); the workflow uploads both to R2 (`../.github/CLAUDE.md`). The
   script refuses a test build (`WorkItRelease` false in `Info.plist`),
-  which can hold untracked files and incomplete notices; a commit that
-  isn't on `main`, which no one reviewed; and a Keychain key whose public
-  half isn't the app's, which every app would download and refuse. How to
+  which can hold untracked files and incomplete notices, and a key whose
+  signature the app's `SUPublicEDKey` rejects (checked with
+  `cryptography`, as an app checks it), which every app would download and
+  refuse. No developer holds the key: a test build signs nothing. How to
   publish: `docs/app-build.md`.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher

@@ -1,19 +1,15 @@
 name: Publish WorkIt Auto Apply
 
-# KAN-941 (W8 step 4 of docs/desktop_application_auto_apply.md): copies a release of the Mac app from its draft
-# GitHub Release to the R2 bucket behind https://downloads.workitjobs.ai. Every installed app reads the feed there
-# (appcast.xml) and updates itself, and the website's Download for Mac links the DMG. A Mac builds and signs the
-# release and makes the draft (apply-agent/scripts/publish_app.py, D32). .github/CLAUDE.md's "Publish WorkIt Auto
-# Apply" section has the why and the one-time setup.
+# KAN-941 (W8 step 4 of docs/desktop_application_auto_apply.md, D32): builds a release of the Mac app from main on a
+# GitHub-hosted Apple Silicon Mac, signs it for Sparkle, and puts it in the R2 bucket behind
+# https://downloads.workitjobs.ai. Every installed app reads the feed there (appcast.xml) and updates itself, and the
+# website's Download for Mac links the DMG. No person's computer builds or signs a release, or holds the update key.
+# .github/CLAUDE.md's "Publish WorkIt Auto Apply" section has the why and the one-time setup.
 #
-# By hand from main only: `gh workflow run publish-app.yml --ref main -f build=<build number>`. A re-run of the same
-# build writes the same files again, so it is safe.
+# By hand from main only: `gh workflow run publish-app.yml --ref main`. Every installed app installs what it
+# publishes, with no question: test main's app before you run it.
 on:
   workflow_dispatch:
-    inputs:
-      build:
-        description: "The release's build number (12 digits), as publish_app.py printed it"
-        required: true
 
 # One publish at a time: two would race to write the feed.
 concurrency:
@@ -21,77 +17,78 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # GitHub shows a draft release only to a token that may write
+  contents: read
 
 jobs:
   publish:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # The R2 keys are secrets of this environment, which takes jobs from main only.
+    runs-on: macos-15 # Apple Silicon (D18)
+    timeout-minutes: 60
+    # The update key and the R2 keys are secrets of this environment, which takes jobs from main only.
     environment: auto-apply-desktop
     env:
-      BUILD: ${{ inputs.build }}
       BUCKET: auto-apply-desktop
       SITE: https://downloads.workitjobs.ai
     steps:
-      - name: Download the draft release
+      # A re-run of an old run builds that run's commit under a new build number, which every app would install.
+      - name: Refuse a commit that isn't main's newest
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! [[ "$BUILD" =~ ^[0-9]{12}$ ]]; then
-            echo "::error::The build number is the app's 12 digits (CFBundleVersion), as publish_app.py printed it."
-            exit 1
-          fi
-          gh release download "auto-apply-$BUILD" --repo "$GITHUB_REPOSITORY" --dir out
-          if ! grep -q "<sparkle:version>$BUILD</sparkle:version>" out/appcast.xml \
-            || ! grep -q "url=\"$SITE/WorkIt-Auto-Apply-$BUILD.dmg\"" out/appcast.xml \
-            || [ ! -f "out/WorkIt-Auto-Apply-$BUILD.dmg" ]; then
-            echo "::error::Release auto-apply-$BUILD must hold WorkIt-Auto-Apply-$BUILD.dmg and the appcast.xml that offers it: make it again with publish_app.py."
+          TIP=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$TIP" != "$GITHUB_SHA" ]; then
+            echo "::error::This run is for $GITHUB_SHA, but main is at $TIP. Start a new run: gh workflow run publish-app.yml --ref main"
             exit 1
           fi
 
-      # Installed apps ignore an older build, but the website's DMG would go back to it for every new student.
-      - name: Refuse a build older than the live one
-        run: |
-          LIVE=$(curl -fsS "$SITE/appcast.xml" | grep -o '<sparkle:version>[0-9]*' | grep -o '[0-9]*$' || true)
-          if [ -n "$LIVE" ] && [ "$LIVE" -gt "$BUILD" ]; then
-            echo "::error::The live build is $LIVE, newer than $BUILD. Publish a new release instead."
-            exit 1
-          fi
-          echo "Live build: ${LIVE:-none}"
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+
+      # The commit's own files, complete notices, no ccache (apply-agent/scripts/build_app.py).
+      - name: Build the release
+        working-directory: apply-agent
+        run: python3 scripts/build_app.py --release
+
+      - name: Sign it for Sparkle and write the feed
+        working-directory: apply-agent
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: python3 scripts/publish_app.py
 
       - name: Upload to R2, the feed last
+        working-directory: apply-agent/build/out/publish
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_AUTO_APPLY_DESKTOP_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_AUTO_APPLY_DESKTOP_ENDPOINT }}
           AWS_DEFAULT_REGION: auto
           # Only the checksums S3 requires: R2 refused the ones AWS CLI 2.23 and later add by default.
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
           if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$R2_ENDPOINT" ]; then
-            echo "::error::R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY or R2_ENDPOINT is not set in the auto-apply-desktop environment (docs/secrets.md, workit-prod/auto-apply-desktop)."
+            echo "::error::An R2_AUTO_APPLY_DESKTOP_* secret is not set in the auto-apply-desktop environment (docs/secrets.md, workit-prod/auto-apply-desktop)."
             exit 1
           fi
           put() { aws s3 cp --endpoint-url "$R2_ENDPOINT" --no-progress "$@"; }
-          DMG="WorkIt-Auto-Apply-$BUILD.dmg"
+          DMG=$(ls WorkIt-Auto-Apply-*.dmg)
           # The DMG before the feed that names it: an app reads the feed at any moment.
-          put "out/$DMG" "s3://$BUCKET/$DMG" --content-type application/x-apple-diskimage \
+          put "$DMG" "s3://$BUCKET/$DMG" --content-type application/x-apple-diskimage \
             --cache-control "public, max-age=31536000, immutable"
           # The website's link, always the newest build.
-          put "out/$DMG" "s3://$BUCKET/WorkIt-Auto-Apply.dmg" --content-type application/x-apple-diskimage \
+          put "$DMG" "s3://$BUCKET/WorkIt-Auto-Apply.dmg" --content-type application/x-apple-diskimage \
             --cache-control no-cache --content-disposition 'attachment; filename="WorkIt Auto Apply.dmg"'
-          put out/appcast.xml "s3://$BUCKET/appcast.xml" --content-type application/xml --cache-control no-cache
+          put appcast.xml "s3://$BUCKET/appcast.xml" --content-type application/xml --cache-control no-cache
 
       - name: Check what the apps and the website get
+        working-directory: apply-agent/build/out/publish
         run: |
-          curl -fsS "$SITE/appcast.xml" | grep -q "<sparkle:version>$BUILD</sparkle:version>" \
-            || { echo "::error::$SITE/appcast.xml doesn't offer build $BUILD: is the bucket's custom domain connected?"; exit 1; }
-          for NAME in "WorkIt-Auto-Apply-$BUILD.dmg" WorkIt-Auto-Apply.dmg; do
+          curl -fsS "$SITE/appcast.xml" | cmp -s - appcast.xml \
+            || { echo "::error::$SITE/appcast.xml isn't the feed this run wrote: is the bucket's custom domain connected?"; exit 1; }
+          DMG=$(ls WorkIt-Auto-Apply-*.dmg)
+          for NAME in "$DMG" WorkIt-Auto-Apply.dmg; do
             SIZE=$(curl -fsSI "$SITE/$NAME" | grep -i '^content-length:' | tr -dc '0-9')
-            [ "$SIZE" = "$(stat -c %s "out/WorkIt-Auto-Apply-$BUILD.dmg")" ] \
-              || { echo "::error::$SITE/$NAME isn't this build's DMG."; exit 1; }
+            [ "$SIZE" = "$(stat -f %z "$DMG")" ] || { echo "::error::$SITE/$NAME isn't this build's DMG."; exit 1; }
           done
-          echo "Published build $BUILD: every app gets it at its next check, and the website links it."
+          echo "Published $DMG: every app gets it at its next check, and the website links it."

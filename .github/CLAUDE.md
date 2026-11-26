@@ -784,50 +784,67 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
 
 ## Publish WorkIt Auto Apply (`workflows/publish-app.yml`, KAN-941)
 
-Copies a release of the Mac app from its draft GitHub Release to the R2
-bucket `auto-apply-desktop`, served at https://downloads.workitjobs.ai
-(W8 step 4 of `../docs/desktop_application_auto_apply.md`). Every
-installed app reads the feed there, `appcast.xml`, and updates itself
-(Sparkle); the website's Download for Mac links `WorkIt-Auto-Apply.dmg`.
+Builds a release of the Mac app from `main` on a GitHub-hosted Apple
+Silicon Mac, signs it for Sparkle, and puts it in the R2 bucket
+`auto-apply-desktop`, served at https://downloads.workitjobs.ai (W8 step 4
+of `../docs/desktop_application_auto_apply.md`). Every installed app reads
+the feed there, `appcast.xml`, and updates itself (Sparkle); the website's
+Download for Mac links `WorkIt-Auto-Apply.dmg`.
 
-- **A Mac builds and signs; the workflow only copies** (D32). The update
-  key is in the publisher's Keychain, never in GitHub: whoever holds it
-  makes every installed app run what it signs.
-  `apply-agent/scripts/publish_app.py` signs a `--release` build's DMG,
-  writes the feed (one item, the newest build) and makes the draft
-  `auto-apply-<build number>`. It refuses a test build, a commit that
-  isn't on `main`, and a Keychain key that isn't the app's
-  (`apply-agent/docs/app-build.md`, Publish a release).
+- **One workflow builds, signs and publishes; no person's computer does**
+  (D32, revised 2026-11-26). Whoever holds the update key makes every
+  installed app run what it signs. Built on a person's Mac, each publisher
+  needed a copy of the key, and the release was only as clean as their
+  checkout. Here the key is only in the environment, and the build is a
+  clean checkout of `main`. From step 2, the Developer ID signature and
+  notarizing join this job, with their secrets in the same environment.
 - **When.** By hand from `main` only: `gh workflow run publish-app.yml
-  --ref main -f build=<build number>`. Every installed app takes the build
-  at its next check (at launch and each day) and installs it when the
-  student quits, with no question: launch and test a release before you
-  publish it.
+  --ref main`. Every installed app takes the build at its next check (at
+  launch and each day) and installs it when the student quits, with no
+  question: test `main`'s app on a Mac before you run it
+  (`apply-agent/docs/app-build.md`, Publish a release).
+- **It refuses a commit that isn't `main`'s newest.** A re-run of an old
+  run builds that run's commit, and with a new build number every app
+  would install the old code. Start a new run instead. To undo a bad
+  build, revert it on `main` and publish again: Sparkle never installs an
+  older build number.
+- **The steps:** `apply-agent/scripts/build_app.py --release` on
+  `macos-15` (the build time on a runner is not measured yet; the timeout
+  is 60 minutes), then `apply-agent/scripts/publish_app.py`, which signs
+  the DMG and writes the feed (one item, the newest build). It refuses a
+  key whose signature the app's public half rejects, so a wrong
+  `SPARKLE_PRIVATE_KEY` stops the run before any upload.
+- **Only the signing step sees the key.** The build step installs
+  third-party packages and runs their code with no secret in its
+  environment. `publish_app.py` takes the key out of its own environment
+  before it starts any program and gives it to `sign_update` on stdin.
 - **Order.** The build's own DMG first, then the website's
   `WorkIt-Auto-Apply.dmg`, then `appcast.xml`: an app reads the feed at
   any moment, so the feed never names a DMG that isn't there yet. The feed
   and the website's DMG are `no-cache`; a build's own DMG never changes.
-- **It refuses a build older than the live feed's.** Installed apps would
-  ignore it, but every new student would get the older DMG. To undo a bad
-  build, publish a newer one: Sparkle never installs an older build.
-- **It doesn't check the DMG's signature.** The Mac checked its key
-  against the app's, an installed app refuses an update the key didn't
-  sign, and from step 2 macOS refuses a download that WorkIt's Developer
-  ID didn't sign. Until step 2 the DMG opens on no other Mac, so the
-  website's `DOWNLOAD_URL` stays null.
-- **Secrets:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
-  `R2_ENDPOINT`, secrets of the `auto-apply-desktop` environment (`main` only),
-  from Infisical's `workit-prod/auto-apply-desktop` (`../docs/secrets.md`).
-  The token writes only this bucket. `contents: write` is there because
-  GitHub shows a draft release only to a token that may write.
+  The last step reads the feed and both DMGs back through the domain.
+- **Until step 2 the DMG opens on no other Mac,** so the website's
+  `DOWNLOAD_URL` stays null.
+- **Secrets,** of the `auto-apply-desktop` environment (`main` only), from
+  Infisical's `workit-prod/auto-apply-desktop` (`../docs/secrets.md`):
+  `SPARKLE_PRIVATE_KEY`, and `R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID`,
+  `R2_AUTO_APPLY_DESKTOP_SECRET_ACCESS_KEY` and
+  `R2_AUTO_APPLY_DESKTOP_ENDPOINT`, a token that writes only this bucket.
+  Never repo secrets: a repo secret reaches every branch's workflows. A
+  person who can change a workflow on `main` can still read them, so a
+  workflow change goes through review like code.
+- **Cost:** free while the repo is public. Once W0 makes Apply's repo
+  private, a Mac minute counts as about 10 of the plan's free minutes. The
+  run takes one of the organization's 5 macOS jobs (CI, the Apply jobs), so it
+  can wait in the queue behind PRs' `apply` jobs.
 - **A failed run leaves the last build served,** unless it failed after
   the DMG upload: then the website already has the new DMG, and the feed
   still offers the last build. Run it again.
 - **Setup, once** (the user's steps): the bucket `auto-apply-desktop` and
   its custom domain `downloads.workitjobs.ai` (Cloudflare dashboard, R2,
-  2026-11-26), the token, and the `/auto-apply-desktop` sync
-  (`../docs/secrets.md`, Still open). The run's last step reads the feed
-  and both DMGs through the domain, so the first run checks the domain.
+  2026-11-26), the token, and the `/auto-apply-desktop` sync to the
+  environment (`../docs/secrets.md`, Still open). The first run checks
+  the domain.
 
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 

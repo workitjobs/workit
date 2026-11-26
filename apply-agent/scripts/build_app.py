@@ -31,7 +31,8 @@ file. Every build writes its commit into Info.plist (COMMIT_KEY), with "+changes
 that has some, so a report names the code it came from.
 
 The app updates itself with Sparkle (W8 step 3): the build puts its framework, the feed's address and the update
-key's public half in the app. scripts/publish_app.py hands a release to the workflow that publishes it (step 4).
+key's public half in the app. ../.github/workflows/publish-app.yml builds a release on a GitHub Mac and publishes it,
+with scripts/publish_app.py to sign it (step 4).
 The app has only the compiler's ad-hoc signature and no notarization yet (step 2), so it opens only on the Mac that
 built it.
 """
@@ -78,9 +79,9 @@ SPARKLE_SHA256 = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf
 SPARKLE = BUILD / f"sparkle-{SPARKLE_VERSION}"  # the release, unpacked once: its framework, and its tools in bin/
 # Where every app looks for updates. Each app keeps it in its Info.plist for good: never change it. R2 serves it (D17).
 FEED = "https://downloads.workitjobs.ai/appcast.xml"
-# The update key's public half (Sparkle's generate_keys, 2026-11-26). Its private half signs each update, in the
-# publisher's Keychain with a backup in Infisical (docs/secrets.md). Every app refuses an update another key signs:
-# never change it.
+# The update key's public half (Sparkle's generate_keys, 2026-11-26). Its private half signs each update, and only
+# publish-app.yml holds it, from Infisical (docs/secrets.md). Every app refuses an update another key signs: never
+# change it.
 SPARKLE_PUBLIC_KEY = "qHsvDUdl7uTOnK60Vy1+qyUt7vVSKrkGUFWAUCdjHFg="
 # Sparkle's parts the app never runs: the XPC services are for sandboxed apps, and the headers and module maps are
 # for compiling against it.

@@ -97,31 +97,27 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
 
 ## Publish a release
 
-Every installed app takes a published build at its next check (at launch
-and each day) and installs it when the student quits, with no question. So
-publish only a release that you launched and tested.
+A GitHub-hosted Mac builds, signs and publishes every release, never a
+person's computer (D32): `../../.github/workflows/publish-app.yml`. Every
+installed app takes a published build at its next check (at launch and
+each day) and installs it when the student quits, with no question.
 
-1. On the `main` commit to release, after a pull: `python3
-   scripts/build_app.py --release`. Launch it and test it (above).
-2. `python3 scripts/publish_app.py`. It signs the DMG with the update key
-   in your Keychain (macOS may ask whether `sign_update` may use it:
-   Always Allow), writes `build/out/publish/appcast.xml`, and makes the
-   draft release `auto-apply-<build number>` with `gh`. No student gets
-   anything yet.
-3. Run the command it prints: `gh workflow run publish-app.yml --ref main
-   -f build=<build number>`. The run copies the DMG and the feed to
-   https://downloads.workitjobs.ai and reads them back from there
+1. Test `main` first: pull it, `python3 scripts/build_app.py`, launch the
+   app and run it (above). The workflow builds from the same commit.
+2. `gh workflow run publish-app.yml --ref main`. It refuses a commit that
+   isn't `main`'s newest, builds with `--release` on a clean checkout,
+   signs the DMG for Sparkle (`scripts/publish_app.py`, with the key from
+   the `auto-apply-desktop` environment), uploads it and the feed to
+   https://downloads.workitjobs.ai, and reads both back from there
    (`../../.github/CLAUDE.md`, Publish WorkIt Auto Apply).
 
-**The update key** is in the login Keychain of the Mac that made it
-(2026-11-26); its backup is `SPARKLE_PRIVATE_KEY` in Infisical's
-`workit-prod/auto-apply-desktop-private-keys` (`../../docs/secrets.md`). To publish from
-another Mac, save the backup to a file, run
-`build/sparkle-2.10.1/bin/generate_keys -f <file>`, and delete the file.
-`generate_keys -p` prints the Keychain key's public half, which must be
-`SPARKLE_PUBLIC_KEY`. Never make a new key: every installed app refuses an
-update another key signs, so its students would stay on their build for
-good.
+**The update key** is `SPARKLE_PRIVATE_KEY` in Infisical's
+`workit-prod/auto-apply-desktop`, which syncs it to that environment only
+(`../../docs/secrets.md`). No developer needs it: a test build signs
+nothing. `scripts/publish_app.py` refuses a key whose signature the app's
+`SPARKLE_PUBLIC_KEY` rejects. Never make a new key: every installed app
+refuses an update another key signs, so its students would stay on their
+build for good.
 
 ## Test an update
 
@@ -159,12 +155,15 @@ build afterwards: it allows plain HTTP.
 
 - Step 2: Developer ID signing with the hardened runtime and the
   entitlements for Node (JIT) and Apple events, then notarizing the app
-  and the DMG.
+  and the DMG. Both run in `publish-app.yml`, with the certificate and
+  the notarization login as secrets of the `auto-apply-desktop`
+  environment, like the update key.
 - Step 3: a beta channel for testers is not built. Sparkle and the update
   key are in every build (2026-11-26).
-- Step 4: publishing (above) waits on Infisical's `/auto-apply-desktop`
-  sync (`../../docs/secrets.md`, Still open), and nothing is published
-  yet. The website's `DOWNLOAD_URL`
+- Step 4: publishing (above) waits on the `auto-apply-desktop`
+  environment's secrets (`../../docs/secrets.md`, Still open), and nothing
+  is published yet. The workflow's build on a GitHub Mac has not run yet.
+  The website's `DOWNLOAD_URL`
   (`frontend/src/app/(seeker)/auto-apply-desktop/page.tsx`) stays null
   until step 2, since until then the DMG opens on no other Mac; then it is
   `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
