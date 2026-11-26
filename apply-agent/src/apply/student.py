@@ -16,6 +16,7 @@ from apply import (
     answering,
     app_window,
     captcha,
+    home,
     rehearsal,
     tailored,
     worker_tiles,
@@ -237,6 +238,7 @@ def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None)
                 facts.setdefault("files", {})[fact] = str(path)
     except WorkItError as error:
         raise SetupError(f"Your profile didn't come from WorkIt ({error}). Press Start again in a moment.") from None
+    got["policies"].pop("how_heard", None)  # "How did you hear about us?" stays Apply's: the extension answers "WorkIt"
     profile.refresh(facts, layered(load_policies(), got["policies"]))
 
 
@@ -266,6 +268,8 @@ def app() -> None:
     first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
     (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
     Start."""
+    HOME.mkdir(parents=True, exist_ok=True)
+    home.STORY_BANK.touch()  # an empty Story bank, which every essay reads: the app has no Test Person's (W11)
     profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
     bank = AnswerBank(WorkItSource())
     bank.load_in_background()

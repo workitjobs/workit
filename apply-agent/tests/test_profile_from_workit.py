@@ -3,7 +3,7 @@ in Needs you sent back. No profile file and no Test Person: a first launch with 
 
 import pytest
 
-from apply import student
+from apply import essays, student
 from apply.adapters import SetupError
 from apply.answer_bank import AnswerBank
 from apply.profile import ApplicantProfile
@@ -20,7 +20,7 @@ class WorkIt:
         if self.down:
             raise Unreachable("api.workitjobs.ai: timed out")
         return {"profile": {"identity": {"legal_first_name": "Sam"}},
-                "policies": {"how_heard": {"text": "WorkIt"}, "high_stakes_job_systems": []},
+                "policies": {"how_heard": {"text": "WorkIt"}, "high_stakes_job_systems": [], "sms_opt_in": False},
                 "files": {"resume": {"name": "../Sam_Resume.pdf", "uploaded_resume_id": "r1"}}}
 
     def profile_file(self, where: dict) -> bytes:
@@ -33,16 +33,19 @@ class WorkIt:
 
 
 def test_a_start_reads_the_profile_and_its_files_from_workit(tmp_path, monkeypatch):
-    """Fault: the profile or its resume came from the Mac, or WorkIt's empty list wiped one of Apply's own."""
+    """Fault: the profile or its resume came from the Mac, WorkIt's empty list wiped one of Apply's own, or the
+    extension's "WorkIt" answered "How did you hear about us?" in place of Apply's own answer."""
     monkeypatch.setattr(student, "FILES", tmp_path / "files")
-    profile = ApplicantProfile({}, tmp_path, {"high_stakes_job_systems": ["ashby"], "how_heard": {"text": "x"}})
+    profile = ApplicantProfile({}, tmp_path, {"high_stakes_job_systems": ["ashby"], "how_heard": {"text": "Company "
+                               "careers page"}, "sms_opt_in": True})
 
     student.profile_from_workit(profile, WorkIt())
 
     resume = profile.get("files.resume_pdf")
     assert profile.get("identity.legal_first_name") == "Sam"
     assert resume == tmp_path / "files" / "Sam_Resume.pdf" and resume.read_bytes() == b"%PDF resume r1"  # a name only
-    assert profile.policy("how_heard.text") == "WorkIt" and profile.policy("high_stakes_job_systems") == ["ashby"]
+    assert profile.policy("sms_opt_in") is False and profile.policy("high_stakes_job_systems") == ["ashby"]
+    assert profile.policy("how_heard.text") == "Company careers page"
 
 
 def test_a_start_workit_doesnt_answer_says_so_and_changes_nothing(tmp_path):
@@ -83,8 +86,10 @@ def test_a_run_reads_the_profile_after_the_bank_and_before_any_form_opens(tmp_pa
 
 def test_a_first_launch_with_no_profile_and_no_sample_opens(tmp_path, monkeypatch):
     """Fault (found building the app, KAN-833): the app copied Test Person's sample/ into a data folder with no
-    profile, and stopped at launch where the build ships no sample/."""
+    profile, and stopped at launch where the build ships no sample/. Without the copy, the first essay stopped
+    on a Story bank file that wasn't there."""
     monkeypatch.setattr("apply.home.fill_from_sample", lambda: pytest.fail("Test Person copied"))
+    monkeypatch.setattr("apply.home.STORY_BANK", tmp_path / "story-bank.md")
     monkeypatch.setattr(student, "AnswerBank", lambda *_: AnswerBank())
     opened = []
     monkeypatch.setattr(student.app_window, "run", lambda board, start: opened.append(start))
@@ -92,3 +97,4 @@ def test_a_first_launch_with_no_profile_and_no_sample_opens(tmp_path, monkeypatc
     student.app()
 
     assert len(opened) == 1  # the window opened, and the patched copy above was never made
+    assert "<story_bank>\n</story_bank>" in essays.sources(ApplicantProfile({}, tmp_path, {}))  # empty, not missing

@@ -341,7 +341,11 @@ and never copies Test Person. Each Start reads `GET /apply-app/profile`
 policies, built on the server exactly as the extension builds them, so
 the app fills as the extension does. The policies lie over the app's own,
 and an empty one never wipes Apply's (`high_stakes_job_systems: [ashby]`
-stays). The default resume and the transcript are read then too
+stays). "How did you hear about us?" stays Apply's, "Company careers
+page": WorkIt's answer, "WorkIt", is the extension's alone (decided
+2026-11-26). The Story bank, voice, Stock answers and company briefs don't
+come from WorkIt yet: the app starts an empty `story-bank.md`, which
+every essay reads, so a first essay never stops on a missing file. The default resume and the transcript are read then too
 (`WorkIt.profile_file`) and kept in `home.HOME / "files"`, by their names
 alone, for a form's upload. A Start WorkIt doesn't answer says so and
 changes nothing. What the student answers in Needs you goes back
