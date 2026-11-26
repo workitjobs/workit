@@ -45,6 +45,11 @@ docstring first.
   same token and Origin checks. A new route needs nothing more. The
   frame streams (`/frames`, `/stream/k`) never go through it, since their
   answer never ends: the shim makes `/frames` from `Bridge.frames`.
+- A `js_api` method's return that comes back after its page was
+  replaced (`load_html`: Go on, Back, the board), such as a `matches`
+  wait of up to 90 seconds, finds no callback on the new page.
+  `late_replies` drops it, so pywebview's reply thread logs no
+  JavascriptException; any other script's error still raises.
 - Closing the window or quitting the app closes every form held for the
   student, so it asks first only while one is (`guard_close`): pywebview's
   `confirm_close`, with its question naming how many (`close_words`:

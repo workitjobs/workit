@@ -872,6 +872,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window
+    late_replies(window)
     closing(window)
     window.events.closing += lambda: guard_close(window, bridge)
     threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
@@ -883,6 +884,27 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+REPLY = 'window.pywebview._returnValuesCallbacks["'  # how pywebview hands a js_api method's return to the page
+
+
+def late_replies(window) -> None:
+    """A js_api method's return that comes back after its page was replaced (load_html: Go on, Back, the board) finds
+    no callback there: pywebview's reply thread raised JavascriptException ("... is not a function") and logged a
+    traceback with the whole reply, a long `matches` wait's 30 jobs in it. No page waits on it, so it is dropped. Any
+    other script's error still raises."""
+    evaluate = window.evaluate_js
+
+    def replying(script, *args, **kwargs):
+        try:
+            return evaluate(script, *args, **kwargs)
+        except Exception as error:
+            gone = type(error).__name__ == "JavascriptException" and "TypeError" in str(error)
+            if isinstance(script, str) and script.startswith(REPLY) and gone:
+                return None
+            raise
+    window.evaluate_js = replying
 
 
 def close_words(held: int) -> str:

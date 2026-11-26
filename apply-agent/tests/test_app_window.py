@@ -749,3 +749,25 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
         assert bridge.set_best_model(False) == {"best": False}
         assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
+    """Fault: a js_api method's return that comes back after load_html replaced its page (a long `matches` wait,
+    then Go on) raises JavascriptException in pywebview's reply thread, and its traceback floods the log."""
+    class JavascriptException(Exception):
+        pass
+
+    class Window:
+        def evaluate_js(self, script):
+            if "missing" in script or "broken" in script:
+                raise JavascriptException({"name": "TypeError" if "missing" in script else "ReferenceError"})
+            return "ran"
+
+    window = Window()
+    app_window.late_replies(window)
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["missing"]({value: "[]"})') is None
+    assert window.evaluate_js(app_window.REPLY + 'matches"]["7"]({value: "[]"})') == "ran"
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("broken()")
+    with pytest.raises(JavascriptException):
+        window.evaluate_js("missing()")  # not a reply: its error is the page's own
