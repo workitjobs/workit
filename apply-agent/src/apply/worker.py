@@ -28,6 +28,7 @@ from apply import (
     eligibility,
     essays,
     gates,
+    other_roles,
     private,
     regenerate,
     sameness,
@@ -618,6 +619,7 @@ class _Planned:
         self.written: list[essays.Essay] = []
         self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted into the Answer bank
         self.unbanked: list[essays.Draft] = []  # Claude's answers to one-off questions about this company
+        self.roles: dict[str, str] = {}  # answers to "applying to other roles here?", by name (apply.other_roles)
         self.banked: list[Question] = []  # one-off questions the Answer bank answered
         self.reused: list[tuple[str, str, int]] = []  # the unreviewed drafts among them, with their uses
         self._asked: set[Question] = set()  # one-off questions sent to Claude to draft
@@ -728,6 +730,7 @@ class _Planned:
                 planned.answers[q.name] = given
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
+        self._other_roles(planned)
         if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -816,6 +819,24 @@ class _Planned:
                 answers[q.name] = essay.text
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
+
+    def _other_roles(self, planned) -> None:
+        """Answer each question whether Lisul applies to other roles at this company in code, from his Tracker
+        and the company's job board (apply.other_roles), once: never Claude's to write, never his to answer
+        (Strava, 2026-11-26), and never banked, since it is true of this company only."""
+        if new := [q for q in self.questions if q.name not in self.roles and other_roles.asks(q, self.posting.company)]:
+            board = other_roles.openings(self.posting, self._site)
+            found = other_roles.others(self.posting, board)
+            for q in new:
+                if (text := other_roles.answer(q, self.posting, found, board, self.profile,
+                                               self.text or self.posting_text())) is not None:
+                    self.roles[q.name] = text
+        if not self.roles:
+            return
+        planned.answers.update(self.roles)
+        for part in ("essays", "drafts", "missing", "optional", "high_stakes", "banked"):
+            setattr(planned, part, [q for q in getattr(planned, part) if q.name not in self.roles])
+        planned.waiting = {name: on for name, on in planned.waiting.items() if name not in self.roles}
 
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
