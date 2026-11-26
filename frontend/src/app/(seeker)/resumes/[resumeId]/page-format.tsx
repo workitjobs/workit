@@ -779,7 +779,7 @@ export function SidePanel({
   return (
     <section
       aria-label={title}
-      className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
+      className="sm:bg-panel sm:ring-border-surface sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
     >
       <div className="flex min-h-9 shrink-0 items-center justify-between gap-2">
         <SectionHeading>{title}</SectionHeading>
@@ -787,7 +787,7 @@ export function SidePanel({
           <CloseIcon />
         </IconButton>
       </div>
-      <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5">
+      <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-none pr-1.5">
         {children}
       </div>
     </section>

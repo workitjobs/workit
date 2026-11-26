@@ -9,11 +9,9 @@ import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 import { claudeConnectorLink } from "@/lib/claude-connector";
-import { cn } from "@/lib/cn";
 import { getClaudeConnected } from "@/lib/connector-actions";
 
 import { BackLink } from "../../back-link";
-import { SEEKER_GUTTER } from "../../gutter";
 import { ConnectClaude, WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
 import { FactBox } from "./fact-box";
@@ -52,8 +50,8 @@ export const metadata: Metadata = {
  * WRITE WITH CLAUDE (../write-with-claude.tsx), beside the heading while
  * any question waits, starts the student's own Claude on them instead.
  * While their Claude has no WorkIt connector (GET .../connector) it is
- * Connect Claude: this is where the optional Claude step lives since Auto
- * Apply's setup banner shows only the extension.
+ * Connect Claude: this is where the optional Claude step lives, since
+ * Auto Apply's notice asks only for the extension (../extension-notice.tsx).
  *
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
@@ -65,10 +63,19 @@ export const metadata: Metadata = {
  *
  * The list is read once, on the server, as the page loads; a saved answer
  * stays on the page marked Saved until the next visit, so the student sees
- * what they sent. A <div>, since SidebarInset is already the <main>. It
- * stops at max-w-dashboard, as every seeker page does, and the questions and
- * answers inside each card keep About the Role's 68ch measure, so a card can
- * run wide without its boxes and answers running past about 80 characters.
+ * what they sent. The questions and answers inside each card keep About
+ * the Role's 68ch measure, so a card can run wide without its boxes and
+ * answers running past about 80 characters.
+ *
+ * A PAGE UNDER THE QUEUE, NOT A TAB (2026-11-23). The frame is Auto
+ * Apply's (../layout.tsx), which hides its tabs here, so the page has its
+ * own title in the bar and Back to Auto Apply, as any page under a section
+ * has. It was a tab for a few hours that day, and a setup row's card
+ * before (KAN-822); the user took the tab out, since the queue is where a
+ * student manages each job, and a row's status and the questions notice
+ * (../up-next.tsx) lead here while questions wait. **With none waiting, no
+ * link reaches this page**, so Your Answers and their Remove are then out
+ * of reach, the gap KAN-822 closed: reopen it on purpose only.
  */
 export default async function WrittenAnswersPage() {
   const [{ data: postings, error }, { data: answered }, claude] = await Promise.all([
@@ -81,7 +88,7 @@ export default async function WrittenAnswersPage() {
   const shown = newestSaved(answered ?? []);
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <>
       {shown != null && <SeenNow at={shown} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <BackLink
@@ -183,6 +190,6 @@ export default async function WrittenAnswersPage() {
           </div>
         </section>
       )}
-    </div>
+    </>
   );
 }

@@ -103,7 +103,7 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
   // reads the hash once, as it mounts.
   useEffect(() => {
     if (window.location.hash === "#writing-samples") {
-      window.location.replace("/auto-apply/info/writing-samples");
+      window.location.replace("/auto-apply/info#writing-samples");
     }
   }, []);
 

@@ -1,0 +1,159 @@
+<!doctype html>
+<!-- One step of Oracle Recruiting Cloud's application, as Honeywell Aerospace's showed it (live, 2026-11-25), cut
+down to the fields Apply's plain code fills, in Oracle's own markup: cx-select dropdowns that name their box only by
+<label for>, an Address block that shows only Country until a country is picked, an Ethnicity group of one box
+beside a race list, a graduation month list that an error paragraph covers, and a cx-multi-select of disciplines.
+The page's script stands in for Oracle's Knockout: an option takes a click event on itself, wherever it comes from. -->
+<html><head><meta charset="utf-8"><title>Job Application</title>
+<style>
+  body { font: 14px sans-serif; width: 640px; }
+  .input-row { position: relative; margin: 12px 0; }
+  .input-row__label { display: block; }
+  .cx-select__list { background: #fff; border: 1px solid #888; }
+  .cx-select__list-item { padding: 4px; cursor: pointer; }
+  .input-row__hidden-control { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  /* The required-field message over the open list (Oracle's, live): it takes every pointer event on the options. */
+  .input-row--covered:has([role=listbox]) .input-row__validation { position: absolute; left: 0; top: 40px; width: 400px; height: 420px;
+    margin: 0; z-index: 10; color: #b00; background: rgba(255, 255, 255, 0.01); }
+</style></head>
+<body>
+<h2 class="apply-flow-section__trainstop-name">Personal Info</h2>
+
+<fieldset class="address-form__group">
+  <legend><h3 class="apply-flow-block__title"><span>Address</span></h3>
+    <p class="apply-flow-block__instructions">CRITICAL NOTE: Please fill in your address below starting with the
+      COUNTRY field, then proceed with all address fields in the order they are presented.</p></legend>
+  <div class="input-row input-row--has-picker">
+    <label class="input-row__label input-row__label--required" for="country-29">
+      <span class="input-row__label-text">Country <span aria-hidden="true">*</span></span></label>
+    <div class="input-row__control-container">
+      <div class="cx-select-container"><input autocomplete="none" name="country" id="country-29" type="text"
+        role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="country-29-listbox"
+        aria-expanded="false" aria-required="true" class="cx-select-input" value=""
+        data-options='["Australia", "Canada", "India", "Mexico", "Sri Lanka", "United Kingdom", "United States"]'></div>
+      <p class="input-row__validation" role="alert" id="country-29-error">The Country field is required.</p>
+    </div>
+  </div>
+  <div id="address-form" class="address-form"></div>
+</fieldset>
+
+<h2 class="apply-flow-section__trainstop-name">More About You</h2>
+<div class="input-row input-row--radiogroup" role="group" aria-labelledby="ethnicity-label">
+  <label class="input-row__label" id="ethnicity-label"><span class="input-row__linebreak">Ethnicity</span></label>
+  <div class="input-row__control-container">
+    <div class="input-row__control-item">
+      <input type="checkbox" class="input-row__hidden-control" value="4" id="dq-option-4" aria-labelledby="label-dq-option-4">
+      <label class="apply-flow-input-checkbox" for="dq-option-4"><span class="apply-flow-input-checkbox__label">I am Hispanic or Latino.</span></label>
+    </div>
+  </div>
+</div>
+<div class="input-row input-row--radiogroup" role="group" aria-labelledby="races-label">
+  <label class="input-row__label" id="races-label"><span class="input-row__linebreak">Select the races you identify with.</span></label>
+  <div class="input-row__control-container">
+    <div class="input-row__control-item"><input type="checkbox" class="input-row__hidden-control" value="7" id="dq-option-7" aria-labelledby="label-dq-option-7">
+      <label class="apply-flow-input-checkbox" for="dq-option-7"><span class="apply-flow-input-checkbox__label">American Indian or Alaska Native</span></label></div>
+    <div class="input-row__control-item"><input type="checkbox" class="input-row__hidden-control" value="5" id="dq-option-5" aria-labelledby="label-dq-option-5">
+      <label class="apply-flow-input-checkbox" for="dq-option-5"><span class="apply-flow-input-checkbox__label">Asian</span></label></div>
+    <div class="input-row__control-item"><input type="checkbox" class="input-row__hidden-control" value="15" id="dq-option-15" aria-labelledby="label-dq-option-15">
+      <label class="apply-flow-input-checkbox" for="dq-option-15"><span class="apply-flow-input-checkbox__label">Black or African American</span></label></div>
+    <div class="input-row__control-item"><input type="checkbox" class="input-row__hidden-control" value="1" id="dq-option-1" aria-labelledby="label-dq-option-1">
+      <label class="apply-flow-input-checkbox" for="dq-option-1"><span class="apply-flow-input-checkbox__label">White</span></label></div>
+    <div class="input-row__control-item"><input type="checkbox" class="input-row__hidden-control" value="Z" id="dq-option-Z" aria-labelledby="label-dq-option-Z">
+      <label class="apply-flow-input-checkbox" for="dq-option-Z"><span class="apply-flow-input-checkbox__label">Two or More Races</span></label></div>
+  </div>
+</div>
+
+<h2 class="apply-flow-section__trainstop-name">Job Application Questions</h2>
+<div class="input-row input-row--has-picker">
+  <label class="input-row__label input-row__label--required" for="300000007362026-24">
+    <span class="input-row__linebreak">What is your anticipated graduation year?</span></label>
+  <div class="input-row__control-container">
+    <div class="cx-select-container"><input autocomplete="none" name="300000007362026" id="300000007362026-24" type="text"
+      role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="300000007362026-24-listbox"
+      aria-expanded="false" aria-required="true" class="cx-select-input" value=""
+      data-options='["2026", "2027", "2028", "2029", "2030"]'></div>
+  </div>
+</div>
+<div class="input-row input-row--has-picker input-row--covered">
+  <label class="input-row__label input-row__label--required" for="300000007362128-25">
+    <span class="input-row__linebreak">What is your anticipated graduation month?</span></label>
+  <div class="input-row__control-container">
+    <div class="cx-select-container"><input autocomplete="none" name="300000007362128" id="300000007362128-25" type="text"
+      role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="300000007362128-25-listbox"
+      aria-expanded="false" aria-required="true" class="cx-select-input" value=""
+      data-options='["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]'></div>
+    <p class="input-row__validation" id="300000007362128-25-error">This info is required.</p>
+  </div>
+</div>
+<div class="input-row input-row--has-picker">
+  <label class="input-row__label input-row__label--required" for="300000007362516-26">
+    <span class="input-row__linebreak">I am working towards a degree in the following discipline:  Choose all that apply</span></label>
+  <div class="input-row__control-container input-row--multiselect cx-multi-select">
+    <div class="cx-multi-select-container"><input autocomplete="none" name="300000007362516" id="300000007362516-26" type="text"
+      role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="300000007362516-26-listbox"
+      aria-expanded="false" aria-required="true" class="cx-multi-select-input" value="" data-multiple="true"
+      data-options='["Computer Engineering", "Computer Science", "Electrical Engineering", "Mechanical Engineering"]'>
+      <ul class="cx-multi-select-pill__values"></ul></div>
+  </div>
+</div>
+
+<script>
+// Oracle's cx-select, as far as plain code meets it: a click on the box draws its list, a click event on an option
+// picks it, Escape shuts the list.
+let open = null;
+function shut() {
+  if (!open) return;
+  open.setAttribute('aria-expanded', 'false');
+  const list = document.getElementById(open.getAttribute('aria-controls'));
+  if (list) list.remove();
+  open = null;
+}
+function draw(box) {
+  shut();
+  open = box;
+  box.setAttribute('aria-expanded', 'true');
+  const list = document.createElement('div');
+  list.setAttribute('role', 'listbox');
+  list.id = box.getAttribute('aria-controls');
+  list.className = 'cx-select__list';
+  const picked = [...box.parentElement.querySelectorAll('.cx-multi-select-pill__values li')].map(li => li.textContent);
+  for (const name of JSON.parse(box.dataset.options)) {
+    const option = document.createElement('div');
+    option.setAttribute('role', 'option');
+    option.className = 'cx-select__list-item';
+    option.setAttribute('aria-selected', String(box.value === name || picked.includes(name)));
+    option.innerHTML = '<span class="cx-select__list-item--content"><span class="highlight"></span><span></span></span>';
+    option.querySelector('span span:last-child').textContent = name;
+    option.addEventListener('click', () => choose(box, name));
+    list.appendChild(option);
+  }
+  box.closest('.input-row__control-container').appendChild(list);
+}
+function choose(box, name) {
+  if (box.dataset.multiple) {
+    const pills = box.parentElement.querySelector('.cx-multi-select-pill__values');
+    if (![...pills.children].some(li => li.textContent === name)) pills.insertAdjacentHTML('beforeend', '<li></li>');
+    pills.lastElementChild.textContent = name;
+    return;  // a multi-select's list stays open
+  }
+  box.value = name;
+  box.dispatchEvent(new Event('change', {bubbles: true}));
+  shut();
+  if (box.id === 'country-29') addressFields(name);
+}
+// The Address block's other fields, drawn once a country is picked (Oracle's dependent lists).
+function addressFields(country) {
+  document.getElementById('address-form').innerHTML = `
+    <div class="input-row"><label class="input-row__label" for="addressLine1-30">Address Line 1</label>
+      <input type="text" id="addressLine1-30" name="addressLine1" class="input-row__control"></div>
+    <div class="input-row"><label class="input-row__label" for="city-31">City</label>
+      <input type="text" id="city-31" name="city" class="input-row__control"></div>`;
+  document.body.dataset.country = country;
+}
+document.addEventListener('click', (event) => {
+  const box = event.target.closest('[role=combobox]');
+  if (box) draw(box);
+});
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') shut(); });
+</script>
+</body></html>

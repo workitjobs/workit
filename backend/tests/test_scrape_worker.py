@@ -26,6 +26,26 @@ def test_sanitize_error_strips_api_key():
     assert "api_key=***" in tasks._sanitize_error(raw)
 
 
+def test_sanitize_error_strips_what_an_admin_page_would_show():
+    # The admin Scrape Health page prints this text (KAN-879), so each of these must not pass.
+    cases = {
+        "publish failed: Authorization: Bearer eyJabc.SECRET1.sig": "SECRET1",
+        "connection: postgresql://postgres.ref:SECRET2@aws-0.pooler.supabase.com:6543/postgres": "SECRET2",
+        "403: https://x.example/jobs?key=SECRET3&X-Amz-Signature=SECRET4": "SECRET3",
+        "403: https://x.example/jobs?page=1&X-Amz-Signature=SECRET4": "SECRET4",
+        'unreadable answer: {"password": "SECRET5", "page": 2}': "SECRET5",
+        "timeout: apikey=SECRET6 after 30s": "SECRET6",
+    }
+    for raw, secret in cases.items():
+        assert secret not in tasks._sanitize_error(raw), raw
+    # What says why the read failed stays: the reason, the host and the plain words.
+    kept = tasks._sanitize_error("connection: postgresql://postgres.ref:SECRET2@aws-0.pooler.supabase.com:6543/postgres")
+    assert kept.startswith("connection: postgresql://postgres.ref:***@aws-0.pooler.supabase.com")
+    assert tasks._sanitize_error("oversized: 5123 listings (max 5000)") == "oversized: 5123 listings (max 5000)"
+    assert tasks._sanitize_error('publish failed: Key (apply_url)=(https://a/1) already exists') == (
+        'publish failed: Key (apply_url)=(https://a/1) already exists')
+
+
 def test_sanitize_error_strips_multiple_credentials():
     raw = "token=secret123 password=hunter2 authorization=Bearer xyz"
     cleaned = tasks._sanitize_error(raw)
@@ -655,3 +675,22 @@ def test_one_robots_instance_per_cycle(monkeypatch):
     shared = Robots()
     _result, _kept, _ = worker.read_board_listing(Board("ashby", "y", "Y"), robots=shared)
     assert seen_ids[-1] == id(shared)
+
+
+async def test_the_catalog_sync_takes_more_boards_than_one_statement_holds(database, tmp_path):
+    # asyncpg takes 32,767 bind parameters a statement, and a board is 8 of them, so one INSERT
+    # of the whole catalog failed past 4,095 boards: the real catalog has 5,047 (2026-11-23).
+    path = tmp_path / "boards.csv"
+    path.write_text(
+        "ats,token,company\n" + "".join(f"greenhouse,board{n},Company {n}\n" for n in range(4200)),
+        encoding="utf-8",
+    )
+    async with get_engine().begin() as conn:
+        assert await schedules.sync_catalog(conn, path) == 4200
+        # A second sync adds none, and still renames a board the catalog renamed.
+        path.write_text(path.read_text(encoding="utf-8").replace("Company 4199\n", "Renamed\n"), encoding="utf-8")
+        assert await schedules.sync_catalog(conn, path) == 0
+        count, renamed = (await conn.execute(text(
+            "SELECT count(*), max(company) FILTER (WHERE token = 'board4199') FROM scraper_schedules"
+        ))).one()
+    assert (count, renamed) == (4200, "Renamed")

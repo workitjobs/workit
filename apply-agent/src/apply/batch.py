@@ -11,7 +11,6 @@ file whole, so a crash mid-write leaves the last good list. The file holds links
 never an answer.
 """
 
-import fcntl
 import json
 import os
 import re
@@ -21,6 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from apply import locks
 from apply.home import HOME
 from apply.send_click import ATTEST
 
@@ -30,13 +30,8 @@ SENT = "sent"  # Lisul pressed the held form's Submit: not confirmed yet, so it 
 
 @contextmanager
 def _locked(path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path.with_suffix(".lock"), "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    with locks.held(path.with_suffix(".lock")):
+        yield
 
 
 def _read(path: Path) -> dict[str, dict]:

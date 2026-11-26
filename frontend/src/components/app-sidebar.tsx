@@ -277,8 +277,9 @@ const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
   "h-16 flex-col justify-center gap-1 px-1 py-1 text-center text-note leading-3.5 font-medium [&_svg]:size-6 " +
   // A name too long for one line wraps to a second under the icon: shadcn
-  // truncates a row's last span, and "Auto Apply Desktop" (KAN-835) read
-  // "o Apply Desk", cut at both sides. Two 14px lines, the 4px gap and the
+  // truncates a row's last span, and "Auto Apply Desktop" (KAN-835, a row
+  // until 2026-11-23; no row is that long now) read "o Apply Desk", cut at
+  // both sides. Two 14px lines, the 4px gap and the
   // 24px icon are 56px, what the 64px tile holds inside 4px of padding; at
   // shadcn's 8px and 15px lines the second line was cut off.
   "[&>span:last-child]:whitespace-normal! " +

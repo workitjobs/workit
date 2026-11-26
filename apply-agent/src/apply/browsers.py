@@ -23,12 +23,14 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 import urllib.request
 from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+import psutil
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 from apply import chrome_finder, submit_guard, trace
@@ -93,18 +95,38 @@ BUSY = "open in another browser (an Apply run or rehearsal?): try again once it 
 
 
 def in_use(profile: Path) -> bool:
-    """Whether a browser has the profile open: Chrome's SingletonLock names its pid."""
+    """Whether a browser has the profile open (chrome_pid)."""
     return chrome_pid(profile) is not None
 
 
-def chrome_pid(profile: Path) -> int | None:
-    """The pid of the Chrome that has the profile open, if one does."""
+def chrome_pid(profile: Path, system: str = sys.platform) -> int | None:
+    """The PID of the Chrome that has `profile` open, if one does: a browser (not a helper) whose `--user-data-dir`
+    is this very profile (docs/windows_desktop.md, P2 and P3).
+
+    - macOS and Linux: the PID that the profile's SingletonLock names, while it is that browser. A Chrome that
+      crashed leaves its lock behind, and the OS gives its PID to another process later: the student's own Chrome,
+      or another user's process, whose arguments Apply may not read. Neither counts, or the profile would stay in
+      use for good.
+    - Windows: Chrome makes no SingletonLock there (its `lockfile` holds no PID), so the browser is found by every
+      process's arguments. A process whose arguments Apply may not read is no browser of Apply's."""
+    if system == "win32":
+        target = profile.resolve()
+        # A process Apply may not read, or a zombie, gets no arguments; one that ends meanwhile is skipped (psutil).
+        found = (p.pid for p in psutil.process_iter(["cmdline"], ad_value=None) if _browser_on(p.info["cmdline"], target))
+        return next(found, None)
     try:
         pid = int(os.readlink(profile / "SingletonLock").rsplit("-", 1)[1])
-        os.kill(pid, 0)
-    except (OSError, ValueError, IndexError):
+        arguments = psutil.Process(pid).cmdline()
+    except (OSError, ValueError, IndexError, psutil.Error):  # no lock, gone, a zombie, or another user's
         return None
-    return pid
+    return pid if _browser_on(arguments, profile.resolve()) else None
+
+
+def _browser_on(arguments: list[str] | None, profile: Path) -> bool:
+    """Whether a process with these arguments is a browser (not a helper, `--type=`) on `profile`, resolved."""
+    if not arguments or any(a.startswith("--type=") for a in arguments):
+        return False
+    return any(Path(a.partition("=")[2]).resolve() == profile for a in arguments if a.startswith("--user-data-dir="))
 
 
 class WorkerBrowsers:
@@ -266,10 +288,9 @@ class WorkerBrowsers:
         On the Mac FocusKeeper brings it, so it stays in front as his app. On
         Windows and Linux there is no FocusKeeper, and Chrome itself brings it
         (`activate`), as it does on the Mac when FocusKeeper can't. Only a
-        Chrome that the profile's lock names as running: Chrome leaves its
+        Chrome that chrome_pid finds on the profile: Chrome leaves its
         DevToolsActivePort file behind when it quits, and another Chrome may
-        listen on that port later. (Windows' Chrome makes no SingletonLock:
-        F4's.)"""
+        listen on that port later."""
         if self._headless:
             return False
         pid = chrome_pid(self._profiles / f"worker-{worker + 1}")

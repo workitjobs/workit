@@ -33,6 +33,8 @@ _schedules = Scraper_Schedule.__table__
 CYCLE_LEASE_DURATION = timedelta(minutes=30)
 
 BOARDS_CSV = Path(__file__).resolve().parents[3] / "scraper" / "boards.csv"
+# Boards per catalog upsert: 8,000 bind parameters, well under asyncpg's 32,767.
+SYNC_BATCH = 1000
 
 
 def filter_quiet(
@@ -69,14 +71,19 @@ async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> 
     boards = _load_csv(boards_csv)
     if not boards:
         return 0
-    stmt = insert(_schedules).values(boards)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[_schedules.c.ats, _schedules.c.token],
-        set_={"company": stmt.excluded.company},
-        where=_schedules.c.company.is_distinct_from(stmt.excluded.company),
-    ).returning(text("xmax = 0"))
-    result = await conn.execute(stmt)
-    return sum(1 for row in result if row[0])
+    new = 0
+    # In batches, in the caller's one transaction: asyncpg takes 32,767 bind
+    # parameters a statement and a board is 8, so one INSERT of the whole
+    # catalog failed past 4,095 boards and no cycle could start (2026-11-23).
+    for start in range(0, len(boards), SYNC_BATCH):
+        stmt = insert(_schedules).values(boards[start : start + SYNC_BATCH])
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[_schedules.c.ats, _schedules.c.token],
+            set_={"company": stmt.excluded.company},
+            where=_schedules.c.company.is_distinct_from(stmt.excluded.company),
+        ).returning(text("xmax = 0"))
+        new += sum(1 for row in await conn.execute(stmt) if row[0])
+    return new
 
 
 async def sync_catalog_diff(

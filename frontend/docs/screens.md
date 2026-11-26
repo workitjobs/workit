@@ -1588,7 +1588,7 @@ rows), Live Activity with a Status filter and sorting kept in the URL.
 KAN-359 put jobs first: Up Next, Ready to Queue and History, below.
 
 **The header holds no button** (asked for 2026-10-29, `auto-apply/
-auto-apply-panel.tsx`): the app's page headers keep their top right for a
+(queue)/page.tsx`): the app's page headers keep their top right for a
 view switcher, not a primary action. Start Auto Apply sat there until then.
 It queued a batch of the seeker's 10 best matches (`POST
 .../auto-apply/batches`, the server action `startBatch`, now gone), then
@@ -1653,10 +1653,11 @@ every status does, not here. A card over Up Next, "N Written Questions
 Waiting", linked here until KAN-424 (it counted the questions without
 saying whose); then the setup strip's Or Write Them Yourself did, until
 the strip came to show only the extension, which left no link here until
-KAN-566. **Its lasting way in is the setup row's Written Answers cell**
-(KAN-822): the questions notice shows only while questions wait, so a
-student with none waiting could not reach their saved answers or delete
-one. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+KAN-566. Its lasting way in was the setup row's Written Answers cell
+(KAN-822), then a tab, until 2026-11-23, when the user took the tab out:
+**the questions notice is its one way in**, so a student with no question
+waiting cannot reach their saved answers or delete one. That gap is open
+on purpose until the saved answers get a place on the queue. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
 beside Written Answers' heading while a question waits) is a
 secondary button with the sparkle: it opens a new claude.ai chat in a new
 tab with "Write my WorkIt answers" in its box, not sent, and copies the
@@ -1691,44 +1692,51 @@ opened the page sees every own answer New.
 **Jobs lead the page** (KAN-359): the heading, with no button since
 2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
-**setup row**; then **Up Next**. It opened
+extension notice while the extension is missing; then **Up Next**, all
+under **Auto Apply's tabs**. It opened
 with a "Resume List" table of every resume until KAN-359, then a line
 naming the default resume, which the user removed: each queued job now
 shows and changes its own resume. Manage Resumes and Add to Claude sat
 beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
-- **The setup row** (`auto-apply/setup-strip.tsx`, `SetupRow`, 2026-11-10):
-  one white card at the top of the page, three cells side by side (stacked
-  below `@3xl/main`), what every application needs, each a glyph on a grey tile, its name, where it
-  stands, and an arrow where it is a link:
-  **Chrome Extension** ("Checking…" until the extension answers its
-  `ping`, on load and when the tab comes back into focus; "Added" with a
-  check; or **Add to Chrome**, which opens the extension's Chrome Web Store
-  page, `EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
+- **The tabs** (`auto-apply/layout.tsx`, `auto-apply-tabs.tsx`,
+  2026-11-23): Queue, Application Info and Desktop App, Documents' tabs
+  (`ui/tabs.tsx`, ruled), over the section's pages. The bar's title is
+  "Auto Apply" on each, and none has a Back to Auto Apply. **Written
+  Answers is not a tab**: it was the third, with a count of the questions
+  waiting, for a few hours, and the user took it out, since the queue is
+  where each job is managed and a row's status and the questions notice
+  already lead there. It is a page under the queue: its own bar title,
+  Back to Auto Apply, and no tabs. On a phone the row may scroll sideways.
+  **They replaced the setup row** (`setup-strip.tsx`, 2026-11-10 to
+  2026-11-23): one card of three cells over the queue, Chrome Extension,
+  Application Info and Written Answers. The three cells looked alike but
+  were a status, a form and a work list, so students read them as three
+  required steps; the one required step, Add to Chrome, was the smallest
+  text on the page; and an added extension kept a dead tile for good.
+  Before the row there were three pieces in three styles around the queue
+  (a banner while the extension was missing, Up Next's Write N Questions
+  link, an Application Info card under the queue). **No count of steps**:
+  it was "Set Up Auto Apply, 1 of 3 done" with a Configure dialog until
+  2026-10-29, and students read all three as required; only the extension
+  is.
+
+- **The extension notice** (`auto-apply/extension-notice.tsx`): the shared
+  amber notice over the queue, only while the Chrome extension is missing,
+  with **Add to Chrome**, which opens the extension's Chrome Web Store
+  page (`EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
   `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the Store page for the
-  extension's id, which is public) and **Application Info** (what the
-  extension fills beyond the resume, `../info`) and **Written Answers**
-  (questions to write and the answers given, `../answers`). Written
-  Answers sat here for a day and left for the questions notice over Up
-  Next, since it is work a job asks for, not setup; it came back for good
-  (KAN-822), since with no question waiting nothing else reached the page.
-  It replaced three pieces in three
-  styles around the queue, which the user found out of place: a banner on
-  top that showed only while the extension was missing (it said its link
-  was coming soon and could not be clicked, though the Store page is
-  public), Up Next's Write N Questions `SectionLink`, and an Application
-  Info row card under the queue (`info-link.tsx`, gone). Onboarding's
-  extension step still waits for the variable (`CAN_INSTALL`), so it skips
-  itself while it is unset. **No count of steps**: it was "Set Up Auto
-  Apply, 1 of 3 done" with a Configure dialog until 2026-10-29, and
-  students read all three as required; only the extension is. A row with
-  no resume says Choose Resume in its Resume cell, and a row's Questions to
-  Write status opens its tab, where the student's Claude writes them;
-  Written Answers' heading offers **Connect Claude** (Claude's Add Custom
-  Connector dialog, wearing Claude's spark, never `SparkleIcon`) while the
-  student's Claude has no WorkIt connector (GET `.../connector`).
-  Disconnecting stays in Settings.
+  extension's id, which is public). The extension answers a `ping` on
+  load and when the tab comes back into focus; until it answers, and once
+  it is added, nothing shows. Onboarding's extension step still waits for
+  the variable (`CAN_INSTALL`), so it skips itself while it is unset. A
+  row with no resume says Choose Resume in its Resume cell, and a row's
+  Questions to Write status opens its tab, where the student's Claude
+  writes them; Written Answers' heading offers **Connect Claude**
+  (Claude's Add Custom Connector dialog, wearing Claude's spark, never
+  `SparkleIcon`) while the student's Claude has no WorkIt connector (GET
+  `.../connector`). Disconnecting stays in Settings.
 
 - **Up Next** (`auto-apply/up-next.tsx`, its table `auto-apply/queue-table.tsx`;
   redesigned 2026-10-29): every queued job in one table, **grouped by whether
@@ -2022,17 +2030,18 @@ are the runner's live states, kept for when the extension reports them;
 the statuses and the routes are in `auto-apply/architecture.md`, "The run"
 and "API routes".
 
-## Auto Apply Desktop (`/auto-apply-desktop`, KAN-835)
+## Auto Apply's Desktop App tab (`/auto-apply/desktop`, KAN-835)
 
 The page that promotes WorkIt Auto Apply, the desktop app (KAN-723), and
 where a student downloads it: W8's download page in
-`docs/desktop_application_auto_apply.md`. Its rail row sits right under
-Auto Apply, at its own address: the Auto Apply row owns every path under
-`/auto-apply`, so `/auto-apply/desktop` would light that row instead. Its
-name, "Auto Apply Desktop", is the one rail name on two lines, so a rail
-tile lets its name wrap (`RAIL_BUTTON` in `components/app-sidebar.tsx`).
+`docs/desktop_application_auto_apply.md`. **It is the third of Auto
+Apply's tabs** (2026-11-23, `auto-apply/auto-apply-tabs.tsx`). It was a
+rail row of its own, "Auto Apply Desktop" at `/auto-apply-desktop`, which
+`next.config.ts` forwards here: the rail lists the places a student works
+in, the row led to a download that is not ready, and the app and the
+Chrome extension fill one queue, so two rows read as two products.
 
-It is mostly drawings (`auto-apply-desktop/graphics.tsx`), each copied from
+It is mostly drawings (`auto-apply/desktop/graphics.tsx`), each copied from
 the app's own window (`apply-agent/window/src`) with its words: a hero with
 the app's window in front of a Chrome window it fills, Download for Mac and
 what the app needs (an Apple Silicon Mac on macOS 13 or later, Google
@@ -2047,28 +2056,14 @@ submits, and the essay names nothing about the company beyond its posting,
 since company facts wait on W9. The drawings are `aria-hidden` with no headings. Their one motion
 is each progress bar drawing out once on load.
 
-**Set Up WorkIt Auto Apply** closes the page: a violet Before You Start
-band (fill in Application Info and add jobs to the Auto Apply queue on
-WorkIt, with a link to each), then six numbered cards, each with a drawing
-of that step's screen on a violet stage (`setup-graphics.tsx`: the disk
-image's window, the app's sign-in, What Leaves Your Mac, Allow Screen
-Recording, the Worker extension's store page, the Start screen). Plain
-text cards were drawn first, and the user asked for drawings and more of
-the violet theme. The cards are the Student build's first run in the app's
-own button names (`SETUP` in `page.tsx`, from
-`apply-agent/src/apply/first_run.py` and `app_window.py`): download and
-open the app, sign in with WorkIt, read what leaves the Mac, Screen
-Recording (marked Optional), add the Worker extension, start applying.
-Only what a student does: no terminal, developer checkout or admin's
-pasted code. The Worker extension step is the Chrome Web Store's Add to
-Chrome, since the store copy (W6) is a v1 requirement; the current build
-still asks for Developer mode and a folder, so the page's step is ahead of
-the app until the store copy is live. The Chrome check is a line under the
-steps, since only a Mac without Chrome sees it. Each stage is 240px from
-xl, where three share a row, so the titles line up, and grows with its
-drawing below that; the drawings are 256px wide at most, which keeps them
-clear of the step's number on the stage's corner. A change to the app's
-first run changes these cards too.
+**Setup is one line under the tiles** (2026-11-23): open the download,
+sign in with WorkIt, add the app's Chrome extension, and the app guides
+the rest. A Set Up WorkIt Auto Apply section closed the page until then,
+two more screens: a violet Before You Start band with buttons to
+Application Info and Auto Apply (now the tabs beside this one), and six
+numbered cards that drew the app's first run (`setup-graphics.tsx`, in
+git's history). The app walks the student through those steps itself, so
+the page does not repeat them.
 
 **Download for Mac is off until there is a build.** `DOWNLOAD_URL` in
 `page.tsx` is null until W8 puts the signed DMG on Cloudflare R2; until
@@ -2414,26 +2409,67 @@ shows initials.
 ## Application Info (`/auto-apply/info`, KAN-550)
 
 Everything the extension and the student's Claude fill into a form that is
-not on a resume, under the feature that uses it. The top bar reads
-"Application Info", the h1 on every part (each part's card is an h2
-under it, KAN-822); Back goes to the page that opened it. Reached from My Profile's
-Application Info card and from Auto Apply's setup row
-(`auto-apply/setup-strip.tsx`), not a header button, since Auto Apply's
-header keeps its top right for a view switcher.
+not on a resume, under the feature that uses it. It is a tab of Auto
+Apply (2026-11-23): the top bar reads "Auto Apply", the h1 on every part
+(each part's card is an h2 under it, KAN-822), and the tabs over the menu
+are the way to the queue. Reached from My Profile's Application Info card
+and from Auto Apply's tabs. Until then its bar title was "Application
+Info" and the setup row linked it.
 
-**One part a page** (2026-11-11, the user's call: six cards down one
-page read as a long form): Work Authorization, Self-Identification,
-Application Answers, Transcript, Writing Samples and Workday Sign-Up, each
-at `/auto-apply/info/<part>` (`auto-apply/info/sections.ts`,
-`[section]/page.tsx`), beside a menu that stays in view: the shared side
-menu (`components/side-nav.tsx`), Settings' own, a glyph and a label per
-part with the open one in the brand tint, and on a phone a row that
-scrolls sideways above the part. Its head is the way back, the app's
-`BackLink` named as Written Answers' is ("Back to Auto Apply", or "Back
-to Profile"), so Auto Apply's two pages go back alike (KAN-822; from
-2026-11-11 it was for a day a row in the items' look that read only "Auto
-Apply"). It never leads to another part (`useBack`'s `within`), and a
-student who came from My Profile goes back there.
+**It works as Settings does** (2026-11-24): a menu beside one part at a
+time, the shared side menu (`components/side-nav.tsx`), Settings' own, a
+glyph and a label per part at body size. The parts are Work Authorization,
+Self-Identification, Application Answers and Files & Sign-Up
+(`auto-apply/info/sections.ts`), each at `/auto-apply/info/<part>`. A
+click in the menu switches the part in place, with no read, and one
+history entry stands for the page.
+
+**Each card is an open form**: every answer is a picker or a field, with
+Settings' Save row under them (`save-row.tsx`). Save is off until
+something changes; then Discard shows beside it and puts the saved answers
+back; a save says "Your answers are saved." in a toast. The row stays at
+the foot of the screen while its card runs past it, which Application
+Answers does. The cards read first with a pencil until then: a student
+comes here to change an answer, so the pencil was one more click on every
+visit. Nothing saves on a pick, since these answers go into real
+applications. **Self-Identification stays closed until Show** (KAN-550),
+the one card that does not open with its page. School Year, which WorkIt
+works out, is facts under Application Answers' fields.
+
+**Unsaved changes are guarded as in Settings** (`unsaved.tsx`). A move to
+another part loses nothing, since every part stays mounted. A click on a
+link that leaves Application Info (the rail, the tabs) asks "Discard Your
+Changes?" in Settings' bar under the cards, with Keep Editing and Discard
+Changes; Escape keeps editing. **The question opens the part it is
+about**: when the changes are on a part that is not the open one, that
+part opens before the bar asks, so the changed fields are in view above
+it. A reload or a closed tab gets the browser's warning. The browser's
+Back is not caught.
+
+**Files & Sign-Up holds Transcript, Writing Samples and Workday Sign-Up**:
+each is about 150px tall, and a page each was a card over an empty screen.
+Their old addresses forward here, and so does `/auto-apply/info#writing-
+samples`, which the WorkIt Autofiller opens.
+
+**Each card opens with the same head** (`card-head.tsx`, 2026-11-23): the
+card's glyph on the option row's grey tile (`GLYPH_TILE`,
+`ui/option-row.tsx`), then the title over the description and the answered
+count, with the card's glyph buttons at the right. Everything under the
+head starts at the title's left edge, so a card has one edge of text. The
+cards were a title and grey text alone, which the user found boring and
+hard to tell apart. Transcript and Writing Samples keep the head while
+they hold nothing and show a bordered button in the body (Upload
+Transcript, Add Writing Sample), as Workday Sign-Up does; from 2026-11-11
+a centred empty state stood in each card's place, a second look.
+
+**The structure changed three times in two weeks**, and the rule that
+settles it is in `sections.ts`: an open form gets a page; a card that
+reads first can share one. Six cards down one page (until 2026-11-11, and
+again for a day on 2026-11-23) fits cards that read first; six pages of
+read-first cards left each page mostly empty. On a phone the menu is a row that
+scrolls sideways above the part. It has no Back at its head since it
+became a tab (2026-11-23); from KAN-822 its head was the app's `BackLink`
+("Back to Auto Apply", or "Back to Profile").
 `/auto-apply/info` opens the part an old address's hash names, else the
 first: the WorkIt Autofiller still opens `#writing-samples`, from the one
 page. Each part's glyph is its own, drawn nowhere else (a stamp, a framed
@@ -3840,11 +3876,13 @@ editor's h1 at the same size, renamed in place) with the star after it
 trash (`ResumeDelete`, which asks first; a ⋯ with Rename, Make Primary and
 Delete until 2026-11-19). Until KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
 Rename and Delete were bordered buttons. Under
-it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
-a lavender bar with a ring and a shadow until KAN-576) holds the page's one
+it the editor's desk (`DESK`, `[resumeId]/slim-bar.ts`, 2026-11-23), its
+sticky bar (a lavender bar with a ring and a shadow until KAN-576, then the
+editor's white card until the desk) holding the page's one
 tool, the zoom, at its end: the editor's control and its kept step
-(`useZoom`, opening at 125%), so both resume pages open at one zoom
-(KAN-825; it opened at 100% and kept nothing until then); then the PDF, drawn page by page with the
+(`useZoom`, opening on Fit Width, with pinch to zoom), so both resume pages open at one zoom
+(KAN-825; it opened at 100% and kept nothing until then); the desk ends at the window's foot and
+the PDF scrolls inside it, so a zoom never scrolls the page (`DESK_SCROLL`); then the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The buttons and the date sat in
 the bar until KAN-799, which wrapped the date under them on purpose. The
@@ -3883,14 +3921,27 @@ student who opened a resume from Experiences landed on another view.
 - **The page is its own outline** (KAN-920): teammates and students found
   the editor too like Jobright's, a preview beside a side list of sections,
   entries and bullets, so the page itself moves and adds, and the Sections
-  panel is optional.
+  panel is optional. **Both pages have it**: the editor's own page and
+  Tailor's review (2026-11-23). The review had none at first, as a page
+  for reading its changes; the user wanted to move and add there too. A
+  move or an edit of a changed line drops its suggestion, as any edit
+  there does.
+  - **The entry form opens from anywhere** (2026-11-23): the page's Edit
+    and Add and the Sections outline share one form, drawn beside both
+    layouts (`entryDialog` in the editor). It was drawn inside the
+    outline, so the page's Edit and Add did nothing while the Sections tab
+    was not showing: the panel closed, the Format tab, or Tailor's review.
   - **Hover a section heading, an entry or a bullet**, and a + and a drag
     handle (the Sections panel's six dots) show in the margin beside its
     first line (`page-handles.tsx`). Where each block sits is read from the
     line boxes (`page-outline.ts`, tested): an entry is its fields' and
     bullets' boxes, and a section, whose heading has no box, starts where
     the block above it ends. A section's handle clears its heading (Jake's
-    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`).
+    lists sit 0.15in in, `INDENT`), and a bullet's clears its dot (`DOT`). The
+    Skills section's left edge is where its lines start (the render's
+    `skillrow` points), not its first skill's box: only skills have boxes,
+    and they start after each line's bold label, so its handle sat inside
+    the heading's words until 2026-11-23.
   - **Drag the handle** (pointer events, not HTML drag and drop): a brand
     drop line shows where it lands, among its siblings only (a bullet in
     its entry, an entry in its section, a section between sections). The
@@ -3914,8 +3965,25 @@ student who opened a resume from Experiences landed on another view.
     entry in that section's form, put first in it (`place`).
     An entry's own rows (title, organization, dates) take only the handle:
     a + there read as either another entry or another bullet, which the
-    user found made no sense (2026-11-18). Skills and a Lines section have
-    no + yet. Each button is 24px, WCAG 2.2's smallest target.
+    user found made no sense (2026-11-18). A Lines section has no + yet.
+    Each button is 24px, WCAG 2.2's smallest target.
+  - **Each skill line is a block too** (2026-11-23, `group` in
+    `page-outline.ts`): "Design: Figma, Prototyping" has the six dots, and
+    no +. The dots drag the whole line up or down among the lines
+    (`arrangeSkills`), and its menu holds Edit Skill Group, Move Up, Move
+    Down and Remove From Resume. **Edit Skill Group is the one place a
+    line's skills change** (`SkillGroupDialog`): its name, its skills as
+    chips in print order, each chip a handle (drag, or the arrow keys)
+    with its ×, and Add a Skill, in the Experiences page's Skills dialog's
+    frame and chips. A + on each line, with a small form beside it, came
+    first; the user chose the dialog. Every change there is this resume's,
+    at once, with Undo; a × takes the skill off this resume, never out of
+    the bank. Technical Skills' heading's + adds a new line with its first
+    skill, from a short form hung from the section's tint
+    (`SkillPopover`, `PICKED_BLOCK`). Both hold the usual shape: a group
+    name at most 40 characters, a skill at most 60, and no name another
+    line already prints. Moving one skill sideways on the page itself is
+    not built: every move there reads only the pointer's height.
   - **A new bullet is typed in on the page** (2026-11-19, `newBullets`,
     `openNew`, `leaveNew`): a bullet's + or Add Bullet Below, or an entry's
     Add Bullet, opens an empty line at once under that bullet (or the
@@ -4133,6 +4201,11 @@ student who opened a resume from Experiences landed on another view.
   (`FitNotice`, the phone's until KAN-586, now removed), a Done button, and
   Download and Ask Scout in both states, while Tailor's review had the
   slim one: a student saw two editor designs.
+- **Tailor's review opens its views from a rail** (2026-11-23,
+  `ReviewRail` in `[resumeId]/toolbar.tsx`): icons down the page's right
+  edge for Suggestions, Sections, Format and Original, which fold away to
+  a tab at the window's edge; `../../docs/tailor_resume.md`, "Suggestions",
+  has why and what was tried.
 - **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page

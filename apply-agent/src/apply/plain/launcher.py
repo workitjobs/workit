@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -93,6 +93,16 @@ CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Win
 # (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
 # reclaims (stops) a Chrome whose owner is gone, never one a live Apply owns.
 OWNER = "apply-owner.json"
+
+
+def host_command(compiled: bool = "__compiled__" in globals()) -> str:
+    """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
+    The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
+    (scripts/app_entry.py). The OS names that program: a Nuitka program's sys.executable is a `python` beside it,
+    which doesn't exist."""
+    if compiled:
+        return f"{shlex.quote(psutil.Process().exe())} {host.APP_FLAG}"
+    return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
 
 
 def developer_mode(profile: Path) -> bool:
@@ -291,7 +301,7 @@ class PlainWorkers:
         hosts = self.profile(worker) / "NativeMessagingHosts"
         hosts.mkdir(parents=True, exist_ok=True)
         wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)} "
+        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} "
                            f"--socket {shlex.quote(str(self.bridge.path))} --worker {worker} \"$@\"\n")
         wrapper.chmod(0o700)
         manifest = hosts / f"{extension.HOST_NAME}.json"
@@ -410,26 +420,30 @@ class PlainWorkers:
 
 
 class Chrome:
-    """A Chrome that `open` started (the Mac): its own PID (read from the profile's SingletonLock), not open's."""
+    """A Chrome that `open` started (the Mac), or one `reclaim` stops: its own PID (from chrome_pid), not open's.
+    It keeps the process as psutil saw it then, with its start time. A Chrome that has ended may have its PID given
+    to another program, and a bare PID would then be polled as running and sent SIGTERM, then SIGKILL (found in
+    review, 2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises."""
 
     def __init__(self, pid: int):
         self.pid = pid
+        try:
+            self._process: psutil.Process | None = psutil.Process(pid)
+        except psutil.Error:  # gone already
+            self._process = None
 
     def poll(self) -> int | None:
-        try:
-            os.kill(self.pid, 0)
-        except ProcessLookupError:
-            return 0
-        return None
+        return None if self._process is not None and self._process.is_running() else 0
 
     def send_signal(self, number: int) -> None:
-        try:
-            os.kill(self.pid, number)
-        except ProcessLookupError:
-            pass
+        with suppress(psutil.Error):  # gone, or its PID went to another program
+            if self._process is not None:
+                self._process.send_signal(number)
 
     def kill(self) -> None:
-        self.send_signal(signal.SIGKILL)
+        with suppress(psutil.Error):
+            if self._process is not None:
+                self._process.kill()  # psutil's: SIGKILL, or TerminateProcess on Windows, which has no SIGKILL
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = time.monotonic() + (timeout if timeout is not None else 1e9)
@@ -441,11 +455,15 @@ class Chrome:
 
 
 def start_in_background(arguments: list[str], profile: Path, log: Path, system: str = sys.platform,
-                        popen: Callable[..., subprocess.Popen] = subprocess.Popen) -> "Chrome | subprocess.Popen":
+                        popen: Callable[..., subprocess.Popen] = subprocess.Popen,
+                        front: bool = False) -> "Chrome | subprocess.Popen":
     """Start Chrome (`arguments`, the binary first) so that it takes no one's focus, by each OS's own way.
+    `front`: the seed's Chrome, which the user works in, comes forward instead.
 
     - macOS: through `open -g -n`, a new instance that is never activated: running the binary itself
-      brings it forward. Its PID is then read from the profile's SingletonLock (a `Chrome`).
+      brings it forward. Its PID is then read from the profile's SingletonLock (a `Chrome`). Through
+      `open`, Chrome is never this process's child: as the built app's child, macOS blamed WorkIt Auto
+      Apply when Chrome's updater changed Google Chrome.app ("prevented from modifying apps", 2026-11-21).
     - Windows and Linux: the binary itself, as a plain background process, in a session (a process
       group on Windows) of its own, so a Ctrl-C in Apply's terminal never reaches it, as with `open`.
       The OS keeps it behind. The Popen is the process: it is stopped and reaped through it."""
@@ -454,7 +472,7 @@ def start_in_background(arguments: list[str], profile: Path, log: Path, system: 
         with log.open("ab") as out:
             return popen(arguments, stdin=subprocess.DEVNULL, stdout=out, stderr=out, **detached)
     app = Path(arguments[0]).parents[2]  # …/X.app/Contents/MacOS/X
-    subprocess.run([OPEN, "-g", "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
+    subprocess.run([OPEN, *([] if front else ["-g"]), "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
                     "--args", *arguments[1:]], check=True, stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + START_WAIT
@@ -487,22 +505,11 @@ def _owner_alive(profile: Path) -> bool | None:
 
 
 def orphan(profile: Path) -> int | None:
-    """The PID of the Chrome holding `profile` if its Apply is gone: a browser (not a helper) whose
+    """The PID of the Chrome holding `profile` if its Apply is gone. chrome_pid counts only a browser whose
     `--user-data-dir` is this very profile, so a stale lock's PID reused by another process (the student's own
     Chrome) never counts."""
     pid = chrome_pid(profile)
-    if pid is None or _owner_alive(profile) is not False:
-        return None
-    try:
-        arguments = psutil.Process(pid).cmdline()
-    except psutil.Error:
-        return None
-    if any(a.startswith("--type=") for a in arguments):
-        return None
-    folders = [a.partition("=")[2] for a in arguments if a.startswith("--user-data-dir=")]
-    if not any(Path(folder).resolve() == profile.resolve() for folder in folders):
-        return None
-    return pid
+    return pid if pid is not None and _owner_alive(profile) is False else None
 
 
 def reclaim(profile: Path) -> bool:

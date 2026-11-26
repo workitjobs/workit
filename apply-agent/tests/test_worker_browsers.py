@@ -148,9 +148,9 @@ def test_seed_copies_a_signed_in_profile_into_each_one_without_google(tmp_path):
     assert not (tmp_path / "worker-4" / "Default" / "Cache").exists()
 
 
-def test_seed_leaves_a_profile_a_browser_has_open(tmp_path):
+def test_seed_leaves_a_profile_a_browser_has_open(tmp_path, browser_on):
     _profile(tmp_path, "worker-1", "lisul@example.com")
-    _profile(tmp_path, "worker-2", lock_pid=os.getpid())  # open in a live browser
+    _profile(tmp_path, "worker-2", lock_pid=browser_on(tmp_path / "worker-2"))  # open in a live browser
 
     assert WorkerBrowsers(tmp_path).seed(2) == []
     assert google_account(tmp_path / "worker-2") is None
@@ -193,9 +193,10 @@ def test_a_site_lisul_signs_one_profile_in_to_by_hand_reaches_every_worker_profi
     assert [_tiktok_cookies(browsers, w, page_file.as_uri()) for w in (0, 1, 2)] == [["lisul"]] * 3
 
 
-def test_signing_in_refuses_while_any_worker_profile_is_open_in_another_browser(tmp_path):
+def test_signing_in_refuses_while_any_worker_profile_is_open_in_another_browser(tmp_path, browser_on):
     _profile(tmp_path, "worker-1", "lisul@example.com")
-    _profile(tmp_path, "worker-2", "lisul@example.com", lock_pid=os.getpid())  # a run's Worker has it open
+    # a run's Worker has it open
+    _profile(tmp_path, "worker-2", "lisul@example.com", lock_pid=browser_on(tmp_path / "worker-2"))
     browsers = WorkerBrowsers(tmp_path, headless=True, channel=None)
     opened = []
 
@@ -219,9 +220,9 @@ def test_sharing_a_profile_leaves_the_worker_extensions_folder_alone(tmp_path):
     assert [p.name for p in tmp_path.joinpath("worker-extension").iterdir()] == ["manifest.json"]
 
 
-def test_a_worker_never_opens_a_worker_profile_another_browser_has_open(tmp_path):
+def test_a_worker_never_opens_a_worker_profile_another_browser_has_open(tmp_path, browser_on):
     # A second run or rehearsal must not break the browser of the one going.
-    busy = _profile(tmp_path, "worker-2", "lisul@example.com", lock_pid=os.getpid())
+    busy = _profile(tmp_path, "worker-2", "lisul@example.com", lock_pid=browser_on(tmp_path / "worker-2"))
     (busy / "DevToolsActivePort").write_text("61234\n/devtools/browser/the-run-going\n")
     browsers = WorkerBrowsers(tmp_path, headless=True, channel=None)
 

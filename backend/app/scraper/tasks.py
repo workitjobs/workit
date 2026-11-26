@@ -19,11 +19,18 @@ _tasks = Scraper_Task.__table__
 
 # Matches key=value pairs where the key looks like a credential.
 # Longest alternatives first so access_token wins over bare token.
+# The value may sit in quotes (a JSON body), and "Bearer"/"Basic" is part of
+# it: masking only that word left the token after it in the text. A bare
+# "key" counts only as a whole word, so "monkey=1" and Postgres's
+# "Key (apply_url)=(...)" stay as they are.
 _CREDENTIAL_RE = re.compile(
-    r"(access_token|refresh_token|api_key|authorization|password|secret|token)"
-    r"[=:]\s*[^\s&]+",
+    r"(access_token|refresh_token|api_key|apikey|authorization|password|secret|signature|token"
+    r"|(?<![A-Za-z_])key)"
+    r"""["']?\s*[=:]\s*["']?(?:(?:bearer|basic)\s+)?[^\s&"']+""",
     re.IGNORECASE,
 )
+# The password in a URL's sign-in part: postgresql://user:password@host.
+_URL_PASSWORD_RE = re.compile(r"(://[^\s/:@]+:)[^\s/@]+@")
 
 # DSN URLs: postgresql://user:password@host, postgres://..., etc.
 _DSN_RE = re.compile(
@@ -39,8 +46,14 @@ _BEARER_RE = re.compile(
 
 
 def _sanitize_error(error: str) -> str:
-    """Strip credential-like values from an error string, then truncate."""
-    cleaned = _CREDENTIAL_RE.sub(lambda m: m.group(1) + "=***", error)
+    """Strip credential-like values from an error string, then truncate.
+
+    The admin Scrape Health page prints this text (KAN-879), so a new shape
+    of secret gets a case in tests/test_scrape_worker.py before it gets a
+    pattern here.
+    """
+    cleaned = _URL_PASSWORD_RE.sub(r"\1***@", error)
+    cleaned = _CREDENTIAL_RE.sub(lambda m: m.group(1) + "=***", cleaned)
     cleaned = _DSN_RE.sub("postgres://***", cleaned)
     cleaned = _BEARER_RE.sub("Bearer ***", cleaned)
     return cleaned[:2000]

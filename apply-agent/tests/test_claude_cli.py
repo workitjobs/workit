@@ -15,7 +15,7 @@ import pytest
 from conftest import FIXTURES
 
 from apply import claude_cli
-from apply.adapters import ClaudeError, Drive, UsageLimitHit
+from apply.adapters import ClaudeError, Drive, SetupError, UsageLimitHit
 from apply.claude_cli import ClaudeCLI, run_claude
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}}
@@ -414,3 +414,78 @@ def test_no_claude_cli_on_the_path_is_a_setup_error(monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(SetupError, match="isn't installed"):
         run_claude(["claude", "-p"], "", {"PATH": str(tmp_path)})
+
+
+PROBE = {"posting": "Build robots.", "questions": {"q1": "Why us?"}, "school": "Stony Brook", "pronouns": "she/her/hers"}
+
+
+def test_a_kind_runs_on_claude_with_workits_own_prompt_built_here():
+    run = FakeRun(recorded("answer"))
+    ClaudeCLI(run=run).ask_kind("probe.typical", PROBE)
+    argv, stdin, _ = run.calls[0]
+    assert flag(argv, "--model") == "opus"  # a large kind, on the Best model
+    assert "typical strong computer science student" in flag(argv, "--system-prompt")
+    assert "she/her/hers" in flag(argv, "--system-prompt")
+    assert "Why us?" in stdin and "q1" in json.loads(flag(argv, "--json-schema"))["properties"]["typical"]["properties"]
+
+
+def test_a_kind_needs_the_checkouts_backend_and_a_kind_it_has(tmp_path):
+    from apply import local_prompts
+
+    with pytest.raises(SetupError, match="backend"):
+        local_prompts.build("probe.typical", {}, backend=tmp_path)
+    with pytest.raises(SetupError, match="no kind"):
+        local_prompts.build("no.such", {})
+
+
+def test_a_saved_setup_token_signs_every_call_in_before_the_claude_login(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    run = FakeRun(recorded("answer"), recorded("answer"))
+    assert claude_cli.saved_token() is None  # the tests' keychain keeps nothing
+    assert claude_cli.login() == "your claude login"
+    ask(ClaudeCLI(run=run))
+
+    monkeypatch.setattr(claude_cli, "saved_token", lambda: "sk-ant-oat-test-token")
+    ask(ClaudeCLI(run=run))
+
+    [(_, _, before), (_, _, after)] = run.calls
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in before
+    assert after["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat-test-token"
+    assert claude_cli.login() == "your setup token in Keychain"
+
+
+def test_the_best_model_writes_large_kinds_and_the_presubmit_review_unless_turned_off():
+    from apply.local_prompts import model
+
+    assert [model("essays.write", "large", True), model("presubmit.review", "small", True),
+            model("generic_fill.pick", "small", True)] == ["opus", "opus", "haiku"]
+    assert [model("essays.write", "large", False), model("presubmit.review", "small", False)] == ["sonnet", "haiku"]
+
+
+def test_settings_can_put_large_kinds_back_on_sonnet():
+    from apply import first_run
+
+    run = FakeRun(recorded("answer"))
+    assert first_run.set_best_model(False) is False
+    ClaudeCLI(run=run).ask_kind("probe.typical", PROBE)
+    assert flag(run.calls[0][0], "--model") == "sonnet"
+    assert first_run.set_best_model(True) is True
+
+
+def test_near_the_plans_limits_the_best_models_calls_drop_to_sonnet_and_say_so():
+    from apply.adapters import UsageReading
+
+    run = FakeRun(recorded("answer"), recorded("answer"), recorded("answer"))
+    claude = ClaudeCLI(run=run)
+    claude._reading = UsageReading(five_hour=0.75, weekly=0.2)
+    claude.ask_kind("probe.typical", PROBE)
+    assert claude_cli.dropped == ("Opus paused: your plan is at 75% of its 5-hour limit, so large calls run on "
+                                  "Sonnet until it resets.")
+    claude._reading = UsageReading(five_hour=0.1, weekly=0.65)
+    claude.ask_kind("probe.typical", PROBE)
+    assert "65% of its weekly limit" in claude_cli.dropped
+    claude._reading = UsageReading(five_hour=0.1, weekly=0.1)
+    claude.ask_kind("probe.typical", PROBE)
+
+    assert [flag(argv, "--model") for argv, _, _ in run.calls] == ["sonnet", "sonnet", "opus"]
+    assert claude_cli.dropped is None

@@ -99,6 +99,15 @@ final class Output: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 }
 
+// The pixels per point of the display that shows `frame`: what SCContentFilter's pointPixelScale gives on macOS 14
+// and later. WorkIt Auto Apply runs on macOS 13 too (D18), which has no pointPixelScale.
+func pixelScale(_ frame: CGRect) -> CGFloat {
+    var display = CGMainDisplayID(), count: UInt32 = 0
+    CGGetDisplaysWithPoint(CGPoint(x: frame.midX, y: frame.midY), 1, &display, &count)
+    guard let mode = CGDisplayCopyDisplayMode(display), mode.width > 0 else { return 1 }
+    return CGFloat(mode.pixelWidth) / CGFloat(mode.width)
+}
+
 final class Capturer {
     let output = Output()
     let queue = DispatchQueue(label: "window-capture.frames")
@@ -140,7 +149,12 @@ final class Capturer {
                 return
             }
             let filter = SCContentFilter(desktopIndependentWindow: found)
-            let scale = CGFloat(filter.pointPixelScale)
+            let scale: CGFloat
+            if #available(macOS 14.0, *) {
+                scale = CGFloat(filter.pointPixelScale)
+            } else {
+                scale = pixelScale(found.frame)
+            }
             let width = min(wanted.viewport.width, found.frame.width)
             let height = min(wanted.viewport.height, found.frame.height)
             let config = SCStreamConfiguration()

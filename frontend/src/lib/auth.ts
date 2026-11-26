@@ -2,6 +2,8 @@
 
 import "server-only";
 
+import { withReadTimeout } from "./api-timeout";
+
 /**
  * Send authorization requests for login or sign up to backend
  */
@@ -39,16 +41,21 @@ export type OAuthStatus = {
 /**
  * `accessToken` is the Supabase session's access token
  */
+/** A read (a GET) gives up after 10 seconds, as `apiGet` does; a write
+ *  never does (./api-timeout.ts). */
 export function apiFetch(path: string, init: RequestInit, accessToken?: string): Promise<Response> {
-  return fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      // send accessToken to backend, otherwise the header is empty
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...init.headers,
-    },
-  });
+  return fetch(
+    `${API_URL}${path}`,
+    withReadTimeout({
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        // send accessToken to backend, otherwise the header is empty
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...init.headers,
+      },
+    }),
+  );
 }
 
 /**

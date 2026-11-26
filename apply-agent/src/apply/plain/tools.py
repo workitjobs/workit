@@ -30,6 +30,8 @@ import json
 import os
 import re
 import socket
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -38,6 +40,7 @@ from typing import Self
 from urllib.parse import urlsplit
 
 from apply import attach, captcha, send_click, upload_origin
+from apply.plain import channel
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -69,7 +72,13 @@ CONSENT = ('That is in the "{title}" dialog, a consent that is the applicant\'s 
            "fill). Apply attaches the file once they have pressed it.")
 
 
-def socket_folder() -> Path:
+def socket_folder(system: str = sys.platform) -> Path:
+    """Where a drive's channel and its secret are: /tmp/apply-<uid>/ (0700) on macOS and Linux. On Windows the user's
+    own temp folder: the path only names the drive's pipe there (channel.pipe_name), and Windows has no os.getuid."""
+    if system == "win32":
+        folder = Path(tempfile.gettempdir()) / "apply"
+        folder.mkdir(exist_ok=True)
+        return folder
     folder = Path("/tmp") / f"apply-{os.getuid()}"
     folder.mkdir(mode=0o700, exist_ok=True)
     os.chmod(folder, 0o700)
@@ -444,38 +453,35 @@ class ToolServer:
         self.tools = Tools(page, folder, hook)
         self.path = socket_folder() / f"mcp-{uuid.uuid4().hex[:12]}.sock"
         self._python = python
-        self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._server: channel.Listener | None = None
         self._stopped = threading.Event()
 
     def mcp_server(self) -> dict:
         return {"command": self._python, "args": ["-I", "-m", "apply.plain.mcp", "--socket", str(self.path)]}
 
     def __enter__(self) -> Self:
-        old = os.umask(0o177)
-        try:
-            self._server.bind(str(self.path))
-        finally:
-            os.umask(old)
-        self._server.listen(4)
+        self._server = channel.listen(self.path)
         threading.Thread(target=self._accept, daemon=True, name="claude-tools").start()
         return self
 
     def __exit__(self, *exc) -> None:
         self._stopped.set()
-        try:
+        if self._server:
             self._server.close()
-        finally:
-            self.path.unlink(missing_ok=True)
 
     def _accept(self) -> None:
         while not self._stopped.is_set():
             try:
-                connection, _ = self._server.accept()
+                connection = self._server.accept()
             except OSError:
                 return
-            threading.Thread(target=self._serve, args=(connection,), daemon=True, name="claude-tool").start()
+            threading.Thread(target=self._serve, args=(connection, self._server), daemon=True,
+                             name="claude-tool").start()
 
-    def _serve(self, connection: socket.socket) -> None:
+    def _serve(self, connection: socket.socket, server: channel.Listener) -> None:
+        if not server.greet(connection):  # it doesn't know this drive's secret (channel.py)
+            connection.close()
+            return
         with connection, connection.makefile("r", encoding="utf-8") as lines:
             for line in lines:
                 if self._stopped.is_set():

@@ -5,8 +5,9 @@ same question gets the same answer on every form and costs no tokens again.
 It lives in answer-bank.yaml beside the Applicant profile, which Lisul may
 edit by hand: it is read and written with ruamel.yaml's round trip, so his
 comments and order stay. Workers add Claude's drafts from their own threads,
-and runs from several processes may at once, so every add takes a lock on
-the file, reads it again and adds only what it still lacks: an answer in the
+and runs from several processes may at once, so every add takes the bank's
+lock file beside it (apply.locks), reads the bank again and adds only what
+it still lacks: an answer in the
 bank is never replaced by a new draft. Each answer counts how many later
 Applications it answered, so a draft used again unreviewed shows.
 
@@ -15,7 +16,6 @@ adds, changes or deletes an answer stamps the entry's `edited_at` (UTC) and
 hands the changed entries to `on_change` after the file is saved. A write
 that only counts a use changes no answer and sends nothing."""
 
-import fcntl
 import io
 import json
 import re
@@ -32,6 +32,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
+from apply import locks
 from apply.model import Question, one_line
 
 if TYPE_CHECKING:
@@ -203,8 +204,7 @@ class AnswerBank:
     def read_again(self) -> list[Entry]:
         """Every entry, read again from the file: what other runs and hand edits added since."""
         if self._path is not None and self._path.exists():
-            with self._lock, open(self._path) as held:
-                fcntl.flock(held, fcntl.LOCK_SH)
+            with self._lock, locks.held(self._path.with_suffix(".lock")):
                 self._entries = self._read()
         return self.entries()
 
@@ -222,9 +222,9 @@ class AnswerBank:
             if self._path is None:
                 yield self._entries
                 return
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._path, "a+") as held:  # the lock is on the bank file itself: no lock file beside it
-                fcntl.flock(held, fcntl.LOCK_EX)
+            with locks.held(self._path.with_suffix(".lock")):  # its own lock file, never the bank itself
+                if not self._path.exists():  # a new bank: an empty file to read
+                    self._path.touch()
                 text = self._path.read_text()
                 self._entries = self._read()
                 before = _dump(self._entries)
