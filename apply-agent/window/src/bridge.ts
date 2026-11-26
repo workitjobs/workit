@@ -60,6 +60,7 @@ export type Bridge = {
   fillAgain(id: string): Promise<void>;
   letGo(id: string): Promise<void>; // Not applying to this one: its held form closes, unsubmitted
   submit(id: string): Promise<void>; // Approve and submit: Apply presses the held form's Submit, once
+  cancelAuto(id: string): Promise<void>; // Cancel an Auto-submit countdown: the form waits for the student
   // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again. `newOnly`: no job
   // waiting starts, and every filled form stays open for the student.
   stop(newOnly?: boolean): Promise<void>;
@@ -140,6 +141,7 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     fillAgain: (id) => post("/fill-again", { id }),
     letGo: (id) => post("/let-go", { id }),
     submit: (id) => post("/submit", { id }),
+    cancelAuto: (id) => post("/auto-cancel", { id }),
     stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),
     app,

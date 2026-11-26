@@ -266,6 +266,12 @@ export function flagged(s: Shown): string[] {
 }
 
 // What to do about a flagged answer: fix it on the form, or submit it as it is (ADR 0006).
+// What is left of Auto-submit's wait, as "9:42"; "0:00" once it is over (Apply presses Submit any moment).
+export const autoLeft = (at: number, now = Date.now()): string => {
+  const left = Math.max(0, Math.ceil(at - now / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+};
+
 export const FIX_IN_FORM = "Fix it in the form, or submit it as it is if it's right.";
 
 // What each handoff card says to do, in the student's voice: how to hand the form back, since on these the app never presses Submit,

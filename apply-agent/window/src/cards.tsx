@@ -6,7 +6,7 @@ import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged, wantedFields } from "./view.ts";
+import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, flagged, wantedFields } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -365,6 +365,7 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
     setPressed(true);
     bridge.submit(`tile-${job.worker}`).catch((e: Error) => (setPressed(false), fail(e.message)));
   };
+  if (s.auto_at) return <Countdown {...props} when={s.auto_at} submit={submit} />;
   // The decision stays in sight: it sticks to the window's foot while the answers above it scroll by.
   return (
     <div className="sticky bottom-0 z-[1] -mx-6 mt-1 border-t border-border bg-panel/95 px-6 pb-3 backdrop-blur">
@@ -383,10 +384,44 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
           <ArrowSquareOutIcon className="size-4" />
         </Button>
       </div>
-      <Note>{WE_SUBMIT}</Note>
+      <Note>{s.auto_said ? `${said(s.auto_said)} ${WE_SUBMIT}` : WE_SUBMIT}</Note>
     </div>
   );
 }
+
+// Auto-submit (ADR 0006, a Developer checkout's policy): Apply presses Submit by itself when the wait is over, unless
+// the student cancels first, or submits it now.
+function Countdown({ when, submit, ...props }: Props & { when: number; submit: () => void }) {
+  const { job, bridge, fail } = props;
+  const [now, setNow] = useState(Date.now);
+  const [cancelling, setCancelling] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const cancel = () => {
+    setCancelling(true);
+    bridge.cancelAuto(`tile-${job.worker}`).catch((e: Error) => (setCancelling(false), fail(e.message)));
+  };
+  return (
+    <div role="group" aria-label="Auto-submit" className="sticky bottom-0 z-[1] -mx-6 mt-1 border-t border-border bg-panel/95 px-6 pb-3 backdrop-blur">
+      <p role="timer" className="mt-4 font-medium">
+        We'll submit this in <span className="tabular-nums">{autoLeft(when, now)}</span> unless you cancel.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2.5">
+        <Button tone="primary" size="lg" disabled={cancelling} onClick={cancel}>
+          {cancelling ? "Cancelling…" : "Cancel"}
+        </Button>
+        <Button tone="secondary" size="lg" onClick={submit}>
+          Submit now
+        </Button>
+      </div>
+      <Note>{AUTO_NOTE}</Note>
+    </div>
+  );
+}
+
+export const AUTO_NOTE = "It passed every check, with no Essay and nothing flagged. Cancel to review it yourself first.";
 
 // Not applying to this one: asked once more, then its held form closes unsubmitted and its card goes (`let_go`).
 function LetGo({ job, bridge, fail }: Props) {
