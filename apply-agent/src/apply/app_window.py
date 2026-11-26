@@ -55,6 +55,8 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
+import psutil
+
 from apply import build, first_run, queued_names, report, sign_in_link, workit
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
@@ -857,10 +859,9 @@ def running(note: Path = PID_NOTE) -> int | None:
     """The PID of the WorkIt Auto Apply window running now (run() notes it), or None."""
     try:
         pid = int(note.read_text())
-        os.kill(pid, 0)
     except (OSError, ValueError):
         return None
-    return pid
+    return pid if psutil.pid_exists(pid) else None
 
 
 def _watch_inbox(bridge: Bridge) -> None:
