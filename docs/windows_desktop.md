@@ -1,8 +1,7 @@
 # WorkIt Auto Apply on Windows
 
-**Status (KAN-929):** being built. P1 to P4 are built and tested on the
-Mac, and P5 is being built. Nothing has run on Windows yet. Section 7
-says what comes next. This note takes F4 and W4's "Found on the way" list
+**Status (KAN-929):** being built. P1 to P5 are built and tested on the
+Mac. Nothing has run on Windows yet. Section 7 says what comes next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
 
@@ -166,17 +165,16 @@ format.
 locks `answer-bank.yaml` and a new one `answer-bank.lock`. And an old
 Bridge sends no challenge, so a new host waits 5 s and gives up.
 
-### P5. The host file (native messaging manifest and wrapper)
+### P5. The host file (native messaging manifest and wrapper): built
 
-- **What breaks.** Chrome on Windows finds a host only through the
+- **What broke.** Chrome on Windows finds a host only through the
   registry (Chromium's `launch_context_win.cc`, read 2026-11-26): the
   default value of
   `HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\<name>`
-  (then `HKLM`) is the manifest's path (`native_host.WINDOWS_KEY`). Every
-  build reads this key, Chrome for Testing too. And Windows can't run a
-  `#!/bin/sh` wrapper. The accounts host for the student's own Chrome
-  (`native_host.install`) raises `NotImplementedError` on Windows.
-- **Who.** Both, for plain Workers.
+  (then `HKLM`) is the manifest's path (`chrome_host.KEY`). Every build
+  reads this key, Chrome for Testing too. And Windows can't run a
+  `#!/bin/sh` wrapper.
+- **Who.** Both, for plain Workers. A developer, for the accounts host.
 - **Built: the host finds its Worker from its Chrome, on every OS.** The
   key is one per Windows user, so one wrapper serves every Worker and
   every profiles folder, and can name neither a Worker nor a channel.
@@ -214,7 +212,10 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
     the other's Workers while their channel code is the same.
   - The package can use its own `.exe`, which starts through cmd.exe
     too, unless the `NativeHostsExecutablesLaunchDirectly` policy is on.
-- **Still to build.** The accounts host: the same key and `.bat`.
+- **Built: the accounts host** (`native_host.install`, `apply
+  chrome-passwords`) takes the same key and `.bat`, whose `set` line
+  gives the host its data folder (`APPLY_HOME`). `doctor` reads the
+  manifest that the key names (`chrome_host.found`).
 - **Still open (Windows):** Chrome runs the `.bat` and the host says
   hello; a venv's `python.exe`, a launcher, finds psutil under `-I`;
   `chcp 65001` in the hidden cmd.exe that Chrome starts, with a user
@@ -309,8 +310,7 @@ Windows entry, since the Mac has none.
 
 | Problem | Kind of fix |
 |---|---|
-| P1 to P4 | Built (above) |
-| P5 host file | A Windows entry: the key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
+| P1 to P5 | Built (above) |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
 | P7 clean quit | The seed: the student closes its window. A Worker: `taskkill` with no `/F`, after a measurement |
 | P8 wizard words | A Windows text in the same function |
@@ -330,7 +330,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome (`tests/fake_chrome.py`), with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
 | P5 | Built: `tests/test_each_os.py`, the tile's `chrome_of` under the same fake | The tile takes cmd.exe for a Worker's Chrome |
 | P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
-| P5 | `tests/test_native_host.py`, with a fake `winreg`: the accounts host's key and `.bat` | The accounts host can't start on Windows |
+| P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
@@ -349,7 +349,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
 | M1 | A developer runs CDP Workers | P1, P2, P3 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
-| M2 | A developer runs plain Workers, with no seed | P4 (built), P5, P6, P9 | `plain_chrome: testing` | Every host fills, with no seed |
+| M2 | A developer runs plain Workers, with no seed | P4, P5 (built), P6, P9 | `plain_chrome: testing` | Every host fills, with no seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 **The Windows checks come last** (decided 2026-11-24). Fixes go on from a
@@ -357,7 +357,7 @@ Mac until every blocker seems fixed. Then a teammate runs all the checks
 on Windows at once: M1 with `worker_mode: cdp`, then plain Workers, then
 section 8. Each result goes into this note.
 
-**Next: the rest of P5.**
+**Next: P9.** P6 needs a measurement on Windows first.
 
 ## 8. Open questions
 

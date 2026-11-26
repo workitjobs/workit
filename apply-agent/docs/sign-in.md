@@ -210,8 +210,8 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
 - **The Apply accounts host** (`native_host.py`, `apply chrome-passwords`):
   a native messaging host (`com.workit.apply_accounts`) in everyday
   Chrome's `NativeMessagingHosts` (`native_host.chrome_hosts`: the folder
-  for macOS and Linux; on Windows, Chrome reads a registry key instead,
-  and the host is not built there yet, F4). Its manifest names only the WorkIt
+  for macOS and Linux; on Windows, the one folder that a registry key
+  names, with a `.bat` wrapper: `chrome_host`). Its manifest names only the WorkIt
   extension's ID (`EXTENSION_ID`, pinned to manifest.json's `key` by a
   test in CI's fast list; it kept the dev key's ID from 2026-11-03 to
   2026-11-26, and Chrome refused the extension), and the host checks the

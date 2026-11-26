@@ -18,6 +18,7 @@ from typing import TextIO
 from apply import (
     ask_model,
     chrome_finder,
+    chrome_host,
     cover_letter,
     gates,
     native_host,
@@ -99,7 +100,7 @@ class Machine:
     workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
     waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
-    native_hosts: Path | None = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder (None: Windows)
+    native_hosts: Path = native_host.CHROME_HOSTS  # where everyday Chrome's host manifests go (chrome_host.folder)
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
     # A provider's API key, by its name in ask_model.PROVIDERS; never printed.
     ask_key: Callable[[str], str | None] = lambda name: ask_model.key(ask_model.PROVIDERS[name])
@@ -491,13 +492,14 @@ def _accounts_host(machine: Machine) -> Check:
     """The Apply accounts host (KAN-592): optional, so never a fail. Without it, the WorkIt extension in
     Lisul's Chrome has no Sign In button for the Employer accounts Apply made."""
     name, fix = "Apply accounts host", "run `uv run apply chrome-passwords`"
-    if machine.native_hosts is None:
-        return Check(name, WARN, f"not built on Windows yet: Chrome finds a host there through {native_host.WINDOWS_KEY}")
-    manifest = machine.native_hosts / f"{native_host.NAME}.json"
+    manifest = chrome_host.found(native_host.NAME, machine.native_hosts)  # on Windows the one its registry key names
     try:
-        written = json.loads(manifest.read_text())
+        written = json.loads(manifest.read_text()) if manifest else None
     except (OSError, ValueError):
-        return Check(name, WARN, f"not installed (no {manifest}): the extension can't fill Apply's Workday logins", fix)
+        written = None
+    if written is None:
+        return Check(name, WARN, f"not installed (no {manifest or 'registry key'}): the extension can't fill Apply's "
+                                 "Workday logins", fix)
     if written.get("allowed_origins") != [native_host.EXTENSION_ORIGIN]:
         return Check(name, WARN, f"{manifest} names other callers than the WorkIt extension", fix)
     wrapper = Path(written.get("path", ""))

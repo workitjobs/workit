@@ -4,7 +4,6 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import ast
-import contextlib
 import json
 import os
 import plistlib
@@ -140,29 +139,24 @@ def test_the_native_host_folder_is_each_oss_chromes(tmp_path):
     assert native_host.chrome_hosts("linux", tmp_path, env={}) == tmp_path / ".config/google-chrome/NativeMessagingHosts"
     assert native_host.chrome_hosts("linux", tmp_path, env={"XDG_CONFIG_HOME": str(tmp_path / "xdg")}) == \
         tmp_path / "xdg/google-chrome/NativeMessagingHosts"
-    assert native_host.chrome_hosts("win32", tmp_path) is None  # a registry key there, not a folder (F4)
-    with pytest.raises(NotImplementedError, match="NativeMessagingHosts"):
-        native_host.install(None, "/venv/bin/python", tmp_path / "home")
-    assert not (tmp_path / "home").exists()
+    assert native_host.chrome_hosts("win32", tmp_path) == chrome_host.WINDOWS_FOLDER  # the one the key names
 
 
-class FakeRegistry:
-    """winreg, as chrome_host.install uses it: the values it set, by key."""
-    HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ = "HKEY_CURRENT_USER", 2, 1
-
-    def __init__(self):
-        self.values = {}
-
-    def CreateKeyEx(self, root, path, reserved, access):
-        return contextlib.nullcontext((root, path))
-
-    def SetValueEx(self, key, name, reserved, kind, value):
-        self.values[(*key, name)] = (kind, value)
-
-
-class NoRegistry:
-    def __getattr__(self, name):
-        pytest.fail("a registry call off Windows")
+def test_the_accounts_hosts_files_are_where_windows_chrome_looks(tmp_path, monkeypatch):
+    """Faults (P5): on Windows no registry key names the accounts host's manifest, so the WorkIt extension's Sign In
+    with Your Apply Account finds no host; its .bat doesn't set APPLY_HOME (or reads a % in it as a variable), so the
+    host answers from another data folder's Employer accounts; or chrome_host.found, which doctor reads, names
+    another manifest than the key does."""
+    monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
+    home, registry = tmp_path / "ap%1", fake_chrome.FakeRegistry()
+    manifest = native_host.install(native_host.chrome_hosts("win32"), r"C:\venv\python.exe", home, "win32", registry)
+    assert chrome_host.found(native_host.NAME, tmp_path / "elsewhere", "win32", registry) == manifest
+    assert chrome_host.found(native_host.NAME, tmp_path / "elsewhere", "win32", fake_chrome.FakeRegistry()) is None
+    wrapper = Path(json.loads(manifest.read_text())["path"])
+    assert wrapper == home / "apply-accounts-host.bat"
+    bat = (f'@echo off\r\nchcp 65001 >nul\r\nset "APPLY_HOME={tmp_path}{os.sep}ap%%1"\r\n'
+           '"C:\\venv\\python.exe" "-m" "apply.native_host" %*\r\n')
+    assert wrapper.read_bytes() == bat.encode()
 
 
 def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypatch):
@@ -174,7 +168,7 @@ def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypa
     monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
     command = [r"C:\Program Files\py%1\python.exe", "-I", r"C:\Łukasz\host.py"]
     monkeypatch.setattr(launcher, "host_command", lambda: command)
-    workers, registry = PlainWorkers(tmp_path / "profiles", kind="testing"), FakeRegistry()
+    workers, registry = PlainWorkers(tmp_path / "profiles", kind="testing"), fake_chrome.FakeRegistry()
     manifest = workers.install_host(1, "win32", registry)
     assert manifest.parent == tmp_path / "native-hosts"
     assert registry.values == {
@@ -183,7 +177,8 @@ def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypa
     assert written["allowed_origins"] == list(extension.EXTENSION_ORIGINS)
     bat = '@echo off\r\nchcp 65001 >nul\r\n"C:\\Program Files\\py%%1\\python.exe" "-I" "C:\\Łukasz\\host.py" %*\r\n'
     assert Path(written["path"]).read_bytes() == bat.encode()
-    assert workers.install_host(1, "darwin", NoRegistry()).parent == workers.profile(1) / "NativeMessagingHosts"
+    off_windows = workers.install_host(1, "darwin", fake_chrome.NoRegistry())
+    assert off_windows.parent == workers.profile(1) / "NativeMessagingHosts"
 
 
 def test_focuskeeper_runs_on_the_mac_only(monkeypatch):

@@ -86,10 +86,9 @@ has neither.
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
   Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`),
-  the plain Workers' channel (`plain/channel.py`), the native host's folder
-  (`native_host.chrome_hosts`), a native host's files and where Chrome finds
-  them (`chrome_host`: a profile's folder, or on Windows a registry key and a
-  `.bat`), a Chrome's start
+  the plain Workers' channel (`plain/channel.py`), a native host's files and
+  where Chrome finds them (`chrome_host`: a NativeMessagingHosts folder, or on
+  Windows a registry key and a `.bat`), a Chrome's start
   (`plain/launcher.start_in_background`: a Worker's in the
   background, the seed's in front; on the Mac through `open`, never as
   Apply's child, or macOS blames the built app for what Chrome's updater

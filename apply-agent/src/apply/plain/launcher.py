@@ -305,7 +305,8 @@ class PlainWorkers:
         hosts = chrome_host.folder(self.profile(worker), system)
         return chrome_host.install(extension.HOST_NAME,
                                    "Relays Apply's plain Worker extension to the Apply process on this computer",
-                                   extension.EXTENSION_ORIGINS, host_command(), hosts, hosts / WRAPPER, system, registry)
+                                   extension.EXTENSION_ORIGINS, host_command(), hosts, hosts / WRAPPER, system,
+                                   registry)
 
     def launch(self, worker: int = 0) -> PlainWorker:
         """Start Worker `worker`'s Chrome and wait for its hello."""
