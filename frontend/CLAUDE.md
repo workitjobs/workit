@@ -1716,6 +1716,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
 - **A screen's fixture data lives in a sibling `data.ts`**, so `page.tsx` is
+- **Every read from the API gives up after 10 seconds** (`lib/api-timeout.ts`,
+  `withReadTimeout`, used by `apiGet` and by `apiFetch` for a GET;
+  2026-11-24). On that day the shared database, on Supabase's Nano compute,
+  was overloaded and each read took 10 to 30 seconds or never answered;
+  with no limit, Open WorkIt and the Jobs page showed nothing for over 30
+  seconds, with no error. Now the read fails, its caller's `catch` gives
+  the page's failed state (`LoadFailed`) or leaves the part out. **A write
+  is never limited**: Tailor, Generate, Scout and uploads run longer, and a
+  write the app gave up on could still finish on the server. The limit
+  does not cover Supabase Auth: the proxy's session refresh
+  (`getClaims`) waits on Auth, which shares the database, so a hung
+  database still holds a signed-in page there.
   layout and the swap to real data touches one file. A live fetch that a
   client component's `data.ts` cannot hold gets its own sibling marked
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
