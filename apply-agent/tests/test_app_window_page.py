@@ -56,6 +56,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "first_run": {"step": "seed", "lines": ["Now: Turn on Developer mode."], "running": True, "waiting": True,
                       "failed": ""},
         "queue": [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern"}],
+        "matches": [],  # Find jobs, where the page opens (KAN-882): a list, as Bridge.matches answers
         "usage": {"used": 72000, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
         "settings_state": {"workers": 3, "notices": True, "claude": {
@@ -80,6 +81,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         first_run.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
         assert first_run.inner_text("#seed-lines") == "Now: Turn on Developer mode."
         assert first_run.is_visible("#seed-again") and not first_run.is_visible("#seed-start")
+        queue.click("text=Your queue · paste a link")  # the queue is a click away from Find jobs
         queue.wait_for_selector("text=What should we apply to?", timeout=5000)
         queue.wait_for_selector("text=Intern", timeout=5000)
         assert queue.is_visible("text=Start applying to 1 job")
@@ -181,9 +183,10 @@ def test_a_logo_that_fails_to_load_falls_back_to_the_next_source_then_to_initial
         page.route("**/*", lambda route: route.fulfill(body=png, content_type="image/png") if route.request.url == logo
                    else route.abort())
         page.expose_function("__bridge", lambda name, args: bridge.request(*args) if name == "request"
-                             else {"queue": queue, "status": {"running": False, "said": ""}}.get(name, {}))
+                             else {"queue": queue, "matches": [], "status": {"running": False, "said": ""}}.get(name, {}))
         page.set_content(app_window.student_page(board), wait_until="domcontentloaded")
         page.evaluate(PYWEBVIEW)
+        page.click("text=Your queue · paste a link")  # the page opens on Find jobs (KAN-882)
         page.wait_for_selector("text=Analyst", timeout=5000)
         page.wait_for_function(f"""[...document.images].some(i => i.src === {logo!r} && i.naturalWidth > 0
                                    && !i.className.includes('opacity-0'))""", timeout=5000)
