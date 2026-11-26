@@ -160,6 +160,7 @@ def test_captions_say_what_each_worker_is_on():
 
     assert kind == "application/json"
     tiles = json.loads(state)["tiles"]
+    assert isinstance(tiles[1].pop("since"), float)  # when it took its status: the window says how long it waits
     assert tiles == [
         {"tone": "idle", "label": "Waiting for the next job", "detail": "", "thread": []},
         {"company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
