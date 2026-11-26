@@ -328,6 +328,7 @@ def rehearse(
             return settled.setdefault(n, threading.Event())
 
     writing = threading.Lock()
+    used: set[int] = set()  # each Worker a link of this run has filled in (into takes a link there)
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
     # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
@@ -384,6 +385,8 @@ def rehearse(
         """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
         site = _Kept(adapters.site, n if worker is None else worker,
                      shown=lambda tab: getattr(adapters.board, "showing", lambda tile, tab: None)(n, tab))
+        with writing:
+            used.add(site.worker)
         done = None
         first = []  # the link's first summary went to `finished` (at its first pause, else at its end)
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
@@ -602,6 +605,15 @@ def rehearse(
             if roomy[0]:
                 roomy[0] = False
                 room.release()
+
+        def let_chrome_go() -> None:
+            """Its form is done with: its page closed (site.close), its Worker's Chrome stops too once no other form
+            holds it (PlainSite.release). Else each ended form left a Chrome on a blank tab till the run ended."""
+            if free := getattr(adapters.site, "release", None):
+                try:
+                    free(site.worker)
+                except Exception as error:  # never in the way of the link's end: the run's close stops it after
+                    print(f"Couldn't close Browser {site.worker + 1}: {type(error).__name__}: {error}", file=sys.stderr)
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
         if not roomy[0] or not started(n):  # removed while it waited for its turn, or the run ended
@@ -651,9 +663,12 @@ def rehearse(
                         return RESUME
                     return how
 
-                # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends.
+                # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends. A page
+                # opened to find its form (embedded.form_behind) closes now, and its Chrome with it.
                 if done.outcome == ALREADY:
                     leave_room()
+                    site.close()
+                    let_chrome_go()
                 how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
                 while True:
                     if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
@@ -672,6 +687,7 @@ def rehearse(
             finally:
                 site.close()
                 leave_room()
+                let_chrome_go()
 
     on = reopening.workers if reopening else [None] * len(urls)  # each link's Worker: its own, unless reopened
     threads = [threading.Thread(target=one, args=(n, url, on[n]), daemon=True) for n, url in enumerate(urls)]
@@ -682,7 +698,10 @@ def rehearse(
         unless not `running`: a reopened Worker's next link, whose profile holds its sign-in all the same."""
         if release.is_set() or closed_to_new.is_set():
             raise Refused("This rehearsal is ending.", 409)
-        if running and not getattr(adapters.site, "running", lambda k: False)(worker):
+        # A plain Worker of this run whose Chrome stopped once its forms were done (PlainSite.release) takes it all
+        # the same: its Chrome starts again on its profile, its sign-ins kept.
+        stopped_plain = worker in used and getattr(adapters.site, "plain", lambda k: False)(worker)
+        if running and not getattr(adapters.site, "running", lambda k: False)(worker) and not stopped_plain:
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:

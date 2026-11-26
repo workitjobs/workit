@@ -458,6 +458,15 @@ What changes on a plain Worker:
   Each reuse calls `guards.reset(worker)` and closes the last form's tabs. After each form, one blank
   tab stays, so the window stays. The run or rehearsal stops each Chrome by its PID as it ends
   (`cli._close_workers`, before the rehearsal's `os._exit`).
+- **A rehearsal keeps no Chrome that no form holds.** Each link's end (sent, let go, its tab closed,
+  skipped, already applied, or the rehearsal moving on) closes its page and calls `site.release(worker)`
+  (`rehearsal.rehearse`'s `let_chrome_go`). `PlainSite.release` stops that Worker's Chrome once no other
+  form is open in it, and every other Worker's Chrome that no form holds now. So the Chromes up are never
+  more than the forms filling or held for the student. Without it, each ended form left its Chrome on
+  `about:blank` till the run ended: 17 Chromes in one run (2026-11-26). A Worker's next form (Fill again,
+  a link sent in) starts its Chrome again, its sign-ins kept (`--restore-last-session`), so `into` takes
+  a link for a plain Worker of the run whose Chrome stopped. Tests: `tests/test_plain_window_close.py`
+  (in CI).
 - **The tile** uses `PortFrames`, which reads the field error for the stuck detector over the port
   (`stuck.field_error(page)`) on the window's own thread.
 - **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
