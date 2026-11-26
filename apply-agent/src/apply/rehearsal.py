@@ -160,6 +160,8 @@ SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it 
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
 CLOSE_AFTER_S = 10
+# How long a sent form's window may stay open for a pop-up it opened, from its confirmation: then it closes anyway.
+SENT_KEEP_S = 120
 OUTCOMES = {
     Status.HELD: READY,
     Status.HANDOFF: "handoff",
@@ -1663,9 +1665,10 @@ class _Kept:
         window is closed. Apply is done with it, so it is Lisul's: the submit
         guard comes off, and his own Submit goes through. Once he has clicked
         one and `job_system` confirms the application went in, `submitted(page)`
-        runs, once, and CLOSE_AFTER_S later the window closes, unless a pop-up
-        or another page has opened or the confirmation is gone: then it stays
-        his to close. Its note shows `warning`, red when an answer is `wrong`. When a
+        runs, once, and CLOSE_AFTER_S later the window closes, while its page is
+        still confirmed or went to about:blank, unless a pop-up or another page has opened:
+        then it closes once only its page is left, or SENT_KEEP_S after the
+        confirmation. Its note shows `warning`, red when an answer is `wrong`. When a
         press of his brings a step asking for an emailed code, `code` types it
         in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
@@ -1857,10 +1860,13 @@ class _Kept:
                     kept = True
                     submitted(self._page)
                     closing = time.monotonic() + CLOSE_AFTER_S
-                if closing and time.monotonic() > closing:
-                    if len(self._page.context.pages) == 1 and _confirmed(self._page, job_system):
-                        return ""  # done: its window closes
-                    closing = None
+                # Sent: its window closes CLOSE_AFTER_S later, on its confirmation or on about:blank (a cleared page
+                # whose window was never closed, live 2026-11-26); a page that went on to another step stays his. A
+                # pop-up keeps it open, at most SENT_KEEP_S: a sent form waits on no one, and its window must not stay.
+                if closing and (now := time.monotonic()) > closing and (
+                        len(self._page.context.pages) == 1 or now > closing - CLOSE_AFTER_S + SENT_KEEP_S) and (
+                        self._page.url == "about:blank" or _confirmed(self._page, job_system)):
+                    return ""  # done: its window closes
                 self._page.wait_for_timeout(500)
             except Exception:
                 return ""  # its browser was quit

@@ -160,6 +160,11 @@ goes on from the step that the page shows.
 - Signing in on a paused page never ends Resume: a press on a sign-in, account or code step is not
   his Submit, on any job system (KAN-781, `docs/sign-in.md`). Only the application's own Submit, or a
   confirmation page after any press of his, makes the form his to send (`rehearsal.SENT`).
+- **A sent form's window closes by itself.** `CLOSE_AFTER_S` after the job system confirms it, the
+  hold ends and its page closes, while it is still confirmed or went to `about:blank` (a cleared
+  page kept its window till the run ended, 2026-11-26); a page that went on to another step stays
+  the student's. A pop-up keeps it open till only its page is
+  left, at most `SENT_KEEP_S` after the confirmation (`_Kept.hold`).
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
