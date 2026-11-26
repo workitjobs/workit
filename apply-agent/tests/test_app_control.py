@@ -151,3 +151,47 @@ def test_only_the_windows_buttons_are_actions(board, tmp_path):
         assert through(board, action, {}, tmp_path)["status"] == 404
     assert through(board, "state", None, tmp_path)["state"]["window"]["shows"] == "sign-in"
     assert not list(tmp_path.iterdir())  # nothing left behind
+
+
+def test_the_command_asks_yes_before_submit_then_sends_it_to_the_window(board, monkeypatch, capsys):
+    """Fault: `apply window submit` goes without --yes, or names another action or form than the one it was given;
+    or a shut window is waited on."""
+    from apply import app_window, cli
+
+    held(board, 0, ACME)
+    with pytest.raises(SystemExit) as shut:
+        cli.main(["window", "submit", "tile-0", "--yes"])
+    assert shut.value.code == 1 and "isn't open" in capsys.readouterr().out
+
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    with pytest.raises(SystemExit) as unsure:
+        cli.main(["window", "submit", "tile-0"])
+    assert unsure.value.code == 1 and "--yes" in capsys.readouterr().out
+    assert not list(app_control.CONTROL.glob("*"))
+
+    with watching(board), pytest.raises(SystemExit) as sent:
+        cli.main(["window", "submit", "tile-0", "--yes"])
+    out = capsys.readouterr().out  # the route's own line first: in the window's process, not the command's
+    assert sent.value.code == 0 and json.loads(out[out.index("{"):])["message"] == "Submitting it."
+    assert board.submit_asked(0)
+
+
+def test_the_command_sends_each_buttons_own_body(monkeypatch, capsys, tmp_path):
+    """Fault: `apply window answer` or `stop` sends a body its route doesn't take (a file not as /answer reads it, a
+    stop of every held form for --new-only), or stop goes without --yes."""
+    from apply import app_window, cli
+
+    sent = []
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    monkeypatch.setattr(app_control, "ask", lambda action, body: sent.append((action, body)) or {"status": 200})
+    resume = tmp_path / "cv.pdf"
+    resume.write_bytes(b"%PDF")
+    for argv in (["answer", "1", "Resume", "--file", str(resume)], ["answer", "1", "When can you start?", "June"],
+                 ["stop", "--new-only"], ["stop"], ["stop", "--yes"], ["remove", ACME]):
+        with pytest.raises(SystemExit):
+            cli.main(["window", *argv])
+    capsys.readouterr()
+    assert sent == [("answer", {"id": "1", "question": "Resume", "answer": "",
+                                "file": {"name": "cv.pdf", "data": "JVBERg=="}}),
+                    ("answer", {"id": "1", "question": "When can you start?", "answer": "June"}),
+                    ("stop", {"new_only": True}), ("stop", {}), ("remove", {"link": ACME})]
