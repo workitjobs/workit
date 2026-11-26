@@ -23,6 +23,7 @@ from fakes import (
 
 from apply import (
     answering,
+    asking,
     essays,
     home,
     probe,
@@ -990,6 +991,24 @@ def test_a_drafted_answer_naming_an_employer_or_an_outcome_no_source_holds_is_a_
         row = run(monkeypatch, ResearchForm("GCM Grosvenor"), FakeClaude(drafts={RELATIONSHIPS: made_up}))
 
         assert (row.status, row.missing_fact[:len(RELATIONSHIPS)]) == ("missing fact", RELATIONSHIPS), made_up
+
+
+RAMP_QUIZ = "Take this builder's quiz: https://awu-ramp.github.io/ramp-builder-quiz/"  # Ramp's Ashby form, 2026-11-26
+
+
+def test_a_quiz_to_take_at_a_link_is_a_missing_fact_with_its_link_never_a_profile_link(monkeypatch):
+    # The "github" in its link got it the GitHub profile (the engine's rule, then asking.known): only its result answers it.
+    form = ResearchForm("GCM Grosvenor")
+    form.questions = [replace(q, label=RAMP_QUIZ) if q.label.startswith(RELATIONSHIPS) else q for q in form.questions]
+    claude = FakeClaude(drafts={RAMP_QUIZ: "https://github.com/test-person"})
+
+    row = run(monkeypatch, form, claude)
+
+    assert (row.status, row.missing_fact) == ("missing fact", RAMP_QUIZ)
+    assert "Take it yourself at https://awu-ramp.github.io/ramp-builder-quiz/, then paste its result" in row.reason
+    assert "builder's quiz" not in json.dumps(claude.asked)  # never drafted
+    assert form.submitted == []
+    assert asking.known(RAMP_QUIZ, ApplicantProfile.load(PROFILE, POLICIES)) == ()
 
 
 def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
