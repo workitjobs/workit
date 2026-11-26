@@ -55,7 +55,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
-from apply import first_run, report, sign_in_link, workit
+from apply import build, first_run, queued_names, report, sign_in_link, workit
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
@@ -378,9 +378,10 @@ class Bridge:
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
                  start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
-                 forward: Callable[[], object] = lambda: bring_forward()):
+                 forward: Callable[[], object] = lambda: bring_forward(), name: Callable[[str], dict] | None = None):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
-        (apply.student.Runs.run); the window then shows the student page."""
+        (apply.student.Runs.run); the window then shows the student page. `name(link)` names a link that waits to
+        start and no queue named (default apply.queued_names's, with plain reads)."""
         self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
@@ -389,6 +390,7 @@ class Bridge:
         self._remove = remove
         self._link = link  # the sign-in page's link, handed to this window (apply.sign_in_link: ready, clear, take)
         self._forward = forward  # the window brought in front of the browser
+        self._name = name or queued_names.namer(self._client)
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
@@ -590,7 +592,8 @@ class Bridge:
             return
         if not self.signed_in() or self._first.step() != READY:
             return  # they stay in the inbox till the student is signed in and set up
-        links = [link for link in take_links(inbox) if link not in self._waiting]
+        waiting = {workit.job_key(link) for link in self._waiting}
+        links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
         if self._running.is_set():
             for link in links:
                 try:
@@ -603,8 +606,10 @@ class Bridge:
             self._waiting = links
 
     def show_board(self, board: Dashboard) -> None:
-        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo."""
+        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo,
+        and names each other link as it waits to start (a link sent in or pasted)."""
         board.logos(self._queued)
+        board.names_by(self._name)
         self._dashboard = board
         if self._window is not None:
             self._window.load_html(self._page())
@@ -631,7 +636,7 @@ class Bridge:
         """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
         `claude -p` uses, and why the Best model last paused."""
         state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
-        from apply import build, student
+        from apply import student
 
         if not build.STUDENT and os.environ.get(student.MAX_PLAN):
             from apply import claude_cli
@@ -832,8 +837,8 @@ def send_links(links: list[str], inbox: Path = INBOX) -> Path:
 
 
 def take_links(inbox: Path = INBOX) -> list[str]:
-    """The links sent in since the last take, oldest first, each once; every file read is removed. A file that isn't
-    a list of links is dropped."""
+    """The links sent in since the last take, oldest first, one per posting (workit.job_key: a Greenhouse board's
+    link and its embed's are one job); every file read is removed. A file that isn't a list of links is dropped."""
     links: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
@@ -841,7 +846,11 @@ def take_links(inbox: Path = INBOX) -> list[str]:
         except (OSError, ValueError, KeyError, TypeError):
             pass
         path.unlink(missing_ok=True)
-    return list(dict.fromkeys(link for link in links if LINK.match(link)))
+    kept: dict[str, str] = {}
+    for link in links:
+        if LINK.match(link):
+            kept.setdefault(workit.job_key(link), link)
+    return list(kept.values())
 
 
 def running(note: Path = PID_NOTE) -> int | None:
@@ -872,6 +881,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window
+    late_replies(window)
     closing(window)
     window.events.closing += lambda: guard_close(window, bridge)
     threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
@@ -879,10 +889,46 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()))
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
+        from apply import app_control
+
+        threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+def line_by_line(*streams) -> None:
+    """Each line goes out as it is written: under nohup, stdout and stderr are files, so Python held the run's lines
+    in a block buffer, and its log could not be followed live (nor read whole after a crash). A stream that can't
+    change (a test's capture) stays as it is."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+REPLY = 'window.pywebview._returnValuesCallbacks["'  # how pywebview hands a js_api method's return to the page
+
+
+def late_replies(window) -> None:
+    """A js_api method's return that comes back after its page was replaced (load_html: Go on, Back, the board) finds
+    no callback there: pywebview's reply thread raised JavascriptException ("... is not a function") and logged a
+    traceback with the whole reply, a long `matches` wait's 30 jobs in it. No page waits on it, so it is dropped. Any
+    other script's error still raises."""
+    evaluate = window.evaluate_js
+
+    def replying(script, *args, **kwargs):
+        try:
+            return evaluate(script, *args, **kwargs)
+        except Exception as error:
+            gone = type(error).__name__ == "JavascriptException" and "TypeError" in str(error)
+            if isinstance(script, str) and script.startswith(REPLY) and gone:
+                return None
+            raise
+    window.evaluate_js = replying
 
 
 def close_words(held: int) -> str:

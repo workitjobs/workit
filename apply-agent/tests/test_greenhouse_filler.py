@@ -19,10 +19,11 @@ from conftest import (
 )
 from fakes import FakeClock, FakeJobServer, FakeMailbox
 
+from apply import fill_engine
 from apply.accounts import Accounts
-from apply.fill_engine import job_of
-from apply.greenhouse import SECURITY_CODE_SEARCH, GreenhouseFiller, board_behind
-from apply.model import FillError, Handoff, Posting, Status
+from apply.fill_engine import job_of, readback_problems
+from apply.greenhouse import SECURITY_CODE_SEARCH, GreenhouseFiller, board_behind, names
+from apply.model import FillError, Handoff, Posting, Question, Status
 from apply.orchestrator import by_filler
 from apply.worker import Result
 
@@ -95,6 +96,38 @@ def test_picks_the_planned_place_from_the_location_search(pure_storage):
         readback = filler.fill(page, questions, answers)
 
     assert readback == answers
+
+
+# Picks the place, then types a name before React draws the pick: the name is written over the form as it
+# was before the pick, so the form drops the place while the box still shows it (Addepar's, 2026-11-26).
+DROP_THE_PICKED_PLACE = """async (wanted) => {
+  const option = [...document.querySelectorAll('[role="option"]')].find((o) => o.innerText.trim() === wanted);
+  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
+    option.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true}));
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  const name = document.getElementById("first_name");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(name, "Test");
+  name.dispatchEvent(new Event("input", {bubbles: true}));
+}"""
+
+
+def test_a_place_the_form_dropped_after_its_pick_fails_the_pre_submit_check(pure_storage):
+    filler = GreenhouseFiller()
+    questions = filler.question_set(PURE_STORAGE_URL, pure_storage)
+    place = "Columbus, Ohio, United States"
+
+    with pure_storage.open(PURE_STORAGE_URL) as page:
+        page.locator("#candidate-location").click()
+        page.locator("#candidate-location").fill(place)
+        page.locator('[role="option"]', has_text=place).first.wait_for()
+        page.evaluate(DROP_THE_PICKED_PLACE, place)
+        page.wait_for_timeout(300)
+        shown = page.locator("#candidate-location").locator("xpath=ancestor::*[contains(@class,'control')][1]").inner_text()
+        readback = fill_engine.call(page, "readback", "greenhouse", fill_engine.questions_arg(questions), ["location"])
+
+    assert place in shown  # the box still shows it
+    assert readback == {"location": ""}
+    assert fill_engine.readback_problems(questions, {"location": place}, readback)
 
 
 def test_ticks_a_multi_select_shown_as_checkboxes(pure_storage):
@@ -206,8 +239,54 @@ def test_picks_the_one_school_named_like_the_answer_when_none_is_named_exactly(t
         with board.open(ANDURIL_URL) as page:
             readback = filler.fill(page, questions, {"school--0": "Example State University"})
 
-    # Read back as the page words it, for the Pre-submit check's re-plan to adopt.
+    # Read back as the page words it, which the Pre-submit check accepts as the answer it picked.
     assert readback == {"school--0": "Example State University - SUNY"}
+    assert filler.picked({"school--0": "Example State University"}, readback) == {"school--0": ("Example State University - SUNY",)}
+
+
+SCHOOL = Question("school--0", "School", "text")
+
+
+@pytest.mark.parametrize("shown", [
+    "Stony Brook University - SUNY",  # Airbnb's list (live, 2026-11-26)
+    "Stony Brook University (SUNY)",
+    "Stony Brook University, The",
+    "The Stony Brook University",
+    "stony  brook university - Main Campus",
+])
+def test_a_school_picked_in_the_forms_own_wording_passes_the_pre_submit_check(shown):
+    answers, readback = {"school--0": "Stony Brook University"}, {"school--0": shown}
+
+    accepted = GreenhouseFiller().picked(answers, readback)
+
+    assert accepted == {"school--0": (" ".join(shown.split()),)}
+    assert readback_problems([SCHOOL], answers, readback, accepted) == []
+
+
+@pytest.mark.parametrize("shown", ["Stony Point University", "SUNY Buffalo", "University of Stony Brook",
+                                   "Stony Brook Universityville", "Stony Brook"])
+def test_another_school_on_the_page_still_fails_the_pre_submit_check(shown):
+    answers, readback = {"school--0": "Stony Brook University"}, {"school--0": shown}
+
+    accepted = GreenhouseFiller().picked(answers, readback)
+
+    assert accepted == {}
+    assert readback_problems([SCHOOL], answers, readback, accepted) == [
+        f"School: meant 'Stony Brook University', page shows '{shown}'"]
+
+
+def test_a_typed_field_gets_no_wording_of_its_answer_but_its_own():
+    # Only a field the engine fills from search results shows what it picked; a typed one shows what was typed.
+    answers = {"first_name": "Test", "school--0": "Stony Brook University"}
+    readback = {"first_name": "Test - SUNY", "school--0": "Stony Brook University"}
+
+    assert GreenhouseFiller().picked(answers, readback) == {}
+
+
+def test_a_search_result_names_an_answer_only_as_whole_words():
+    assert names("Massachusetts Institute of Technology (MIT)", "MIT")
+    assert not names("Smith College", "MIT")
+    assert not names("Example State University - SUNY", "")
 
 
 def test_two_schools_named_like_the_answer_are_not_guessed_between(tmp_path):

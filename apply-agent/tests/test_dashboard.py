@@ -1217,7 +1217,7 @@ def test_each_question_says_whether_its_form_requires_it(window):
 def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     from apply import essays, notify
     from apply.answer_bank import AnswerBank
-    from apply.model import Question, Status
+    from apply.model import Posting, Question, Status
 
     step = "Application Questions 1 of 2"
     worked, start, end = (Question(f"{step} / {label}", label, kind, True) for label, kind in [
@@ -1229,6 +1229,7 @@ def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
     planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
     planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
     planned._bank = AnswerBank()
+    planned.posting = Posting("p", "Example Co", "Software Engineer Intern", "https://jobs.example.com/example/1")
     planned._missing([start], ["Essay fact: What did the robot do?"])
 
     assert planned.where == {
@@ -1873,3 +1874,34 @@ def test_approve_and_submit_goes_only_to_a_held_form_with_no_answers_left_and_on
         assert [board.submit_asked(0), board.submit_asked(0), board.submit_asked(1)] == [True, False, False]
         board.update(1, required={"Why us?": False})  # an optional one left empty doesn't hold it
         assert post({"id": "tile-1"}, board.token) == 200
+
+
+def test_cancel_ends_an_auto_submit_countdown_once_and_only_from_the_window():
+    """ADR 0006. Fault: Cancel doesn't stop the countdown, another site's page cancels it, or approving it by hand
+    still shows the countdown."""
+    post = lambda path, body, token: _status(board.url + path, data=json.dumps(body).encode(),
+                                             headers={"X-Apply-Token": token})
+    with Dashboard(2, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True, auto_at=1e10)
+        board.update(1, status="ready", again=True, auto_at=1e10)
+        assert post("/auto-cancel", {"id": "tile-0"}, "guessed") == 403
+        assert post("/auto-cancel", {"id": "tile-0"}, board.token) == 200
+        assert board.state()["tiles"][0]["auto_at"] is None
+        assert [board.auto_cancel_asked(0), board.auto_cancel_asked(0)] == [True, False]
+        assert post("/auto-cancel", {"id": "tile-0"}, board.token) == 409  # no countdown now
+        assert post("/submit", {"id": "tile-1"}, board.token) == 200  # approved by hand first
+        assert board.state()["tiles"][1]["auto_at"] is None
+        assert board.auto_cancel_asked(1) is False  # approved, not cancelled
+
+
+def test_a_countdown_that_runs_out_and_a_cancel_never_both_win():
+    """ADR 0006. Fault: a Cancel that lands as the wait runs out is told "Cancelled" while the form is pressed."""
+    post = lambda body: _status(board.url + "/auto-cancel", data=json.dumps(body).encode(),
+                                headers={"X-Apply-Token": board.token})
+    with Dashboard(2, FakeFrames({})) as board:
+        board.update(0, status="ready", again=True, auto_at=1e10)
+        board.update(1, status="ready", again=True, auto_at=1e10)
+        assert board.auto_go(0) is True  # the wait ran out first: Cancel finds nothing to cancel
+        assert post({"id": "tile-0"}) == 409
+        assert post({"id": "tile-1"}) == 200  # Cancel first: the press doesn't happen
+        assert board.auto_go(1) is False

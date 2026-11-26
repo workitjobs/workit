@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
+import { addsJobs, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -469,6 +469,14 @@ test("each flag is said with its question and in WorkIt's words, never Apply's",
   assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
 });
 
+test("a form with no flags lists its reason's checks, never Something went wrong", () => {
+  // Fault: a Review card whose reason named the Pre-submit review said "Something went wrong. Try again."
+  const why = "Pre-submit review: Claude wrote May 2027 for the graduation date; Verify: a file is empty";
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why })), ["WorkIt wrote May 2027 for the graduation date", "A file is empty"]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why: "Pre-submit check failed. Handoff: Browser 2" })), [ONE_ANSWER]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check" })), [ONE_ANSWER]);
+});
+
 test("a handoff's fields are named once each, from the reason's Error- lines", () => {
   const why = "Workday won't leave its 'Application Questions 1 of 2' step: Error-Are you currently employed? The field Are you currently employed? is required and must have a value. Error-Do you have IP? The field Do you have IP? is required. Error-Are you currently employed? The field Are you currently employed? is required.";
   assert.deepEqual(wantedFields(why), ["Are you currently employed?", "Do you have IP?"]);
@@ -586,4 +594,10 @@ test("the window says jobs wait because the open-form cap is full, and only then
   assert.equal(filling.full, undefined); // a job still fills: nothing waits on the cap yet
   const none = view({ tiles: [held("https://a"), held("https://b")], items: [], run: { mode: "rehearsal", queued: 0, open_forms: 2 } });
   assert.equal(none.full, undefined);
+});
+
+test("Auto-submit's countdown reads minutes and seconds, and never goes below zero", () => {
+  assert.equal(autoLeft(1000 + 582, 1000_000), "9:42");
+  assert.equal(autoLeft(1000 + 5.2, 1000_000), "0:06");
+  assert.equal(autoLeft(1000 - 30, 1000_000), "0:00");
 });

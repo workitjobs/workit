@@ -256,6 +256,7 @@ jobs:
             tests/test_answer_sync.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
+            tests/test_app_control.py \
             tests/test_app_window.py \
             tests/test_first_run.py \
             tests/test_ask.py \
@@ -290,6 +291,7 @@ jobs:
             tests/test_keepalive.py \
             tests/test_left_behind.py \
             tests/test_preflight.py \
+            tests/test_queued_names.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_masked.py \
@@ -297,6 +299,7 @@ jobs:
             tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_optional_ask.py \
+            tests/test_other_roles.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \

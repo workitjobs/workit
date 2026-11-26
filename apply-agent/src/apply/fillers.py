@@ -40,6 +40,8 @@ class Filler(Protocol):
 
     # Optional: unasked(page, questions) -> list[str], the labels of the required
     # fields on the filled form that `questions` lacks; the Pre-submit check fails on any.
+    # Optional: picked(answers, readback) -> dict[str, tuple[str, ...]], by Question name, the option
+    # a search picked that words an answer the form's own way; the Pre-submit check accepts it.
 
 
 # A Filler, or a Filler class built per Application with the Application's

@@ -35,6 +35,8 @@ export type Shown = {
   let_go?: boolean; // the student isn't applying to it: its page is let go, and it shows no more
   submitting?: boolean; // the student pressed Approve and submit: Apply presses Submit and waits for the confirmation
   submit_said?: string; // why Apply didn't press Submit for them (dismiss a note on the form first, say)
+  auto_at?: number | null; // Auto-submit (a Developer checkout's policy): when Apply presses Submit by itself, epoch seconds
+  auto_said?: string; // why Auto-submit leaves this one to the student, or that they cancelled it
   application_id?: string;
   questions?: string[];
   choices?: Record<string, Choice>;

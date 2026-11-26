@@ -113,8 +113,8 @@ def edit(claude, drafts: dict[str, str], sources: str, letters: frozenset[str] =
     (research/sources/answer-types/g-quality.md); every pass here is
     triggered by a check. An answer a scripted check still flags
     (flags) is edited again, at most twice. An edit that isn't usable (empty,
-    holding a number the draft didn't, or for a key in `letters` not
-    the same letter) is dropped, and the answer stays as the last usable pass
+    holding a number neither the draft nor `sources` holds, or for a key in
+    `letters` not the same letter) is dropped, and the answer stays as the last usable pass
     left it. `lengths` gives, by key, the length an answer keeps to when its
     question states none (its Question type's default, "70-120 words").
     `checks(key, answers)`, when given, adds its own flags for the answer
@@ -124,7 +124,7 @@ def edit(claude, drafts: dict[str, str], sources: str, letters: frozenset[str] =
     edited = dict(base)
 
     def take(given: dict[str, str]) -> None:  # each pass's edit, where usable; else the last usable one stays
-        edited.update({key: text for key, text in given.items() if _usable(base[key], text, key in letters)})
+        edited.update({key: text for key, text in given.items() if _usable(base[key], text, key in letters, sources)})
     take(_pass(claude, base, sources, _check(claude, base, sources), asked, lengths))
     for _ in range(2):
         flagged = {key: found for key, text in edited.items()
@@ -142,7 +142,7 @@ def repair(claude, drafts: dict[str, str], sources: str, flagged: dict[str, list
     (a gate or a checklist item it fails, apply.essays); an edit that isn't
     usable leaves its draft as it was."""
     given = _pass(claude, drafts, sources, flagged, questions, lengths)
-    return {key: text if _usable(drafts[key], text, key in letters) else drafts[key] for key, text in given.items()}
+    return {key: text if _usable(drafts[key], text, key in letters, sources) else drafts[key] for key, text in given.items()}
 
 
 def _pass(claude, drafts: dict[str, str], sources: str, flagged: dict[str, list[str]],
@@ -166,8 +166,13 @@ def _check(claude, drafts: dict[str, str], sources: str) -> dict[str, list[str]]
             for key in drafts if (found := [str(c) for c in given.get(key) or [] if str(c).strip()])}
 
 
-def _usable(draft: str, edited: str, letter: bool) -> bool:
-    if not edited or not set(_numbers(edited)) <= set(_numbers(draft)):
+def _usable(draft: str, edited: str, letter: bool, sources: str = "") -> bool:
+    """Whether an edit of `draft` may replace it: not empty, a number in it only one the draft or
+    `sources` holds, and a letter's salutation and sign-off kept. A number from the sources is often
+    the claim check's own fix: on Sierra's form (live 2026-11-26) it gave the count a vague claim
+    stood for, and every edit that wrote it, the cut to the length too, was dropped, so both
+    essays stayed at their first draft's 157 and 145 words of 120."""
+    if not edited or not set(_numbers(edited)) <= set(_numbers(draft)) | set(_numbers(sources)):
         return False
     lines = draft.splitlines()
     return not letter or (edited.startswith(lines[0]) and edited.endswith("\n".join(lines[-2:])))
