@@ -6,7 +6,9 @@ the window checks after sign-in and before the Apply window, one step at a time,
 3. Screen Recording, on a Mac only: asked once. Without it, a form's live view in the window (Fix here) is about two
    frames a second (W2), so the student may skip it.
 4. The seed: `apply plain seed`'s guided setup (apply.plain.seed_setup.Wizard), its words in the window, until a
-   real Worker says hello. It stays the way in until a Chrome Web Store copy can be used (W6).
+   real Worker says hello. It stays the way in until a Chrome Web Store copy can be used (W6). Only Workers on Google
+   Chrome need it (plain_chrome: chrome, the default): Chrome for Testing (plain_chrome: testing) loads the worker
+   extension itself, so the step is skipped.
 
 Chrome and the seed are looked at again at each launch; the disclosure and the Screen Recording ask are kept as done
 in the data folder (STATE), with Settings' Worker count (`workers`).
@@ -121,11 +123,15 @@ def ask_screen() -> None:
     Quartz.CGRequestScreenCaptureAccess()
 
 
-def seed_problem() -> object | None:
-    """The seed's first step that isn't saved yet (seed_setup.Problem), or None when it is set up."""
+def seed_problem(kind: str | None = None) -> object | None:
+    """The seed's first step that isn't saved yet (seed_setup.Problem), or None when it is set up. `kind` is the
+    Workers' Chrome (default: launcher.chrome_kind()); only Google Chrome's Workers start from the seed, so with
+    Chrome for Testing, which loads the worker extension itself, nothing is missing."""
     from apply.plain import seed_setup
-    from apply.plain.launcher import PlainWorkers
+    from apply.plain.launcher import PlainWorkers, chrome_kind
 
+    if (kind or chrome_kind()) != "chrome":
+        return None
     workers = PlainWorkers(kind="chrome")
     return seed_setup.first_problem(seed_setup.read_state(workers.seed), workers.copy)
 
