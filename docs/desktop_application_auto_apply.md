@@ -2051,7 +2051,8 @@ student sees one Chrome in the Dock and no Worker in Mission Control.
      need another way to reach their profile's pages.
    - The native host's manifest is one per user data folder, so each
      plain Worker's extension must say which Worker it is (today the
-     wrapper in its own profile says so).
+     host reads it from its Chrome's profile folder, which would then be
+     one for all).
    - Apply stops a Worker by its Chrome's PID; with one process it closes
      the profile's windows instead, and one crash or quit ends every
      Worker. The in-use check (`SingletonLock`, one per folder), restart

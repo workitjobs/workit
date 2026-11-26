@@ -1,8 +1,8 @@
 # WorkIt Auto Apply on Windows
 
 **Status (KAN-929):** being built. P1 to P4 are built and tested on the
-Mac. Nothing has run on Windows yet. Section 7 says what comes next.
-This note takes F4 and W4's "Found on the way" list
+Mac, and P5 is being built. Nothing has run on Windows yet. Section 7
+says what comes next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
 
@@ -168,29 +168,42 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
 
 ### P5. The host file (native messaging manifest and wrapper)
 
-- **What breaks.** Chrome on Windows reads no `NativeMessagingHosts`
-  folder. It reads the registry key
-  `HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\<name>`,
-  whose value is the manifest's path (`native_host.WINDOWS_KEY`). And
-  Windows can't run a `#!/bin/sh` wrapper. The accounts host for the
-  student's own Chrome (`native_host.install`) raises
-  `NotImplementedError` on Windows.
+- **What breaks.** Chrome on Windows finds a host only through the
+  registry (Chromium's `launch_context_win.cc`, read 2026-11-26): the
+  default value of
+  `HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\<name>`
+  (then `HKLM`) is the manifest's path (`native_host.WINDOWS_KEY`). Every
+  build reads this key, Chrome for Testing too. And Windows can't run a
+  `#!/bin/sh` wrapper. The accounts host for the student's own Chrome
+  (`native_host.install`) raises `NotImplementedError` on Windows.
 - **Who.** Both, for plain Workers.
-- **Fix.**
-  - Write the key with `winreg`, and a `.bat` wrapper. The package can
-    use its own `.exe`.
-  - The key is one per Windows user, for every Chrome profile. So one
-    wrapper serves every Worker and can't carry `--worker <k>`. The host
-    finds its Worker from its parent Chrome's `--user-data-dir`
-    (`plain-<k>`), on every OS.
+- **Built: the host finds its Worker from its Chrome, on every OS.** The
+  key is one per Windows user, so one wrapper serves every Worker and
+  every profiles folder, and can name neither a Worker nor a channel.
+  - The host takes the nearest browser above it (`host.browser_of`):
+    Chrome starts a `.bat` host through `cmd.exe /d /s /c`, so its parent
+    is no Chrome. That browser's `--user-data-dir`, `plain-<k>`, gives
+    the Worker, and the folder above it the channel
+    (`channel.socket_path`).
+  - So a Bridge listens only there: `PlainWorkers` takes no Bridge of its
+    own. The long-path fallback is always `/tmp`, never `$TMPDIR`: the
+    host runs in its Chrome's environment, launchd's on the Mac.
+  - The host imports psutil (decided 2026-11-26): no other library reads
+    a process's arguments on Windows.
+- **Still to build.**
+  - Write the key with `winreg`, and a `.bat` wrapper in one fixed folder
+    (`home.APP_FOLDER`): a key that named a test's temporary folder would
+    point at a deleted file after that test. The `.bat` starts with
+    `@echo off`, or cmd.exe writes into Chrome's pipe. The package can use
+    its own `.exe`, which starts through cmd.exe too, unless the
+    `NativeHostsExecutablesLaunchDirectly` policy is on.
   - The student's everyday Chrome sees the key too. That is safe: only
-    the Worker extension may call the host (`allowed_origins`).
-  - **Check the host's parent.** The tile proves that a connection is its
-    Worker's own by the host's parent (`window_capture.chrome_of`,
-    `tile._foreign_to`). Chrome on Windows may start a host through
-    `cmd.exe` (recalled, not read in Chromium's source). If so, accept
-    the Worker's Chrome anywhere among the host's ancestors
-    (`psutil.Process(host_pid).parents()`).
+    the Worker extension may call the host (`allowed_origins`), and the
+    host connects only from a `plain-<k>` profile.
+  - The tile proves that a connection is its Worker's own by the host's
+    parent (`window_capture.chrome_of`, `tile._foreign_to`), which is
+    cmd.exe on Windows: it must take `host.browser_of`'s Chrome.
+  - The accounts host: the same key and `.bat`.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows.
 
@@ -299,7 +312,8 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 
 | Problem | Test, new or extended | The fault it turns red |
 |---|---|---|
-| P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker |
+| P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome, with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
+| P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, and the `.bat` starts the host | Chrome on Windows finds no host |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
@@ -326,7 +340,7 @@ Mac until every blocker seems fixed. Then a teammate runs all the checks
 on Windows at once: M1 with `worker_mode: cdp`, then plain Workers, then
 section 8. Each result goes into this note.
 
-**Next: P5.**
+**Next: the rest of P5.**
 
 ## 8. Open questions
 
@@ -334,8 +348,6 @@ section 8. Each result goes into this note.
   D21's reason against it (Allow User Scripts) is out of date since
   KAN-839 removed user scripts. Not checked: its bot signals on the
   protected hosts. It is built for testing, and doesn't update itself.
-- Which registry key does Chrome for Testing read for native hosts? It
-  may not be Google Chrome's.
 - Does Chrome save when `taskkill` with no `/F` stops it?
 - Does `--no-startup-window` keep Chrome running on Windows?
 - How long does `chrome_pid`'s scan take on Windows (P3)? If it is too

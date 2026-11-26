@@ -16,7 +16,7 @@ from test_plain_reload import turn_on_developer_mode
 
 from apply import steps, submit_guard
 from apply.plain import guards
-from apply.plain.bridge import FEATURES, Bridge
+from apply.plain.bridge import FEATURES
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.submit_guard import (
@@ -121,7 +121,7 @@ def worker():
     if not HAVE_CHROME:
         pytest.skip("needs Chrome for Testing")
     folder = Path(tempfile.mkdtemp(prefix="apw-guards-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))  # its own socket
+    workers = PlainWorkers(folder, kind="testing")
     try:
         yield workers.launch(0).connection
     finally:
@@ -512,11 +512,10 @@ def reloading():
     if not HAVE_CHROME:
         pytest.skip("needs Chrome for Testing")
     folder = Path(tempfile.mkdtemp(prefix="apw-reload-", dir="/tmp"))
-    bridge = Bridge(folder / "w.sock")
-    workers = PlainWorkers(folder, kind="testing", bridge=bridge)
+    workers = PlainWorkers(folder, kind="testing")
     turn_on_developer_mode(workers.profile(0))
     try:
-        yield workers, bridge
+        yield workers, workers.bridge
     finally:
         workers.stop_all()
 

@@ -26,7 +26,6 @@ from apply.plain.bridge import (
     PortTimeoutError,
     Refused,
     WorkerGone,
-    socket_path,
 )
 from apply.plain.extension import EXTENSION_DIR, EXTENSION_ORIGIN
 from apply.plain.launcher import PlainWorkers
@@ -89,9 +88,9 @@ def test_the_socket_is_only_lisuls(bridge):
 
 def test_a_long_data_folder_puts_the_socket_under_tmp():
     long = Path("/tmp") / ("x" * 120)
-    path = socket_path(long)
+    path = channel.socket_path(long)
     assert len(str(path)) < 104 and path.parent.name == f"apply-{os.getuid()}"
-    assert socket_path(Path("/tmp/short")) == Path("/tmp/short/workers.sock")
+    assert channel.socket_path(Path("/tmp/short")) == Path("/tmp/short/workers.sock")
 
 
 def test_each_profiles_folder_has_its_own_socket(tmp_path):
@@ -249,26 +248,41 @@ def test_a_closed_worker_is_gone(bridge):
         connection.call("ping")
 
 
-def test_the_host_relays_both_ways_and_names_its_worker(bridge):
-    """The real host script, run as Chrome runs it, between a fake extension's pipes and the bridge."""
-    relay = subprocess.Popen([sys.executable, "-I", host.__file__, "--socket", str(bridge.path), "--worker", "1",
-                              EXTENSION_ORIGIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    relay.stdin.write(frame({"type": "hello", "protocol": 1, "engine": ENGINE}))
-    relay.stdin.flush()
-    assert read(relay.stdout) == {"type": "welcome", "worker": 1, "protocol": 1}
-    connection = bridge.wait_for(1, timeout=5)
-    assert connection.relay["origin"] == EXTENSION_ORIGIN and connection.relay["worker"] == 1
+# A Worker's Chrome, played by Python: it starts its host through a process between them, as Chrome on Windows
+# starts a .bat host through cmd.exe. Its own arguments: --user-data-dir=<profile>, then the host's command.
+CHROME = ("import subprocess, sys; shell = [sys.executable, '-c', 'import subprocess, sys; "
+          "sys.exit(subprocess.call(sys.argv[1:]))']; sys.exit(subprocess.call(shell + sys.argv[2:]))")
 
-    def extension():
-        while (message := read(relay.stdout)) is not None:
-            relay.stdin.write(frame({"type": "result", "id": message["id"], "value": message["op"].upper()}))
-            relay.stdin.flush()
-    threading.Thread(target=extension, daemon=True).start()
-    assert connection.call("ping") == "PING"
-    relay.stdin.close()
-    relay.wait(5)
-    connection.closed.wait(5)
-    assert connection.closed.is_set()
+
+def test_the_host_relays_both_ways_and_finds_its_worker_from_its_chrome(tmp_path):
+    """The real host script, started as Chrome starts it, between a fake extension's pipes and the bridge. Faults:
+    the host takes its Worker or its channel from anything but the Chrome that started it (on Windows one wrapper
+    serves every Worker and every profiles folder, P5), or reads only its parent, which on Windows is cmd.exe."""
+    profiles = tmp_path / "profiles"  # on the Mac, too long for a socket: the host finds the /tmp one too
+    bridge = Bridge(channel.socket_path(profiles), engine=ENGINE)
+    bridge.start()
+    try:
+        relay = subprocess.Popen([sys.executable, "-c", CHROME, f"--user-data-dir={profiles / 'plain-2'}",
+                                  sys.executable, "-I", host.__file__, EXTENSION_ORIGIN, "--parent-window=0"],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        relay.stdin.write(frame({"type": "hello", "protocol": 1, "engine": ENGINE}))
+        relay.stdin.flush()
+        assert read(relay.stdout) == {"type": "welcome", "worker": 1, "protocol": 1}
+        connection = bridge.wait_for(1, timeout=5)
+        assert connection.relay["origin"] == EXTENSION_ORIGIN and connection.relay["worker"] == 1
+
+        def extension():
+            while (message := read(relay.stdout)) is not None:
+                relay.stdin.write(frame({"type": "result", "id": message["id"], "value": message["op"].upper()}))
+                relay.stdin.flush()
+        threading.Thread(target=extension, daemon=True).start()
+        assert connection.call("ping") == "PING"
+        relay.stdin.close()
+        relay.wait(5)
+        connection.closed.wait(5)
+        assert connection.closed.is_set()
+    finally:
+        bridge.stop()
 
 
 def test_a_second_apply_on_the_same_socket_is_told_so(bridge):

@@ -41,8 +41,10 @@ Apply process                                   Worker k (plain Chrome)
     the very strings `on_page`, `stuck` and `email_code` evaluate; sets `globalThis.__applyFixed`.
 - **Host:** `com.workit.apply_worker`. Its manifest is written into each Worker profile's
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
-  worker extension's origin. Its `path` is a per-profile wrapper that runs
-  `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
+  worker extension's origin. Its `path` is a wrapper that runs `python3 -I apply/plain/host.py`
+  and names no Worker: the host finds its Worker and the channel from the Chrome that started it
+  (its `--user-data-dir`), since on Windows one wrapper serves every Worker. The host imports
+  only the standard library and psutil.
 - **Socket:** (the channel; on Windows a named pipe, below) `workers.sock` in the Worker
   profiles folder (`APPLY_PROFILES`, default
   `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
@@ -87,7 +89,8 @@ extension joins them before handling. The extension never needs to chunk.
    The open port keeps the MV3 service worker alive.
 3. Host → Apply, first frame (written by the host itself):
    `{"type": "relay", "protocol": 1, "worker": k, "origin": "chrome-extension://<id>/", "host_pid": n}`
-   (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
+   (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`,
+   which the host reads from its Chrome's `--user-data-dir`.)
 4. Extension → Apply:
    ```json
    {"type": "hello", "protocol": 1, "extension": "0.3.0", "features": 5,

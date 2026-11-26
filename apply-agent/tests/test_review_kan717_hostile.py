@@ -129,14 +129,13 @@ def real_worker(site):
     _plain_or_skip()
     from plain_fakes import https_fake
 
-    from apply.plain.bridge import Bridge
     from apply.plain.launcher import PlainWorkers
     from apply.plain.page import PortContext, PortPage
 
     folder = Path(tempfile.mkdtemp(prefix="apw-r-", dir="/tmp"))
     with https_fake(site.handle, list) as port:
         flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port},EXCLUDE 127.0.0.1", "--ignore-certificate-errors", "--disable-quic")
-        workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags)
+        workers = PlainWorkers(folder, kind="testing", test_flags=flags)
         try:
             connection = workers.launch(0).connection
             PortPage.first(connection)

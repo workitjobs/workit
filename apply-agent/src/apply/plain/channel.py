@@ -39,6 +39,8 @@ from typing import Self
 
 SIZE = 32  # bytes of the secret, of each challenge and of each answer (HMAC-SHA256)
 GREET_WAIT = 5.0  # s each side waits for the other's part of the check
+SOCKET = "workers.sock"
+SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 
 
 class Busy(Exception):
@@ -47,6 +49,20 @@ class Busy(Exception):
 
 class NotApply(ConnectionError):
     """The listener didn't prove that it knows the channel's secret."""
+
+
+def socket_path(profiles: Path, system: str = sys.platform) -> Path:
+    """The Workers' channel for the profiles folder `profiles`: the Bridge listens there, and each Worker's host
+    finds it from its Chrome's profile (host.py). `profiles`/workers.sock, or, when that path is too long for a
+    socket, one under /tmp/apply-<uid>/ (0700) named by a hash of `profiles`: always /tmp, never $TMPDIR, since
+    the host runs in its Chrome's environment (on the Mac, launchd's: Chrome starts through `open`). On Windows
+    the path only names the channel's pipe and holds its secret beside it (pipe_name), so it has no length to
+    keep under, and Windows has no os.getuid."""
+    path = profiles / SOCKET
+    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
+        return path
+    name = hashlib.sha256(str(profiles.resolve()).encode()).hexdigest()[:16]
+    return Path("/tmp") / f"apply-{os.getuid()}" / f"{name}.sock"
 
 
 def secret_path(path: Path) -> Path:

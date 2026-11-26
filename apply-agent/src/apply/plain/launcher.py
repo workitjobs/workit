@@ -18,9 +18,10 @@ Two Chromes (policies.yaml `plain_chrome`):
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
 
 Each profile gets its own NativeMessagingHosts folder with the host's manifest, naming only
-the worker extension, and a wrapper that tells the host its socket and Worker number. Lisul's
-own Chrome folder is never touched. (Chrome reads that folder on macOS and Linux; on Windows it
-reads a registry key instead, and the wrapper is a shell script: both are F4's.)
+the worker extension, and a wrapper that starts the host, which finds its Worker and channel
+from the Chrome that started it (host.py). Lisul's own Chrome folder is never touched. (Chrome
+reads that folder on macOS and Linux; on Windows it reads a registry key instead, and the
+wrapper is a shell script: both are P5 of docs/windows_desktop.md.)
 
 Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It starts in the
 background by each OS's own way (`start_in_background`).
@@ -62,8 +63,8 @@ from apply.plain.bridge import (
     PortError,
     Refused,
     features,
-    socket_path,
 )
+from apply.plain.channel import socket_path
 from apply.plain.script import keep_engine
 from apply.profile import load_policies
 
@@ -148,8 +149,8 @@ class PlainWorker:
 
 
 class PlainWorkers:
-    def __init__(self, profiles: Path | None = None, kind: str | None = None, bridge: Bridge | None = None,
-                 extension_dir: Path | None = None, test_flags: tuple[str, ...] = ()):
+    def __init__(self, profiles: Path | None = None, kind: str | None = None, extension_dir: Path | None = None,
+                 test_flags: tuple[str, ...] = ()):
         """`profiles` defaults to $APPLY_PROFILES, else APPLY_HOME/profiles. `kind` is
         "testing" or "chrome" (default: chrome_kind()). `test_flags`: tests' own switches for
         Chrome for Testing only, such as pointing the fakes' hosts at 127.0.0.1 (never Workers').
@@ -157,9 +158,10 @@ class PlainWorkers:
         loads the profiles folder's own copy of this checkout's extension (`copy`, KAN-645)."""
         self.profiles = Path(profiles or os.environ.get("APPLY_PROFILES") or PROFILES)
         self.kind = kind or chrome_kind()
-        # One socket per profiles folder: a held rehearsal keeps its process up, and another
-        # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634).
-        self.bridge = bridge or Bridge(socket_path(self.profiles))
+        # One channel per profiles folder: a held rehearsal keeps its process up, and another
+        # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634). Only
+        # there: each Worker's host finds it from its Chrome's profile (host.py).
+        self.bridge = Bridge(socket_path(self.profiles))
         self.bridge.reloadable = lambda worker: developer_mode(self.profile(worker))
         self.extension_dir = extension_dir or extension.EXTENSION_DIR  # the code the copy is made from
         self.direct = extension_dir is not None
@@ -297,12 +299,12 @@ class PlainWorkers:
         return said
 
     def install_host(self, worker: int) -> Path:
-        """Write the host's wrapper and manifest into Worker `worker`'s profile. Returns the manifest."""
+        """Write the host's wrapper and manifest into Worker `worker`'s profile. Returns the manifest. The wrapper
+        names no Worker and no channel: the host finds both from the Chrome that started it (host.py)."""
         hosts = self.profile(worker) / "NativeMessagingHosts"
         hosts.mkdir(parents=True, exist_ok=True)
         wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} "
-                           f"--socket {shlex.quote(str(self.bridge.path))} --worker {worker} \"$@\"\n")
+        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} \"$@\"\n")
         wrapper.chmod(0o700)
         manifest = hosts / f"{extension.HOST_NAME}.json"
         manifest.write_text(json.dumps({

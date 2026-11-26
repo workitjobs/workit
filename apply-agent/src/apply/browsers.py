@@ -36,6 +36,7 @@ from playwright.sync_api import BrowserContext, Page, sync_playwright
 from apply import chrome_finder, submit_guard, trace
 from apply.focus import KEEPER
 from apply.home import HOME
+from apply.plain import host
 from apply.profile import load_policies
 
 PROFILES = HOME / "profiles"
@@ -123,10 +124,9 @@ def chrome_pid(profile: Path, system: str = sys.platform) -> int | None:
 
 
 def _browser_on(arguments: list[str] | None, profile: Path) -> bool:
-    """Whether a process with these arguments is a browser (not a helper, `--type=`) on `profile`, resolved."""
-    if not arguments or any(a.startswith("--type=") for a in arguments):
-        return False
-    return any(Path(a.partition("=")[2]).resolve() == profile for a in arguments if a.startswith("--user-data-dir="))
+    """Whether a process with these arguments is a browser (not a helper) on `profile`, resolved."""
+    found = host.profile_of(arguments)
+    return found is not None and found.resolve() == profile
 
 
 class WorkerBrowsers:

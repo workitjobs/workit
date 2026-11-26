@@ -23,7 +23,7 @@ import pytest
 from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import bridge, channel, launcher, seed_setup, tools, window_capture
+from apply.plain import channel, launcher, seed_setup, tools, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -441,11 +441,11 @@ def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, mo
     reaches os.getuid, which Windows lacks (P4)."""
     monkeypatch.delattr(os, "getuid")
     long = tmp_path / ("x" * 120)
-    path = bridge.socket_path(long, "win32")
+    path = channel.socket_path(long, "win32")
     assert path == long / "workers.sock"  # no /tmp fallback: on Windows the path only names the pipe
     assert channel.pipe_name(path).startswith("\\\\.\\pipe\\workit-apply-")
     assert channel.pipe_name(path) == channel.pipe_name(long / "workers.sock")
-    assert channel.pipe_name(path) != channel.pipe_name(bridge.socket_path(tmp_path / "two", "win32"))
+    assert channel.pipe_name(path) != channel.pipe_name(channel.socket_path(tmp_path / "two", "win32"))
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # Windows' temp folder, played here
     assert tools.socket_folder("win32") == tmp_path / "apply"
     made = []
