@@ -329,6 +329,14 @@ async def _write_batch(
 
     Returns True on success, False if the lease was lost (H2) or the
     transaction failed."""
+    # Snapshot counts before any writes so the exception handler can restore
+    # them exactly, even when the exception fires before any increment ran.
+    _ok_before = summary["boards_ok"]
+    _unchanged_before = summary["boards_unchanged"]
+    _missing_before = summary["boards_missing"]
+    _failed_before = summary["boards_failed"]
+    _scraped_before = summary["jobs_scraped"]
+
     try:
         # 1. import_feed for changed boards only (D2).
         changed = [r for r in batch if r.status == "done" and not r.unchanged]
@@ -343,7 +351,7 @@ async def _write_batch(
                 seen: dict[str, JobListing] = {}
                 for listing in all_listings:
                     existing = seen.get(listing.apply_url)
-                    if existing is None or listing.description and not existing.description:
+                    if existing is None or (listing.description and not existing.description):
                         seen[listing.apply_url] = listing
                 all_listings = list(seen.values())
 
@@ -369,6 +377,22 @@ async def _write_batch(
                     },
                 )
 
+        # 2b. Touch last_seen_at for unchanged boards (finding #1).
+        # Unchanged boards skip update_sources, but their jobs are still
+        # listed.  Without this, last_seen_at freezes while advance_reads
+        # advances prior_read_at, and after two unchanged reads the closure
+        # detection falsely closes every job on those boards.
+        unchanged = [r for r in batch if r.status == "done" and r.unchanged]
+        if unchanged:
+            unchanged_sids = [r.schedule.id for r in unchanged]
+            await conn.execute(
+                text(
+                    "UPDATE job_sources SET last_seen_at = GREATEST(last_seen_at, now())"
+                    " WHERE schedule_id = ANY(:sids)"
+                ),
+                {"sids": unchanged_sids},
+            )
+
         # 3. Bulk schedule updates.
         for r in batch:
             if r.status == "done":
@@ -379,6 +403,8 @@ async def _write_batch(
                         conn, r.schedule.id, new_fingerprint=r.fingerprint
                     )
                 summary["boards_ok"] += 1
+                if r.unchanged:
+                    summary["boards_unchanged"] += 1
                 summary["jobs_scraped"] += len(r.listings)
             elif r.status == "missing":
                 await record_missing(conn, r.schedule.id)
@@ -404,6 +430,12 @@ async def _write_batch(
         if not await renew_lease(conn, lease_id, holder):
             logger.error("Lease lost: another process took it; aborting batch")
             await conn.rollback()
+            # Restore pre-batch counts (same as the except handler).
+            summary["boards_ok"] = _ok_before
+            summary["boards_unchanged"] = _unchanged_before
+            summary["boards_missing"] = _missing_before
+            summary["boards_failed"] = _failed_before + len(batch)
+            summary["jobs_scraped"] = _scraped_before
             return False
 
         # 6. Commit.
@@ -416,15 +448,12 @@ async def _write_batch(
             await conn.rollback()
         except Exception:
             logger.exception("Rollback also failed")
-        # Count the boards as failed in summary.
-        for r in batch:
-            if r.status == "done":
-                summary["boards_failed"] += 1
-                summary["boards_ok"] -= 1  # undo the count from above
-                summary["jobs_scraped"] -= len(r.listings)
-            elif r.status == "missing":
-                summary["boards_failed"] += 1
-                summary["boards_missing"] -= 1
+        # Restore pre-batch counts and charge the whole batch to boards_failed.
+        summary["boards_ok"] = _ok_before
+        summary["boards_unchanged"] = _unchanged_before
+        summary["boards_missing"] = _missing_before
+        summary["boards_failed"] = _failed_before + len(batch)
+        summary["jobs_scraped"] = _scraped_before
         return False
 
 
@@ -572,101 +601,108 @@ async def run_cycle(
             summary["due_count"] = len(due)
             return summary
 
+    # From here the lease is held. Everything runs inside try/finally so
+    # the lease is released even when _build_resolvers or the read/write
+    # phase crashes (finding #5: 30-min lockout prevention).
+    try:
         # 4. Build resolvers once (D9).
-        resolver, role_resolver = await _build_resolvers(conn)
-        await conn.commit()
-
-    # 5. Read boards in parallel (D4, D8), write batches (D7).
-    input_queue: asyncio.Queue = asyncio.Queue()
-    results_queue: asyncio.Queue = asyncio.Queue()
-
-    for schedule in due:
-        input_queue.put_nowait(schedule)
-    # Sentinel per reader so each one stops.
-    for _ in range(workers):
-        input_queue.put_nowait(None)
-
-    robots = Robots()
-
-    reader_tasks = [
-        asyncio.create_task(_reader(input_queue, results_queue, robots))
-        for _ in range(workers)
-    ]
-
-    async with engine.connect() as write_conn:
-        writer_task = asyncio.create_task(
-            _writer(
-                write_conn,
-                results_queue,
-                summary,
-                resolver=resolver,
-                role_resolver=role_resolver,
-                lease_id=lease_id,
-                holder=holder,
-            )
-        )
-
-        # Wait for all readers to finish.
-        reader_results = await asyncio.gather(
-            *reader_tasks, return_exceptions=True
-        )
-
-        # H1: drain the input queue for boards no reader picked up (crash).
-        for exc in reader_results:
-            if isinstance(exc, BaseException):
-                logger.error("Reader crashed: %s", exc)
-
-        drained = 0
-        while not input_queue.empty():
-            item = input_queue.get_nowait()
-            if item is None:
-                continue  # skip sentinels
-            results_queue.put_nowait(_Read(
-                schedule=item,
-                status="failed",
-                error="reader crashed",
-                started_at=datetime.datetime.now(tz=datetime.UTC),
-                finished_at=datetime.datetime.now(tz=datetime.UTC),
-            ))
-            drained += 1
-        if drained:
-            logger.warning("Drained %d unread boards as failed", drained)
-
-        # Signal the writer that all results are in.
-        results_queue.put_nowait(_SENTINEL)
-        await writer_task
-
-        # Count changed vs unchanged from the results the writer processed.
-        summary["boards_changed"] = (
-            summary["boards_ok"] - summary.get("boards_unchanged", 0)
-        )
-
-    # 6. Description enrichment (phase 2).
-    async with engine.connect() as conn:
-        try:
-            await _fetch_descriptions(conn, summary, robots=robots)
-        except Exception:
-            await conn.rollback()
-            logger.exception(
-                "Description enrichment failed; continuing to closures"
-            )
-
-        # 7. Closure detection (D10: skip when no boards changed).
-        if summary["boards_changed"] > 0:
-            summary["jobs_closed"] = await detect_and_close(conn)
+        async with engine.connect() as conn:
+            resolver, role_resolver = await _build_resolvers(conn)
             await conn.commit()
-        else:
-            logger.info(
-                "All %d boards unchanged; skipping closure detection (D10)",
-                summary["boards_ok"],
+
+        # 5. Read boards in parallel (D4, D8), write batches (D7).
+        input_queue: asyncio.Queue = asyncio.Queue()
+        results_queue: asyncio.Queue = asyncio.Queue()
+
+        for schedule in due:
+            input_queue.put_nowait(schedule)
+        # Sentinel per reader so each one stops.
+        for _ in range(workers):
+            input_queue.put_nowait(None)
+
+        robots = Robots()
+
+        reader_tasks = [
+            asyncio.create_task(_reader(input_queue, results_queue, robots))
+            for _ in range(workers)
+        ]
+
+        async with engine.connect() as write_conn:
+            writer_task = asyncio.create_task(
+                _writer(
+                    write_conn,
+                    results_queue,
+                    summary,
+                    resolver=resolver,
+                    role_resolver=role_resolver,
+                    lease_id=lease_id,
+                    holder=holder,
+                )
             )
 
-        # 8. Release cycle lease.
-        try:
-            await release_lease(conn, lease_id, holder)
-            await conn.commit()
-        except Exception:
-            logger.exception("Failed to release lease; it will expire")
+            # Wait for all readers to finish.
+            reader_results = await asyncio.gather(
+                *reader_tasks, return_exceptions=True
+            )
+
+            # H1: drain the input queue for boards no reader picked up (crash).
+            for exc in reader_results:
+                if isinstance(exc, BaseException):
+                    logger.error("Reader crashed: %s", exc)
+
+            drained = 0
+            while not input_queue.empty():
+                item = input_queue.get_nowait()
+                if item is None:
+                    continue  # skip sentinels
+                results_queue.put_nowait(_Read(
+                    schedule=item,
+                    status="failed",
+                    error="reader crashed",
+                    started_at=datetime.datetime.now(tz=datetime.UTC),
+                    finished_at=datetime.datetime.now(tz=datetime.UTC),
+                ))
+                drained += 1
+            if drained:
+                logger.warning("Drained %d unread boards as failed", drained)
+
+            # Signal the writer that all results are in.
+            results_queue.put_nowait(_SENTINEL)
+            await writer_task
+
+            # Count changed vs unchanged from the results the writer processed.
+            summary["boards_changed"] = (
+                summary["boards_ok"] - summary["boards_unchanged"]
+            )
+
+        # 6. Description enrichment (phase 2).
+        async with engine.connect() as conn:
+            try:
+                await _fetch_descriptions(conn, summary, robots=robots)
+            except Exception:
+                await conn.rollback()
+                logger.exception(
+                    "Description enrichment failed; continuing to closures"
+                )
+
+            # 7. Closure detection (D10: skip when no boards changed).
+            if summary["boards_changed"] > 0:
+                summary["jobs_closed"] = await detect_and_close(conn)
+                await conn.commit()
+            else:
+                logger.info(
+                    "All %d boards unchanged; skipping closure detection (D10)",
+                    summary["boards_ok"],
+                )
+
+    finally:
+        # 8. Release cycle lease (always, even on crash).
+        async with engine.connect() as conn:
+            try:
+                await release_lease(conn, lease_id, holder)
+                await conn.commit()
+            except Exception:
+                logger.exception("Failed to release lease; it will expire")
 
     return summary
 

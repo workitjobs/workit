@@ -26,10 +26,9 @@ from workit_scraper.scheduling import (
     rest_for,
 )
 
-from app.models.scraper import Scraper_Cycle_Lease, Scraper_Schedule
+from app.models.scraper import Scraper_Schedule
 
 _schedules = Scraper_Schedule.__table__
-_leases = Scraper_Cycle_Lease.__table__
 
 CYCLE_LEASE_DURATION = timedelta(minutes=30)
 
@@ -158,21 +157,6 @@ def select_due_from_rows(
         and (full or row.fingerprint_until is None or row.fingerprint_until <= db_now)
     ]
     return filter_quiet(due, full=full, now=now_ts)
-
-
-async def select_due(conn: AsyncConnection, *, full: bool = False) -> list:
-    """Schedules due for a read: enabled, not health-resting, not fingerprint-resting."""
-    stmt = select(_schedules).where(
-        _schedules.c.enabled.is_(True),
-        _schedules.c.rest_until.is_(None) | (_schedules.c.rest_until <= text("now()")),
-    )
-    if not full:
-        stmt = stmt.where(
-            _schedules.c.fingerprint_until.is_(None)
-            | (_schedules.c.fingerprint_until <= text("now()"))
-        )
-    rows = (await conn.execute(stmt)).all()
-    return filter_quiet(rows, full=full)
 
 
 async def advance_reads(

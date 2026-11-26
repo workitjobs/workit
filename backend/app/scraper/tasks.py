@@ -25,10 +25,24 @@ _CREDENTIAL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# DSN URLs: postgresql://user:password@host, postgres://..., etc.
+_DSN_RE = re.compile(
+    r"postgres(?:ql)?(?:\+\w+)?://[^\s]+",
+    re.IGNORECASE,
+)
+
+# Bearer tokens that asyncpg embeds in auth-failure messages.
+_BEARER_RE = re.compile(
+    r"Bearer\s+[A-Za-z0-9._\-]+",
+    re.IGNORECASE,
+)
+
 
 def _sanitize_error(error: str) -> str:
     """Strip credential-like values from an error string, then truncate."""
     cleaned = _CREDENTIAL_RE.sub(lambda m: m.group(1) + "=***", error)
+    cleaned = _DSN_RE.sub("postgres://***", cleaned)
+    cleaned = _BEARER_RE.sub("Bearer ***", cleaned)
     return cleaned[:2000]
 
 
@@ -36,8 +50,8 @@ async def bulk_log_tasks(conn: AsyncConnection, results: list[dict]) -> int:
     """Insert one task-log row per board result in a single statement (D4).
 
     Each dict must have schedule_id, status ('done' or 'failed'), started_at,
-    finished_at, and optionally boards_s, pages_s, error. Error strings are
-    sanitized through _sanitize_error (H3).
+    finished_at, and optionally boards_s, error. Error strings are sanitized
+    through _sanitize_error (H3).
 
     Returns the count of rows inserted.
     """
@@ -53,8 +67,6 @@ async def bulk_log_tasks(conn: AsyncConnection, results: list[dict]) -> int:
         }
         if r.get("boards_s") is not None:
             row["boards_s"] = r["boards_s"]
-        if r.get("pages_s") is not None:
-            row["pages_s"] = r["pages_s"]
         if r.get("error"):
             row["error"] = _sanitize_error(r["error"])
         rows.append(row)

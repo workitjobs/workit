@@ -42,6 +42,27 @@ def test_sanitize_error_truncates_to_2000():
     assert len(tasks._sanitize_error(raw)) == 2000
 
 
+def test_sanitize_error_strips_dsn_urls():
+    raw = "connection failed: postgresql://user:hunter2@db.example.com:5432/mydb rest"
+    cleaned = tasks._sanitize_error(raw)
+    assert "hunter2" not in cleaned
+    assert "postgres://***" in cleaned
+
+
+def test_sanitize_error_strips_asyncpg_dsn():
+    raw = "asyncpg error: postgres+asyncpg://admin:s3cret@host:6543/db"
+    cleaned = tasks._sanitize_error(raw)
+    assert "s3cret" not in cleaned
+    assert "postgres://***" in cleaned
+
+
+def test_sanitize_error_strips_bearer_tokens():
+    raw = "auth failed: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig"
+    cleaned = tasks._sanitize_error(raw)
+    assert "eyJhbGciOiJIUzI1NiJ9" not in cleaned
+    assert "Bearer ***" in cleaned
+
+
 def test_sanitize_error_preserves_safe_messages():
     raw = "publish failed: board returned HTTP 500"
     assert tasks._sanitize_error(raw) == raw
@@ -124,29 +145,6 @@ async def _seed_cycle_lease(conn):
             " ON CONFLICT DO NOTHING"
         )
     )
-
-
-def _fake_read_one_intern(monkeypatch, boards_csv):
-    """Patch the board read to return one kept intern for every board."""
-    from workit_scraper.board_read import BoardRead, ReadStatus
-
-    async def skip_descriptions(conn, summary, robots=None):
-        pass
-
-    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
-
-    job = _job("Software Engineering Intern", 1)
-
-    monkeypatch.setattr(
-        worker,
-        "sync_catalog_diff",
-        None,  # will be replaced per test
-    )
-    monkeypatch.setattr(
-        worker, "read_board_listing",
-        lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
-    )
-    return job
 
 
 async def test_a_dry_run_writes_nothing(database, boards_csv, monkeypatch):
@@ -442,7 +440,7 @@ async def test_record_missing_second_miss_clears_fingerprint(database, boards_cs
         assert row.fingerprint_until is None
 
 
-async def test_select_due_skips_fingerprint_resting(database, boards_csv):
+async def test_select_due_from_rows_skips_fingerprint_resting(database, boards_csv):
     """A board with fingerprint_until in the future is skipped unless full=True."""
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
@@ -451,15 +449,15 @@ async def test_select_due_skips_fingerprint_resting(database, boards_csv):
         # Set fingerprint and make it rest
         await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
         await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
-        row = await _schedule(conn)
-        assert row.fingerprint_until is not None
 
-        # Normal select_due skips it
-        due = await schedules.select_due(conn)
+        all_rows, _, db_now = await schedules.sync_catalog_diff(conn, boards_csv)
+
+        # Normal select_due_from_rows skips it
+        due = schedules.select_due_from_rows(all_rows, db_now)
         assert len(due) == 0
 
         # full=True includes it
-        due = await schedules.select_due(conn, full=True)
+        due = schedules.select_due_from_rows(all_rows, db_now, full=True)
         assert len(due) == 1
 
 
