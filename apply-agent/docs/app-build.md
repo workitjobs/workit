@@ -17,7 +17,8 @@ and uv:
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
 `build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
 `build/` is git-ignored. Each app names its commit in `Info.plist`
-(`WorkItCommit`; `+changes` on a test build of a changed working tree):
+(`WorkItCommit`; `+changes` on a test build of a changed working tree) and
+whether it is a release (`WorkItRelease`):
 `plutil -p "build/out/WorkIt Auto Apply.app/Contents/Info.plist"`.
 
 A failed check stops the build with one sentence that says what to fix.
@@ -94,6 +95,34 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   app: there, `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto
   Apply.app"` lets it open for a test.
 
+## Publish a release
+
+Every installed app takes a published build at its next check (at launch
+and each day) and installs it when the student quits, with no question. So
+publish only a release that you launched and tested.
+
+1. On the `main` commit to release, after a pull: `python3
+   scripts/build_app.py --release`. Launch it and test it (above).
+2. `python3 scripts/publish_app.py`. It signs the DMG with the update key
+   in your Keychain (macOS may ask whether `sign_update` may use it:
+   Always Allow), writes `build/out/publish/appcast.xml`, and makes the
+   draft release `auto-apply-<build number>` with `gh`. No student gets
+   anything yet.
+3. Run the command it prints: `gh workflow run publish-app.yml --ref main
+   -f build=<build number>`. The run copies the DMG and the feed to
+   https://downloads.workitjobs.ai and reads them back from there
+   (`../../.github/CLAUDE.md`, Publish WorkIt Auto Apply).
+
+**The update key** is in the login Keychain of the Mac that made it
+(2026-11-26); its backup is `SPARKLE_PRIVATE_KEY` in Infisical's
+`workit-prod/auto-apply-mac` (`../../docs/secrets.md`). To publish from
+another Mac, save the backup to a file, run
+`build/sparkle-2.10.1/bin/generate_keys -f <file>`, and delete the file.
+`generate_keys -p` prints the Keychain key's public half, which must be
+`SPARKLE_PUBLIC_KEY`. Never make a new key: every installed app refuses an
+update another key signs, so its students would stay on their build for
+good.
+
 ## Test an update
 
 Sparkle can be tested on one Mac before the real key and feed exist, with a
@@ -131,11 +160,14 @@ build afterwards: it allows plain HTTP.
 - Step 2: Developer ID signing with the hardened runtime and the
   entitlements for Node (JIT) and Apple events, then notarizing the app
   and the DMG.
-- Step 3: Sparkle is in the build, and waits on three things: the update
-  key (`generate_keys`, its public half in `SPARKLE_PUBLIC_KEY`), the R2
-  bucket at `downloads.workitjobs.ai`, and the publish workflow that puts
-  the DMG and `appcast.xml` there. A beta channel for testers is not built.
-- Step 4: the DMG's upload and `DOWNLOAD_URL`, after W0, W6 and W7.
+- Step 3: a beta channel for testers is not built. Sparkle and the update
+  key are in every build (2026-11-26).
+- Step 4: publishing (above) waits on Infisical's `/auto-apply-desktop`
+  sync (`../../docs/secrets.md`, Still open), and nothing is published
+  yet. The website's `DOWNLOAD_URL`
+  (`frontend/src/app/(seeker)/auto-apply-desktop/page.tsx`) stays null
+  until step 2, since until then the DMG opens on no other Mac; then it is
+  `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
 - `worker-extension/` leaves `INPUTS` with W6.
 - W11: `student.app` still copies the Test Person sample, which the app no
   longer ships, into a data folder with no Applicant profile, so such a

@@ -1622,12 +1622,18 @@ itself (D17, D18, D20).
    Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
    Decided 2026-11-24: the key lives in the publisher's Keychain with a
    backup in Infisical, and a GitHub Actions workflow, not a Mac, uploads
-   to R2. Left: the key, the bucket and its domain, the publish workflow,
-   and a beta channel.
+   to R2. The key is made and in every build (2026-11-26). Left: a beta
+   channel.
 4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
-   app, a link to Applications, and the license and notices beside them;
-   left: its signature and notarization (step 2), its upload and the URL.
+   app, a link to Applications, and the license and notices beside them.
+   Publishing is built (KAN-941, 2026-11-26): `scripts/publish_app.py` on
+   the Mac signs a release and makes a draft GitHub Release, and
+   `.github/workflows/publish-app.yml`, run by hand from `main`, copies it
+   to the R2 bucket `auto-apply-desktop` behind `downloads.workitjobs.ai`.
+   Left: Infisical's sync of the R2 keys, the first publish, the
+   signature and notarization (step 2), and `DOWNLOAD_URL`, which waits on
+   step 2.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the

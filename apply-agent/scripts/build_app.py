@@ -30,8 +30,10 @@ and Nuitka compiles with no ccache, a program it would download from nuitka.net 
 file. Every build writes its commit into Info.plist (COMMIT_KEY), with "+changes" for a test build of a working tree
 that has some, so a report names the code it came from.
 
-W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
-opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
+The app updates itself with Sparkle (W8 step 3): the build puts its framework, the feed's address and the update
+key's public half in the app. scripts/publish_app.py hands a release to the workflow that publishes it (step 4).
+The app has only the compiler's ad-hoc signature and no notarization yet (step 2), so it opens only on the Mac that
+built it.
 """
 
 import argparse
@@ -63,6 +65,7 @@ ICON = Path("assets", "app-icon.png")
 # checkout builds it with swiftc on first use; a student's Mac has no swiftc, so the app ships it, built here.
 CAPTURE_SOURCE = Path("src", "apply", "plain", "window_capture.swift")
 COMMIT_KEY = "WorkItCommit"  # Info.plist: the commit the app was built from
+RELEASE_KEY = "WorkItRelease"  # Info.plist: True for a --release build
 # Where uv puts the build's Python. The app carries this path (Python's build settings, sysconfig, and libpython's
 # own name), so it names no one: in uv's default place, ~/.local/share/uv, every copy of the app held the user
 # name of whoever built it. It is also the same path on every Mac that builds.
@@ -75,10 +78,10 @@ SPARKLE_SHA256 = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf
 SPARKLE = BUILD / f"sparkle-{SPARKLE_VERSION}"  # the release, unpacked once: its framework, and its tools in bin/
 # Where every app looks for updates. Each app keeps it in its Info.plist for good: never change it. R2 serves it (D17).
 FEED = "https://downloads.workitjobs.ai/appcast.xml"
-# The update key's public half (Sparkle's generate_keys; the private half signs each update, in the publisher's
-# Keychain with a backup in Infisical). Empty while there is no key: Sparkle won't start without one, so the app then
-# ships no updater.
-SPARKLE_PUBLIC_KEY = ""
+# The update key's public half (Sparkle's generate_keys, 2026-11-26). Its private half signs each update, in the
+# publisher's Keychain with a backup in Infisical (docs/secrets.md). Every app refuses an update another key signs:
+# never change it.
+SPARKLE_PUBLIC_KEY = "qHsvDUdl7uTOnK60Vy1+qyUt7vVSKrkGUFWAUCdjHFg="
 # Sparkle's parts the app never runs: the XPC services are for sandboxed apps, and the headers and module maps are
 # for compiling against it.
 SPARKLE_LEAVE_OUT = ("XPCServices", "Headers", "PrivateHeaders", "Modules")
@@ -304,21 +307,20 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
     plist["NSAppleEventsUsageDescription"] = APPLE_EVENTS_REASON
     plist[COMMIT_KEY] = commit
-    if SPARKLE_PUBLIC_KEY:
-        # The updater (apply.updates): it checks the feed at launch and each day, downloads a newer build in the
-        # background and installs it when the student quits, asking nothing; it checks an update's EdDSA signature
-        # before it unpacks it.
-        plist |= {"SUFeedURL": FEED, "SUPublicEDKey": SPARKLE_PUBLIC_KEY, "SUEnableAutomaticChecks": True,
-                  "SUAutomaticallyUpdate": True, "SUVerifyUpdateBeforeExtraction": True}
+    plist[RELEASE_KEY] = release  # scripts/publish_app.py publishes only a release
+    # The updater (apply.updates): it checks the feed at launch and each day, downloads a newer build in the
+    # background and installs it when the student quits, asking nothing; it checks an update's EdDSA signature
+    # before it unpacks it.
+    plist |= {"SUFeedURL": FEED, "SUPublicEDKey": SPARKLE_PUBLIC_KEY, "SUEnableAutomaticChecks": True,
+              "SUAutomaticallyUpdate": True, "SUVerifyUpdateBeforeExtraction": True}
     info.write_bytes(plistlib.dumps(plist))
     run(["/usr/bin/xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}",
          "-o", APP / "Contents" / "MacOS" / capture, source / CAPTURE_SOURCE], env=env)
-    if SPARKLE_PUBLIC_KEY:
-        framework = APP / "Contents" / "Frameworks" / "Sparkle.framework"
-        run(["/usr/bin/ditto", fetch_sparkle() / "Sparkle.framework", framework])
-        for part in SPARKLE_LEAVE_OUT:
-            shutil.rmtree(framework / "Versions" / "Current" / part, ignore_errors=True)
-            (framework / part).unlink(missing_ok=True)  # the framework's top-level link to it
+    framework = APP / "Contents" / "Frameworks" / "Sparkle.framework"
+    run(["/usr/bin/ditto", fetch_sparkle() / "Sparkle.framework", framework])
+    for part in SPARKLE_LEAVE_OUT:
+        shutil.rmtree(framework / "Versions" / "Current" / part, ignore_errors=True)
+        (framework / part).unlink(missing_ok=True)  # the framework's top-level link to it
     # The edits broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
     # Step 2 replaces this with the Developer ID signature, file by file.
     run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])
@@ -392,7 +394,6 @@ def main() -> None:
                         help="a build for students: complete notices (third_party_notices --strict), no ccache")
     args = parser.parse_args()
     preflight()
-    fetch_sparkle()  # once, even with no key yet: its bin/generate_keys makes the key
     commit = git("rev-parse", "HEAD")
     changed = bool(git("status", "--porcelain", "--untracked-files=all", "--", "."))
     if args.release:

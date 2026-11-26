@@ -587,10 +587,11 @@ Any teammate's Mac builds the same app: it needs only Xcode's Command Line
 Tools, uv and the network, and any `python3` runs the script, macOS's own
 3.9 too (standard library only; checked 2026-11-21 in an empty environment
 with only the system folders and uv on the `PATH`).
-Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
-so it opens on the Mac that built it and nowhere else. Signing and
-notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
-notices strict (above).
+The app has only the compiler's ad-hoc signature, so it opens on the Mac
+that built it and nowhere else until step 2 (Developer ID and
+notarizing). Sparkle (step 3) is in every build, and
+`scripts/publish_app.py` publishes a release (step 4). `--release` makes
+the notices strict (above).
 
 - **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
   in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
@@ -699,20 +700,31 @@ notices strict (above).
 - **Updates are Sparkle 2.10.1** (W8 step 3, KAN-941). The build
   downloads the pinned release once into `build/sparkle-2.10.1/`, checked
   against `SPARKLE_SHA256` (its `bin/` holds `generate_keys` and
-  `sign_update`). Once `SPARKLE_PUBLIC_KEY` is set, it puts
-  `Sparkle.framework` in `Contents/Frameworks` without the XPC services
-  (for sandboxed apps only), headers and module maps, and writes the
-  settings: `SUFeedURL` (`FEED`, `https://downloads.workitjobs.ai/appcast.xml`,
-  which every app keeps for good: never change it), `SUPublicEDKey`,
-  checks and installs with no question asked, and the EdDSA check before
-  unpacking. With no key, the app ships no updater, since Sparkle won't
-  start without one. `apply.updates` starts Sparkle's updater once the run
-  loop runs; it starts nothing with no framework or key. A new Sparkle
+  `sign_update`), and puts `Sparkle.framework` in `Contents/Frameworks`
+  without the XPC services (for sandboxed apps only), headers and module
+  maps. It writes the settings: `SUFeedURL` (`FEED`,
+  `https://downloads.workitjobs.ai/appcast.xml`), `SUPublicEDKey`
+  (`SPARKLE_PUBLIC_KEY`, made on 2026-11-26), checks and installs with no
+  question asked, and the EdDSA check before unpacking. **Never change
+  `FEED` or `SPARKLE_PUBLIC_KEY`:** every app keeps both for good, so after
+  a change no installed app updates again. `apply.updates` starts Sparkle's
+  updater once the run loop runs; an app built before the key (2026-11-26)
+  has no framework, and it starts nothing. A new Sparkle
   version changes `SPARKLE_SHA256` and `legal/licenses/Sparkle-LICENSE.txt`
   in the same PR. Tested on 2026-11-24 (`docs/app-build.md`, "Test an
   update"): with ad-hoc signatures, an older build found, downloaded and,
   on quit, installed a newer one; one signed with another key was
   downloaded and refused.
+- **Only a release is published** (W8 step 4, KAN-941).
+  `scripts/publish_app.py` signs a `--release` build's DMG with the update
+  key in the publisher's Keychain, writes the feed (one item, the newest
+  build) and makes a draft GitHub Release; `../.github/workflows/publish-app.yml`,
+  run by hand from `main`, copies them to R2 (`../.github/CLAUDE.md`). The
+  script refuses a test build (`WorkItRelease` false in `Info.plist`),
+  which can hold untracked files and incomplete notices; a commit that
+  isn't on `main`, which no one reviewed; and a Keychain key whose public
+  half isn't the app's, which every app would download and refuse. How to
+  publish: `docs/app-build.md`.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher
   than the app's, and `pyproject.toml`'s version, the one the student sees

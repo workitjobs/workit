@@ -779,6 +779,53 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
   4. `gh workflow run publish-engine.yml --ref main`, then check its log for
      "Published".
 
+## Publish WorkIt Auto Apply (`workflows/publish-app.yml`, KAN-941)
+
+Copies a release of the Mac app from its draft GitHub Release to the R2
+bucket `auto-apply-desktop`, served at https://downloads.workitjobs.ai
+(W8 step 4 of `../docs/desktop_application_auto_apply.md`). Every
+installed app reads the feed there, `appcast.xml`, and updates itself
+(Sparkle); the website's Download for Mac links `WorkIt-Auto-Apply.dmg`.
+
+- **A Mac builds and signs; the workflow only copies** (D32). The update
+  key is in the publisher's Keychain, never in GitHub: whoever holds it
+  makes every installed app run what it signs.
+  `apply-agent/scripts/publish_app.py` signs a `--release` build's DMG,
+  writes the feed (one item, the newest build) and makes the draft
+  `auto-apply-<build number>`. It refuses a test build, a commit that
+  isn't on `main`, and a Keychain key that isn't the app's
+  (`apply-agent/docs/app-build.md`, Publish a release).
+- **When.** By hand from `main` only: `gh workflow run publish-app.yml
+  --ref main -f build=<build number>`. Every installed app takes the build
+  at its next check (at launch and each day) and installs it when the
+  student quits, with no question: launch and test a release before you
+  publish it.
+- **Order.** The build's own DMG first, then the website's
+  `WorkIt-Auto-Apply.dmg`, then `appcast.xml`: an app reads the feed at
+  any moment, so the feed never names a DMG that isn't there yet. The feed
+  and the website's DMG are `no-cache`; a build's own DMG never changes.
+- **It refuses a build older than the live feed's.** Installed apps would
+  ignore it, but every new student would get the older DMG. To undo a bad
+  build, publish a newer one: Sparkle never installs an older build.
+- **It doesn't check the DMG's signature.** The Mac checked its key
+  against the app's, an installed app refuses an update the key didn't
+  sign, and from step 2 macOS refuses a download that WorkIt's Developer
+  ID didn't sign. Until step 2 the DMG opens on no other Mac, so the
+  website's `DOWNLOAD_URL` stays null.
+- **Secrets:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
+  `R2_ENDPOINT`, secrets of the `apply-engine` environment (`main` only),
+  from Infisical's `workit-prod/auto-apply-desktop` (`../docs/secrets.md`).
+  The token writes only this bucket. `contents: write` is there because
+  GitHub shows a draft release only to a token that may write.
+- **A failed run leaves the last build served,** unless it failed after
+  the DMG upload: then the website already has the new DMG, and the feed
+  still offers the last build. Run it again.
+- **Setup, once** (the user's steps): the bucket `auto-apply-desktop` and
+  its custom domain `downloads.workitjobs.ai` (Cloudflare dashboard, R2,
+  2026-11-26), the token, and the `/auto-apply-desktop` sync
+  (`../docs/secrets.md`, Still open). The run's last step reads the feed
+  and both DMGs through the domain, so the first run checks the domain.
+
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 
 Runs `scraper/harvest_commoncrawl.py` on the 1st and 15th of each month at
