@@ -1,5 +1,5 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, usageLine, usedShare, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -60,7 +60,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           WorkIt Auto Apply
         </button>
         <nav className="ml-auto flex items-center gap-1 text-note">
-          {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
+          {v.running && !first && <Stop v={v} bridge={bridge} fail={setToast} />}
           {addsJobs(v, !!app.start) && !!app.matches && (
             <Button tone="quiet" className={cx("h-8 px-3", first && finds && "bg-hover text-ink")} onClick={() => setPage("find")}>
               <MagnifyingGlassIcon className="size-4" /> Find jobs
@@ -83,7 +83,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           )}
         </nav>
       </header>
-      <main className={cx("mx-auto px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
+      <main className={cx("mx-auto flex flex-col px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
         <Limit app={app} run={state?.run} filling={v.working.map((j) => j.key).join("\n")} />
         {lost && (
           <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
@@ -97,7 +97,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (
-          <Home v={v} bridge={bridge} app={app} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
+          <Home v={v} bridge={bridge} app={app} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} applied={() => setPage("applied")} />
         )}
       </main>
       {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-note text-on-brand shadow-lift">{toast}</div>}
@@ -119,13 +119,18 @@ function Connecting({ lost }: { lost: boolean }) {
   );
 }
 
-// Stop applying: asked once more, since the run ends. Nothing is submitted, and filled forms stay as they are;
-// app_window.Bridge then shows the queue again (the page reloads).
-function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
+// Stop applying: asked once more, naming the filled forms a full Stop closes. Nothing is submitted. While jobs wait to
+// start, Stop new ones only comes first: none of them starts, and every filled form stays open (`stopWords`). A full
+// Stop ends the run; app_window.Bridge then shows the queue again (the page reloads).
+function Stop({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
   const [step, setStep] = useState<"idle" | "asking" | "stopping">("idle");
-  const stop = () => {
+  const words = stopWords(v);
+  const stop = (newOnly: boolean) => {
     setStep("stopping");
-    bridge.stop().catch((e: Error) => (setStep("idle"), fail(e.message)));
+    bridge.stop(newOnly).then(
+      () => newOnly && (setStep("idle"), fail(v.held ? "No new jobs will start. Your filled forms stay open." : "No new jobs will start.")),
+      (e: Error) => (setStep("idle"), fail(e.message)),
+    );
   };
   if (step === "idle")
     return (
@@ -135,11 +140,16 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
     );
   return (
     <span role="group" aria-label="Stop applying" className="flex items-center gap-1">
-      <span className="px-1 text-ink-meta">{step === "stopping" ? "Stopping…" : "Stop every application? Nothing gets submitted."}</span>
+      <span className="px-1 text-ink-meta">{step === "stopping" ? "Stopping…" : words.ask}</span>
       {step === "asking" && (
         <>
-          <Button tone="primary" className="h-8 px-3" onClick={stop}>
-            Stop
+          {words.newOnly && (
+            <Button tone="primary" className="h-8 px-3" onClick={() => stop(true)}>
+              {words.newOnly}
+            </Button>
+          )}
+          <Button tone={words.newOnly ? "secondary" : "primary"} className="h-8 px-3" onClick={() => stop(false)}>
+            {words.all}
           </Button>
           <Button tone="quiet" className="h-8 px-3" onClick={() => setStep("idle")}>
             Keep going
@@ -154,7 +164,8 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
 // whenever a form leaves "Still working on" (`filling` changes), so the bar moves on by what that form used. A failed
 // reading keeps the last one, so a WorkIt hiccup doesn't make the bar vanish; a reading from before a newer one
 // started is dropped (`live`), so a slow one can't move the bar back. From 80% the words say so; at the cap (or a run
-// paused at it) a banner on top, so no "We're on it" below reads as if applying goes on.
+// paused at it) a banner on top, so no "We're on it" below reads as if applying goes on. The bar itself sits at the
+// foot of the page (`order-last`): it is worth a glance, never the first thing to read.
 function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: string }) {
   const [usage, setUsage] = useState<Usage | null>(null);
   useEffect(() => {
@@ -173,10 +184,10 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
   if (!usage && !line) return null;
   const share = usage ? usedShare(usage) : 0;
   return (
-    <section className="mb-6">
-      {reached && line && <p role="status" className="mb-3 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>}
+    <>
+      {reached && line && <p role="status" className="mb-6 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>}
       {usage && (
-        <>
+        <section className="order-last mt-12 border-t border-border pt-4">
           <div className="flex items-baseline justify-between gap-4 text-note text-ink-meta">
             <span>Today's usage</span>
             <span>{usageLine(usage)}</span>
@@ -185,17 +196,54 @@ function Limit({ app, run, filling }: { app: AppMethods; run?: Run; filling: str
             <span className={cx("block h-full rounded-full transition-[width] duration-700", share >= 80 ? "bg-warning-fill" : "bg-brand")} style={{ width: `${share}%` }} />
           </div>
           {!reached && line && <p role="status" className="mt-1.5 text-note text-ink-meta">{line}</p>}
-        </>
+        </section>
       )}
+    </>
+  );
+}
+
+// The time now, again each 30 s, so each "12 min" on the page keeps counting.
+function useNow(): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+// Every to-do in one list, under the card, so the one to act on comes first and the rest stay in sight: a row jumps
+// to its card. Shown only when there is more than one.
+function Needs({ v, at, go, now }: { v: View; at: number; go: (at: number) => void; now: number }) {
+  return (
+    <section className="mt-8">
+      <h3 className="mb-2 text-note font-semibold text-ink-meta">Needs you</h3>
+    <ul aria-label="Needs you" className="overflow-hidden rounded-card border border-border bg-panel">
+      {needsYou(v.todo, now).map((n) => (
+        <li key={n.key} className="border-b border-border last:border-0">
+          <button
+            onClick={() => go(n.at)}
+            aria-current={n.at === at ? "true" : undefined}
+            className={cx("flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-left hover:bg-hover", n.at === at && "bg-hover")}
+          >
+            <Logo company={n.company} src={v.todo[n.at].source} size="sm" />
+            <span className="min-w-0 flex-1 truncate font-semibold">{n.company}</span>
+            <span className="shrink-0 text-note text-ink-meta">{n.words}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
     </section>
   );
 }
 
-function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void }) {
+function Home({ v, bridge, app, fail, add, applied }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void; applied: () => void }) {
+  const submitted = !v.todo.length && !v.working.length && !v.queued ? submittedLine(v) : "";
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
   const more = v.todo.length > 1;
+  const now = useNow();
   useEffect(() => {
     if (!more) return;
     const down = (e: KeyboardEvent) => pressed(e, 0) === "skip" && setAt(i + 1);
@@ -205,10 +253,14 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
   return (
     <>
       <h1 className="text-heading">{headline(v)}</h1>
+      {runLine(v) && <p className="mt-1 text-body text-ink-meta">{runLine(v)}</p>}
       {v.todo.length ? (
-        <div className="mt-6">
-          <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
-        </div>
+        <>
+          <div className="mt-5">
+            <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
+          </div>
+          {more && <Needs v={v} at={i} go={setAt} now={now} />}
+        </>
       ) : (
         <div className="rise mt-6 flex items-center gap-4 rounded-shell border border-border bg-panel px-6 py-5">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-positive-tint text-positive-ink">
@@ -220,6 +272,15 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
               : v.stopped.length
                 ? "The reason for each one is below. Try again where it's offered."
                 : "Every application is done."}
+            {submitted && (
+              <>
+                {" "}
+                {submitted}{" "}
+                <button onClick={applied} className="cursor-pointer font-semibold text-brand-ink hover:underline">
+                  See them in Applied
+                </button>
+              </>
+            )}
           </p>
           {add && !v.working.length && !v.queued && (
             <Button tone="primary" onClick={add}>
@@ -232,9 +293,15 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
         <section className="mt-10">
           <h3 className="mb-2 text-note font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
-            <Row key={job.key} job={job} watch={app.frames} />
+            <Row key={job.key} job={job} watch={app.frames} now={now} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
+          {v.full && (
+            <p className="px-0.5 pt-1 text-note text-ink-meta">
+              Up to {v.full} filled forms stay open at once, so your computer stays fast. The next job starts when you
+              submit, let go of, or close one.
+            </p>
+          )}
           {v.waiting.map((w) => (
             <Waiting key={w.link} job={w} bridge={bridge} fail={fail} />
           ))}
@@ -260,6 +327,7 @@ function Stopped({ job, bridge, app, fail }: { job: Job; bridge: Bridge; app: Ap
     setTrying(true);
     bridge.fillAgain(job.retry!).catch((e: Error) => (setTrying(false), fail(e.message)));
   };
+  const { finish, site } = stopActions(job, !!app.open_posting);
   return (
     <div className="py-2.5">
       <div className="flex items-center gap-3">
@@ -275,6 +343,20 @@ function Stopped({ job, bridge, app, fail }: { job: Job; bridge: Bridge; app: Ap
           </Button>
         )}
       </div>
+      {(finish || site) && (
+        <div className="mt-1.5 flex flex-wrap gap-2 pl-11">
+          {finish && (
+            <Button tone="quiet" className="h-8 px-3 text-note" onClick={() => bridge.open(job.worker!).catch((e: Error) => fail(e.message))}>
+              <ArrowSquareOutIcon className="size-3.5" /> Open the form and finish it yourself
+            </Button>
+          )}
+          {site && (
+            <Button tone="quiet" className="h-8 px-3 text-note" onClick={() => app.open_posting!(job.source.posting_url!).catch((e: Error) => fail(e.message))}>
+              <ArrowSquareOutIcon className="size-3.5" /> Apply on the company's site
+            </Button>
+          )}
+        </div>
+      )}
       <Under job={job} app={app} />
     </div>
   );
@@ -303,7 +385,7 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
 
 // `app` on the Applied page, where a submitted Application has Report a problem; none for a job still being filled.
 // `watch`, on a job still being filled: Watch shows its form as the Worker's Chrome has it now.
-function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"] }) {
+function Row({ job, app, watch, now = Date.now() }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"]; now?: number }) {
   const submitted = job.status === "submitted";
   const [watching, setWatching] = useState(false);
   const live = !!watch && job.worker !== undefined && !submitted;
@@ -320,13 +402,14 @@ function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMetho
             <CheckIcon weight="bold" className="size-3.5" /> Submitted
           </span>
         ) : (
-          <span className="w-28 text-right">
+          <span className="w-36 text-right">
             {live && (
               <button onClick={() => setWatching(!watching)} className="mb-1 text-note font-semibold text-brand-ink hover:underline">
                 {watching ? "Hide" : "Watch"}
               </button>
             )}
-            <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
+            <span className="block text-note text-ink-meta">{working(job, now)}</span>
+            {job.step && <span className="block text-note text-ink-meta">{job.step}</span>}
             <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
               {bar(job) === "unknown" ? (
                 <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
@@ -366,7 +449,7 @@ function Live({ tile, frames }: { tile: number; frames: NonNullable<AppMethods["
       {shot ? (
         <img src={shot} alt="The form as it's being filled" className="block w-full" />
       ) : (
-        <p className="px-4 py-10 text-center text-note text-ink-meta">Waiting for the form's screen…</p>
+        <p className="px-4 py-10 text-center text-note text-ink-meta">{WAITING_FOR_SCREEN}</p>
       )}
     </div>
   );
@@ -378,6 +461,34 @@ const Under = ({ job, app }: { job: Job; app: AppMethods }) => (
     <Report job={job} app={app} />
   </div>
 );
+
+// A one-time strip on Start: how it works, until the student dismisses it. Remembered in this browser only, as a
+// convenience: where storage fails (a private window), it shows again.
+const SEEN = "apply.how-it-works.seen";
+function HowItWorks() {
+  const [seen, setSeen] = useState(() => {
+    try {
+      return localStorage.getItem(SEEN) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (seen) return null;
+  const dismiss = () => {
+    setSeen(true);
+    try {
+      localStorage.setItem(SEEN, "1");
+    } catch {}
+  };
+  return (
+    <div role="note" className="mt-5 flex items-start gap-3 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-muted">
+      <p className="flex-1">{HOW_IT_WORKS}</p>
+      <button onClick={dismiss} aria-label="Dismiss how it works" className="cursor-pointer text-ink-meta hover:text-ink">
+        <XIcon className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 // The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
 // pressed the queue leaves the view; app_window.Bridge swaps in the run's board, and this screen again when the run ends.
@@ -422,6 +533,7 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
     <div className="pt-4">
       <h1 className="text-center text-heading">What should we apply to?</h1>
       <p className="mt-1.5 text-center text-body text-ink-meta">We fill out the applications. You check each one and press Submit.</p>
+      <HowItWorks />
       {started ? (
         <p role="status" className="mt-8 text-center text-ink-meta">
           Starting {links.length === 1 ? "your application" : `${links.length} applications`}…

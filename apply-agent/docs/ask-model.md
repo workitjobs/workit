@@ -176,3 +176,25 @@ go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain, from `apply-agent/`:
 uv run keyring set apply-groq api.groq.com                      # asks for the key
 uv run keyring set apply-gemini generativelanguage.googleapis.com
 ```
+
+## The Best model on your own plan (`apply app --max-plan`)
+
+With `--max-plan`, the window's asks run on `claude -p` with WorkIt's
+prompts built from this checkout (`apply.local_prompts`). Large kinds
+(essays, cover letters, story tags) and the Pre-submit review run on
+Opus, the Best model; the other small kinds stay on Haiku. Settings has
+a switch to put them back on Sonnet. Near the plan's limits (70% of the
+5-hour window, or 60% of the week) they drop to Sonnet by themselves,
+and Settings says why until a call runs on Opus again.
+
+To run on another subscription than your `claude` login, make a setup
+token once and keep it in Keychain:
+
+```sh
+claude setup-token              # prints a long-lived token for your subscription
+uv run apply claude-token       # asks for it, hidden, and keeps it under apply-claude
+uv run apply claude-token --forget
+```
+
+Every `claude -p` call then passes it as `CLAUDE_CODE_OAUTH_TOKEN`, which
+wins over the login. Settings names which one is in use.

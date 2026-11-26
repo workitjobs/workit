@@ -2,18 +2,15 @@ import type { Metadata } from "next";
 
 import { LoadFailed } from "@/components/ui/load-failed";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
 
-import { SEEKER_GUTTER } from "../../gutter";
 import { RememberFeed } from "../../jobs/[jobId]/page-actions";
 import { formatPlaces } from "../../jobs/format";
 import { activityOf } from "../activity-list";
 import { getApplications, getRunApplications } from "../applications";
 import { getWrittenQuestions } from "../answers/questions";
-import { AutoApplyPanel } from "../auto-apply-panel";
 import type { SavedJob } from "../add-jobs-dialog";
-import { SetupRow } from "../setup-strip";
+import { ExtensionNotice } from "../extension-notice";
 import { UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -27,8 +24,10 @@ export const metadata: Metadata = {
  * pipeline it grows into is `auto-apply/architecture.md` at the repo root:
  * match, pick the resume, fill the form with the extension, record.
  *
- * JOBS FIRST (KAN-359). The heading block, with no button at its top right
- * (./auto-apply-panel.tsx), then:
+ * It is the Queue tab, the first of Auto Apply's four (../layout.tsx,
+ * which draws the frame and the tabs; this page draws neither).
+ *
+ * JOBS FIRST (KAN-359). Under the tabs:
  *
  *   Up Next    the queue in the order the extension takes it, each job
  *              with the resume it will go out with, which a click on it
@@ -44,14 +43,26 @@ export const metadata: Metadata = {
  * section after Up Next; ./live-activity.tsx and the table's "history"
  * variant (./activity-list.tsx) are as they were.
  *
- * THE SETUP ROW (./setup-strip.tsx, 2026-11-10), over Up Next: the Chrome
- * extension and Application Info, each saying where it stands. A default
- * resume and the student's Claude are optional, so the rows carry them: No
- * Resume, and a count of a row's written questions (`questions`, from GET
- * .../written-questions), whose total the notice over the queue links to
- * Written Answers (../answers/page.tsx), which offers Connect Claude. A
- * failed read of the questions leaves the counts out: Up Next says when
- * the API is down.
+ * NO BUTTON OVER THE QUEUE BUT ADD JOBS. Start Auto Apply sat at the
+ * page's top right until 2026-10-29: it queued the seeker's 10 best
+ * matches (POST .../auto-apply/batches) and opened the queue. Jobs now
+ * join the queue from their own Auto Apply button or Up Next's Add Jobs,
+ * and open from Up Next, where the student picks them and presses Auto
+ * Apply. Manage Resumes and Add to Claude sat there too (KAN-424): each
+ * queued row shows and changes its own resume.
+ *
+ * SETUP IS A NOTICE, ONLY WHILE IT BLOCKS (../extension-notice.tsx,
+ * 2026-11-23): the Chrome extension is the one thing Auto Apply can't run
+ * without, so it is asked for over the queue while it is missing and says
+ * nothing once added. Application Info and Written Answers are tabs. The
+ * three were a row of link cards over the queue from 2026-11-10
+ * (setup-strip.tsx), which students read as three required steps. A
+ * default resume and the student's Claude are optional, so the rows carry
+ * them: No Resume, and a count of a row's written questions (`questions`,
+ * from GET .../written-questions), whose total the notice over the queue
+ * links to Written Answers (../answers/page.tsx), which offers Connect
+ * Claude. A failed read of the questions leaves the counts out: Up Next
+ * says when the API is down.
  *
  * UP NEXT'S TOOLBAR (../queue-filters.tsx): the search, the filters and
  * Table Settings, as every page table has; it filters and groups the rows
@@ -70,8 +81,7 @@ export const metadata: Metadata = {
  *
  * Everything is read here, on the server, and passed through the client
  * panel; a batch or a queueing refreshes the route to redraw it. A failed
- * read says so, never a fixture (backend/CLAUDE.md). A <div>, since
- * SidebarInset is already the <main>.
+ * read says so, never a fixture (backend/CLAUDE.md).
  */
 export default async function AutoApplyPage() {
   const [run, saved, built, uploaded, written] = await Promise.all([
@@ -138,25 +148,22 @@ export default async function AutoApplyPage() {
   }));
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel>
-        {run.error != null ? (
-          <LoadFailed
-            title="Your Applications Aren't Loading Right Now"
-            className="mt-8"
-            detail={process.env.NODE_ENV === "development" ? run.error : undefined}
-          >
-            We couldn&apos;t reach your applications. Try again in a few minutes.
-          </LoadFailed>
-        ) : (
-          <>
-            <SetupRow />
-            <UpNext items={queue} saved={savedJobs} />
-          </>
-        )}
-      </AutoApplyPanel>
-    </div>
+      {run.error != null ? (
+        <LoadFailed
+          title="Your Applications Aren't Loading Right Now"
+          detail={process.env.NODE_ENV === "development" ? run.error : undefined}
+        >
+          We couldn&apos;t reach your applications. Try again in a few minutes.
+        </LoadFailed>
+      ) : (
+        <>
+          <ExtensionNotice className="mb-4" />
+          <UpNext items={queue} saved={savedJobs} />
+        </>
+      )}
+    </>
   );
 }

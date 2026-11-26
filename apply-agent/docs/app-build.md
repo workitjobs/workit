@@ -66,6 +66,8 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   macOS may ask whether the app may use the item: Always Allow.
 - **First run** asks, one step at a time: Google Chrome, the disclosure and
   license, Screen Recording, then the Worker setup (`docs/apply-window.md`).
+  Workers on Chrome for Testing (`plain_chrome: testing`) need no Worker
+  setup, so first run skips it.
   - Screen Recording: with today's ad-hoc signature, macOS forgets the
     permission after each build. Turn it on again in System Settings and
     reopen the app; remove an old entry with "-" first.
@@ -151,7 +153,7 @@ it out of git, and delete the test build afterwards: it allows plain HTTP.
 - Step 4: publishing (above) is built, and nothing is published yet: the
   workflow's first run on a GitHub Mac waits on KAN-941's merge. The
   website's `DOWNLOAD_URL`
-  (`frontend/src/app/(seeker)/auto-apply-desktop/page.tsx`) stays null
+  (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`) stays null
   until step 2, since until then the DMG opens on no other Mac; then it is
   `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
 - `worker-extension/` leaves `INPUTS` with W6.

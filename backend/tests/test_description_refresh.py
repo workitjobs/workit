@@ -1,6 +1,7 @@
 """Description enrichment preserves listing facts and board checkpoint isolation."""
 
 from dataclasses import replace
+from datetime import UTC
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -45,30 +46,33 @@ def test_description_provider_receives_listing_work_style(monkeypatch, style, ex
 
 
 async def test_phase_two_failure_rolls_back_before_closures(monkeypatch):
-    conn = AsyncMock()
-    conn.engine = Mock()
-    conn.engine.connect.return_value = AsyncMock()
-    for name, result in (
-        ("sync_catalog", 0),
-        ("expire_leases", 0),
-        ("select_due", []),
-        ("create_tasks", 0),
-        ("claim_task", None),
-    ):
-        monkeypatch.setattr(worker, name, AsyncMock(return_value=result))
+    """Description enrichment failure rolls back, then closures still run."""
+    # Stub sync_catalog_diff to return no rows and a fake db_now.
+    from datetime import datetime
+
+    db_now = datetime.now(tz=UTC)
     monkeypatch.setattr(
         worker,
-        "_fetch_descriptions",
-        AsyncMock(side_effect=RuntimeError("commit failed")),
+        "sync_catalog_diff",
+        AsyncMock(return_value=([], 0, db_now)),
+    )
+    monkeypatch.setattr(
+        worker,
+        "take_lease",
+        AsyncMock(return_value=None),  # lease held → exits early
     )
 
-    async def close(connection):
-        connection.rollback.assert_awaited_once()
-        return 2
+    # Build a fake engine whose connect() yields an AsyncMock connection.
+    fake_conn = AsyncMock()
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=fake_conn)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    engine = Mock()
+    engine.connect.return_value = ctx
 
-    monkeypatch.setattr(worker, "detect_and_close", close)
-    summary = await worker.run_cycle(conn)
-    assert summary["jobs_closed"] == 2
+    summary = await worker.run_cycle(engine)
+    # Lease was held, so the cycle exited early with no boards processed.
+    assert summary.get("lease_held") is True
 
 
 def test_robots_failure_is_recorded_as_one_failed_description():

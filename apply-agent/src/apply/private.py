@@ -42,6 +42,10 @@ SELF_STATED = re.compile(
     re.IGNORECASE)
 # Self-identification values that say nothing on their own ("decline", "No").
 UNSAID = {"", "decline", "yes", "no", "true", "false", "none", "n/a", "i don't wish to answer", "prefer not to say"}
+# A profile value that says there is none ("N/A" for a name in a native script): no private value, so never masked.
+# Masked, every "N/A" in a call read as that field's placeholder, and the Pre-submit review held SharkNinja's
+# required "If you selected other, please specify" (rightly N/A) as the student's native-script name (2026-11-25).
+NONE_GIVEN = {"n/a", "none", "null", "not applicable", "-", "--"}
 
 # A private value: the value, what an essay's flag calls it, and whether it matches in its own case only (a name).
 Private = tuple[str, "str | None", bool]
@@ -49,7 +53,7 @@ Private = tuple[str, "str | None", bool]
 
 def _text(value: object) -> str:
     text = str(value).strip() if isinstance(value, (str, int)) and not isinstance(value, bool) else ""
-    return text if len(text) >= 2 else ""
+    return text if len(text) >= 2 and text.casefold() not in NONE_GIVEN else ""
 
 
 def values(profile: ApplicantProfile) -> dict[str, Private]:

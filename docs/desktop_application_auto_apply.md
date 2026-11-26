@@ -214,9 +214,10 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Each link the student sends in or pastes, to find WorkIt's job and name it while it waits | When it waits to start (`apply.queued_names`) |
 | WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
-| Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting or a careers page's own host), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
 | Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
@@ -228,7 +229,10 @@ profile links, and each reference's name, email and phone
 placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
 wherever it is in what a call sends, as a whole word, and comes back into
 the answer on the computer (`apply/private.py`). A name matches in its
-own case only, so a student named Will never masks "will". No answer
+own case only, so a student named Will never masks "will". A value that
+says there is none ("N/A", "None") is no private value and is never
+masked: a native-script name of "N/A" once turned every N/A in the
+Pre-submit review into that name's placeholder. No answer
 needs these values, since the Fill engine types them from the profile;
 a draft or an essay that needs one (a reference's details, the ZIP code
 an essay box asks for, live at Applied Materials) writes the placeholder,
@@ -525,7 +529,7 @@ on a developer's Mac.
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`); the first publish passed on 2026-11-17. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4). Left: sign and notarize (step 2), the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4). Left: sign and notarize (step 2), the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -1085,23 +1089,27 @@ on Windows each one stops Apply:
 
 - **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
   `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
-  at their top, which Windows lacks, so Apply can't even start there. A
-  cross-platform lock library (such as `filelock`) does the job (W4's
-  rules).
+  at their top, which Windows lacks, so Apply can't even start there. Built
+  (KAN-929): every lock goes through `apply.locks`, on `portalocker`
+  (`windows_desktop.md`, P1).
 - **The channel between Apply and the plain Workers.** `plain/bridge.py`,
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with
   `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
-  table).
+  table). Built (KAN-929): `plain/channel.py`, a named pipe on Windows,
+  checked in both directions (`windows_desktop.md`, P4).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
-  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
+  the Worker's Chrome. Built (KAN-929): every such check is
+  `psutil.pid_exists` (`windows_desktop.md`, P2).
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
   PID read find nothing there, and Show brings no CDP Worker forward: it
   brings one only when the lock names a running Chrome, since Chrome
-  leaves its `DevToolsActivePort` file behind when it quits.
+  leaves its `DevToolsActivePort` file behind when it quits. Built
+  (KAN-929): on Windows `chrome_pid` finds the Chrome by its arguments
+  (`windows_desktop.md`, P3).
 - Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
@@ -1240,7 +1248,9 @@ window:
    Not Now. Without it, Fix here's view is about two frames a second (W2).
 4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
    the window and its "press Return" as Try Again, till a real Worker says
-   hello. The way in until a store copy can be used (W6).
+   hello. The way in until a store copy can be used (W6). Skipped when
+   the Workers run on Chrome for Testing (`plain_chrome: testing`), which
+   loads the worker extension itself.
 
 Chrome and the seed are looked at again at each launch; the disclosure,
 the Screen Recording ask and the Worker count are kept in the data
@@ -1592,8 +1602,8 @@ itself (D17, D18, D20).
   installs at the next restart.
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
-  (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
-  Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+  (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
+  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
 - **Build a release in one workflow** (D32):
   `.github/workflows/publish-app.yml`, by hand from `main`, on a
   GitHub-hosted Apple Silicon Mac: `scripts/build_app.py --release`, from
@@ -1943,13 +1953,14 @@ Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
-lock, signals, the hosts' wrappers, the seed guide's words).
+lock, signals, the hosts' wrappers, the seed guide's words), and
+`windows_desktop.md` (KAN-929) takes them one at a time.
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port; `windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |

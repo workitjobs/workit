@@ -58,7 +58,8 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "queue": [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern"}],
         "usage": {"used": 72000, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
-        "settings_state": {"workers": 3, "notices": True},
+        "settings_state": {"workers": 3, "notices": True, "claude": {
+            "best": True, "login": "your setup token in Keychain", "dropped": "Opus paused: near the 5-hour limit."}},
         "review_report": {"parts": ["Your words"]},
         "send_report": {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."},
     }
@@ -93,6 +94,9 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
+        assert settings.is_checked("#best")
+        assert settings.inner_text("#claude-login") == "Claude signs in with your setup token in Keychain."
+        assert settings.inner_text("#claude-dropped") == "Opus paused: near the 5-hour limit."
         settings.click("#remove")
         assert settings.is_visible("#remove-sure")  # a second press removes: one press never does
         # Report a problem: what goes is shown before Send Report, and a changed answer is shown again first.

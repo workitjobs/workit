@@ -71,7 +71,7 @@ import type { Source } from "../jobs/resume-picker";
  *                                the editor
  *
  * The first two are the shared option rows (components/ui/option-row.tsx,
- * Auto Apply's setup row), and act at once; the third needs a pick, so it
+ * Auto Apply's old setup row), and act at once; the third needs a pick, so it
  * ends with the footer's filled button, as every resume picker does.
  *
  * The table scrolls inside itself and nothing else moves (2026-11-11, the

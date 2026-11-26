@@ -17,6 +17,7 @@ STUDENT = False
 # retired Tracker Sheet, and the commands that only run from a terminal.
 DEVELOPER = frozenset({
     "apply.claude_cli",  # `claude -p`: ask_model: claude, research, drive, Claude Code's usage
+    "apply.local_prompts",  # WorkIt's prompts built from a checkout's backend, for `apply app --max-plan`
     "apply.claude_fill",  # drive: Claude fill
     "apply.rescue",  # drive: Rescue
     "apply.ask",  # drive: Ask Claude, and `apply ask`
@@ -33,6 +34,7 @@ DEVELOPER = frozenset({
     "apply.tracker_cleanup",  # `apply clean-tracker`
     "apply.doctor",
     "apply.cli",  # every command that runs from a terminal
+    "apply.app_control",  # `apply window`: the window read and driven from a terminal
 })
 
 # The Student build's policies, laid over policies.default.yaml. It reads no policies.yaml, so every key is the

@@ -1,6 +1,8 @@
 // Server-only API helpers for non-auth requests (e.g. file uploads)
 import "server-only";
 
+import { withReadTimeout } from "./api-timeout";
+
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
 // For upload formData (ex: resume). PUT for routes that replace a single
@@ -22,11 +24,14 @@ export function apiUpload(
  *  data cache is off (open-next.config.ts), so a `revalidate` here reached
  *  the API every time and was taken out (KAN-916). A public answer that is
  *  slow to make is kept by the API (backend app/queries/jobs/kept_options.py)
- *  or read once per visit in a layout. */
+ *  or read once per visit in a layout. It gives up after 10 seconds
+ *  (./api-timeout.ts), so a slow API fails the read instead of holding the
+ *  page. */
 export function apiGet(path: string, accessToken?: string): Promise<Response> {
-  return fetch(`${API_URL}${path}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
+  return fetch(
+    `${API_URL}${path}`,
+    withReadTimeout({ headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} }),
+  );
 }
 
 export function apiDelete(path: string, accessToken?: string): Promise<Response> {

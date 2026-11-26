@@ -204,7 +204,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
     // No heading (2026-11-11): the Tracker and Documents open on their
     // toolbar, and "Up Next" over a page that holds only the queue said
     // nothing. The name stays for a screen reader.
-    <section aria-label="Up Next" className="mt-6">
+    <section aria-label="Up Next">
       <QueueToolbar
         rows={rows}
         filters={filters}
@@ -359,9 +359,9 @@ function ClosedQueueNotice({
  * Written questions waiting, as a notice over the queue, only while any
  * job has them (2026-11-10): how many, for how many jobs, and Write
  * Answers (Written Answers, ../answers). It is work a job asks for, not
- * setup, so it left the setup row (./setup-strip.tsx) after a day there
- * (the row links the page again, for good, since KAN-822: this says how
- * many wait);
+ * setup, so it left the setup row after a day there. It is the one way
+ * into Written Answers since 2026-11-23, when the setup row's card and
+ * then a tab were taken out: the queue is where each job is managed;
  * as "Write 5 Questions →" in Up Next's heading before that, it read as a
  * stray link. Each job's own count stays in its Status cell.
  */

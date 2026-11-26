@@ -58,7 +58,7 @@ changes its CAs, run `uv run python scripts/workit_roots.py`, then
 tests never reach the network. A set the live chain is not in stops
 every student's app, so this ships before Cloudflare moves.
 
-Apply adds three rules to the engine's plan (`fill_engine.plan` and
+Apply adds four rules to the engine's plan (`fill_engine.plan` and
 `worker._Planned.add`). They stay in Apply: each one is about Claude (what
 it drafts, the forms that Claude fill reads) or about Apply's own
 read-back. The engine's `fillEach` already accepts the wording that a
@@ -75,6 +75,12 @@ try-list picked, so the extension needs none of them.
   own `HOW_HEARD`): Apply keeps no copy of the pattern.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
+- A part of an address under a bare "Address" heading, as Claude fill reads
+  Oracle's Address block ("Address: Country", "Address: City"), is planned as
+  the home address's part ("Home address: Country", `fill_engine._as_home_address`);
+  its name and answer stay its own. The engine read the heading alone and
+  planned the street for every part (Honeywell's, 2026-11-25). The engine's own
+  fix (a bare "address: " in its `HOME_SECTION`) would make this rule go.
 
 The engine's plan names each field it leaves blank on purpose, with why
 (`fill_engine.Plan.blanks`). On Greenhouse's self-ID block, a race to

@@ -19,7 +19,16 @@ from playwright.sync_api import Page
 from apply import bot_signals, fill_engine
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
-from apply.model import Answers, Handoff, NoForm, QuestionSet, Readback, one_line
+from apply.model import (
+    Answers,
+    Closed,
+    FillError,
+    Handoff,
+    NoForm,
+    QuestionSet,
+    Readback,
+    one_line,
+)
 
 # Where Ashby says it couldn't submit the form: its failure notice ("We couldn't
 # submit your application": reCAPTCHA took the browser for a bot, or another
@@ -29,6 +38,9 @@ REFUSAL = f"{FAILURE}, .ashby-application-form-blocked-application-container"
 # Ashby's Education History, whose parts the engine names by the field's path (the save script reads it).
 EDUCATION = "_systemfield_education_history"
 UPLOAD_WAIT = 30_000  # ms for Ashby to save an uploaded file before the engine attaches it again
+# Ashby's page in place of a posting its board no longer shows (Cursor's, live 2026-11-25, whose job query still
+# answered): the engine only timed out on it as "Ashby's form never loaded".
+GONE = re.compile(r"^\s*page not found\s*$", re.IGNORECASE)
 
 
 class AshbyFiller:
@@ -40,8 +52,13 @@ class AshbyFiller:
                 return fill_engine.read_questions(page, "ashby")
 
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
-        with _no_form_is_a_handoff():
-            return fill_engine.fill(page, "ashby", questions, answers, {"uploadWait": UPLOAD_WAIT})
+        _closed_if_gone(page)
+        try:
+            with _no_form_is_a_handoff():
+                return fill_engine.fill(page, "ashby", questions, answers, {"uploadWait": UPLOAD_WAIT})
+        except FillError:
+            _closed_if_gone(page)
+            raise
 
     def unasked(self, page: Page, questions: QuestionSet) -> list[str]:
         """The labels of the required fields on the open form that `questions`
@@ -57,6 +74,12 @@ class AshbyFiller:
             if not handoff.bot_signal and page.locator(FAILURE).filter(visible=True).count():
                 handoff.bot_signal = bot_signals.REFUSED
             raise
+
+
+def _closed_if_gone(page: Page) -> None:
+    """Closed where Ashby's page says it has no such posting: a heading of "Page not found"."""
+    if any(GONE.match(heading) for heading in page.locator("h1").all_inner_texts()):
+        raise Closed('Ashby\'s page for it says "Page not found"')
 
 
 def confirmed(page: Page) -> bool:

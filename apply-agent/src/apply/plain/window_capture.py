@@ -11,7 +11,8 @@ Nothing is focused, raised or moved, and a covered window still streams.
 It needs Screen Recording permission for the app Apply runs in (macOS gives it to the app at
 the top of the process chain: Terminal, iTerm, Paradev, or Apply.app). Apply never asks for it
 or changes it: without it, `allowed()` is False, the tile keeps the captureVisibleTab path, and
-`PERMISSION` says where Lisul turns it on. `APPLY_TILE_CAPTURE=extension` forces that path.
+`PERMISSION` says where Lisul turns it on. `APPLY_TILE_CAPTURE=extension` forces that path, and off the Mac
+the tile always takes it (`mode`).
 
 The built app (W8, KAN-833) builds nothing: a student's Mac has no swiftc, so scripts/build_app.py compiles the
 helper and ships it beside the app's program (BUNDLED), signed with the app. As the app's child process it has the
@@ -25,10 +26,13 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+
+import psutil
 
 from apply.home import CODE
 
@@ -42,9 +46,13 @@ SETTINGS = "System Settings > Privacy & Security > Screen & System Audio Recordi
 OFF = 3  # the helper's exit code without permission
 
 
-def mode() -> str:
-    """"native" (ScreenCaptureKit when allowed, the default) or "extension" ($APPLY_TILE_CAPTURE)."""
-    return "extension" if os.environ.get("APPLY_TILE_CAPTURE") == "extension" else "native"
+def mode(system: str = sys.platform) -> str:
+    """"native" (ScreenCaptureKit when allowed, the Mac's default) or "extension" ($APPLY_TILE_CAPTURE). Off the Mac
+    it is always "extension": the helper is ScreenCaptureKit's, and the permission note names the app through `ps`,
+    which Windows lacks, so every plain Worker's tile failed on each watch turn there (KAN-929)."""
+    if system != "darwin" or os.environ.get("APPLY_TILE_CAPTURE") == "extension":
+        return "extension"
+    return "native"
 
 
 @cache
@@ -100,11 +108,16 @@ def permission_note() -> str:
 
 
 def chrome_of(host_pid: int | None) -> int | None:
-    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID."""
+    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID. psutil reads the
+    parent on every OS: `ps` is not on Windows, where the tile's check that a connection is its Worker's own failed
+    on each watch turn."""
     if not host_pid:
         return None
-    found = subprocess.run(["ps", "-o", "ppid=", "-p", str(host_pid)], capture_output=True, text=True).stdout.strip()
-    return int(found) if found.isdigit() and int(found) > 1 else None
+    try:
+        parent = psutil.Process(host_pid).ppid()
+    except psutil.Error:  # gone, or another user's
+        return None
+    return parent if parent > 1 else None
 
 
 # What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,

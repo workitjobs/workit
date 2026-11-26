@@ -11,7 +11,8 @@ submission and each job system's final application request in the page.
 Claude fill hears what it blocked while Claude drove, so a Submit click of
 Claude's ends the rehearsal in the Handoff a run would make, unsent.
 Once a link has ended, Apply no longer drives its page, so the guard comes
-off the page held open for Lisul: he checks it and may press Submit himself.
+off the page held open for Lisul: he checks it and may press Submit himself,
+or approve it in the window, and Apply presses that Submit for him (ADR 0006).
 If the job system then asks for a code it emails, Apply types it in from
 Gmail (email_code.py) and presses nothing: the Submit after it is his too.
 
@@ -45,6 +46,7 @@ from urllib.parse import urlsplit
 from apply import (
     already_applied,
     ashby,
+    auto_submit,
     batch,
     bot_signals,
     build,
@@ -60,6 +62,7 @@ from apply import (
     masked,
     on_page,
     regenerate,
+    send_button,
     stuck,
     submit_guard,
     tailored,
@@ -67,6 +70,7 @@ from apply import (
     upload_origin,
     verify,
     workday,
+    workit,
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
 from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
@@ -145,6 +149,13 @@ CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on 
 TAB_CLOSED = "The form's tab was closed: start it again"
 # A press of his that sends the application itself, not one that goes on to it (Apply now, Complete a profile).
 FINAL = re.compile(r"\b(submit|send)\b", re.IGNORECASE)
+# Approve and submit (ADR 0006): why Apply didn't press Submit, and a press the job system never confirmed.
+APPLIED_FIRST = "You applied here before: dismiss that note on the form first, if you mean to apply again."
+HELD_FIRST = "Submit is held on the form: dismiss its red note first, or fix the answer it names."
+PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
+CONFIRM_S = 120
+UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went in. It may have: look for a "
+               "confirmation email before you apply again. Apply won't press Submit on it again.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
@@ -181,6 +192,11 @@ class Reopening:
 # Stop applying (KAN-874): the run's last line, and how long it waits for a form mid-fill to stop before it ends anyway.
 STOPPED_APPLYING = "Stopped applying: nothing was submitted, and each filled form was left as it was."
 STOP_WAIT = 10.0
+# Stop new ones only (KAN-874): no job waiting starts, and each form already filled stays held for the student.
+STOPPED_NEW = "Stopped starting new jobs: each filled form stays open for you."
+# At most this many forms open at once: each is a browser window, and a long run's held forms slowed the student's
+# computer to a halt (live, 2026-11-26). The next job opens once the student sends, lets go of, or closes one.
+OPEN_FORMS = 5
 # The history line of a reopened form, first on its tile.
 REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
 
@@ -288,6 +304,11 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
+    # Forms open at once (OPEN_FORMS): taken before a form opens, given back once it is submitted or its page closes.
+    # Start together opens every form before any fills, so it isn't capped.
+    room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
+    if not together:
+        adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
     start = _Together(len(urls) if together else 0, adapters.board.wait_for_start)
     if together:
         adapters.board.run(start="waiting")
@@ -309,6 +330,9 @@ def rehearse(
     writing = threading.Lock()
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
+    # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
+    # to that posting (a Greenhouse board's link, then its embed's), joins it no more (KAN-839).
+    posted = {workit.job_key(url): n for n, url in reversed(list(enumerate(urls)))}
 
     def told() -> None:  # under `writing`
         adapters.board.run(queued=len(waiting), waiting=list(waiting.values()))
@@ -336,15 +360,21 @@ def rehearse(
     if removing := getattr(adapters.board, "removing", None):
         removing(remove)
     stopped = threading.Event()
+    closed_to_new = threading.Event()  # Stop new ones only: no link waits to start, and none is taken in
 
-    def stop() -> None:
+    def stop(new_only: bool = False) -> None:
         """End the run (Stop applying in the student's window): no link waiting starts, and each held page is let
         go, unsubmitted. A fill under way goes on to its own end, which never submits, unless the run's Workers
-        close first."""
+        close first. With `new_only` (Stop new ones only), only the links waiting go: a fill under way ends held
+        as any does, and each held page stays the student's until they close it or stop the run."""
         with writing:
             dropped.update(waiting)
             waiting.clear()
             told()
+        closed_to_new.set()
+        if new_only:
+            out(STOPPED_NEW)
+            return
         stopped.set()
         release.set()
     if stopping := getattr(adapters.board, "stopping", None):
@@ -367,6 +397,7 @@ def rehearse(
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
+            leave_room()  # sent: its thank-you tab may stay open, but it waits on no one, so the next job may open
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
             if together:
@@ -464,9 +495,33 @@ def rehearse(
             # Its page is held: Fill again from the window (`POST /fill-again`) fills it anew, in a Student run too,
             # which has no Ask Claude (KAN-873). Held no more once hold() returns (unheld).
             adapters.board.update(n, again=True)
+            auto = _Auto(done, adapters, profile, n, submitted_to or adapters.tracker)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
+                    "let_go": let_go,
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
-                    "note": lambda: (done.warning(), done.wrong()), "keep": keep}
+                    "note": lambda: (done.warning(), done.wrong()), "keep": keep,
+                    "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
+                    "approved": approved, "changed": auto.stop}
+
+        def let_go() -> bool:
+            """Not applying to this one: its slot is given back at once, before its hold unwinds and its tab closes,
+            so the next job opens even while this page is slow to let go (KAN-839)."""
+            if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
+                return False
+            leave_room()
+            return True
+
+        def approved(why: str, handoff: bool) -> None:
+            """Approve and submit didn't send it: refused (the card says why), or pressed and never confirmed."""
+            if not handoff:
+                adapters.board.update(n, submitting=False, submit_said=why)
+                return
+            adapters.board.update(n, status="handoff", why=why, submitting=False, submit_said="", resume=None)
+            batch.note(url, status=batch.SENT)  # it may have gone in: never brought back to be sent again
+            # Pressed, and Apply presses it no more: like a sent form, it waits on no Worker, so the next job may open.
+            # Five such held their slots, and the run stalled with jobs queued (live, 2026-11-26).
+            leave_room()
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         def unheld() -> None:
             adapters.board.update(n, again=False)
@@ -539,10 +594,19 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
+        roomy = [False]
+        while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
+            roomy[0] = room.acquire(timeout=0.5)
+
+        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
+            if roomy[0]:
+                roomy[0] = False
+                room.release()
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
-        if not started(n):  # removed while it waited for its turn
+        if not roomy[0] or not started(n):  # removed while it waited for its turn, or the run ended
             gate.release()
+            leave_room()
             start.leave(n)
             settles(n).set()
             return
@@ -588,6 +652,8 @@ def rehearse(
                     return how
 
                 # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends.
+                if done.outcome == ALREADY:
+                    leave_room()
                 how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
                 while True:
                     if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
@@ -605,6 +671,7 @@ def rehearse(
                     how = after.pop() if after else hold()
             finally:
                 site.close()
+                leave_room()
 
     on = reopening.workers if reopening else [None] * len(urls)  # each link's Worker: its own, unless reopened
     threads = [threading.Thread(target=one, args=(n, url, on[n]), daemon=True) for n, url in enumerate(urls)]
@@ -613,13 +680,17 @@ def rehearse(
         """A link sent in while the rehearsal runs: Worker `worker`'s running browser fills it in a tab of its
         own, so its sign-in holds, with a tile of its own. Refused when that Worker's browser isn't running,
         unless not `running`: a reopened Worker's next link, whose profile holds its sign-in all the same."""
-        if release.is_set():
+        if release.is_set() or closed_to_new.is_set():
             raise Refused("This rehearsal is ending.", 409)
         if running and not getattr(adapters.site, "running", lambda k: False)(worker):
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
+            if (same := posted.get(workit.job_key(url))) is not None and same not in dropped:
+                out(f"{url} | already in this run: it is the same posting, so it isn't taken twice")
+                return {"tile": same, "worker": worker, "already": True}
             n = adapters.board.add_tile(worker)
+            posted[workit.job_key(url)] = n
             waiting[n] = url
             told()
             thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
@@ -911,7 +982,10 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
                  where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
                  planned=_planned(rehearsed.left_behind),
-                 written=rehearsed.form.shown() if rehearsed.form else [])
+                 written=rehearsed.form.shown() if rehearsed.form else [],
+                 # What the student page's held card lists: each answer filled, and each the Pre-submit review changed.
+                 answers=list(result.listed),
+                 fixed=[{"question": q, "was": was, "now": now} for q, was, now in result.fixed])
     _noted(url, site, adapters, posting, rehearsed.outcome, rehearsed)
     return rehearsed
 
@@ -1443,6 +1517,56 @@ def _close_pop_ups(page) -> None:
                 pass  # closing already
 
 
+class _Auto:
+    """Auto-submit's countdown for one held form (apply.auto_submit): set when the form is held, if it can go by
+    itself; Cancel in the window (`POST /auto-cancel`) ends it, and so does the student's own approval. `due(asked)`
+    is true when the student approved it (`asked`), or once, when the wait is over."""
+
+    def __init__(self, done: Rehearsed, adapters: Adapters, profile: ApplicantProfile, n: int, tracker: Tracker):
+        self._board, self._n, self._at = adapters.board, n, 0.0
+        if build.STUDENT or not auto_submit.on(profile) or done.outcome != READY:
+            return
+        why = auto_submit.why_not(done, READY, profile, tracker, adapters.clock.now().date())
+        if why:
+            self._board.update(n, auto_said=f"Waiting for you: {why}.")
+            return
+        self._at = time.monotonic() + auto_submit.WAIT_S
+        self._board.update(n, auto_at=time.time() + auto_submit.WAIT_S, auto_said="")
+        notice = auto_submit.NOTICE.format(done.posting.company, auto_submit.WAIT_S // 60)
+        for notifier in filter(None, [adapters.notifier, adapters.phone if profile.policy("phone_push") is True else None,
+                                      auto_submit.desktop(adapters.notifier)]):
+            try:
+                notifier.notify(auto_submit.TITLE, notice)
+            except Exception as failed:
+                print(f"Couldn't send the Auto-submit notice ({failed}); the Apply window shows it.", file=sys.stderr)
+
+    def stop(self) -> None:
+        """Apply changed an answer on the held page: what it shows now wasn't checked, so it waits for the student."""
+        if self._at:
+            self._at = 0.0
+            self._board.update(self._n, auto_at=None, auto_said=auto_submit.CHANGED_SAID)
+
+    def due(self, asked: bool = False) -> bool:
+        if asked:  # approved by hand: the countdown ends, and the press is theirs
+            self._at = 0.0
+            return True
+        if not self._at:
+            return False
+        if getattr(self._board, "auto_cancel_asked", lambda k: False)(self._n):
+            self._at = 0.0
+            self._board.update(self._n, auto_at=None, auto_said=auto_submit.CANCELLED)
+            return False
+        if time.monotonic() < self._at:
+            return False
+        self._at = 0.0
+        # The dashboard claims it under its lock, so a Cancel that lands now either stops it or is refused.
+        if not getattr(self._board, "auto_go", lambda k: True)(self._n):
+            self._board.update(self._n, auto_said=auto_submit.CANCELLED)
+            return False
+        self._board.update(self._n, auto_at=None)
+        return True
+
+
 class _Kept:
     """The job site as one rehearsed link sees it: every page opens in that
     link's own Worker profile, under the submit guard, and the last one
@@ -1510,8 +1634,11 @@ class _Kept:
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
+             let_go: Callable[[], bool] = lambda: False,
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
-             keep: "keepalive.Keeper | None" = None) -> str:
+             keep: "keepalive.Keeper | None" = None, approve: Callable[[], bool] = lambda: False,
+             approved: Callable[[str, bool], None] = lambda why, handoff: None,
+             changed: Callable[[], None] = lambda: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1543,7 +1670,14 @@ class _Kept:
         `keep` keeps the job site's session alive until he presses Submit, and tells when it ends (apply.keepalive):
         its stay press runs with the guards back on, as Claude's drive does, and then holds his Submit, the guard
         whole, until he presses the note's Dismiss: a page whose button sends later, at any delay, sends nothing.
-        "" when the page closed or `release` was set."""
+        `let_go()` says the student pressed Not applying to this one: the page is let go, unsubmitted.
+        `approve()` says the student pressed Approve and submit (ADR 0006): Apply presses the form's own Submit
+        (apply.send_button) as theirs, once, and the job system's confirmation goes on as for their own press. Never
+        while Submit is held, nor after any Submit: `approved(why, False)` says why not. No confirmation within
+        CONFIRM_S, and no captcha or refusal to explain it, is `approved(UNCONFIRMED, True)`: it may have gone in,
+        so it is the student's, and Apply never presses it again. `changed()` runs whenever Apply changes an answer on
+        the page (one from the window, a regenerated one, Ask Claude's): Auto-submit's countdown ends.
+        "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
             return ""
         pressed, final, signing, again, hooks, regenerates = [], [], [], [], self._hooks, []
@@ -1615,7 +1749,7 @@ class _Kept:
                 self._offered = True
             except Exception:
                 pass  # the page closing: the window's button still says so
-        kept, closing, told, turned_down, said_sent = False, None, False, False, False
+        kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
         # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
         # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
         unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
@@ -1631,6 +1765,26 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
+                if let_go():  # Not applying to this one: let go, as if its window closed
+                    return ""
+                if approve():
+                    why = APPLIED_FIRST if blocked else HELD_FIRST if holding else PRESSED_ALREADY if pressed or kept else ""
+                    if not why:
+                        try:
+                            heard(send_button.press(self._page))  # theirs, as if they had pressed it
+                            pressing = time.monotonic()
+                        except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
+                            heard(unsure.words)
+                            pressing = time.monotonic()
+                        except send_button.NotPressed as refused_press:
+                            why = str(refused_press)
+                        except Exception:
+                            why = send_button.NONE
+                    if why:
+                        approved(why, False)
+                if pressing and not kept and not told and not turned_down and time.monotonic() - pressing > CONFIRM_S:
+                    pressing = 0.0
+                    approved(UNCONFIRMED, True)
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
                 # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.
@@ -1641,6 +1795,7 @@ class _Kept:
                 if resume and not gone and resume(self._page):
                     return RESUME
                 for question, answer in answers():
+                    changed()
                     # The Student build's Fill engine acts on the held page: both guards back on meanwhile, so its
                     # clicks, and any page script they wake, send nothing (KAN-855's review). A checkout's Rescue
                     # arms its own drive guard around its drive.
@@ -1657,12 +1812,14 @@ class _Kept:
                         regenerate.keep(self._page, redo.written())
                     asked, regenerates[:] = regenerates + redo.asked(), []
                     for name, context in asked:
+                        changed()
                         with driving():  # the new answer goes in with both guards on (KAN-855's second review)
                             redo(self._page, name, context)
                 if ask:
                     if pressed or kept:  # his Submit: the form is his to send, and Claude acts on it no more
                         ask.close()
                     for item in ask.asked():
+                        changed()
                         with driving():  # Claude drives the page again
                             ask(self._page, item)
                 if not pressed:  # once he pressed Submit, the form is his to send: nothing more is read off it

@@ -464,7 +464,8 @@ What changes on a plain Worker:
   rehearsal skips.
 - **The production seed.** `uv run apply plain seed` is a guided setup of `APPLY_PROFILES/plain-seed`
   (`apply.plain.seed_setup`, KAN-677). `plain_chrome: chrome` (the default) then copies that seed to each
-  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed. See "The seed's guided setup" below.
+  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed, and the Apply window's first run then
+  skips its seed step. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
   that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
