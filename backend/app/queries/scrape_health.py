@@ -112,8 +112,8 @@ async def failing_boards(db: AsyncSession) -> list[dict]:
 async def error_groups(db: AsyncSession, *, days: int) -> list[dict]:
     '''the last `days` days' failed reads by reason, most boards first: the boards and reads each
     reason failed, its newest time, and the newest read's board and whole error as the example.
-    A failed publish raises no board's consecutive_failures (worker._checkpoint_board), so this is
-    the only list that holds those boards.'''
+    A failed read raises its board's consecutive_failures; a failed batch write (worker._write_batch)
+    rolls the whole batch back, its reads' log rows with it, so those boards show only in the logs.'''
     since = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)
     # The worker writes "reason: detail", and the detail holds one board's values ("oversized: 5123
     # listings"), so the whole text would make a group per board.
