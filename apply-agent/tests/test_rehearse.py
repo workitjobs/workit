@@ -2066,6 +2066,43 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
     assert {"open_forms": 1} in board.runs
 
 
+def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monkeypatch, tmp_path):
+    """Fault: a submitted form's thank-you tab keeps its slot, so once OPEN_FORMS forms are sent the run waits for
+    ever with jobs queued and nothing filling (live, 2026-11-26)."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "CLOSE_AFTER_S", 600)  # its thank-you tab stays open
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"] if n == 1 else [])
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+    sent_at, second_held_while_first_open, first_gone = {}, [], []
+
+    class Board(RecordingBoard):
+        def let_go_asked(self, worker: int) -> bool:
+            if worker == 1 and self.captions.get(1, {}).get("again"):  # the second form opened and was held
+                second_held_while_first_open.append(not first_gone)
+                return True
+            if worker == 0 and self.captions.get(0, {}).get("status") == "submitted":  # its tab closed by hand
+                since = sent_at.setdefault(0, time.monotonic())
+                if second_held_while_first_open or time.monotonic() - since > 5:
+                    first_gone.append(True)
+                    return True
+            return False
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               2, keep_open=True, out=lambda line: None, submitted_to=InMemoryTracker())
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert len(submissions) == 1  # the student's, from the first held page
+    assert second_held_while_first_open == [True]  # the second form opened while the first's tab was still open
+
+
 def test_not_applying_to_a_held_form_lets_its_page_go_unsubmitted_and_the_run_ends(monkeypatch, tmp_path):
     """Fault: Not applying to this one leaves the page held (the run never ends), or submits it."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))

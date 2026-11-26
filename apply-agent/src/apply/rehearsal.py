@@ -303,8 +303,8 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
-    # Forms open at once (OPEN_FORMS): taken before a form opens, given back when its page closes. Start together
-    # opens every form before any fills, so it isn't capped.
+    # Forms open at once (OPEN_FORMS): taken before a form opens, given back once it is submitted or its page closes.
+    # Start together opens every form before any fills, so it isn't capped.
     room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
     if not together:
         adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
@@ -393,6 +393,7 @@ def rehearse(
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
+            leave_room()  # sent: its thank-you tab may stay open, but it waits on no one, so the next job may open
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
             if together:
@@ -582,7 +583,7 @@ def rehearse(
         while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
             roomy[0] = room.acquire(timeout=0.5)
 
-        def leave_room() -> None:  # its page closed, or it never opened: the next job may open its form
+        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
             if roomy[0]:
                 roomy[0] = False
                 room.release()
