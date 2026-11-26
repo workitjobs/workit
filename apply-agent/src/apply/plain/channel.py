@@ -199,11 +199,13 @@ def prove(stream, path: Path):
     """`stream`, once the listener at `path` proved that it knows the channel's secret, which is read from beside
     `path`. Closes `stream` and raises NotApply when the listener fails the check."""
     try:
-        secret = bytes.fromhex(secret_path(path).read_text().strip())
         stream.settimeout(GREET_WAIT)
         challenge = _exact(stream, SIZE)
         if challenge is None:
             raise NotApply(f"the channel at {path} sent no challenge")
+        # Only now: a listener writes its new secret just after it takes the address, and challenges only after
+        # that. Read sooner, a host that connected in between had the Apply before's secret.
+        secret = bytes.fromhex(secret_path(path).read_text().strip())
         mine = secrets.token_bytes(SIZE)
         stream.sendall(_mac(secret, b"client", challenge) + mine)
         proof = _exact(stream, SIZE)

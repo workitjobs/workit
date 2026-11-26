@@ -158,6 +158,33 @@ def test_a_listener_without_the_secret_is_refused_by_the_client(entry, folder):
         impostor.close()
 
 
+def test_a_host_that_connects_as_apply_starts_uses_the_new_secret(entry, listener):
+    """Fault: the client reads the secret before the challenge comes. A listener holds the address a moment before
+    its new secret is on disk, so a Worker's host that connected in that moment (its extension tries every 2 s)
+    answered with the secret of the Apply before, and failed."""
+    key = channel.secret_path(listener.path)
+    new = key.read_text()
+    key.write_text(secrets.token_hex(channel.SIZE))  # the Apply before's, still on disk as the host connects
+
+    class Waiting:  # the host's connection: the new secret lands while it waits for the challenge
+        def __init__(self, stream):
+            self.stream, self.first = stream, True
+
+        def recv(self, size):
+            if self.first:
+                self.first = False
+                key.write_text(new)
+            return self.stream.recv(size)
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+    thread, done = greeted(listener)
+    channel.prove(Waiting(opened(entry, listener.path)), listener.path)
+    thread.join(5)
+    assert done["stream"] is not None
+
+
 def test_an_old_answer_fails_a_new_challenge(entry, listener):
     """Fault: the listener's challenge isn't new for each connection, so a program that saw one exchange could
     connect again with the answer it saw."""

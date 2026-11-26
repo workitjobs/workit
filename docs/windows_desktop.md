@@ -509,7 +509,10 @@ for each fix, section 6 the tests, and section 7 the order.
     `HMAC(secret, "client" + challenge)` and its own random challenge, and
     the listener answers `HMAC(secret, "server" + that)`. Each side checks
     with `hmac.compare_digest` and closes on a wrong answer, before any
-    other message. A stranger can't connect, a stranger can't pass for
+    other message. The connecting side reads the secret only once the
+    challenge came: read sooner, a host that connected in the moment
+    between the address and the new secret had the Apply before's secret,
+    and failed once. A stranger can't connect, a stranger can't pass for
     Apply to a host whose Apply has gone, and an old answer fails a new
     challenge. It runs on the Mac too, so one handshake serves every OS.
   - **The host stays standard-library only.** It loads its neighbour
@@ -530,7 +533,9 @@ for each fix, section 6 the tests, and section 7 the order.
     what a read didn't take); a client without the secret is refused and
     told nothing; a client that says nothing is dropped (fault: the pipe's
     reads take no timeout); a listener without the secret is refused by
-    the client; an old answer fails a new challenge; a drive reads its
+    the client; a host that connects as Apply starts uses the new secret
+    (fault: it read the secret before the challenge); an old answer fails
+    a new challenge; a drive reads its
     lines through `makefile`; a close wakes a blocked reader (the socket
     and the pipe); a closed channel listens again in the same process; and
     `close` wakes an accept that closing the listener leaves blocked, and

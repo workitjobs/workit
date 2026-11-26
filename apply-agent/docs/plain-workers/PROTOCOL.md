@@ -66,7 +66,9 @@ Apply process                                   Worker k (plain Chrome)
      challenge, 32 bytes.
   3. Bridge to host: `HMAC-SHA256(secret, "server" + the host's challenge)`.
 
-  Each side compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
+  The host reads the secret only once the challenge came: the Bridge holds the address a
+  moment before its new secret is on disk, and challenges only after that. Each side
+  compares with `hmac.compare_digest`. A wrong answer, or none within 5 s
   (`channel.GREET_WAIT`), closes the connection with no other message. Then the host sends its
   `relay` frame, as below. A stranger can't connect, and a program that took the address after
   Apply went can't pass for Apply to a Worker's next host.
