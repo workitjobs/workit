@@ -47,7 +47,7 @@ from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from apply import tracker
+from apply import asking, tracker
 from apply.adapters import JobSite, SetupError
 from apply.answer_bank import LISUL, AnswerBank
 from apply.model import (
@@ -398,10 +398,19 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         if question.kind != "file" and _local_path(answers.get(question.name)):
             del answers[question.name]
             blanks[question.name] = LOCAL_PATH
+    # A quiz, test or challenge to take at a link is answered by its result, which only Lisul has: no rule, bank
+    # answer or draft answers it, and he is asked it, with its link. The engine's GitHub rule answered Ramp's
+    # "Take this builder's quiz: https://awu-ramp.github.io/..." with his GitHub profile (2026-11-26).
+    sources = result.get("sources") or {}
+    takes = [q for q in questions if asking.takes_elsewhere(q) and sources.get(q.name) != "student"]
+    for question in takes:
+        answers.pop(question.name, None)
+    essays, drafts = ([q for q in result[kind] if q not in takes] for kind in ("essays", "drafts"))
+    missing = result["missing"] + [q for q in takes if q not in result["missing"]]
     return Plan(
         answers=answers,
-        essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
-        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
+        essays=essays, missing=missing, not_eligible=result["not_eligible"],
+        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=drafts, banked=result["banked"],
         accepted=accepted, blanks=blanks,
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),

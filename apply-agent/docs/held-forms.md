@@ -409,6 +409,13 @@ through `worker._Planned._missing` first.
   that it names (GitHub, LinkedIn, a site, a repo) is among the links. A
   known text field gets that answer (`_Planned.found`), and a known ask is
   dropped.
+- `asking.takes_elsewhere(q)` finds a question that asks Lisul to take a
+  quiz, test, assessment or challenge at a link and give its result
+  (Ramp's "Take this builder's quiz: https://..."). Only that result
+  answers it. `fill_engine.plan` makes it a Missing fact, whatever rule,
+  Answer bank entry or draft the engine planned, unless the answer is
+  Lisul's own. `known` never answers it from his links, and its context
+  line leads with "Take it yourself at <link>, then paste its result".
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date
@@ -428,7 +435,7 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k already_holds` and
+**Tests.** `test_claude_answers.py -k "already_holds or quiz"` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
 ### Other roles at the same company (`apply.other_roles`)

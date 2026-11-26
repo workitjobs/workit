@@ -41,6 +41,18 @@ GRADUATION_ASK = re.compile(r"\bgraduation\s+(?:date|month|year|term|semester)\b
 # The profile's link fields by their name in a line ("GitHub: https://...").
 LINK_NAMES = {"github_url": "GitHub", "linkedin_url": "LinkedIn", "portfolio_url": "Portfolio",
               "google_scholar_url": "Google Scholar", "x_twitter_url": "X", "showcase_project_url": "Project"}
+# A question that sends the applicant to take something at a link (a quiz, a test, an assessment, a challenge) and
+# give what it returns: only its result answers it, and only the applicant has that. Ramp's "Take this builder's
+# quiz: https://awu-ramp.github.io/..." was answered with his GitHub profile, for the "github" in its link (2026-11-26).
+TAKE = re.compile(r"\b(?:take|complete|finish|attempt|try)\b.{0,60}?\b(?:quiz(?:zes)?|tests?|assessments?|challenges?"
+                  r"|puzzles?|exercises?|surveys?|questionnaires?)\b", re.IGNORECASE)
+
+
+def takes_elsewhere(q: Question | str) -> str:
+    """The link a question asks the applicant to take a quiz, test, assessment or challenge at, to give its result;
+    "" for any other question. The link is in its label or its help text."""
+    text = q if isinstance(q, str) else f"{q.label}\n{q.description}"
+    return URL.search(text)[0].rstrip(".,;:") if TAKE.search(one_line(text)) and URL.search(text) else ""
 
 
 def links(profile: ApplicantProfile) -> tuple[str, ...]:
@@ -121,7 +133,7 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None,
         return (line,)
     if GRADUATION_ASK.search(asked) and (graduates := graduation(profile)):
         return (graduates,)
-    if not LINK_ASK.search(asked):
+    if not LINK_ASK.search(asked) or takes_elsewhere(asked):  # a quiz's result is no link Apply holds
         return ()
     held = links(profile)
     kinds = [kind for kind, named in KINDS.items() if named.search(asked)] or ["repo"]
@@ -150,8 +162,14 @@ def where(q: Question, questions: Sequence[Question]) -> str:
     """One short line on where `q` sits on its form, from what the Filler
     read: its step (a Workday name is "<step> / <label>"), the question just
     before it on that step when its own label is a bare word or two, and the
-    field it pairs with ("From" with "To").
+    field it pairs with ("From" with "To"). A quiz, test or challenge to take
+    at a link (`takes_elsewhere`) leads with that link.
     "" when there is nothing to say."""
+    take = f"Take it yourself at {link}, then paste its result" if (link := takes_elsewhere(q)) else ""
+    return " · ".join(filter(None, [take, _place(q, questions)]))
+
+
+def _place(q: Question, questions: Sequence[Question]) -> str:
     step = _step(q)
     same = [other for other in questions if _step(other) == step]
     at = next((i for i, other in enumerate(same) if other.name == q.name), None)
