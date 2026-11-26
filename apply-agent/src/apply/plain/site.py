@@ -32,7 +32,7 @@ from apply import submit_guard
 from apply.browsers import BUSY, ProfileInUse, WorkerBrowsers, in_use
 from apply.home import HOME
 from apply.plain import guards
-from apply.plain.launcher import WINDOW, PlainWorkers, reclaim
+from apply.plain.launcher import WINDOW, PlainWorkers, reclaim_all
 from apply.profile import load_policies
 
 MODES = ("cdp", "plain", "protected")
@@ -131,9 +131,8 @@ class PlainSite:
 
     def refuse_in_use(self) -> None:
         """A profile whose Chrome a gone Apply left running is reclaimed first (KAN-885): only a live one is busy."""
+        reclaim_all(self.profiles)
         profiles = [p for p in sorted(self.profiles.glob("plain-[0-9]*")) if p.is_dir()]
-        for profile in profiles:
-            reclaim(profile)
         busy = [p.name for p in profiles if in_use(p)]
         if busy:
             raise ProfileInUse(f"{', '.join(busy)} {BUSY}")

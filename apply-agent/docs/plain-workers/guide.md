@@ -513,6 +513,13 @@ and failed the job (`ProfileInUse`, "Didn't go through").
   now another process, such as the student's own Chrome.
 - **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
   started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
+  It sends SIGTERM to every Chrome first, then waits, so a quit waits `STOP_WAIT` once, not once each.
+- **Any exit.** `launcher.stop_everyone` runs at this process's exit (`atexit`) and stops every Chrome
+  each `PlainWorkers` of the process still runs: an exception or a quit by signal leaves none. The app
+  turns SIGTERM, SIGINT (Ctrl-C) and SIGHUP (a closed terminal) into its window's close
+  (`app_window.QUITS`), so its `finally` runs too. Only SIGKILL or a hard crash skips both: then the app,
+  as it starts, reclaims every plain profile's orphan Chrome (`student.reclaim_left`,
+  `launcher.reclaim_all`), not only once a run reaches each profile.
 - Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)
