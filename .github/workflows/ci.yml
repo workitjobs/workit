@@ -299,6 +299,7 @@ jobs:
             tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_optional_ask.py \
+            tests/test_other_roles.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \

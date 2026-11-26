@@ -164,7 +164,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
         return Redone(q, why=f"the new answer is over the form's limit ({over[0]}), so the old one stays", kept=kept)
     if invented := [f for f in failed if f.startswith(INVENTED)]:
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
-    allowed = essays.sources(profile, material, facts=True)
+    allowed = essays.sources(profile, material, facts=True, employer=form.posting.company)
     checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
     banked = written.kind == DRAFT and _bank(bank, q, text, form.posting.company, today)
     written.text, written.why = text, "; ".join(checks)
