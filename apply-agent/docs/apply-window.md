@@ -283,6 +283,22 @@ for a student, not from `dashboard_page.py`.
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
   not capped.
+- **Review card, Approve and submit** (ADR 0006). A form ready to submit
+  is a Review card: what was checked, what the Pre-submit review changed,
+  the answers worth a look (Essays, work authorization, demographics,
+  school, pay, files), and every other answer folded under What we
+  filled. Approve and submit (`POST /submit`) has the run press the held
+  form's own Submit (`apply.send_button`): only the one visible Submit or
+  Send button, in the page or a frame, and with none or several it
+  presses nothing and the card says why. It refuses while an answer is
+  still needed, while Submit is held on the page (a red note, an earlier
+  application), and after any Submit. The job system's confirmation is
+  read as for the student's own press; with none within two minutes
+  (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
+  form becomes a Handoff that says it may have gone in, and Apply never
+  presses its Submit again. A card with flags leads with Fix in the form
+  and offers Submit as it is. Opening the form and pressing Submit by
+  hand still works.
 - **Not applying to this one.** A to-do card whose form is held (its
   tile's `again`) has Not applying to this one, asked once more before it
   posts `/let-go` with the tile (`Dashboard.let_go`). The tile gets
