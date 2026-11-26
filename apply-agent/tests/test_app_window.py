@@ -771,3 +771,17 @@ def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_stil
         window.evaluate_js("broken()")
     with pytest.raises(JavascriptException):
         window.evaluate_js("missing()")  # not a reply: its error is the page's own
+
+
+def test_the_apps_output_goes_out_a_line_at_a_time_even_to_a_file(tmp_path):
+    """Fault: under nohup stdout is a file, so the run's lines sat in a block buffer and its log couldn't be followed."""
+    import io
+
+    from apply import masked
+
+    with open(tmp_path / "app.log", "w") as log:
+        app_window.line_by_line(masked._Scrubbing(log))
+        assert log.line_buffering
+        log.write("Took a link\n")
+        assert (tmp_path / "app.log").read_text() == "Took a link\n"
+    app_window.line_by_line(io.StringIO())  # a stream that can't change stays as it is

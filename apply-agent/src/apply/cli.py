@@ -391,6 +391,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     elif args.command == "app":
         from apply import app_window, student
 
+        app_window.line_by_line()  # its log, under nohup, can be followed live
+
         if args.max_plan:  # the Student build ignores it (student.asking)
             os.environ[student.MAX_PLAN] = "1"
         args.links, not_links = app_window.links_given(args.links)

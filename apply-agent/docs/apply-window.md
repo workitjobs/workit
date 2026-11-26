@@ -36,6 +36,8 @@ docstring first.
   start one, as Start does; during a run each joins it (`Dashboard.into`),
   else it waits for the next run. With no window open, the command opens
   one, which starts them. `APPLY_HOME/app.pid` names the running window.
+  Its stdout and stderr are line-buffered (`line_by_line`), so a log
+  written under nohup can be followed live.
 - `Dashboard(serve=False)` binds nothing. The window loads the Apply
   window's page as a string, with `app_window.SHIM` right after its first
   `<meta charset="utf-8">`, before the page's scripts.

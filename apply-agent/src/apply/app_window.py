@@ -886,6 +886,17 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         PID_NOTE.unlink(missing_ok=True)
 
 
+def line_by_line(*streams) -> None:
+    """Each line goes out as it is written: under nohup, stdout and stderr are files, so Python held the run's lines
+    in a block buffer, and its log could not be followed live (nor read whole after a crash). A stream that can't
+    change (a test's capture) stays as it is."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 REPLY = 'window.pywebview._returnValuesCallbacks["'  # how pywebview hands a js_api method's return to the page
 
 
