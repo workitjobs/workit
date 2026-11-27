@@ -196,15 +196,17 @@ def test_each_way_a_job_fails_gives_its_place_back_and_the_next_queued_job_start
     among the open forms, so jobs stayed queued with Workers free (run10, 2026-11-26: five failed jobs, one form
     filling, three queued)."""
     monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
-    ends = ["raises", "failed", "already", "not eligible"]  # none leaves a page open
-    links = [f"https://jobs.example/{k}" for k in range(len(ends) + 1)]
-    run = faked({link: [how] for link, how in zip(links, ends + ["held"])})
+    ends = ["raises", "failed", "already", "not eligible", "failed"]  # none leaves a page open
+    links = [f"https://jobs.example/{k}" for k in range(len(ends))]
+    run = faked({link: [how] for link, how in zip(links, ends)})
     board = Board()
     thread = start(links, board, tmp_path)
 
-    until(lambda: links[-1] in run.started, "the last queued job to start")
+    # Queued jobs take a freed place in no set order, so none here keeps a page: one that did would hold the only
+    # place, and the jobs queued behind it would wait on the student, as they should.
+    until(lambda: len(run.started) == len(links), "every queued job to start")
     end(board, thread)
-    assert run.started == links  # each started in turn, a place freed by the one before
+    assert sorted(run.started) == links  # each started once, a place freed by the one before
 
 
 def test_a_failed_form_still_open_holds_its_place_until_let_go_and_never_twice(monkeypatch, faked, tmp_path):
