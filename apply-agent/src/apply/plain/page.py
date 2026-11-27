@@ -52,6 +52,19 @@ VIEWPORT = "() => ({width: innerWidth, height: innerHeight})"  # page.viewport_s
 NAVIGATED = re.compile(r"context was destroyed|navigat", re.IGNORECASE)
 # Page events read from the tab's requests (ops/accounts.js net.watch), by the port's event each comes from.
 WATCHED = {"request": "request", "response": "response", "requestfinished": "response", "requestfailed": "requestfailed"}
+# The elements marked `token`, in the document and in every open shadow root in it: Playwright's selectors find an
+# element in a shadow root (SmartRecruiters' buttons are spl-button's, live 2026-11-27), which the document's own
+# querySelectorAll never reaches. Each one's mark comes off here, as the extension's unmark finds none there.
+MARKED = """const __marked = (token) => {
+  const found = [], pick = `[data-apply-mark="${CSS.escape(token)}"]`;
+  const walk = (root) => {
+    found.push(...root.querySelectorAll(pick));
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document);
+  for (const el of found) el.removeAttribute('data-apply-mark');
+  return found;
+};"""
 ROLE_ARGUMENTS = ("checked", "disabled", "expanded", "include_hidden", "level", "name", "pressed", "selected", "exact",
                   "description")
 
@@ -551,10 +564,8 @@ class PortLocator(_Queries):
         else:
             self._frame._until("Locator.evaluate", "mark", self._selector, token, timeout=timeout)
         try:
-            pick = "[...document.querySelectorAll(" + json.dumps(f'[data-apply-mark="{token}"]') + ")]"
-            if not every:
-                pick += "[0]"
-            code = ("async ([__arg]) => { const __f = (\n" + expression.strip().rstrip(";") + "\n); const __e = " + pick +
+            pick = f"__marked({json.dumps(token)})" + ("" if every else "[0]")
+            code = ("async ([__arg]) => { " + MARKED + " const __f = (\n" + expression.strip().rstrip(";") + "\n); const __e = " + pick +
                     "; if (" + ("false" if every else "!__e") + ") throw new Error('element is gone'); "
                     "return typeof __f === 'function' ? await __f(__e, __arg) : __f; }")
             return self._frame.evaluate(code, [arg])

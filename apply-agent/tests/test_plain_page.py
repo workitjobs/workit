@@ -44,8 +44,11 @@ FORM = """<!doctype html><title>Fake form</title>
   <button type="button" id="late" hidden>Appears later</button>
   <button type="submit" data-testid="go">Submit application</button>
   <a id="terms" href="/form" target="_blank">Terms</a>
+  <x-button id="shadowed"><span>Next</span></x-button>
 </form>
 <script>
+  // SmartRecruiters' spl-button (live 2026-11-27): the button itself is in the host's open shadow root.
+  document.getElementById("shadowed").attachShadow({mode: "open"}).innerHTML = '<button type="button" aria-label="Go on"><slot></slot></button>';
   window.events = [];
   for (const id of ["first", "last", "email", "why"]) document.getElementById(id).addEventListener("input", (e) => events.push(id + ":" + e.target.value));
   document.getElementById("state").addEventListener("change", (e) => events.push("state:" + e.target.value));
@@ -175,6 +178,8 @@ def test_evaluate_takes_an_argument_and_awaits(page):
     assert page.evaluate("document.title") == "Fake form"
     assert page.evaluate("() => undefined") is None
     assert page.locator("#first").evaluate("(e, suffix) => e.id + suffix", "!") == "first!"
+    # An element in a shadow root, which Playwright's selectors reach: page code runs on it there too.
+    assert page.get_by_role("button", name="Go on").evaluate("b => b.getAttribute('aria-label')") == "Go on"
     assert page.eval_on_selector_all("p.note", "(notes) => notes.length") == 3
     with pytest.raises(PlaywrightError, match="boom"):
         page.evaluate("() => { throw new Error('boom'); }")
