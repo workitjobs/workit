@@ -14,6 +14,7 @@ from apply.profile import ApplicantProfile
 
 STEP = FIXTURES / "oracle" / "honeywell-step.html"
 LAST_STEP = FIXTURES / "oracle" / "bgc-last-step.html"
+ADDRESS = FIXTURES / "oracle" / "honeywell-address.html"
 PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
 POSTING = Posting("p", "Honeywell Aerospace", "Embedded Engineering Intern",
                   "https://icfcjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Aerospace/job/120770")
@@ -161,3 +162,48 @@ def test_oracles_submit_is_named_only_when_one_shows_enabled_and_its_words_send(
     last_step.locator(claude_fill.LAST_STEP_SUBMIT).evaluate(change)
 
     assert claude_fill._last_step_submit(last_step) == ""
+
+
+@pytest.fixture
+def address():
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.goto(ADDRESS.as_uri())
+        yield page
+        browser.close()
+
+
+ADDRESS_QUESTIONS = [Question("q39", "City", "select", True), Question("q40", "State", "select", True),
+                     Question("q41", "County", "select", True), Question("q42", "Zip Code", "select", True)]
+
+
+def test_oracles_city_county_and_zip_are_searched_and_picked_by_plain_code(address):
+    # Live (Honeywell, 2026-11-27): the read gave City, County and Zip Code no choices, as their lists show none until
+    # searched, so plain code skipped them, and Claude spent 21 turns and 5 million tokens on the block. City lists
+    # every place of that name; the plan's county and state tell which. County and Zip Code list only the city's.
+    answers = {"q39": "Springfield", "q40": "IL", "q41": "Sangamon", "q42": "62701"}
+
+    picked = claude_fill._pick_in_comboboxes(address, ADDRESS_QUESTIONS, answers)
+
+    assert picked == answers
+    assert address.evaluate("document.body.dataset.city") == "Springfield, Sangamon, IL"
+    assert [address.input_value(f"#{box}") for box in ("city-57", "region2-58", "region1-59", "postalCode-60")] == \
+        ["Springfield", "IL", "Sangamon", "62701"]
+
+
+def test_a_searched_place_the_list_names_twice_or_never_is_left_to_claude_and_its_words_cleared(address):
+    # No county or state in the plan to tell the three Springfields apart, and a city the list has no place for.
+    picked = claude_fill._pick_in_comboboxes(address, ADDRESS_QUESTIONS[:1], {"q39": "Springfield"})
+    assert picked == {} and address.input_value("#city-57") == ""
+
+    picked = claude_fill._pick_in_comboboxes(address, ADDRESS_QUESTIONS[:1], {"q39": "Gotham", "q40": "IL"})
+    assert picked == {} and address.input_value("#city-57") == ""
+
+
+def test_a_search_list_option_fits_by_its_first_part_then_by_the_parts_the_plan_gives():
+    names = ("Springfield, Sangamon, IL", "Springfield, Clark, OH", "Springfield Gardens, Queens, NY")
+    assert claude_fill._fitting(names, "Springfield", {"sangamon", "il"}) == ["Springfield, Sangamon, IL"]
+    assert claude_fill._fitting(names, "Springfield", {"il"}) == []
+    assert claude_fill._fitting(names, "Springfield Gardens", set()) == ["Springfield Gardens, Queens, NY"]
+    assert claude_fill._fitting(("62701, Springfield",), "62701", set()) == ["62701, Springfield"]

@@ -1286,9 +1286,12 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
     three turns a dropdown, and ran out of its cap on Netflix's 20 (live).
     One whose choice didn't show is left to Claude."""
     picked: Readback = {}
+    # What else the plan gives, to tell apart a search list's same-named places by the parts each adds after its name.
+    context = {v.strip().casefold() for v in answers.values() if isinstance(v, str) and v.strip()}
     for q in questions:
         value = answers.get(q.name)
-        if q.kind not in ("select", "multi_select") or not q.options or not value or isinstance(value, Path):
+        searched = q.kind == "select" and not q.options and isinstance(value, str)
+        if q.kind not in ("select", "multi_select") or not (q.options or searched) or not value or isinstance(value, Path):
             continue
         try:
             boxes = _comboboxes(page)  # again each time: a choice may show more questions (Netflix's role)
@@ -1298,6 +1301,10 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
         if index < 0:
             continue
         combobox = boxes[index][0]
+        if searched:
+            if _shows_choice(combobox, value) or _search_pick(page, combobox, value, context):
+                picked[q.name] = value
+            continue
         wanted = value if isinstance(value, list) else [value]
         try:
             for choice in wanted:
@@ -1318,6 +1325,56 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
         if all(_shows_choice(combobox, choice) for choice in wanted):
             picked[q.name] = list(wanted) if q.kind == "multi_select" else wanted[0]
     return picked
+
+
+SEARCH_MS = 4_000  # how long a search list may take to list what fits the typed words
+
+
+def _search_pick(page: Page, combobox, choice: str, context: set[str]) -> bool:
+    """Type the choice into a dropdown that lists its choices only by search, and pick the one option it names:
+    Oracle's address City lists "<city>, <county>, <state>" by what is typed, and County and Zip Code then list
+    only the city's ("<county>, <state>", "<zip>, <city>"). An option whose first part is the choice, the only one,
+    else the only one whose other parts the plan also gives (the city's county and state). Read with no choices,
+    plain code skipped all three, and Claude took 21 turns and 5 million tokens on them (Honeywell's form, live
+    2026-11-27). None that fits, or two: the typed words cleared and the field left to Claude."""
+    try:
+        if not combobox.evaluate("el => el.tagName === 'INPUT' && !el.readOnly && !el.disabled"):
+            return False
+        combobox.click(timeout=3_000)
+        combobox.fill("")
+        combobox.press_sequentially(choice, delay=20)
+        fits, last = [], None
+        deadline = time.monotonic() + SEARCH_MS / 1000
+        while time.monotonic() < deadline:  # until the list settles: a search answers after the typing
+            listbox = _owned_listbox(page, combobox)
+            names = tuple(n.strip() for n in listbox.get_by_role("option").all_inner_texts()) if listbox else ()
+            fits = _fitting(names, choice, context)
+            if names and names == last and len(fits) == 1:
+                break
+            last = names
+            time.sleep(0.2)
+        if len(fits) == 1:
+            _press_option(listbox.get_by_role("option", name=fits[0], exact=True).first)
+            shown = (combobox.evaluate("el => el.value || ''") or "").strip().casefold()
+            if shown == choice.casefold() or shown.startswith(choice.casefold() + ","):
+                return True
+        combobox.fill("")
+        page.keyboard.press("Escape")
+    except Exception:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+    return False
+
+
+def _fitting(names: tuple[str, ...], choice: str, context: set[str]) -> list[str]:
+    """The options whose first comma part is the choice: the only one, else those whose every other part the plan
+    gives too ("Springfield, Sangamon, IL" for a plan with Sangamon and IL, never Springfield, Clark, OH)."""
+    named = [n for n in dict.fromkeys(names) if n.split(",")[0].strip().casefold() == choice.strip().casefold()]
+    if len(named) <= 1:
+        return named
+    return [n for n in named if all(part.strip().casefold() in context for part in n.split(",")[1:])]
 
 
 # A press on the element itself, as the Fill engine's `press` gives one: the pointer and mouse events, then the click.
