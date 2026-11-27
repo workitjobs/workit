@@ -668,7 +668,8 @@ not a re-run.
   Store listing — a one-time human setup, not reproducible from this
   file), `CHROME_EXTENSION_ID` (the Store item id; this extension pins it
   via `manifest.json`'s `key`, so it matches the id Chrome already
-  assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
+  assigns the unpacked dev build, `nejadaaigpkenldhafhhogbmhlfhabda`; the
+  old `cpklhd…` was a dev key's, before KAN-447) and
   **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
   Dashboard — a different value from the item id, and new with the v2
   endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
@@ -704,6 +705,16 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+- **Still open: no publish from a merge has passed** (2026-11-26). From
+  2026-11-03, after KAN-447's key, to 2026-11-05 every upload failed with
+  "Permission denied on resource 'publishers/…/items/…' (or it might not
+  exist)": a wrong item or publisher id in the secrets, or an account that
+  doesn't own the item (the upload reads the secrets, never the key).
+  Since 2026-11-10 the step before it fails, "Get an access token": Google answers
+  `invalid_grant`, "Token has been expired or revoked", for the refresh
+  token set 2026-11-01. Most likely the OAuth consent screen is in
+  Testing, where Google expires a refresh token after 7 days: set it to
+  In production, then mint a new token (above).
 
 ## Publish the Fill engine (`workflows/publish-engine.yml`, KAN-836)
 
