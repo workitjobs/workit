@@ -20,6 +20,8 @@ from fakes import (
     RecordingBoard,
     ScriptedUsage,
 )
+from test_recording import HELD as AI_GUIDE
+from test_recording import Briefing
 
 from apply import (
     answering,
@@ -1065,6 +1067,101 @@ def test_a_quiz_to_take_at_a_link_is_a_missing_fact_with_its_link_never_a_profil
     assert asking.known(RAMP_QUIZ, ApplicantProfile.load(PROFILE, POLICIES)) == ()
 
 
+OPENSESAME_LINK = ("Please include a shareable YouTube link to your Creative Project submission (required). Your project "
+                   "should answer the Creative Project questions listed in the job description.")  # OpenSesame's, 2026-11-26
+
+
+@pytest.mark.parametrize("planned", ["essay", "draft"])
+def test_a_link_to_a_video_to_make_is_a_missing_fact_never_written_text(monkeypatch, planned):
+    # The essay writer typed a prose essay about a project into OpenSesame's YouTube link box.
+    form = ResearchForm("GCM Grosvenor")
+    kind = "textarea" if planned == "essay" else "text"
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind=kind) if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    claude = FakeClaude(essays={OPENSESAME_LINK: "I built a tool that fills forms."},
+                        drafts={OPENSESAME_LINK: "https://github.com/test-person"})
+
+    row = run(monkeypatch, form, claude)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Record the video yourself, then paste its YouTube link" in row.reason
+    assert "Creative Project submission" not in json.dumps(claude.asked)  # never planned, drafted or written
+    assert form.submitted == []
+
+
+def test_a_video_link_ask_carries_a_recording_brief_of_the_postings_prompts(monkeypatch):
+    # OpenSesame's video answers the Creative Project prompts in its posting: the ask and the Record list them.
+    form = ResearchForm("GCM Grosvenor")
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind="textarea") if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    text = (FIXTURES / "opensesame-description.txt").read_text()
+    site = Browser({POSTING_PAGE: "".join(f"<p>{line}</p>" for line in text.splitlines() if line.strip())})
+    board, claude = RecordingBoard(), Briefing({"p1": [{"say": "Check an agent's code", "quote": AI_GUIDE}]})
+
+    [row] = run_all(monkeypatch, form, claude, ["GCM Grosvenor"], site=site, board=board)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Recording brief" not in row.reason  # the Tracker's reason keeps the ask's first line only
+    [shown] = [c["where"][OPENSESAME_LINK] for c in board.captions.values() if OPENSESAME_LINK in (c.get("where") or {})]
+    first, *brief = shown.splitlines()
+    assert first.startswith("Record the video yourself, then paste its YouTube link")
+    assert brief[0].startswith("Recording brief: cover each prompt")
+    assert "  - Check an agent's code" in brief and "- Show us something you've built with AI." in "\n".join(brief)
+
+
+def test_a_video_link_is_known_only_from_a_link_to_one_video_that_names_it():
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    bank = home.STORY_BANK.read_text() if home.STORY_BANK.is_file() else ""
+
+    assert asking.known(OPENSESAME_LINK, profile) == ()  # a GitHub profile or a repo is no video
+    home.STORY_BANK.write_text(bank + "\n- Robot arm demo video: https://youtu.be/abc123\n"
+                               "- Creative Project video: https://www.youtube.com/watch?v=xyz789\n")
+    assert asking.known(OPENSESAME_LINK, profile) == ("Creative Project video: https://www.youtube.com/watch?v=xyz789",)
+
+
+@pytest.mark.parametrize(("label", "kind"), [
+    (OPENSESAME_LINK, "video"), ("Loom link to a 2-minute intro", "video"), ("Link to your take-home submission", "submission"),
+    ("Portfolio URL", "portfolio"), ("Link to a demo of your project", "demo"),
+    ("Portfolio, Video, or Website Link", "portfolio"),  # any of them: a portfolio link fits
+    ("LinkedIn Profile", ""), ("GitHub URL", ""), ("Tell us about a video game you love.", ""),
+    ("Share a link to a short video introducing yourself to Bloomberg", "video"),
+    # A link word that is for something else: the question is an essay.
+    ("Tell us about a project in your portfolio (links welcome).", ""),
+    ("Describe a video game you've built; include a link to the repo.", ""), ("Why YouTube? Share any links.", ""),
+])
+def test_what_a_link_question_asks_the_applicant_to_make(label, kind):
+    assert asking.to_make(Question("q", label, "text")) == kind
+    assert asking.to_make(Question("q", label, "file")) == ""  # an upload is no link
+
+
+def test_only_a_link_to_one_video_fits_a_video_link_field():
+    video = Question("q", OPENSESAME_LINK, "textarea")
+
+    assert asking.fits_made(video, "https://youtu.be/abc123")
+    assert not asking.fits_made(video, "https://github.com/test-person")
+    assert not asking.fits_made(video, "https://www.youtube.com/@testperson")  # a channel
+    assert not asking.fits_made(video, "I built a tool that fills forms.")
+    assert asking.fits_made(Question("p", "Portfolio URL", "text"), "https://test-person.dev")
+    # Only Lisul has a submission: the engine's GitHub rule gave its profile link to OpenSesame's.
+    assert not asking.fits_made(Question("s", "Link to your take-home submission", "text"), "https://github.com/test-person")
+
+
+def test_a_video_asks_context_line_names_its_host_only_as_a_word():
+    assert asking.made(Question("q", "Share a link to a short video introducing yourself to Bloomberg", "text")) \
+        == "Record the video yourself, then paste its video link"
+    assert asking.made(Question("q", OPENSESAME_LINK, "textarea")).endswith("paste its YouTube link")
+
+
+def test_prose_an_earlier_run_banked_for_a_video_link_never_answers_it():
+    profile, bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "I built a tool that fills forms.", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ()
+
+    bank = AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "https://youtu.be/abc123", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ("https://youtu.be/abc123",)
+
+
 def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
     form = ResearchForm("GCM Grosvenor")
 
@@ -1285,6 +1382,21 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     editor = claude.kinds[-1]
     assert editor["data"]["drafts"] == {"q1": drafted.replace("Test Person", "@FIRST_NAME@ @LAST_NAME@")}  # D8
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
+
+
+def test_an_essay_that_points_at_the_postings_listed_questions_is_planned_and_written_with_them():
+    # OpenSesame's prompts sat past the <posting> cut, and its essay never saw them (2026-11-26).
+    claude = FakeClaude()
+    posting = Posting("os", "OpenSesame", "Software Engineering Internship", "https://jobs.example.com/1")
+    creative = Question("a", "Describe your Creative Project. It should answer the questions listed in the job description.",
+                        "textarea", True)
+    text = "Interns ship code to production.\n" * 300 + (FIXTURES / "opensesame-description.txt").read_text()
+
+    essays.write(claude, posting, [creative], ApplicantProfile.load(PROFILE, POLICIES), posting_text=text)
+
+    sent = {k["kind"]: k["data"]["posting"] for k in claude.kinds if k["kind"] in ("essays.plan", "essays.write")}
+    assert set(sent) == {"essays.plan", "essays.write"}
+    assert all("<asked_in_description>" in block and "fitting into your career journey" in block for block in sent.values())
 
 
 def test_every_essay_of_a_form_is_edited_in_one_call():
@@ -1538,6 +1650,31 @@ def test_each_essay_is_drafted_once_from_its_plans_slots_with_no_pick_or_critic(
     slots = _block(drafted["prompt"], "plan")["q1"]["slots"]
     assert set(slots) == {s.name for s in answering.load()["why-company"].slots if s.required is True}
     assert [b.slot for b in essay.plan.slots] == list(slots)
+
+
+WORKIT = "- Built the WorkIt front end from Figma frames and the FastAPI endpoints behind its job search.\n"
+
+
+class EditsTheBank(FakeClaude):
+    """Lisul moves a fact out of the Story bank while the editor's pass runs, as he did during ENFOS's."""
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if kind == "writing.edit" and WORKIT in (bank := home.STORY_BANK.read_text()):
+            home.STORY_BANK.write_text(bank.replace(WORKIT, ""))
+        return super().ask_kind(kind, data)
+
+
+def test_a_story_bank_edit_while_an_essay_is_written_has_it_planned_and_written_again():
+    # Fault: answer() returns the essay its plan and editor wrote from the bank as it was before the edit.
+    claude = EditsTheBank(essays={"Why Figma?": OWN})
+
+    write_figma(claude, [SHORT_WHY])
+
+    assert kinds(claude) == ["typical", "plan", "essays", "unsupported", "edited",
+                             "plan", "essays", "unsupported", "edited"]  # the typical answer is cached
+    first, again = plans(claude)
+    assert WORKIT.strip() in first["prompt"] and WORKIT.strip() not in again["prompt"]
+    assert WORKIT.strip() not in asks(claude)[-1]["prompt"]
 
 
 def test_a_slot_quote_must_be_in_the_sources_and_a_required_slot_needs_one():
