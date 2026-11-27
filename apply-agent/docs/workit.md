@@ -370,7 +370,8 @@ keeps it in memory for the form that asked (`essays.TOLD`, by the
 Posting's URL: `essays.tell`, from the window or a held Application's
 Tracker row) until the student submits that form (rehearsal's
 `submitted` drops it) or the app quits, and that form's essays get it in `<form_answers>` when it
-is filled again, so the new plan quotes it however it words the ask. A
+is filled again, so the new plan quotes it however it words the ask. The truth check counts it as
+his own fact (`own_facts`' `mine`), or an essay that states its number was held as made up. A
 later form that asks the same asks again: an ask's words change from
 plan to plan, and one essay's fact seldom fits another's, so a kept
 answer would be a copy nothing reads. After a quit, the student answers

@@ -994,7 +994,7 @@ def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
 
 
 DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tracker?"
-PICKED = "Buses park at angles in the depot, so rotated boxes kept two side-by-side buses apart."
+PICKED = "Buses park at angles in the depot, so rotated boxes kept all 14 side-by-side buses apart."
 
 
 def proud_plan(decision: list[str], ask: str = "") -> dict:
@@ -1009,7 +1009,7 @@ def proud_plan(decision: list[str], ask: str = "") -> dict:
 def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_writes_that_essay_unsaved(monkeypatch,
                                                                                                    tmp_path):
     """Fault: the essay was written without his answer, or the answer was saved (to his profile, or a Story bank line
-    every essay's prompt would carry)."""
+    every essay's prompt would carry), or the truth check missed it and held the essay that states its number."""
     form, tracker = ResearchForm("Northwood Space"), InMemoryTracker()
     waiting = proud_plan([], DECISION)
     first = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[waiting, waiting])
@@ -1023,14 +1023,15 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_writes_th
     assert form.submitted == []
     assert not any(PROJECT in json.dumps(c["data"]["questions"]) for c in asks(first))  # not written
     tracker.answer(row.application_id, PICKED)
-    second = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[proud_plan([PICKED])])
+    quoted = f"{MICROMOUSE} At the depot I kept all 14 parked buses apart with rotated boxes."
+    second = FakeClaude(essays={PROJECT: quoted}, plans=[proud_plan([PICKED])])
 
     [row] = run_all(monkeypatch, form, second, ["Example Co"], profile, tracker=tracker)
 
     assert ApplicantProfile.load(profile).answered(DECISION) is None and PICKED not in home.STORY_BANK.read_text()
     assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from this form's answers
     assert row.status == "submitted", row.reason
-    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [quoted]
 
 
 def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with_it():

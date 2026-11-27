@@ -261,7 +261,8 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
     Missing fact in its Tracker row's Answer cell, as if he typed it in the
     Sheet, so the next check fills that Application again with it; a
     rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after. A
+    what an essay asked him, in memory for that form's essays alone
+    (essays.TOLD), never saved. A
     bare date (From, To) is that form's alone: never saved by its label.
     The same for his answer typed on the held form itself (Board.typed).
     An empty answer is his Skip of an optional question (KAN-759): kept as

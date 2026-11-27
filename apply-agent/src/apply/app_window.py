@@ -168,8 +168,8 @@ DISCLOSURE = """<ul>
 <li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
 address and self-identification answers; your applications' stages; the answers you approve or edit, and the
 short answers its AI drafts for your Answer bank, marked for your review; the answers you give to the questions it
-asks you, kept with your WorkIt profile, except an answer for one essay, which goes only into that essay's AI calls
-and is not kept; your Auto Apply queue.
+asks you, kept with your WorkIt profile, except an answer for one application's essay, which goes only into the AI
+calls that write that application's essays and is not kept; your Auto Apply queue.
 One application's record and log go only when you press Send Report.</li>
 <li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
 tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>

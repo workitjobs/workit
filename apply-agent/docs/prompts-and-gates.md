@@ -73,7 +73,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   for claims that nothing Lisul gave holds (`essays.own_facts`: the
   profile, the Story bank, the Stock and core answers, and the Answer
   bank's answers in his own words, `source: lisul`: WorkIt's own-answer
-  rule, so a reviewed draft of Claude's is no fact of his). It finds numbers,
+  rule, so a reviewed draft of Claude's is no fact of his; and his answers
+  to this form's Essay facts, `essays.TOLD`). It finds numbers,
   names (a single capitalized word inside a sentence, an acronym, and a
   sentence's first word that no source uses in lower case),
   a month or season outside his dates, and outcomes such as "adopted" or

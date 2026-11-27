@@ -178,8 +178,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                                sections=sections, mine=mine)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {}, private.self_id(profile)) | {
-        one_line(asked): one_line(told) for asked, told in TOLD.get(posting.url, {}).items() if told.strip()}
+    told = {one_line(asked): one_line(said) for asked, said in TOLD.get(posting.url, {}).items() if said.strip()}
+    shown = form_answers(answered or {}, private.self_id(profile)) | told
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -226,7 +226,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
         failed = _gate(checked, texts)
-    own = own_facts(profile, types.values(), mine)
+    # His answers to this form's Essay facts are his own facts too: an essay that quotes one is never held as made up.
+    own = own_facts(profile, types.values(), [*mine, *(f"{asked}: {said}" for asked, said in told.items())])
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
     given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
@@ -242,7 +243,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
         redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
-                                                answered, planned, redo)[0]}
+                                                answered, planned, redo, sections, mine)[0]}
         result = [redone.get(e.question, e) for e in result]
     return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
 
