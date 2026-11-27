@@ -544,6 +544,8 @@ def test_apply_fixes_a_review_problem_the_review_gave_no_fix_for_before_the_form
     shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
     assert shown["Last Name"] == "Person"
     assert board.captions[0]["fixed"] == [{"question": "Last Name", "was": "Quinn Person", "now": "Person"}]
+    assert "## Fixed before submit" in (readme := (Path(done.record) / "README.md").read_text())  # the Record logs it
+    assert "- Last Name: Quinn Person → Person" in readme
     [asked] = [k["data"] for k in claude.kinds if k["kind"] == "presubmit.fix"]
     assert asked["problems"] == [TOO_MUCH]
     assert [k["kind"] for k in claude.kinds].count("presubmit.review") == 2  # reviewed again after the fix

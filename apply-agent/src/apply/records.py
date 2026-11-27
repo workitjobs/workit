@@ -43,6 +43,8 @@ class Record:
     verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
     history: tuple[str, ...] = ()  # a rehearsal's pauses and Resumes, "HH:MM Paused: why", in order
     asks: tuple[dict, ...] = ()  # each Ask Claude message on the held form and how it went (apply.ask), in order
+    # (question, answer before, answer after) of each the Pre-submit review's fix changed before any submit, in order
+    fixed: tuple[tuple[str, str, str], ...] = ()
 
 
 def folder(record: Record) -> str:
@@ -132,6 +134,8 @@ def _readme(record: Record, rows: list[dict]) -> str:
         *(["## Verification", "", "What Apply found when it read the filled form back, before any submit:", "",
             *(f"- {f['field'] + ': ' if f['field'] else ''}{f['why']}" + (" (dismissed)" if f.get("dismissed") else "" if f["holds"] else " (note)")
               for f in record.verification["flags"]), ""] if record.verification and record.verification["flags"] else []),
+        *(["## Fixed before submit", "", "Answers the Pre-submit review found wrong, which Apply fixed and reviewed again:", "",
+            *(f"- {question}: {was} → {now}" for question, was, now in record.fixed), ""] if record.fixed else []),
         *(["## Pauses", "", "Where the fill stopped for you, and where you pressed Resume:", "",
             *(f"- {line}" for line in record.history), ""] if record.history else []),
         *(["## Ask Claude", "", "What you asked Claude to fix on the held form, and what it did:", "",
