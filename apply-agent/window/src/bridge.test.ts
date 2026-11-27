@@ -43,6 +43,12 @@ test("Stop applying, Stop new ones only, Not applying, Approve and submit, Cance
   ]);
 });
 
+test("an emailed code reaches /code with its case kept", async () => {
+  const { sent, bridge } = posts();
+  await bridge.code("tile-3", "OxNbtPnI");
+  assert.deepEqual(sent, [{ path: "/code", token: "tok", body: { id: "tile-3", code: "OxNbtPnI" } }]);
+});
+
 // /state as Apply answers it: each reply in turn, a thrown one a request that never got an answer.
 async function watched(replies: (() => Response)[]) {
   const said: string[] = [];

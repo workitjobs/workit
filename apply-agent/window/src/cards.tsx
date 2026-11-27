@@ -56,9 +56,12 @@ function Body(props: Props) {
       );
     case "code":
       return (
-        <Open title="Type the code they emailed you" button="Open the form" {...props}>
-          {HANDOFF.code}
-        </Open>
+        <>
+          <Open title="Type the code they emailed you" button="Open the form" {...props}>
+            {HANDOFF.code}
+          </Open>
+          {job.held && job.worker !== undefined && <EnterCode {...props} />}
+        </>
       );
     case "captcha":
       return (
@@ -121,6 +124,47 @@ function Open({ title, button, note, children, ...props }: Props & { title: stri
       <OpenForm label={button} {...props} />
       {note && <Note>{note}</Note>}
     </>
+  );
+}
+
+export const CODE_LABEL = "Paste the code from your email";
+export const ENTERING_CODE = "Entering the code and submitting. We'll mark it applied once the job site confirms it.";
+
+// The emailed code (Greenhouse's eight case-sensitive characters), typed for the student: Apply puts one character
+// in each box, reads them back and presses Submit, once.
+function EnterCode({ job, bridge, fail }: Props) {
+  const s = job.source;
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  if (s.coding || (sent && !s.code_said))
+    return (
+      <p role="status" className="mt-5 animate-pulse font-medium text-ink-muted">
+        {ENTERING_CODE}
+      </p>
+    );
+  const given = code.replace(/\s+/g, "");
+  const send = () => {
+    setSent(true);
+    bridge.code(`tile-${job.worker}`, given).catch((e: Error) => (setSent(false), fail(e.message)));
+  };
+  return (
+    <form className="mt-5" onSubmit={(e) => (e.preventDefault(), given && send())}>
+      <label htmlFor={`code-${job.key}`} className="font-medium">
+        {CODE_LABEL}
+      </label>
+      {s.code_said && (
+        <p role="alert" className="mt-2 flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
+          <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
+          {said(s.code_said)}
+        </p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2.5">
+        <input id={`code-${job.key}`} value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" spellCheck={false} autoCapitalize="off" className="h-11 min-w-0 flex-1 rounded-card border border-border bg-panel px-3 font-mono tracking-widest" />
+        <Button tone="primary" size="lg" type="submit" disabled={!given}>
+          Submit with this code
+        </Button>
+      </div>
+    </form>
   );
 }
 
