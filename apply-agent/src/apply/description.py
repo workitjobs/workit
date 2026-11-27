@@ -283,6 +283,18 @@ PAGE_TITLES = [
 ]
 
 
+# What a careers site adds to its company's name ("Emerson Career Site", live 2026-11-27: its cover letter was to
+# "Emerson Career Site Recruiting Team").
+SITE_SUFFIX = re.compile(r"(?:\s*[-|:]\s*|\s+)(?:external |global )?(?:careers?|jobs?)(?: (?:site|portal|page|center|centre|hub))?$",
+                         re.IGNORECASE)
+
+
+def bare_company(name: str) -> str:
+    """A company's name without its careers site's suffix: "Emerson Career Site" is Emerson. A name that is only
+    the suffix stays as it is."""
+    return SITE_SUFFIX.sub("", name).strip() or name
+
+
 def names_on_page(page) -> tuple[str, str]:
     """The company and role the open page names: its JobPosting schema's,
     else its title's; ("", "") if it names neither."""
@@ -293,7 +305,7 @@ def names_on_page(page) -> tuple[str, str]:
             break
         if m := shape.match(one_line(found["page_title"])):
             company, title = company or m["company"].strip(), title or m["title"].strip()
-    return company, title
+    return bare_company(company), title
 
 
 def _salary(salary) -> str:
