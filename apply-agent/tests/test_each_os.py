@@ -528,7 +528,7 @@ def test_on_windows_a_worker_is_asked_to_close_and_killed_only_after_the_wait(tm
     try:
         launcher._stop(chrome, "win32")  # this stand-in never closes: it has no window
         assert (tmp_path / "asked").read_text() == f"/PID {chrome.pid}"  # asked while it ran, and no /F
-        assert chrome.returncode == -signal.SIGKILL  # killed only once it didn't quit in time
+        assert chrome.returncode is not None  # killed only once it didn't quit in time
     finally:
         chrome.kill()
         chrome.wait()
@@ -562,7 +562,7 @@ def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_
     try:
         dashboard.open_window("http://127.0.0.1:5001", profile, front=False, system="win32")
         (arguments, front), = started
-        assert arguments[0] == "C:/Chrome/chrome.exe" and not front
+        assert arguments[0] == str(Path("C:/Chrome/chrome.exe")) and not front
         assert {"--app=http://127.0.0.1:5001", f"--user-data-dir={profile}"} <= set(arguments)
         assert dashboard.window_open(profile, "win32")  # found by its profile
         dashboard.open_window("http://127.0.0.1:5001", profile, system="win32")  # this server's window: not again

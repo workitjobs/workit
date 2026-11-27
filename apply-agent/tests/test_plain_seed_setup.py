@@ -391,7 +391,8 @@ def test_the_desk_asks_the_seeds_chrome_to_quit_and_never_kills_it(tmp_path, mon
         Desk(tmp_path).terminate(chrome.pid, "win32")
         assert asked.read_text() == f"/PID {chrome.pid}" and chrome.poll() is None  # asked, with no /F, not killed
         Desk(tmp_path).terminate(chrome.pid, "darwin")
-        assert chrome.wait(5) == -signal.SIGTERM
+        if os.name == "posix":  # on Windows every signal kills: the code says no more there
+            assert chrome.wait(5) == -signal.SIGTERM
     finally:
         chrome.kill()
         chrome.wait()
