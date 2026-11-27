@@ -1,7 +1,8 @@
 # WorkIt Auto Apply on Windows
 
-**Status (KAN-929):** being built. P1 to P5 and P9 are built and tested
-on the Mac. Nothing has run on Windows yet. Section 7 says what comes next. This note takes F4 and W4's "Found on the way" list
+**Status (KAN-929):** being built. P1 to P5, P7 to P9 and P11 to P13 are
+built and tested on the Mac. Nothing has run on Windows yet: section 7's
+check list is next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
 
@@ -309,6 +310,10 @@ decisions beside D17 and D18.
   on Windows the first notice stopped the run. Off the Mac a notice now
   goes to the terminal (`notify.desktop`, `TerminalNotifier`). A Windows
   toast needs a library: later, if a developer misses it.
+- **Not ported, developer-only:** the Repairer (`apply repair`, after a
+  run with `repair.max_per_day`) starts `npm` by its bare name, which is
+  `npm.cmd` on Windows: `subprocess` finds only an `.exe` so. `claude`
+  from npm is `claude.cmd` too; the native installer's `claude.exe` works.
 - **Smooth tiles.** The Swift capture helper is the Mac's. Elsewhere a
   tile shows about 2 frames a second until `Page.startScreencast` (W6).
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker
@@ -394,6 +399,9 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
   pass, and more as each fix lands; after M2, the real plain Worker tests
   on Chrome for Testing. Without it, the next Mac-only change breaks
   Windows with no red check. Write it into `.github/CLAUDE.md`.
+- **The tests' Chrome reaper does nothing off POSIX**
+  (`tests/chrome_reaper.py`): a test run that is killed on Windows leaves
+  its Chromes open. Close them in Task Manager.
 - **No test checks** P6, whether Chrome saves at P7's stop, or the host
   under a school's managed Chrome. Check them by hand on Windows, and
   write each result in section 8.
@@ -411,8 +419,54 @@ Mac until every blocker seems fixed. Then a teammate runs all the checks
 on Windows at once: M1 with `worker_mode: cdp`, then plain Workers, then
 section 8. Each result goes into this note.
 
-**Next:** P7, P8 and P11, from the Mac. P6 needs a measurement on
-Windows first.
+**Next: the Windows checks below.** Every fix that a Mac can make is in.
+P6 and the "Still open (Windows)" lines need a Windows computer.
+
+### The Windows checks, in order
+
+On Windows 11 with Google Chrome, Git, Node.js and uv, in PowerShell. Write
+each result into this note: under its problem's "Still open (Windows)",
+or in section 8. A step that fails stops the steps after it only when it
+says so.
+
+1. **Set up.** `git clone --recurse-submodules` the repo, check out the
+   branch under test, then in `apply-agent`: `uv sync` and
+   `uv run playwright install chromium`.
+2. **The per-OS tests.** `$env:PYTHONUTF8 = "1"` (P13), then
+   `uv run pytest -q -n auto tests/test_each_os.py tests/test_locks.py
+   tests/test_plain_channel.py tests/test_plain_bridge.py
+   tests/test_doctor.py tests/test_plain_seed_setup.py
+   tests/test_first_run.py`. Then every file of CI's `apply-fast` list
+   (`.github/workflows/ci.yml`, its "Fast tests" step), with
+   `-m "not nightly"`. Each file that passes goes into the Windows CI job
+   later (section 6).
+3. **doctor.** `uv run apply doctor` prints a line for each check, and
+   none of them crashes.
+4. **Sign in.** `uv run apply login`, or the window: `uv run apply app`.
+5. **M1, CDP Workers.** `worker_mode: cdp` in
+   `%USERPROFILE%\.config\apply\policies.yaml`, then
+   `uv run apply rehearse https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362`.
+   The Apply window opens behind your work (P12), the form fills and is
+   held, and the window closes when you end the run. Then the same
+   command with `> run.log 2>&1`: it ends as before (P13).
+6. **M2, plain Workers.** `worker_mode: plain` and `plain_chrome: testing`,
+   then the same rehearsal. The Worker says hello (P4, P5). If it never
+   does, look in Task Manager for a `chrome.exe` with `plain-1` in its
+   command line: none means that Chrome quit at its start with no window
+   (P6). Then `uv run pytest -q tests/test_plain_workers.py
+   tests/test_plain_guards.py tests/test_plain_routing.py`.
+7. **P7, a clean stop.** In a plain Worker, sign in to a job site, end the
+   run, and rehearse that site again: you are still signed in.
+8. **P8, the seed.** `plain_chrome: chrome`, then `uv run apply plain
+   seed`. Do each step as it says (Ctrl+L, Ctrl+V and Enter in the folder
+   picker; a drag from File Explorer). It ends with "Setup is done", which
+   also proves P7's save for the seed.
+9. **P9, first run.** `plain_chrome: testing`, then `uv run apply app`:
+   first run gets past the Seed step with no seed.
+10. **P11, keep awake.** Start a run in the window. In an administrator
+    PowerShell, `powercfg /requests` lists `python.exe` under SYSTEM and
+    DISPLAY; after the run, it doesn't.
+11. **Section 8.** Answer each open question there.
 
 ## 8. Open questions
 
