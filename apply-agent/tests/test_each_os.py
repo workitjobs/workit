@@ -5,6 +5,7 @@ on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import ast
 import contextlib
+import io
 import json
 import os
 import plistlib
@@ -29,6 +30,7 @@ from apply import (
     chrome_finder,
     chrome_host,
     claude_cli,
+    cli,
     dashboard,
     focus,
     home,
@@ -221,6 +223,17 @@ def test_on_windows_claude_and_its_mcp_server_are_killed_as_a_tree():
         claude.kill()
         with contextlib.suppress(psutil.Error):
             mcp.kill()
+
+
+def test_on_windows_apply_writes_utf8_to_a_pipe_or_a_file():
+    """Fault: on Windows a pipe or a file takes the code page (cp1252), so `apply rehearse ... > run.log` stopped at
+    its first "→" with UnicodeEncodeError."""
+    piped, on_the_mac = (io.TextIOWrapper(io.BytesIO(), encoding="cp1252") for _ in range(2))
+    cli.utf8_streams("win32", (piped,))
+    cli.utf8_streams("darwin", (on_the_mac,))
+    piped.write("Asked → answered ✓")
+    piped.flush()
+    assert piped.buffer.getvalue() == "Asked → answered ✓".encode() and on_the_mac.encoding == "cp1252"
 
 
 def test_linux_is_not_kept_awake():

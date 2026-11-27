@@ -91,11 +91,22 @@ REHEARSALS = HOME / "rehearsals"
 RECORDS = HOME / "records"
 
 
+def utf8_streams(system: str = sys.platform, streams: tuple | None = None) -> None:
+    """On Windows a pipe or a file takes the code page (cp1252), which has no "→" or "✓", so Apply's output stopped
+    a command at its first such line there (`apply rehearse ... > run.log`). The console is UTF-8 already (KAN-929)."""
+    if system != "win32":
+        return
+    for stream in streams or (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):  # None in a window with no console
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> None:
-    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664). A test's fake
-    adapters print only what it made."""
+    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664), and as UTF-8. A
+    test's fake adapters print only what it made."""
     if adapters is not None:
         return _main(argv, adapters)
+    utf8_streams()
     with masked.output():
         return _main(argv, adapters)
 

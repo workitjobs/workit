@@ -343,6 +343,10 @@ decisions beside D17 and D18.
   Found on the way (2026-11-27).
 - **Built.** Each one names `encoding="utf-8"`, and
   `tests/test_each_os.py` fails on a new one in `src/apply`.
+- **Built: the output too.** A pipe or a file takes the code page as
+  well, so `apply rehearse ... > run.log` stopped at its first "→".
+  `cli.main` makes stdout and stderr UTF-8 on Windows
+  (`cli.utf8_streams`). The console is UTF-8 already.
 - **Tests on Windows run with `PYTHONUTF8=1`:** the tests' own reads and
   writes name no encoding. The source test covers Apply's.
 
