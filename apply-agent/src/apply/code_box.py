@@ -8,16 +8,24 @@ postal code box is never one), with each of its boxes empty (he did not type the
 When the student gives the code instead (the card's code box or `apply window code`), `put` enters it on the
 held page with locator actions only, so it works on a plain Worker's page too: one character per box, read
 back before the run presses Submit again.
+
+A code a sign-in asks for (Oracle's "Confirm your identity", held as "needs sign-in" because the Student build reads
+no mail) is given the same way: `sign_in` enters it and presses that step's own Verify or Continue, never a Submit,
+and the paused fill goes on once the page is past its sign-in.
 """
 
 import re
+import time
 from collections.abc import Callable
 
 from apply import account_pages, captcha, greenhouse, upload_origin
 from apply.page_functions import WORDS
 
-# Greenhouse's code boxes first, then any box a code goes in.
-FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {account_pages.CODE_BOX}"
+# Oracle's sign-in code step: a row of six numeric boxes, each named a digit or a pin-code (submit_guard's digitBox).
+ORACLE_BOXES = ("input[class*=pin-code i], input[inputmode=numeric][id*=digit i], "
+                "input[inputmode=numeric][class*=digit i], input[inputmode=numeric][aria-label*=digit i]")
+# Greenhouse's code boxes first, then Oracle's, then any box a code goes in.
+FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {ORACLE_BOXES}, {account_pages.CODE_BOX}"
 # A box whose words name another code, which is never an emailed one.
 NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discount|referr|invite|dial", re.IGNORECASE)
 
@@ -78,7 +86,12 @@ CODE = re.compile(r"^[A-Za-z0-9]{4,12}$")
 # What a job site says when the code is wrong: Greenhouse's "Incorrect security code".
 _EMAILED = r"\b(?:security|verification|confirmation|access|one-time)\s+code\b"  # never a postal or promo code
 WRONG = re.compile(rf"\b(?:incorrect|invalid|wrong|expired)\b[^.\n]{{0,20}}{_EMAILED}|{_EMAILED}[^.\n]{{0,30}}"
-                   r"\b(?:incorrect|invalid|wrong|expired|doesn.t match|did not match)\b", re.IGNORECASE)
+                   r"\b(?:incorrect|invalid|wrong|expired|doesn.t match|did not match)\b"
+                   r"|\b(?:incorrect|invalid|wrong)\s+code\b", re.IGNORECASE)  # Oracle's "Invalid code"
+
+# A sign-in code step's own button: Oracle's Verify. Never Submit or Send, which may be an application's.
+GO_ON = re.compile(r"^\s*(?:verify|confirm|continue|next|sign in|log in)\s*$", re.IGNORECASE)
+SIGN_IN_WAIT_S = 20.0  # how long a sign-in's code step has to go on after its Verify
 
 NOT_A_CODE_GIVEN = "That isn't a code: give the letters and digits from the email, as they are (case counts)."
 NO_FIELD = "The form shows no code field now, so Apply entered nothing. Read the state, or open the form."
@@ -88,6 +101,10 @@ NOT_ENTERED = "The code field changed while Apply entered the code, so it presse
 SHOWS_OTHER = ("Box {box} of the code field shows another character than the code given, so Apply pressed nothing. "
                "Open the form and enter it yourself.")
 WRONG_CODE = "The job site says the code is wrong: check the newest email from it, and enter that code."
+NO_GO_ON = ("Apply entered the code, but the sign-in step shows no Verify or Continue button, so it pressed nothing. "
+            "Open the form and press it yourself.")
+STILL_SIGNING_IN = ("Apply entered the code and pressed {button}, but the sign-in step is still there. Open the form "
+                    "to see what it says.")
 NO_ANSWER = ("Apply entered the code and pressed Submit, but the job site didn't show that it went in. Open the form "
              "to see what it says.")
 
@@ -144,3 +161,47 @@ def wrong(page) -> bool:
         except Exception:
             continue
     return False
+
+
+def go_on(page):
+    """The sign-in code step's own button (GO_ON), visible, in the first frame that has one; None for none."""
+    for frame in page.frames:
+        try:
+            for button in frame.get_by_role("button", name=GO_ON).all():
+                if button.is_visible():
+                    return button
+        except Exception:
+            continue  # a frame gone or going
+    return None
+
+
+def sign_in(page, code: str, let_press: Callable[[bool], None], wait: float = SIGN_IN_WAIT_S) -> str:
+    """Enter `code` in a sign-in's code field (apply.oracle's "Confirm your identity") and press that step's own
+    Verify or Continue (GO_ON), never a Submit: the application is not sent, only the sign-in. `let_press(True)`
+    lets that one press through the guards (submit_guard.let_account_click), `let_press(False)` puts them back.
+    "" once the code field is gone (signed in: the paused fill goes on); else why not, in the window's words."""
+    if not (field := code_field(page)):
+        return NO_FIELD
+    stale = wrong(page)  # the last try's words, still shown: read as this code's only once they went and came back
+    if why := put(field, code):
+        return why
+    if (button := go_on(page)) is None:
+        return "" if not code_field(page) else NO_GO_ON  # a step that goes on once its last box is full
+    pressed = (button.inner_text() or "").strip() or "Verify"
+    let_press(True)
+    try:
+        button.click()
+    except Exception:
+        pass  # the step went on by itself as the button was pressed: read below
+    finally:
+        let_press(False)
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        if not code_field(page):
+            return ""
+        now = wrong(page)
+        if now and not stale:
+            return WRONG_CODE
+        stale = stale and now
+        page.wait_for_timeout(250)
+    return STILL_SIGNING_IN.format(button=pressed)

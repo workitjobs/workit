@@ -658,6 +658,12 @@ Worker's own Chrome window, but for a captcha. Each message says so
   and once the code field comes, Needs you says "needs code"
   (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`,
   which reads no captcha frame and no other site's frame.
+- **An emailed code at a sign-in.** No mail is read (D9), so Oracle's
+  one-time code holds the form as "needs sign-in". The code given in the
+  window (`apply window code`) signs in: `code_box.sign_in` enters it and
+  presses the step's own Verify, never a Submit, and the paused fill goes
+  on once the page is past its sign-in (BGC/Cantor, 2026-11-27, stalled
+  there: the code was refused as "Submit wasn't pressed").
 - **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
   captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
   makes a relayed click look like a person's (the bot rule). Once Apply sees the
