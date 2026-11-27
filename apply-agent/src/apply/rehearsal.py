@@ -51,7 +51,6 @@ from apply import (
     bot_signals,
     build,
     captcha,
-    claude_cli,
     code_box,
     description,
     eightfold,
@@ -1042,8 +1041,11 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         """Each call of this fill Opus's safeguards refused, and Sonnet answered, goes in its history (and Record)."""
         nonlocal noted
         refused = refusals()
-        at = adapters.clock.now().strftime("%H:%M")
-        history.extend(f"{at} {claude_cli.REFUSED.format(kind)}" for kind in refused[noted:])
+        if refused[noted:]:  # only the developer's Claude CLI refuses: the Student build never loads it
+            from apply.claude_cli import REFUSED
+
+            at = adapters.clock.now().strftime("%H:%M")
+            history.extend(f"{at} {REFUSED.format(kind)}" for kind in refused[noted:])
         noted = len(refused)
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     posting, result = resolve(url, site)
