@@ -263,7 +263,22 @@ profile keeps that list. A company where Lisul's Outcome is an interview
 or an offer goes in `screeners.previously_interviewed_at`. So "Have you
 previously interviewed at <company>?" is No when no record shows an
 interview there. If he applied there but no interview is recorded, he
-answers it himself.
+answers it himself. The companies the Tracker shows for the Posting's own
+company also go in `screeners.applied_to_this_company_before`, so
+"Have you previously applied to work at <company>?" is Yes even when the
+profile keeps no `previously_applied_to` list. Before fill-engine#178 the
+past-employment rule took that wording ("previously ... work") and
+answered No (Point72, 2026-11-26).
+
+An internship's availability questions ("When can you start?", "Are you
+available from May 17, 2027 to August 13th, 2027?") read
+`logistics.earliest_possible_start_date`, else `earliest_start_date`. A
+preferred or desired start date reads `earliest_start_date`.
+
+A required graduate list with no N/A, for an undergraduate (Talos's
+"Field of Study in your Postgraduate degree"), has no true answer: the
+plan's `not_eligible` is "No true answer: <label> (<why>)", so the
+Application ends Not eligible and holds no tile.
 
 The Pre-submit review and Claude's drafts read the same facts
 (`fill_engine.with_past_applications`, used by `essays.profile_facts`

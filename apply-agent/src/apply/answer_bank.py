@@ -16,14 +16,18 @@ Applications it answered, so a draft used again unreviewed shows.
 With `on_change` (the WorkIt sync, answer_sync.py, KAN-746), each write that
 adds, changes or deletes an answer stamps the entry's `edited_at` (UTC) and
 hands the changed entries to `on_change` after the file is saved. A write
-that only counts a use changes no answer and sends nothing."""
+that only counts a use changes no answer and sends nothing.
+
+A question filed twice (a hand-appended entry that repeats one, run10's
+Notion) is read as its last entry, with one warning, and the next write saves
+it once, under its one key."""
 
 import io
 import json
 import re
 import sys
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -33,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.constructor import DuplicateKeyError
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
 from apply import home, locks
@@ -204,16 +209,19 @@ class AnswerBank:
                     was = found.get("uses") if isinstance(found.get("uses"), dict) else {}
                     found["uses"] = {"count": int(was.get("count") or 0) + 1, "last": day}
 
-    def answer(self, question: str, answer: str | list[str], day: date) -> None:
+    def answer(self, question: str, answer: str | list[str], day: date, options: Sequence[str] = ()) -> None:
         """Lisul's own answer to `question`, from the Apply window: it replaces
         any draft (source lisul, reviewed). A question new to the bank joins
-        it as first seen on `day`."""
+        it as first seen on `day`. `options`, when given, are the list he picked
+        it from, which the plan then gives it for alone."""
         with self._writing() as entries:
             found = _find(entries, question)
             if not isinstance(found, dict):
                 found = entries[key(question)] = {"question": one_line(question), "answer": "", "options": [],
                                                   "first_seen": {"date": day, "company": ""}}
             found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
+            if options:
+                found["options"] = [_text(o) for o in options]
             found["source"], found["reviewed"] = LISUL, True
             if answer == []:  # none of a multi-select's options holds
                 found["none"] = True
@@ -266,6 +274,7 @@ class AnswerBank:
                     self._path.touch()
                 text = self._path.read_text()
                 self._entries = self._read()
+                had = bool(self._entries)
                 before = _dump(self._entries)
                 synced = {str(k): _synced(v) for k, v in self._entries.items()} if self._on_change else {}
                 yield self._entries
@@ -275,7 +284,7 @@ class AnswerBank:
                 if after == before:  # nothing changed: the file stays as it was
                     return
                 # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
-                notes = "" if _yaml().load(text) else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
+                notes = "" if had else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
                 self._path.write_text(notes + after)
         if changed or deleted:
             try:  # the bank is saved: a sync that fails never fails the write
@@ -284,7 +293,33 @@ class AnswerBank:
                 print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
 
     def _read(self) -> dict:
-        return _yaml().load(self._path.read_text()) or CommentedMap()
+        text = self._path.read_text()
+        try:
+            return _yaml().load(text) or CommentedMap()
+        except DuplicateKeyError:
+            last, twice = _last_entries(text)
+            if self._path not in _WARNED:
+                _WARNED.add(self._path)
+                print(f"The Answer bank files {', '.join(repr(k) for k in twice)} more than once: Apply reads the last "
+                      "of each, and its next save keeps only that.", file=sys.stderr)
+            return _yaml().load(last) or CommentedMap()
+
+
+_WARNED: set[Path] = set()  # the banks a duplicate was warned of, once each per process
+
+
+def _last_entries(text: str) -> tuple[str, list[str]]:
+    """The bank's `text` with each earlier entry of a question filed twice taken out, so its last one stands,
+    and the questions filed twice."""
+    top = _yaml().compose(text)
+    pairs = top.value if top is not None and top.id == "mapping" else []
+    lines = text.splitlines(keepends=True)
+    starts = [k.start_mark.line for k, _ in pairs] + [len(lines)]
+    last = {str(k.value): i for i, (k, _) in enumerate(pairs)}
+    dropped = {i for i, (k, _) in enumerate(pairs) if last[str(k.value)] != i}
+    gone = {line for i in dropped for line in range(starts[i], starts[i + 1])}
+    twice = list(dict.fromkeys(str(pairs[i][0].value) for i in sorted(dropped)))
+    return "".join(line for n, line in enumerate(lines) if n not in gone), twice
 
 
 def _synced(entry: Any) -> tuple:

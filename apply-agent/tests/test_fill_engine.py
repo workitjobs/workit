@@ -154,6 +154,25 @@ def test_the_options_lisul_picked_for_a_missing_multi_select_are_each_ticked():
     assert fill_engine.plan([question], POSTING, profile).answers["q1"] == ["Austin", "Denver"]
 
 
+def test_a_pick_from_a_list_the_gpa_doesnt_fit_is_kept_for_that_list_never_as_the_gpa(tmp_path):
+    # Freeform (2026-11-26): a GPA list in steps of 0.05 has no 3.86, so Lisul picked 3.85; saved by its wording in the
+    # profile, it would have answered a later GPA text box of that wording 3.85.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("education.gpa_cumulative", 3.86)
+    steps = ("3.75", "3.80", "3.85", "3.90", "3.95")
+    picks = Question("q1", "GPA (Undergraduate)", "select", True, steps)
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+
+    fill_engine.remember(profile, POSTING, picks, "3.85", bank, date(2026, 11, 26))
+
+    assert "GPA (Undergraduate)" not in (profile.get("answered_questions") or {})
+    entry = AnswerBank(tmp_path / "answer-bank.yaml").get("GPA (Undergraduate)")
+    assert (entry.answer, entry.source, entry.options) == ("3.85", "lisul", steps)
+    assert fill_engine.plan([picks], POSTING, profile, bank).answers["q1"] == "3.85"
+    typed = Question("q1", "GPA (Undergraduate)", "text", True)
+    assert fill_engine.plan([typed], POSTING, profile, bank).answers["q1"] == "3.86"
+
+
 def test_a_needs_you_answer_naming_the_postings_offices_is_kept_for_that_company_only():
     # ENFOS (2026-11-26): this answer was kept by the bare wording, so it answered every company's location question.
     profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
