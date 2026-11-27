@@ -210,3 +210,50 @@ def test_a_fix_with_no_problem_is_no_fix():
     found = review(claude, Posting("a", "Acme", "Intern", "https://boards.greenhouse.io/acme/jobs/1"), [start], {"from": "08/01/2024"})
 
     assert found == [] and found.fixes == {}
+
+
+# The review reads no policies.yaml, so it called a pay answer the `compensation` policy gave unbacked (Relay, live
+# 2026-11-26). Fault: backed_by_policies keeps every problem, or drops one about a figure off the policy.
+SALARY = Question("salary", "What is your desired salary?", "text", True)
+WHY_US = Question("why", "Why Relay?", "textarea", True)
+UNBACKED = 'What is your desired salary?: "$30/hr" is not backed by the profile, story bank or stock answers'
+ESSAY = "Why Relay?: names a product the posting doesn't"
+
+
+def _policies(tmp_path, **compensation):
+    from apply.profile import ApplicantProfile
+
+    return ApplicantProfile({}, tmp_path, {"compensation": compensation})
+
+
+@pytest.mark.parametrize("shown, compensation, posting_text, dropped", [
+    ("$30/hr", {"fallback_hourly": 30}, "", True),  # the fallback of a Posting that names no pay
+    ("$62,400/year", {"fallback_hourly": 30}, "", True),  # the same rate, asked for a year
+    ("Open to the posted range", {"expectation": "Open to the posted range"}, "", True),
+    ("$45/hr", {"fallback_hourly": 30}, "The pay range is $40 - $50 per hour.", True),  # inside the posting's range
+    ("$45/hr", {"fallback_hourly": 30}, "", False),  # off the policy: still the review's problem
+    ("$30/hr", {"fallback_hourly": None}, "", False),  # no policy gave it
+])
+def test_a_pay_answer_policies_yaml_gives_is_backed(tmp_path, shown, compensation, posting_text, dropped):
+    from apply.presubmit import Found, backed_by_policies
+
+    found = Found([UNBACKED.replace("$30/hr", shown), ESSAY], {"What is your desired salary?": "$25/hr"})
+    kept = backed_by_policies(found, [SALARY, WHY_US], {"salary": shown, "why": "..."}, _policies(tmp_path, **compensation),
+                              posting_text)
+
+    assert list(kept) == ([ESSAY] if dropped else list(found))
+    assert ("What is your desired salary?" in kept.fixes) is not dropped
+
+
+def test_a_problem_about_another_question_that_starts_the_same_is_kept(tmp_path):
+    """Fault: a problem with a longer question whose label holds the backed one ("...salary? Explain") is dropped as
+    the backed pay answer's, so its hold goes without a word."""
+    from apply.presubmit import Found, backed_by_policies
+
+    explain = Question("explain", "What is your desired salary? Explain why", "textarea", True)
+    other = "What is your desired salary? Explain why: names a figure the profile doesn't"
+    found = Found([UNBACKED, other], {})
+    kept = backed_by_policies(found, [SALARY, explain], {"salary": "$30/hr", "explain": "..."},
+                              _policies(tmp_path, fallback_hourly=30))
+
+    assert list(kept) == [other]

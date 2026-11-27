@@ -464,25 +464,50 @@ def _hourly(value: float) -> float:
     return value / 2080 if value > 1000 else value
 
 
-def _pay(questions, readback, profile, posting_text: str) -> list[Flag]:
-    """A pay figure outside the Posting's own range, or off the fallback rate when the Posting names none."""
+def _stated_pay(posting_text: str) -> list[float]:
+    """The Posting's own pay range, per hour: none when it names no pay."""
     from apply.description import pay_range  # its patterns read the Posting's text
 
-    stated = [_hourly(v) for v in _amounts(pay_range(posting_text or ""))]
+    return [_hourly(v) for v in _amounts(pay_range(posting_text or ""))]
+
+
+def _pay_off(question, shown, profile, stated: list[float]) -> str:
+    """Why a pay answer is off its sources (the Posting's range, else the policies' fallback_hourly); "" when it is
+    no pay figure, or on them."""
+    if not PAY_QUESTION.search(question.label) or not isinstance(shown, str) or question.kind == "textarea":
+        return ""
+    asked = [_hourly(v) for v in _amounts(shown)]
     fallback = profile.policy("compensation.fallback_hourly")
-    flags = []
-    for q in questions:
-        shown = readback.get(q.name)
-        if not PAY_QUESTION.search(q.label) or not isinstance(shown, str) or q.kind == "textarea":
-            continue
-        asked = [_hourly(v) for v in _amounts(shown)]
-        if not asked:
-            continue
-        if stated and any(not min(stated) * 0.99 <= a <= max(stated) * 1.01 for a in asked):
-            flags.append(Flag(one_line(q.label), f"shows {shown!r}, outside the posting's pay range", PAY))
-        elif not stated and fallback and any(abs(a - float(fallback)) > 0.5 for a in asked):
-            flags.append(Flag(one_line(q.label), f"shows {shown!r}; your fallback rate is ${fallback}/hr", PAY))
-    return flags
+    if not asked:
+        return ""
+    if stated and any(not min(stated) * 0.99 <= a <= max(stated) * 1.01 for a in asked):
+        return f"shows {shown!r}, outside the posting's pay range"
+    if not stated and fallback and any(abs(a - float(fallback)) > 0.5 for a in asked):
+        return f"shows {shown!r}; your fallback rate is ${fallback}/hr"
+    return ""
+
+
+def from_policies(question, shown, profile, posting_text: str) -> bool:
+    """Whether a pay answer is the one policies.yaml gives (`compensation`): its `expectation` word for word, the
+    middle of the Posting's own range, or `fallback_hourly` when the Posting names no pay. The Pre-submit review
+    reads no policies.yaml, so it called such an answer unbacked (Relay's "$30/hr", live 2026-11-26): its problem
+    with one is dropped (presubmit.backed_by_policies), and this check, which is code, judges the figure instead."""
+    if not PAY_QUESTION.search(question.label) or not isinstance(shown, str) or question.kind == "textarea":
+        return False
+    expectation = profile.policy("compensation.expectation")
+    if isinstance(expectation, str) and expectation.strip() and _norm(shown) == _norm(expectation):
+        return True
+    stated = _stated_pay(posting_text)
+    if not _amounts(shown) or _pay_off(question, shown, profile, stated):
+        return False
+    return bool(stated) or bool(profile.policy("compensation.fallback_hourly"))
+
+
+def _pay(questions, readback, profile, posting_text: str) -> list[Flag]:
+    """A pay figure outside the Posting's own range, or off the fallback rate when the Posting names none."""
+    stated = _stated_pay(posting_text)
+    return [Flag(one_line(q.label), why, PAY) for q in questions
+            if (why := _pay_off(q, readback.get(q.name), profile, stated))]
 
 
 def _names(profile: ApplicantProfile) -> list[str]:
