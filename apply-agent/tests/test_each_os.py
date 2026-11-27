@@ -4,6 +4,7 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import ast
+import contextlib
 import json
 import os
 import plistlib
@@ -27,6 +28,7 @@ from apply import (
     captcha,
     chrome_finder,
     chrome_host,
+    claude_cli,
     dashboard,
     focus,
     home,
@@ -202,6 +204,23 @@ def test_off_the_mac_a_notice_goes_to_the_terminal(monkeypatch, capsys):
     assert isinstance(notify.desktop("darwin"), notify.MacNotifier)
     notify.desktop("win32").notify("Apply", "3 submitted")
     assert capsys.readouterr().err == "Apply: 3 submitted\n"
+
+
+def test_on_windows_claude_and_its_mcp_server_are_killed_as_a_tree():
+    """Fault: Windows has no os.killpg, and start_new_session does nothing there: each stop of claude raised
+    AttributeError, and claude and its Playwright MCP server kept running."""
+    started = "import subprocess, sys, time; c = subprocess.Popen([sys.executable, '-c', 'import time; " \
+              "time.sleep(60)']); print(c.pid, flush=True); time.sleep(60)"
+    claude = subprocess.Popen([sys.executable, "-c", started], stdout=subprocess.PIPE, text=True)  # no group of its own
+    mcp = psutil.Process(int(claude.stdout.readline()))
+    try:
+        claude_cli.kill_tree(claude, "win32")
+        claude.wait(5)
+        mcp.wait(5)  # psutil.TimeoutExpired while it runs
+    finally:
+        claude.kill()
+        with contextlib.suppress(psutil.Error):
+            mcp.kill()
 
 
 def test_linux_is_not_kept_awake():

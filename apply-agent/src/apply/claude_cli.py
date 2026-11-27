@@ -26,9 +26,11 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from datetime import datetime
 from pathlib import Path
+
+import psutil
 
 from apply import send_click, stuck, trace
 from apply.adapters import (
@@ -145,6 +147,28 @@ def _stopped_by_resume(process: subprocess.Popen, kill: Callable[[], None]) -> C
     return killed.is_set
 
 
+def kill_tree(process: subprocess.Popen, system: str = sys.platform) -> None:
+    """Stop claude and what it started (its Playwright MCP server): its process group on macOS and Linux. Windows
+    has no os.killpg, and start_new_session does nothing there, so psutil finds its children, then kills it and them
+    (KAN-929)."""
+    if system == "win32":
+        try:
+            children = psutil.Process(process.pid).children(recursive=True)
+        except psutil.Error:  # gone already
+            children = []
+        process.kill()
+        for child in children:
+            with suppress(psutil.Error):
+                child.kill()
+        return
+    try:
+        os.killpg(process.pid, 9)  # the cap: claude and its Playwright MCP server stop here
+    except (PermissionError, ProcessLookupError):
+        # macOS refuses a group whose leader is already exiting; that error
+        # must not hide how the call went.
+        process.kill()
+
+
 def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator[str]:
     try:
         process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -152,12 +176,7 @@ def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator
     except FileNotFoundError:
         raise SetupError(INSTALL) from None
     def kill() -> None:
-        try:
-            os.killpg(process.pid, 9)  # the cap: claude and its Playwright MCP server stop here
-        except (PermissionError, ProcessLookupError):
-            # macOS refuses a group whose leader is already exiting; that error
-            # must not hide how the call went.
-            process.kill()
+        kill_tree(process)
     killed = _stopped_by_resume(process, kill)
     try:
         process.stdin.write(stdin)

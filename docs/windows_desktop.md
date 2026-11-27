@@ -106,10 +106,12 @@ rules. What the code doesn't say:
 - **Two jobs in one folder need two lock files:** a second lock on a file
   that this process holds waits for good. So the Repair's one-at-a-time
   lock is `repairs/.running.lock` (`repairer.RUNNING`).
-- **Unix-only calls that are left** fail only when they run: in
-  developer-only modules, `os.killpg` in `claude_cli.stream_claude`
-  (`ask_model: claude`) and `os.getuid()` in `schedule.Launchctl` (the
-  Mac's scheduled runs, which D10 drops).
+- **Unix-only calls that are left** fail only when they run: in a
+  developer-only module, `os.getuid()` in `schedule.Launchctl` (the Mac's
+  scheduled runs, which D10 drops). `claude_cli.stream_claude`
+  (`ask_model: claude`) stopped claude with `os.killpg`, which raised on
+  each stop on Windows: `claude_cli.kill_tree` kills the tree through
+  psutil there (2026-11-27).
 
 ### P2. "Is it still running?": built
 
