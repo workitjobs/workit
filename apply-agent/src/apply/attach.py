@@ -309,6 +309,37 @@ def pass_jobvite_gate(page: Page) -> None:
         accept.first.click()
 
 
+# The résumé and cover letter an earlier, unsent attempt left on an Oracle application (its draft keeps them): each
+# shows its file's name and a Remove button where its upload area was, so the read finds no file to give it, and the
+# old file went with the application (Emerson's, live 2026-11-27: a cover letter written for another company name).
+CARRIED_DOCUMENTS = ("resume-upload-button .attachment-upload-button__filled, "
+                     "cover-letter-upload-button .attachment-upload-button__filled")
+CARRIED_NAME = ".attachment-upload-button__download"
+CARRIED_REMOVE = ".attachment-upload-button__bottom-button"
+REMOVED_WITHIN = 10.0
+
+
+def drop_carried_documents(page: Page) -> list[str]:
+    """Remove the résumé and cover letter an earlier attempt left on the form, so this fill's own files go in their
+    place; the names of the files removed. One that stays after its Remove is left, and the read sees it as before."""
+    carried = page.locator(CARRIED_DOCUMENTS)
+    dropped: list[str] = []
+    for _ in range(carried.count()):
+        left = carried.count()
+        if not left:
+            break
+        slot = carried.first
+        name = " ".join((slot.locator(CARRIED_NAME).first.text_content() or "").split())
+        slot.locator(CARRIED_REMOVE).first.click()
+        deadline = time.monotonic() + REMOVED_WITHIN
+        while carried.count() >= left and time.monotonic() < deadline:
+            page.wait_for_timeout(200)
+        if carried.count() >= left:
+            break
+        dropped.append(name)
+    return dropped
+
+
 def clear_pop_up(page: Page, resume: Path | None) -> str:
     """Clear a pop-up that covers the form: give it the résumé if it asks for
     one, else close it. "" once none covers the form; else what it says."""

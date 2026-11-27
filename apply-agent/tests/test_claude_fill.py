@@ -2251,3 +2251,51 @@ def test_a_sign_in_handoff_still_names_the_company_its_page_does():
         filler.question_set(LUNAR_URL, site)
 
     assert filler.names == ("Emerson", "Software Engineering Intern")
+
+
+# Oracle's Supporting Documents as an earlier, unsent attempt left them (Emerson's, live 2026-11-27): each slot shows
+# its file and a Remove button where its upload area was. Remove puts the upload area back, as Oracle's does.
+CARRIED_SLOT = """<{tag}><div class="attachment-upload-button"><div class="attachment-upload-button__filled">
+  <button type="button" class="attachment-upload-button__download">{file}</button>
+  <button type="button" class="attachment-upload-button__bottom-button" onclick="const slot = this.closest('{tag}');
+    setTimeout(() => {{ slot.innerHTML = '<label>{label} <input type=file></label>'; }}, 300)">Remove</button>
+</div></div></{tag}>"""
+CARRIED_DOCUMENTS = ("<title>Software Engineering Intern - Acme Career Site</title><h2>Supporting Documents</h2>"
+                     + CARRIED_SLOT.format(tag="resume-upload-button", file="Old_Resume.pdf", label="Resume")
+                     + CARRIED_SLOT.format(tag="cover-letter-upload-button", file="Old_Cover_Letter.pdf",
+                                           label="Cover Letter"))
+
+
+def test_documents_an_earlier_attempt_left_are_removed_so_this_fills_own_go_in():
+    """Emerson's refill (live 2026-11-27): the form kept the first attempt's résumé and cover letter, so the read found
+    no file to give, and the stale letter stayed on the application."""
+
+    def sign_in(page):
+        page.set_content(CARRIED_DOCUMENTS)
+
+    def read(page, schema, prompt, files):
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        questions = filler.question_set(LUNAR_URL, site)
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
+def test_a_form_with_no_carried_documents_is_left_as_it_is():
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import drop_carried_documents
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content("<label>Resume <input type=file></label>")
+        assert drop_carried_documents(page) == []
+        page.set_content(CARRIED_DOCUMENTS)
+        assert drop_carried_documents(page) == ["Old_Resume.pdf", "Old_Cover_Letter.pdf"]
+        assert page.locator("input[type=file]").count() == 2
+        browser.close()

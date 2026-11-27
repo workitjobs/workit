@@ -70,7 +70,13 @@ from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
 from apply.accounts import Accounts
 from apply.adapters import Claude, JobSite
-from apply.attach import RESUME, attach_resume, clear_pop_up, pass_jobvite_gate
+from apply.attach import (
+    RESUME,
+    attach_resume,
+    clear_pop_up,
+    drop_carried_documents,
+    pass_jobvite_gate,
+)
 from apply.confirmation import wait_for_confirmation
 from apply.model import (
     Answers,
@@ -357,6 +363,7 @@ class ClaudeFill:
         self._named = 0
         self._steps = 0  # the steps gone past
         self._attached: dict[str, str] = {}  # the résumé, attached by plain code
+        self._carried_checked = False  # an earlier attempt's documents looked for (drop_carried_documents)
         self._picked: Readback = {}  # the dropdown choices and group boxes plain code picked
         self._readback: Readback = {}  # every field filled so far, on every step
         self._put: dict = {}  # the answer each field was filled with
@@ -414,6 +421,10 @@ class ClaudeFill:
             pass_jobvite_gate(page)
             self._clear_pop_up(page)
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
+            if not self._carried_checked:  # an earlier attempt's résumé and letter: this fill's go in their place
+                self._carried_checked = True
+                if dropped := drop_carried_documents(page):
+                    print(f"Removed what an earlier attempt attached: {', '.join(dropped)}", file=sys.stderr)
             found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
             self._read_posting_text(page)  # else what the form's own page says about the job
             questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))
