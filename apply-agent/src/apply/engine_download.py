@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from apply.workit import WorkIt
 
 # The public half of WorkIt's engine-signing key (`publish_engine make-key`, made 2026-11-17), base64 of its 32
-# bytes. Only builds its private half signed run; that half is the apply-engine environment's secret
+# bytes. Only builds its private half signed run; that half is the auto-apply-desktop environment's secret
 # (.github/CLAUDE.md, "Publish the Fill engine"). A new key needs a new app: every installed app refuses its builds.
 PUBLIC_KEY = "yeZhwmvme9x7H7Xi4zaS7ifioYXXzMTu3XaU2o35zrk="
 

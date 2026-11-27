@@ -17,7 +17,8 @@ and uv:
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
 `build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
 `build/` is git-ignored. Each app names its commit in `Info.plist`
-(`WorkItCommit`; `+changes` on a test build of a changed working tree):
+(`WorkItCommit`; `+changes` on a test build of a changed working tree) and
+whether it is a release (`WorkItRelease`):
 `plutil -p "build/out/WorkIt Auto Apply.app/Contents/Info.plist"`.
 
 A failed check stops the build with one sentence that says what to fix.
@@ -96,13 +97,65 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   app: there, `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto
   Apply.app"` lets it open for a test.
 
+## Publish a release
+
+A GitHub-hosted Mac builds, signs and publishes every release (D32), and
+every installed app installs it, with no question.
+
+1. Test `main`: pull it, `python3 scripts/build_app.py`, launch the app and
+   run it (above). The workflow builds the same commit.
+2. `gh workflow run publish-app.yml --ref main`. Its rules, and what to do
+   when a run fails: `../../.github/CLAUDE.md`, Publish WorkIt Auto Apply.
+
+A test build signs nothing, so a developer needs no key. The update key
+lives in Infisical and the `auto-apply-desktop` environment only
+(`../../docs/secrets.md`).
+
+## Test an update
+
+Test Sparkle on one Mac with a throwaway key and a local feed. Keep all of
+it out of git, and delete the test build afterwards: it allows plain HTTP.
+
+1. Make a throwaway Ed25519 key with Python's `cryptography`: write the
+   private key's 32 raw bytes, base64, to a file, and keep the public key's
+   32 bytes, base64. `build/sparkle-2.10.1/bin/sign_update --ed-key-file
+   <file>` takes that file.
+2. Build through a small driver that imports `scripts/build_app.py`, sets
+   `SPARKLE_PUBLIC_KEY` to the throwaway public key and `FEED` to
+   `http://127.0.0.1:8765/appcast.xml`, adds
+   `NSAppTransportSecurity: {NSAllowsArbitraryLoads: true}` to the
+   Info.plist it writes (macOS refuses plain HTTP without it), and calls
+   `main()`. Copy that app aside: it is version N.
+3. Build again a minute later (`CFBundleVersion` is the minute): version
+   N+1. Sign its DMG (`sign_update --ed-key-file <file> <dmg>` prints the
+   enclosure's `sparkle:edSignature` and `length`), write an
+   `appcast.xml` with one `<item>` for it, and serve the folder with
+   `python3 -m http.server 8765 --bind 127.0.0.1`.
+4. So that N checks at once instead of in a day: `defaults write
+   ai.workitjobs.autoapply SUHasLaunchedBefore -bool true` and `defaults
+   write ai.workitjobs.autoapply SULastCheckTime -date "2020-01-01 00:00:00
+   +0000"`. Start N with `APPLY_HOME` set to a data folder that has a
+   profile. Within 30 s it fetches the feed and the DMG. Quit it
+   (`kill -TERM`): N+1 replaces it in place.
+5. To see a refusal, offer a higher version signed with another key: it is
+   downloaded and never installed.
+6. Clean up: stop the server, delete every `SU*` key from the
+   `ai.workitjobs.autoapply` defaults, and delete the test app and DMG.
+
 ## Still open
 
 - Step 2: Developer ID signing with the hardened runtime and the
   entitlements for Node (JIT) and Apple events, then notarizing the app
-  and the DMG.
-- Step 3: Sparkle, its EdDSA key, and the feed on R2.
-- Step 4: the DMG's upload and `DOWNLOAD_URL`, after W0, W6 and W7.
+  and the DMG, in `publish-app.yml`, with their secrets in the
+  `auto-apply-desktop` environment.
+- Step 3: a beta channel for testers is not built. Sparkle and the update
+  key are in every build (2026-11-26).
+- Step 4: publishing (above) is built, and nothing is published yet: the
+  workflow's first run on a GitHub Mac waits on KAN-941's merge. The
+  website's `DOWNLOAD_URL`
+  (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`) stays null
+  until step 2, since until then the DMG opens on no other Mac; then it is
+  `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
 - `worker-extension/` leaves `INPUTS` with W6.
 - W11: `student.app` still copies the Test Person sample, which the app no
   longer ships, into a data folder with no Applicant profile, so such a

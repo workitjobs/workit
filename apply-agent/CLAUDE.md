@@ -629,10 +629,11 @@ Any teammate's Mac builds the same app: it needs only Xcode's Command Line
 Tools, uv and the network, and any `python3` runs the script, macOS's own
 3.9 too (standard library only; checked 2026-11-21 in an empty environment
 with only the system folders and uv on the `PATH`).
-Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
-so it opens on the Mac that built it and nowhere else. Signing and
-notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
-notices strict (above).
+The app has only the compiler's ad-hoc signature, so it opens on the Mac
+that built it and nowhere else until step 2 (Developer ID and
+notarizing). Sparkle (step 3) is in every build. A developer's Mac makes
+test builds; releases come from `../.github/workflows/publish-app.yml` on a
+GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
 
 - **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
   in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
@@ -738,6 +739,36 @@ notices strict (above).
   and stood about a quarter bigger). The build makes the `.icns` from it
   with `sips` and `iconutil` (`make_icon`). `src/apply/Apply.icns` is the
   developer's Dock icon (`dock_app`) and stays out of the app (`LEAVE_OUT`).
+- **Updates are Sparkle 2.10.1** (W8 step 3, KAN-941). The build
+  downloads the pinned release once into `build/sparkle-2.10.1/`, checked
+  against `SPARKLE_SHA256` (its `bin/` holds `generate_keys` and
+  `sign_update`), and puts `Sparkle.framework` in `Contents/Frameworks`
+  without the XPC services (for sandboxed apps only), headers and module
+  maps. It writes the settings: `SUFeedURL` (`FEED`,
+  `https://downloads.workitjobs.ai/appcast.xml`), `SUPublicEDKey`
+  (`SPARKLE_PUBLIC_KEY`, made on 2026-11-26), checks and installs with no
+  question asked, and the EdDSA check before unpacking. **Never change
+  `FEED` or `SPARKLE_PUBLIC_KEY`:** every app keeps both for good, so after
+  a change no installed app updates again. `apply.updates` starts Sparkle's
+  updater once the run loop runs, in a built app with the framework and
+  the key; a run from source starts none. A new Sparkle version changes
+  `SPARKLE_SHA256` and `legal/licenses/Sparkle-LICENSE.txt` in the same PR.
+  Tested end to end on 2026-11-24 (`docs/app-build.md`, "Test an update"):
+  an older build installed a newer one on quit, and refused one that
+  another key signed.
+- **`scripts/publish_app.py` signs a release for Sparkle** (W8 step 4,
+  KAN-941), run by `publish-app.yml` with the update key in
+  `SPARKLE_PRIVATE_KEY` (`../.github/CLAUDE.md`, Publish WorkIt Auto
+  Apply). It writes the DMG under its build's own name and the feed (one
+  item, the newest build), and it refuses three things every app would
+  silently fail on: a test build (`WorkItRelease` false: it can hold
+  untracked files and incomplete notices), a key whose signature the
+  app's `SUPublicEDKey` rejects (checked with `cryptography`, as an app
+  checks it), and a feed that ElementTree can't read or that offers
+  another file. **It keeps `sign_update`'s output out of the log:** on a
+  failure it prints its own message, because `sign_update`'s error repeats
+  the key it was given. The key reaches `sign_update` on stdin only, and
+  the script removes it from its own environment first.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher
   than the app's, and `pyproject.toml`'s version, the one the student sees
