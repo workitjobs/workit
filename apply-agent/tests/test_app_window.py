@@ -444,7 +444,7 @@ def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, t
 
 
 def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
-    """Fault: a run that ignores the Worker count (D24: one to three), shows no window of its own, or leaves its plain
+    """Fault: a run that ignores the Worker count (D24: one to four), shows no window of its own, or leaves its plain
     Workers' Chromes running after it, or lets the Mac sleep mid-run."""
     from contextlib import contextmanager, nullcontext
     from types import SimpleNamespace

@@ -96,6 +96,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
         assert settings.inner_text("#workers-auto") == "Automatic (2 for this Mac)"
+        assert settings.locator("#workers option").all_inner_texts()[1:] == ["1", "2", "3", "4"]  # four by choice
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
         assert settings.is_checked("#best")
         assert settings.inner_text("#claude-login") == "Claude signs in with your setup token in Keychain."
