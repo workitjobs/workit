@@ -1339,14 +1339,22 @@ def _press_option(option: Locator) -> None:
         option.evaluate(PRESS, timeout=OPENS_MS)
 
 
+# A choice that names its code and then what the code is for: Oracle's phone "+1 (United States)", whose box then
+# shows only "+1" (its optionDisplayLabel).
+CODE_AND_NAME = re.compile(r"^(\S+)\s+\([^()]+\)$")
+
+
 def _shows_choice(combobox, choice: str) -> bool:
     """Whether the dropdown, or the field it sits in, shows the choice: a box's own value too (Oracle's cx-select
-    shows the choice in its input, which no innerText holds)."""
+    shows the choice in its input, which no innerText holds), or that value as the code of a choice "<code>
+    (<name>)" (BGC's phone country code, live 2026-11-27: read as unpicked, it went to Claude each round)."""
     try:
-        shown = combobox.evaluate(FIELD_TEXT) + "\n" + (combobox.evaluate("el => el.value || ''") or "")
+        value = (combobox.evaluate("el => el.value || ''") or "").strip()
+        shown = combobox.evaluate(FIELD_TEXT) + "\n" + value
     except Exception:
         return False
-    return any(line.strip() == choice for line in shown.splitlines())
+    coded = CODE_AND_NAME.match(choice.strip())
+    return any(line.strip() == choice for line in shown.splitlines()) or bool(coded and value and coded[1] == value)
 
 
 def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:

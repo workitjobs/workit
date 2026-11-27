@@ -37,6 +37,22 @@ The page's script stands in for Oracle's Knockout: an option takes a click event
   <div id="address-form" class="address-form"></div>
 </fieldset>
 
+<div class="input-row input-row--has-picker">
+  <label class="input-row__label input-row__label--required" for="country-codes-dropdownphoneNumber" id="phoneNumberGroupLabel">
+    <span class="input-row__linebreak" id="labelText-phoneNumber-23">Phone Number</span></label>
+  <div class="input-row__control-container">
+    <div class="input-row-composite__inputs phone-row" role="group" aria-labelledby="phoneNumberGroupLabel">
+      <div class="cx-select-container"><span id="inputFieldLabel-country-codes-dropdownphoneNumber" class="input-field__label">Country code</span><input
+        autocomplete="none" name="phoneNumber" id="country-codes-dropdownphoneNumber" type="text" role="combobox"
+        aria-autocomplete="list" aria-haspopup="listbox" aria-controls="country-codes-dropdownphoneNumber-listbox"
+        aria-expanded="false" aria-labelledby="labelText-undefined inputFieldLabel-country-codes-dropdownphoneNumber"
+        class="cx-select-input" value="" data-shows="code"
+        data-options='["+1 (Canada)", "+44 (United Kingdom)", "+94 (Sri Lanka)", "+1 (United States)"]'></div>
+      <input type="tel" class="input-row__control phone-row__input" autocomplete="tel-national" aria-label="Phone Number">
+    </div>
+  </div>
+</div>
+
 <h2 class="apply-flow-section__trainstop-name">More About You</h2>
 <div class="input-row input-row--radiogroup" role="group" aria-labelledby="ethnicity-label">
   <label class="input-row__label" id="ethnicity-label"><span class="input-row__linebreak">Ethnicity</span></label>
@@ -121,7 +137,7 @@ function draw(box) {
     const option = document.createElement('div');
     option.setAttribute('role', 'option');
     option.className = 'cx-select__list-item';
-    option.setAttribute('aria-selected', String(box.value === name || picked.includes(name)));
+    option.setAttribute('aria-selected', String((box.dataset.chosen || box.value) === name || picked.includes(name)));
     option.innerHTML = '<span class="cx-select__list-item--content"><span class="highlight"></span><span></span></span>';
     option.querySelector('span span:last-child').textContent = name;
     option.addEventListener('click', () => choose(box, name));
@@ -136,7 +152,8 @@ function choose(box, name) {
     pills.lastElementChild.textContent = name;
     return;  // a multi-select's list stays open
   }
-  box.value = name;
+  box.dataset.chosen = name;
+  box.value = box.dataset.shows === 'code' ? name.split(' (')[0] : name;  // its optionDisplayLabel: "+1"
   box.dispatchEvent(new Event('change', {bubbles: true}));
   shut();
   if (box.id === 'country-29') addressFields(name);
