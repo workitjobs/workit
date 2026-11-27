@@ -117,7 +117,7 @@ SECTION_COUNT = re.compile(r"^(work experience|education) \(entries\)$", re.IGNO
 MAX_ADDS = 10  # a guard against a loop: no form's sections take more entries
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
-    r"\bthanks? (you )?for (applying|your (application|submission)|submitting)\b"
+    r"\bthanks? (you )?for (applying|your (job )?(application|submission)|submitting)\b"
     r"|\b(application|submission) (has been |was |is )?(received|submitted|sent|complete)\b"
     r"|\b(we('ve| have)|we) received your application\b|\bsuccessfully (submitted|applied|sent)\b",
     re.IGNORECASE,
