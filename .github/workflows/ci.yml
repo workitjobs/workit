@@ -299,6 +299,7 @@ jobs:
             tests/test_matches.py \
             tests/test_network_block.py \
             tests/test_notification.py \
+            tests/test_opinion_questions.py \
             tests/test_optional_ask.py \
             tests/test_other_roles.py \
             tests/test_outside_us.py \
