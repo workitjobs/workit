@@ -75,9 +75,13 @@ class LoggedOut(ClaudeError, SetupError):
     """`claude -p` failed because the claude CLI isn't logged in."""
 
 
-# What the claude CLI says when it has no login (seen live: "Not logged in · Please run /login").
-# Opus's classifier refusing a normal form (Neros, Mach Industries, 2026-11-25): Sonnet answers it.
+# Opus's classifier refusing a normal form (Neros, Mach Industries, 2026-11-25): Sonnet answers it, with the
+# posting's description cut to TRIMMED characters when the call carries one (a defense posting's own words, say).
 SAFEGUARDS = re.compile(r"safeguards flagged this message", re.IGNORECASE)
+TRIMMED = 1500
+# The history line, on the tile and in the Record, of a fill one of whose calls Opus refused (refused()).
+REFUSED = "Opus's safeguards refused {}, so Sonnet answered it"
+# What the claude CLI says when it has no login (seen live: "Not logged in · Please run /login").
 LOGGED_OUT = re.compile(r"not logged in|please run /login|invalid api key|not signed in", re.IGNORECASE)
 LOG_IN = "run `claude auth login` (or `claude`, then /login) in a terminal, then try again"
 INSTALL = ("the claude CLI isn't installed or isn't on PATH: install Claude Code (https://claude.com/claude-code), "
@@ -204,17 +208,28 @@ class ClaudeCLI:
         model, built = local_prompts.build(kind, data, best=first_run.best_model())
         if model == local_prompts.BEST:
             model = self._best_or_sonnet(kind)
-        return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema, kind=kind)
 
-    def ask(self, *, model: str, system: str, prompt: str, schema: dict, kind: str = "ask") -> dict:
-        """`kind` names the call in its usage (apply.usage)."""
+        def trimmed() -> tuple[str, str]:
+            again = local_prompts.build(kind, _trimmed(data), best=first_run.best_model())[1]
+            return again.system, again.prompt
+        return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema, again=trimmed,
+                        kind=kind)
+
+    def ask(self, *, model: str, system: str, prompt: str, schema: dict,
+            again: Callable[[], tuple[str, str]] | None = None, kind: str = "ask") -> dict:
+        """One call. Opus's safeguards refusing it, it goes once more on Sonnet, with `again`'s system and prompt
+        (ask_kind's: the posting's description cut short) when given; refused() keeps `kind` for the Record. `kind`
+        names the call in its usage (apply.usage) too."""
         try:
             result = self._result(_events(self._run(_argv(model, system, schema), prompt, _env())))
         except ClaudeError as error:
             if model != "opus" or not SAFEGUARDS.search(str(error)):
                 raise
-            trace.event("claude", block="safeguards", model=model, why=str(error))
+            trace.event("claude", block="safeguards", model=model, prompt_kind=kind, why=str(error))
+            self._spent.refused = [*self.refused(), kind or "a call"]
             model = "sonnet"  # once: a second refusal is the call's error
+            if again:
+                system, prompt = again()
             result = self._result(_events(self._run(_argv(model, system, schema), prompt, _env())))
         self._spend(sum((result.get("usage") or {}).get(k) or 0 for k in TOKENS))
         used = usage.add(kind, model, result.get("usage"))
@@ -238,6 +253,10 @@ class ClaudeCLI:
 
     def spent(self) -> int:
         return getattr(self._spent, "tokens", 0)
+
+    def refused(self) -> list[str]:
+        """The kind of each of this thread's calls that Opus's safeguards refused and Sonnet answered, in order."""
+        return list(getattr(self._spent, "refused", ()))
 
     def _spend(self, tokens: int) -> None:
         self._spent.tokens = self.spent() + tokens
@@ -265,13 +284,20 @@ class ClaudeCLI:
             else:
                 server = {"command": shutil.which("npx") or "npx", "args": [
                     "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit"]}
-            argv = _argv(model, system, schema, extra=[
+            argv = lambda model: _argv(model, system, schema, extra=[
                 "--mcp-config", json.dumps({"mcpServers": {"playwright": server}}),
                 "--allowedTools", ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS),
                 "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
                 "--settings", send_click.settings(sys.executable, hook),  # a click on the button that sends is refused
             ])
-            return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens, "drive", model)
+            try:
+                return self._session(argv(model), prompt, _env(), Path(folder), max_turns, max_tokens, "drive", model)
+            except ClaudeError as error:  # Ask Claude's Opus drive (apply.ask): once more on Sonnet, as ask() does
+                if model != "opus" or not SAFEGUARDS.search(str(error)):
+                    raise
+                trace.event("claude", block="safeguards", model=model, prompt_kind="drive", why=str(error))
+                self._spent.refused = [*self.refused(), "a drive on the form"]
+                return self._session(argv("sonnet"), prompt, _env(), Path(folder), max_turns, max_tokens, "drive", "sonnet")
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
                  max_tokens: int) -> Drive:
@@ -394,6 +420,17 @@ class ClaudeCLI:
                 limited=info.get("status") == "rejected",
                 resets_at=_time(info.get("resetsAt")),
             )
+
+
+def _trimmed(data: dict) -> dict:
+    """`data` with its posting's description cut to TRIMMED characters, its <posting> block's head kept whole."""
+    def cut(text: str) -> str:
+        head, mark, body = text.partition("<description>\n")
+        if not mark:
+            return text[:TRIMMED]
+        body, end, tail = body.partition("\n</description>")
+        return head + mark + (body[:TRIMMED] + "\n(cut)" if len(body) > TRIMMED else body) + end + tail
+    return {k: cut(v) if k in ("posting", "posting_text") and isinstance(v, str) else v for k, v in data.items()}
 
 
 # What a turn's usage counts toward a drive's cap.

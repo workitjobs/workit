@@ -280,6 +280,35 @@ def test_each_filled_rehearsal_keeps_its_record_in_a_local_folder(tmp_path):
     assert server.submissions == []
 
 
+class RefusedOnce(FakeClaude):
+    """Opus's safeguards refused the essay write, and Sonnet answered it (claude_cli.ClaudeCLI.refused)."""
+
+    def __init__(self, **given):
+        super().__init__(**given)
+        self._refused = threading.local()
+
+    def refused(self) -> list[str]:
+        return list(getattr(self._refused, "kinds", ()))
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if kind == "essays.write":
+            self._refused.kinds = [*self.refused(), kind]
+        return super().ask_kind(kind, data)
+
+
+def test_a_call_opus_refused_and_sonnet_answered_is_said_in_the_fills_record(tmp_path):
+    """Fault: Mach Industries' (run11) refusal, once Sonnet answers it, leaving no word of it in the Record."""
+    claude = RefusedOnce(driver=BambooDriver(), essays={"Tell us why": "I build lunar rover software."})
+    records = FolderRecords(tmp_path / "rehearsals")
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path), claude, records=records)
+
+    said = "Opus's safeguards refused essays.write, so Sonnet answered it"
+    assert [line.split(" ", 1)[1] for line in done.history] == [said]
+    assert said in (Path(done.record) / "README.md").read_text()
+
+
 # A pasted link on a job system with no Filler names neither company nor role:
 # the form's own page does, by its title (Jobvite's and Paylocity's, live).
 PAGE_NAMED = {
