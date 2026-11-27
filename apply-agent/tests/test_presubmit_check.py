@@ -7,7 +7,7 @@ import pytest
 from apply import fill_engine
 from apply.fill_engine import readback_problems
 from apply.model import Posting, Question
-from apply.presubmit import replan, review
+from apply.presubmit import fix, replan, review
 
 INTERESTS = Question("cards[a][field0]", "Areas of interest", "multi_select",
                      options=("Embedded Development", "Full-Stack Development", "Machine Learning"))
@@ -210,6 +210,41 @@ def test_a_fix_with_no_problem_is_no_fix():
     found = review(claude, Posting("a", "Acme", "Intern", "https://boards.greenhouse.io/acme/jobs/1"), [start], {"from": "08/01/2024"})
 
     assert found == [] and found.fixes == {}
+
+
+STATE = Question("_systemfield_location", "Which state do you currently reside in?", "text", True)
+ABRIDGE = Posting("ab", "Abridge", "Intern", "https://jobs.ashbyhq.com/abridge/1")
+TOO_MUCH = "Which state do you currently reside in?: answer gives city, state and country instead of just the state"
+
+
+def test_the_fix_gives_the_answer_for_a_problem_the_review_gave_none_for():
+    # Abridge (live, 2026-11-26): the review held the state's answer as too much detail, with no fix, and it
+    # reached the student. The fix call sends the problem with the rows the review read, and its answer comes back.
+    claude = FindsSomeFine({"fixes": [{"question": "'Which state do you currently reside in?'", "answer": "New York"},
+                                      {"question": "A question not on the form", "answer": "Yes"}], "yours": []})
+
+    fixed = fix(claude, ABRIDGE, [STATE], {STATE.name: "Riverton, New York, United States"}, [TOO_MUCH], "<profile/>")
+
+    assert fixed.fixes == {STATE.label: "New York"} and fixed.yours == {}
+    [sent] = claude.sent
+    assert sent["problems"] == [TOO_MUCH] and sent["sources"] == "<profile/>"
+    assert sent["rows"] == [{"question": STATE.label, "answer": "Riverton, New York, United States"}]
+
+
+def test_a_fix_that_needs_the_applicants_own_fact_is_theirs_never_a_guess():
+    claude = FindsSomeFine({"fixes": [{"question": STATE.label, "answer": "New York"}],
+                            "yours": [{"question": STATE.label, "why": "no state is on file"}]})
+
+    fixed = fix(claude, ABRIDGE, [STATE], {STATE.name: "Riverton"}, [TOO_MUCH])
+
+    assert fixed.fixes == {} and fixed.yours == {STATE.label: "no state is on file"}
+
+
+def test_no_problem_asks_for_no_fix():
+    claude = FindsSomeFine({"fixes": [], "yours": []})
+
+    assert fix(claude, ABRIDGE, [STATE], {STATE.name: "New York"}, []) == ({}, {})
+    assert claude.sent == []
 
 
 # The review reads no policies.yaml, so it called a pay answer the `compensation` policy gave unbacked (Relay, live

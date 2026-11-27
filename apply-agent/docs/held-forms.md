@@ -59,18 +59,26 @@ reads: it does not click, type or submit.
   already made and a session hold (apply.keepalive) still refuse it.
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
-  Apply fills that answer in place of the wrong one (`_Planned.fix`). It
-  then fills the form again, in a fresh page, and reviews it again, all
-  before the window shows the form as ready. It does this once. A fix
-  replaces only Claude's guesses (its drafts, and its drafts the Answer
-  bank gave back). It never replaces an answer from the profile, Lisul's
-  own answer, an essay, a file or a secret, with two exceptions: a legal
-  or eligibility choice (`verify.LEGAL`), and, on the first review, a
-  choice whose review reason rests on the profile ("the profile says
-  ..."). The second is a trial: kept only if the second review passes it,
-  else the plan's answer is filled again (`_Planned.unfix`) and the
-  problem holds the form (Pylon's relocate, CesiumAstro's GPA,
-  2026-11-26). A
+  For a finding it gives no answer for, Apply asks for one itself
+  (`presubmit.fix`, WorkIt's `presubmit.fix` kind): the same rows and
+  sources, and for each problem the answer to enter, or "yours" when only
+  the applicant knows the fact. Apply fills that answer in place of the
+  wrong one (`_Planned.fix`). It then fills the form again, in a fresh
+  page, reads it back and reviews it again, all before the window shows
+  the form as ready. It does this up to twice (`worker.SELF_FIXES`); what
+  is still wrong then reaches Needs you. Each fix is listed in the
+  window's "fixed" and in the Record's verification. A fix replaces
+  Claude's guesses (its drafts, and its drafts the Answer bank gave back).
+  It replaces an answer from the profile only when it narrows it
+  (`worker._narrows`: Abridge's "New York" for the city, state and country
+  its state question was given), so it states no new fact, with two more
+  exceptions: a legal or eligibility choice (`verify.LEGAL`), and, on the
+  first review, a choice whose review reason rests on the profile ("the
+  profile says ..."). The second is a trial: kept only if the next review
+  passes it, else the plan's answer is filled again (`_Planned.unfix`) and
+  the problem holds the form (Pylon's relocate, CesiumAstro's GPA,
+  2026-11-26). It never replaces Lisul's own answer, an essay, a file or a
+  secret. A
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills

@@ -1108,7 +1108,7 @@ def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters:
         saved = Record(rehearsed.posting, result.status, _record_reason(rehearsed), filled, adapters.clock.now().date(),
                        result.essay, result.drafted, result.named_facts,
                        result.verification.as_json() if result.verification else None, rehearsed.history,
-                       usage=rehearsed.usage or None, briefs=result.briefs)
+                       usage=rehearsed.usage or None, briefs=result.briefs, fixed=result.fixed)
         rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
         for summary in shown:
             summary.record, summary.saved = rehearsed.record, saved

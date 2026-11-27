@@ -562,7 +562,9 @@ class FakeClaude:
                  sent: bool | Exception = False, facts: dict | None = None, brief: list[dict] | dict | None = None,
                  team: str = "", team_brief: list[dict] | dict | None = None, named: dict[str, str] | None = None,
                  story_map: list[dict] = (), plans: list[dict[str, dict]] = (),
-                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = ()):
+                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = (),
+                 fixes: list[dict] = ()):
+        self._fixes = list(fixes)  # each fix call's answer, in order (presubmit.fix): none, unless given
         self._repairs = repairs or {}
         self._picks = list(picks)  # the generic Filler's picks, in order (generic_fill.pick, generic_fill.next)
         self._typical = typical or {}
@@ -621,6 +623,8 @@ class FakeClaude:
         if kind == "presubmit.review":  # its problems, or a dict of them with the fixes it gives
             found = self._reviews.pop(0) if self._reviews else []
             return found if isinstance(found, dict) else {"problems": found}
+        if kind == "presubmit.fix":
+            return self._fixes.pop(0) if self._fixes else {"fixes": [], "yours": []}
         if kind == "presubmit.replan":
             return {"replanned": {key: {"answer": next((a for start, a in self._replans.items()
                                                         if field["question"].startswith(start)), "")}

@@ -695,7 +695,7 @@ def keep_record(adapters: Adapters, posting: Posting, result: Result, today: dat
         return "", result.reason
     try:
         record = Record(posting, result.status, result.reason, result.filled, today, drafted=result.drafted,
-                        named_facts=result.named_facts, briefs=result.briefs,
+                        named_facts=result.named_facts, fixed=result.fixed, briefs=result.briefs,
                         verification=result.verification.as_json() if result.verification else None)
         return adapters.records.save(record), result.reason
     except Exception as e:

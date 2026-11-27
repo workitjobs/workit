@@ -537,6 +537,61 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
     assert fake.submissions == []
 
 
+TOO_MUCH = "Last Name: gives a middle name too, which the question doesn't ask for"
+TWO_NAMES = {"identity.legal_last_name": "Quinn Person"}
+
+
+def test_apply_fixes_a_review_problem_the_review_gave_no_fix_for_before_the_form_shows_as_ready(monkeypatch, tmp_path):
+    # Abridge (live, 2026-11-26): the review held a profile answer as more than its question asks, with no fix, and
+    # it reached Needs you. Apply asks for the fix, fills it, reads the form back and reviews it again: a fix that
+    # only narrows the profile's answer states no new fact, so it goes in over it.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[[TOO_MUCH]], fixes=[{"fixes": [{"question": "Last Name", "answer": "Person"}], "yours": []}])
+    records, board = FolderRecords(tmp_path / "rehearsals"), RecordingBoard()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path, **TWO_NAMES), claude, records=records, board=board)
+
+    assert done.outcome == "ready to submit", done.why
+    assert "Pre-submit review" not in done.why
+    shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
+    assert shown["Last Name"] == "Person"
+    assert board.captions[0]["fixed"] == [{"question": "Last Name", "was": "Quinn Person", "now": "Person"}]
+    assert "## Fixed before submit" in (readme := (Path(done.record) / "README.md").read_text())  # the Record logs it
+    assert "- Last Name: Quinn Person → Person" in readme
+    [asked] = [k["data"] for k in claude.kinds if k["kind"] == "presubmit.fix"]
+    assert asked["problems"] == [TOO_MUCH]
+    assert [k["kind"] for k in claude.kinds].count("presubmit.review") == 2  # reviewed again after the fix
+    assert fake.submissions == []
+
+
+def test_a_self_fix_that_states_a_new_fact_is_never_filled_over_the_profiles(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[["First Name: not his name"]],
+                        fixes=[{"fixes": [{"question": "First Name", "answer": "Someone"}], "yours": []}])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert "Pre-submit review: First Name: not his name" in done.why
+    assert [k["kind"] for k in claude.kinds].count("presubmit.review") == 1
+    assert fake.submissions == []
+
+
+def test_a_problem_still_there_after_two_self_fixes_reaches_the_student(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    narrower = [{"fixes": [{"question": "Last Name", "answer": answer}], "yours": []} for answer in ("Quinn Person", "Person")]
+    claude = FakeClaude(reviews=[[TOO_MUCH]] * 3, fixes=narrower)
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path, **{"identity.legal_last_name": "Ann Quinn Person"}), claude)
+
+    assert f"Pre-submit review: {TOO_MUCH}" in done.why
+    kinds = [k["kind"] for k in claude.kinds]
+    assert (kinds.count("presubmit.fix"), kinds.count("presubmit.review")) == (2, 3)
+    assert fake.submissions == []
+
+
 def test_a_legal_problem_the_review_gives_no_fix_for_holds_submit_until_lisul_dismisses_it(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     problem = 'The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen'
