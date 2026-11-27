@@ -1030,7 +1030,8 @@ class _Planned:
             writer = "Claude wrote" if self._approved is None else "The approved Essay column has"
             return [f"{writer} nothing for '{one_line(q.label)}'"]
         holds = []
-        if high_stakes and self._approved is None:
+        # Lifted with hold_high_stakes_essays: false (the Safety level's full_auto); the truth checks below still hold it.
+        if high_stakes and self._approved is None and self.profile.policy("hold_high_stakes_essays") is not False:
             holds.append(f"High-stakes essay: '{one_line(q.label)}'")
         if essay.needs_lisul:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
