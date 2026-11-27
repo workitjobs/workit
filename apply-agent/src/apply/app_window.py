@@ -42,6 +42,7 @@ form only once the student approves it (ADR 0006).
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
+import atexit
 import base64
 import html
 import json
@@ -1002,21 +1003,33 @@ def _guard_closes(window, bridge: Bridge) -> None:
         time.sleep(CLOSE_GUARD_EVERY)
 
 
+# The signals that quit the app as its window's close does. Ctrl-C in its terminal (SIGINT) aborted it inside Cocoa as
+# SIGTERM did, and a closed terminal (SIGHUP) ended it at once: neither ran a `finally`, so its Workers' Chromes stayed.
+QUITS = tuple(getattr(signal, name) for name in ("SIGTERM", "SIGINT", "SIGHUP") if hasattr(signal, name))
+
+
 def closing(window) -> None:
-    """`kill <pid>` closes the window, so webview.start returns and each `finally` stops what it started. The CLI's own
+    """`kill <pid>`, Ctrl-C or a closed terminal (QUITS) closes the window, so webview.start returns and each `finally` stops what it started. The CLI's own
     SIGTERM raises KeyboardInterrupt, which lands inside a Cocoa callback here: PyObjC turns it into an Objective-C
     exception and macOS aborts the app ("python quit unexpectedly"). A Python handler only runs once the main thread
-    runs Python, and Cocoa's run loop may not for a long while, so the signal wakes a thread of its own instead."""
+    runs Python, and Cocoa's run loop may not for a long while, so the signal wakes a thread of its own instead. A
+    second QUITS while it closes ends the app at once."""
     if threading.current_thread() is not threading.main_thread():
         return
     read, write = os.pipe()
     os.set_blocking(write, False)
-    signal.signal(signal.SIGTERM, lambda signum, frame: None)  # no KeyboardInterrupt: the thread below closes
+    for number in QUITS:  # no KeyboardInterrupt: the thread below closes
+        signal.signal(number, lambda signum, frame: None)
     signal.set_wakeup_fd(write)
 
     def close() -> None:
-        while os.read(read, 1) != bytes([signal.SIGTERM]):
+        while os.read(read, 1)[0] not in QUITS:
             pass
         window.destroy()
+        # A second one while it closes (a stuck window, a slow stop): end now, the Chromes stopped first (atexit).
+        while (number := os.read(read, 1)[0]) not in QUITS:
+            pass
+        atexit._run_exitfuncs()
+        os._exit(128 + number)
 
     threading.Thread(target=close, daemon=True, name="close-on-kill").start()

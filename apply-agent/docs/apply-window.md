@@ -117,6 +117,12 @@ docstring first.
   reads it; on a Mac the question's words are read before that event, so a
   thread sets them again each `CLOSE_GUARD_EVERY`. The count is
   `Dashboard.held`: each tile whose page is held (`again`), not submitted.
+- `kill <pid>`, Ctrl-C in its terminal and a closed terminal (`QUITS`)
+  close the window as its own close does (`closing`), so each `finally`
+  stops the run's Workers' Chromes. Without it, Ctrl-C aborted the app
+  inside Cocoa and SIGHUP ended it at once, and their Chromes stayed open
+  (`docs/plain-workers/guide.md`, "Any exit"). A second one while it
+  closes ends the app at once, after the atexit sweep stops the Chromes.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
