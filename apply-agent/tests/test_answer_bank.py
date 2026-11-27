@@ -5,7 +5,7 @@ from datetime import date
 
 import yaml
 
-from apply import fill_engine
+from apply import fill_engine, home
 from apply.answer_bank import AnswerBank
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
@@ -257,6 +257,23 @@ def test_a_draft_keeps_the_facts_it_drew_on_and_one_with_none_names_none(tmp_pat
     assert "facts" not in saved[HEARD.label.casefold()]
     assert AnswerBank(path).get(SAMPLES.label).facts == ("links.github_url",)
     assert AnswerBank(path).get(HEARD.label).facts == ()
+
+
+def test_a_draft_whose_story_bank_fact_was_taken_out_is_no_answer_and_is_drafted_again(tmp_path):
+    # Fault: a draft drawn on a Story bank line Lisul removed still answers forms (ENFOS, 2026-11-26).
+    fact = "- Fill engine (his alone): one TypeScript engine that reads a job's application form."
+    home.STORY_BANK.write_text(f"## Projects\n{fact}\n")
+    path = tmp_path / "answer-bank.yaml"
+    bank = AnswerBank(path)
+    bank.add(HEARD, "Through my own form-filling engine.", "Zipline", DAY, facts=[fact, "links.github_url"])
+    bank.answer(SAMPLES.label, "Yes", DAY)
+    assert bank.get(HEARD.label).answer == "Through my own form-filling engine."
+
+    home.STORY_BANK.write_text("## Projects\n- Micromouse firmware.\n")
+
+    assert bank.get(HEARD.label) is None and [e.question for e in bank.entries()] == [SAMPLES.label]  # Lisul's own stays
+    assert bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
+    assert AnswerBank(path).get(HEARD.label).answer == "From the Simplify list."
 
 
 def test_none_of_a_multi_selects_options_is_an_answer(tmp_path):

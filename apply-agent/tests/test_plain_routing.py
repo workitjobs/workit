@@ -164,6 +164,9 @@ def test_a_reused_plain_worker_rehearses_twice_with_its_guards_reset(monkeypatch
     site, fake = fake_site
     filler = NeverSubmits(GreenhouseFiller())
     monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    # A rehearsal stops a Chrome no form holds once its link ends (PlainSite.release, test_plain_window_close.py);
+    # kept up here, as a held form's Worker is, so the next form reuses it.
+    monkeypatch.setattr(site, "release", lambda worker: [])
     [first] = rehearse([ARC_URL], site, profile_with(tmp_path))
     pid = site.workers.running[0].pid
     connection = site.workers.running[0].connection

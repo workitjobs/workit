@@ -146,6 +146,22 @@ def test_any_other_failure_is_an_error():
         ask(ClaudeCLI(run=FakeRun("Error: claude not signed in\n")))
 
 
+FLAGGED = ('{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: Opus 5.5\'s safeguards flagged '
+           'this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations."}\n')
+
+
+def test_an_opus_call_its_safeguards_refuse_is_asked_once_more_on_sonnet():
+    run = FakeRun(FLAGGED, recorded("answer"))
+
+    answer = ClaudeCLI(run=run).ask(model="opus", system="Reply in JSON.", prompt="Plan the essay.", schema=SCHEMA)
+
+    assert answer == {"answer": "yes"} and [flag(argv, "--model") for argv, _, _ in run.calls] == ["opus", "sonnet"]
+    with pytest.raises(ClaudeError, match="safeguards"):  # only once, and only Opus
+        ClaudeCLI(run=FakeRun(FLAGGED, FLAGGED)).ask(model="opus", system="", prompt="", schema=SCHEMA)
+    with pytest.raises(ClaudeError, match="safeguards"):
+        ask(ClaudeCLI(run=FakeRun(FLAGGED)))
+
+
 def test_reading_before_any_call_makes_one_tiny_call_to_learn_usage():
     run = FakeRun(recorded("answer"))
     claude = ClaudeCLI(run=run, now=lambda: BEFORE_RESETS)
@@ -489,3 +505,37 @@ def test_near_the_plans_limits_the_best_models_calls_drop_to_sonnet_and_say_so()
 
     assert [flag(argv, "--model") for argv, _, _ in run.calls] == ["sonnet", "sonnet", "opus"]
     assert claude_cli.dropped is None
+
+
+def test_each_call_counts_its_usage_under_its_stage():
+    # Fault: a call that adds no usage row, or one counted under the wrong stage, leaves the Record's usage.json
+    # without the tokens a prompt change is measured by.
+    from apply import usage
+
+    claude = ClaudeCLI(run=FakeRun(recorded("answer"), recorded("answer")),
+                       stream=FakeStream(recorded("drive").splitlines()), endpoint=lambda page: "http://127.0.0.1:9333")
+    before = usage.snapshot()
+
+    claude.ask(model="opus", system="s", prompt="p", schema=SCHEMA, kind="writing.check")
+    claude.ask(model="opus", system="s", prompt="p", schema=SCHEMA, kind="writing.check")
+    drive(claude, max_tokens=400_000)
+
+    used = usage.since(before)
+    assert used["check"] == {"calls": 2, "turns": 2, "input": 4, "output": 106, "cache_read": 0, "cache_write": 2_278,
+                             "models": {"opus": 2}}
+    assert used["fill"]["calls"] == 1 and used["fill"]["turns"] == 11 and usage.total(used["fill"]) == 152_412
+    assert usage.short(used) == "fill 152k, check 2k ×2"
+
+
+def test_a_session_stopped_at_its_cap_still_counts_its_usage():
+    # Fault: a research session past its cap returns before its usage is counted: the costliest stage reads as 0.
+    from apply import usage
+
+    claude = ClaudeCLI(stream=FakeStream([turn(1, 20_000), turn(2, 25_000), turn(3, 30_000), DONE]))
+    before = usage.snapshot()
+
+    done = claude.research(model="sonnet", system="s", prompt="p", schema=SCHEMA, max_turns=2, max_tokens=10**6)
+
+    assert done.capped
+    assert usage.since(before)["research"] | {"models": None} == {
+        "calls": 1, "turns": 3, "input": 30, "output": 300, "cache_read": 71_700, "cache_write": 2_970, "models": None}

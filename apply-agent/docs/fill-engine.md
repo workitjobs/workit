@@ -118,8 +118,11 @@ stays blank and unticked, and the form holds with a "Yours to tick:
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
 `src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
 or data consent ("I agree to the privacy policy", the terms of a company's
-privacy notice) still follows `tick_consent_when_true`, and one solely a
-background-check consent `willing_to_undergo_checks`. Anything more beside
+privacy notice, its personal data protection regulation) still follows
+`tick_consent_when_true`, and one solely a background-check consent
+`willing_to_undergo_checks`. A consent's own "Confirm" and "Deny" are its
+Yes and No (Minitab's), and a "Terms and Conditions" heading over a privacy
+consent is only the section's name (DV Trading's, 2026-11-26). Anything more beside
 it in its label or help text makes the whole box Lisul's: a second thing
 joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
 non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
@@ -155,6 +158,17 @@ one on its own. A review fix never replaces it. An "I understand" or "I
 confirm" of a statement about sponsorship or work status is an attestation
 too: before, the sponsorship rule answered JPMorgan's "I understand that
 JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
+
+Two policies the Safety level sets (both off when careful) answer two
+kinds the engine otherwise leaves to Lisul. `sign_self_id` (full_auto)
+fills a voluntary self-ID form's signature with the full name and its
+date with today's, MM/DD/YYYY (Lever's CC-305 Name and Date,
+`holds.selfIdSignature`); an optional one with no name is left blank, a
+required one goes on as an attestation. `tick_arbitration` (balanced and
+full_auto) ticks an arbitration, GDPR or privacy acknowledgment
+(`holds.legalAcknowledgment`) with its one affirming option, never one
+that also commits to anything else or accepts other terms. A certify-true
+statement keeps the rules above, and a bot check is never ticked.
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
@@ -195,10 +209,10 @@ holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
 
 An optional question whose rule reads a profile fact that the profile
-doesn't keep at all goes in `Plan.optional` (KAN-759). Apply asks it in
-Needs you with a Skip, and never holds the form for it
-(`docs/held-forms.md`). A fact the profile keeps empty is none: the field
-stays blank and is never asked. An empty answer in `answered_questions`
+doesn't keep at all is left blank (`NO_SOURCE`), or No for a Yes/No, and
+never asked (2026-11-26, replacing KAN-759's ask; `docs/held-forms.md`).
+`Plan.optional` is always empty. A fact the profile keeps empty is none:
+the field stays blank. An empty answer in `answered_questions`
 is Lisul's Skip: an optional question of that wording stays blank. Address
 Line 2 and 3 are blank when the home address has a first line and no such
 line. Tax District is `identity.home_address.tax_district`, else blank
@@ -234,6 +248,13 @@ multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
+
+A draft of Claude's whose `facts` name a Story bank line the bank no
+longer holds, word for word, is no answer (`answer_bank.stale`): the plan
+doesn't get it, and the question's next draft replaces it. Lisul took that
+fact out of the bank, so a draft drawn on it must not go on a form (ENFOS,
+2026-11-26). His own answers are never stale. The bank's text is read
+again whenever its file's mtime or size changes.
 
 Apply adds the Tracker to the facts that it gives the engine's plan
 (`fill_engine._facts`). Each company with a submitted Application, except
@@ -283,6 +304,10 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
+Lisul's answer that names a city the question's options or the Posting's
+Location line offer (ENFOS's "Willing to relocate to Durham or Chicago for
+the summer") is saved as `"<question> (<company> only)"` (the engine's
+`remember`), so it fills that company's forms and no other's.
 
 ## amazon.jobs (KAN-765)
 

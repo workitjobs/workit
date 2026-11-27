@@ -1585,6 +1585,9 @@ into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
 the run button moved into the header, and both lists became tables in the
 Applications list's frame (one white card, 12px grey headings, rules between
 rows), Live Activity with a Status filter and sorting kept in the URL.
+Filtered to Applied alone, it opens on Date Applied, latest first, as the
+Tracker's Applied does (`defaultSortFor`); any other view opens on the
+queue's order.
 KAN-359 put jobs first: Up Next, Ready to Queue and History, below.
 
 **The header holds no button** (asked for 2026-10-29, `auto-apply/
