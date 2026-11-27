@@ -40,7 +40,7 @@ export type App = Partial<{
   matches(filters: Filters): Promise<Match[]>;
   // Each form's screen newer than the number `seen` has for its tile, as a JPEG: what a Worker's Chrome shows.
   frames(seen: Record<number, number>): Promise<Frame[]>;
-  start(links: string[]): Promise<number>;
+  start(links: string[]): Promise<number>; // during a run, the links join it instead (Find jobs beside a run)
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;
@@ -59,7 +59,10 @@ export type Bridge = {
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
   letGo(id: string): Promise<void>; // Not applying to this one: its held form closes, unsubmitted
-  submit(id: string): Promise<void>; // Approve and submit: Apply presses the held form's Submit, once
+  // Approve and submit: Apply presses the held form's Submit, once. `override`: Send anyway, past the Pre-submit
+  // review's holds, for this reason (kept in the Record).
+  submit(id: string, override?: string): Promise<void>;
+  code(id: string, code: string): Promise<void>; // the code the job site emailed: Apply enters it and presses Submit
   cancelAuto(id: string): Promise<void>; // Cancel an Auto-submit countdown: the form waits for the student
   // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again. `newOnly`: no job
   // waiting starts, and every filled form stays open for the student.
@@ -140,7 +143,8 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     open: (worker) => post(`/show/${worker}`, {}),
     fillAgain: (id) => post("/fill-again", { id }),
     letGo: (id) => post("/let-go", { id }),
-    submit: (id) => post("/submit", { id }),
+    submit: (id, override) => post("/submit", override ? { id, override } : { id }),
+    code: (id, code) => post("/code", { id, code }),
     cancelAuto: (id) => post("/auto-cancel", { id }),
     stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),

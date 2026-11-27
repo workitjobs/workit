@@ -58,8 +58,11 @@ test("a brought screener answers what WorkIt can't", async () => {
   const withIt = await planned("greenhouse-datacor", BROUGHT);
   const asked = "Have you worked for Datacor or a subsidiary (TrackAbout, Chemstations, Format Solutions, AFT, etc) previously?";
 
-  expect(without.prepared.plan.missing.map((q: any) => q.label)).toContain(asked);
-  expect(withIt.labels[asked]).toBe("No");
+  const name = (p: { prepared: any }) => p.prepared.questions.find((q: any) => q.label === asked)?.name;
+
+  // Without it, a tie the profile doesn't record is assumed not to exist: No, as a guess (engine v0.3.51).
+  expect([without.labels[asked], without.prepared.plan.sources[name(without)]]).toEqual(["No", "guessed"]);
+  expect([withIt.labels[asked], withIt.prepared.plan.sources[name(withIt)]]).toEqual(["No", "profile"]);
 });
 
 test("brought policies reach the Plan over WorkIt's own", async () => {

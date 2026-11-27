@@ -278,6 +278,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Claude couldn't delete (`entries_kept`) holds the form: "Verify: Remove this entry, which your profile
   doesn't list: ..." (`ClaudeFill.extra_entries`, `worker.EXTRA_ENTRY`). Verifying holds a section read back
   with more entries than planned too (`docs/held-forms.md`).
+- A work section with fewer entries than planned has its add button pressed by plain code, by the name Claude
+  gives it (`add_button`, `steps._the_add`, KAN-728). Where several visible buttons share that name
+  (SmartRecruiters' "Add" in Experience and in Education, live 2026-11-27), the one pressed is the one whose
+  part of the page (the widest around it with no other such button) has an aria-label or first heading with a
+  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff.
 
 ## Form pages
 
