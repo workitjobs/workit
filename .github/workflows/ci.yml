@@ -337,6 +337,7 @@ jobs:
             tests/test_temp_state.py \
             tests/test_third_party_notices.py \
             tests/test_strip_js_comments.py \
+            tests/test_todo_scan.py \
             tests/test_todos.py \
             tests/test_tracker_cleanup.py \
             tests/test_already_applied.py \

@@ -7,8 +7,8 @@ Gmail's own search syntax (X-GM-RAW), then archived mail, Spam and Trash when
 the inbox has none (Apply asks for a code once, so a filed mail is still its
 only one), read the newest matching mails that arrived after the request, skip
 any that Gmail says failed DMARC, and return only the code or link. Waiting is the caller's (accounts.Accounts), which
-never asks for a code again. `read_mail` reads recent mail whole for `apply mail`, as
-read-only: it fetches with BODY.PEEK, so nothing is marked read, and it never
+never asks for a code again. `read_mail` reads recent mail whole, with its Gmail thread id, for `apply mail` and the
+to-do scan (apply.todo_scan), as read-only: it fetches with BODY.PEEK, so nothing is marked read, and it never
 sends, moves or deletes."""
 
 import email
@@ -95,6 +95,8 @@ class Mail:
     subject: str
     text: str
     arrived: datetime
+    thread: str = ""  # Gmail's thread id (X-GM-THRID), "" when the server gave none
+    message_id: str = ""  # Gmail's message id (X-GM-MSGID)
 
 
 class GmailMailbox:
@@ -141,13 +143,14 @@ class GmailMailbox:
             imap.select("INBOX", readonly=True)
             _, found = imap.search(None, "X-GM-RAW", _quoted(search))
             for number in found[0].split():
-                _, data = imap.fetch(number, "(INTERNALDATE BODY.PEEK[])")
+                _, data = imap.fetch(number, "(INTERNALDATE X-GM-THRID X-GM-MSGID BODY.PEEK[])")
                 _head, raw = data[0]
                 message = email.message_from_bytes(raw)
                 if _authentic(message):
                     mails.append(Mail(
                         sender=_header(message, "From"), subject=_header(message, "Subject"), text=_text(message),
-                        arrived=_arrived(data),
+                        arrived=_arrived(data), thread=_gmail_id(data, b"X-GM-THRID"),
+                        message_id=_gmail_id(data, b"X-GM-MSGID"),
                     ))
         return mails
 
@@ -177,6 +180,14 @@ def _arrived(data: list) -> datetime:
     mail's body or after it (Amex's code mail, live)."""
     parts = b" ".join(part[0] if isinstance(part, tuple) else part for part in data if part)
     return datetime.fromtimestamp(time.mktime(imaplib.Internaldate2tuple(parts)))
+
+
+def _gmail_id(data: list, name: bytes) -> str:
+    """One of Gmail's own ids (X-GM-THRID, X-GM-MSGID) from a fetch's reply, which may name it before the mail's body
+    or after it; "" when the reply has none."""
+    parts = b" ".join(part[0] if isinstance(part, tuple) else part for part in data if part)
+    found = re.search(rb"\b" + name + rb" (\d+)", parts)
+    return found[1].decode() if found else ""
 
 
 def _quoted(search: str) -> str:
