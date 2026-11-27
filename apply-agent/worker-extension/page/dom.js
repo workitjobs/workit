@@ -362,6 +362,10 @@
       const field = trustedField(deepActive());
       const text = field && (target === field || target.contains(field)) ? trustedText(field, value) : null;
       if (text !== null) return request(field, { __applyType: text }, typing);
+      // The page took the focus off the field as Playwright's fill gave it (a focus listener of its own): with the
+      // debugger nothing goes in, here or where the focus went, and Apply's fill tries again (ops/typing.js `unsent`).
+      if (canTrust && isTextField(target) && trustedText(target, value) !== null)
+        throw Object.assign(new Error("KAN-716 trusted input: the field lost the focus"), { name: "Unfocused" });
       typing();
     }
     return null;
