@@ -48,6 +48,56 @@ TAKE = re.compile(r"\b(?:take|complete|finish|attempt|try)\b.{0,60}?\b(?:quiz(?:
                   r"|puzzles?|exercises?|surveys?|questionnaires?)\b", re.IGNORECASE)
 
 
+# A question for a link to something the applicant must make or host first: a video, a recording, a submission, a
+# portfolio or a demo. Only a link of theirs answers it, never written text: OpenSesame's "Please include a shareable
+# YouTube link to your Creative Project submission" got a written essay in its link box (2026-11-26).
+LINK_WORD = re.compile(r"\b(?:urls?|links?|shareable)\b", re.IGNORECASE)
+MADE = {"video": re.compile(r"\b(?:youtube|loom|vimeo|videos?|recordings?|screencasts?|screen\s+recordings?)\b", re.IGNORECASE),
+        "submission": re.compile(r"\bsubmissions?\b", re.IGNORECASE),
+        "portfolio": re.compile(r"\bportfolios?\b", re.IGNORECASE),
+        "demo": re.compile(r"\bdemos?\b", re.IGNORECASE)}
+# A link to one video (never a channel): YouTube's watch, short and youtu.be links, Loom's share links, Vimeo's.
+VIDEO_LINK = re.compile(r"(?:youtube\.com/(?:watch\?v=|shorts/|embed/)|youtu\.be/|loom\.com/(?:share|embed)/|vimeo\.com/\d)",
+                        re.IGNORECASE)
+HOSTS = {"youtube": "YouTube", "loom": "Loom", "vimeo": "Vimeo"}
+# Words too common to tie a link line to the thing a question asks for.
+PLAIN = frozenset({"please", "include", "shareable", "link", "links", "your", "video", "videos", "submission", "required",
+                   "accessible", "anyone", "with", "should", "will", "that", "this", "from", "into", "applications",
+                   "application", "reviewed", "youtube", "loom", "vimeo", "recording", "unlisted", "share", "url"})
+
+
+def to_make(q: Question | str) -> str:
+    """What a link question asks the applicant to make or host first ("video", "submission", "portfolio", "demo"),
+    or "" for any other question. Only a text field asks it; a file upload is no link."""
+    if not isinstance(q, str) and q.kind not in ("text", "textarea"):
+        return ""
+    text = one_line(q if isinstance(q, str) else q.label)
+    if not LINK_WORD.search(text):
+        return ""
+    # "Portfolio, Video, or Website Link" takes any of them: a video is one choice, so it is a portfolio's ask.
+    others = any(KINDS[kind].search(text) for kind in ("github", "linkedin", "site"))
+    return next((kind for kind, named in MADE.items() if named.search(text) and not (kind == "video" and others)), "")
+
+
+def fits_made(q: Question | str, answer: object) -> bool:
+    """Whether `answer` can stand in the link field `q` (to_make): links alone, each one to a single video when
+    it asks for a video."""
+    if not isinstance(answer, str) or not answer.strip():
+        return False
+    words = answer.split()
+    return all(URL.fullmatch(w) for w in words) and (to_make(q) != "video" or all(VIDEO_LINK.search(w) for w in words))
+
+
+def _made_links(asked: str, held: Sequence[str]) -> tuple[str, ...]:
+    """The links Apply holds that answer a video ask: a link to one video, on a line that names what the
+    question asks for ("Creative Project video: https://youtu.be/..."). () for a submission: only Lisul has it."""
+    if to_make(asked) != "video":
+        return ()
+    named = {w for w in re.findall(r"[a-z]{4,}", asked.casefold()) if w not in PLAIN}
+    return tuple(line for line in held if VIDEO_LINK.search(line)
+                 and named & set(re.findall(r"[a-z]{4,}", URL.sub("", line).casefold())))
+
+
 def takes_elsewhere(q: Question | str) -> str:
     """The link a question asks the applicant to take a quiz, test, assessment or challenge at, to give its result;
     "" for any other question. The link is in its label or its help text."""
@@ -136,6 +186,8 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None,
     if not LINK_ASK.search(asked) or takes_elsewhere(asked):  # a quiz's result is no link Apply holds
         return ()
     held = links(profile)
+    if to_make(asked) in ("video", "submission"):  # only a link to that very thing, never a profile or a repo
+        return _made_links(asked, held)
     kinds = [kind for kind, named in KINDS.items() if named.search(asked)] or ["repo"]
     fit = {kind: [line for line in held if HOLDS[kind].search(line)] for kind in kinds}
     return tuple(dict.fromkeys(line for kind in kinds for line in fit[kind])) if all(fit.values()) else ()
@@ -163,10 +215,20 @@ def where(q: Question, questions: Sequence[Question]) -> str:
     read: its step (a Workday name is "<step> / <label>"), the question just
     before it on that step when its own label is a bare word or two, and the
     field it pairs with ("From" with "To"). A quiz, test or challenge to take
-    at a link (`takes_elsewhere`) leads with that link.
+    at a link (`takes_elsewhere`) leads with that link, and a link to something
+    to make first (`to_make`) with what to make.
     "" when there is nothing to say."""
-    take = f"Take it yourself at {link}, then paste its result" if (link := takes_elsewhere(q)) else ""
+    take = f"Take it yourself at {link}, then paste its result" if (link := takes_elsewhere(q)) else made(q)
     return " · ".join(filter(None, [take, _place(q, questions)]))
+
+
+def made(q: Question) -> str:
+    """What the applicant does for a link question of `to_make`, as its context line leads with it; "" for any other."""
+    kind = to_make(q)
+    if kind == "video":
+        host = next((name for word, name in HOSTS.items() if word in q.label.casefold()), "")
+        return f"Record the video yourself, then paste its {host or 'video'} link"
+    return f"Make the {kind} yourself, then paste its link" if kind else ""
 
 
 def _place(q: Question, questions: Sequence[Question]) -> str:

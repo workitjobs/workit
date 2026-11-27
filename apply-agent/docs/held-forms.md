@@ -416,6 +416,18 @@ through `worker._Planned._missing` first.
   Answer bank entry or draft the engine planned, unless the answer is
   Lisul's own. `known` never answers it from his links, and its context
   line leads with "Take it yourself at <link>, then paste its result".
+- `asking.to_make(q)` finds a text field that asks for a link to something
+  Lisul must make or host first: a video (YouTube, Loom, Vimeo, a
+  recording), a submission, a portfolio or a demo. OpenSesame's "shareable
+  YouTube link to your Creative Project submission" got a written essay
+  (2026-11-26). Only a link answers it. `fill_engine.plan` keeps an answer
+  that `asking.fits_made` takes (links alone, each to one video for a video
+  ask); any other answer, essay or draft becomes a Missing fact. A question
+  the engine left blank or handed off stays as it planned it. `known`
+  answers a video ask only from a link to one video whose line names it
+  ("Creative Project video: https://youtu.be/..."), and a submission never
+  from his links. Its context line leads with "Record the video yourself,
+  then paste its YouTube link".
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date
@@ -435,7 +447,7 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k "already_holds or quiz"` and
+**Tests.** `test_claude_answers.py -k "already_holds or quiz or video or to_make"` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
 ### Other roles at the same company (`apply.other_roles`)

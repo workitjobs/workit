@@ -1035,6 +1035,59 @@ def test_a_quiz_to_take_at_a_link_is_a_missing_fact_with_its_link_never_a_profil
     assert asking.known(RAMP_QUIZ, ApplicantProfile.load(PROFILE, POLICIES)) == ()
 
 
+OPENSESAME_LINK = ("Please include a shareable YouTube link to your Creative Project submission (required). Your project "
+                   "should answer the Creative Project questions listed in the job description.")  # OpenSesame's, 2026-11-26
+
+
+@pytest.mark.parametrize("planned", ["essay", "draft"])
+def test_a_link_to_a_video_to_make_is_a_missing_fact_never_written_text(monkeypatch, planned):
+    # The essay writer typed a prose essay about a project into OpenSesame's YouTube link box.
+    form = ResearchForm("GCM Grosvenor")
+    kind = "textarea" if planned == "essay" else "text"
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind=kind) if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    claude = FakeClaude(essays={OPENSESAME_LINK: "I built a tool that fills forms."},
+                        drafts={OPENSESAME_LINK: "https://github.com/test-person"})
+
+    row = run(monkeypatch, form, claude)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Record the video yourself, then paste its YouTube link" in row.reason
+    assert "Creative Project submission" not in json.dumps(claude.asked)  # never planned, drafted or written
+    assert form.submitted == []
+
+
+def test_a_video_link_is_known_only_from_a_link_to_one_video_that_names_it():
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    bank = home.STORY_BANK.read_text() if home.STORY_BANK.is_file() else ""
+
+    assert asking.known(OPENSESAME_LINK, profile) == ()  # a GitHub profile or a repo is no video
+    home.STORY_BANK.write_text(bank + "\n- Robot arm demo video: https://youtu.be/abc123\n"
+                               "- Creative Project video: https://www.youtube.com/watch?v=xyz789\n")
+    assert asking.known(OPENSESAME_LINK, profile) == ("Creative Project video: https://www.youtube.com/watch?v=xyz789",)
+
+
+@pytest.mark.parametrize(("label", "kind"), [
+    (OPENSESAME_LINK, "video"), ("Loom link to a 2-minute intro", "video"), ("Link to your take-home submission", "submission"),
+    ("Portfolio URL", "portfolio"), ("Link to a demo of your project", "demo"),
+    ("Portfolio, Video, or Website Link", "portfolio"),  # any of them: a portfolio link fits
+    ("LinkedIn Profile", ""), ("GitHub URL", ""), ("Tell us about a video game you love.", ""),
+])
+def test_what_a_link_question_asks_the_applicant_to_make(label, kind):
+    assert asking.to_make(Question("q", label, "text")) == kind
+    assert asking.to_make(Question("q", label, "file")) == ""  # an upload is no link
+
+
+def test_only_a_link_to_one_video_fits_a_video_link_field():
+    video = Question("q", OPENSESAME_LINK, "textarea")
+
+    assert asking.fits_made(video, "https://youtu.be/abc123")
+    assert not asking.fits_made(video, "https://github.com/test-person")
+    assert not asking.fits_made(video, "https://www.youtube.com/@testperson")  # a channel
+    assert not asking.fits_made(video, "I built a tool that fills forms.")
+    assert asking.fits_made(Question("p", "Portfolio URL", "text"), "https://test-person.dev")
+
+
 def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
     form = ResearchForm("GCM Grosvenor")
 
