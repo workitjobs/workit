@@ -30,17 +30,7 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
     Lisul's own words (his Answer bank answers). Secrets never leave Apply, nor does an answer that is exactly
     one of his self-ID answers (`self_ids`: private.self_id, D8), and his private details go as placeholders
     (apply.private). The read-back check, which is code, still checks every field the engine typed."""
-    rows = [
-        # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
-        {"question": one_line(q.label),
-         # Only typed answers can hold a secret; an option picked ("I agree... trade secrets") is shown.
-         "ticked" if q.kind == "multi_select" else "answer":
-             "(secret)" if q.kind in ("text", "textarea") and (SECRET.search(q.label) or SECRET.search(q.name))
-             else readback[q.name],
-         **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
-         **({"his_own_answer": True} if q.name in own else {})}
-        for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
-    ]
+    rows = _rows(questions, readback, own, self_ids)
     if not rows:
         return Found()
     # WorkIt's presubmit.review kind (D5, KAN-723): its prompt is on the server.
@@ -55,6 +45,22 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
         if question in asked and answer:
             fixes[question] = answer
     return Found(problems, fixes)
+
+
+def _rows(questions: QuestionSet, readback: Readback, own: set[str] | frozenset[str],
+          self_ids: frozenset[str]) -> list[dict]:
+    """Each answered field as the review reads it: never a secret's answer, nor one that is a self-ID answer."""
+    return [
+        # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
+        {"question": one_line(q.label),
+         # Only typed answers can hold a secret; an option picked ("I agree... trade secrets") is shown.
+         "ticked" if q.kind == "multi_select" else "answer":
+             "(secret)" if q.kind in ("text", "textarea") and (SECRET.search(q.label) or SECRET.search(q.name))
+             else readback[q.name],
+         **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
+         **({"his_own_answer": True} if q.name in own else {})}
+        for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
+    ]
 
 
 def replan(claude: Claude, questions: QuestionSet, answers: Answers, readback: Readback,
