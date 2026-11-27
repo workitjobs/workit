@@ -182,12 +182,22 @@ export function view(state: ApplyState): View {
   };
 }
 
-// The Applied page: this run's submitted jobs, then what the student applied to on WorkIt before (Bridge.applied),
-// each once. A job is the same by its link or its form's address, or by its company and role.
+// The Applied page, latest applied first: this run's submitted jobs (by when each was sent), then what the student
+// applied to on WorkIt before (Bridge.applied, by its applied_at), each once. A job is the same by its link or its
+// form's address, or by its company and role; one of this run's that has no logo takes WorkIt's for it.
 export function appliedJobs(thisRun: Job[], earlier: AppliedJob[] | null): Job[] {
-  const seen = new Set(thisRun.flatMap((j) => [j.source.link, j.source.posting_url, `${j.company}|${j.role}`]).filter(Boolean));
-  const jobs = [...thisRun];
-  for (const a of earlier ?? []) {
+  const before = [...(earlier ?? [])].sort((a, b) => at(b.applied_at) - at(a.applied_at));
+  const keys = (j: Job) => [j.source.link, j.source.posting_url, `${j.company}|${j.role}`].filter(Boolean);
+  const jobs = [...thisRun].sort((a, b) => (b.since ?? 0) - (a.since ?? 0)).map((j) => {
+    if (j.source.company_domain || j.source.logo_url) return j;
+    const own = new Set(keys(j));
+    const on = before.find((a) => own.has(a.url) || own.has(`${a.company || site(a.url)}|${a.title ?? ""}`));
+    return on && (on.company_domain || on.logo_url)
+      ? { ...j, source: { ...j.source, company_domain: on.company_domain ?? undefined, logo_url: on.logo_url ?? undefined } }
+      : j;
+  });
+  const seen = new Set(jobs.flatMap(keys));
+  for (const a of before) {
     const company = a.company || site(a.url);
     const role = a.title ?? "";
     if (seen.has(a.url) || (role && seen.has(`${company}|${role}`))) continue;
@@ -196,6 +206,12 @@ export function appliedJobs(thisRun: Job[], earlier: AppliedJob[] | null): Job[]
     jobs.push({ key: a.url, company, role, status: "submitted", source });
   }
   return jobs;
+}
+
+// An ISO instant as ms, or 0 (sorts last) when there is none.
+function at(iso: string | null | undefined): number {
+  const ms = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(ms) ? 0 : ms;
 }
 
 // What the Submit card says WorkIt checked: only what Apply says it did. A resume went in when a file the form was

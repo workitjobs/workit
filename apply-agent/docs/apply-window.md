@@ -218,7 +218,11 @@ for a student, not from `dashboard_page.py`.
 - **Applied** (`appliedJobs`) is this run's submitted jobs, then what the
   student applied to on WorkIt before (`Bridge.applied`:
   `GET /applicants/{id}/applications?stage=applied`), each once by its link,
-  form address, or company and role. Its button is on the start screen too.
+  form address, or company and role, latest applied first: this run's by
+  when each was sent, WorkIt's by `applied_at`. A job of this run with no
+  logo sources takes WorkIt's for the same job, so a link nothing named
+  still shows its company's logo once WorkIt has one. Its button is on the
+  start screen too.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't

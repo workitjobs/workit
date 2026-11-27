@@ -396,6 +396,25 @@ test("Applied lists this run's submitted jobs, then what WorkIt has from before,
   assert.deepEqual(appliedJobs(sent, null).map((j) => j.company), ["Stripe"]); // WorkIt not read (yet)
 });
 
+test("Applied lists the latest applied first, and a job of this run takes WorkIt's logo for it", () => {
+  const sent = view({
+    tiles: [
+      job({ tone: "submitted", company: "Stripe", posting_url: "https://job-boards.greenhouse.io/stripe/jobs/1", since: 100 }),
+      job({ tone: "submitted", company: "Figma", role: "Intern", posting_url: "https://job-boards.greenhouse.io/figma/jobs/2", since: 200 }),
+    ],
+    items: [],
+  }).applied;
+  const earlier = [
+    { url: "https://jobs.lever.co/old/1", company: "Old", title: "Intern", applied_at: "2026-11-01T10:00:00Z" },
+    { url: "https://job-boards.greenhouse.io/figma/jobs/2", company: "Figma", title: "Intern", company_domain: "figma.com", applied_at: "2026-11-26T10:00:00Z" },
+    { url: "https://jobs.lever.co/new/1", company: "New", title: "Intern", applied_at: "2026-11-20T10:00:00Z" },
+  ];
+  const all = appliedJobs(sent, earlier);
+  assert.deepEqual(all.map((j) => j.company), ["Figma", "Stripe", "New", "Old"]);
+  assert.equal(all[0].source.company_domain, "figma.com");
+  assert.equal(all[1].source.company_domain, undefined);
+});
+
 test("the Submit card lists only what Apply says it did: checked against the profile, a resume attached", () => {
   const resume = [{ label: "Resume/CV", name: "Resume.pdf" }];
   assert.deepEqual(checks(job({ tone: "ready", asked: 22, verified: true, files: resume })), [
