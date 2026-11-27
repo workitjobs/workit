@@ -3,6 +3,8 @@ the window checks after sign-in and before the Apply window, one step at a time,
 
 1. Google Chrome (D21): the Chrome finder's. Missing, the window links its download and looks again.
 2. The disclosure (D8, W10): what leaves the computer, and the app's license. Accepted once for each DISCLOSURE.
+   Then the Safety level (apply.safety), "How careful should Apply be?": asked once, until one is chosen here, in
+   Settings or in a Developer checkout's policies.yaml.
 3. Screen Recording, on a Mac only: asked once. Without it, a form's live view in the window (Fix here) is about two
    frames a second (W2), so the student may skip it.
 4. The seed: `apply plain seed`'s guided setup (apply.plain.seed_setup.Wizard), its words in the window, until a
@@ -38,7 +40,7 @@ NOTICES = CODE / "dist" / "THIRD-PARTY-NOTICES.txt"
 CHROME_DOWNLOAD = "https://www.google.com/chrome/"
 # Workers at once (D24): two by default, one to three.
 WORKERS, MOST_WORKERS = 2, 3
-CHROME, SHOWN, SCREEN, SEED, READY = "chrome", "disclosure", "screen", "seed", "ready"
+CHROME, SHOWN, SAFETY, SCREEN, SEED, READY = "chrome", "disclosure", "safety", "screen", "seed", "ready"
 
 
 def _kept(state: Path) -> dict:
@@ -76,6 +78,51 @@ def best_model(state: Path | None = None) -> bool:
 def set_best_model(on: bool, state: Path | None = None) -> bool:
     _keep(state or STATE, best_model=bool(on))
     return best_model(state)
+
+
+def safety_level(state: Path | None = None) -> str | None:
+    """The Safety level chosen (apply.safety): a Developer checkout's policies.yaml's, else the window's; None
+    until one is."""
+    return safety.level_of({} if build.STUDENT else _own_policies(), state or STATE)
+
+
+def set_safety_level(level: str, state: Path | None = None) -> str:
+    """Keep `level` where it is read: the window's app.json, and in a Developer checkout its policies.yaml too
+    (round trip, its comments kept), whose own key would win over the window's."""
+    if level not in safety.LEVELS:
+        raise ValueError(f"no Safety level {level!r}: {', '.join(safety.LEVELS)}")
+    if not build.STUDENT:  # first, so a policies.yaml that can't take it leaves app.json as it was
+        import io
+
+        from apply import profile
+
+        y = profile._yaml()
+        try:
+            kept = (y.load(profile.OVERRIDE.read_text()) if profile.OVERRIDE.is_file() else None) or {}
+        except Exception as e:  # ruamel's errors share no base class
+            raise ValueError(f"{profile.OVERRIDE} isn't YAML Apply can read: {e}") from e
+        if not isinstance(kept, dict):
+            raise ValueError(f"{profile.OVERRIDE} isn't a mapping of policies")
+        kept[safety.KEY] = level
+        out = io.StringIO()
+        y.dump(kept, out)
+        profile.OVERRIDE.parent.mkdir(parents=True, exist_ok=True)
+        written = profile.OVERRIDE.with_name(profile.OVERRIDE.name + ".new")
+        written.write_text(out.getvalue())
+        written.replace(profile.OVERRIDE)  # whole or not at all: a Worker never reads half a file
+    _keep(state or STATE, **{safety.KEY: level})
+    return level
+
+
+def _own_policies() -> dict:
+    import yaml
+
+    from apply import profile
+
+    try:
+        return (yaml.safe_load(profile.OVERRIDE.read_text()) or {}) if profile.OVERRIDE.is_file() else {}
+    except (OSError, yaml.YAMLError):
+        return {}
 
 
 def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None) -> str:
@@ -162,12 +209,14 @@ class FirstRun:
         self._failed = ""  # why the last seed setup stopped
 
     def step(self) -> str:
-        """The first step not done: CHROME, SHOWN, SCREEN, SEED, or READY."""
+        """The first step not done: CHROME, SHOWN, SAFETY, SCREEN, SEED, or READY."""
         if self._chrome() is None:
             return CHROME
         kept = self._kept()
         if kept.get("disclosure") != DISCLOSURE:
             return SHOWN
+        if safety_level(self._state) is None:
+            return SAFETY
         if self._screen() is False and not kept.get("screen_asked"):
             return SCREEN
         if self.seeding() or self._problem() is not None:
@@ -181,6 +230,9 @@ class FirstRun:
 
     def accept(self) -> None:
         self._keep(disclosure=DISCLOSURE)
+
+    def choose_safety(self, level: str) -> None:
+        set_safety_level(level, self._state)
 
     def allow_screen(self) -> None:
         self._ask()

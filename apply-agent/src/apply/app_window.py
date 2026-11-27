@@ -57,7 +57,16 @@ from urllib.parse import urlencode, urlsplit
 
 import psutil
 
-from apply import build, first_run, queued_names, report, sign_in_link, updates, workit
+from apply import (
+    build,
+    first_run,
+    queued_names,
+    report,
+    safety,
+    sign_in_link,
+    updates,
+    workit,
+)
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
@@ -216,6 +225,11 @@ WorkIt Auto Apply goes on by itself once Chrome is installed.</p>
 <div class="row"><button class="primary" data-do="accept_disclosure">OK</button>
 <button data-do="show_license">Read the License</button></div>
 </section>
+<section id="safety" hidden>
+<h1>How Careful Should Apply Be?</h1>
+{levels}
+<p>{always} You can change it any time in Settings.</p>
+</section>
 <section id="screen" hidden>
 <h1>Allow Screen Recording</h1>
 <p>WorkIt Auto Apply shows each form live in its window, so you can fix it there. With Screen Recording on, that
@@ -249,13 +263,16 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('button[data-do]');
   if (!button) return;
   await ready;
-  show(await window.pywebview.api[button.dataset.do]());
+  show(await window.pywebview.api[button.dataset.do](...(button.dataset.level ? [button.dataset.level] : [])));
 });
 ready.then(async () => {
   show(await window.pywebview.api.first_run());
   setInterval(async () => show(await window.pywebview.api.first_run()), 1500);  // Chrome installed, the seed's steps
 });
-</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
+</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
+    "{levels}", "".join(f'<div class="row"><button data-do="choose_safety" data-level="{level}">{html.escape(name)}'
+                        f'</button></div><p>{html.escape(words)}</p>' for level, (name, words) in safety.SAID.items())
+).replace("{always}", html.escape(safety.ALWAYS))
 
 SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
 <meta name="color-scheme" content="light"><style>{style}
@@ -267,6 +284,9 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
 <label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
 <p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
+<label>How careful should Apply be? <select id="safety">{levels}</select></label>
+<p id="safety-said">{careful}</p>
+<p>{always} A policy you set yourself in policies.yaml wins over the level. The next Start uses the new level.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
@@ -304,6 +324,10 @@ document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
 document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
+const careful = document.getElementById('safety'), levels = {said};
+const sayLevel = () => { document.getElementById('safety-said').textContent = levels[careful.value]; };
+careful.addEventListener('change', async () => {
+  sayLevel(); await ready; await window.pywebview.api.set_safety_level(careful.value); });
 const best = document.getElementById('best');
 best.addEventListener('change', async () => { await ready; await window.pywebview.api.set_best_model(best.checked); });
 document.addEventListener('click', async event => {
@@ -335,6 +359,7 @@ document.getElementById('report-send').addEventListener('click', async () => {
 ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
   count.value = String(state.workers);
+  careful.value = state.safety; sayLevel();
   document.getElementById('notices').hidden = !state.notices;
   if (state.claude) {
     document.getElementById('claude').hidden = false;
@@ -344,7 +369,10 @@ ready.then(async () => {
   }
 });
 </script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
-    "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
+    "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items())
+).replace("{levels}", "".join(f'<option value="{level}">{html.escape(name)}</option>' for level, (name, _) in safety.SAID.items())
+          ).replace("{careful}", html.escape(safety.SAID[safety.DEFAULT][1])).replace("{always}", html.escape(safety.ALWAYS)
+          ).replace("{said}", json.dumps({level: words for level, (_, words) in safety.SAID.items()}))
 
 
 # The page's charset meta, as the developer page (`<meta charset="utf-8">`) and Vite (`<meta charset="utf-8" />`)
@@ -495,6 +523,11 @@ class Bridge:
         self._open_link(EULA.as_uri())
         return self._first.state()
 
+    def choose_safety(self, level: str) -> dict:
+        if level in safety.LEVELS:
+            self._first.choose_safety(level)
+        return self._first.state()
+
     def allow_screen(self) -> dict:
         self._first.allow_screen()
         return self._first.state()
@@ -637,7 +670,8 @@ class Bridge:
     def settings_state(self) -> dict:
         """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
         `claude -p` uses, and why the Best model last paused."""
-        state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        state = {"workers": first_run.workers(), "notices": NOTICES.is_file(),
+                 "safety": first_run.safety_level() or safety.DEFAULT}
         from apply import student
 
         if not build.STUDENT and os.environ.get(student.MAX_PLAN):
@@ -651,6 +685,12 @@ class Bridge:
 
     def set_workers(self, count: int) -> dict:
         return {"workers": first_run.set_workers(count)}
+
+    def set_safety_level(self, level: str) -> dict:
+        try:
+            return {"safety": first_run.set_safety_level(level)}
+        except ValueError as error:
+            return {"error": str(error)}
 
     def show_notices(self) -> dict:
         if not NOTICES.is_file():

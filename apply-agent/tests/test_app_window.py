@@ -751,6 +751,21 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"]["best"] is False
 
 
+def test_settings_shows_and_changes_the_safety_level():
+    """Fault: Settings showing another level than the one read, or a level no policy knows kept."""
+    from apply import profile
+
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state()["safety"] == "careful"
+        assert bridge.set_safety_level("full_auto") == {"safety": "full_auto"}
+        assert bridge.settings_state()["safety"] == "full_auto"
+        assert profile.load_policies()["auto_submit"] is True
+        assert "error" in bridge.set_safety_level("yolo") and bridge.settings_state()["safety"] == "full_auto"
+    assert all(f'data-level="{level}"' in app_window.FIRST_RUN and f'<option value="{level}">' in app_window.SETTINGS
+               for level in ("careful", "balanced", "full_auto"))
+
+
 def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
     """Fault: a js_api method's return that comes back after load_html replaced its page (a long `matches` wait,
     then Go on) raises JavascriptException in pywebview's reply thread, and its traceback floods the log."""
