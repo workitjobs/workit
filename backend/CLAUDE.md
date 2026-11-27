@@ -824,7 +824,8 @@ Find files with a directory listing; these are the rules for where code goes.
   drew initials for every job Apply recorded; tests
   `tests/test_added_logos.py`). A job read with neither source (one added
   before) takes its own site's at read, in the applications list
-  (`auto_apply/queries._with_own_site_logo`). `track_only` takes any web link, not only a form auto
+  (`auto_apply/queries._with_own_site_logo`); migration `b3e7a1c9d452`
+  copies the catalog's into the added jobs from before, once. `track_only` takes any web link, not only a form auto
   apply fills; a closed job gets the application and stays closed, as it
   is (never reopened or retitled); and the application is saved unless one
   exists (`track`), where Write with Claude moves it to needs_you. New jobs
