@@ -2377,6 +2377,29 @@ def test_oracles_unconfirmed_application_hands_off_with_its_confirm_ask(drawn_la
     assert str(stopped.value) == oracle.CONFIRM_ASK
 
 
+@pytest.mark.parametrize("reading", ["closed posting", "not a job posting", "application form"])
+def test_oracles_unconfirmed_application_is_never_read_as_closed(reading):
+    """Emerson's refill (live 2026-11-27, run38): Oracle drew "You already applied for this job." first and its question
+    and REMOVE/CONFIRM after, so the read called it closed and the job was skipped. The confirm ask comes first, over
+    any reading of the page."""
+    heading, rest = UNCONFIRMED.split("</h1>", 1)
+
+    def sign_in(page):
+        page.set_content(f"{heading}</h1><div id=rest></div>")
+
+    def read(page, schema, prompt, files):
+        page.evaluate("rest => setTimeout(() => document.getElementById('rest').outerHTML = rest, 1500)", rest)
+        return {"blocked": False, "why": 'The page says "You already applied for this job."', "page": reading,
+                "questions": []}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff) as stopped:
+            filler.question_set(LUNAR_URL, site)
+
+    assert str(stopped.value) == oracle.CONFIRM_ASK
+
+
 def test_a_form_with_no_carried_documents_is_left_as_it_is():
     from playwright.sync_api import sync_playwright
 

@@ -189,12 +189,25 @@ CONFIRM_ASK = ("An earlier application to this job is waiting for its email code
 NO_CONFIRM = "Oracle's page shows no one CONFIRM button, so Apply pressed nothing: press it on the page yourself."
 
 
-def unconfirmed(page: Page) -> bool:
-    """Whether the page is Oracle's unconfirmed application's (UNCONFIRMED), with its CONFIRM button showing."""
-    try:
-        return bool(UNCONFIRMED.search(page.locator("body").inner_text(timeout=2_000))) and _confirm(page) is not None
-    except Exception:
-        return False
+ALREADY_APPLIED = re.compile(r"you already applied for this job", re.IGNORECASE)
+UNCONFIRMED_WAIT = 10.0  # how long a page headed ALREADY_APPLIED has to draw its question and CONFIRM (run38's hadn't)
+
+
+def unconfirmed(page: Page, wait: float = 0.0) -> bool:
+    """Whether the page is Oracle's unconfirmed application's (UNCONFIRMED), with its CONFIRM button showing. With
+    `wait`, a page headed "You already applied for this job" is read again for that long, as Oracle draws its
+    question and buttons after the heading (Emerson's, live 2026-11-27, run38: read as closed); any other page at once."""
+    end = time.monotonic() + wait
+    while True:
+        try:
+            said = page.locator("body").inner_text(timeout=2_000)
+            if UNCONFIRMED.search(said) and _confirm(page) is not None:
+                return True
+        except Exception:
+            said = ""
+        if not ALREADY_APPLIED.search(said) or time.monotonic() >= end:
+            return False
+        page.wait_for_timeout(250)
 
 
 def _confirm(page: Page):
