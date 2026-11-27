@@ -240,7 +240,14 @@ for a student, not from `dashboard_page.py`.
   bank (the route's 404) says to add experience on WorkIt first. A card's
   click or Add to Auto Apply picks it, Add my top 5 picks the first five,
   and Start applying runs the picked links through `Bridge.start`, as
-  ticked queued jobs run. The ✕ (Not interested) hides a card on this
+  ticked queued jobs run. Find jobs stays in the header during a run
+  (`findsJobs`): a run started by `apply app <link>...` lasts till its
+  last form closes, and Find jobs was out of reach all that time
+  (2026-11-26). There its button says Add to this run, and
+  `Bridge.start` hands the picks into the run going (`Bridge._join`,
+  `Dashboard.into`), as links sent in go; a run that takes no new links
+  keeps them for the next run. The queue's link is hidden then: the
+  queue starts runs. The ✕ (Not interested) hides a card on this
   page only: the website's Not Interested stores nothing yet
   (`NOT_INTERESTED_LIVE` is off), so there is no route to send it to.
   Matches read for a set of filters are kept while the window is open,

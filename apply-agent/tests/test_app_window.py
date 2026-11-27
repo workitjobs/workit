@@ -241,8 +241,8 @@ def test_the_apps_page_loads_no_web_font(board):
 
 
 def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopped(board):
-    """Fault: a second run started over the first, the window left on a finished run, or a run that couldn't
-    start (no engine, W7) said nothing."""
+    """Fault: a second run started over the first, a pick from Find jobs during a run refused or dropped instead of
+    joining it, the window left on a finished run, or a run that couldn't start (no engine, W7) said nothing."""
     import threading
 
     from apply.adapters import SetupError
@@ -263,11 +263,14 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
     bridge._window = window
     assert "error" in bridge.start([])
     assert bridge.start(["https://jobs.lever.co/acme/1"]) == {"started": 1}
-    assert "error" in bridge.start(["https://jobs.lever.co/acme/2"])  # one run at a time
+    # One run at a time: a start during it joins it as a link sent in does; this run takes none, so it waits.
+    assert bridge.start(["https://jobs.lever.co/acme/2"]) == {"added": 1}
+    assert bridge._waiting == ["https://jobs.lever.co/acme/2"]
     for _ in range(100):
         if shown:
             break
         threading.Event().wait(0.02)
+    assert runs == [["https://jobs.lever.co/acme/1"]]
     assert window.loaded[-1] == app_window.student_page(shown[0])  # the run's own board
     go.set()
     for _ in range(100):
