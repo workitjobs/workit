@@ -193,7 +193,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         return [Essay(q, "", plan=plans[key]) for key, q in waiting.items()], []
     # WorkIt's essays.write kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, essays),
             "style_card": writing.style_card() if keys else "", "form_answers": dict(shown) if keys else {},
             "questions": {key: _sent(q, types[key]) for key, q in keys.items()},
             "plans": {key: plans[key].shown() for key in keys},
@@ -209,7 +209,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
-                                       description.block(posting, posting_text)]))
+                                       description.block(posting, posting_text, essays)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
                              posting.company, company, profile.get("files.resume_pdf")) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
@@ -229,7 +229,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     own = own_facts(profile, types.values(), posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
-    given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
+    given = (company, description.block(posting, posting_text, essays), cover_letter.TEMPLATE)
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
@@ -308,7 +308,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     led = {kind: stories for kind, stories in sameness.Ledger().led(posting.company).items()
            if kind in classified.values()}
     held = "\n".join([sources(profile, company, types=answering.load(), employer=posting.company),
-                      description.block(posting, posting_text),
+                      description.block(posting, posting_text, essays),
                       json.dumps(shown or {}, ensure_ascii=False)])
     plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
                                    mapped=mapped, angles=angles, led=led, redo=redo), company, held)
@@ -477,7 +477,7 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
               redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[str, Plan]:
     # WorkIt's essays.plan kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, types=classified.values(), employer=posting.company),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, list(keys.values())),
             "questions": {key: _sent(q, classified[key]) for key, q in keys.items()}, "form_answers": dict(shown),
             "story_map": story_map.prompt_block(list(mapped)) if mapped else "", "typical": dict(angles or {}),
             "led_before": dict(led or {}), "replan": dict(failed or {}), "redo": _redone(redo, keys)}

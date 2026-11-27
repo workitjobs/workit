@@ -1257,6 +1257,21 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
 
 
+def test_an_essay_that_points_at_the_postings_listed_questions_is_planned_and_written_with_them():
+    # OpenSesame's prompts sat past the <posting> cut, and its essay never saw them (2026-11-26).
+    claude = FakeClaude()
+    posting = Posting("os", "OpenSesame", "Software Engineering Internship", "https://jobs.example.com/1")
+    creative = Question("a", "Describe your Creative Project. It should answer the questions listed in the job description.",
+                        "textarea", True)
+    text = "Interns ship code to production.\n" * 300 + (FIXTURES / "opensesame-description.txt").read_text()
+
+    essays.write(claude, posting, [creative], ApplicantProfile.load(PROFILE, POLICIES), posting_text=text)
+
+    sent = {k["kind"]: k["data"]["posting"] for k in claude.kinds if k["kind"] in ("essays.plan", "essays.write")}
+    assert set(sent) == {"essays.plan", "essays.write"}
+    assert all("<asked_in_description>" in block and "fitting into your career journey" in block for block in sent.values())
+
+
 def test_every_essay_of_a_form_is_edited_in_one_call():
     claude = FakeClaude(essays={"Why": "Because.", "Tell": "A project."})
     posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")

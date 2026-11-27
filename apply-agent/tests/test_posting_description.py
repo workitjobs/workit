@@ -5,11 +5,11 @@ import html
 import json
 
 import pytest
-from conftest import FORMS
+from conftest import FIXTURES, FORMS
 from playwright.sync_api import sync_playwright
 
 from apply import company, description
-from apply.model import Posting
+from apply.model import Posting, Question
 
 ARC = Posting("arc", "Arc Boat Company", "Software Engineering Intern", "https://boards.greenhouse.io/arc/jobs/1")
 
@@ -20,6 +20,54 @@ def test_the_block_names_the_company_and_role_and_holds_the_postings_text():
     assert block.startswith("<posting>") and block.endswith("</posting>")
     assert '"company": "Arc Boat Company"' in block and '"role": "Software Engineering Intern"' in block
     assert "<description>\nInterns write firmware for the Arc One's battery system.\n</description>" in block
+
+
+# OpenSesame's Greenhouse form (2026-11-26): its link field points at the prompts its Posting lists, past the cut.
+OPENSESAME = Posting("os", "OpenSesame", "Software Engineering Internship", "https://job-boards.greenhouse.io/opensesame/jobs/1")
+CREATIVE = Question("question_1", "Please include a shareable YouTube link to your Creative Project submission (required). "
+                    "Your project should answer the Creative Project questions listed in the job description and be "
+                    "accessible to anyone with the link.", "textarea", True)
+PROMPTS = ("How do you see OpenSesame fitting into your career journey or long-term goals?",
+           "What strengths, skills, or perspectives do you bring to OpenSesame to make an impact and contribute to our mission?",
+           "Show us something you've built with AI. What problem did you solve, and what excites you about where AI is "
+           "taking learning and work?")
+
+
+def opensesame() -> str:
+    return (FIXTURES / "opensesame-description.txt").read_text()
+
+
+def test_a_question_that_points_at_the_postings_listed_questions_gets_that_section():
+    found = description.asked(opensesame(), CREATIVE)
+
+    assert found and found.heading == "Application and Creative Project"
+    assert found.prompts[:3] == PROMPTS and len(found.prompts) == 4  # the fourth is the third's "haven't built any yet"
+    assert "curiosity, creativity, growth mindset and authentic expression" in found.text
+    assert "Additional Program Details" not in found.text and "Pair program" not in found.text
+
+
+def test_the_listed_prompts_lead_the_block_even_past_its_cut():
+    padded = "Interns ship code to production.\n" * 300 + opensesame()
+
+    block = description.block(OPENSESAME, padded, [CREATIVE])
+
+    assert "\n(cut)\n</description>" in block and block.index("<asked_in_description>") < block.index("<description>")
+    assert all(prompt in block for prompt in PROMPTS)
+    assert 'For the question "Please include a shareable YouTube link' in block
+
+
+def test_a_question_named_by_the_sections_heading_gets_it_without_pointing_at_the_posting():
+    named = Question("q2", "Tell us about your Creative Project.", "textarea", True)
+
+    assert description.asked(opensesame(), named).prompts[:3] == PROMPTS
+
+
+def test_a_question_that_neither_points_at_the_posting_nor_shares_its_heading_gets_no_section():
+    why = Question("q3", "Why do you want to intern at OpenSesame?", "textarea", True)
+
+    assert description.asked(opensesame(), why) is None
+    assert "<asked_in_description>" not in description.block(OPENSESAME, opensesame(), [why])
+    assert description.asked("Interns ship code.", CREATIVE) is None  # no section lists prompts
 
 
 def posting_text(form: str) -> str:
