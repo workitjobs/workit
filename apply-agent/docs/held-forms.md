@@ -74,7 +74,9 @@ reads: it does not click, type or submit.
   its state question was given), so it states no new fact, with two more
   exceptions: a legal or eligibility choice (`verify.LEGAL`), and, on the
   first review, a choice whose review reason rests on the profile ("the
-  profile says ..."). The second is a trial: kept only if the next review
+  profile says ..."; a reason that quotes the question and its repeat
+  under a section, as Oracle's "Application Questions:" shows it, counts
+  for both, `worker._flagged`). The second is a trial: kept only if the next review
   passes it, else the plan's answer is filled again (`_Planned.unfix`) and
   the problem holds the form (Pylon's relocate, CesiumAstro's GPA,
   2026-11-26). It never replaces Lisul's own answer, an essay, a file or a

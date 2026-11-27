@@ -2299,6 +2299,24 @@ def test_the_reviews_fix_over_a_profile_choice_its_profile_reason_backs_is_kept_
     assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
 
 
+def test_the_reviews_fix_is_filled_on_a_question_and_its_repeat_when_its_reason_quotes_them(monkeypatch):
+    # Honeywell (Oracle, live 2026-11-27): the review wrote its problem as "'<question>' (and its 'Application
+    # Questions:' repeat) is answered Yes...", with no "<question>:" lead, and fixed both. Neither fix was taken as
+    # backed by the profile, so the form was held for what Apply could fix itself.
+    repeat = f"Application Questions: {RELOCATE}"
+    reason = f"'{RELOCATE}' (and its 'Application Questions:' repeat) is answered wrong. His profile says New York."
+    form, _, _, fix = _relocating(monkeypatch, reason)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [reason], "fixes": [{"question": q, "answer": fix} for q in (RELOCATE, repeat)]}])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix and sent_answer(form, repeat) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
 def test_a_fix_over_a_profile_choice_the_second_review_still_flags_is_undone_and_held(monkeypatch):
     still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
     form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE, [still], [still])
