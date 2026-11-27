@@ -511,6 +511,12 @@ and failed the job (`ProfileInUse`, "Didn't go through").
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
   no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
   now another process, such as the student's own Chrome.
+- **No hello fails the rest at once.** A branded Worker that sends no hello in `HELLO_WAIT` (a seed
+  without the worker extension) fails with the fix: run `uv run apply plain seed`. Its `PlainWorkers`
+  then fails each next launch from the same seed at once, with that message, and starts no Chrome:
+  16 links once failed one by one, 30 s each (run7, 2026-11-26). A seed made again (its preferences
+  change, `seed_stamp`) is tried anew, and any Worker's hello clears it. Chrome for Testing loads its
+  extension by flag and always waits. Tests: `tests/test_plain_no_hello.py` (in CI).
 - **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
   started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
   It sends SIGTERM to every Chrome first, then waits, so a quit waits `STOP_WAIT` once, not once each.
