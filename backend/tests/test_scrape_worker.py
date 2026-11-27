@@ -105,8 +105,8 @@ async def test_a_complete_read_keeps_the_one_before(database, boards_csv):
         row = await _schedule(conn)
         first = text("'2026-11-01T00:00:00+00'::timestamptz")
         second = text("'2026-11-02T00:00:00+00'::timestamptz")
-        await schedules.advance_reads(conn, row.id, now_expr=first)
-        await schedules.advance_reads(conn, row.id, now_expr=second)
+        await schedules.advance_reads(conn, [row.id], now_expr=first)
+        await schedules.advance_reads(conn, [row.id], now_expr=second)
         row = await _schedule(conn)
     assert row.prior_read_at == datetime.datetime(2026, 11, 1, tzinfo=datetime.UTC)
     assert row.last_read_at == datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
@@ -443,9 +443,9 @@ async def test_advance_fingerprint_sets_rest_on_unchanged(database, boards_csv):
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_reads(conn, [row.id])
         # First read: sets fingerprint, unchanged_reads = 0 (new fingerprint)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.fingerprint == "aabbccdd"
         assert row.unchanged_reads == 0
@@ -453,7 +453,7 @@ async def test_advance_fingerprint_sets_rest_on_unchanged(database, boards_csv):
         assert row.has_kept is True
 
         # Second read, same fingerprint: unchanged_reads = 1, fingerprint_until set
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 1
         assert row.fingerprint_until is not None
@@ -463,16 +463,16 @@ async def test_advance_fingerprint_resets_on_change(database, boards_csv):
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         # Second read, same → rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 1
         assert row.fingerprint_until is not None
 
         # Third read, different → reset
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="11223344")
+        await schedules.advance_fingerprint(conn, [(row.id, "11223344")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 0
         assert row.fingerprint_until is None
@@ -484,8 +484,8 @@ async def test_has_kept_is_sticky(database, boards_csv):
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
         assert row.has_kept is False
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.has_kept is True
         # advance_fingerprint always sets has_kept true; it never goes back
@@ -495,10 +495,10 @@ async def test_record_missing_second_miss_clears_fingerprint(database, boards_cs
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         # Same fingerprint → rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.fingerprint_until is not None
 
@@ -522,10 +522,10 @@ async def test_select_due_from_rows_skips_fingerprint_resting(database, boards_c
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_reads(conn, [row.id])
         # Set fingerprint and make it rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
 
         all_rows, _, db_now = await schedules.sync_catalog_diff(conn, boards_csv)
 

@@ -106,17 +106,32 @@ async def update_sources(
     """
     if not postings:
         return
-    inline_versions = inline_versions or {}
-    rows = [
-        {
-            "schedule_id": schedule_id,
-            "apply_url": url,
-            "external_id": eid,
-            "description_version": inline_versions.get(url),
-            "description_fetched_at": func.now() if url in inline_versions else None,
-        }
-        for url, eid in postings
-    ]
+    await bulk_update_sources(conn, [(schedule_id, postings, inline_versions)])
+
+
+async def bulk_update_sources(
+    conn: AsyncConnection,
+    boards: list[tuple[uuid.UUID, list[tuple[str, str]], dict[str, int] | None]],
+) -> None:
+    """Upsert job_sources for many boards in one statement.
+
+    *boards* is a list of ``(schedule_id, postings, inline_versions)`` tuples,
+    one per board.  Each board's postings are ``(apply_url, external_id)``
+    pairs.  Flattens all boards into one INSERT ... ON CONFLICT.
+    """
+    rows: list[dict] = []
+    for schedule_id, postings, inline_versions in boards:
+        iv = inline_versions or {}
+        for url, eid in postings:
+            rows.append({
+                "schedule_id": schedule_id,
+                "apply_url": url,
+                "external_id": eid,
+                "description_version": iv.get(url),
+                "description_fetched_at": func.now() if url in iv else None,
+            })
+    if not rows:
+        return
     stmt = insert(_sources).values(rows)
     newer = stmt.excluded.description_version > func.coalesce(
         _sources.c.description_version, -1
