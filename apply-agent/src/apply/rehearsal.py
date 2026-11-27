@@ -154,6 +154,7 @@ APPLIED_FIRST = "You applied here before: dismiss that note on the form first, i
 HELD_FIRST = "Submit is held on the form: dismiss its red note first, or fix the answer it names."
 PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
 CONFIRM_S = 120
+CODE_STALE_S = 6.0  # a wrong-code message that showed before a code's press counts again only after this long
 UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went in. It may have: look for a "
                "confirmation email before you apply again. Apply won't press Submit on it again.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
@@ -501,7 +502,9 @@ def rehearse(
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep,
                     "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
-                    "approved": approved, "changed": auto.stop}
+                    "approved": approved, "changed": auto.stop,
+                    "code_given": lambda: getattr(adapters.board, "code_given", lambda k: "")(n),
+                    "code_said": lambda why: adapters.board.update(n, coding=False, code_said=why)}
 
         def let_go() -> bool:
             """Not applying to this one: its slot is given back at once, before its hold unwinds and its tab closes,
@@ -1638,7 +1641,8 @@ class _Kept:
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
              keep: "keepalive.Keeper | None" = None, approve: Callable[[], bool] = lambda: False,
              approved: Callable[[str, bool], None] = lambda why, handoff: None,
-             changed: Callable[[], None] = lambda: None) -> str:
+             changed: Callable[[], None] = lambda: None, code_given: Callable[[], str] = lambda: "",
+             code_said: Callable[[str], None] = lambda why: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1677,6 +1681,10 @@ class _Kept:
         CONFIRM_S, and no captcha or refusal to explain it, is `approved(UNCONFIRMED, True)`: it may have gone in,
         so it is the student's, and Apply never presses it again. `changed()` runs whenever Apply changes an answer on
         the page (one from the window, a regenerated one, Ask Claude's): Auto-submit's countdown ends.
+        `code_given()` is the emailed code the student gave in the window (`POST /code`, `apply window code`), after
+        a Submit: Apply enters it in the code field with both guards on, reads every box back, and presses the form's
+        Submit once (apply.code_box). `code_said(why)` says how it went: "" once the job site confirms it (and
+        `submitted` runs), else why not (a wrong code, a field that doesn't fit, no confirmation in CONFIRM_S).
         "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
             return ""
@@ -1750,6 +1758,9 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
+        coding = 0.0  # when Apply pressed Submit after entering a code the student gave
+        stale = False  # the page said a code was wrong before that press: a last try's words, read again only later
+        code_wrong = False  # Apply said the code was wrong: taken back if the job site confirms it after all
         # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
         # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
         unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
@@ -1782,6 +1793,38 @@ class _Kept:
                             why = send_button.NONE
                     if why:
                         approved(why, False)
+                if given := code_given():
+                    why = (APPLIED_FIRST if blocked else PRESSED_ALREADY if kept else HELD_FIRST if holding
+                           else "" if pressed or signing else code_box.NOT_SENT_YET)
+                    if not why and not (boxes := code_box.code_field(self._page)):
+                        why = code_box.NO_FIELD
+                    if not why:
+                        try:
+                            with submit_guard.paused(self._page):  # a page that sends once its last box is full sends nothing
+                                why = code_box.put(boxes, given)
+                        except Exception:
+                            why = code_box.NOT_ENTERED
+                    if not why:
+                        stale, code_wrong = code_box.wrong(self._page), False
+                        try:
+                            heard(send_button.press(self._page))  # the student's, as their Approve's is
+                            coding = time.monotonic()
+                        except send_button.Unsure as unsure:
+                            heard(unsure.words)
+                            coding = time.monotonic()
+                        except send_button.NotPressed as refused_press:
+                            why = str(refused_press)
+                        except Exception:
+                            why = send_button.NONE
+                    if why:
+                        code_said(why)
+                if coding and not kept:
+                    if code_box.wrong(self._page) and (not stale or time.monotonic() - coding > CODE_STALE_S):
+                        coding, code_wrong = 0.0, True
+                        code_said(code_box.WRONG_CODE)
+                    elif time.monotonic() - coding > CONFIRM_S:
+                        coding = 0.0
+                        code_said(code_box.NO_ANSWER)
                 if pressing and not kept and not told and not turned_down and time.monotonic() - pressing > CONFIRM_S:
                     pressing = 0.0
                     approved(UNCONFIRMED, True)
@@ -1837,6 +1880,9 @@ class _Kept:
                 if (pressed or signing or unheard) and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)
+                    if coding or code_wrong:  # after Sent shows, so a reader never sees the code done, the form unsent
+                        coding, code_wrong = 0.0, False  # a code read as wrong that went in after all: it was right
+                        code_said("")
                     closing = time.monotonic() + CLOSE_AFTER_S
                 if closing and time.monotonic() > closing:
                     if len(self._page.context.pages) == 1 and _confirmed(self._page, job_system):

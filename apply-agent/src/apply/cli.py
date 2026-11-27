@@ -276,6 +276,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
         if name in ("submit", "skip"):
             acted.add_argument("--yes", action="store_true", help="you mean it: it can't be undone")
+    coded = window_commands.add_parser("code", help="enter the code the job site emailed (Greenhouse's security code) "
+                                                    "in the held form's code field and press its Submit, once")
+    coded.add_argument("tile", help="the job's `tile` (or its `id`) from `apply window state`, such as tile-0")
+    coded.add_argument("code", help="the code from the email, exactly as it is: case counts")
+    coded.add_argument("--yes", action="store_true", help="you mean it: Submit is pressed, and it can't be undone")
     answered = window_commands.add_parser("answer", help="answer a Needs-you question, as its card does")
     answered.add_argument("id", help="the job's `id` from `apply window state`")
     answered.add_argument("question", help="the question, word for word, from its `missing`")
@@ -533,7 +538,7 @@ def _window(args) -> int:
         return said({"status": 503, "error": "WorkIt Auto Apply isn't open. Open it with `uv run apply app` "
                                               "(with links, to start them)."})
     command = args.window_command
-    if command in ("submit", "skip") and not args.yes:
+    if command in ("submit", "skip", "code") and not args.yes:
         return said({"status": 400, "error": f"{command} can't be undone: pass --yes, as the window asks once more."})
     if command == "stop" and not (args.yes or args.new_only):
         return said({"status": 400, "error": "Stop closes every held form unless --new-only: pass --yes."})
@@ -547,6 +552,8 @@ def _window(args) -> int:
     body: dict = {}
     if command in ("submit", "cancel", "skip", "fill-again"):
         body = {"id": args.tile}
+    elif command == "code":
+        return _window_code(args.tile, args.code, said)
     elif command == "answer":
         body = {"id": args.id, "question": args.question, "answer": args.answer}
         if args.file and not args.file.is_file():
@@ -558,6 +565,43 @@ def _window(args) -> int:
     elif command == "stop":
         body = {"new_only": True} if args.new_only else {}
     return said(app_control.ask(command, body))
+
+
+CODE_WAIT = 150.0  # how long `apply window code` waits for the job site's answer: the run's CONFIRM_S, and more
+
+
+def _window_code(named: str, code: str, said: Callable[[dict], int], wait: float = CODE_WAIT,
+                 every: float = 2.0) -> int:
+    """`apply window code`: the emailed code, for the job `named` (its tile, or its id), entered and sent by the run
+    as the card's box does; then the window's state is read till the job site confirms it (Sent) or the run says
+    why not (a wrong code, a field it doesn't fit)."""
+    from apply import app_control
+
+    def jobs() -> list[dict]:
+        got = app_control.ask("state")
+        state = got.get("state") or {}
+        return [j for part in ("needs_you", "working", "applied", "stopped") for j in state.get(part) or []]
+
+    tile = named if named.startswith("tile-") else next((j["tile"] for j in jobs() if j.get("id") == named and j.get("tile")), "")
+    if not tile:
+        return said({"status": 404, "error": f"No held form named {named}: use its `tile` from `apply window state`."})
+    reply = app_control.ask("code", {"id": tile, "code": code})
+    if int(reply.get("status") or 0) >= 400:
+        return said(reply)
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        time.sleep(every)
+        job = next((j for j in jobs() if j.get("tile") == tile), None)
+        if job is None:
+            return said({"status": 200, "message": "The code went in; the form is no longer in the window."})
+        if job.get("status") == "submitted":
+            return said({"status": 200, "message": "Sent: the job site confirmed the application.", "tile": tile})
+        if job.get("code_said"):
+            return said({"status": 409, "error": job["code_said"], "tile": tile})
+        if not job.get("coding"):
+            return said({"status": 200, "message": "The code went in and Submit was pressed.", "tile": tile})
+    return said({"status": 504, "error": "The job site hasn't answered yet: read `apply window state` for how it went.",
+                 "tile": tile})
 
 
 def _plain(args) -> None:

@@ -69,6 +69,16 @@ docstring first.
     the window's second question. `add <link>...` sends links through
     `app-inbox`, as `apply app <link>` does: the window takes them once
     signed in and set up.
+  - `code <tile-or-id> <CODE> --yes` enters the code a job site emailed
+    after Submit (Greenhouse's eight case-sensitive boxes) and presses
+    Submit again: POST /code, the same as the card's "Paste the code from
+    your email" box. The run types one character per box
+    (`code_box.put`: fill, then a change event, then real keys for a box
+    the fill left empty), reads every box back and presses only when each
+    holds its character, case kept. The command then waits up to 150 s:
+    it exits 0 once the job site's confirmation page marks the tile sent,
+    and 1 with the job site's words for a wrong or expired code, or when
+    no confirmation came. The code is never logged.
   - The channel is a folder, `APPLY_HOME/app-control/`. The command writes
     one `.request` file (written whole, then renamed). The window looks
     every 0.25 s, renames it `.taken`, answers in a thread of its own and

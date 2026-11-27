@@ -514,6 +514,12 @@ class Board(Protocol):
         press is given once."""
         ...
 
+    def code_given(self, worker: int) -> str:
+        """The emailed code the student gave for tile `worker`'s held form since it last asked (`POST /code`, its
+        card's box or `apply window code`), for Apply to enter and send (apply.code_box); "" for none. Each is given
+        once."""
+        ...
+
     def let_go_asked(self, worker: int) -> bool:
         """Whether the student pressed Not applying to this one on tile `worker`'s held form (`POST /let-go`):
         its page is let go, unsubmitted. Each press is given once."""
@@ -584,6 +590,9 @@ class NoBoard:
 
     def auto_cancel_asked(self, worker: int) -> bool:
         return False
+
+    def code_given(self, worker: int) -> str:
+        return ""
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         return []
@@ -708,6 +717,7 @@ class Dashboard:
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
         self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
+        self._codes: dict[int, str] = {}  # the emailed code given for each tile's held form (code_given)
         self._cancelling: set[int] = set()  # the tiles whose Auto-submit countdown the student ended (auto_cancel_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._named: dict[str, dict] = {}  # each other waiting link's names, found in the background (names_by)
@@ -867,6 +877,7 @@ class Dashboard:
                 self._letting_go.discard(worker)  # a let go asked of the last one's form isn't this one's
                 self._submitting.discard(worker)
                 self._cancelling.discard(worker)
+                self._codes.pop(worker, None)
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
@@ -1020,6 +1031,32 @@ class Dashboard:
             asked = worker in self._cancelling
             self._cancelling.discard(worker)
             return asked
+
+    def code_given(self, worker: int) -> str:
+        with self._lock:
+            return self._codes.pop(worker, "")
+
+    def enter_code(self, key: str, code: str) -> str:
+        """The emailed code, for a tile's held form ("tile-<k>"): Apply enters it in the form's code field, presses
+        its Submit once, and the tile says how it went (`coding`, then `code_said`, or Sent once the job site
+        confirms it). Raises Refused when it is no code, no form is held there, or it was sent already."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        # Here: it reads the page's code boxes, and the window's page needs none of it.
+        from apply import code_box
+
+        if not (code := code_box.given(code)):
+            raise Refused(code_box.NOT_A_CODE_GIVEN, 400)
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            caption = self._captions[k]
+            if not caption.get("again") or caption.get("status") == "submitted" or caption.get("let_go"):
+                raise Refused("That form isn't held for you now: it's closed already.", 409)
+            if caption.get("coding"):
+                raise Refused("Apply is entering a code on that form now: wait for how it went.", 409)
+            caption["coding"], caption["code_said"] = True, ""
+            self._codes[k] = code
+        return "Entering the code."
 
     def auto_go(self, worker: int) -> bool:
         """Auto-submit's wait is over on tile `worker`: whether it may press, claimed under the lock, so a Cancel
@@ -1575,6 +1612,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._submit_form()
         if parts.path == "/auto-cancel":
             return self._cancel_auto()
+        if parts.path == "/code":
+            return self._enter_code()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/stop":
@@ -1909,6 +1948,22 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Approved and submitting, in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _enter_code(self) -> None:
+        """The emailed code, for a held form, from the page itself. Body {"id": "tile-<k>", "code": "<code>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may enter a code."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, code = str(body["id"]), str(body["code"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a code to enter."})
+        try:
+            message = self.dashboard.enter_code(key, code)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Code given, in the window ({key})")  # never the code itself
         self._json(200, {"message": message})
 
     def _cancel_auto(self) -> None:
