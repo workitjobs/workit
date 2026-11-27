@@ -272,6 +272,15 @@ for a student, not from `dashboard_page.py`.
   Pre-submit review; with no part left, "One answer doesn't match your
   WorkIt profile." Then "Fix it in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
+- **Open cover letter / Open resume.** A flag on the Check card, or a
+  file answer in What we filled, that names a file the form was given
+  (by its question or name, else "cover letter" or "resume" of a file
+  that is one: `fileIn`) gets a link that opens that very file in the
+  computer's own viewer (`openLabel` names it). The link is the tile's
+  `/file/<k>/<i>`, or `/file/item/<id>/<i>` for an ended Application
+  Apply keeps (`view`'s `files`), so the shim hands it to `Bridge.open`,
+  which opens only a file the tile or item lists. A live item's
+  `live-<k>` id names no file, so it gets none.
 - **Handing back.** Each to-do card says how the student hands the form
   back (`HANDOFF` in `view.ts`): sign in yourself in the window that
   opens; check your email for the code and type it (Apply reads no email);

@@ -25,7 +25,12 @@ export type Job = {
   since?: number; // when it took its status (ms since 1970), when Apply says: how long it has filled or waited
   held?: boolean; // its form is open and waiting for the student: Stop applying or quitting closes it
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
+  files?: Sent[]; // each file its form was given, with the link that opens it (none for an earlier run's)
 };
+
+// A file the form was given (a résumé, a cover letter WorkIt wrote), by the form's question for it, and the link
+// app_window.SHIM hands Bridge.open: /file/<tile>/<i> for a tile's, /file/item/<id>/<i> for an ended Application's.
+export type Sent = { label: string; name: string; link: string };
 
 export type View = {
   todo: Job[]; // what waits on the student, most blocking first
@@ -167,6 +172,7 @@ export function view(state: ApplyState): View {
       since: sinceOf(shown),
       held: !!tile?.again && c.status !== "submitted",
       source: { ...shown, questions: item?.questions ?? tile?.questions },
+      files: sentOf(tile, item),
     });
   }
   return {
@@ -180,6 +186,39 @@ export function view(state: ApplyState): View {
     held: jobs.filter((j) => j.held).length,
     full: fullAt(state, jobs),
   };
+}
+
+// The files a job's form was given, each with its link: the tile's while it has them, else its item's when the item
+// is one Apply keeps (a whole-number id). A file with no link isn't listed: Open would open nothing.
+function sentOf(tile: Shown | undefined, item: Shown | undefined): Sent[] | undefined {
+  const at = tile?.files?.length ? `/file/${tile.worker}` : item?.files?.length && /^\d+$/.test(String(item.id ?? "")) ? `/file/item/${item.id}` : "";
+  if (!at) return undefined;
+  const files = (tile?.files?.length ? tile.files : item!.files)!;
+  return files.map((f, i) => ({ label: f.label ?? "", name: f.name ?? "", link: `${at}/${i}` }));
+}
+
+const COVER = /cover[\s_-]*letter/i;
+const RESUME = /r[eé]sum[eé]|\bcv\b/i;
+
+// What the button that opens a file says: "Open cover letter", "Open resume", else the file's own name.
+export function openLabel(f: Sent): string {
+  const named = `${f.label} ${f.name}`;
+  if (COVER.test(named)) return "Open cover letter";
+  if (RESUME.test(named)) return "Open resume";
+  return `Open ${f.name || f.label || "file"}`;
+}
+
+// The file a line on a card is about, if any: a flag ("Cover Letter: names Rippling, another company") or an answer
+// that names the file's question or its name, or says "cover letter" or "resume" of a file that is one.
+export function fileIn(files: Sent[] | undefined, text: string): Sent | undefined {
+  const said = text.toLowerCase();
+  const all = files ?? [];
+  const named = (f: Sent) => `${f.label} ${f.name}`;
+  // The file the line names first by its question or its name: a cover letter's flag ("Cover Letter: ...") may name
+  // the résumé later on.
+  const at = (f: Sent) => Math.min(...[f.label, f.name].filter(Boolean).map((n) => said.indexOf(n.toLowerCase())).map((i) => (i < 0 ? Infinity : i)), Infinity);
+  const first = all.reduce<Sent | undefined>((best, f) => (at(f) < (best ? at(best) : Infinity) ? f : best), undefined);
+  return first ?? all.find((f) => (COVER.test(said) && COVER.test(named(f))) || (RESUME.test(said) && RESUME.test(named(f))));
 }
 
 // The Applied page: this run's submitted jobs, then what the student applied to on WorkIt before (Bridge.applied),
