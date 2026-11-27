@@ -45,6 +45,17 @@ COOKIES = ".cookie-consent-modal"
 DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
 
 
+# OneTrust's banner, whose dark filter covers the whole page (Emerson's, live 2026-11-27: the Apply Now click timed out
+# under it). Its banner may have no Reject All: then its settings keep only the necessary cookies, as they start.
+ONETRUST = "#onetrust-banner-sdk"
+ONETRUST_REJECT = "#onetrust-reject-all-handler"
+ONETRUST_SETTINGS = "#onetrust-pc-btn-handler"
+ONETRUST_SAVE = "#onetrust-pc-sdk .save-preference-btn-handler"
+ONETRUST_COVER = ".onetrust-pc-dark-filter"
+COVERED = ("Something on Oracle's page covers its Apply button (a cookie banner or pop-up Apply couldn't close): "
+           "close it and press Apply yourself, then Resume.")
+
+
 def _decline_cookies(page: Page) -> None:
     """Decline the optional cookies when the site's banner shows, so it stops covering the page."""
     banner = page.locator(COOKIES)
@@ -53,6 +64,18 @@ def _decline_cookies(page: Page) -> None:
         if decline.count():
             decline.first.click()
             banner.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+    onetrust = page.locator(ONETRUST)
+    if onetrust.count() and onetrust.first.is_visible():
+        reject = page.locator(ONETRUST_REJECT)
+        if reject.count() and reject.first.is_visible():
+            reject.first.click()
+        else:
+            page.locator(ONETRUST_SETTINGS).first.click()
+            page.locator(ONETRUST_SAVE).first.click()
+        onetrust.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+        cover = page.locator(ONETRUST_COVER)
+        if cover.count():
+            cover.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
 
 
 def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool) -> None:
@@ -65,7 +88,11 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
     if not email.is_visible():
-        _apply_button(page).click()
+        try:
+            _decline_cookies(page)
+            _apply_button(page).click()
+        except PlaywrightTimeout:  # still covered: a banner or pop-up Apply doesn't know
+            raise Handoff(COVERED) from None
     email.wait_for(timeout=TIMEOUT * 1000)
     email.fill(accounts.login)
     disclaimer = page.locator("#legal-disclaimer-checkbox")
