@@ -33,7 +33,7 @@ REPLY_KEPT = 300.0  # a reply no command read (it gave up) is removed after this
 
 # Each action and the route its button posts to. The body is the page's own (window/src/bridge.ts).
 ROUTES = {"submit": "/submit", "cancel": "/auto-cancel", "skip": "/let-go", "fill-again": "/fill-again",
-          "answer": "/answer", "remove": "/remove", "stop": "/stop", "code": "/code"}
+          "resume": "/resume", "answer": "/answer", "remove": "/remove", "stop": "/stop", "code": "/code"}
 
 # What a to-do asks of the student, by its verdict's kind, and the order the window lists them in (view.ts's ASKS,
 # ORDER): a sign-in blocks every job on its site, so it comes first; a form to submit is done, so it comes last.

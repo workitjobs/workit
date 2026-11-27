@@ -271,7 +271,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     for name, does in (("submit", "Approve and submit: the run presses the held form's own Submit"),
                        ("cancel", "Cancel a held form's Auto-submit countdown"),
                        ("skip", "Not applying to this one: the held form is let go, unsubmitted"),
-                       ("fill-again", "Try again: fill the held form anew")):
+                       ("fill-again", "Try again: fill the held form anew"),
+                       ("resume", "Resume a paused form, once you've finished its step (a sign-in) on its page: the "
+                                  "fill goes on from the page as you left it, and never presses Submit")):
         acted = window_commands.add_parser(name, help=does)
         acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
         if name in ("submit", "skip"):
@@ -556,7 +558,7 @@ def _window(args) -> int:
         return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
                                                "signed in and set up. `apply window state` shows them."})
     body: dict = {}
-    if command in ("submit", "cancel", "skip", "fill-again"):
+    if command in ("submit", "cancel", "skip", "fill-again", "resume"):
         body = {"id": args.tile}
         if command == "submit" and args.override:
             if not args.override.strip():

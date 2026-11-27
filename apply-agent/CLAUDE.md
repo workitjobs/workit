@@ -152,8 +152,8 @@ has neither.
   accessibility tool first. `uv run apply window state` prints every job as the
   window shows it, as JSON: each held form's answers and their sources, its
   Pre-submit flags, legal holds, Missing facts, Essays, Auto-submit's reason and
-  its screenshot's path. `submit`, `cancel`, `skip`, `fill-again`, `answer`,
-  `remove` and `stop` are the window's own buttons, with their own checks;
+  its screenshot's path. `submit`, `cancel`, `skip`, `fill-again`, `resume`,
+  `answer`, `remove` and `stop` are the window's own buttons, with their own checks;
   `add` sends links as `apply app <link>` does. Submit only when Lisul says to, and never turn on `live_runs`. Use
   screen automation only when the command can't do the job, and say why
   (`docs/apply-window.md`, "The window from a terminal").
