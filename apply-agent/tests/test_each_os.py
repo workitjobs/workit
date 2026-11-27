@@ -221,6 +221,8 @@ def test_on_windows_claude_and_its_mcp_server_are_killed_as_a_tree():
         mcp.wait(5)  # psutil.TimeoutExpired while it runs
     finally:
         claude.kill()
+        claude.wait()
+        claude.stdout.close()
         with contextlib.suppress(psutil.Error):
             mcp.kill()
 
