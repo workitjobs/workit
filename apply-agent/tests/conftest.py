@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 APPLY = Path(__file__).parents[1]
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -273,8 +274,13 @@ def switches_at_their_defaults(monkeypatch):
     def without_switches(path: Path = profile.POLICIES, beside: Path | None = None) -> dict:
         rules = load(path, beside)
         if Path(path).resolve() == profile.POLICIES.resolve():
+            # A test's own policies.yaml beside its profile keeps the switches it sets (live_runs: true).
+            own = (yaml.safe_load(beside.read_text()) or {}) if beside is not None else {}
             for switch in SWITCHES:
-                rules.pop(switch, None)
+                if switch in own:
+                    rules[switch] = own[switch]
+                else:
+                    rules.pop(switch, None)
         return rules
 
     for module in (profile, cli, browsers, doctor):  # doctor reads the policies itself with no profile
