@@ -132,30 +132,34 @@ async def bulk_update_sources(
             })
     if not rows:
         return
-    stmt = insert(_sources).values(rows)
-    newer = stmt.excluded.description_version > func.coalesce(
-        _sources.c.description_version, -1
-    )
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[_sources.c.schedule_id, _sources.c.apply_url],
-        set_={
-            "description_version": case(
-                (newer, stmt.excluded.description_version),
-                else_=_sources.c.description_version,
-            ),
-            "description_fetched_at": case(
-                (newer, stmt.excluded.description_fetched_at),
-                else_=_sources.c.description_fetched_at,
-            ),
-            "last_seen_at": func.greatest(
-                _sources.c.last_seen_at, stmt.excluded.last_seen_at
-            ),
-            "external_id": func.coalesce(
-                stmt.excluded.external_id, _sources.c.external_id
-            ),
-        },
-    )
-    await conn.execute(stmt)
+    # 7 bind parameters per row; asyncpg caps at 32,767.
+    _SOURCES_BATCH = 4000
+    for start in range(0, len(rows), _SOURCES_BATCH):
+        chunk = rows[start : start + _SOURCES_BATCH]
+        stmt = insert(_sources).values(chunk)
+        newer = stmt.excluded.description_version > func.coalesce(
+            _sources.c.description_version, -1
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[_sources.c.schedule_id, _sources.c.apply_url],
+            set_={
+                "description_version": case(
+                    (newer, stmt.excluded.description_version),
+                    else_=_sources.c.description_version,
+                ),
+                "description_fetched_at": case(
+                    (newer, stmt.excluded.description_fetched_at),
+                    else_=_sources.c.description_fetched_at,
+                ),
+                "last_seen_at": func.greatest(
+                    _sources.c.last_seen_at, stmt.excluded.last_seen_at
+                ),
+                "external_id": func.coalesce(
+                    stmt.excluded.external_id, _sources.c.external_id
+                ),
+            },
+        )
+        await conn.execute(stmt)
 
 
 async def detect_and_close(conn: AsyncConnection) -> int:
