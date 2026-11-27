@@ -261,7 +261,8 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
         texts |= writing.edit(claude, drafted_texts, material, letter_keys & set(drafted_texts),
                               {key: questions[key] for key in drafted_texts},
                               {key: lengths[key] for key in drafted_texts if key in lengths},
-                              lambda key, answers: [*_gate(checked, answers).get(key, []), *same(key, answers)])
+                              lambda key, answers: [*_gate(checked, answers).get(key, []), *same(key, answers)],
+                              profile.policy("claim_check") is not False)
     failed = _gate(checked, texts)
     if over := _over_cap(checked, texts):  # one shorter rewrite; still over a stated cap, the worker keeps it off the form
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
