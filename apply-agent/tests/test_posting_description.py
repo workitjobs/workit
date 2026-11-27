@@ -222,3 +222,31 @@ def test_an_oracle_postings_title_names_its_company_after_the_role(browser):
         assert description.names_on_page(page) == ("Emerson", "Software Engineering Intern")
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("named", ["Emerson Career Site", "Emerson Careers", "Emerson Career Portal", "Emerson Jobs",
+                                   "Emerson Job Site", "Emerson External Careers", "Emerson - Careers", "Emerson"])
+def test_a_careers_sites_suffix_is_no_part_of_the_company(named):
+    # Emerson's Oracle site (run30): the Record and the cover letter named "Emerson Career Site".
+    assert description.bare_company(named) == "Emerson"
+
+
+def test_a_schemas_company_named_for_its_careers_site_is_the_company(browser):
+    page = browser.new_page()
+    try:
+        page.set_content("""<title>Software Engineering Intern</title><script type="application/ld+json">
+          {"@type": "JobPosting", "title": "Software Engineering Intern", "description": "Build tools.",
+           "hiringOrganization": {"@type": "Organization", "name": "Emerson Career Site"}}</script>""")
+        assert description.names_on_page(page) == ("Emerson", "Software Engineering Intern")
+    finally:
+        page.close()
+
+
+def test_an_oracle_title_that_names_its_career_site_then_careers_names_the_company(browser):
+    # Emerson's posting page (run30): "<role> - Emerson Career Site Careers".
+    page = browser.new_page()
+    try:
+        page.set_content("<title>Software Engineering Intern - Emerson Career Site Careers</title><body></body>")
+        assert description.names_on_page(page) == ("Emerson", "Software Engineering Intern")
+    finally:
+        page.close()
