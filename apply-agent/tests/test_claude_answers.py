@@ -1482,7 +1482,7 @@ def test_a_plan_is_checked_for_its_story_company_fact_parts_and_reuse():
 SHORT_WHY = Question("a", "Why Figma? (2-3 sentences)", "textarea", True)
 GENERIC = "I like Figma a lot. It is a great company."
 SPECIFIC = "Dev Mode hands designs to engineers, the handoff I did by hand on WorkIt. I built that front end from frames."
-OWN = "I built the WorkIt front end from frames myself. Dev Mode would have saved me that handoff."
+OWN = "I built a job search front end from frames myself. Dev Mode would have saved me that handoff."
 
 
 KIND_NAMES = {"probe.typical": "typical", "essays.plan": "plan", "essays.write": "essays", "writing.check": "unsupported",

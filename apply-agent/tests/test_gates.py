@@ -191,3 +191,13 @@ def test_a_graduation_date_other_than_the_profiles_fails():
                  "I'm graduating in May 2028."):
         assert gates.graduation(fine, profile if "May" not in fine else "Expected graduation: May 2028") == [], fine
     assert gates.graduation("Graduating in May 2028.", "") == []
+
+
+def test_an_answer_naming_workit_or_its_tools_fails():
+    # Twitch, 2026-11-26: its essays told of the Fill engine Lisul wrote for WorkIt.
+    told = "The Fill engine I wrote for WorkIt reads forms, and Scout finds jobs; I built batch apply too."
+    assert [f.split('"')[1] for f in gates.tools(told)] == ["Fill engine", "WorkIt", "Scout", "batch apply"]
+    assert gates.tools("I built an auto-apply tool for my Apply agent.") != []
+    for fine in ("As an Eagle Scout I led a troop.", "I like to scout for bugs.", "I'd work it into the plan.",
+                 "Please apply this patch."):
+        assert gates.tools(fine) == [], fine

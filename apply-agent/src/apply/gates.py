@@ -9,7 +9,8 @@ Hold; an empty list passes. answer() runs the gates on one answer:
   (d) the swap test's code half, on company-facing types;
   (f) no 6-word run of the resume (the profile's resume PDF) in a not-on-resume answer;
   (g) the opener: no date, no restated question;
-  (i) a graduation date only as the profile gives it.
+  (i) a graduation date only as the profile gives it;
+  (j) no WorkIt, nor a tool of it (Fill engine, Apply, Scout, auto-apply).
 form() runs those across one form's answers: (e) the same project with
 different numbers, and (h) two answers opening the same way.
 
@@ -326,17 +327,35 @@ def graduation(text: str, graduates: str) -> list[str]:
     return found
 
 
+# (j) The tools that fill the application.
+
+# Lisul, 2026-11-26: an answer that names WorkIt or one of its tools says the application was automated, even when a
+# Story bank line names one as his own project (Twitch's essays told of WorkIt's Fill engine). Scout is WorkIt's job
+# finder; an Eagle, Boy, Girl or Cub Scout is not it.
+TOOLS = re.compile(r"(?-i:\bWork\s?It\b)|\bauto[- ]?appl(?:y|ying|ied|ication)s?\b|\bfill(?:ing)?[- ]engine\b"
+                   r"|\bApply\s+(?:agent|app)\b|\bautofill(?:er)?\s+extension\b|\bbatch[- ]apply\b"
+                   r"|(?<!Eagle )(?<!Boy )(?<!Girl )(?<!Cub )(?-i:\bScout\b)", re.IGNORECASE)
+
+
+def tools(text: str) -> list[str]:
+    """Each name of WorkIt or a tool of it (TOOLS) the answer gives, once."""
+    found = dict.fromkeys(m.group() for m in TOOLS.finditer(text))
+    return [f'names "{name}", which says the application was automated: tell another project instead'
+            for name in found]
+
+
 def answer(text: str, q: Question, kind: str, sources: str, company: str, brief: str = "",
            letter: bool = False, resume: Path | None = None, graduates: str = "") -> list[str]:
     """Every gate on one answer, in order: (a) length, (b) numbers and names,
     (c) other companies, (d) swap, (f) resume, (g) opener, (i) graduation
-    date (`graduates`, the profile's). A cover letter's salutation and
+    date (`graduates`, the profile's), (j) WorkIt's tools. A cover letter's salutation and
     sign-off (its first and last two lines, set by Apply) are left out of the
     name and opener checks."""
     body = "\n".join(text.splitlines()[1:-2]) if letter else text
     return [*length(text, q, kind), *traced(body, f"{sources}\n{q.label}\n{q.description}", company),
             *other_companies(body, company), *swap(body, kind, company, brief),
-            *on_resume(body, kind, resume), *([] if letter else opener(body, q)), *graduation(body, graduates)]
+            *on_resume(body, kind, resume), *([] if letter else opener(body, q)), *graduation(body, graduates),
+            *tools(text)]
 
 
 # (e) and (h): across one form.

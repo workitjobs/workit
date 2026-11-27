@@ -30,7 +30,7 @@ from app.apply_prompts.kind import (
     Line,
     Sources,
 )
-from app.apply_prompts.writing import WRITE
+from app.apply_prompts.writing import TOOLS, WRITE
 
 Text = Annotated[str, Field(max_length=MAX_SOURCES)]
 MAX_OPTIONS = 300  # a country list is about 250
@@ -198,6 +198,7 @@ Question types, each with its company link and its slots (required, asked, or op
 
 REDO_PLAN = """<redo>, when given, holds under a question's key @NAME@'s earlier answer to it and the context they typed when they asked for a better one (added_context). Plan the new answer by that context: a fact about @NAME@ in it is in <story_bank> under "Added while reviewing answers", so quote it from there; follow its directions (a story to lead with, what to stress or cut). Do not plan the earlier answer again unless the context asks to keep it."""
 
+TYPES_HEAD = "Question types, each with its company link and its slots"
 LEAN_PLAN = """Only the types these questions were matched to are listed: keep each question's type."""
 
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
@@ -381,7 +382,7 @@ def plan(data: PlanData) -> Built:
         _redo_block(data.redo, keys),
     ]))
     listed = [types[t] for t in dict.fromkeys(q.type for q in keys.values())]
-    system = PLAN + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}" + (f"\n\n{REDO_PLAN}" if data.redo else "")
+    system = PLAN.replace(TYPES_HEAD, f"{TOOLS}\n\n{TYPES_HEAD}") + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}" + (f"\n\n{REDO_PLAN}" if data.redo else "")
     return Built(system, prompt, schema)
 
 
