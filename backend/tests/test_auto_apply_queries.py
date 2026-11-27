@@ -97,12 +97,13 @@ def test_one_application_is_this_applicants_for_this_job():
     assert "job_applications.job_id = %(job_id_1)s::UUID" in sql
 
 
-def test_list_filters_by_stage_newest_first():
+def test_list_filters_by_stage_latest_applied_first():
     db = Recorder()
     asyncio.run(queries.fetch_applications(db, APPLICANT, [application_stage.queued]))
     sql = db.sql()
     assert "job_applications.stage IN" in sql
-    assert "ORDER BY job_applications.created_at DESC" in sql
+    assert "ORDER BY CASE WHEN (job_applications.stage IN" in sql
+    assert "ELSE job_applications.applied_at END DESC NULLS LAST, job_applications.created_at DESC" in sql
 
 
 def test_set_stage_applied_dates_the_submit_now():
