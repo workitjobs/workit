@@ -2548,10 +2548,6 @@ def open_window(url: str, profile: Path, front: bool = True, system: str = sys.p
                 KEEPER.watch(pid, seconds=BEHIND_FOR)  # Chrome comes forward a moment after it starts, too
 
 
-# Off the Mac, the window's Chrome as this process started it: held, so its Popen isn't collected while it runs.
-_STARTED: dict[Path, object] = {}
-
-
 def _open_elsewhere(url: str, profile: Path, front: bool, system: str) -> None:
     """The window off the Mac (KAN-929): Google Chrome itself, with `--app` on the window's own profile, started by
     each OS's background start (launcher.start_in_background). No Dock app and no AppleScript. With no Chrome the
@@ -2564,7 +2560,7 @@ def _open_elsewhere(url: str, profile: Path, front: bool, system: str) -> None:
         return
     arguments = [str(binary), f"--app={url}", f"--user-data-dir={profile}", "--no-first-run",
                  "--no-default-browser-check"]
-    _STARTED[profile] = start_in_background(arguments, profile, profile.with_suffix(".log"), system, front=front)
+    start_in_background(arguments, profile, profile.with_suffix(".log"), system, front=front)
 
 
 def _launched(profile: Path, timeout: float = 10.0) -> list[int]:

@@ -574,7 +574,6 @@ def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_
         for process in chromes:
             process.kill()
             process.wait()
-        dashboard._STARTED.clear()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the flag is Windows' own: macOS refuses it")
