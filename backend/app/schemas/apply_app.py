@@ -141,19 +141,47 @@ def _not_reserved(key: str) -> str:
     return key
 
 
-FactKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"), AfterValidator(_not_reserved)]
+FACT_KEY = r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"
+FactKey = Annotated[str, StringConstraints(pattern=FACT_KEY), AfterValidator(_not_reserved)]
+FactValue = AnsweredText | list[AnsweredText] | bool | int | float
 
 
 class AnsweredChange(BaseModel):
     """PATCH /apply-app/profile: what the student answered in WorkIt Auto
     Apply's Needs you, at most 100 of each: answers to questions no fact
     answered (the profile's `answered_questions`), and facts the Fill engine
-    read from an answer (`remember`), by dotted key."""
+    read from an answer (`remember`), by dotted key. The website's
+    Application Info edits them the same way, and its Remove takes a
+    question or a fact out (`remove_answered`, `remove_facts`), so the next
+    form asks again."""
 
     model_config = ConfigDict(extra="forbid")
 
     answered: dict[AnsweredQuestion, AnsweredText | list[AnsweredText]] = Field(default={}, max_length=100)
-    facts: dict[FactKey, AnsweredText | list[AnsweredText] | bool | int | float] = Field(default={}, max_length=100)
+    facts: dict[FactKey, FactValue] = Field(default={}, max_length=100)
+    remove_answered: list[AnsweredQuestion] = Field(default=[], max_length=100)
+    remove_facts: list[FactKey] = Field(default=[], max_length=100)
+
+
+# Read back as stored, with no length cap: one over the PATCH's cap must not fail the whole read.
+class SavedAnswer(BaseModel):
+    question: str
+    answer: str | list[str]  # "" is a Skip
+
+
+class SavedFact(BaseModel):
+    key: str  # dotted, as the PATCH takes it
+    value: str | list[str] | bool | int | float
+
+
+class SavedAnswers(BaseModel):
+    """GET /apply-app/answered: what WorkIt fills from the student's own
+    Fill engine profile (`fill_profile`) and from no field of WorkIt's, for
+    Application Info to show and edit: their Needs you answers by question,
+    and each fact no WorkIt field holds."""
+
+    answered: list[SavedAnswer]
+    facts: list[SavedFact]
 
 
 class ProfileUpload(BaseModel):

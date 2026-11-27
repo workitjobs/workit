@@ -33,10 +33,10 @@ class WorkIt:
     def profile_file(self, where: dict) -> bytes:
         return b"%PDF resume " + where["uploaded_resume_id"].encode()
 
-    def save_answered(self, answered: dict, facts: dict) -> None:
+    def save_answered(self, answered: dict, facts: dict, removed: list | tuple = ()) -> None:
         if self.down:
             raise Unreachable("api.workitjobs.ai: timed out")
-        self.saved.append((answered, facts))
+        self.saved.append((answered, facts, *([list(removed)] if removed else [])))
 
     def upload_profile(self, profile: dict, story_bank: str, voice: str) -> dict:
         self.uploaded.append((profile, story_bank, voice))
@@ -83,6 +83,36 @@ def test_a_needs_you_answer_goes_to_workit_and_waits_there_when_it_doesnt_answer
     assert workit.saved == [({"Which shift?": "Nights"}, {"identity.pronouns": "They/them"})]  # never a file's path
     student.profile_from_workit(profile, workit)
     assert profile.answered("Which shift?") is None  # sent: WorkIt's profile holds it from now on
+
+
+def test_the_answers_page_reads_the_profile_before_any_start_and_a_remove_reaches_workit(tmp_path, monkeypatch):
+    """The window's Answers page shows what a form may need, before the first Start too, and its Remove takes a Needs
+    you answer out on WorkIt. Fault: the page showed an empty profile until a Start, a failed read said nothing, a
+    Remove stayed on the Mac, or one sent with a later answer to the same question took that answer out."""
+    monkeypatch.setattr(student, "FILES", tmp_path / "files")
+    workit = WorkIt(down=True)
+    monkeypatch.setattr(student, "WorkIt", lambda: workit)
+    profile = ApplicantProfile({}, tmp_path, {}, saver=student.to_workit)
+    tab = AnswersTab(AnswerBank(), profile, read=lambda: student.read_profile(profile))
+
+    down = tab.view()
+    workit.down = False
+    shown = tab.view()
+    profile.save_answered("Which shift?", "Nights")
+    tab.remove_answered("Which shift?")
+    workit.down = True
+    for change in (lambda: profile.save_answered("Remote?", "Yes"), lambda: tab.remove_answered("Remote?"),
+                   lambda: profile.save_answered("Remote?", "No")):
+        with pytest.raises(Unreachable):
+            change()
+    workit.down = False
+    profile.save()
+
+    assert "didn't come from WorkIt" in down["profile_note"] and down["profile"] == []
+    assert shown["profile_note"] == "" and shown["voice"] == "Short sentences. No dashes."
+    assert {"section": "identity", "facts": [["legal_first_name", "Sam"]]} in shown["profile"]
+    assert workit.saved == [({"Which shift?": "Nights"}, {}), ({}, {}, ["Which shift?"]), ({"Remote?": "No"}, {})]
+    assert profile.answered("Which shift?") is None and profile.answered("Remote?") == "No"
 
 
 def test_a_run_reads_the_profile_after_the_bank_and_before_any_form_opens(tmp_path):

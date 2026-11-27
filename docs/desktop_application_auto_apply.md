@@ -2051,6 +2051,19 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       Answer Bank), since a student with only the extension has no app;
       the app's window takes the same design (built 2026-11-24:
       `apply-agent/docs/apply-window.md`, Answer Bank).
+    - **Every answer WorkIt stores has a page** (decided and built
+      2026-11-27). The Needs you answers in `fill_profile` (by question,
+      and the facts the Fill engine read from them) show on Application
+      Info under the Answer Bank, as Answers From WorkIt Auto Apply, with
+      Edit and Remove (`GET /apply-app/answered`, `PATCH
+      /apply-app/profile` with `remove_answered` and `remove_facts`), and
+      in the app's Answers page with the same Edit and Remove. The style
+      card shows under Writing Samples, where the student writes or
+      deletes it (`PUT`, `DELETE /applicants/{id}/style-card`). The app's
+      Answers page also shows, to read, what else a form takes from
+      WorkIt: the profile, the Stock answers and the style card. A fact a
+      WorkIt field holds is listed only where that field is edited, since
+      it wins on every form.
     - **The profile comes from WorkIt too** (decided and built
       2026-11-24): the app keeps no Applicant profile file and no Test
       Person. Each Start reads `GET /apply-app/profile`, the student's

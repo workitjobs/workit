@@ -313,3 +313,33 @@ async def test_a_developer_upload_takes_only_what_workit_lacks(student, database
     assert profile["stock_answers"] == {"why_field": "Robots."} and "resume_pdf" not in profile.get("files", {})
     assert profile["answered_questions"] == {"Why us?": "Boats.", "Which shift?": "Nights"}
     assert "I built a shelf scanner." in got["writing"]["story_bank"] and got["writing"]["voice"] == "Short sentences."
+
+
+async def test_application_info_lists_what_fills_from_the_apps_answers_and_removes_one(student, database):
+    """The website shows and edits what WorkIt Auto Apply kept in fill_profile. Fault: a fact a WorkIt field holds was
+    listed (editing it changes no form, since that field wins), a file's path was listed, or Remove left the answer
+    or the fact (or the section it emptied) in place."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = :fill WHERE id = :id"), {
+            "id": student.id,
+            "fill": '{"answered_questions": {"Which shift?": "Nights", "Skipped?": ""},'
+                    ' "identity": {"legal_first_name": "Old", "pronouns": "he/him"},'
+                    ' "screeners": {"willing_to_travel": true}, "files": {"resume_pdf": "/Users/x/r.pdf"}}'})
+        await session.commit()
+    async with _api() as api:
+        listed = (await api.get("/apply-app/answered")).json()
+        removed = await api.patch("/apply-app/profile", json={"remove_answered": ["Which shift?"],
+                                                               "remove_facts": ["screeners.willing_to_travel"]})
+        after = (await api.get("/apply-app/answered")).json()
+
+    assert listed["answered"] == [{"question": "Skipped?", "answer": ""},
+                                  {"question": "Which shift?", "answer": "Nights"}]
+    # WorkIt's own first name wins over "Old", so only the pronouns and the screener fill from fill_profile.
+    assert listed["facts"] == [{"key": "identity.pronouns", "value": "he/him"},
+                               {"key": "screeners.willing_to_travel", "value": True}]
+    assert removed.status_code == 204, removed.text
+    assert after == {"answered": [{"question": "Skipped?", "answer": ""}],
+                     "facts": [{"key": "identity.pronouns", "value": "he/him"}]}
+    async with database() as session:
+        fill = await session.scalar(text("SELECT fill_profile FROM applicant_profiles WHERE id = :id"), {"id": student.id})
+    assert "screeners" not in fill  # the section the Remove emptied goes with it

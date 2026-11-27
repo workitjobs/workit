@@ -17,6 +17,7 @@ import {
 } from "@/lib/writing-samples-actions";
 
 import { INFO_CARD, InfoCardHead } from "./card-head";
+import { StyleCard } from "./style-card";
 import { SectionAction } from "../../profile/section-action";
 import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
@@ -40,6 +41,10 @@ const WRITING_SAMPLES_ID = "writing-samples";
  * versions),
  * which opens Add Sample at once.
  *
+ * Under the samples, while there are any, the style card their own Claude
+ * builds from them, which the student reads, writes or deletes here
+ * (./style-card.tsx).
+ *
  * Each sample is shown as its first lines, with Remove. Add opens a text box
  * in place, with Cancel and Save under it, as the sections above edit. A
  * sample is replaced by removing it and adding the new one.
@@ -52,6 +57,8 @@ const WRITING_SAMPLES_ID = "writing-samples";
  */
 export function WritingSamples() {
   const [samples, setSamples] = useState<WritingSample[] | null>(null);
+  // The style card (./style-card.tsx): the server deletes it with every change to the samples, and so does this.
+  const [card, setCard] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -63,9 +70,12 @@ export function WritingSamples() {
   const read = useCallback(
     () =>
       getWritingSamples()
-        .then(({ samples: s, error: err }) => {
+        .then(({ samples: s, styleCard, error: err }) => {
           if (err) setLoadError(err);
-          else setSamples(s);
+          else {
+            setSamples(s);
+            setCard(styleCard);
+          }
           // The extension's ask lands here: open the box the student came for.
           if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
             setAdding(true);
@@ -103,6 +113,7 @@ export function WritingSamples() {
         return;
       }
       setSamples((s) => [...(s ?? []), sample]);
+      setCard(null);
       setAdding(false);
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
@@ -117,6 +128,7 @@ export function WritingSamples() {
     }));
     if (err) return setError(err);
     setSamples((s) => (s ?? []).filter((x) => x.id !== sample.id));
+    setCard(null);
     toast.show({
       message: "Your writing sample is removed.",
       action: { label: "Undo", onClick: () => restore(sample.text) },
@@ -128,8 +140,10 @@ export function WritingSamples() {
       sample: null,
       error: "Could not reach the server.",
     }));
-    if (sample) setSamples((s) => [...(s ?? []), sample]);
-    else toast.show({ message: `Your writing sample wasn't put back. ${err ?? ""}`.trim() });
+    if (sample) {
+      setSamples((s) => [...(s ?? []), sample]);
+      setCard(null);
+    } else toast.show({ message: `Your writing sample wasn't put back. ${err ?? ""}`.trim() });
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
@@ -215,6 +229,8 @@ export function WritingSamples() {
           ))}
         </ul>
       )}
+
+      {samples && samples.length > 0 && <StyleCard card={card} onChange={setCard} />}
 
       {adding && (
         <form

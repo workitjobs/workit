@@ -3,7 +3,10 @@ one place for Lisul to read, and his edits to what is his to edit.
 
 It shows the Answer bank (his one-off answers, each Claude-drafted or his),
 his answers to Missing facts and his Stock answers, all three editable, and
-the rest of the Applicant profile to read. An essay of a Question type that
+the rest of the Applicant profile and his voice (the style card) to read.
+WorkIt Auto Apply's window shows the same (W11): the bank, his Needs you
+answers with Edit and Remove, and the profile and voice WorkIt gave, read
+from WorkIt the first time the tab opens before any Start. An essay of a Question type that
 takes a Stock answer, written for a held Application, is offered as one:
 only his click keeps it (apply.stock), and kept ones are editable too. A key that looks like it holds a
 secret is never shown, and a file shows by its name alone.
@@ -27,7 +30,7 @@ from ruamel.yaml.scalarstring import (
     SingleQuotedScalarString,
 )
 
-from apply import answering, stock
+from apply import answering, stock, writing
 from apply.answer_bank import AnswerBank, Entry, NotSaved
 from apply.model import Status
 from apply.profile import ANSWERED, SECRET, ApplicantProfile
@@ -48,17 +51,22 @@ class Refused(ValueError):
 
 class AnswersTab:
     def __init__(self, bank: AnswerBank, profile: ApplicantProfile | Path, today: Callable[[], date] = date.today,
-                 held: Callable[[], list] | None = None):
-        """`held` gives the Tracker's rows, read once (a Sheet read takes seconds)."""
+                 held: Callable[[], list] | None = None, read: Callable[[], str] | None = None):
+        """`held` gives the Tracker's rows, read once (a Sheet read takes seconds). `read` puts the profile in from
+        WorkIt, for a view with none yet, and says why it didn't come ("" when it did): WorkIt Auto Apply's profile
+        comes at each Start (apply.student.read_profile), and the tab can open before the first."""
         self._bank = bank
         self._profile = profile
         self._today = today
         self._held = held
+        self._read = read
         self._rows: list | None = None
 
     def view(self) -> dict:
         """What the tab shows, read again from the bank and the profile."""
         facts = self._profile_now().facts()
+        note = self._read() if self._read and not facts else ""
+        facts = facts or self._profile_now().facts()
         return {
             "bank": [_shown(entry) for entry in self._bank.entries()],
             # While the bank hasn't come from WorkIt yet (W11), why: it is tried again by itself.
@@ -73,6 +81,8 @@ class AnswersTab:
             "profile": [{"section": section, "facts": _flat(value, files=section == "files")}
                         for section, value in facts.items()
                         if section not in (ANSWERED, STOCK) and not SECRET.search(str(section))],
+            "profile_note": note,  # why the profile hasn't come from WorkIt yet
+            "voice": writing.style_card(),
         }
 
     def save(self, question: str, answer: str | list[str]) -> None:
@@ -109,6 +119,11 @@ class AnswersTab:
             self._profile_now().save_answered(question, _scalar(answer))
         except ValueError as refused:  # a question that looks like it asks for a secret
             raise Refused(str(refused)) from refused
+
+    def remove_answered(self, question: str) -> None:
+        """Take one of his Needs you answers out of the profile: the next form that asks it asks him again."""
+        if not self._profile_now().forget_answered(_question(question)):
+            raise Refused("That answer is no longer in your profile.", 404)
 
     def save_skipped(self, question: str) -> None:
         """Lisul's Skip of an optional question: an empty answer in the Applicant profile, so the engine's plan leaves

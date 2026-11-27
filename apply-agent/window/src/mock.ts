@@ -241,6 +241,17 @@ export function mock(
       { question: "Are you open to working in person?", answer: "Yes", reviewed: true },
       { question: "Which of these tools have you used?", answer: ["Git", "Docker"], reviewed: true },
     ],
+    answered: [
+      { question: "Are you willing to relocate?", answer: "Yes" },
+      { question: "Do you have a Tax District?", answer: "" },
+    ],
+    profile: [
+      { section: "identity", facts: [["legal_first_name", "Test"], ["legal_last_name", "Person"], ["email", "test@example.com"]] },
+      { section: "files", facts: [["resume_pdf", "Test_Person_Resume.pdf"]] },
+    ],
+    stock: [],
+    voice: "Short sentences. Plain words. No dashes.",
+    profile_note: "",
   };
   return {
     bank: async () => structuredClone(bank),
@@ -253,7 +264,13 @@ export function mock(
       if (edit !== "delete") bank.bank.push({ question, answer: answer ?? found?.answer ?? "", reviewed: true });
       return structuredClone(bank);
     },
-    watch(on, lost) {
+    async changeAnswered(edit, { question, answer }) {
+      await new Promise((done) => setTimeout(done, 400));
+      bank.answered = (bank.answered ?? []).filter((e) => e.question !== question);
+      if (edit === "save") bank.answered.push({ question, answer: answer ?? "" });
+      return structuredClone(bank);
+    },
+        watch(on, lost) {
       if (connect === "down") {
         const t = setTimeout(() => lost?.(), 1500);
         return () => clearTimeout(t);

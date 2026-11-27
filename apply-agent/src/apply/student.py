@@ -256,13 +256,30 @@ def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None)
     home.WORKIT = home.FromWorkIt(writing.get("story_bank") or "", writing.get("voice") or "")
 
 
+def read_profile(profile: ApplicantProfile) -> str:
+    """The profile from WorkIt for the Answers page, opened before any Start: why it didn't come, or ""."""
+    try:
+        profile_from_workit(profile)
+    except SetupError as error:
+        return str(error)
+    return ""
+
+
 def to_workit(changes: list[tuple]) -> None:
-    """A profile save, into the student's profile on WorkIt: their Needs you answers, and the facts the Fill engine
-    read from them. A file's path is this Mac's, never sent."""
-    answered = {question: answer for kind, question, answer in changes if kind == "answered"}
-    facts = {key: value for kind, key, value in changes if kind == "set" and not key.startswith("files.")}
-    if answered or facts:
-        WorkIt().save_answered(answered, facts)
+    """A profile save, into the student's profile on WorkIt: their Needs you answers, the ones they removed, and the
+    facts the Fill engine read from them, in order, so a later change wins. A file's path is this Mac's, never
+    sent."""
+    answered, facts, removed = {}, {}, []
+    for kind, key, value in changes:
+        if kind == "answered":
+            answered[key], removed = value, [q for q in removed if q != key]
+        elif kind == "forget":
+            answered.pop(key, None)
+            removed.append(key)
+        elif kind == "set" and not key.startswith("files."):
+            facts[key] = value
+    if answered or facts or removed:
+        WorkIt().save_answered(answered, facts, removed)
 
 
 def layered(under: dict, over: dict) -> dict:
@@ -288,7 +305,7 @@ def app() -> None:
     home.WORKIT = home.FromWorkIt()
     bank = AnswerBank(WorkItSource())
     bank.load_in_background()
-    answers = AnswersTab(bank, profile)
+    answers = AnswersTab(bank, profile, read=lambda: read_profile(profile))
     runs = Runs(profile, bank, refresh=lambda: profile_from_workit(profile))
     try:
         with Dashboard(0, NoFrames(), answers, tracker_url=tracker_url(), serve=False) as board:

@@ -83,7 +83,7 @@ COUNTRY_NAMES = [["united kingdom", "uk", "great britain", "britain", "england"]
 
 def engine_profile(student: dict, today: date) -> dict:
     """The engine's profile: WorkIt's own fields laid over what the student brought from Apply (`fill.profile`)."""
-    return layered((student.get("fill") or {}).get("profile"), _workit_profile(student, today.isoformat()))
+    return layered((student.get("fill") or {}).get("profile"), workit_profile(student, today.isoformat()))
 
 
 def engine_policies(student: dict) -> dict:
@@ -285,7 +285,7 @@ def _current_company(jobs: list[dict]) -> str | None:
     return next((e["organization"] for e in jobs if e.get("end_kind") == "present" and e.get("organization")), None)
 
 
-def _workit_profile(student: dict, today: str) -> dict:
+def workit_profile(student: dict, today: str) -> dict:
     """The engine profile from WorkIt's own fields alone (the extension's `workitProfile`)."""
     first, *rest = (student.get("full_name") or "").split() or [""]
     named = bool(student.get("first_name") and student.get("last_name"))

@@ -56,11 +56,18 @@ GET  /apply-app/profile  AppProfile {profile, policies, files, writing}: the
      where each file it names is read, and `writing` {story_bank, voice}:
      the Story bank built from what WorkIt holds (services/story_bank.py) and
      the style card. Read at each Start.
-PATCH /apply-app/profile  AnsweredChange {answered, facts} -> 204:
-     Needs you answers by question and facts by dotted key (never
-     files.*), kept in fill_profile. An Essay fact's answer never comes:
+PATCH /apply-app/profile  AnsweredChange {answered, facts, remove_answered,
+     remove_facts} -> 204: Needs you answers by question and facts by
+     dotted key (never files.*), kept in fill_profile, and the questions
+     and facts the website's Remove takes out. An Essay fact's answer never comes:
      the app keeps it for that one form's essay. A fill adds nothing
      to the Story bank on WorkIt: its prompts carry only the website's.
+GET  /apply-app/answered  SavedAnswers {answered, facts}: what WorkIt fills
+     from fill_profile and from no WorkIt field, for Application Info to
+     show and edit (the student's own call, from the website): the Needs
+     you answers, and each fact no WorkIt field holds. A fact a WorkIt
+     field holds is left out: that field wins on every form, and it is
+     edited where the website shows the field.
 POST /apply-app/profile/upload  ProfileUpload {profile, story_bank, voice}
      -> UploadTaken: a Developer checkout's own files (`apply upload`), only
      what WorkIt lacks.
@@ -105,6 +112,7 @@ import datetime
 import json
 import logging
 import math
+import re
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -122,6 +130,7 @@ from app.models.profiles import Applicant_Profile
 from app.queries import answer_banks, model_usage, writing
 from app.queries.engine_student import engine_student
 from app.schemas.apply_app import (
+    FACT_KEY,
     AnsweredChange,
     AppProfile,
     AppSession,
@@ -131,6 +140,9 @@ from app.schemas.apply_app import (
     EngineKeyAsk,
     ModelAnswer,
     ProfileUpload,
+    SavedAnswer,
+    SavedAnswers,
+    SavedFact,
     SessionTrade,
     SignInCode,
     SignInStart,
@@ -143,7 +155,7 @@ from app.schemas.writing import CARD_MAX
 from app.scripts import import_apply_writing
 from app.security import decode_access_token
 from app.services import app_sign_in, engine_builds
-from app.services.engine_profile import engine_policies, engine_profile
+from app.services.engine_profile import engine_policies, engine_profile, workit_profile
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
 from app.services.story_bank import story_bank
@@ -221,6 +233,8 @@ async def save_answered(
     answered = {**(facts.get("answered_questions") or {}), **body.answered}
     if len(answered) > ANSWERED_MAX:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
+    for question in body.remove_answered:
+        answered.pop(question, None)
     facts["answered_questions"] = answered
     for key, value in body.facts.items():
         *sections, name = key.split(".")
@@ -230,8 +244,57 @@ async def save_answered(
                 at[section] = {}  # a section's place held by a value: the section takes it
             at = at[section]
         at[name] = value
+    for key in body.remove_facts:
+        _drop(facts, key.split("."))
     row.fill_profile = facts
     await db.commit()
+
+
+# Never listed as a fact: a file's path is the Mac's, the Needs you answers are listed by question, and sample_data is
+# the Test Person's mark. A key the PATCH can't take back (FACT_KEY) is left out too, so every fact shown can be edited.
+NOT_FACTS = ("files", "answered_questions", "sample_data")
+
+
+@router.get("/answered", response_model=SavedAnswers)
+async def answered(
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> SavedAnswers:
+    """What WorkIt fills from the student's own Fill engine profile and from no field of WorkIt's, for the website's
+    Application Info to show and edit through PATCH /apply-app/profile: the Needs you answers, and each fact no WorkIt
+    field holds. A fact a WorkIt field holds is left out: that field wins on every form (engine_profile.layered)."""
+    student = await engine_student(db, account.id, account.email, account.full_name or "")
+    if student is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    fill = (student.get("fill") or {}).get("profile") or {}
+    held = workit_profile(student, _now().date().isoformat())
+    asked = fill.get("answered_questions") if isinstance(fill.get("answered_questions"), dict) else {}
+    # Sorted here: JSONB keeps no key order.
+    return SavedAnswers(
+        answered=[SavedAnswer(question=q, answer=a) for q, a in sorted(asked.items()) if _editable(a, facts=False)],
+        facts=sorted((SavedFact(key=".".join(path), value=value) for path, value in _leaves(fill)
+                      if path[0] not in NOT_FACTS and re.fullmatch(FACT_KEY, ".".join(path)) and _editable(value)
+                      and _lacks(held, path)), key=lambda fact: fact.key),
+    )
+
+
+def _editable(value: object, facts: bool = True) -> bool:
+    """Whether the PATCH takes `value` back as it is: text or a list of texts, and for a fact a yes or no or a
+    number. An imported Apply profile can hold more (a list of schools), which no form here edits."""
+    if isinstance(value, list):
+        return all(isinstance(v, str) for v in value)
+    return isinstance(value, str) or (facts and isinstance(value, bool | int | float))
+
+
+def _drop(tree: dict, path: list[str]) -> None:
+    """The value at `path` taken out, and each section that leaves empty."""
+    head, *rest = path
+    if not rest:
+        tree.pop(head, None)
+    elif isinstance(tree.get(head), dict):
+        _drop(tree[head], rest)
+        if not tree[head]:
+            del tree[head]
 
 
 @router.post("/profile/upload", response_model=UploadTaken)

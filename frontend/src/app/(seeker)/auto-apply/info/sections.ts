@@ -5,12 +5,13 @@ import {
   NotebookIcon,
   PenNibIcon,
   ScrollIcon,
+  SealQuestionIcon,
   StampIcon,
   UserFocusIcon,
 } from "@phosphor-icons/react/ssr";
 
 /**
- * Application Info's six cards, with each one's glyph (./card-head.tsx)
+ * Application Info's cards, with each one's glyph (./card-head.tsx)
  * and the id of its card (`hash`).
  *
  * EACH GLYPH IS ITS OWN (2026-11-11): no other screen draws it, so it means
@@ -39,6 +40,13 @@ export const INFO_SECTIONS = [
   },
   // W11's Answer bank: the one-off answers every later form takes. New, so its hash is no old address.
   { key: "answer-bank", label: "Answer Bank", Icon: NotebookIcon, hash: "#section-answer-bank" },
+  // W11: what WorkIt Auto Apply's Needs You kept, a card under the Answer Bank in its part.
+  {
+    key: "app-answers",
+    label: "Answers From WorkIt Auto Apply",
+    Icon: SealQuestionIcon,
+    hash: "#section-app-answers",
+  },
   { key: "transcript", label: "Transcript", Icon: ScrollIcon, hash: "#section-transcript" },
   {
     key: "writing-samples",

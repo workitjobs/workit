@@ -3,8 +3,24 @@
 // waits for the student's review; `none` is a multi-select's "none of these" (answer []).
 export type BankRow = { question: string; answer: string | string[]; own: boolean; none: boolean };
 // The Answers tab's view as GET /answers gives it (answers_tab.AnswersTab.view): the bank, and while it hasn't come
-// from WorkIt yet, why.
-export type BankView = { bank: { question: string; answer: string | string[]; reviewed: boolean }[]; bank_note: string };
+// from WorkIt yet, why. Then the rest a form may need (W11): the student's Needs you answers, the profile WorkIt gave
+// (each section's facts as [dotted key, value]), their Stock answers, their voice (the style card), and why the
+// profile hasn't come yet.
+export type BankView = {
+  bank: { question: string; answer: string | string[]; reviewed: boolean }[];
+  bank_note: string;
+  answered?: { question: string; answer: string | string[] }[];
+  profile?: { section: string; facts: [string, string][] }[];
+  stock?: { key: string; answer: string }[];
+  voice?: string;
+  profile_note?: string;
+};
+
+// A profile key as words: its last part, "identity.legal_first_name" read as "Legal first name".
+export function words(key: string): string {
+  const last = (key.split(".").at(-1) ?? key).replace(/_/g, " ");
+  return last.charAt(0).toUpperCase() + last.slice(1);
+}
 
 // The view's bank as rows, drafts waiting for review first, then the rest, each by its question.
 export function rows(view: BankView): BankRow[] {

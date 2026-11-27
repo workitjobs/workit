@@ -348,8 +348,13 @@ page": WorkIt's answer, "WorkIt", is the extension's alone (decided
 alone, for a form's upload. A Start WorkIt doesn't answer says so and
 changes nothing. What the student answers in Needs you goes back
 (`student.to_workit`, `PATCH /apply-app/profile`): answers by question,
-and the facts the Fill engine read from them, never a file's path. A send
-WorkIt doesn't answer stays in the profile and goes with the next save. A
+the facts the Fill engine read from them, never a file's path, and the
+questions whose answers the student removed on the Answers page
+(`remove_answered`, sent only when there is one, so a save still reaches a
+server from before it), in order, so an answer given again after its
+Remove wins. A send WorkIt doesn't answer stays in the profile and goes
+with the next save. The website's Application Info shows and edits the
+same answers (`GET /apply-app/answered`, the same PATCH). A
 report's log is masked with the profile read from WorkIt as it goes. A
 Developer checkout keeps its profile file and Test Person. Tests:
 `tests/test_profile_from_workit.py`.

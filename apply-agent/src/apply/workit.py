@@ -333,10 +333,13 @@ class WorkIt:
         extension builds them, and where each file it names is read (`files`)."""
         return self.call("GET", "/apply-app/profile")
 
-    def save_answered(self, answered: dict, facts: dict) -> None:
+    def save_answered(self, answered: dict, facts: dict, removed: list | tuple = ()) -> None:
         """What the student answered in Needs you, into their profile on WorkIt (`PATCH /apply-app/profile`): answers
-        by question (an Essay fact's too), and facts the Fill engine read from an answer by dotted key."""
-        self.call("PATCH", "/apply-app/profile", {"answered": answered, "facts": facts})
+        by question (never an Essay fact's, which stays in memory: essays.TOLD), facts the Fill engine read from an
+        answer by dotted key, and the questions whose answers they removed. `remove_answered` goes only when there
+        is one, so a save still reaches a server from before it."""
+        self.call("PATCH", "/apply-app/profile",
+                  {"answered": answered, "facts": facts} | ({"remove_answered": list(removed)} if removed else {}))
 
     def upload_profile(self, profile: dict, story_bank: str, voice: str) -> dict:
         """A Developer checkout's own files onto WorkIt, once (`apply upload`, `POST /apply-app/profile/upload`):

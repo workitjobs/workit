@@ -10,6 +10,7 @@ import { getBank } from "@/lib/bank-actions";
 
 import { FIELD_GRID } from "../../profile/field-styles";
 import { AnswerBank } from "./answer-bank";
+import { AppAnswers } from "./app-answers";
 import { INFO_CARD } from "./card-head";
 import { InfoNav } from "./info-nav";
 import { InfoPart, InfoParts } from "./info-part";
@@ -71,6 +72,7 @@ export default function ApplicationInfoLayout({ children }: { children: ReactNod
           </Suspense>
           <InfoPart name="answer-bank">
             <AnswerBank />
+            <AppAnswers />
           </InfoPart>
           <InfoPart name="files">
             <Transcript />

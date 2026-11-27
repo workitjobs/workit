@@ -27,6 +27,20 @@ class SampleBody(BaseModel):
         return text
 
 
+class CardBody(BaseModel):
+    """The student's own style card (PUT .../style-card)."""
+
+    model_config = ConfigDict(extra="forbid")
+    card: str = Field(max_length=CARD_MAX)
+
+    @field_validator("card")
+    @classmethod
+    def not_blank(cls, card: str) -> str:
+        if not card.strip():
+            raise ValueError("A style card can't be empty.")
+        return card
+
+
 class Sample(BaseModel):
     id: uuid.UUID
     text: str
@@ -34,5 +48,5 @@ class Sample(BaseModel):
 
 class Samples(BaseModel):
     samples: list[Sample]
-    # None until the student's Claude builds one from the samples
+    # None until the student's Claude builds one from the samples, or they write their own
     style_card: str | None

@@ -79,7 +79,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             </Button>
           )}
           <Button tone="quiet" className={cx("h-8 px-3", page === "answers" && "bg-hover text-ink")} onClick={() => setPage(page === "answers" ? "home" : "answers")}>
-            <NotebookIcon className="size-4" /> Answer Bank
+            <NotebookIcon className="size-4" /> Answers
           </Button>
           {app.settings && (
             <Button tone="quiet" className="h-8 px-3" onClick={() => app.settings!().catch((e: Error) => setToast(e.message))}>

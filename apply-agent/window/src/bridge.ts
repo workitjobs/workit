@@ -69,6 +69,8 @@ export type Bridge = {
   bank(): Promise<BankView>; // the Answer bank, as the Answers tab shows it (GET /answers)
   // One change to the Answer bank, sent to WorkIt (answers_tab.AnswersTab): the new view, or why WorkIt didn't save it.
   changeBank(edit: "save" | "add" | "review" | "delete", body: { question: string; answer?: string | string[] }): Promise<BankView>;
+  // One change to a Needs you answer in the profile, sent to WorkIt (AnswersTab.save_answered, remove_answered).
+  changeAnswered(edit: "save" | "delete", body: { question: string; answer?: string }): Promise<BankView>;
   app: Promise<App>; // never settles in a window with no app methods
 };
 
@@ -157,6 +159,7 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
       return reply.json();
     },
     changeBank: (edit, body) => post<BankView>(`/answers/bank/${edit}`, body),
+    changeAnswered: (edit, body) => post<BankView>(`/answers/answered/${edit}`, body),
     app,
   };
 }

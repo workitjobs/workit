@@ -2420,7 +2420,8 @@ Info" and the setup row linked it.
 time, the shared side menu (`components/side-nav.tsx`), Settings' own, a
 glyph and a label per part at body size. The parts are Work Authorization,
 Self-Identification, Application Answers, Answer Bank (W11, its own
-section below) and Files & Sign-Up (`auto-apply/info/sections.ts`), each
+section below, with Answers From WorkIt Auto Apply under it) and Files &
+Sign-Up (`auto-apply/info/sections.ts`), each
 at `/auto-apply/info/<part>`. A
 click in the menu switches the part in place, with no read, and one
 history entry stands for the page.
@@ -2606,6 +2607,29 @@ goes into the other.
   an answer about one company) says the rule's reason under the box and
   keeps the text.
 
+**Answers From WorkIt Auto Apply (W11, 2026-11-27)** (`app-answers.tsx`,
+`lib/app-answers-actions.ts`, `lib/app-answers.ts`) is the second card of
+the Answer Bank part: what WorkIt Auto Apply's Needs You kept in the
+student's Fill engine profile on WorkIt (`fill_profile`), which the
+extension and the app fill into every later form. The rule it keeps: every
+answer WorkIt stores has a page where the student sees and edits it.
+
+- **Two kinds of row, one list.** A Needs You answer by the form's
+  question (an empty one, a Skip, reads Skipped), then each fact the Fill
+  engine read from an answer, by its key in words ("Willing to travel").
+  The API lists only what fills forms (`GET /apply-app/answered`): a fact
+  a WorkIt field holds is left out, since that field wins and is edited
+  where it shows.
+- **Read once, changed in place**, as the Answer Bank: Edit keeps the
+  value's kind (a list one item a line, a number, Yes or No picked on
+  chips), and Remove takes it out at once with Undo, so the next form asks
+  again. Both go through the app's own `PATCH /apply-app/profile`.
+- **Shown only once it holds something**: a student who never ran the app
+  has nothing in it, and a card with nothing to show or do is noise. It
+  is the one card here with no empty state; a failed read still shows.
+  The app's window shows the same answers with the same Edit and Remove
+  (`apply-agent/window/src/profile.tsx`).
+
 **Writing Samples (KAN-384, KAN-387)** is the last card
 (`writing-samples.tsx`, at `#writing-samples`): up to three
 pieces of the student's own writing (a class essay, a cover letter), so the
@@ -2630,6 +2654,14 @@ then. Student-facing copy names no Claude.
   replaced by removing it and adding the new one: changing a sample drops
   the style card either way, and Claude builds a new one next time.
   Remove deletes at once; its toast's Undo adds the same text again, last.
+- **The style card is under the samples, while there are any**
+  (`style-card.tsx`, W11): the short description of how the student writes
+  that every answer their Claude writes and every essay WorkIt Auto Apply
+  writes follows. Their Claude builds it from the samples; here the
+  student reads it, writes it in their own words (`PUT
+  /applicants/{id}/style-card`) or deletes it with Undo. A change to the
+  samples clears it on the server and on the card. With no samples it is
+  not drawn: the API refuses a card that describes no writing.
 
 **The Transcript (KAN-369)** is a card: one file, PDF or DOCX, uploaded,
 replaced or removed there (a plain row in the card, not a box of its own,

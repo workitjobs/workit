@@ -102,3 +102,21 @@ async def test_another_students_sample_is_not_found(student, database):
     assert replaced.status_code == 404
     assert removed.status_code == 404
     assert peeked.status_code == 403
+
+
+async def test_a_student_writes_their_own_style_card_and_removes_it(student):
+    """Application Info shows the style card every answer copies, and the student can change it. Fault: a card with
+    no samples was kept (it describes their writing), or Delete left it."""
+    card = student.url_for.replace("/writing-samples", "/style-card")
+
+    refused = await student.put(card, json={"card": "Short sentences."})
+    await student.post(student.url_for, json={"text": ESSAY})
+    saved = await student.put(card, json={"card": "  Short sentences. No dashes.  "})
+    got = (await student.get(student.url_for)).json()["style_card"]
+    removed = await student.delete(card)
+
+    assert refused.status_code == 409
+    assert saved.status_code == 204, saved.text
+    assert got == "Short sentences. No dashes."
+    assert removed.status_code == 204
+    assert (await student.get(student.url_for)).json()["style_card"] is None

@@ -230,6 +230,17 @@ for a student, not from `dashboard_page.py`.
   saved" line reads "Your answer wasn't saved"). Remove has Undo for the
   student's own answer only: a draft is drafted again by the next form.
   The window has no danger colour, so its error lines use the warning ink.
+- **Under the Answer Bank, the rest a form may need (W11, `src/profile.tsx`):**
+  the header's Answers button opens the page. The student's Needs you
+  answers come next, with Edit and Remove (`Bridge.changeAnswered`, `POST
+  /answers/answered/{save,delete}`; Remove sends `remove_answered`, so the
+  next form asks again), the same rows the website's Application Info
+  shows (Answers From WorkIt Auto Apply). Then the profile WorkIt gave,
+  each section's facts with a file by its name alone, the Stock answers
+  and the style card, to read only: they change on the website, which the
+  next Start reads. The page reads the profile from WorkIt the first time
+  it opens before any Start (`AnswersTab(read=)`, `student.read_profile`),
+  and says why when WorkIt doesn't answer.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't

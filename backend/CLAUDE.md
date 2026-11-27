@@ -453,7 +453,14 @@ Find files with a directory listing; these are the rules for where code goes.
   resumes), and the style card as the voice. Nothing a fill adds joins it,
   since every essay's prompt carries all of it, and an answer to an
   essay's Essay fact never reaches WorkIt: the app keeps it in memory for
-  that one form's essay. **`POST
+  that one form's essay. **Every answer it keeps there has a page**
+  (2026-11-27): `GET /apply-app/answered` lists the Needs you answers and
+  each fact of `fill_profile` that no WorkIt field holds
+  (`engine_profile.workit_profile`, the same layering), for the website's
+  Application Info, and the PATCH's `remove_answered` and `remove_facts`
+  take one out, a section it empties too. A fact a WorkIt field holds is
+  not listed: that field wins on every form, so an edit there would
+  change nothing. **`POST
   /apply-app/profile/upload` is a Developer checkout's** (`apply upload`):
   its own files, taking only what WorkIt lacks, so a second upload changes
   nothing the student edited since. Writing samples and the style card
@@ -879,8 +886,10 @@ Find files with a directory listing; these are the rules for where code goes.
   back. Tests: `tests/test_tracker.py`.
 - **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
-  add, replace, remove) and the connector's tools (their Claude reads the
-  samples and saves the card). Tests: `tests/test_writing_samples.py`.
+  add, replace, remove, and their own words for the card or its delete,
+  `PUT` and `DELETE /applicants/{id}/style-card`, W11) and the connector's
+  tools (their Claude reads the samples and saves the card). A card needs
+  a sample, from either writer. Tests: `tests/test_writing_samples.py`.
 - **The connector is an MCP server inside this API** (`app/connector/`,
   KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
   `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the

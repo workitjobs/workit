@@ -125,6 +125,17 @@ class ApplicantProfile:
             _apply(self._facts, "answered", question.strip(), answer)
             self._changes.append(("answered", question.strip(), answer))
 
+    def forget_answered(self, question: str) -> bool:
+        """Take Lisul's answer to `question` out and save the profile, so the next form asks again. False when the
+        profile holds no answer to it."""
+        with self._lock:
+            if question.strip() not in (self._facts.get(ANSWERED) or {}):
+                return False
+            _apply(self._facts, "forget", question.strip(), None)
+            self._changes.append(("forget", question.strip(), None))
+            self.save()
+            return True
+
     def save_fact(self, key: str, value: Any) -> None:
         """Set a fact by dotted key and save the profile, refusing first, with
         nothing changed, a key that looks like it holds a secret."""
@@ -150,7 +161,11 @@ class ApplicantProfile:
 
 
 def _apply(facts: dict, kind: str, key: str, value: Any) -> None:
-    """One change to the facts: a dotted key set, or an answered question."""
+    """One change to the facts: a dotted key set, an answered question, or one forgotten."""
+    if kind == "forget":
+        if isinstance(facts.get(ANSWERED), dict):
+            facts[ANSWERED].pop(key, None)
+        return
     if kind == "answered":
         if not isinstance(facts.get(ANSWERED), dict):
             facts[ANSWERED] = {}

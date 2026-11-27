@@ -3,12 +3,13 @@
 // Answers tab's routes (answers_tab.AnswersTab), each of which goes to WorkIt and answers the new view. Edit and Add
 // save the student's own words; Reviewed takes a draft's flag off; Remove deletes at once, with Undo for an answer of
 // their own (a draft is drafted again the next time a form asks). A save WorkIt's rule keeps out says why and keeps
-// the text.
+// the text. Under it, the rest a form may need (./profile.tsx).
 import { CheckIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import type { Bridge } from "./bridge.ts";
 import { answerText, parseAnswer, rows, sameQuestion, type BankRow, type BankView } from "./bank.ts";
+import { FromWorkIt } from "./profile.tsx";
 import { Button } from "./ui.tsx";
 
 const INTRO =
@@ -163,6 +164,7 @@ export function AnswerBank({ bridge }: { bridge: Bridge }) {
           </div>
         ))}
       </div>
+      <FromWorkIt view={view} onView={setView} bridge={bridge} />
     </>
   );
 }
