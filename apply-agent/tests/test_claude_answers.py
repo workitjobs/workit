@@ -2317,6 +2317,41 @@ def test_the_reviews_fix_is_filled_on_a_question_and_its_repeat_when_its_reason_
     assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
 
 
+@pytest.mark.parametrize("reason", [
+    SAYS_PROFILE,
+    # Honeywell's (live 2026-11-27): no word of the profile, but the form's own graduation date, which is the profile's.
+    f"{RELOCATE}: answered wrong, which contradicts 'Where do you live?' (New York).",
+])
+def test_the_reviews_fix_to_a_question_is_filled_on_its_repeat_in_another_section(monkeypatch, reason):
+    # Honeywell (Oracle, live 2026-11-27): the review fixed the question but not its "Application Questions:" repeat,
+    # then held the form as the two said different things.
+    repeat = f"Application Questions: {RELOCATE}"
+    form, _, _, fix = _relocating(monkeypatch, reason)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [reason], "fixes": [{"question": RELOCATE, "answer": fix}]}])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix and sent_answer(form, repeat) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
+def test_a_repeat_is_undone_with_its_questions_trial_fix(monkeypatch):
+    repeat = f"Application Questions: {RELOCATE}"
+    still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
+    form, _, planned, fix = _relocating(monkeypatch, SAYS_PROFILE)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [SAYS_PROFILE], "fixes": [{"question": RELOCATE, "answer": fix}]}, [still], [still]])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held"
+    assert [(filled[RELOCATE], filled[repeat]) for filled in form.filled][-1] == (planned, planned)
+
+
 def test_a_fix_over_a_profile_choice_the_second_review_still_flags_is_undone_and_held(monkeypatch):
     still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
     form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE, [still], [still])

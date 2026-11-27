@@ -558,6 +558,18 @@ def _self_fixes(found: Found, ask: Callable[[list[str]], dict[str, str]]) -> dic
     return fixes
 
 
+def _repeats(questions: Sequence[Question]) -> dict[str, set[str]]:
+    """Each question's repeats in another section, by name: Oracle asks "<question>" and again "Application
+    Questions: <question>", one label after a section's name and ": " the other's whole."""
+    by_label: dict[str, set[str]] = {}
+    labels = {one_line(q.label).casefold() for q in questions}
+    for q in questions:
+        label = one_line(q.label).casefold()
+        _, _, rest = label.partition(": ")
+        by_label.setdefault(rest if rest in labels else label, set()).add(q.name)
+    return {name: same - {name} for same in by_label.values() if len(same) > 1 for name in same}
+
+
 def _narrows(answer: str, shown: object) -> bool:
     """Whether `answer` says only part of what the field shows, in its words ("New York" of "Riverton, New York,
     United States"): the same facts, fewer of them, so no fact the profile doesn't hold."""
@@ -628,7 +640,9 @@ def _unasked(filler, page, questions: list[Question]) -> list[str]:
 
 # A Pre-submit review's reason that rests on the applicant's profile ("the profile says Woodbury, NY and willing to
 # relocate"), not on its own reading of the form.
-PROFILE_REASON = re.compile(r"\bprofile\b", re.IGNORECASE)
+# A reason that the answer contradicts another of the form's (its graduation date) rests on the profile too: the
+# form's dates and education come from it (Honeywell's "Yes" to full time within 12 months, live 2026-11-27).
+PROFILE_REASON = re.compile(r"\bprofile\b|\bcontradict", re.IGNORECASE)
 
 
 def _flagged(q: Question, problems: Sequence[str]) -> list[str]:
@@ -1011,33 +1025,50 @@ class _Planned:
         legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
         backed = {q.name for q in self.questions if trial and q.options and q.name not in own | guessed | legal
                   and any(PROFILE_REASON.search(why) for why in _flagged(q, problems))}
+        repeats = _repeats(self.questions)
+
+        def kept(q: Question, answer: str | None) -> bool:  # an answer no fix may change, or a fix not to take
+            return (answer is None or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
+                    or q.name in self.attestations or q.name in self.attested
+                    or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
+                    or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer))
+
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or (q.name not in guessed | legal | backed and not _narrows(answer, readback.get(q.name)))
-                    or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
-                    or q.name in self.attestations or q.name in self.attested
-                    or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
-                    or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
+            if kept(q, answer) or (q.name not in guessed | legal | backed and not _narrows(answer, readback.get(q.name))):
                 continue
-            for draft in [d for d in self.drafted if d.question.name == q.name]:
-                entry = self._bank.get(self.wording(q))
-                if entry and entry.source != LISUL and not entry.reviewed:
-                    self._bank.delete(self.wording(q))
-                self.drafted.remove(draft)
-            self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
-            if q.name in backed - legal:
-                self.trials[q.name] = self._answers.get(q.name)
-            self.fixes[q.name] = answer
-            changed = True
+            changed |= self._take(q, answer, trial=q.name in backed - legal)
+        for q in self.questions:
+            # Its repeat in another section (Oracle's "Application Questions: <question>") takes the same fix, so the
+            # form never says both (Honeywell, live 2026-11-27: the review fixed one, then held the form for the other).
+            taken = [(self.fixes[o], o in self.trials) for o in repeats.get(q.name, ()) if o in self.fixes]
+            if taken and q.name not in self.fixes and not kept(q, taken[0][0]):
+                changed |= self._take(q, taken[0][0], trial=taken[0][1])
         if changed:
             self.answers = self._answers
         return changed
 
+    def _take(self, q: Question, answer: str, trial: bool) -> bool:
+        """Fill the fix `answer` for `q` (see fix); with `trial`, kept only if the next review passes it (unfix)."""
+        for draft in [d for d in self.drafted if d.question.name == q.name]:
+            entry = self._bank.get(self.wording(q))
+            if entry and entry.source != LISUL and not entry.reviewed:
+                self._bank.delete(self.wording(q))
+            self.drafted.remove(draft)
+        self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
+        if trial:
+            self.trials[q.name] = self._answers.get(q.name)
+        self.fixes[q.name] = answer
+        return True
+
     def unfix(self, problems: Sequence[str]) -> bool:
         """Undo each trial fix over a profile answer (`fix`) the second review still flags in `problems`: the
         plan's answer is filled again, and the review's problem stays for Lisul. True if any was undone."""
-        undone = [q for q in self.questions if q.name in self.trials and _flagged(q, problems)]
+        flagged = {q.name for q in self.questions if q.name in self.trials and _flagged(q, problems)}
+        repeats = _repeats(self.questions)
+        undone = [q for q in self.questions if q.name in self.trials
+                  and (q.name in flagged or flagged & repeats.get(q.name, set()))]  # a repeat with its question
         for q in undone:
             self.fixes.pop(q.name)
             self.fixed = [f for f in self.fixed if f[0] != one_line(q.label)]
