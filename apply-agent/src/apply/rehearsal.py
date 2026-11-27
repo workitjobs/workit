@@ -358,6 +358,14 @@ def rehearse(
     # Each tile's first fill has stopped for something other than a sign-in: a reopened Worker's next link goes in.
     settled: dict[int, threading.Event] = {}
 
+    turns: dict[str, threading.Semaphore] = {}
+
+    def site_turn(n: int, url: str) -> threading.Semaphore:
+        """The turn link `url` (tile `n`) waits for before its form opens: one per site sign_in_alone names, so its
+        forms open one at a time, else its own."""
+        with writing:
+            return turns.setdefault(sign_in_alone(url) or f"tile {n}", threading.Semaphore(1))
+
     def settles(n: int) -> threading.Event:
         with writing:
             return settled.setdefault(n, threading.Event())
@@ -705,8 +713,15 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
-        slot.take(lambda: not stopped.is_set() and n not in dropped)  # a turn at a slot, given up on Stop
-        leave_room = slot.give  # sent, its page closed, or it never opened: the next job may open its form (once)
+        # One form at a time per site whose sign-in signs out its other tabs (Oracle's, sign_in_alone): its turn is
+        # taken before its place among the open forms, and given back with it.
+        turn = _Slot(site_turn(n, url))
+        turn.take(lambda: not stopped.is_set() and n not in dropped)
+        slot.take(lambda: turn.held and not stopped.is_set() and n not in dropped)  # a turn at a slot, given up on Stop
+
+        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
+            slot.give()
+            turn.give()
 
         def let_chrome_go() -> None:
             """Its form is done with: its page closed (site.close), its Worker's Chrome stops too once no other form
@@ -811,7 +826,7 @@ def rehearse(
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     # Its place went while nothing of it waited on him (Fill it anyway with no page, an unconfirmed
                     # Submit): the new fill opens a form, so it waits for one again, and never past the cap.
-                    if not slot.take(lambda: not release.is_set()):
+                    if not (turn.take(lambda: not release.is_set()) and slot.take(lambda: not release.is_set())):
                         break
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
@@ -959,6 +974,17 @@ def _until(release: threading.Event) -> str:
     while not release.is_set():
         time.sleep(0.5)
     return ""
+
+
+# An Oracle Recruiting site: a sign-in there signs out the site's other tabs, so a form filled meanwhile is refused at
+# Submit ("You already created your profile in another browser tab", Honeywell's two tiles, live 2026-11-27).
+ORACLE_SITE = re.compile(r"https?://([^/]+\.oraclecloud\.com)/hcmUI/CandidateExperience/[^/]+/sites/([^/?#]+)", re.IGNORECASE)
+
+
+def sign_in_alone(url: str) -> str:
+    """The site of `url` whose forms must open one at a time ("<host>/<site>"), or "" for one whose don't."""
+    found = ORACLE_SITE.match(url)
+    return f"{found[1].lower()}/{found[2]}" if found else ""
 
 
 class _Slot:

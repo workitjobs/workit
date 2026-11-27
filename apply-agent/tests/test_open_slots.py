@@ -355,3 +355,28 @@ def test_relaunch_starts_a_gone_chrome_again_on_its_profile_or_says_it_wont():
     dead.running[0] = SimpleNamespace(connection=_connection(closed=True))
     assert not PlainSite(dead, fetcher=object()).relaunch(0)
     assert dead.calls == [("stop", 0), ("launch", 0)]
+
+
+ORACLE = "https://abcd.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Careers/job/{}"
+
+
+def test_forms_of_one_oracle_site_open_one_at_a_time(monkeypatch, faked, tmp_path):
+    """Fault: two tiles of one Oracle site signed in one after the other, and the second's sign-in signed out the
+    first, whose Submit Oracle then refused ("another browser tab", Honeywell, live 2026-11-27)."""
+    links = [ORACLE.format(1), ORACLE.format(2), "https://jobs.example/other",
+             ORACLE.format(3).replace("/sites/Careers/", "/sites/Other/")]
+    run = faked({link: ["held"] for link in links})
+    board = Board()
+    thread = start(links, board, tmp_path, workers=4)
+
+    until(lambda: len(run.started) == 3, "the forms of other sites to open beside the first")
+    time.sleep(0.5)
+    assert ORACLE.format(2) not in run.started  # the same site's second waits while the first's page waits on him
+    board.let_go.add(0)  # tile 0: the first link
+    until(lambda: ORACLE.format(2) in run.started, "the same site's second form once the first was let go")
+    end(board, thread)
+
+
+def test_only_an_oracle_sites_forms_wait_their_turn():
+    assert rehearsal.sign_in_alone(ORACLE.format(1)) == "abcd.fa.ocs.oraclecloud.com/Careers"
+    assert rehearsal.sign_in_alone("https://jobs.lever.co/acme/1") == ""
