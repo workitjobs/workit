@@ -278,11 +278,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Claude couldn't delete (`entries_kept`) holds the form: "Verify: Remove this entry, which your profile
   doesn't list: ..." (`ClaudeFill.extra_entries`, `worker.EXTRA_ENTRY`). Verifying holds a section read back
   with more entries than planned too (`docs/held-forms.md`).
-- A work section with fewer entries than planned has its add button pressed by plain code, by the name Claude
-  gives it (`add_button`, `steps._the_add`, KAN-728). Where several visible buttons share that name
+- A jobs or schools section with fewer entries than planned has its add button pressed by plain code, by the name
+  Claude gives it (`add_button`, `steps._the_add`, KAN-728): the first such section's on the page. A jobs section
+  Claude names by its own heading ("Experience (entries)", SmartRecruiters') is read as "Work Experience", the name
+  the Fill engine answers (`_entry_label`). An entry that opens in an editor of its own (SmartRecruiters') is kept
+  only once its own Save is pressed, which Claude does before it reads the section's count back. Where several visible buttons share that name
   (SmartRecruiters' "Add" in Experience and in Education, live 2026-11-27), the one pressed is the one whose
   part of the page (the widest around it with no other such button) has an aria-label or first heading with a
-  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff.
+  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff. The look crosses
+  shadow roots: SmartRecruiters' "Add" is an spl-button's own button, named by its host's aria-label ("Add experience
+  entry"), and a step's fields are read in shadow roots too (`steps.FIELDS_SHOWN`), where its spl-inputs hold them.
 
 ## Form pages
 

@@ -43,10 +43,20 @@ FIELD_TEXT = """el => {
   return text;
 }"""
 OPENS_MS = 1_500  # how long an opened dropdown may take to list its choices
-# The form fields a step shows, in a frame: a step went on once they change.
-FIELDS_SHOWN = """() => [...document.querySelectorAll('input, select, textarea')]
-  .filter(el => el.type !== 'hidden' && el.checkVisibility && el.checkVisibility())
-  .map(el => el.name || el.id || el.type).join('|')"""
+# The form fields a step shows, in a frame, and in each open shadow root in it (SmartRecruiters' spl-input holds its
+# input there, live 2026-11-27): a step went on once they change.
+FIELDS_SHOWN = """() => {
+  const out = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.matches('input, select, textarea') && el.type !== 'hidden' && el.checkVisibility && el.checkVisibility())
+        out.push(el.name || el.id || el.type);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  return out.join('|');
+}"""
 
 
 def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False, add: bool = False,
@@ -84,19 +94,35 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
 
 
 # The heading of the part of the page an add button holds alone: the widest one around it with no other button of
-# its name (its section, fieldset or group), named by its aria-label and its first heading before the button. Run on
-# each button by itself: a plain Worker passes no element handles to a page script.
+# its name (its section, fieldset or group), named by the aria-labels on the way up to it and its first heading before
+# the button. The way up crosses shadow roots, and so does the look for another button: SmartRecruiters' "Add" is an
+# spl-button's own button, the host named "Add experience entry" (live 2026-11-27). Run on each button by itself: a
+# plain Worker passes no element handles to a page script.
 ADD_SECTION = """(el, name) => {
   const key = words => (words || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-  const same = b => b !== el && [b.getAttribute('aria-label'), b.innerText, b.value].some(w => key(w) === key(name));
+  const BUTTONS = 'button, [role=button], input[type=button], input[type=submit]';
+  const host = node => { const root = node.getRootNode(); return root instanceof ShadowRoot ? root.host : null; };
+  // A shadow root's button is named by its slotted words, which its own innerText may not show: its host's too.
+  const same = b => b !== el && [b.getAttribute('aria-label'), b.innerText, b.value, host(b) && host(b).innerText]
+    .some(w => key(w) === key(name));
+  const buttons = root => {
+    const found = [...root.querySelectorAll(BUTTONS)];
+    for (const node of [root, ...root.querySelectorAll('*')]) if (node.shadowRoot) found.push(...buttons(node.shadowRoot));
+    return found;
+  };
+  const labels = [];
   let region = el;
-  for (let node = el.parentElement; node; node = node.parentElement) {
-    if ([...node.querySelectorAll('button, [role=button], input[type=button], input[type=submit]')].some(same)) break;
+  for (let node = el.parentElement || host(el); node; node = node.parentElement || host(node)) {
+    if (buttons(node).some(same)) break;
     region = node;
+    if (node.getAttribute('aria-label')) labels.push(node.getAttribute('aria-label'));
   }
+  // Placed in the region's own tree by its host there: an order across shadow roots means nothing.
+  let at = el;
+  while (at.getRootNode() !== region.getRootNode() && host(at)) at = host(at);
   const head = [...region.querySelectorAll('h1, h2, h3, h4, h5, h6, legend, [role=heading]')]
-    .find(h => h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
-  return [region.getAttribute('aria-label') || '', head ? head.innerText : ''].join(' | ');
+    .find(h => h.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING);
+  return [...labels, head ? head.innerText : ''].join(' | ');
 }"""
 
 

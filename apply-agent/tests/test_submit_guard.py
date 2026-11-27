@@ -1393,6 +1393,39 @@ def test_of_two_add_buttons_none_of_the_sections_heading_is_a_handoff():
     assert _two_adds(press) == (0, 0)
 
 
+# SmartRecruiters' own markup (Wellmark's, live 2026-11-27): each "Add" is an spl-button's button, in its open shadow
+# root, the host named "Add experience entry"; the section's title is no heading, and the entry's fields come in
+# spl-inputs, each holding its input in a shadow root too.
+SHADOW_ADDS = """<x-section id="jobs"><span>Experience</span>
+<x-button aria-label="Add experience entry" onclick="add('jobs', 'job2')"><span>Add</span></x-button></x-section>
+<x-section id="schools"><span>Education</span>
+<x-button aria-label="Add education entry" onclick="add('schools', 'school2')"><span>Add</span></x-button></x-section>
+<script>
+for (const b of document.querySelectorAll('x-button')) b.attachShadow({mode: 'open'}).innerHTML = '<div><button type="button"><slot></slot></button></div>';
+function add(section, name) {
+  const input = document.createElement('x-input');
+  input.attachShadow({mode: 'open'}).innerHTML = `<input name="${name}">`;
+  document.getElementById(section).append(input);
+}
+</script>"""
+
+
+def test_of_two_add_buttons_in_shadow_roots_plain_code_presses_the_work_sections():
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(SHADOW_ADDS)
+        try:
+            steps.press_step(page, None, "Add", add=True, section="Work Experience")
+            assert (page.locator("[name=job2]").count(), page.locator("[name=school2]").count()) == (1, 0)
+            steps.press_step(page, None, "Add", add=True, section="Education")
+            assert page.locator("[name=school2]").count() == 1
+        finally:
+            browser.close()
+
+
 # TAL.net's posting page (Bank of America's campus careers, live 2026-11-06, KAN-725): its Apply button is a submit
 # input in a POST form of its token alone, bound for .../opp/<id>/apply/<lang>, which opens the application. The
 # guard took it for a form's Apply that sends, and the rehearsal handed off with no field filled.

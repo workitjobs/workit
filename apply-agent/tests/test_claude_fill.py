@@ -27,7 +27,7 @@ from apply.adapters import Adapters, UsageLimitHit
 from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
 from apply.feed import SimplifyFeed
-from apply.model import Handoff
+from apply.model import Handoff, Question
 from apply.notify import RecordingNotifier
 from apply.one_page import OnePage
 from apply.records import InMemoryRecords
@@ -850,6 +850,30 @@ def test_claude_names_a_work_sections_entries_and_leaves_its_add_button_to_plain
         assert '"Work Experience <n> / <label>"' in prompt and '"Work Experience (entries)"' in prompt
     assert "Never press the section's add button yourself" in FILL
     assert claude_fill._fewer("1", "2") and not claude_fill._fewer("2", "2") and not claude_fill._fewer("", "2")
+
+
+def test_a_schools_section_and_a_bare_experience_section_are_entries_as_the_fill_engine_knows_them():
+    # SmartRecruiters (Wellmark's, live 2026-11-27): Claude named the jobs section "Experience (entries)", which the
+    # Fill engine never answered, and Education's "Add" was never pressed.
+    for prompt in (claude_fill.READ, FILL):
+        assert '"Education <n> / <label>"' in prompt and '"Education (entries)"' in prompt
+    assert "Save or Done button for that one entry" in FILL
+    assert [claude_fill._entry_label(label) for label in ("Experience (entries)", "Experience 2 / Title",
+                                                          "Experience with Python", "Education (entries)")] == \
+        ["Work Experience (entries)", "Work Experience 2 / Title", "Experience with Python", "Education (entries)"]
+    assert claude_fill.ENTRIES_COUNT.match("Education (entries)")
+    known = [Question("q1", "Work Experience (entries)", "select", True)]
+    found = [{"label": "Experience (entries)", "kind": "select", "required": True, "options": []},
+             {"label": "Experience 1 / Title", "kind": "text", "required": True, "options": []}]
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            new = claude_fill._new_questions(browser.new_page(), known, found)
+        finally:
+            browser.close()
+    assert [q["label"] for q in new] == ["Work Experience 1 / Title"]
 
 
 def test_a_resume_with_no_file_input_to_find_is_left_to_claude_as_before(tmp_path):
