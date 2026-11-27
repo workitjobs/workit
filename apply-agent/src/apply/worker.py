@@ -396,6 +396,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         replanned = fixed = False  # each is tried once: a fill again after a readback mismatch, and after the review's fixes
         for attempt in range(3):
             with site.open(form_url) as page:
+                # A form that won't show fails here, in seconds, not after Claude planned it (Rippling's crashed form).
+                getattr(filler, "form_shown", lambda page: None)(page)
                 if rehearse and attempt == 0 and (stop := _plan(planned, questions, filler, page, go_on)):
                     return stop
                 before_fill()

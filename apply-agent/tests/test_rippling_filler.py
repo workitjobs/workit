@@ -1,5 +1,7 @@
 """Seam 2: the Rippling Filler against Rippling's saved job API answers and a fake Rippling form."""
 
+import time
+
 import pytest
 from conftest import FIXTURES, FORMS
 from fake_rippling import FakeRipplingServer
@@ -7,7 +9,7 @@ from fake_rippling import FakeRipplingServer
 from apply import company, request
 from apply.fill_engine import plan
 from apply.fillers import FILLERS
-from apply.model import Handoff, Posting, Question
+from apply.model import FillError, Handoff, Posting, Question
 from apply.profile import ApplicantProfile
 from apply.rippling import RipplingFiller
 
@@ -216,3 +218,36 @@ def test_every_rippling_form_asks_for_text_message_consent_and_lisul_gives_it(on
     assert (sms.kind, sms.required) == ("select", False)
     assert planned.answers[sms.name] == SMS_YES
     assert readback[sms.name] == SMS_YES
+
+
+def test_a_posting_link_opens_its_form_page():
+    # Rippling's Posting page shows the role and an "Apply now" link; the form is at /apply.
+    assert RipplingFiller().form_url(RIPPLING_URL) == RIPPLING_URL + "/apply?step=application"
+
+
+def test_a_crashed_form_is_loaded_again_and_filled():
+    # Overland AI's (seen live 2026-11-27): "We're experiencing an issue. Check back shortly." and no fields.
+    filler = RipplingFiller()
+    with FakeRipplingServer(RIPPLING_FORM, crashes=1) as server:
+        questions = filler.question_set(RIPPLING_URL, server)
+        with server.open(filler.form_url(RIPPLING_URL)) as page:
+            filler.form_shown(page)
+            readback = filler.fill(page, questions, {"first_name": "Test"})
+
+    assert server.form_loads == 2
+    assert readback == {"first_name": "Test"}
+
+
+def test_a_form_that_stays_crashed_fails_in_seconds_saying_what_rippling_said():
+    # Fault: waiting out the engine's 30 s for a field (Overland AI's failed after 275 s).
+    filler = RipplingFiller()
+    with FakeRipplingServer(RIPPLING_FORM, crashes=99) as server:
+        with server.open(filler.form_url(RIPPLING_URL)) as page:
+            began = time.monotonic()
+            with pytest.raises(FillError, match="We're experiencing an issue. Check back shortly.") as error:
+                filler.form_shown(page)
+            took = time.monotonic() - began
+
+    assert str(error.value).startswith("the form never showed")
+    assert server.form_loads == 3 and took < 10
+    assert server.submissions == []
