@@ -760,7 +760,8 @@ class _Planned:
                 if posting_ai_trap(self.material) or posting_bans_ai(self.material):
                     return self.add([], where)  # planned again, the material read with the posting: its essays are Lisul's
                 stuck.doing(f"Researching {name} for an essay")
-                self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions)
+                self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions,
+                                         self.profile.policy("research_budget") is True)
             ask = new if self._approved is None else []
             given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
             answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
