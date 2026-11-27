@@ -137,6 +137,18 @@ def write(claude: Claude, posting: Posting, questions: list[Question], profile: 
     return answer(claude, posting, questions, [], profile, company, posting_text)[0]
 
 
+BANK_EDITS = 2  # times one answer() starts again on a Story bank edit, so an edit made each minute can't loop it
+
+
+def bank_stamp() -> tuple[int, int] | None:
+    """When the Story bank last changed, as its mtime and size; None when there is none."""
+    try:
+        found = data_folder.STORY_BANK.stat()
+    except OSError:
+        return None
+    return found.st_mtime_ns, found.st_size
+
+
 def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: list[Question], profile: ApplicantProfile,
            company: str = "", posting_text: str = "",
            redraft: dict[Question, tuple[str, ...]] | None = None,
@@ -144,6 +156,28 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
            planned: Mapping[Question, "Plan"] | None = None,
            redo: Mapping[Question, tuple[str, str]] | None = None,
            sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
+    """`_answer`, from the Story bank as it is when it returns. Its plan, draft, claim check and
+    editor read the bank once, at the start, and take minutes: an edit Lisul saves meanwhile
+    would leave his removed facts in the answers. So when the bank changed while it ran, it
+    plans and writes again from the new bank, up to BANK_EDITS times (ENFOS, 2026-11-26: the
+    WorkIt facts moved out of the bank at 19:50:03, and the editor's passes at 19:50:24 and
+    19:50:55 still kept them, read at 19:48)."""
+    for tries in range(BANK_EDITS + 1):
+        stamp = bank_stamp()
+        result = _answer(claude, posting, essays, drafts, profile, company, posting_text, redraft, answered,
+                         planned, redo, sections)
+        if bank_stamp() == stamp or tries == BANK_EDITS:
+            return result
+        planned = None  # its plans quote the old bank
+
+
+def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: list[Question], profile: ApplicantProfile,
+            company: str = "", posting_text: str = "",
+            redraft: dict[Question, tuple[str, ...]] | None = None,
+            answered: Mapping[Question, object] | None = None,
+            planned: Mapping[Question, "Plan"] | None = None,
+            redo: Mapping[Question, tuple[str, str]] | None = None,
+            sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
     """One Claude call writing every essay in `essays` and drafting every
     one-off question in `drafts`, after one call planning the essays (plan),
     unless `planned` gives their Plans already. `company` is the Application's <company>
@@ -172,10 +206,10 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     editor 1-3 Opus: 4-7 calls. A form with no essays still costs one
     Sonnet call."""
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
-        written, _ = answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
-                            redo, sections)
-        return written, answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
-                               sections=sections)[1]
+        written, _ = _answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
+                             redo, sections)
+        return written, _answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
+                                sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     shown = form_answers(answered or {}, private.self_id(profile))
@@ -241,8 +275,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
               for key, q in {**keys, **waiting}.items()]
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
-        redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
-                                                answered, planned, redo)[0]}
+        redone = {e.question: e for e in _answer(claude, posting, list(again), [], profile, company, posting_text, again,
+                                                 answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
     return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
 

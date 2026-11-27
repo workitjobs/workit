@@ -1510,6 +1510,31 @@ def test_each_essay_is_drafted_once_from_its_plans_slots_with_no_pick_or_critic(
     assert [b.slot for b in essay.plan.slots] == list(slots)
 
 
+WORKIT = "- Built the WorkIt front end from Figma frames and the FastAPI endpoints behind its job search.\n"
+
+
+class EditsTheBank(FakeClaude):
+    """Lisul moves a fact out of the Story bank while the editor's pass runs, as he did during ENFOS's."""
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if kind == "writing.edit" and WORKIT in (bank := home.STORY_BANK.read_text()):
+            home.STORY_BANK.write_text(bank.replace(WORKIT, ""))
+        return super().ask_kind(kind, data)
+
+
+def test_a_story_bank_edit_while_an_essay_is_written_has_it_planned_and_written_again():
+    # Fault: answer() returns the essay its plan and editor wrote from the bank as it was before the edit.
+    claude = EditsTheBank(essays={"Why Figma?": OWN})
+
+    write_figma(claude, [SHORT_WHY])
+
+    assert kinds(claude) == ["typical", "plan", "essays", "unsupported", "edited",
+                             "plan", "essays", "unsupported", "edited"]  # the typical answer is cached
+    first, again = plans(claude)
+    assert WORKIT.strip() in first["prompt"] and WORKIT.strip() not in again["prompt"]
+    assert WORKIT.strip() not in asks(claude)[-1]["prompt"]
+
+
 def test_a_slot_quote_must_be_in_the_sources_and_a_required_slot_needs_one():
     bank = home.STORY_BANK.read_text()
     slots = lambda *given: {"q1": essays.Plan("best-project", ("which",), HITACHI, "", "An angle.",
