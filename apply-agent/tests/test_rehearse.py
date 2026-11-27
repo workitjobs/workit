@@ -61,7 +61,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import auto_submit, rehearsal, rescue, send_button, worker
+from apply import auto_submit, batch, rehearsal, rescue, send_button, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -1879,7 +1879,6 @@ def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
 
 def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch, tmp_path):
     # KAN-719: a restart of the Mac lost every held form (2026-11-04 and 05). The list keeps each one as it goes.
-    from apply import batch
 
     path = tmp_path / "open-forms.json"
     monkeypatch.setattr(batch, "PATH", path)
@@ -2397,7 +2396,7 @@ def test_a_refusal_about_no_question_of_the_form_is_handed_over_unpressed(monkey
 
     def press(page) -> str:
         page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
-          '<div role="alert">Something went wrong. Please try again later.</div>')""")
+          '<div role="alert">Please review the form before you send it.</div>')""")
         presses.append("refused")
         return "Submit application"
     monkeypatch.setattr(send_button, "press", press)
@@ -2421,7 +2420,56 @@ def test_a_refusal_about_no_question_of_the_form_is_handed_over_unpressed(monkey
         watchdog.cancel()
 
     assert presses == ["refused"]
-    assert board.captions[0]["why"] == rehearsal.REFUSED.format(said="'Something went wrong. Please try again later.'")
+    assert board.captions[0]["why"] == rehearsal.REFUSED.format(said="'Please review the form before you send it.'")
+
+
+# Workable's answer to Apply's press (Digital Control, Infleqtion, live 2026-11-27): a toast in no field, with no role
+# or error class, gone within seconds; no confirmation and no email followed.
+TOAST = """() => {
+  const toast = document.createElement('div');
+  toast.textContent = 'Something went wrong. We are working on this, please try again later.';
+  document.body.append(toast);
+  setTimeout(() => toast.remove(), 3000);
+}"""
+
+
+def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(monkeypatch, tmp_path):
+    """Fault: Workable's "Something went wrong ... try again later" toast went before the form was read for errors,
+    and the form was handed over as one that may have gone in (marked sent, never brought back), not as refused."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 30)
+    presses, asked, noted = [], [], []
+    monkeypatch.setattr(batch, "note", lambda url, **fields: noted.append(fields))
+
+    def press(page) -> str:
+        page.evaluate(TOAST)
+        presses.append("refused")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused"] and submissions == []
+    assert board.captions[0]["why"] == rehearsal.SITE_REFUSED.format(
+        said="Something went wrong. We are working on this, please try again later.")
+    assert {"status": batch.SENT} not in noted  # nothing went in: never kept from being sent again
 
 
 def test_a_code_step_after_an_approved_submit_is_asked_for_never_handed_over_as_unconfirmed(monkeypatch, tmp_path):

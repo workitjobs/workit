@@ -161,6 +161,8 @@ UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went 
 # job system's own check answers in the page at once, its confirmation within seconds.
 HEAL_AFTER_S = 15
 REFUSED = "Apply pressed Submit, but the job site refused it: {said} Fix that on the form, then press Submit yourself."
+SITE_REFUSED = ("Apply pressed Submit, but the job site refused it: '{said}' Nothing went in. Press Submit on the form "
+                "yourself, or apply on the job's site later.")
 STILL_REFUSED = ("Apply pressed Submit, fixed what the job site named and pressed it once more, but it still says: {said} "
                  "Fix that on the form, then press Submit yourself.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
@@ -1790,6 +1792,7 @@ class _Kept:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
         retried, codes = False, set()  # Apply's Submit pressed once more; the form's code boxes before its press
+        site_said: set[str] = set()  # the lines saying a send failed that the page showed before Apply's press
         # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
         # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
         unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
@@ -1812,6 +1815,7 @@ class _Kept:
                     if not why:
                         try:
                             codes = {key for key, _ in code_box.boxes(self._page)}
+                            site_said = refused_submit.site_errors(self._page)
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
                         except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
@@ -1823,6 +1827,11 @@ class _Kept:
                             why = send_button.NONE
                     if why:
                         approved(why, False)
+                if (pressing and not kept and not told and not turned_down
+                        and (said := refused_submit.new_site_error(self._page, site_said))
+                        and not _confirmed(self._page, job_system)):
+                    pressing = 0.0  # the site's own toast: nothing went in, read at once, as it goes within seconds
+                    unsent(SITE_REFUSED.format(said=said))
                 if pressing and not kept and not told and not turned_down and code_box.new_boxes(self._page, codes):
                     pressing = 0.0  # a code step: it went on, and the code is asked for (code), not handed over
                 if (pressing and not kept and not told and not turned_down
