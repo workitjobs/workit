@@ -10,6 +10,12 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- A step where Claude names no Next and no button that sends is a Handoff
+  (KAN-636), unless plain code finds the job system's own last-step Submit
+  (`claude_fill.LAST_STEP_SUBMIT`: Oracle Recruiting's pagination Submit,
+  whose words come from i18n). It must show, be enabled, and be the one
+  button of its words. Then the form is held at its last step as when
+  Claude names it: nothing presses it until Approve and submit.
 - Claude's stop for a captcha holds the fill only when Apply's own check
   sees the challenge or its box showing to a person (`captcha.shows`,
   `captcha.unsolved`; KAN-760, `docs/captchas-and-bot-blocks.md`). Else

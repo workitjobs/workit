@@ -587,6 +587,8 @@ class ClaudeFill:
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
                 submit_button = str(done.get("submit_button") or next_button).strip()
+                if not SENDS.search(submit_button):  # a job system's own last-step Submit, which Claude may not name
+                    submit_button = _last_step_submit(page) or submit_button
                 if SENDS.search(submit_button) and (button := _profile_step(page, submit_button)) is not None:
                     # A profile pop-up before the application (Microsoft's "Create your profile", its
                     # button "Submit"): never the form's last page. Plain code sends it and goes on (KAN-647).
@@ -859,6 +861,28 @@ def _only_its_submit(blocked: list[str], said: dict) -> bool:
         return False
     clicks = [BLOCKED_CLICK.match(b) for b in blocked]
     return all(c and c[1].strip() and button.startswith(c[1].strip()) and SENDS.search(c[1]) for c in clicks)
+
+
+# A job system's own button that sends the application, which it shows on the form's last step alone. Oracle
+# Recruiting's ("click: submit", shown only on its last section) is named by i18n, and Haiku named no button that sends
+# beside it (BGC's form, live 2026-11-27: 33 of 33 fields filled, then a Handoff).
+LAST_STEP_SUBMIT = ".apply-flow-pagination__submit-button"
+
+
+def _last_step_submit(page: Page) -> str:
+    """The words of the job system's own last-step Submit (LAST_STEP_SUBMIT), when the page shows exactly one, enabled,
+    whose words send and name exactly one button (as submit() finds it); else "". Plain code reads it, and nothing
+    presses it here: the form is held at its last step, as when Claude names it."""
+    try:
+        buttons = [b for b in page.locator(LAST_STEP_SUBMIT).all() if b.is_visible()]
+        if len(buttons) != 1 or not buttons[0].is_enabled():
+            return ""
+        words = " ".join(buttons[0].inner_text().split())
+        if not SENDS.search(words) or page.get_by_role("button", name=words, exact=True).count() != 1:
+            return ""
+    except Exception:
+        return ""
+    return words
 
 
 def _profile_step(page: Page, name: str) -> Locator | None:

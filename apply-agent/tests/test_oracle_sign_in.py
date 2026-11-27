@@ -42,6 +42,12 @@ def oracle_driver(page, schema: dict, prompt: str, files: list) -> dict:
             "filled": [{"field": f["field"], "shown": [f["answer"]]} for f in fields]}
 
 
+def names_no_submit(page, schema: dict, prompt: str, files: list) -> dict:
+    """Plays Haiku as it filled BGC's Oracle form (live 2026-11-27): every field, and no button that sends named."""
+    said = oracle_driver(page, schema, prompt, files)
+    return said if "questions" in schema["properties"] else said | {"submit_button": "", "next_button": ""}
+
+
 def macys() -> dict:
     return feed_record(id="macys", company_name="Macy's", title="Software Engineer Intern", url=MACYS_URL)
 
@@ -68,6 +74,17 @@ def test_an_oracle_posting_is_signed_in_to_with_the_code_mailed_to_gmail_then_fi
     assert sent.application["first-name"] == "Test"
     assert sent.files["resume"] == (FIXTURES / "one-pager.pdf").read_bytes()
     assert world.tracker.employer_accounts() == []  # an emailed code is not an account
+
+
+def test_oracles_own_submit_ends_the_fill_when_claude_names_no_button_that_sends():
+    world = World()
+
+    with FakeOracleServer(MACYS_FORM, mailbox=world.mailbox) as server:
+        row = run(world, server, FakeClaude(driver=names_no_submit))
+
+    assert row.status == "submitted", row.reason  # never "can't tell this is the form's last page"
+    [sent] = server.submissions
+    assert sent.application["first-name"] == "Test"
 
 
 def test_a_returning_candidate_confirms_their_last_name_before_the_code():

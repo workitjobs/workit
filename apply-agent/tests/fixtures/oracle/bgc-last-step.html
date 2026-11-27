@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- The last part of BGC's Oracle Recruiting form (CX_1003, job 250630) as it showed filled, live 2026-11-27, with
+     the applicant's value swapped for Test Person's: its E-Signature block and the pagination's Submit, whose words come
+     from i18n ("general.submit-button"). A one-page ("single click") form: Submit shows below its last section. -->
+<html lang="en"><head><meta charset="utf-8"><title>Apply</title></head><body><form class="apply-flow__content">
+<apply-flow-section><div class="apply-flow-section"><apply-flow-block class="apply-flow-block apply-flow-block--apply-flow-e-signature">
+<div class="apply-flow-block__region" role="region" data-bind="attr: {'aria-label': blockAriaLabel}" aria-label="E-Signature ">
+        <!-- ko if: shouldRenderBlockHeader() -->
+        <div class="apply-flow-block__header" data-bind="css: { 'section-disabled-margin': sectionDisabled() &amp;&amp; !isCWKAddressProfileOptionEnabled }">
+            <apply-flow-block-title params="title: block.title, isSingleClickFlow: isSingleClickFlow, isRequired: isRequired, sectionDisabled: sectionDisabled"><!-- ko if: title -->
+<!-- ko if: isSingleClickFlow -->
+<h3 class="apply-flow-block__title" data-bind="css: { 'apply-flow-block__title--required': isRequired }">
+    <!-- ko if: shouldShowPadlock(block) --><!-- /ko -->
+    <span data-bind="text: title">E-Signature</span>
+    <!-- ko if: isRequired --><!-- /ko -->
+</h3>
+<!-- /ko -->
+
+<!-- ko ifnot: isSingleClickFlow --><!-- /ko -->
+<!-- /ko -->
+</apply-flow-block-title>
+            <!-- ko if: (block.instructions && !sectionDisabled()) --><!-- /ko -->
+            <!-- ko if: sectionDisabled() --><!-- /ko -->
+        </div>
+        <!-- /ko -->
+
+        <div class="apply-flow-block__form-list" data-bind="css: {
+                'disabled-block' :  sectionDisabled,
+             }">
+            <!-- ko component: {
+            name: block.component,
+            params: {
+                section: section,
+                code: block.code,
+                title: block.title,
+                instructions: block.instructions,
+                blockId: block.blockId,
+                application: application,
+                isActive: isActive,
+                additionalData: block.additionalData,
+                metadataServiceUrl: block.metadataServiceUrl,
+                readWriteServiceUrl: block.readWriteServiceUrl,
+                blockProperties: block.blockProperties,
+                flow: flow,
+                sectionDisabled: sectionDisabled,
+                isSingleClickFlow: isSingleClickFlow,
+                isStandardApplyFlowEnabled: isStandardApplyFlowEnabled,
+            }
+        } --><div class="apply-flow-block__component apply-flow-esign" data-bind="setFocusWhenInvalid">
+    <!-- ko if: areNewApplyFlowsEnabled -->
+    <quick-apply-flow-text-truncate class="apply-flow-esign__description" params="
+            text: esignDescription, 
+            minTextLength: 150,
+            isSectionActive: isSectionActive()
+        "><div class="text-truncate" data-bind="
+        css: {
+            'text-truncate--collapsible': isCollapsible(),
+            'text-truncate--collapsed': isCollapsed()
+        }
+    ">
+    <div class="text-truncate__content basic-formatter" data-bind="html: text, a11y.setTabIndex: { isTruncated: isCollapsed }"></div>
+
+    <!-- ko if: worthTruncate() --><!-- /ko -->
+</div>
+</quick-apply-flow-text-truncate>
+    <!-- /ko -->
+
+    <!-- ko ifnot: areNewApplyFlowsEnabled --><!-- /ko -->
+
+    <form-builder params="form: form" class="esign-form"><!-- ko foreach: {data: form.elements, as: 'element'} -->
+<!-- ko ifnot: element.isHidden -->
+<!-- ko component: {
+            name: element.component,
+            params: {
+                element: element
+            }
+        } --><div class="input-row input-row--text input-row--filled" data-bind="css: {'input-row--focused': isFocused,
+                      'input-row--filled': isFilled,
+                      'input-row--invalid': isInvalid,
+                      'input-row--empty-disabled': isEmptyDisabled},
+                      class: attributes.cssClass">
+    <form-element-label params="element: element, forId: attributes.id"><!-- ko if: element.label -->
+<label class="input-row__label input-row__label--required" data-bind="css: {'input-row__label--required': element.isRequired,
+                            'input-row__label--disabled': element.isDisabled},
+                      attr: {for: forId, id: id, 'aria-labelledby': labelTextId + ' ' + instructionsTextId}, boolAttr: {'aria-hidden': element.isAriaLabelHidden}" for="fullName-4" aria-labelledby="labelText-fullName-4 instructionsText-fullName-4" aria-hidden="false">
+    <span class="input-row__linebreak" data-bind="attr: {id: labelTextId}" id="labelText-fullName-4"><!-- ko text : element.label -->Full Name<!-- /ko --></span>
+    <!-- ko if : element.isRequired -->
+    <span class="input-row__label--required-star" aria-hidden="true"></span>
+    <!-- /ko -->
+</label>
+<!-- ko if : element.helpText() && element.showLabelTooltip --><!-- /ko -->
+<!-- /ko -->
+
+<!-- ko if: element.instructions --><!-- /ko -->
+</form-element-label>
+
+    <div class="input-row__control-container">
+        <input class="input-row__control" data-bind="value: element.value,
+                           valueUpdate: element.valueUpdateType(),
+                           attr: element.attributes,
+                           i18nAttr: {'aria-invalid': isAriaInvalid()}
+                           readonly: element.isDisabled,
+                           hasFocus: hasFocus,
+                           a11y.setFocusOnTab: {focusOn: element.focusNextSelector, delay: 10, when: isFilled } ,
+                           event: {blur: blurHandler.bind($data)},
+                           css: {'input-row__control--locked': element.isFieldLocked()},
+                           preventEnter" id="fullName-4" name="fullName" autocomplete="off" aria-required="true" aria-describedby="fullName-4-error" aria-invalid="false" value="Test Person">
+        <div class="input-row__control-decorator"></div>
+        <!-- ko if: element.isFieldLocked() --><!-- /ko -->
+        <!-- ko if: isInvalid --><!-- /ko -->
+    </div>
+</div>
+<!-- /ko -->
+<!-- /ko -->
+<!-- /ko -->
+</form-builder>
+</div>
+<!-- /ko -->
+        </div>
+    </div>
+</div>
+</apply-flow-block>
+            <!-- /ko -->
+        </div>
+        <!-- /ko -->
+    </div>
+</div>
+</apply-flow-section>
+                        <!-- /ko -->
+
+                        <apply-flow-pagination params="flow: flow, isValidationInProgress: isValidationInProgress, isStandardApplyFlowEnabled: isStandardApplyFlowEnabled, legalDisclaimerAcceptanceRequired: legalDisclaimerAcceptanceRequired"><div class="apply-flow-pagination">
+    <!-- ko if: validationMessage --><!-- /ko -->
+
+    <div class="apply-flow-pagination__buttons" data-bind="css: { 'ai-assistant-enabled': isAiAssistantEnabled }">
+        <!-- ko ifnot: isSingleClick --><!-- /ko -->
+
+        <!-- ko if: (isSingleClick || isLastSection()) -->
+        <!-- ko ifnot: isStandardApplyFlowEnabled --><!-- /ko -->
+        <button type="button" class="button apply-flow-pagination__button apply-flow-pagination__submit-button theme-color-1" data-bind="a11y.setFocusOnClick: { focusOn: '.apply-flow-fixer__button', delay: 100}, click: submit, enable: isSubmitEnabled(), 
+            css: { 'text-color-secondary': isAiAssistantEnabled, 'theme-color-1': !isAiAssistantEnabled }">
+            <span class="button__label" data-bind="i18n: 'general.submit-button'">Submit</span>
+            <!-- ko ifnot: isStandardApplyFlowEnabled --><!-- /ko -->
+            <!-- ko if: isValidationInProgress --><!-- /ko -->
+        </button>
+        <!--ko if: isAiAssistantEnabled && !isPostApply && !isEventFlow && shouldShowReviewApplicationButton--><!--/ko-->
+        <!-- /ko -->
+    </div>
+</div>
+</apply-flow-pagination>
+</form></body></html>
