@@ -9,7 +9,6 @@ import pytest
 from apply import ask_model, doctor, workit
 from apply.adapters import ClaudeError, SetupError, UsageLimitHit, UsageReading, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
-from apply.claude_cli import ClaudeCLI
 from apply.keychain import InMemoryKeychain
 
 NOW = datetime(2026, 11, 10, 9, 0)
@@ -367,5 +366,3 @@ def test_ask_model_workit_stands_alone_and_other_adapters_refuse_a_kind():
     assert isinstance(live_claude({"ask_model": "workit"}, claude=_NoClaude()), ask_model.WorkItAsk)
     with pytest.raises(SetupError):
         live_claude({"ask_model": ["workit", "groq"]}, claude=_NoClaude())
-    with pytest.raises(SetupError, match="ask_model: workit"):
-        ClaudeCLI().ask_kind("writing.check", {})

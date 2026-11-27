@@ -22,6 +22,8 @@ export type Shown = {
   logo_url?: string;
   worker?: number;
   at?: string;
+  doing?: string; // what a form being filled is doing now, in the Worker's own line (stuck.doing)
+  since?: number; // when the tile took its status (seconds since 1970): how long a form has filled or waited
   from?: string; // "tracker": an Application from an earlier run
   live?: boolean; // a form still filling that asks its questions now
   answered?: boolean; // resolved in the window: it waits on the student no more
@@ -30,6 +32,11 @@ export type Shown = {
   askable?: boolean;
   refill?: boolean;
   again?: boolean;
+  let_go?: boolean; // the student isn't applying to it: its page is let go, and it shows no more
+  submitting?: boolean; // the student pressed Approve and submit: Apply presses Submit and waits for the confirmation
+  submit_said?: string; // why Apply didn't press Submit for them (dismiss a note on the form first, say)
+  auto_at?: number | null; // Auto-submit (a Developer checkout's policy): when Apply presses Submit by itself, epoch seconds
+  auto_said?: string; // why Auto-submit leaves this one to the student, or that they cancelled it
   application_id?: string;
   questions?: string[];
   choices?: Record<string, Choice>;
@@ -40,9 +47,21 @@ export type Shown = {
   flags?: { field: string; why: string }[];
   verified?: boolean; // the Pre-submit check found every answer agrees with the profile
   files?: { label?: string; name?: string }[]; // each file the form was given, by the form's question for it
+  answers?: Filled[]; // each answer the form was filled with (worker._Planned.listed): never a secret, a file by name
+  fixed?: { question: string; was: string; now: string }[]; // each answer the Pre-submit review changed after checking
   filled?: number;
   asked?: number;
   status?: string;
+};
+
+// One answer on the filled form, as Apply lists it: where it came from (the student's profile, their own saved answer,
+// or one WorkIt wrote), and what of it is worth a glance before Submit (worker.topic).
+export type Filled = {
+  question: string;
+  answer: string;
+  from: "profile" | "saved" | "written";
+  kind?: string; // the field's: "text", "textarea", "select", "multi_select", "file"...
+  topic?: "legal" | "eeo" | "school" | "pay" | "file" | "";
 };
 
 // What names a queued job, one shape wherever it shows (dashboard.QUEUED_JOB): its WorkIt job's company and title
@@ -72,4 +91,5 @@ export type Run = {
   start?: string;
   capped?: boolean;
   tomorrow?: number;
+  open_forms?: number; // at most this many forms open at once: the next job waits for one to close
 };

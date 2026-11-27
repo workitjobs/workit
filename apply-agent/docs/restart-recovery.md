@@ -67,7 +67,7 @@ changes: as the form starts filling, at each pause, as it goes on, and as each f
   A Submit press with no confirmation yet is `sent`: it stays, his.
 - **A form stays** when Lisul closes its tab, when Apply stops (Ctrl-C, SIGTERM, a crash) and when
   the Mac restarts. `apply reopen` brings it back (KAN-720).
-- **One lock** (`open-forms.lock`, `fcntl`) for every process on the data folder, and each write
+- **One lock** (`open-forms.lock`, `apply.locks`) for every process on the data folder, and each write
   replaces the file whole (`os.replace`, mode 0600). A broken file reads as an empty list.
 
 **Tests.** `tests/test_restart.py` (in CI): an entry kept and removed, 20 writers at once, a broken

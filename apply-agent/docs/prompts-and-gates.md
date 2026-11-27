@@ -62,6 +62,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   when the form states none) also gets one shorter rewrite (`essays.CUT`)
   before the form is shown. If it is still over, it goes on the form, and
   its failed check holds the Application (Bedrock's 132 words of 120).
+  An edit, this rewrite too, may hold a number that the draft or the
+  sources hold, never one that neither holds (`writing._usable`). Each
+  edit that wrote in the count the claim check gave was dropped before
+  (Sierra, 2026-11-26), so both essays stayed at 157 and 145 words of 120.
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the

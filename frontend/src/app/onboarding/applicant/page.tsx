@@ -36,9 +36,11 @@ export const metadata: Metadata = {
  * (./steps' PAGE_SLUGS; a setup page for anyone). ?step=extension opens the
  * extension track (Extension, Add Claude, Practice), which
  * `/extension-setup`'s "I Already Have One" button links to (KAN-495),
- * signed out by way of sign-in; it is honoured with saved answers or a
- * finished onboarding (./steps' startStep), so loading the extension never
- * sends a finished seeker back to the first page.
+ * signed out by way of sign-in; it is honoured with saved answers (./steps'
+ * startStep). A seeker who already finished onboarding never sees that
+ * track from there: this page redirects them to Home (?installed=1) first
+ * (KAN-864), so loading the extension never sends them back to the first
+ * page.
  *
  * The preferences' pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
@@ -57,6 +59,16 @@ export default async function ApplicantOnboardingPage({
   }
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
+
+  const { step } = await searchParams;
+  if (step === "extension" && account?.onboarding_completed === true) {
+    // /extension-setup's "I Already Have One" (KAN-495) comes back here
+    // after sign-in; a seeker who already finished onboarding has nothing
+    // new to see on the extension track, so send them to Home instead
+    // (KAN-864) with a success message. Connecting Claude is a card on
+    // /extension-setup now.
+    redirect("/home?installed=1");
+  }
 
   const [options, saved, savedAnswers, { profile }, params] = await Promise.all([
     getRoleOptions(),

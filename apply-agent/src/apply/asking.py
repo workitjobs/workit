@@ -9,6 +9,7 @@ it is for."""
 
 import re
 from collections.abc import Sequence
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,9 +34,25 @@ HOLDS = {"github": re.compile(r"github\.com/[^/\s]+/?(?:\s|$)", re.IGNORECASE), 
          "site": re.compile(r"^(?:Portfolio|Website):", re.IGNORECASE),
          "repo": re.compile(r"(?:github|gitlab|bitbucket)\.(?:com|org)/[^/\s]+/[^/\s)]+", re.IGNORECASE)}
 URL = re.compile(r"https?://[^\s)<>\]]+")
+# A question for the applicant's graduation date ("which graduation date should the cover letter give?").
+# Never "what will you do after you graduate this year?": the date's word comes before "graduate", or right after it.
+GRADUATION_ASK = re.compile(r"\bgraduation\s+(?:date|month|year|term|semester)\b"
+                            r"|\b(?:when|date|month|year|term|semester)\b[^?]{0,40}\bgraduat", re.IGNORECASE)
 # The profile's link fields by their name in a line ("GitHub: https://...").
 LINK_NAMES = {"github_url": "GitHub", "linkedin_url": "LinkedIn", "portfolio_url": "Portfolio",
               "google_scholar_url": "Google Scholar", "x_twitter_url": "X", "showcase_project_url": "Project"}
+# A question that sends the applicant to take something at a link (a quiz, a test, an assessment, a challenge) and
+# give what it returns: only its result answers it, and only the applicant has that. Ramp's "Take this builder's
+# quiz: https://awu-ramp.github.io/..." was answered with his GitHub profile, for the "github" in its link (2026-11-26).
+TAKE = re.compile(r"\b(?:take|complete|finish|attempt|try)\b.{0,60}?\b(?:quiz(?:zes)?|tests?|assessments?|challenges?"
+                  r"|puzzles?|exercises?|surveys?|questionnaires?)\b", re.IGNORECASE)
+
+
+def takes_elsewhere(q: Question | str) -> str:
+    """The link a question asks the applicant to take a quiz, test, assessment or challenge at, to give its result;
+    "" for any other question. The link is in its label or its help text."""
+    text = q if isinstance(q, str) else f"{q.label}\n{q.description}"
+    return URL.search(text)[0].rstrip(".,;:") if TAKE.search(one_line(text)) and URL.search(text) else ""
 
 
 def links(profile: ApplicantProfile) -> tuple[str, ...]:
@@ -82,15 +99,29 @@ def resume_links(pdf: Path, mtime: float) -> tuple[tuple[str, str], ...]:
     return tuple(dict.fromkeys(found))
 
 
-def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None) -> tuple[str, ...]:
+def graduation(profile: ApplicantProfile) -> str:
+    """The profile's expected graduation as one line ("Expected graduation: May 2028"); "" when it gives none.
+    The profile's date is the one to state: the form's graduation answer comes from it, and a Story bank line
+    can be older (Anduril's cover letter, 2026-11-25, waited on a Story bank date the profile had moved)."""
+    given = str(profile.get("education.expected_graduation") or "").strip()
+    if (m := re.fullmatch(r"(\d{4})-(\d{1,2})(?:-\d{1,2})?", given)) and 1 <= int(m[2]) <= 12:
+        return f"Expected graduation: {date(int(m[1]), int(m[2]), 1):%B %Y}"
+    return f"Expected graduation: {given}" if given else ""
+
+
+def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None, employer: str = "") -> tuple[str, ...]:
     """What Apply already holds that answers `asked`, a line a fact; () when
     it holds nothing, and Lisul must be asked. An answer Lisul gave before
-    (the profile's answered questions, the Answer bank) answers the same
-    question; an Essay fact's is never kept (essays.TOLD). A question for
+    (the profile's answered questions, the Answer bank, a Story bank line
+    from an Essay fact a Developer checkout saved before essays.TOLD)
+    answers the same question; an Essay fact's answer is never kept now. A
+    question for the graduation date is answered by the profile's
+    (graduation). A question for
     links is answered by the links Apply holds when each kind it names
-    (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds."""
-    from apply.essays import ASK  # imported here: essays imports this module
-    asked = one_line(asked.removeprefix(ASK))
+    (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds.
+    A Story bank line true of one company only is `employer`'s (essays.story_bank)."""
+    from apply import essays  # imported here: essays imports this module
+    asked = one_line(asked.removeprefix(essays.ASK))
     if not asked:
         return ()
     answered = {key(q): a for q, a in (profile.get(ANSWERED) or {}).items() if a not in (None, "", [])}
@@ -98,7 +129,13 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None)
         return (_shown(answered[key(asked)]),)
     if bank and (entry := bank.get(asked)) and entry.answer:
         return (_shown(entry.answer),)
-    if not LINK_ASK.search(asked):
+    stories = essays.story_bank(employer) if data_folder.STORY_BANK.is_file() else ""
+    if line := next((one_line(line)[2:] for line in stories.splitlines()
+                     if one_line(line).casefold().startswith(f"- {asked}".casefold())), ""):
+        return (line,)
+    if GRADUATION_ASK.search(asked) and (graduates := graduation(profile)):
+        return (graduates,)
+    if not LINK_ASK.search(asked) or takes_elsewhere(asked):  # a quiz's result is no link Apply holds
         return ()
     held = links(profile)
     kinds = [kind for kind, named in KINDS.items() if named.search(asked)] or ["repo"]
@@ -127,8 +164,14 @@ def where(q: Question, questions: Sequence[Question]) -> str:
     """One short line on where `q` sits on its form, from what the Filler
     read: its step (a Workday name is "<step> / <label>"), the question just
     before it on that step when its own label is a bare word or two, and the
-    field it pairs with ("From" with "To").
+    field it pairs with ("From" with "To"). A quiz, test or challenge to take
+    at a link (`takes_elsewhere`) leads with that link.
     "" when there is nothing to say."""
+    take = f"Take it yourself at {link}, then paste its result" if (link := takes_elsewhere(q)) else ""
+    return " · ".join(filter(None, [take, _place(q, questions)]))
+
+
+def _place(q: Question, questions: Sequence[Question]) -> str:
     step = _step(q)
     same = [other for other in questions if _step(other) == step]
     at = next((i for i, other in enumerate(same) if other.name == q.name), None)

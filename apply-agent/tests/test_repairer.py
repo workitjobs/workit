@@ -2,15 +2,15 @@
 scripted edit and commit in the Repair's worktree, and a fake suite says how
 the tests went. Real claude never runs here."""
 
-import fcntl
 import subprocess
+import threading
 from datetime import date
 from pathlib import Path
 
 import pytest
 from fakes import ScriptedUsage
 
-from apply import claude_fill, cli, eightfold, home
+from apply import claude_fill, cli, eightfold, home, locks
 from apply.adapters import Drive, UsageReading
 from apply.model import Status
 from apply.notify import RecordingNotifier
@@ -23,7 +23,7 @@ from apply.repair import (
     RepairRequest,
     RepairRequests,
 )
-from apply.repairer import Repairer, repair_later
+from apply.repairer import RUNNING, Repairer, repair_later
 from apply.tracker import InMemoryTracker, Row
 
 TODAY = date(2026, 10, 16)
@@ -155,7 +155,7 @@ def request(signature: str = "keyerror-planner-fit-abc123", kind: str = "failure
 class World:
     def __init__(self, repo: Path, tmp_path: Path, claude: FakeClaude, suite_passes: bool = True, cap: int = 3,
                  usage: UsageReading = UsageReading(), engine_passes: bool = True, engine_builds: str | None = None,
-                 branch: str = "apply-livefill"):
+                 branch: str = "apply-livefill", worktrees: Path | None = None):
         """`engine_builds`: what the engine's tests build dist/engine.js into (as `npm test` does), if not what is committed."""
         self.repo = repo
         self.requests = RepairRequests(tmp_path / "repairs")
@@ -182,7 +182,7 @@ class World:
         self.repairer = Repairer(
             repo=repo, requests=self.requests, claude=claude, usage=ScriptedUsage(lambda: usage),
             notifier=self.notifier, tracker=lambda: self.tracker, branch=branch,
-            worktrees=tmp_path / "worktrees", policy={"max_per_day": cap, "max_turns": 80, "max_tokens": 6_000_000},
+            worktrees=worktrees or tmp_path / "worktrees", policy={"max_per_day": cap, "max_turns": 80, "max_tokens": 6_000_000},
             suite=suite, engine_suite=engine_suite, engine_setup=lambda folder: None, today=lambda: TODAY,
         )
 
@@ -214,6 +214,19 @@ ENGINE_FIX = engine_commits(
     (ENGINE_FILLER, "export function fill() { return {school: 'SBU'}; }\n"),
     (ENGINE_TEST, ENGINE_FILES[ENGINE_TEST] + 'test("picks a school", () => {\n  expect(3).toBe(3);\n});\n'),
 )
+
+
+def test_a_repair_saves_its_request_in_the_folder_it_runs_in(repo, tmp_path):
+    """Fault: the one-at-a-time lock is the requests' own lock file. cli.py gives both one folder (HOME/repairs),
+    and the first save inside a Repair waited for good on the lock its own run held (found in review,
+    2026-11-21). The other tests give the worktrees a folder of their own: this one alone has the real layout."""
+    world = World(repo, tmp_path, FakeClaude(ENGINE_FIX), worktrees=tmp_path / "repairs")
+    done = []
+    run = threading.Thread(target=lambda: done.extend(world.repair()), daemon=True)
+    run.start()
+    run.join(60)  # a Repair here takes seconds; one that waits on its own lock never ends
+    assert not run.is_alive(), "the Repair waited on its own lock"
+    assert [r.status for r in done] == [FIXED]
 
 
 def test_a_repair_in_a_filler_merges_on_the_engines_branch_and_apply_runs_it_next(repo, tmp_path):
@@ -576,9 +589,7 @@ def test_no_repair_runs_while_lisuls_usage_is_high(repo, tmp_path):
 
 def test_only_one_repair_runs_at_a_time(repo, tmp_path):
     world = World(repo, tmp_path, FakeClaude(FIX))
-    (tmp_path / "worktrees").mkdir()
-    with open(tmp_path / "worktrees" / ".lock", "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)  # another `apply repair` is going
+    with locks.held(tmp_path / "worktrees" / RUNNING):  # another `apply repair` is going
 
         assert world.repair() == []
 

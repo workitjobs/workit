@@ -470,6 +470,29 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+
+# PR 477's third review (KAN-710): an XHR one realm opens and another sends, Ashby's submit in form data, and a pop-up
+# the page opened before the guards came on.
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_NEXT_THEN = """<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>%s
+    <script>%s document.getElementById('b').addEventListener('click', () => { %s });</script>"""
+PAGES |= {
+    "an XHR one realm opens and another sends": {START: _NEXT_THEN % ("<iframe id=i></iframe>", "", f"""
+        const w = document.getElementById('i').contentWindow;
+        try {{ const x = new XMLHttpRequest(); w.XMLHttpRequest.prototype.open.call(x, 'POST', '{FINAL}'); x.send('first=Test'); }} catch (e) {{}}
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); w.XMLHttpRequest.prototype.send.call(x, 'first=Test'); }} catch (e) {{}}""")},
+    "Ashby's submit in form data by XHR and beacon": {START: _NEXT_THEN % ("", "", f"""
+        const data = () => {{ const d = new FormData();
+          d.append('operations', JSON.stringify({{operationName: 'ApiSubmitSingleApplicationFormAction', variables: {{}}}})); return d; }};
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{ASHBY_GQL}'); x.send(data()); }} catch (e) {{}}
+        try {{ navigator.sendBeacon('{ASHBY_GQL}', data()); }} catch (e) {{}}""")},
+    "a pop-up opened before the guards came on": {
+        START: _NEXT_THEN % ("", "const w = window.open('/acme/jobs/123/side', 'side');", f"""
+        try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+        try {{ const d = w.document, f = d.createElement('form'); f.method = 'post'; f.action = '{FINAL}';
+          d.body.append(f); w.HTMLFormElement.prototype.submit.call(f); }} catch (e) {{}}"""),
+        "/acme/jobs/123/side": "<title>Side</title><body></body>"},
+}
 # KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
 # submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
 # alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
@@ -666,6 +689,40 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
+
+# KAN-796: the application in a pop-up the form's Next opens. Each pop-up's form sends by its Submit, by its Next's
+# script, and (in PAGES) by itself as it loads. In a live run, Chrome ran no listener in a pop-up's first document
+# while the init scripts ran, so the drive guard's copy there stayed lifted, and its Submit sent; a pop-up open before
+# the drive guard armed was never armed. A form an opener writes into a pop-up's about:blank (document.write, which
+# erases every listener on the window) sent too.
+POP_UP = "/acme/jobs/123/pop-up"
+_POP_UP_FORM = f"""<title>Apply</title><form id=f method=post action="{FINAL}"><label>First name <input id=first name=first
+    value=Test></label><button id=s>Submit application</button><button id=n type=button>Next</button></form>{SEND_ALL}
+    <script>document.getElementById('n').addEventListener('click', () => sendAll());</script>"""
+_SENDS_ITSELF = """<script>setTimeout(() => { sendAll();
+    try { HTMLFormElement.prototype.submit.call(document.getElementById('f')); } catch (e) {} }, 300);</script>"""
+_OPENS = {
+    "a Next that opens the form in a pop-up": f"window.open('{POP_UP}')",
+    "a Next that opens the form in a noopener pop-up": f"window.open('{POP_UP}', '_blank', 'noopener')",
+    "a Next that writes the form into a pop-up": "const w = window.open(''); w.document.write(FORM); w.document.close()",
+}
+
+
+def _pop_up_pages(form: str) -> dict[str, dict[str, str]]:
+    """Each way a Next opens the application `form` in a pop-up, and a link that opens it in a new tab."""
+    script = json.dumps(form).replace("</", "<\\/")  # inside a script element
+    pages = {name: {START: f"""<title>Jobs</title><p>Software Intern</p><button id=b type=button>Next</button>
+        <script>const FORM = {script}; document.getElementById('b').addEventListener('click', () => {{ {opens}; }});</script>""",
+                    POP_UP: form} for name, opens in _OPENS.items()}
+    pages["a Next link that opens the form in a new tab"] = {
+        START: f"""<title>Jobs</title><p>Software Intern</p><a id=b role=button href="{POP_UP}" target=_blank>Next</a>""",
+        POP_UP: form}
+    return pages
+
+
+POP_UP_PAGES = _pop_up_pages(_POP_UP_FORM + _SENDS_ITSELF)
+PAGES |= POP_UP_PAGES
+LIVE_POP_UPS = _pop_up_pages(_POP_UP_FORM)  # a live run's: sent only by a press, Claude's in the test
 # A Sign in with Google in the application form, which the provider sign-in's Google press looks for (KAN-878).
 GOOGLE_PAGES = {
     # Its Sign in with Google is the form's submit button: the press would post the application.
@@ -831,6 +888,21 @@ GET_FORM_PAGES = {
     "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": {START: _LOGIN_DRESS
         % """<label for=bee>For robots only</label><input id=bee name=why value=Because
         style="position:absolute;width:1px;height:0;border:0;padding:0"><script>document.getElementById('bee').value = ''</script>"""},
+    # Honeywell's Oracle site (live): its email step's form holds a honeypot box beside the email, and the page a shut
+    # AI Assist pop-up's empty text box; neither counts as an answer. A shut pop-up's box that holds an answer, an
+    # empty box no one sees in no pop-up, and a box in the form no one sees that holds an answer still do.
+    "a GET form dressed as a sign-in step with a bot trap inside it": {START: _LOGIN_DRESS.replace("<button id=b>",
+        """<label for=hp>honeypot</label><input id=hp name=honey-pot value=""
+        style="position:absolute;width:1px;height:0;border:0;padding:0"><button id=b>""") % ""},
+    "a GET form dressed as a sign-in step beside a shut pop-up's empty text box": {START: _LOGIN_DRESS
+        % '<div role=dialog style="display:none"><h1>Work Summary</h1><textarea name=summary>\n  </textarea></div>'},
+    "a GET form dressed as a sign-in step beside a shut pop-up's text box that holds an answer": {START: _LOGIN_DRESS
+        % '<div role=dialog style="display:none"><label>Why us? <textarea name=why>Because</textarea></label></div>'},
+    "a GET form dressed as a sign-in step beside an empty text box no one sees in no pop-up": {START: _LOGIN_DRESS
+        % '<label>Why us? <textarea name=why style="display:none"></textarea></label>'},
+    "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": {START: _LOGIN_DRESS.replace(
+        "<button id=b>", """<label for=hp>For robots only</label><input id=hp name=why value=Because
+        style="position:absolute;width:1px;height:0;border:0;padding:0"><button id=b>""") % ""},
     # Round 5: a GET application with a password box (one that makes an account as it applies); and a declarative
     # root that code inside it listens on, its form submitted by a Next the page turns into a submit as it is
     # clicked, or by an Enter with no button at all.
@@ -843,9 +915,12 @@ GET_FORM_PAGES = {
 PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
 # plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868), and so
-# does one whose only box outside the form is an empty one no one sees (a bot trap, KAN-886).
+# does one whose only box outside the form is an empty one no one sees (a bot trap, KAN-886), or whose only other boxes
+# are an empty bot trap in the form or a shut pop-up's empty text box (Oracle's).
 LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script",
-                                 "a GET form dressed as a sign-in step beside an empty bot trap"})
+                                 "a GET form dressed as a sign-in step beside an empty bot trap",
+                                 "a GET form dressed as a sign-in step with a bot trap inside it",
+                                 "a GET form dressed as a sign-in step beside a shut pop-up's empty text box"})
 BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
           "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
@@ -1096,6 +1171,9 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # PR 477's third review.
+    "an XHR one realm opens and another sends", "Ashby's submit in form data by XHR and beacon",
+    "a pop-up opened before the guards came on",
     # KAN-791's: Ashby's submit the operationName regex missed, and the application posted from a worker.
     "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
     "a Next whose workers post the application", "a Next whose shared worker posts the application",
@@ -1223,7 +1301,10 @@ PATH_FOR = {"a frame that forges the extension's touch": "the account click",
             # Only plain code's sign-in press reaches the sign-in exemption a box no one sees could get past (KAN-886).
             "a GET form dressed as a sign-in step with its answers in a box no one sees": "the account click",
             "a GET form dressed as a sign-in step with a dropdown's empty typing box": "the account click",
-            "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": "the account click"}
+            "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": "the account click",
+            "a GET form dressed as a sign-in step beside a shut pop-up's text box that holds an answer": "the account click",
+            "a GET form dressed as a sign-in step beside an empty text box no one sees in no pop-up": "the account click",
+            "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": "the account click"}
 # Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
 # and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
 DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
@@ -2314,6 +2395,136 @@ def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit_on_a_plain_work
     with plain({START: HIS_SUBMITS[page_name]}) as (page, _, _site):
         heard = _heard(page)
     assert heard == {False}
+
+
+# --- KAN-796: a live run's pop-ups. No rehearsal guard: only the drive guard stands between Claude's press and the
+# application. Claude presses through Playwright MCP, a trusted click or key on whatever tab it picks (browser_tabs),
+# so each press below is one. A pop-up opened before the drive guard armed (by a Filler's plain click), and one opened
+# during the drive (by Claude's own Next), must send nothing; the form's own page sends once Claude fill lifts it for
+# its submit click, its pop-ups still guarded.
+
+@contextmanager
+def live_cdp(pages: dict[str, str], guarded: bool = True):
+    """The pages in Playwright's Chromium as a live run opens them: on_open's lifted drive guard, no rehearsal's
+    guard (`guarded=False`: no guard at all, the control)."""
+    from plain_fakes import https_fake
+    from playwright.sync_api import sync_playwright
+
+    site = Site(pages)
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
+        if not Path(playwright.chromium.executable_path).exists():
+            pytest.skip("no Playwright Chromium here")
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        if guarded:
+            submit_guard.on_open(page)  # outside guarding_on_open: a live run's page
+        page.goto(HOST + START)
+        try:
+            yield page, site
+        finally:
+            browser.close()
+
+
+def _open_pop_up(page):
+    """The pop-up the Next opens, by a trusted click: a Filler's before the guard arms, Claude's during the drive."""
+    with page.context.expect_page(timeout=10_000) as opened:
+        page.locator("#b").click()
+    pop_up = opened.value
+    pop_up.wait_for_selector("#s", timeout=10_000)
+    return pop_up
+
+
+def _claudes_presses(pop_up) -> None:
+    """Every press Claude could make on the pop-up's form: its Submit, its Next, and Enter in its field."""
+    for press in (lambda: pop_up.locator("#s").click(timeout=3000), lambda: pop_up.locator("#n").click(timeout=3000),
+                  lambda: pop_up.locator("#first").press("Enter", timeout=3000)):
+        try:
+            press()
+        except Exception:
+            pass  # refused, or the pop-up went on: what was sent is asserted
+    _settle(pop_up, 1500)
+
+
+@pytest.mark.parametrize("opened", ["before the drive guard armed", "during the drive"])
+@pytest.mark.parametrize("page_name", list(LIVE_POP_UPS))
+def test_claudes_press_in_a_pop_up_sends_nothing_in_a_live_run(page_name, opened):
+    with live_cdp(LIVE_POP_UPS[page_name]) as (page, site):
+        drive = None
+        if opened == "during the drive":
+            drive = DriveGuard(page)
+            drive.arm()
+        pop_up = _open_pop_up(page)
+        if drive is None:
+            drive = DriveGuard(page)
+            drive.arm()
+        _claudes_presses(pop_up)
+        assert drive.blocked(), "the drive guard heard no block"
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("page_name", list(LIVE_POP_UPS))
+def test_without_the_guard_a_pop_ups_submit_sends(page_name):
+    with live_cdp(LIVE_POP_UPS[page_name], guarded=False) as (page, site):
+        _claudes_presses(_open_pop_up(page))
+    assert site.applications()
+
+
+def test_a_pop_ups_submit_stays_blocked_while_the_forms_own_page_is_lifted_for_its_submit():
+    """Claude fill's own submit click lifts its page alone: the form's own Submit sends, a pop-up's stays blocked."""
+    own = {START: f"""<title>Apply</title><form method=post action="{FINAL}"><input name=first value=Test>
+        <button id=own>Submit application</button></form><button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () => window.open('{POP_UP}'));</script>""",
+           POP_UP: _POP_UP_FORM.replace(FINAL, GREENHOUSE)}
+    with live_cdp(own) as (page, site):
+        drive = DriveGuard(page)
+        drive.arm()
+        pop_up = _open_pop_up(page)
+        drive.lift()  # ClaudeFill.submit: for its click on the page's own Submit alone
+        _claudes_presses(pop_up)
+        assert site.applications() == []
+        page.locator("#own").click()
+        _settle(page, 1500)
+    assert site.applications() == [FINAL]
+
+
+def test_a_pop_up_no_guard_can_reach_hands_the_form_off(monkeypatch):
+    """A pop-up whose drive guard won't hear the arm, even with the block-only copy put in: Claude doesn't drive."""
+    with live_cdp(LIVE_POP_UPS["a Next that opens the form in a pop-up"]) as (page, _site):
+        drive = DriveGuard(page)
+        _open_pop_up(page)
+        real = submit_guard.control
+        monkeypatch.setattr(submit_guard, "control", lambda target, cmd, keys=submit_guard.BOTH, element=None:
+                            real(target, cmd, keys, element) if target is page else "unheard")
+        with pytest.raises(Handoff, match="pop-up"):
+            drive.arm()
+
+
+@ONE_PLAIN_PROCESS
+def test_claudes_press_in_a_pop_up_opened_before_the_drive_guard_sends_nothing_on_a_plain_worker():
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(LIVE_POP_UPS["a Next that opens the form in a pop-up"])
+    with fake_page(site.handle) as page:
+        _fresh(page, "about:blank")
+        submit_guard.on_open(page)  # a live run's page: on_open's lifted drive guard
+        page.goto(HOST + START)
+        page.on("request", lambda request: None)  # a listener: the extension opens the window.open Chrome refused
+        before = {t["tab"] for t in page.worker.call("tabs.query")}
+        page.locator("#b").click()
+        _settle(page, 2000)
+        opened = [t["tab"] for t in page.worker.call("tabs.query") if t["tab"] not in before]
+        assert opened, "no pop-up opened"
+        pop_up = page.context.page(opened[0])
+        assert pop_up.opener() is page
+        drive = DriveGuard(page)
+        drive.arm()
+        _claudes_presses(pop_up)
+        assert drive.blocked(), "the drive guard heard no block"
+    assert site.applications() == []
 
 
 def test_every_guard_hole_is_a_hostile_page():

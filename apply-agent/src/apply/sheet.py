@@ -7,7 +7,6 @@ Sheet: `copy_into` copies its rows into the Tracker file one time, and
 `apply import-sheet` (sheet_import.py) puts its submitted rows into WorkIt."""
 
 import argparse
-import fcntl
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -15,6 +14,7 @@ from pathlib import Path
 import gspread
 from gspread.utils import rowcol_to_a1
 
+from apply import locks
 from apply.home import HOME
 from apply.model import Outcome, Status
 from apply.tracker import (
@@ -79,13 +79,8 @@ DEFAULT_LOCK = HOME / "tracker.lock"
 @contextmanager
 def locked(path: Path = DEFAULT_LOCK):
     """Hold the Tracker's write lock, which every write to the Sheet takes."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    with locks.held(path):
+        yield
 
 
 def open_sheet(sheet_id: str, key: Path = KEY) -> gspread.Spreadsheet:

@@ -77,26 +77,32 @@ has neither.
 - **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
   KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
   and Linux later (F4). A general library comes first: Python's standard
-  library, `psutil` (a process's arguments), `platformdirs` (each OS's data and
-  cache folders), `pyperclip` (the seed guide's clipboard), the window's own
+  library, `psutil` (a process's arguments; `pid_exists`), `platformdirs`
+  (each OS's data and cache folders), `portalocker` (file locks, only through
+  `apply.locks`),
+  `pyperclip` (the seed guide's clipboard), the window's own
   `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
   extension's `windows.focus`). Per-OS code lives in one place for each job,
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
-  Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
-  Chrome's start (`plain/launcher.start_in_background`: a Worker's in the
+  Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`),
+  the plain Workers' channel (`plain/channel.py`), the native host's folder
+  (`native_host.chrome_hosts`), a Chrome's start
+  (`plain/launcher.start_in_background`: a Worker's in the
   background, the seed's in front; on the Mac through `open`, never as
   Apply's child, or macOS blames the built app for what Chrome's updater
   does: "prevented from modifying apps"), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
   Mac, so Chrome never runs as Apply's child), showing a folder
-  (`plain/seed_setup.Desk.reveal`), and keeping the computer awake during a run
+  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
+  and keeping the computer awake during a run
   (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
-  `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
-  the way" list.
+  `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
+  (`tests/test_each_os.py` reads the source for the last three). Porting to
+  Windows: `../docs/windows_desktop.md` (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the
   generic Filler: code reads the form from the accessibility tree and does
@@ -141,6 +147,16 @@ has neither.
   yourself. `uv run apply ask --list` lists every open form. Print the reply
   to him. Never press the offer's Save for him: only his click in the window
   saves to his sources.
+- **WorkIt Auto Apply's window, from a terminal:** read and drive it with
+  `uv run apply window ...` (from `apply-agent/`), never a screenshot or an
+  accessibility tool first. `uv run apply window state` prints every job as the
+  window shows it, as JSON: each held form's answers and their sources, its
+  Pre-submit flags, legal holds, Missing facts, Essays, Auto-submit's reason and
+  its screenshot's path. `submit`, `cancel`, `skip`, `fill-again`, `answer`,
+  `remove` and `stop` are the window's own buttons, with their own checks;
+  `add` sends links as `apply app <link>` does. Submit only when Lisul says to, and never turn on `live_runs`. Use
+  screen automation only when the command can't do the job, and say why
+  (`docs/apply-window.md`, "The window from a terminal").
 - **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It never
   types into a sign-in: Lisul signs in on each "needs sign-in" tile.
 - **A next posting on a job site a running Worker is signed in to:** send it
@@ -175,7 +191,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
-- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), or what a Record keeps.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), the window read and driven from a terminal (`apply window`, `app_control.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
@@ -188,7 +204,7 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 
 - the applicant profile, story bank, voice and story map (the Answer bank
   is the one exception: it lives on WorkIt, W11, `docs/workit.md`, on
-  purpose: `docs/adr/0006-the-answer-bank-lives-on-workit.md`; in WorkIt
+  purpose: `docs/adr/0007-the-answer-bank-lives-on-workit.md`; in WorkIt
   Auto Apply the profile, Story bank and voice are WorkIt's too, and a
   Developer checkout sends its own with `uv run apply upload`);
 - the company briefs and stock answers;
@@ -397,6 +413,11 @@ left out of the app's build.
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+  The drive guard's init script goes on every page before its code (at
+  `on_open`, or before `guard()`'s reload), in a rehearsal too, and a
+  `DriveGuard` arms it in every page of the context: a copy put in after a
+  page's code let the page hear its control's name, and a pop-up opened
+  before the arm stayed lifted (PR 477's third review, `docs/claude-fill.md`).
 - **A GET form's submit reaches none of the page's handlers while a guard
   is on** (KAN-868). A form with no method whose own submit handler posts
   the application (a React form's onSubmit, by fetch to any URL) sent it past
@@ -413,7 +434,10 @@ left out of the app's build.
   account click): its only boxes are an email or user name and passwords
   (iCIMS's email step), and the page shows no other answer box anywhere, an
   editable box, a radio, a tick or one in an open shadow root too (rounds 2
-  and 3 of the review put the answers outside the form). The residual: an
+  and 3 of the review put the answers outside the form). An empty bot trap
+  no one sees (Workday's beside the form, KAN-886; Oracle's honeypot in it)
+  and a shut pop-up's empty text box (Oracle's AI Assist summary) are no
+  answer box. The residual: an
   app whose answers a script holds, behind one email box, looks like a
   sign-in step under that press. A wizard whose Next submits a GET form is a
   step no code or model presses: a Handoff, the student's on the held page,
@@ -471,6 +495,20 @@ left out of the app's build.
   for one. A page served that path from its own site or another one, and
   the frame posted the application, or the page did through its `fetch`
   and `Worker`.
+- **A pop-up is guarded as its opener is, and fails closed** (KAN-796). In a live
+  run a pop-up's drive guard stayed lifted, and Claude's press on its Submit sent:
+  Chrome runs no event listener in a pop-up's first document (window.open's
+  about:blank) while the init scripts run, so the control each init script
+  sends is lost there; a same-origin page then takes that window with no init
+  script run again; and the control reached only DriveGuard's own page. So a
+  copy that hears no event of its own starts armed, the guard reads the
+  window's current document (`doc()`, never one taken at start), its listeners
+  go back on after `document.open`/`write`, and DriveGuard arms every pop-up of
+  its page (`_pop_ups`, by opener; a plain Worker's `tabs.get` gives `opener`)
+  or raises a Handoff. `lift()` for Claude fill's submit click leaves the
+  pop-ups armed; `lift(pop_ups=True)` hands them back too. Never arm a pop-up
+  by an event sent from an init script, nor by a Python `page`/`popup`
+  handler: none runs while the Worker's thread waits on `claude -p`.
 - **A file goes only to the form's own site** (KAN-795, `apply.upload_origin`,
   `docs/claude-fill.md`): the top frame, a frame of its origin, or a job
   system's embedded form, with every frame between it and the top of the
@@ -523,6 +561,10 @@ left out of the app's build.
   starts a browser outside those two calls `chrome_reaper.watch` itself. Test
   runs leave their `/tmp/apw-*` folders, finished or not; the reaper stops
   processes only.
+- **Open a profile in a test with the `browser_on` fixture** (`conftest.py`,
+  KAN-929): `browsers.chrome_pid` counts a `SingletonLock`'s PID only when
+  that process is a browser on that profile, so a lock with the test's own
+  PID counts as closed.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
@@ -598,10 +640,11 @@ Any teammate's Mac builds the same app: it needs only Xcode's Command Line
 Tools, uv and the network, and any `python3` runs the script, macOS's own
 3.9 too (standard library only; checked 2026-11-21 in an empty environment
 with only the system folders and uv on the `PATH`).
-Today it is W8's step 1: the app has only the compiler's ad-hoc signature,
-so it opens on the Mac that built it and nowhere else. Signing and
-notarizing (step 2) and Sparkle (step 3) come next. `--release` makes the
-notices strict (above).
+The app has only the compiler's ad-hoc signature, so it opens on the Mac
+that built it and nowhere else until step 2 (Developer ID and
+notarizing). Sparkle (step 3) is in every build. A developer's Mac makes
+test builds; releases come from `../.github/workflows/publish-app.yml` on a
+GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
 
 - **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
   in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
@@ -706,6 +749,36 @@ notices strict (above).
   and stood about a quarter bigger). The build makes the `.icns` from it
   with `sips` and `iconutil` (`make_icon`). `src/apply/Apply.icns` is the
   developer's Dock icon (`dock_app`) and stays out of the app (`LEAVE_OUT`).
+- **Updates are Sparkle 2.10.1** (W8 step 3, KAN-941). The build
+  downloads the pinned release once into `build/sparkle-2.10.1/`, checked
+  against `SPARKLE_SHA256` (its `bin/` holds `generate_keys` and
+  `sign_update`), and puts `Sparkle.framework` in `Contents/Frameworks`
+  without the XPC services (for sandboxed apps only), headers and module
+  maps. It writes the settings: `SUFeedURL` (`FEED`,
+  `https://downloads.workitjobs.ai/appcast.xml`), `SUPublicEDKey`
+  (`SPARKLE_PUBLIC_KEY`, made on 2026-11-26), checks and installs with no
+  question asked, and the EdDSA check before unpacking. **Never change
+  `FEED` or `SPARKLE_PUBLIC_KEY`:** every app keeps both for good, so after
+  a change no installed app updates again. `apply.updates` starts Sparkle's
+  updater once the run loop runs, in a built app with the framework and
+  the key; a run from source starts none. A new Sparkle version changes
+  `SPARKLE_SHA256` and `legal/licenses/Sparkle-LICENSE.txt` in the same PR.
+  Tested end to end on 2026-11-24 (`docs/app-build.md`, "Test an update"):
+  an older build installed a newer one on quit, and refused one that
+  another key signed.
+- **`scripts/publish_app.py` signs a release for Sparkle** (W8 step 4,
+  KAN-941), run by `publish-app.yml` with the update key in
+  `SPARKLE_PRIVATE_KEY` (`../.github/CLAUDE.md`, Publish WorkIt Auto
+  Apply). It writes the DMG under its build's own name and the feed (one
+  item, the newest build), and it refuses three things every app would
+  silently fail on: a test build (`WorkItRelease` false: it can hold
+  untracked files and incomplete notices), a key whose signature the
+  app's `SUPublicEDKey` rejects (checked with `cryptography`, as an app
+  checks it), and a feed that ElementTree can't read or that offers
+  another file. **It keeps `sign_update`'s output out of the log:** on a
+  failure it prints its own message, because `sign_update`'s error repeats
+  the key it was given. The key reaches `sign_update` on stdin only, and
+  the script removes it from its own environment first.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
   grows: Sparkle offers an update only when the feed's number is higher
   than the app's, and `pyproject.toml`'s version, the one the student sees

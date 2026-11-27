@@ -124,7 +124,7 @@ builds it.
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
 | D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
-| D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags in CI | GitHub Actions minutes are limited | W0 |
+| D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests; no builds and no tags on PRs. **A release is the one build in CI** (revised 2026-11-26, KAN-941): `publish-app.yml` builds, signs and publishes it on a GitHub-hosted Mac, by hand from `main` | GitHub Actions minutes are limited. A release built on a person's Mac needs the signing keys on that Mac, and holds whatever that checkout holds | W0, W8 |
 | D33 | **One mode:** Apply fills each form and stops on its last page; a person always presses Submit. Rehearsals and `live_runs` go. Not a v1 blocker | Simpler and safer: Apply never sends an application | W12 |
 | D34 | **The Answer bank lives on WorkIt** (2026-11-18; it was "the student's data comes through the Fill engine's code as it does now"): one row for each student, which the app and the extension read whole and the student edits in the app. The model's one-off drafts go in flagged for review and fill at once; essays, follow-ups and company answers never go in, and the WorkIt server alone decides what does. The rest of the student's data still comes as it does now | The two banks differed, and Apply never saw an answer typed in the extension. With nothing in the bank tied to one form, the whole bank fills any form | W11 |
 | D35 | **Keeping a job-site password from the student is not a requirement** (2026-11-14). The passwords Apply makes are the student's. Copy password writes through the window's own clipboard function, as the window's other copy buttons do, with no secret marks and no clear after a minute | It works on every OS with no clipboard code in Apply; the student can already see each password with Show password | W4 |
@@ -213,11 +213,12 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 |---|---|---|
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
-| WorkIt | Tracker writes, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
 | WorkIt | Each change to the Answer bank: the student's answers and the model's one-off drafts (W11) | As it changes |
+| WorkIt | Each link the student sends in or pastes, to find WorkIt's job and name it while it waits | When it waits to start (`apply.queued_names`) |
 | WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
-| Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting or a careers page's own host), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
 | Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
@@ -229,7 +230,10 @@ profile links, and each reference's name, email and phone
 placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
 wherever it is in what a call sends, as a whole word, and comes back into
 the answer on the computer (`apply/private.py`). A name matches in its
-own case only, so a student named Will never masks "will". No answer
+own case only, so a student named Will never masks "will". A value that
+says there is none ("N/A", "None") is no private value and is never
+masked: a native-script name of "N/A" once turned every N/A in the
+Pre-submit review into that name's placeholder. No answer
 needs these values, since the Fill engine types them from the profile;
 a draft or an essay that needs one (a reference's details, the ZIP code
 an essay box asks for, live at Applied Materials) writes the placeholder,
@@ -499,8 +503,8 @@ against `https://api.workitjobs.ai`.
    The form stops on its last page; never press Submit on a real posting
    in a test.
 3. **As a real app.** A developer runs the build script on a Mac (W8)
-   and installs the result, or sends it to testers through Sparkle's beta
-   channel. Testers outside the team need the Apple enrollment first,
+   and installs the result; testers will get releases through Sparkle's
+   beta channel (not built). Testers outside the team need the Apple enrollment first,
    because macOS blocks an app signed by no one.
 
 There is no staging server. Tests that reach production use the shared
@@ -510,8 +514,9 @@ test account.
 
 GitHub-hosted Linux runners, on PRs only: `uv run ruff check .` and a
 short list of fast tests (no browser, no network, no `claude`), a few
-minutes in all. No macOS runners, no builds, no version tags. Builds run
-by hand (W8).
+minutes in all. No macOS runners, builds or version tags on PRs. The one
+build in CI is a release, on a GitHub-hosted Mac (D32, W8); test builds run
+on a developer's Mac.
 
 ## 6. Workstreams
 
@@ -524,11 +529,11 @@ by hand (W8).
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
-| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). The signing key is made (2026-11-17). Left by hand: the `ApplyEngine` bucket, the workflow's environment rule and secret, and the first run. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it. Left: sign and notarize, Sparkle, the DMG. The download page is built (KAN-835): `/auto-apply-desktop`, under Auto Apply on the rail, with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`); the first publish passed on 2026-11-17. Open: the WorkIt extension's public copy of the engine |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4). Left: sign and notarize (step 2), the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
-| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0006 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. Built 2026-11-26: the Story bank and voice from WorkIt (an Essay fact's answer never saved), and a Developer checkout's `apply upload` (`POST /apply-app/profile/upload`, only what WorkIt lacks). The extension is unchanged. Left: the old route, once no Store extension calls it; company briefs are W9's |
+| W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0007 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. Built 2026-11-26: the Story bank and voice from WorkIt (an Essay fact's answer never saved), and a Developer checkout's `apply upload` (`POST /apply-app/profile/upload`, only what WorkIt lacks). The extension is unchanged. Left: the old route, once no Store extension calls it; company briefs are W9's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
 
@@ -692,7 +697,7 @@ its own instructions or a hostile schema.
   so WorkIt builds and stores them, and the app pulls a copy and caches
   it; the student edits them through WorkIt's routes. (The Answer bank,
   redesigned 2026-11-20, keeps no copy on the Mac: the app reads it into
-  memory only, `apply-agent/docs/adr/0006-the-answer-bank-lives-on-workit.md`.) Each call then sends only the form's own data
+  memory only, `apply-agent/docs/adr/0007-the-answer-bank-lives-on-workit.md`.) Each call then sends only the form's own data
   (drafts, questions, the posting), and a new version of each kind reads
   the sources on the server. That keeps each call small and lets the
   server send a kind only the sources it needs.
@@ -1086,23 +1091,27 @@ on Windows each one stops Apply:
 
 - **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
   `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
-  at their top, which Windows lacks, so Apply can't even start there. A
-  cross-platform lock library (such as `filelock`) does the job (W4's
-  rules).
+  at their top, which Windows lacks, so Apply can't even start there. Built
+  (KAN-929): every lock goes through `apply.locks`, on `portalocker`
+  (`windows_desktop.md`, P1).
 - **The channel between Apply and the plain Workers.** `plain/bridge.py`,
   `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
   (`AF_UNIX`, which Python lacks on Windows) in a folder named with
   `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
-  table).
+  table). Built (KAN-929): `plain/channel.py`, a named pipe on Windows,
+  checked in both directions (`windows_desktop.md`, P4).
 - **"Is it still running?"** `into.py` checks a window's process with
   `os.kill(pid, 0)`. On Windows that call ends the process: it would close
-  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
+  the Worker's Chrome. Built (KAN-929): every such check is
+  `psutil.pid_exists` (`windows_desktop.md`, P2).
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
   PID read find nothing there, and Show brings no CDP Worker forward: it
   brings one only when the lock names a running Chrome, since Chrome
-  leaves its `DevToolsActivePort` file behind when it quits.
+  leaves its `DevToolsActivePort` file behind when it quits. Built
+  (KAN-929): on Windows `chrome_pid` finds the Chrome by its arguments
+  (`windows_desktop.md`, P3).
 - Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
@@ -1241,7 +1250,9 @@ window:
    Not Now. Without it, Fix here's view is about two frames a second (W2).
 4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
    the window and its "press Return" as Try Again, till a real Worker says
-   hello. The way in until a store copy can be used (W6).
+   hello. The way in until a store copy can be used (W6). Skipped when
+   the Workers run on Chrome for Testing (`plain_chrome: testing`), which
+   loads the worker extension itself.
 
 Chrome and the seed are looked at again at each launch; the disclosure,
 the Screen Recording ask and the Worker count are kept in the data
@@ -1500,7 +1511,7 @@ and comes only from WorkIt (D3, D27, D28).
    moved back serves the older build again, unless the bad build had a
    higher min app (`autofiller_extension/CLAUDE.md`, "Move the engine
    pointer"). `make-key <file>` makes the key
-   once; its private half is a secret of the `apply-engine` environment,
+   once; its private half is a secret of the `auto-apply-desktop` environment,
    which takes jobs from `main` only, since whoever holds it can make every
    app run their code (`.github/CLAUDE.md`, "Publish the Fill engine").
 2. **Serve.** `GET /apply-app/engine?app_version=` (signed in) answers the
@@ -1535,14 +1546,13 @@ and comes only from WorkIt (D3, D27, D28).
    pinning to its CAs, since it may change them: the set must ship before
    it does.
 
-**Left, by hand, before a student can run it** (the steps are in
-`.github/CLAUDE.md`, "Publish the Fill engine"). Done 2026-11-17: the key
-(`make-key`), with its public half in `engine_download.PUBLIC_KEY`. Left:
-make the private `ApplyEngine` bucket in the Supabase dashboard; give the
-`apply-engine` environment its branch rule, then its secret; run the
-workflow once by hand for the first build. Until that build is published,
-the API answers 503 and the app says that WorkIt did not send the Fill
-engine.
+**The steps by hand are done** (`.github/CLAUDE.md`, "Publish the Fill
+engine"): the key (`make-key`), with its public half in
+`engine_download.PUBLIC_KEY`, the private `ApplyEngine` bucket, the
+environment with its branch rule and secret (`auto-apply-desktop` since
+KAN-941), and the first publish, which passed on 2026-11-17. With no build
+published, the API answers 503 and the app says that WorkIt did not send
+the Fill engine.
 
 **A dependency outside this design.** The WorkIt extension ships the
 minified engine in its public store package today, so anyone can read
@@ -1594,12 +1604,17 @@ itself (D17, D18, D20).
   installs at the next restart.
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
-  (KAN-835): `/auto-apply-desktop` (`frontend/docs/screens.md`, Auto Apply
-  Desktop). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
-- **Build by hand:** one script, `scripts/build_app.py`, that compiles,
-  signs, notarizes, makes the DMG and uploads it. No builds in CI (D32).
-  A release builds from the commit's own files (`git archive`), never the
-  working tree, and writes the commit into `Info.plist` (`WorkItCommit`).
+  (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
+  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+- **Build a release in one workflow** (D32):
+  `.github/workflows/publish-app.yml`, by hand from `main`, on a
+  GitHub-hosted Apple Silicon Mac: `scripts/build_app.py --release`, from
+  step 2 the Developer ID signature and notarizing, Sparkle's signature
+  (`scripts/publish_app.py`), the upload. Its keys are secrets of the
+  `auto-apply-desktop` environment only (`.github/CLAUDE.md`, Publish
+  WorkIt Auto Apply). A release builds from the commit's own files (`git
+  archive`), never the working tree, and writes the commit into
+  `Info.plist` (`WorkItCommit`).
 
 **Steps.**
 
@@ -1617,11 +1632,20 @@ itself (D17, D18, D20).
    Workers' window capture helper, built by `swiftc` in the build, since a
    student's Mac has no `swiftc`. Step 1 is done.
 2. Sign with Developer ID and notarize, after the Apple enrollment.
-3. Sparkle: the framework in the bundle, the key, the feed on R2.
+3. Sparkle: the framework in the bundle, the key, the feed on R2. Sparkle
+   is in the build (KAN-941, 2026-11-24): the pinned 2.10.1, the feed at
+   `https://downloads.workitjobs.ai/appcast.xml`, checks and installs with
+   no question, and `apply.updates` to start it; tested end to end on one
+   Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
+   The key is made and its public half is in every build (2026-11-26).
+   Left: a beta channel.
 4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
-   app, a link to Applications, and the license and notices beside them;
-   left: its signature and notarization (step 2), its upload and the URL.
+   app, a link to Applications, and the license and notices beside them.
+   Publishing is built (KAN-941, 2026-11-26): the workflow above, into
+   the R2 bucket `auto-apply-desktop` behind `downloads.workitjobs.ai`.
+   Left: the first publish, step 2, and `DOWNLOAD_URL`, which waits on
+   step 2.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
@@ -2079,7 +2103,7 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       one place to edit, and `tracker.json`'s old list is dropped at its
       next save.
     - **The bank leaves the data folder on purpose:**
-      `apply-agent/docs/adr/0006-the-answer-bank-lives-on-workit.md`
+      `apply-agent/docs/adr/0007-the-answer-bank-lives-on-workit.md`
       (written 2026-11-21), which Apply's rule that a person's data stays
       in `APPLY_HOME` points to.
 11. **What changes for the student.**
@@ -2112,7 +2136,7 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
    `company` beside `job_id`; the bank in memory (the startup read, its
    retry, the entry, Test Person); the sender and every write; the version
    checks; `unreviewed_answers` and the Answers view; the upload and the
-   removals in rule 9; ADR 0006, the glossary and the docs.
+   removals in rule 9; ADR 0007, the glossary and the docs.
 5. Removal, built (2026-11-24): `PATCH .../fill-answers` and the code
    behind it (the import writes the bank itself); the `fill_answers`
    column (`c3f9a1d27b6e`, applied after the deploy, with a one-time save
@@ -2278,13 +2302,14 @@ Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
 and Linux. W4's "Found on the way" list names what W4 left for it (file
 locks, the plain Workers' channel, the process check, Chrome's profile
-lock, signals, the hosts' wrappers, the seed guide's words).
+lock, signals, the hosts' wrappers, the seed guide's words), and
+`windows_desktop.md` (KAN-929) takes them one at a time.
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
 | Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
 | The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Apply ↔ host channel | A socket file | A named pipe (no port; `windows_desktop.md`, P4) | A socket file |
 | Starting Chrome in the background | `open -g` | A process with no focus | A background process |
 | Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
 | Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |
@@ -2498,7 +2523,7 @@ their value on their servers; WorkIt Auto Apply does the same.
 | Nuitka | Free (AGPLv3 with a runtime exception); Nuitka Commercial, for extra protection, about €400 |
 | Model calls in the beta | Free tiers (D7); paid tiers later (F3), cost per Application from W13 |
 | Tavily (F2, not v1) | 1,000 free credits a month, then $0.008 a credit |
-| GitHub Actions | Small Linux jobs on PRs only (D32) |
+| GitHub Actions | Small Linux jobs on PRs, and a Mac runner for each release (D32). Free while the repo is public; after W0's private repo, a Mac minute counts as about 10 free minutes (check GitHub's prices then) |
 | **Fixed total for v1** | **About $99 a year** |
 
 ## 10. Open questions
@@ -2562,5 +2587,5 @@ their value on their servers; WorkIt Auto Apply does the same.
   changes only from the reply; the bank is read again before an
   Application when the usage reply's version moved; a Developer command
   sends an old `answer-bank.yaml` once, and WorkIt Auto Apply never looks
-  for one. `/privacy` says the bank is on WorkIt. ADR 0006 records why the
+  for one. `/privacy` says the bank is on WorkIt. ADR 0007 records why the
   bank left the data folder. Left: step 5, and applying the migration.

@@ -158,6 +158,12 @@ high_stakes_job_systems: [ashby]
 # Services", but not "Metabase"). None by default; e.g. [Google, Meta, Stripe].
 target_companies: []
 
+# Auto-submit (ADR 0006, apply.auto_submit): a form that needs nobody (no flag,
+# no Essay, no pause, not a Target company, a job system Apply has submitted to
+# and that emails no code) is submitted 10 minutes after it is ready, unless
+# Cancel is pressed in the Apply window. Off by default; never in the Student build.
+auto_submit: false
+
 # The Calibration run: the first this many Applications are all held, so the
 # applicant can judge Claude's answers before anything is submitted unseen.
 calibration_run: 10

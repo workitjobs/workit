@@ -52,6 +52,22 @@ _Avoid_: cache, saved answers, FAQ
 The state of a filled Application that waits for Lisul's approval before it is submitted. Every Target company Application, every Application with a High-stakes essay, every Application with an Essay that still fails its code gates after the editor's pass, every Application that fails its Pre-submit check, every Application in the Calibration run, and (with the `unreviewed_answers: hold` policy) every Application that takes an Answer bank draft no one has reviewed is held.
 _Avoid_: draft, pending, queue
 
+**Review card**:
+The Apply window's one card for a Hold: only what needs the student's eyes (flags, Essays, guessed answers, legal and eligibility answers), with every other answer folded under What we filled. Its actions are Approve and submit, Fix, and Let go.
+_Avoid_: quick review, approval screen, summary
+
+**Approve and submit**:
+The student's approval of a Hold in the Apply window, after which Apply itself submits that form. Opening the page and pressing Submit by hand stays possible.
+_Avoid_: one-click apply, confirm, send
+
+**Auto-submit**:
+Apply submitting a filled Application with no approval, after a countdown the student can cancel. Only an Application that passed the Pre-submit check with no flags, no Essay and no reason to Hold is eligible; it is an opt-in policy, in a Developer checkout first.
+_Avoid_: autopilot, full auto, blind submit
+
+**Best model**:
+The strongest Claude model a Developer checkout uses for its large calls (Essays, Cover letters, the Pre-submit review) on the developer's own Claude subscription, signed in once with a setup token.
+_Avoid_: max model, premium model, big model
+
 **Calibration run**:
 The first ten Applications, all held, so Lisul can judge Claude's answers before anything is submitted unseen.
 _Avoid_: test run, pilot
@@ -277,7 +293,7 @@ In a rehearsal, its tile has a Fill it anyway button. The button fills the form 
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:
-A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. In a Developer command, Lisul's answers to Essay facts from before 2026-11-26 sit under "Answered during applications"; since then an answer is kept in memory for the essay that asked, until its form is submitted, and never saved. In WorkIt Auto Apply, WorkIt builds it from the student's writing samples and experience bank, and a fill adds nothing to it there.
+A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. In a Developer command, Lisul's answers to Essay facts from before 2026-11-26 sit under "Answered during applications", and one that names the company it was asked for is read only on that company's forms. Since then an answer is kept in memory for the essay that asked, until its form is submitted, and never saved. In WorkIt Auto Apply, WorkIt builds it from the student's writing samples and experience bank, and a fill adds nothing to it there.
 _Avoid_: context, notes, bio
 
 **Story map**:

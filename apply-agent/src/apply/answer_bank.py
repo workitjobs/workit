@@ -3,7 +3,7 @@ Applicant profile fact or rule answers), by the question's wording, so the
 same question gets the same answer on every form and costs no tokens again.
 
 It lives on WorkIt (W11 of docs/desktop_application_auto_apply.md; ADR
-0006), never in the data folder: the WorkIt extension fills from the same
+0007), never in the data folder: the WorkIt extension fills from the same
 bank. Each process reads it once into memory (`load`), and the window and
 every Worker share that one object (they are threads: one lock). WorkIt's
 rule decides what may enter the bank, never this module.

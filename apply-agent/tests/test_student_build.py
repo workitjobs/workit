@@ -107,6 +107,16 @@ def test_even_ask_model_claude_builds_no_claude_cli():
     assert isinstance(live_claude({"ask_model": "claude"}, student.NoClaude()), student.NoClaude)
 
 
+def test_only_a_developer_checkouts_max_plan_asks_claude(monkeypatch):
+    from apply.claude_cli import ClaudeCLI
+
+    workit = {"ask_model": "workit"}
+    assert isinstance(student.asking(workit, environ={}).__dict__.get("_claude"), student.NoClaude)
+    assert isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert not isinstance(student.asking(workit, environ={student.MAX_PLAN: "1"}), ClaudeCLI)
+
+
 @pytest.mark.parametrize("call", ["ask", "drive", "research"])
 def test_no_claude_refuses_every_call_to_claude(call):
     with pytest.raises(ClaudeError, match="WorkIt Auto Apply doesn't"):
@@ -329,6 +339,15 @@ def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
 
     assert shlex.split(launcher.host_command(compiled=True)) == [psutil.Process().exe(), host.APP_FLAG]
     assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
+
+
+def test_the_compiled_apps_relay_finds_its_channel_with_no_py_file(tmp_path, monkeypatch):
+    """Fault: the compiled app's relay loads channel.py from beside host.py, a file the app doesn't ship, so every
+    plain Worker's host stops before it connects to Apply and none says hello (W8, KAN-929)."""
+    from apply.plain import channel, host
+
+    monkeypatch.setattr(host, "__file__", str(tmp_path / "host.py"))  # as in the app: no .py file beside it
+    assert host._channel(compiled=True) is channel
 
 
 def test_the_compiled_app_films_with_the_helper_it_ships_and_builds_none(tmp_path, monkeypatch):

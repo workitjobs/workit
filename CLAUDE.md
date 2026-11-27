@@ -54,7 +54,9 @@ none.
   It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
-  `apply-agent/CLAUDE.md` before any change there.
+  `apply-agent/CLAUDE.md` before any change there. To read or drive a
+  running WorkIt Auto Apply window, use `uv run apply window ...` (from
+  `apply-agent/`) before any screen automation.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `.sandcastle/` — Sandcastle, an unattended agent loop that works through
   KAN issues labelled `sandcastle` in a sandbox and leaves each on a branch
@@ -258,9 +260,13 @@ with the failure it prevents.
   data, never a prompt. Built (2026-11-21, W11, D34; designed 2026-11-18,
   redesigned 2026-11-20): the Answer bank lives on WorkIt, one row for
   each student, which the app reads once into memory and the extension
-  reads whole, and only the server decides what enters it (ADR 0006 in
+  reads whole, and only the server decides what enters it (ADR 0007 in
   `apply-agent/docs/adr/`; its migration not yet applied). Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
+- `docs/windows_desktop.md` — KAN-929, being built (its section 7 says
+  where): what stops Apply on Windows, one problem per section with its
+  fix and test, and why Workers copy a WorkIt-only seed. Read it before
+  porting any part of Apply to Windows.
 - `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
   how developers keep testing Apply once its prompts live on the server
   (a prompt route for developer accounts, so `ask_model: claude` runs

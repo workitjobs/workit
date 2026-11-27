@@ -1,7 +1,8 @@
-"""The plain Workers' bridge: Apply's end of the socket the host relays talk to.
+"""The plain Workers' bridge: Apply's end of the channel the host relays talk to.
 
-It listens on the Worker profiles folder's workers.sock (mode 0600) before any Worker starts. Each Worker's
-relay connects, names its Worker, and passes on the extension's hello; the bridge checks
+It listens on the Worker profiles folder's channel (plain/channel.py: workers.sock, mode 0600, or a named pipe on
+Windows) before any Worker starts. Each Worker's relay connects and passes the check in both directions, names
+its Worker, and passes on the extension's hello; the bridge checks
 the origin, the protocol and the engine, answers welcome or refuse, and keeps one
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
 (`on`). Messages over 512 KiB go as chunks, since Chrome takes at most 1 MB from a host.
@@ -31,6 +32,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply.home import HOME
+from apply.plain import channel
 from apply.plain.extension import EXTENSION_ORIGINS, code_hash, engine_identity
 
 PROTOCOL = 1
@@ -89,11 +91,13 @@ class BridgeBusy(Exception):
     """Another Apply process is listening on the socket."""
 
 
-def socket_path(home: Path = HOME) -> Path:
+def socket_path(home: Path = HOME, system: str = sys.platform) -> Path:
     """`home`/workers.sock, or, when that path is too long for a socket, one under
-    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder."""
+    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder. On Windows the path
+    only names the channel's pipe and holds its secret beside it (channel.pipe_name), so it has no length to keep
+    under, and Windows has no os.getuid."""
     path = home / SOCKET
-    if len(str(path).encode()) <= SOCKET_PATH_MOST:
+    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
         return path
     folder = Path(tempfile.gettempdir() if len(tempfile.gettempdir()) < 40 else "/tmp") / f"apply-{os.getuid()}"
     return folder / f"{hashlib.sha256(str(home.resolve()).encode()).hexdigest()[:16]}.sock"
@@ -244,7 +248,7 @@ class Bridge:
         self._reloaded: set[int] = set()  # Workers told to reload once already
         self.reloadable: Callable[[int], bool] = lambda worker: False  # PlainWorkers: its profile's Developer mode
         self._warned = False
-        self._server: socket.socket | None = None
+        self._server: channel.Listener | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
         self._changed = threading.Condition()
@@ -258,27 +262,10 @@ class Bridge:
     def start(self) -> None:
         if self._server:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.parent.name.startswith("apply-"):
-            self.path.parent.chmod(0o700)
-        if self.path.exists():
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                probe.connect(str(self.path))
-                raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}")
-            except (ConnectionRefusedError, FileNotFoundError):
-                self.path.unlink(missing_ok=True)
-            finally:
-                probe.close()
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        old = os.umask(0o177)
         try:
-            server.bind(str(self.path))
-        finally:
-            os.umask(old)
-        self.path.chmod(0o600)
-        server.listen(16)
-        self._server = server
+            self._server = channel.listen(self.path)
+        except channel.Busy:
+            raise BridgeBusy(f"another Apply is driving plain Workers on {self.path}") from None
         self.engine  # noqa: B018 - read the engine's identity before the first hello
         threading.Thread(target=self._accept, name="plain-bridge", daemon=True).start()
 
@@ -286,7 +273,6 @@ class Bridge:
         server, self._server = self._server, None
         if server:
             server.close()
-            self.path.unlink(missing_ok=True)
         for connection in list(self._workers.values()):
             connection.close()
         self._workers.clear()
@@ -294,12 +280,15 @@ class Bridge:
     def _accept(self) -> None:
         while (server := self._server) is not None:
             try:
-                sock, _ = server.accept()
+                sock = server.accept()
             except OSError:
                 return
-            threading.Thread(target=self._greet, args=(sock,), daemon=True).start()
+            threading.Thread(target=self._greet, args=(sock, server), daemon=True).start()
 
-    def _greet(self, sock: socket.socket) -> None:
+    def _greet(self, sock: socket.socket, server: channel.Listener) -> None:
+        if not server.greet(sock):  # it doesn't know this channel's secret: no other message (channel.py)
+            sock.close()
+            return
         try:
             relay = _read_frame(sock)
             hello = _read_frame(sock)

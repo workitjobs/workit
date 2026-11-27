@@ -347,7 +347,7 @@ class ClaudeFill:
         self._named = 0
         self._steps = 0  # the steps gone past
         self._attached: dict[str, str] = {}  # the résumé, attached by plain code
-        self._picked: Readback = {}  # the dropdown choices plain code picked
+        self._picked: Readback = {}  # the dropdown choices and group boxes plain code picked
         self._readback: Readback = {}  # every field filled so far, on every step
         self._put: dict = {}  # the answer each field was filled with
         self._found_at: dict[str, int] = {}  # the step each question the fill found was on (unlisted), by name
@@ -483,7 +483,10 @@ class ClaudeFill:
         self._readback.update(self._attached)
         while True:
             # Each step's dropdowns that open to list their choices, picked by plain code first.
-            picked = _pick_in_comboboxes(page, [q for q in questions if q.name in answers and q.name not in self._picked], answers)
+            unpicked = [q for q in questions if q.name in answers and q.name not in self._picked]
+            picked = _pick_in_comboboxes(page, unpicked, answers)
+            # Then groups of boxes (Oracle's races), never an attestation: Lisul's own, or the plan's for Claude to tick.
+            picked |= _tick_in_groups(page, [q for q in unpicked if q.name not in picked and q.name not in attests | settled], answers)
             self._picked.update(picked)
             self._readback.update(picked)
             todo = {name: value for name, value in answers.items()
@@ -517,7 +520,7 @@ class ClaudeFill:
                 prompt = f"The résumé ({resume}) is already attached to {labels[name]!r}: leave that field as it is.\n{prompt}"
             if self._picked:
                 done_already = ", ".join(repr(labels[name]) for name in self._picked if name in labels)
-                prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
+                prompt = f"These dropdowns and boxes are already picked: {done_already}. Leave them as they are.\n{prompt}"
             step = _step_key(page)
             before = {name: _box_state(page, labels[name]) for name in attests}  # read by plain code, before Claude's session
             done = self._session(page, FILL + (GATES if self._page_gates else ""), prompt,
@@ -1107,12 +1110,77 @@ def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
     except Exception:
         return questions
     names = [name for _, name in boxes]
+    groups = _groups(page)
     out = []
     for q in questions:
         index = _combobox_for(q.label, names) if q.kind in ("select", "multi_select") else -1
         options = _options_of(page, boxes[index][0]) if index >= 0 else ()
+        if not options and q.kind in ("select", "multi_select"):  # a group of boxes: Oracle's Ethnicity and races
+            at = _combobox_for(q.label, [group["name"] for group in groups])
+            options = tuple(groups[at]["options"]) if at >= 0 else ()
         out.append(Question(q.name, q.label, q.kind, q.required, options) if options else q)
     return out
+
+
+# The visible groups of checkboxes on the page (radios stay Claude's), each with its name (aria-labelledby, aria-label, legend) and its
+# own inputs, each with its words. Oracle's Ethnicity group is one box ("I am Hispanic or Latino."), beside a race
+# list: read as one select with no choices, its question took the race (live on Honeywell's, 2026-11-25).
+BOX_GROUPS = r"""
+  const words = (el) => (el ? el.innerText || el.textContent || '' : '').replace(/\s+/g, ' ').trim();
+  const byIds = (el, attr) => (el.getAttribute(attr) || '').split(/\s+/).filter(Boolean)
+    .map((id) => words(document.getElementById(id))).filter(Boolean).join(' ');
+  const GROUP = '[role=group], [role=radiogroup], fieldset';
+  const said = (input) => words(input.labels && input.labels[0]) || byIds(input, 'aria-labelledby') || input.getAttribute('aria-label') || '';
+  const groups = () => [...document.querySelectorAll(GROUP)].filter((g) => g.checkVisibility && g.checkVisibility()).map((g) => {
+    const legend = g.matches('fieldset') ? g.querySelector(':scope > legend') : null;
+    const inputs = [...g.querySelectorAll('input[type=checkbox], input[type=radio]')].filter((i) => i.closest(GROUP) === g);
+    if (inputs.some((i) => i.type === 'radio')) return {name: '', inputs: []};
+    return {name: byIds(g, 'aria-labelledby') || g.getAttribute('aria-label') || words(legend), inputs};
+  }).filter((g) => g.name && g.inputs.length && g.inputs.every(said));
+"""
+# Each group: {name, options, ticked}, in page order.
+GROUPS = "() => {" + BOX_GROUPS + """
+  return groups().map((g) => ({name: g.name, options: g.inputs.map(said), ticked: g.inputs.map((i) => i.checked)}));
+}"""
+# Ticks the input of group `at` (GROUPS' order) whose words are `choice`, unless it is ticked already.
+TICK = "([at, choice]) => {" + BOX_GROUPS + """
+  for (const input of groups()[at].inputs) if (said(input) === choice && !input.checked) input.click();
+}"""
+
+
+def _groups(page: Page) -> list[dict]:
+    try:
+        return page.evaluate(GROUPS)
+    except Exception:
+        return []
+
+
+def _tick_in_groups(page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+    """Each choice answer whose question is a group of checkboxes (Oracle's races), ticked by plain code, as
+    {field: what it shows}. A box ticked already stays ticked, and no box is unticked. A group with a choice it
+    doesn't list is left to Claude."""
+    ticked: Readback = {}
+    for q in questions:
+        value = answers.get(q.name)
+        if q.kind not in ("select", "multi_select") or not value or isinstance(value, Path):
+            continue
+        groups = _groups(page)
+        at = _combobox_for(q.label, [group["name"] for group in groups])
+        wanted = [str(v) for v in value] if isinstance(value, list) else [str(value)]
+        if at < 0 or not set(wanted) <= set(groups[at]["options"]):
+            continue
+        try:
+            for choice in wanted:
+                page.evaluate(TICK, [at, choice])
+        except Exception:
+            continue
+        after = _groups(page)
+        if at >= len(after):
+            continue
+        shown = [option for option, on in zip(after[at]["options"], after[at]["ticked"]) if on]
+        if set(wanted) <= set(shown):
+            ticked[q.name] = shown if q.kind == "multi_select" else wanted[0]
+    return ticked
 
 
 # A box's date format, as its placeholder says it ("YYYY-MM", "MM/DD/YYYY").
@@ -1148,18 +1216,24 @@ def _with_formats(page: Page, questions: QuestionSet) -> QuestionSet:
 
 
 def _comboboxes(page: Page) -> list[tuple[Locator, str]]:
-    """Every visible dropdown on the page, each with its name, read off that same element."""
-    return [(box, box.evaluate(COMBOBOX_NAME)) for box in page.locator("[role=combobox]:visible").all()]
+    """Every visible dropdown on the page, each with its name, read off that same element: its ARIA name, else the
+    <label> it has (Oracle's cx-select names its box only by `<label for>`, so no Oracle dropdown was found, and Claude
+    clicked through each one, live on Honeywell's form, 2026-11-25)."""
+    return [(box, box.evaluate(BOX_NAME)) for box in page.locator("[role=combobox]:visible").all()]
 
 
 def _combobox_for(label: str, names: list[str]) -> int:
     """The index of the dropdown named as the question is: exactly, else by a
     name its label adds help text after, else by one that adds the choice it
-    shows (Airtable's "Which role are you applying to? Software Engineering");
-    -1 if none or two are."""
+    shows (Airtable's "Which role are you applying to? Software Engineering"),
+    else by the part of a label after its section's heading (Oracle's Address
+    block's "Country", read as "Address: Country"); -1 if none or two are."""
     key = _key(label)
+    bare = label.strip().rstrip(":")
+    part = _key(bare.rsplit(":", 1)[1]) if ":" in bare else ""
     keys = [_key(name) for name in names]
-    for fits in (lambda k: key == k, lambda k: key.startswith(k + " "), lambda k: k.startswith(key + " ")):
+    for fits in (lambda k: key == k, lambda k: key.startswith(k + " "), lambda k: k.startswith(key + " "),
+                 lambda k: k == part):
         found = [i for i, k in enumerate(keys) if k and fits(k)]
         if found:
             return found[0] if len(found) == 1 else -1
@@ -1192,7 +1266,7 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
                 combobox.click(timeout=3_000)
                 # Its own listbox's option, else one showing: never a same-named option of another list.
                 option = (_owned_listbox(page, combobox) or page).get_by_role("option", name=choice, exact=True)
-                option.filter(visible=True).first.click(timeout=OPENS_MS)
+                _press_option(option.filter(visible=True).first)
                 if q.kind == "multi_select":
                     page.keyboard.press("Escape")
         except Exception:
@@ -1206,10 +1280,30 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
     return picked
 
 
-def _shows_choice(combobox, choice: str) -> bool:
-    """Whether the dropdown, or the field it sits in, shows the choice."""
+# A press on the element itself, as the Fill engine's `press` gives one: the pointer and mouse events, then the click.
+PRESS = """el => {
+  el.scrollIntoView({block: 'center'});
+  const at = {bubbles: true, cancelable: true, composed: true, button: 0, view: window};
+  for (const [Kind, type] of [[PointerEvent, 'pointerdown'], [MouseEvent, 'mousedown'], [PointerEvent, 'pointerup'],
+                              [MouseEvent, 'mouseup'], [MouseEvent, 'click']]) el.dispatchEvent(new Kind(type, at));
+}"""
+
+
+def _press_option(option: Locator) -> None:
+    """Click a dropdown's option, else press it on its own element: on Oracle's form the required field's error
+    paragraph lay over the open list and took every click at the option's place, so none was picked (Honeywell's
+    graduation month, live 2026-11-25)."""
     try:
-        shown = combobox.evaluate(FIELD_TEXT)
+        option.click(timeout=OPENS_MS)
+    except Exception:
+        option.evaluate(PRESS, timeout=OPENS_MS)
+
+
+def _shows_choice(combobox, choice: str) -> bool:
+    """Whether the dropdown, or the field it sits in, shows the choice: a box's own value too (Oracle's cx-select
+    shows the choice in its input, which no innerText holds)."""
+    try:
+        shown = combobox.evaluate(FIELD_TEXT) + "\n" + (combobox.evaluate("el => el.value || ''") or "")
     except Exception:
         return False
     return any(line.strip() == choice for line in shown.splitlines())

@@ -16,6 +16,7 @@ const SAID: [RegExp, string | ((raw: string) => string)][] = [
   [/^That essay is too long\./, "That answer is too long."],
   [/^Only the Apply window may /, "This window couldn't do that. Quit WorkIt Auto Apply and open it again."],
   [/^That browser has no window to open/, "That form's window is closed."],
+  [/^That form isn't held for you now: it's closed already/, "That form is already closed."],
   [/^That form isn't held for you now/, "That form is closed now, so it can't be tried again."],
   [/^(No such |Not an? )/, "That didn't work. Try again."],
   [/couldn't read your queue/, "We couldn't read your Auto Apply queue on WorkIt. Paste a job's link instead."],
@@ -36,3 +37,14 @@ export function said(raw: string): string {
   if (found) return typeof found[1] === "function" ? found[1](raw) : found[1];
   return DEVELOPER.test(raw) ? SOMETHING_WRONG : raw;
 }
+
+// What a form being filled is doing, from the Worker's own line (stuck.doing), in the student's words. A line that
+// names no step the student knows says nothing: never Apply's own wording.
+const STEPS: [RegExp, string][] = [
+  [/^Reading the form/, "Reading the form"],
+  [/^Reading .*pages|^Researching /, "Reading about the company"],
+  [/^(Planning|Writing answers)/, "Writing answers"],
+  [/^Filling /, "Filling in answers"],
+];
+
+export const step = (doing?: string): string | undefined => STEPS.find(([pattern]) => pattern.test(doing ?? ""))?.[1];

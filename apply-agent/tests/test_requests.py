@@ -408,3 +408,17 @@ def test_a_pasted_workday_link_the_feed_lacks_is_named_by_workdays_job_api():
     posting, result = resolve(pasted, site)
 
     assert (posting.company, posting.title, result) == ("ASML", "Internship - Software Engineer In Test (MOD)", None)
+
+
+def test_a_pasted_workday_link_neither_the_feed_nor_the_job_api_has_is_named_by_its_link():
+    # Fault: a closed Posting's Record named no company or role ("# : ", Smith+Nephew's, live 2026-11-25).
+    pasted = "https://smithnephew.wd5.myworkdayjobs.com/external/job/Andover-MA/Intern-Computer-Vision-Software-Engineering_R92964"
+    site = Pages({LIVE: json.dumps([feed_record()]).encode()})
+
+    posting, result = resolve(pasted, site)
+
+    assert (posting.company, posting.title, result) == ("Smithnephew", "Intern Computer Vision Software Engineering", None)
+    # On myworkdaysite.com the tenant is in the path; a short one is an initialism.
+    snc, _ = resolve("https://wd1.myworkdaysite.com/recruiting/snc/External/job/Southern-Pines-NC/"
+                     "Software-Engineer-Intern--Summer-2027-_R0031229", site)
+    assert (snc.company, snc.title) == ("SNC", "Software Engineer Intern Summer 2027")

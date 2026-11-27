@@ -214,10 +214,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`/onboarding/applicant?step=extension`, which leads to Practice --
   `/extension-setup`'s "I Already Have One" button sends a signed-out
   visitor through this, not plain `/login`, so a student who already
-  finished onboarding keeps a route back to Practice instead of landing
-  on /home with no way there, KAN-495; `login/actions.ts`): never widen
-  it to any path, which would make the
-  sign-in page an open redirect. The list is `lib/sign-in-next.ts`, which
+  finished onboarding keeps a route (not plain `/home` with no way there,
+  KAN-495; `login/actions.ts`): never widen it to any path, which would
+  make the sign-in page an open redirect. **A finished seeker never
+  actually sees the Extension step again** (KAN-864,
+  `onboarding/applicant/page.tsx`): that page redirects `?step=extension`
+  straight to `/home?installed=1` once `account.onboarding_completed` is
+  true, before `./steps.ts`'s `startStep` ever runs, and Home's
+  `InstalledToast` (`(seeker)/home/installed-toast.tsx`) shows a one-time
+  "extension installed" toast there and strips the param. Only a seeker
+  still finishing onboarding reaches the wizard's Extension step through
+  this `next` value. The extension-setup page's own buttons (Create Your
+  Account, I Already Have One) are plain relative paths, so they always
+  resolve against whatever origin served that page, never a hardcoded or
+  build-time host; its optional "Connect your Claude" card links to
+  `/connect/claude/add` rather than calling `claudeConnectorLink()`
+  directly, since `/extension-setup` prerenders (confirmed in `npm run
+  build`'s route table, `○`) and a build-time read of `API_URL` would bake
+  in whatever host built the page -- the same class of bug KAN-368 fixed
+  on `/docs/mcp`. The list is `lib/sign-in-next.ts`, which
   the Google and LinkedIn sign-ins started on `/login` use too: Google's
   flow cookie carries `next` to `auth/google/callback`, and LinkedIn's
   `redirectTo` carries it to `auth/callback`, which follows it besides
@@ -1479,8 +1494,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
   two sets of names for one app (2026-11-05). A name may take two lines on
-  its tile, no more: "Auto Apply Desktop" (KAN-835, `docs/screens.md`) does,
-  and `RAIL_BUTTON` wraps it where shadcn cut it to "o Apply Desk". **The same names are used
+  its tile, no more (`RAIL_BUTTON` wraps one where shadcn cut it); no row
+  is that long since "Auto Apply Desktop" (KAN-835) left the rail. **The
+  rail lists the places a student works in** (2026-11-23): a page read one
+  time (a download, a promotion) is a tab or a link inside the section it
+  belongs to, as the desktop app's page is Auto Apply's Desktop App tab.
+  **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
   "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
@@ -1712,6 +1731,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
 - **A screen's fixture data lives in a sibling `data.ts`**, so `page.tsx` is
+- **Every read from the API gives up after 10 seconds** (`lib/api-timeout.ts`,
+  `withReadTimeout`, used by `apiGet` and by `apiFetch` for a GET;
+  2026-11-24). On that day the shared database, on Supabase's Nano compute,
+  was overloaded and each read took 10 to 30 seconds or never answered;
+  with no limit, Open WorkIt and the Jobs page showed nothing for over 30
+  seconds, with no error. Now the read fails, its caller's `catch` gives
+  the page's failed state (`LoadFailed`) or leaves the part out. **A write
+  is never limited**: Tailor, Generate, Scout and uploads run longer, and a
+  write the app gave up on could still finish on the server. The limit
+  does not cover Supabase Auth: the proxy's session refresh
+  (`getClaims`) waits on Auth, which shares the database, so a hung
+  database still holds a signed-in page there.
   layout and the swap to real data touches one file. A live fetch that a
   client component's `data.ts` cannot hold gets its own sibling marked
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
@@ -1846,8 +1877,49 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   bar to those two actions. Auto Apply sends the
   picked ids with no tab open with `run/open`, so the extension
   opens them first and nothing else in a new batch. A select box's click
-  stops in its cell, or the row opens the job posting. The setup banner shows only what Auto Apply can't run
-  without (the Chrome extension) and hides once it is there; an optional
+  stops in its cell, or the row opens the job posting. **Auto Apply is one section with three tabs** (2026-11-23,
+  `auto-apply/layout.tsx`, `auto-apply-tabs.tsx`, `docs/screens.md`):
+  Queue, Application Info and Desktop App, Documents' own tabs
+  (`ui/tabs.tsx`). The layout draws the frame and the tabs, so a page
+  under `auto-apply/` draws neither, and a tab has no Back to Auto Apply
+  and the bar title "Auto Apply" (`isAutoApplyTab` in `bar-title.tsx`,
+  which a new tab joins). A new page of the section is a tab, never a card
+  or a button over the queue: three link cards there (the setup row,
+  2026-11-10) read as three required steps. **The queue is where a student
+  manages each job**, so work a job asks for is a row's status or a notice
+  over the queue, never a tab: Written Answers was a tab with a count for
+  a few hours and the user took it out. It is a page under the queue, with
+  its own bar title and Back, and the tabs are not drawn on it. **Application
+  Info works as Settings does** (2026-11-24, `auto-apply/info/`,
+  `sections.ts` says why): a side menu beside one part at a time, each
+  part at `/auto-apply/info/<part>`, each card an open form with Settings'
+  Save row (`save-row.tsx`: Save off until a change, then Discard beside
+  it) and Settings' unsaved-changes guard (`unsaved.tsx`). **The form and
+  the page go together**: a card that reads first is short and fits one
+  page with the others (2026-11-23, for a day); a card that is an open
+  form is tall and gets a page. Application Info sets WorkIt up, so its
+  cards are forms; My Profile is what an employer sees, so its cards read
+  first with a pencil. Never mix them: six open forms down one page is the
+  long form of 2026-11-11. **Save is a button, never each pick**: these
+  answers go into real applications, and an open picker can change on a
+  stray click. Self-Identification alone stays closed until Show
+  (KAN-550). **The layout draws every part, and a part shows by the
+  column's `data-part` in CSS** (`info-part.tsx`): the parts stay mounted,
+  so the menu switches them with `history.replaceState` and an unsaved
+  edit survives; a part that worked out its own `hidden` from the address
+  hydrated wrong when it streamed in after the address had moved, and the
+  page was empty. The part's `page.tsx` draws nothing. Three short cards
+  (Transcript, Writing Samples, Workday Sign-Up) share the Files & Sign-Up
+  part, since a page each was a card over an empty screen. **A page has no
+  one door to guard**, so the guard catches a click on any link that
+  leaves Application Info while something is unsaved; the browser's Back
+  is not caught. **Every card there has one head** (`info/card-head.tsx`):
+  the card's glyph on the option row's grey tile, the title over its
+  description, the card's actions at the right, and the body starting
+  where the title does (`INFO_CARD`). A card keeps that head in every
+  state: an empty one puts a bordered button in its body, never a centred
+  empty state in the card's place, which made two looks in one stack. The setup banner shows only what Auto Apply can't run
+  without (the Chrome extension, `auto-apply/extension-notice.tsx`) and hides once it is there; an optional
   step (a default resume, the Claude MCP) shows on the rows it helps,
   never as a banner step or a header button that stays. A table row that opens
   nothing carries no `group/row`, or its frozen cell tints alone on hover.
@@ -1857,13 +1929,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
-  **Its lasting way in is the setup row's Written Answers cell**
-  (KAN-822, `auto-apply/setup-strip.tsx`); Up Next's questions notice
-  links it too while questions wait. A row's questions chip goes to the
+  **Its one way in is Up Next's questions notice**, while questions wait
+  (2026-11-23, the user's call; the setup row's cell from KAN-822, then a
+  tab, were its lasting way in until then). A row's questions chip goes to the
   tab, and for a while no link reached the page, so a student without
   Claude could not answer (KAN-566); then only the notice did, so with
   nothing waiting the saved answers and their Delete were out of reach.
-  Keep the lasting link.
+  **That gap is open again, on purpose**: with no question waiting, no
+  link reaches Your Answers. Give the saved answers a place on the queue
+  (a row's menu, an applied job's page) before a student needs them.
   never the danger red (the student fixes it; nothing broke). Each box's
   save is `secondary` until the box has text (KAN-568): a card holds
   several questions, and a brand Save under each put five on one screen.
@@ -1935,8 +2009,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   address, so it shows before the page streams in; a new section joins `TITLES`
   there. It is the page's h1 on a section's own page, and a plain line on a page
   under it (a job, a resume, an application), which has its own h1.
-  Application Info's parts are one page's parts, so its title is the h1 on
-  each (`isInfoPart`, KAN-822), its cards h2s. Home's title
+  Auto Apply's tabs are one section's pages, so "Auto Apply" is the h1 on
+  each (`isAutoApplyTab`, 2026-11-23), their headings h2s. Home's title
   is the greeting, which the layout reads with the account. **One h1 per view**
   (KAN-560): a job drawn beside the list on /jobs (the split view) titles itself
   h2 (`JobDetailHeader`'s `titleAs`), and a 404 under a section is the h1
@@ -2057,9 +2131,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
   parent for a direct visit. A page whose parts are pages passes
-  `within` (Application Info, `/auto-apply/info`): its Back goes to what
-  opened the page, never a part. Without it, Application Info's Back went
-  to Auto Apply even from My Profile, since a part was always the opener. The scroll memory records each page's opener
+  `within`: its Back goes to what opened the page, never a part.
+  Application Info used it until it became a tab of Auto Apply
+  (2026-11-23), which has no Back; nothing passes it now. The scroll memory records each page's opener
   (`openerOf`, sessionStorage, the last 50 pages) on every forward arrival
   and never on a return, so a detour and the browser's Back keep it. A
   new Back control uses them, never a fixed `href`; a new seeker page a

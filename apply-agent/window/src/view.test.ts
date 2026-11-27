@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, aiReview, answerOf, appliedJobs, bar, checks, asking, chosen, classify, headline, limit, notStarted, queueNote, reuse, shortcut, startWords, usageLine, usedShare, view } from "./view.ts";
+import { addsJobs, aiReview, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, reuse, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -52,11 +52,11 @@ test("stopped jobs are in neither the pile nor the working list", () => {
 test("a failed or skipped job didn't go through, with its reason in the student's words", () => {
   // Each label as verdict() in dashboard.py gives it, by the Application's status.
   const cases: [Partial<Shown>, string][] = [
-    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond" }, "Couldn't finish: the page took too long to respond"],
+    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond" }, "We couldn't finish filling this one."],
     [{ tone: "ended", kind: "skipped", status: "not eligible", label: "Skipped: you don't qualify (needs US work authorization)" }, "You don't qualify (needs US work authorization)"],
-    [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "No longer taking applications"],
-    [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "Already applied"],
-    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied to this job"],
+    [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "This job was taken down. Nothing to do."],
+    [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "You already applied. Nothing to do."],
+    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied. Nothing to do."],
     [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Stopped at today's limit. Try again once it resets"],
     // A job that reached WorkIt's Usage cap and ended failed, in UsageLimitHit's words (KAN-837).
     [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: UsageLimitHit: Usage limit reached; resets at 2026-11-17 19:00:00" }, "Stopped at today's limit. Try again once it resets"],
@@ -73,9 +73,9 @@ test("a failed or skipped job didn't go through, with its reason in the student'
 
 test("a reason in Apply's developer words is said plainly, never as it is", () => {
   const cases: [Partial<Shown>, string][] = [
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: setup: ask_model: workit needs a WorkIt sign-in" }, "We couldn't finish filling it out"],
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: the rehearsal stopped" }, "We couldn't finish filling it out"],
-    [{ tone: "failed", status: "failed", label: "Couldn't finish: Claude fill gave up on the page" }, "We couldn't finish filling it out"],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: setup: ask_model: workit needs a WorkIt sign-in" }, "We couldn't finish filling this one."],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: the rehearsal stopped" }, "We couldn't finish filling this one."],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: Claude fill gave up on the page" }, "We couldn't finish filling this one."],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: today's limit reached; 3 more go tomorrow" }, "Today's limit was reached before it started"],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: OpenAI takes at most 5 applications in any 180 days" }, "OpenAI takes at most 5 applications in any 180 days"],
   ];
@@ -340,6 +340,38 @@ test("the idle board has no run to stop and nothing waiting", () => {
   assert.deepEqual([v.running, v.waiting, v.queued], [false, [], 0]);
 });
 
+test("Stop applying names the filled forms it closes, and offers Stop new ones only first while jobs wait", () => {
+  // A held form (its tile's `again`) counts; one submitted, one still filling and an item's stale `again` don't.
+  const v = view({
+    tiles: [
+      job({ tone: "ready", again: true, posting_url: "https://a" }),
+      job({ tone: "needs", kind: "missing fact", again: true, posting_url: "https://b" }),
+      job({ tone: "submitted", again: true, posting_url: "https://c" }),
+      job({ posting_url: "https://d" }),
+    ],
+    items: [job({ tone: "ready", again: true, posting_url: "https://e" })],
+    run: { mode: "rehearsal", queued: 0 },
+  });
+  assert.equal(v.held, 2);
+  assert.deepEqual(stopWords(v), { ask: "Stop? 2 filled forms waiting for you will close. Nothing gets submitted.", all: "Stop" });
+  assert.deepEqual(stopWords({ held: 3, queued: 2 }), { ask: "Stop starting new jobs? Your 3 filled forms stay open.", newOnly: "Stop new ones only", all: "Stop and close all 3" });
+  assert.deepEqual(stopWords({ held: 1, queued: 1 }), { ask: "Stop starting new jobs? Your filled form stays open.", newOnly: "Stop new ones only", all: "Stop and close it" });
+  assert.equal(stopWords({ held: 0, queued: 0 }).ask, "Stop every application? Nothing gets submitted.");
+});
+
+test("a form the student isn't applying to leaves the pile, with its earlier item", () => {
+  const v = view({
+    tiles: [job({ tone: "ready", again: false, let_go: true, posting_url: "https://a" }), job({ tone: "ready", again: true, posting_url: "https://b" })],
+    items: [job({ tone: "ready", id: 3, posting_url: "https://a" })],
+  });
+  assert.deepEqual(v.todo.map((j) => j.source.posting_url), ["https://b"]);
+  assert.equal(v.held, 1);
+  // Its tile on to the next job: the let-go form's item stays gone.
+  const after = view({ tiles: [job({ tone: "filling", posting_url: "https://c" })], items: [job({ tone: "ready", id: 3, let_go: true, posting_url: "https://a" })] });
+  assert.deepEqual(after.todo, []);
+  assert.deepEqual(after.working.map((j) => j.source.posting_url), ["https://c"]);
+});
+
 test("+ Add jobs shows whenever no run is going and the window can start one, never during a run", () => {
   const idle = view({ tiles: [], items: [], run: {} });
   const run = view({ tiles: [job({})], items: [], run: { mode: "rehearsal", queued: 0 } });
@@ -407,4 +439,179 @@ test("the Submit card says how many answers the AI wrote for the student to revi
   assert.equal(aiReview({ tone: "ready", written: [essay] }), "1 answer was written by AI and needs your review. It has a mark beside it on the form.");
   assert.match(aiReview({ tone: "ready", written: [essay, { name: "city", label: "Why this city?" }] }) ?? "", /^2 answers were written by AI/);
   assert.equal(aiReview({ tone: "ready" }), undefined);
+});
+
+// "What we filled" on the held card. Its fault: an answer worth a glance (one WorkIt wrote, work authorization, EEO,
+// school, pay, a file) buried among the name and phone, or one marked that needs no glance.
+test("what we filled puts the answers worth a glance first, in their order, then the rest in the form's", () => {
+  const answers: NonNullable<Shown["answers"]> = [
+    { question: "First Name", answer: "Test", from: "profile", kind: "text", topic: "" },
+    { question: "Resume", answer: "r.pdf", from: "profile", kind: "file", topic: "file" },
+    { question: "Gender", answer: "Decline", from: "profile", kind: "select", topic: "eeo" },
+    { question: "Why us?", answer: "Because.", from: "written", kind: "textarea", topic: "" },
+    { question: "Sponsorship?", answer: "No", from: "profile", kind: "select", topic: "legal" },
+    { question: "Heard from?", answer: "WorkIt", from: "saved", kind: "select", topic: "" },
+  ];
+  const { look, rest } = filledIn(job({ tone: "ready", answers }));
+  assert.deepEqual(look.map((r) => [r.question, r.glance]), [
+    ["Why us?", "WorkIt wrote this"],
+    ["Sponsorship?", "Work authorization"],
+    ["Gender", "Demographics"],
+    ["Resume", "File attached"],
+  ]);
+  assert.deepEqual(rest.map((r) => [r.question, r.glance]), [["First Name", ""], ["Heard from?", ""]]);
+  assert.deepEqual(filledIn(job({ tone: "ready" })), { look: [], rest: [] });
+});
+
+test("a long answer is cut at a word with Show more, and a short one is left whole", () => {
+  assert.deepEqual(clip("Short."), { text: "Short.", cut: false });
+  const cut = clip("word ".repeat(100).trim(), 50);
+  assert.ok(cut.cut && cut.text.endsWith("word…") && cut.text.length <= 51, cut.text);
+});
+
+test("the review's changes say each question, from what to what, and nothing when it changed none", () => {
+  const fixed = [{ question: "Graduation", was: "May 2027", now: "May 2028" }, { question: "Start", was: "", now: "June" }];
+  assert.deepEqual(changes(job({ tone: "ready", fixed })), {
+    heading: "We changed 2 answers after checking",
+    lines: ["Graduation: May 2027 → May 2028", "Start: blank → June"],
+  });
+  assert.equal(changes(job({ tone: "ready", fixed: [] })), null);
+});
+
+test("each flag is said with its question and in WorkIt's words, never Apply's", () => {
+  const flags = [{ field: "Pay", why: "Pre-submit review: Claude wrote $90, more than the posting's range" }, { field: "", why: "Verify: a file is empty" }];
+  assert.deepEqual(flagged(job({ tone: "needs", kind: "check", flags })), ["Pay: WorkIt wrote $90, more than the posting's range", "A file is empty"]);
+});
+
+test("a form with no flags lists its reason's checks, never Something went wrong", () => {
+  // Fault: a Review card whose reason named the Pre-submit review said "Something went wrong. Try again."
+  const why = "Pre-submit review: Claude wrote May 2027 for the graduation date; Verify: a file is empty";
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why })), ["WorkIt wrote May 2027 for the graduation date", "A file is empty"]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check", why: "Pre-submit check failed. Handoff: Browser 2" })), [ONE_ANSWER]);
+  assert.deepEqual(toCheck(job({ tone: "needs", kind: "check" })), [ONE_ANSWER]);
+});
+
+test("a handoff's fields are named once each, from the reason's Error- lines", () => {
+  const why = "Workday won't leave its 'Application Questions 1 of 2' step: Error-Are you currently employed? The field Are you currently employed? is required and must have a value. Error-Do you have IP? The field Do you have IP? is required. Error-Are you currently employed? The field Are you currently employed? is required.";
+  assert.deepEqual(wantedFields(why), ["Are you currently employed?", "Do you have IP?"]);
+  assert.deepEqual(wantedFields("Needs your iCIMS account"), []);
+  assert.deepEqual(wantedFields(undefined), []);
+});
+
+test("each handoff says how to hand back, and never that the app solves, reads or submits", () => {
+  assert.match(HANDOFF["sign-in"], /Sign in yourself.*come back here/);
+  assert.match(HANDOFF.code, /We don't read your email/);
+  assert.match(HANDOFF.captcha, /^Finish the check/);
+  assert.match(HANDOFF.fields, /press Next there/);
+  for (const line of Object.values(HANDOFF)) assert.doesNotMatch(line, /we (solve|read your|submit)/i);
+});
+
+test("a raw failure is never shown, whatever the label carries", () => {
+  const raw = ["PortTimeoutError: Locator.click: Timeout 30000ms exceeded.", "TimeoutError: Oracle page didn't get there in 30 s", "Workday won't leave its step"];
+  for (const why of raw) {
+    const [j] = view({ tiles: [], items: [job({ id: 3, tone: "failed", status: "failed", label: `Couldn't finish: ${why}` })] }).stopped;
+    assert.equal(j.reason, "We couldn't finish filling this one.", why);
+    assert.equal(j.stop, "failed");
+  }
+});
+
+test("a closed posting, by its status or its Closed: label, has nothing to do and no retry", () => {
+  for (const over of [{ status: "closed", label: "Skipped: no longer taking applications" }, { tone: "failed" as const, status: "failed", label: "Closed: the page doesn't exist, so it was skipped" }]) {
+    const v = view({ tiles: [job({ tone: "ended", again: true, ...over })], items: [] });
+    const [j] = v.stopped;
+    assert.equal(j.reason, "This job was taken down. Nothing to do.");
+    assert.deepEqual(stopActions(j, true), { finish: false, site: false });
+  }
+});
+
+test("a failure offers the company's site and, while its form is held, finishing it yourself", () => {
+  const held = view({ tiles: [job({ tone: "failed", status: "failed", posting_url: "https://held", again: true })], items: [] }).stopped[0];
+  assert.deepEqual(stopActions(held, true), { finish: true, site: true });
+  assert.deepEqual(stopActions(held, false), { finish: true, site: false }); // a window that can't open links
+  const gone = view({ tiles: [], items: [job({ tone: "failed", status: "failed", posting_url: "https://gone", id: 7 })] }).stopped[0];
+  assert.deepEqual(stopActions(gone, true), { finish: false, site: true });
+  const applied = view({ tiles: [], items: [job({ tone: "ended", status: "already applied", id: 8 })] }).stopped[0];
+  assert.deepEqual(stopActions(applied, true), { finish: false, site: false });
+});
+
+test("the done line counts this run's submitted jobs, not the student's earlier ones", () => {
+  const v = view({ tiles: [job({ tone: "submitted", posting_url: "https://a" }), job({ tone: "submitted", posting_url: "https://b" })], items: [job({ tone: "submitted", from: "tracker", posting_url: "https://old", id: 9 })] });
+  assert.equal(submittedLine(v), "2 applications submitted this run.");
+  assert.equal(submittedLine(view({ tiles: [job({ tone: "submitted" })], items: [] })), "1 application submitted this run.");
+  assert.equal(submittedLine(view({ tiles: [], items: [job({ tone: "submitted", from: "tracker", id: 9 })] })), "");
+});
+
+test("the how-it-works strip and the live wait say what happens next", () => {
+  assert.match(HOW_IT_WORKS, /you press Submit\. Filled forms wait for you as long as you need\./);
+  assert.match(WAITING_FOR_SCREEN, /It can take a minute the first time\./);
+});
+
+const NOW = Date.parse("2026-11-25T12:00:00");
+const waiting = (over: Partial<Shown>): Shown => job({ tone: "needs", kind: "needs sign-in", ...over });
+
+test("the Needs you list puts forms ready to submit first and says how long each waited", () => {
+  const v = view({
+    tiles: [
+      waiting({ company: "Amazon", posting_url: "https://a", worker: 0, since: NOW / 1000 - 180 }),
+      job({ tone: "ready", company: "Stripe", posting_url: "https://s2", worker: 1, since: NOW / 1000 - 720 }),
+    ],
+    items: [],
+  });
+  assert.deepEqual(
+    needsYou(v.todo, NOW).map((n) => [n.company, n.words, n.at]),
+    [
+      ["Stripe", "Ready to submit · 12 min", 1],
+      ["Amazon", "Sign in needed · 3 min", 0],
+    ],
+  );
+});
+
+test("a to-do with no start time says what it asks and nothing more, and an ended item's time is when it ended", () => {
+  const v = view({ tiles: [], items: [fact({ at: "2026-11-25T11:50:00" }), waiting({ id: "5", posting_url: "https://x", company: "Ramp" })] });
+  assert.deepEqual(needsYou(v.todo, NOW).map((n) => n.words), ["Sign in needed", "Question for you · 10 min"]);
+});
+
+test("a wait reads in minutes, then hours", () => {
+  assert.equal(ago(NOW - 20_000, NOW), "just now");
+  assert.equal(ago(NOW - 59 * 60_000, NOW), "59 min");
+  assert.equal(ago(NOW - 125 * 60_000, NOW), "2 h 5 min");
+  assert.equal(ago(NOW - 120 * 60_000, NOW), "2 h");
+  assert.equal(ago(undefined, NOW), "");
+});
+
+test("the run's line counts every job of this run, and none of an earlier run's", () => {
+  const v = view({
+    tiles: [job({ posting_url: "https://f1" }), job({ posting_url: "https://f2" }), waiting({ posting_url: "https://w", worker: 2 })],
+    items: [job({ tone: "submitted", posting_url: "https://d" }), job({ tone: "submitted", posting_url: "https://old", from: "tracker" })],
+    run: { mode: "rehearsal", queued: 1 },
+  });
+  assert.equal(runLine(v), "1 of 5 done · 1 needs you · 2 filling · 1 waiting");
+  assert.equal(runLine(view({ tiles: [], items: [] })), "");
+  assert.equal(runLine(view({ tiles: [job({ tone: "failed", posting_url: "https://p" })], items: [], run: { mode: "rehearsal" } })), "0 of 1 done · 1 didn't go through");
+});
+
+test("a form being worked on says how long, and the step only when Apply's line is one the student knows", () => {
+  const filling = view({ tiles: [job({ doing: "Writing answers for page 2", since: NOW / 1000 - 360 })], items: [] }).working[0];
+  assert.equal(working(filling, NOW), "Filling · 6 min");
+  assert.equal(filling.step, "Writing answers");
+  const other = view({ tiles: [job({ doing: "Claude is rehearsing", tone: "verifying", since: NOW / 1000 - 60 })], items: [] }).working[0];
+  assert.equal(working(other, NOW), "Checking · 1 min");
+  assert.equal(other.step, undefined);
+  assert.equal(view({ tiles: [job({ doing: "Handoff to Browser 2" })], items: [] }).working[0].step, undefined);
+});
+
+test("the window says jobs wait because the open-form cap is full, and only then", () => {
+  const held = (url: string) => job({ tone: "ready", again: true, posting_url: url });
+  const full = view({ tiles: [held("https://a"), held("https://b")], items: [], run: { mode: "rehearsal", queued: 3, open_forms: 2 } });
+  assert.equal(full.full, 2);
+  const filling = view({ tiles: [held("https://a"), job({ tone: "filling", posting_url: "https://b" })], items: [], run: { mode: "rehearsal", queued: 3, open_forms: 2 } });
+  assert.equal(filling.full, undefined); // a job still fills: nothing waits on the cap yet
+  const none = view({ tiles: [held("https://a"), held("https://b")], items: [], run: { mode: "rehearsal", queued: 0, open_forms: 2 } });
+  assert.equal(none.full, undefined);
+});
+
+test("Auto-submit's countdown reads minutes and seconds, and never goes below zero", () => {
+  assert.equal(autoLeft(1000 + 582, 1000_000), "9:42");
+  assert.equal(autoLeft(1000 + 5.2, 1000_000), "0:06");
+  assert.equal(autoLeft(1000 - 30, 1000_000), "0:00");
 });

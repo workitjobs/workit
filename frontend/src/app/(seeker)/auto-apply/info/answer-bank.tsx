@@ -1,6 +1,5 @@
 "use client";
 
-import { NotebookIcon } from "@phosphor-icons/react/ssr";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
@@ -9,16 +8,14 @@ import { TextAreaField } from "@/components/text-area-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { LoadFailed } from "@/components/ui/load-failed";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
 import { useToast } from "@/components/ui/toast";
 import { answerText, ordered, parseAnswer, sameQuestion, type BankEntry } from "@/lib/answer-bank";
 import { changeAnswerBank, getAnswerBank, type BankSave } from "@/lib/answer-bank-actions";
 
-import { SECTION_CARD } from "../../profile/field-styles";
 import { SectionAction } from "../../profile/section-action";
+import { INFO_CARD, InfoCardHead } from "./card-head";
 
 const OFFLINE = "Could not reach the server. Check your connection and try again.";
 /** The API's limits (backend/app/schemas/applications.py, BankEntry). */
@@ -188,39 +185,35 @@ export function AnswerBank() {
     </form>
   );
 
-  if (entries && entries.length === 0 && editing !== "") {
-    return (
-      <EmptyState
-        Icon={NotebookIcon}
-        title="No Answers Yet"
-        action={
-          <Button variant="secondary" size="sm" onClick={() => open(null)}>
-            <PlusIcon className="size-4" />
-            Add Answer
-          </Button>
-        }
-      >
-        {INTRO}
-      </EmptyState>
-    );
-  }
+  const none = entries !== null && entries.length === 0;
 
   return (
-    <Card
-      as="section"
-      padding="none"
-      aria-labelledby="answer-bank-heading"
-      className={SECTION_CARD}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <SectionHeading id="answer-bank-heading">Answer Bank</SectionHeading>
-        {entries && editing === null && (
-          <SectionAction label="Add Answer" onClick={() => open(null)} tooltip="Add">
-            <PlusIcon />
-          </SectionAction>
-        )}
-      </div>
-      <p className="text-body text-ink-meta mt-1">{INTRO}</p>
+    <Card as="section" padding="none" aria-labelledby="answer-bank-heading" className={INFO_CARD}>
+      <InfoCardHead
+        part="answer-bank"
+        id="answer-bank-heading"
+        title="Answer Bank"
+        description={INTRO}
+        actions={
+          // With none yet, Add is the button in the body, below.
+          entries &&
+          !none &&
+          editing === null && (
+            <SectionAction label="Add Answer" onClick={() => open(null)} tooltip="Add">
+              <PlusIcon />
+            </SectionAction>
+          )
+        }
+      />
+
+      {/* None yet: a bordered button in the card's body, as Writing Samples'
+          (./card-head.tsx: one head for every card, in every state). */}
+      {none && editing === null && (
+        <Button variant="secondary" size="sm" onClick={() => open(null)} className="mt-4">
+          <PlusIcon className="size-4" />
+          Add Answer
+        </Button>
+      )}
 
       {entries === null && !loadError && (
         <div role="status" className="mt-4 flex h-5 items-center">

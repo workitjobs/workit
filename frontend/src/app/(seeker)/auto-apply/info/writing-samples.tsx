@@ -1,6 +1,5 @@
 "use client";
 
-import { PenNibIcon } from "@phosphor-icons/react/ssr";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
@@ -8,9 +7,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { LoadFailed } from "@/components/ui/load-failed";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
   addWritingSample,
@@ -19,8 +16,9 @@ import {
   type WritingSample,
 } from "@/lib/writing-samples-actions";
 
-import { SECTION_CARD } from "../../profile/field-styles";
+import { INFO_CARD, InfoCardHead } from "./card-head";
 import { SectionAction } from "../../profile/section-action";
+import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
 /** The API's limits (backend/app/schemas/writing.py). */
 const MAX_SAMPLES = 3;
@@ -135,34 +133,10 @@ export function WritingSamples() {
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
+  // A sample being typed is unsaved work, as a form's changes are (./unsaved.tsx).
+  useUnsavedChanges(adding && text.trim() !== "");
 
-  // None yet, and none being written: the app's empty state with a bordered
-  // Add (2026-11-11), in place of the card's "No writing samples yet." line.
-  if (samples && samples.length === 0 && !adding) {
-    return (
-      <>
-        <EmptyState
-          Icon={PenNibIcon}
-          title="No Writing Samples Yet"
-          action={
-            <Button variant="secondary" size="sm" onClick={startAdding}>
-              <PlusIcon className="size-4" />
-              Add Writing Sample
-            </Button>
-          }
-        >
-          Up to three pieces of your own writing, such as a class essay or a cover letter, so the
-          answers written for you sound like you. Optional. Your name and contact details are hidden
-          before any AI reads them.
-        </EmptyState>
-        {error && (
-          <p role="alert" className="text-note text-danger">
-            {error}
-          </p>
-        )}
-      </>
-    );
-  }
+  const none = samples !== null && samples.length === 0;
 
   return (
     <Card
@@ -170,21 +144,34 @@ export function WritingSamples() {
       padding="none"
       id={WRITING_SAMPLES_ID}
       aria-labelledby="writing-samples-heading"
-      className={SECTION_CARD}
+      className={INFO_CARD}
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <SectionHeading id="writing-samples-heading">Writing Samples</SectionHeading>
-        {room && !adding && (
-          <SectionAction label="Add Writing Sample" onClick={startAdding} tooltip="Add">
-            <PlusIcon />
-          </SectionAction>
-        )}
-      </div>
-      <p className="text-body text-ink-meta mt-1">
-        Up to three pieces of your own writing, such as a class essay or a cover letter, so the
-        answers written for you sound like you. Optional. Your name and contact details are hidden
-        before any AI reads them.
-      </p>
+      <InfoCardHead
+        part="writing-samples"
+        id="writing-samples-heading"
+        title="Writing Samples"
+        description="Up to three pieces of your own writing, such as a class essay or a cover letter, so the answers written for you sound like you. Optional. Your name and contact details are hidden before any AI reads them."
+        actions={
+          // With none yet, Add is the button in the body, below.
+          room &&
+          !none &&
+          !adding && (
+            <SectionAction label="Add Writing Sample" onClick={startAdding} tooltip="Add">
+              <PlusIcon />
+            </SectionAction>
+          )
+        }
+      />
+
+      {/* None yet: a bordered button in the card's body, as Workday Sign-Up's
+          (2026-11-23). From 2026-11-11 a centred empty state stood in the
+          card's place, a second look among the page's cards. */}
+      {none && !adding && (
+        <Button variant="secondary" size="sm" onClick={startAdding} className="mt-4">
+          <PlusIcon className="size-4" />
+          Add Writing Sample
+        </Button>
+      )}
 
       {/* The empty line's place while the read runs (KAN-561). */}
       {samples === null && !loadError && (
@@ -230,7 +217,12 @@ export function WritingSamples() {
       )}
 
       {adding && (
-        <form onSubmit={handleSubmit} className="mt-5">
+        <form
+          onSubmit={handleSubmit}
+          // Read by the leave guard (./unsaved.tsx).
+          data-unsaved={text.trim() !== "" || undefined}
+          className="mt-5"
+        >
           <TextAreaField
             id="writing-sample"
             label="Writing Sample"

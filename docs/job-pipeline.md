@@ -60,7 +60,7 @@ separate `import_jobs.py` run loads it, while the **backend worker**
 `import_feed` (`backend/app/scripts/import_jobs.py`), which owns the upsert,
 location resolution and role tagging. The CLI path is
 simpler and useful for development and offline testing; the worker is the
-production path with per-board checkpoint resilience (section 3.3).
+production path with batch writes and a cycle lease (section 3.3).
 
 ---
 
@@ -164,14 +164,21 @@ above is for development and offline testing.
 | | CLI scraper | Backend worker |
 |---|---|---|
 | **State** | `jobs.json` (flat file) | `scraper_schedules`, `scraper_tasks`, `job_sources` (database tables) |
-| **Output** | `feed.json` → `import_jobs.py` as a script | Calls `import_feed` directly per board |
-| **Checkpoint** | All boards finish, then one feed, one import | Each board publishes independently |
+| **Output** | `feed.json` → `import_jobs.py` as a script | Calls `import_feed` directly in batch transactions |
+| **Checkpoint** | All boards finish, then one feed, one import | Batches of 50 boards in one transaction each |
 | **Closures** | Feed diff: a job not in the feed is closed | Two-complete-read rule on `job_sources` |
 
-**Phase 1** reads each board's listing through `asyncio.to_thread`, filters
-by `classify(title)` alone (no page fetches) and publishes each board's kept
-jobs through `import_feed` as soon as it finishes. A failed board logs and
-continues; it never stalls the rest. Providers that return descriptions
+**Phase 1** uses a reader/writer split (KAN-945): 4 async reader tasks pull
+boards from an in-memory queue, read them over the network through
+`asyncio.to_thread` (no database), compare fingerprints in memory and put
+results on a results queue. One writer task collects results, batches them
+(50 boards or 60 seconds) and writes each batch in one transaction:
+`import_feed` for changed boards, `update_sources` for changed boards, bulk
+schedule updates for all boards, and a task-log INSERT. A cycle lease
+prevents two workers from running at the same time. When a board's
+fingerprint matches its stored one, `import_feed` and `update_sources` are
+skipped (the main disk I/O saving), but `advance_reads` still runs so the
+two-read closure rule is preserved. Providers that return descriptions
 inline (Lever, Ashby, Recruitee) stamp them during phase 1.
 
 **Phase 2**, after all boards finish, fetches description pages for postings

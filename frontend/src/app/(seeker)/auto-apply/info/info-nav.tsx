@@ -1,48 +1,44 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
 import { SideNav } from "@/components/side-nav";
 
-import { BackLink } from "../../back-link";
-import { INFO_ROOT, INFO_SECTIONS, infoHref } from "./sections";
+import { useInfoPart } from "./info-part";
+import { INFO_PARTS, partHref, type InfoPartKey } from "./sections";
 
 /**
  * Application Info's menu (./layout.tsx): the shared side menu
- * (components/side-nav.tsx), Settings' own, so the two pages' menus are
- * one. Its head is the way back, the app's `BackLink` named as Written
- * Answers' is (KAN-822), so Auto Apply's two pages go back alike. On
- * 2026-11-11 it became a row in the items' look that read only "Auto
- * Apply", and the two pages went back two ways. It goes to the page that
- * opened Application Info, never to one of its parts (`within`).
- * An old address on the one page (`#writing-samples`, which the WorkIt
- * Autofiller opens) opens its part from ./page.tsx.
+ * (components/side-nav.tsx), Settings' own, and it works as Settings'
+ * does. Each item is a real link to its part's address, but a plain click
+ * switches the part in place: it moves the address with
+ * `history.replaceState`, which Next's router follows, and the part shows
+ * at once (./info-part.tsx). No navigation, so the other parts and their
+ * unsaved edits stay as they were, and one history entry stands for the
+ * whole page.
+ *
+ * It was a table of contents that scrolled one page of six cards for a
+ * day (2026-11-23). No Back at its head and no line at its foot: the tabs
+ * over it are the way to the queue, and each card says what it holds.
  */
-const PARENT = { href: "/auto-apply", name: "Auto Apply" };
-
 export function InfoNav() {
-  const pathname = usePathname();
-  const active = pathname.slice(INFO_ROOT.length + 1).split("/")[0] ?? "";
+  const active = useInfoPart() ?? INFO_PARTS[0].key;
+
+  function select(key: string) {
+    window.history.replaceState(null, "", partHref(key as InfoPartKey));
+    // The shell's <main> scrolls, not the window: a part opens at its top.
+    document.getElementById("content")?.scrollTo({ top: 0 });
+  }
 
   return (
     <SideNav
       label="Application Info"
-      items={INFO_SECTIONS.map(({ key, label, Icon }) => ({
+      items={INFO_PARTS.map(({ key, label, Icon }) => ({
         key,
         label,
         Icon,
-        href: infoHref(key),
+        href: partHref(key),
       }))}
       active={active}
-      // What the whole page holds, once (2026-11-11): it opened every part
-      // over the card's own description, and Application Answers' card
-      // said "Only you can see them here" again.
-      foot={
-        <p className="text-note text-ink-meta mt-4 px-3 sm:max-w-52">
-          What WorkIt fills into your applications, beyond your resume. Only you can see these.
-        </p>
-      }
-      head={<BackLink parent={PARENT} named within={INFO_ROOT} />}
+      onSelect={select}
     />
   );
 }

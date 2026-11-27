@@ -34,6 +34,7 @@ def is_company(company: str, name: str) -> bool:
 HOST_COMPANIES = {
     "amazon.jobs": "Amazon",
     "jpmc.fa.oraclecloud.com": "JPMorgan Chase",
+    "icfcjb.fa.ocs.oraclecloud.com": "Honeywell Aerospace",  # its Oracle site's pages name only "Aerospace"
     "careers.amd.com": "Advanced Micro Devices",
     "apply.careers.microsoft.com": "Microsoft",
     "nvidia.wd5.myworkdayjobs.com": "NVIDIA",

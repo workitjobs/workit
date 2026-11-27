@@ -86,6 +86,20 @@ def test_the_seed_runs_in_its_own_thread_and_try_again_answers_it(tmp_path):
     assert not run.seeding() and "stopped" in run.state()["failed"]
 
 
+def test_workers_on_chrome_for_testing_skip_the_seed_step(tmp_path, monkeypatch):
+    """Fault: the seed demanded whatever the Workers' Chrome, so with plain_chrome: testing (whose Workers load the
+    worker extension with --load-extension) the window stayed on Set Up the Worker Extension and no link ever ran."""
+    from apply.first_run import seed_problem
+
+    monkeypatch.setenv("APPLY_PROFILES", str(tmp_path / "profiles"))  # a fresh folder: no seed in it
+    assert seed_problem(kind="chrome") is not None
+    monkeypatch.setenv("APPLY_PLAIN_CHROME", "testing")
+    assert seed_problem() is None
+    run = FirstRun(tmp_path / "app.json", chrome=lambda: CHROME_BINARY, screen=lambda: True)
+    run.accept()
+    assert run.step() == READY
+
+
 def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path):
     """Fault: a count past D24's one to three reaching the run, or Settings' choice lost at the next launch."""
     from apply.first_run import MOST_WORKERS, WORKERS, set_workers, workers

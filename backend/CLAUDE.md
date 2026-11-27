@@ -53,21 +53,39 @@ cycle stopped at its first step, a dry run too (2026-11-23). A new column
 on `scraper_schedules` with a Python-side default adds one parameter a
 board. Tests: `tests/test_scrape_worker.py` syncs 4,200 boards.
 
-### Board publishing and concurrent workers
+### Reader/writer architecture and batch writes
 
-Each board publishes independently right after it is scraped
-(`_checkpoint_board`): import_feed, update sources, advance reads and mark
-done in one commit per board, so fast boards checkpoint without waiting for
-slow ones and only one board's payload is in memory at a time. **Phase 4
-runs `BOARD_WORKERS` (4) concurrent asyncio tasks** (KAN-857): each opens
-its own `AsyncConnection` from the engine, runs the same claim-read-publish
-loop, and exits when `claim_task` returns None. `SKIP LOCKED` in
-`claim_task` ensures no two workers claim the same task. `--workers N`
-overrides the default. A failed
-checkpoint logs and continues: one board's failure never stops the rest or
-skips closure detection. Source tracking (`update_sources`) records every URL
-the board listed (with its `external_id`), not just the shortlisted ones
-that were published: the shortlist decides what to publish, the full listing
+**Phase 1 uses a reader/writer split** (KAN-945): `BOARD_WORKERS` (4)
+async reader tasks pull boards from an `asyncio.Queue`, read them over the
+network via `to_thread` (no database), compare fingerprints in memory and
+put results on a results queue. One writer task collects results, batches
+them (`BATCH_BOARDS` = 50 or `BATCH_SECONDS` = 60) and writes each batch
+in one transaction: `import_feed` for changed boards (deduplicated by
+`apply_url`), `update_sources` for changed boards, bulk schedule updates
+(`advance_reads` for all boards, `advance_fingerprint`, failures, missing),
+a task-log INSERT via `bulk_log_tasks`, and a lease renewal. `--workers N`
+overrides the default.
+
+**A cycle lease** (`scraper_cycle_leases`, D5) prevents two workers from
+running at the same time: `take_lease` at the start, `renew_lease` inside
+each batch (checks `holder`), `release_lease` at the end. A second cycle
+that cannot take the lease exits immediately with `lease_held: true`.
+
+**Unchanged boards** (D2): when the computed fingerprint matches the stored
+one, the board's kept jobs are identical. `import_feed` and
+`update_sources` are skipped, saving the main disk I/O. `advance_reads`
+still runs for every board (changed and unchanged) so the two-read closure
+rule is preserved. **`sync_catalog_diff`** (D6) reads all schedules with
+`now()` in one SELECT, diffs with `boards.csv` in memory, and writes only
+changed rows — usually 0 statements between deploys. The due list is
+computed in Python from the same rows.
+
+**`scraper_tasks` is a log of finished reads** (D4): one row per board
+(status done or failed, started_at, finished_at, boards_s, error) inserted
+in bulk per batch. No create/claim/mark cycle: boards come from the
+in-memory queue. Source tracking (`update_sources`) records every URL the
+board listed (with its `external_id`), not just the shortlisted ones that
+were published: the shortlist decides what to publish, the full listing
 decides what the board says exists. A board returning more than
 `MAX_BOARD_LISTINGS` (5,000) listings is treated as failed.
 
@@ -134,7 +152,7 @@ uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules ta
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
-uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest; --workers N overrides the 4 parallel board workers)
+uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, take lease, read boards, batch-write results (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest; --workers N overrides the 4 parallel reader tasks)
 uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
@@ -2079,8 +2097,11 @@ go then. A change needs to work on Cloudflare only.
      into each student's Answer bank: a script run by hand and deleted,
      never committed. Skipped, those answers are lost with the column.
   4. `uv run alembic upgrade head` for `c3f9a1d27b6e`.
-  `b7e4c2a9d816` sits on `a9d4c2e7f893`, so step 1 applies `main`'s
-  bank-entry migrations first where they are not yet applied.
+  `b7e4c2a9d816` sits on `756dd185aedb` (the scraper's cycle leases), so
+  step 1 applies `main`'s migrations before it first where they are not
+  yet applied. It sat on `a9d4c2e7f893` until main's scraper migrations
+  took that place (2026-11-26): two revisions on one parent made two heads,
+  and `upgrade head` refused to run.
 - **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
   has merged, never from its branch.** A revision that `main` lacks breaks
   every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's

@@ -39,7 +39,7 @@ from apply import (
 from apply import home as data_folder  # essays.home() is the applicant's town
 from apply.adapters import Claude, lean
 from apply.applicant import as_applicant
-from apply.model import Posting, Question, one_line
+from apply.model import Posting, Question, is_company, one_line
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
 
@@ -209,7 +209,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     written, drafted = given.get("essays") or {}, given.get("drafts") or {}
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
-    material = "\n".join(filter(None, [sources(profile, company, types=types.values()), description.block(posting, posting_text)]))
+    material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
+                                       description.block(posting, posting_text)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
                              posting.company, company, profile.get("files.resume_pdf")) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
@@ -227,7 +228,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
         failed = _gate(checked, texts)
     # His answers to this form's Essay facts are his own facts too: an essay that quotes one is never held as made up.
-    own = own_facts(profile, types.values(), [*mine, *(f"{asked}: {said}" for asked, said in told.items())])
+    own = own_facts(profile, types.values(), [*mine, *(f"{asked}: {said}" for asked, said in told.items())],
+                    posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
     given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
@@ -303,12 +305,13 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     claude = as_applicant(claude, profile)
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     classified = {key: question_type(q) for key, q in keys.items()}
-    bank = data_folder.story_bank()
+    bank = story_bank(posting.company)
     mapped = story_map.load() if story_map.MAP.is_file() else []
     angles = {key: list(found.angles) for key, q in keys.items() if (found := (typical or {}).get(q)) and found.angles}
     led = {kind: stories for kind, stories in sameness.Ledger().led(posting.company).items()
            if kind in classified.values()}
-    held = "\n".join([sources(profile, company, types=answering.load()), description.block(posting, posting_text),
+    held = "\n".join([sources(profile, company, types=answering.load(), employer=posting.company),
+                      description.block(posting, posting_text),
                       json.dumps(shown or {}, ensure_ascii=False)])
     plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
                                    mapped=mapped, angles=angles, led=led, redo=redo), company, held)
@@ -319,7 +322,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
             plans[key] = replace(plans[key], **{field: _DROPPED[field](keys[key])
                                    for field in [*fields, *(["link_kind"] if "company_fact" in fields else [])]
                                    if field != "slots"})
-    return {q: _backed(plans[key], held, profile) for key, q in keys.items()}
+    return {q: _backed(plans[key], held, profile, posting.company) for key, q in keys.items()}
 
 
 FACT_SLOT = "company-fact"  # the slot that holds the Company brief fact a plan ties
@@ -399,7 +402,7 @@ def _slot_failures(p: Plan, held: str) -> list[str]:
     return wrong + bare
 
 
-def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None) -> Plan:
+def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employer: str = "") -> Plan:
     """`p` with only the quotes `held` holds, its unbacked optional slots left
     out, in its guide's order, and the question for Lisul of each required
     slot no quote backs in its asks. A question Apply already holds the
@@ -410,7 +413,7 @@ def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None) -> Plan
     wanted = lambda s: s.required is True or s.required and s.name in given
     asked = {s.name: ASK + (b.ask if (b := given.get(s.name)) and getattr(b, "ask", "") else f"{s.holds}?")
              for s in guide if wanted(s) and not _backers(given.get(s.name), text)}
-    found = {name: facts for name, ask in asked.items() if profile and (facts := asking.known(ask, profile))}
+    found = {name: facts for name, ask in asked.items() if profile and (facts := asking.known(ask, profile, employer=employer))}
     slots = tuple(Backed(s.name, quotes) for s in guide
                   if (quotes := _backers(given.get(s.name), text) or found.get(s.name, ())))
     return replace(p, slots=slots, asks=tuple(ask for name, ask in asked.items() if name not in found))
@@ -476,7 +479,7 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
               led: Mapping[str, list[str]] | None = None,
               redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[str, Plan]:
     # WorkIt's essays.plan kind (D5, KAN-723): its prompt, schema and guides are on the server.
-    data = {"sources": sources(profile, company, types=classified.values()),
+    data = {"sources": sources(profile, company, types=classified.values(), employer=posting.company),
             "posting": description.block(posting, posting_text),
             "questions": {key: _sent(q, classified[key]) for key, q in keys.items()}, "form_answers": dict(shown),
             "story_map": story_map.prompt_block(list(mapped)) if mapped else "", "typical": dict(angles or {}),
@@ -588,6 +591,40 @@ def tell(url: str, asked: str, answer: str) -> None:
     TOLD.setdefault(url, {})[one_line(asked.removeprefix(ASK))] = answer.strip()
 
 
+# The Story bank section where Apply once saved Lisul's Essay fact answers, before TOLD (2026-11-26): only a
+# Developer checkout's story-bank.md from before then has it; WorkIt's Story bank never does.
+ANSWERED = "## Answered during applications"
+# One line under ANSWERED: the question and answer, then the company it was asked for and the day.
+ANSWERED_LINE = re.compile(r"^- (?P<said>.*) \(asked for (?P<company>.+), \d{4}-\d{2}-\d{2}\)$")
+# A question whether he applies to other roles there ("...other internships here?"): its answer is that company's
+# even when it doesn't name it (apply.other_roles answers it now; this keeps an earlier answer to it).
+_ROLES = r"(?:roles?|positions?|jobs?|internships?|openings?|postings?)"
+OTHER_ROLES = re.compile(rf"\bappl(?:y|ying|ied)\b[^.?]{{0,80}}?\b(?:other|another|additional|more\s+than\s+one|besides)\b"
+                         rf"[^.?]{{0,40}}?\b{_ROLES}\b|\b(?:other|another|additional|more\s+than\s+one)\s+(?:\w+\s+){{0,3}}?"
+                         rf"{_ROLES}\b[^.?]{{0,80}}?\bappl(?:y|ying|ied)\b|\bonly\s+(?:\w+\s+){{0,3}}?(?:{_ROLES}|one)\b"
+                         rf"[^.?]{{0,60}}?\bapplying\b", re.IGNORECASE)
+
+
+def story_bank(employer: str = "") -> str:
+    """The Story bank as the essays read it. A line under ANSWERED that names
+    the company it was asked for is true of that company only ("No, this is
+    the only Strava internship I'm applying to"), as is one on other roles
+    there that doesn't name it: it is kept for `employer`'s forms and left
+    out of every other's (Strava, 2026-11-26). WorkIt Auto Apply's Story bank
+    (home.WORKIT) has no such line: a Developer checkout's older file may."""
+    kept, under = [], False
+    for line in data_folder.story_bank().splitlines(keepends=True):
+        if line.startswith("## "):
+            under = line.strip() == ANSWERED
+        elif under and (m := ANSWERED_LINE.match(line.strip())) and (re.search(
+                rf"(?<!\w){re.escape(asked := m["company"].strip())}(?!\w)", m["said"], re.IGNORECASE)
+                or OTHER_ROLES.search(m["said"])) and not (
+                employer.strip() and (is_company(employer, asked) or is_company(asked, employer))):
+            continue
+        kept.append(line)
+    return "".join(kept)
+
+
 def form_answers(answered: Mapping[Question, object], self_ids: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:
     """The answers already given on the form that an essay may refer to ("the
     area you picked"), by question label: choices and short text only, never
@@ -614,18 +651,23 @@ def giveaways(text: str) -> tuple[str, ...]:
 
 
 def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = (),
-            posting: Posting | None = None) -> str:
+            posting: Posting | None = None, employer: str = "") -> str:
     """What essays may draw on: the Story bank and Lisul's Stock answers, their
     approved core answer (apply.stock) of each Question type in `types`, the
     Application's Company material when it has some, the town they live
-    in (<home>), and their links (<links>: apply.asking.links). With
+    in (<home>), the profile's graduation date (<graduation>: apply.asking.graduation,
+    which holds over another date the Story bank gives), and their links (<links>: apply.asking.links). With
     `facts`, their Applicant profile facts too, for drafted answers to
-    one-off questions: with `posting`, as the plan reads them (profile_facts)."""
+    one-off questions: with `posting`, as the plan reads them (profile_facts).
+    The Story bank is `employer`'s (story_bank: `posting`'s company when no
+    `employer` is given)."""
+    employer = employer or (posting.company if posting else "")
     own = {key: value for key, value in (profile.get("stock_answers") or {}).items() if value}
     return (
         (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
-        + f"<story_bank>\n{data_folder.story_bank()}</story_bank>\n"
+        + (f"<graduation>\n{graduates}\n</graduation>\n" if (graduates := asking.graduation(profile)) else "")
+        + f"<story_bank>\n{story_bank(employer)}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
         + f"<stock_answers>\n{json.dumps(own, indent=1)}\n</stock_answers>"
         + (f"\n{core}" if (core := stock.material(types)) else "")
@@ -633,13 +675,13 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     )
 
 
-def own_facts(profile: ApplicantProfile, types: Iterable[str] = (), mine: Sequence[str] = ()) -> str:
+def own_facts(profile: ApplicantProfile, types: Iterable[str] = (), mine: Sequence[str] = (), employer: str = "") -> str:
     """What the student gave, for the truth check (apply.truth): their Applicant
     profile facts, the Story bank, their Stock answers and core answers of
     `types`, their links and town (`sources` with `facts`), and `mine`, their
     own answers in the Answer bank (AnswerBank.own_lines). A model's draft is
-    no fact of theirs."""
-    return "\n".join([sources(profile, facts=True, types=types), *mine])
+    no fact of theirs. The Story bank is `employer`'s (story_bank)."""
+    return "\n".join([sources(profile, facts=True, types=types, employer=employer), *mine])
 
 
 def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> str:
