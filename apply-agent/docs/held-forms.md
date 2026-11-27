@@ -64,7 +64,13 @@ reads: it does not click, type or submit.
   before the window shows the form as ready. It does this once. A fix
   replaces only Claude's guesses (its drafts, and its drafts the Answer
   bank gave back). It never replaces an answer from the profile, Lisul's
-  own answer, an essay, a file or a secret. A
+  own answer, an essay, a file or a secret, with two exceptions: a legal
+  or eligibility choice (`verify.LEGAL`), and, on the first review, a
+  choice whose review reason rests on the profile ("the profile says
+  ..."). The second is a trial: kept only if the second review passes it,
+  else the plan's answer is filled again (`_Planned.unfix`) and the
+  problem holds the form (Pylon's relocate, CesiumAstro's GPA,
+  2026-11-26). A
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
@@ -494,7 +500,11 @@ company.
 - `other_roles.others` reads Apply's Tracker for his applications to the
   same company (`model.is_company`): a submitted row is "applied", a row
   still on its way is "applying". A Request on the same job board is
-  "applying". This posting is never one of them.
+  "applying". So is each Record of the company's other jobs (a rehearsal's
+  or a run's README, its latest per job; a Handoff is "applying" too):
+  Strava's Tracker had none of its three Records' roles, and a refill said
+  "the only Strava internship" (2026-11-26). This posting is never one of
+  them.
 - `other_roles.openings` reads the company's open postings from its board's
   public API (Greenhouse, Lever, Ashby). The board names a Request's role
   and gives the text for a why sentence. A board that can't be read leaves
@@ -510,6 +520,12 @@ company.
 - The answer goes on this form and its Record only. It is dropped from the
   plan's essays, drafts and Missing facts, and it never joins the Answer
   bank or the Story bank.
+- Lisul's own reviewed Answer bank entry wins over it, and over any rule,
+  draft or essay, on any question (`worker._Planned._reviewed`,
+  `AnswerBank.reviewed`). An entry filed as "<question> (<company> only)"
+  answers that company's form alone and comes first. Strava's
+  "(strava only)" entry was ignored on refill and the code's "No" was
+  filled again (2026-11-26).
 
 **Tests.** `tests/test_other_roles.py`.
 
