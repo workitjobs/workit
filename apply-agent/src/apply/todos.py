@@ -97,8 +97,8 @@ class TodoStore:
     """The to-dos as one JSON file. Each call reads the file and each write saves it again, atomically, under a lock
     file: the window's scan and `apply window` share it."""
 
-    def __init__(self, path: Path = TODOS):
-        self.path = path
+    def __init__(self, path: Path | None = None):
+        self.path = path or TODOS  # read when made, so a test can move it
 
     def all(self) -> list[Todo]:
         """Every to-do, open first, then by due date (none last), then newest mail first."""

@@ -278,3 +278,40 @@ def _one_line(value) -> str:
 
 def _address(sender: str) -> str:
     return ((re.search(r"<([^>]+)>", sender) or [None, sender])[1]).strip().lower()
+
+
+def live(store: TodoStore | None = None, days: int = DAYS) -> Scan:
+    """One scan of the developer's own Gmail (the Applicant profile's address, its app password in Keychain) with
+    their ask_model, the Tracker's rows to name each mail. What stops it is in its `errors`, never raised."""
+    import imaplib
+
+    from apply.ask_model import live_claude
+    from apply.gmail import live_mailbox
+    from apply.home import HOME
+    from apply.profile import ApplicantProfile, load_policies
+    from apply.tracker import FileTracker
+
+    try:
+        mailbox = live_mailbox(ApplicantProfile.load(HOME / "applicant-profile.yaml").get("identity.email"))
+    except Exception as error:
+        return Scan(errors=[f"Couldn't read the Applicant profile's email: {type(error).__name__}"])
+    if why := mailbox.unavailable():
+        return Scan(errors=[why])
+    try:
+        ask = live_claude(load_policies()).ask
+    except Exception as error:  # no key, no claude -p: the rules read every mail
+        ask, why = None, f"no model ({type(error).__name__}): read by rules"
+    else:
+        why = ""
+    try:
+        rows = FileTracker().rows()
+    except Exception:
+        rows = []
+    try:
+        done = scan(mailbox, store or TodoStore(), rows, ask, days)
+    except imaplib.IMAP4.error as error:
+        return Scan(errors=[f"Gmail refused ({error}); if it is the sign-in, check the app password in Keychain."])
+    except OSError as error:
+        return Scan(errors=[f"Couldn't reach Gmail ({error})."])
+    done.model = why or done.model
+    return done

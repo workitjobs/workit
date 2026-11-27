@@ -435,6 +435,8 @@ class Bridge:
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
         self._waiting: list[str] = []  # links sent in (send_links) that wait for the next run
+        self._todo_scanning = threading.Lock()  # held while a to-do scan reads mail: one at a time
+        self._todo_scan: dict | None = None  # what the last to-do scan did (todo_scan.Scan.shown), and when
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
         """One of the page's requests, answered as the Apply window's server answers it."""
@@ -729,6 +731,64 @@ class Bridge:
             self._window.load_html(SIGN_IN)
         return {}
 
+    # Application to-dos (developer only, apply.todos): off, each refuses and the page shows no To-dos.
+
+    def todos(self) -> dict:
+        """Every to-do, open first, with the last scan and whether one is going; {enabled: false} when off."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        return {"enabled": True, "todos": [t.shown() for t in TodoStore().all()], "scan": self._todo_scan,
+                "scanning": self._todo_scanning.locked()}
+
+    def scan_todos(self, wait: bool = False) -> dict:
+        """Scan mail for to-dos now, in a thread of its own unless `wait`. A scan already going is not started again:
+        `wait` waits for it and gives its result."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        if not self._todo_scanning.acquire(blocking=False):
+            if not wait:
+                return {"scanning": True}
+            with self._todo_scanning:  # a scan already going: wait for it, then show its result
+                pass
+            return self.todos()
+        if wait:
+            self._scan_todos(held=True)
+            return self.todos()
+        threading.Thread(target=self._scan_todos, kwargs={"held": True}, daemon=True, name="todo-scan").start()
+        return {"scanning": True}
+
+    def mark_todo(self, todo_id: str, status: str) -> dict:
+        """A to-do marked done, dismissed, or open again."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        try:
+            return {"todo": TodoStore().mark(str(todo_id), str(status)).shown()}
+        except KeyError:
+            return {"error": f"No such to-do: {todo_id}."}
+        except ValueError as error:
+            return {"error": str(error)}
+
+    def _scan_todos(self, held: bool = False) -> None:
+        """One scan, its result kept for the page; a failure is kept as its error, never raised."""
+        if not held and not self._todo_scanning.acquire(blocking=False):
+            return
+        try:
+            from apply import todo_scan
+
+            try:
+                done = todo_scan.live().shown()
+            except Exception as error:
+                done = {"errors": [f"{type(error).__name__}: {error}"]}
+            self._todo_scan = {**done, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            print(f"To-do scan: read {done.get('read', 0)} mails, {done.get('added', 0)} new to-dos"
+                  + (f"; {'; '.join(done['errors'])}" if done.get("errors") else ""), file=sys.stderr)
+        finally:
+            self._todo_scanning.release()
+
     def remove_data(self) -> dict:
         """Remove All My Data (D25), then close the app: what it showed is gone."""
         if self._running.is_set():
@@ -950,6 +1010,33 @@ def _watch_inbox(bridge: Bridge) -> None:
         time.sleep(INBOX_EVERY)
 
 
+def todos_on() -> bool:
+    """Whether the application to-do tracker is on (apply.todos.enabled), never importing it in the Student build."""
+    if build.STUDENT:
+        return False
+    from apply import todos
+
+    return todos.enabled()
+
+
+def todos_off() -> str:
+    """Why the to-do tracker refuses: the flag's off, or this is the Student build, which has none."""
+    if build.STUDENT:
+        return "The application to-do tracker isn't in this build."
+    from apply import todos
+
+    return todos.OFF
+
+
+def _scan_todos_often(bridge: Bridge, sleep: Callable[[float], None] = time.sleep) -> None:
+    """The to-do scan's schedule: now, then every todo_scan.EVERY seconds, till the window closes."""
+    from apply import todo_scan
+
+    while True:
+        bridge._scan_todos()
+        sleep(todo_scan.EVERY)
+
+
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
@@ -968,6 +1055,8 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()))
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if todos_on():  # the application to-do tracker scans mail on open and every todo_scan.EVERY seconds
+        threading.Thread(target=_scan_todos_often, args=(bridge,), daemon=True, name="todo-schedule").start()
     if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
         from apply import app_control
 
