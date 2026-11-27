@@ -60,6 +60,10 @@ SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 MY_NAME = re.compile(r"\bmy name is ([A-Z][a-z]+)")
 SIGN_OFF = re.compile(r"(?:Sincerely|Best|Regards|Best regards|Thank you|Thanks),?\s*\n\s*([A-Z][\w'-]+(?: [A-Z][\w'-]+)+)\s*$")
 GRADUATION = re.compile(r"graduat", re.IGNORECASE)
+# A graduation from another school than the degree's: its year is never the degree's graduation (IMC's "When did you
+# graduate from High School?", answered 2024, was flagged against a 2027 graduation, live 2026-11-26).
+OTHER_SCHOOL = re.compile(r"high[ -]?school|secondary school|\bG\.?E\.?D\b|\bA[ -]levels?\b|\bsixth form\b|\bmatricul",
+                          re.IGNORECASE)
 START = re.compile(r"start date|earliest (?:date|start)|available to start|availability date|when can you start", re.IGNORECASE)
 # A start date of the applicant's history, which is past by nature: a field of a numbered entry ("Work Experience 1 /
 # Start date"), one a form caps at this month, or one about schooling or a job held (Infleqtion's Workable, live 2026-11-04).
@@ -369,7 +373,7 @@ def _date_in(text: str) -> date | None:
 
 
 def _dates(questions, readback, profile, today: date) -> list[Flag]:
-    """A graduation year that isn't the profile's, and an availability or internship start date already past.
+    """A graduation year that isn't the profile's (never a high school's), and an availability or internship start date already past.
     A start date of a school or job held is past by nature, so it is not checked."""
     flags = []
     graduation = str(profile.get("education.expected_graduation") or "")
@@ -377,7 +381,7 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
         shown = readback.get(q.name)
         if not isinstance(shown, str) or not shown.strip():
             continue
-        if GRADUATION.search(q.label) and graduation[:4].isdigit() and q.kind != "textarea":
+        if GRADUATION.search(q.label) and not OTHER_SCHOOL.search(q.label) and graduation[:4].isdigit() and q.kind != "textarea":
             years = YEAR.findall(shown)
             # A span of months must hold the graduation month: Airbnb's "Bachelors - Senior (December 2026 - June
             # 2027)" names 2027 but ends before a December 2027 graduation (live, 2026-11-26).

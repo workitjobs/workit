@@ -123,6 +123,13 @@ docstring first.
   inside Cocoa and SIGHUP ended it at once, and their Chromes stayed open
   (`docs/plain-workers/guide.md`, "Any exit"). A second one while it
   closes ends the app at once, after the atexit sweep stops the Chromes.
+- On a Mac, pywebview's window list (`BrowserView.instances`) is a
+  `SteadyWindows` (`steady_windows`, in `run`): its reads are snapshots. A
+  quit (Cmd-Q, the Dock's Quit) reads each window's close question in
+  turn, and with held forms that is a dialog whose run loop ran the
+  `closing` thread's `window.destroy`. The window left the dict mid-read,
+  and the app died with `<class 'RuntimeError'>: dictionary changed size
+  during iteration` (run7, 2026-11-26). Test: `tests/test_app_window.py`.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
@@ -448,8 +455,20 @@ for a student, not from `dashboard_page.py`.
   application), and after any Submit. A click that never answers, as a
   Submit that sends the whole page away can end it (`send_button.Unsure`),
   counts as pressed. The job system's confirmation is
-  read as for the student's own press; with none within two minutes
-  (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
+  read as for the student's own press. With none after 15 s
+  (`rehearsal.HEAL_AFTER_S`), the form is read for the job system's own
+  refusal in the page (`apply.refused_submit`: a field marked invalid, a
+  red message, as Greenhouse's "Please accept the terms to proceed."
+  under an unticked consent): nothing was sent, so Apply fills each
+  field it names again from the Plan with the Fill engine, and when the
+  page then shows no error, presses Submit once more, once. A message
+  about no question Apply planned, a field the Plan leaves to the student
+  (a Missing fact, "Yours to tick"), a file, or a second refusal makes the
+  form a Handoff that quotes the page's words (`REFUSED`,
+  `STILL_REFUSED`), never marked sent. A code step after the press is
+  asked for on its card ("needs code"), never handed over. A captcha is
+  never touched. With no confirmation within two minutes
+  (`rehearsal.CONFIRM_S`) and nothing of these to explain it, the
   form becomes a Handoff that says it may have gone in, and Apply never
   presses its Submit again. A card with flags leads with Fix in the form
   and offers Submit as it is. Opening the form and pressing Submit by

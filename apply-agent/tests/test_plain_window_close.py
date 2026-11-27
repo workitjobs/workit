@@ -188,3 +188,27 @@ def test_a_link_sent_in_still_goes_to_a_worker_whose_chrome_stopped(monkeypatch,
 
     _rehearse(monkeypatch, tmp_path, rehearsal.ALREADY, keep_open=True, site=site, board=Board())
     assert len(took) == 1 and took[0]["worker"] == 0 and "already" not in took[0]  # taken, with a tile of its own
+
+
+def test_a_run_ends_once_its_last_form_closed_though_an_already_applied_tile_waits(monkeypatch, tmp_path):
+    """Fault: an already-applied link's thread waits for the run's release, which only Ctrl-C or Stop gave, so a run
+    whose every held form was sent or closed by hand never ended (run7, 2026-11-26)."""
+    monkeypatch.setattr(fill_engine, "ready", lambda: None)
+    monkeypatch.setattr(rehearsal, "guard", lambda page: None)
+    outcomes = {URL: rehearsal.ALREADY, URL + "?b": rehearsal.FAILED}  # the failed one's page closed: nothing held
+
+    def fill(url, kept, *rest, **more):
+        if outcomes[url] != rehearsal.ALREADY:
+            with kept.open(url):
+                pass
+        return rehearsal.Rehearsed(Posting("", "Example", "", url), outcomes[url], "")
+    monkeypatch.setattr(rehearsal, "_rehearse", fill)
+    adapters = Adapters(feed=SimplifyFeed(lambda: b"[]"), site=_Site(), claude=FakeClaude(), tracker=InMemoryTracker(),
+                        mailbox=FakeMailbox(), usage=ScriptedUsage(), clock=FakeClock(datetime(2026, 11, 26, 9)),
+                        board=RecordingBoard())
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    run = threading.Thread(target=rehearsal.rehearse, args=(list(outcomes), adapters, profile, 2), daemon=True,
+                           kwargs={"keep_open": True, "out": lambda line: None})
+    run.start()
+    run.join(10)
+    assert not run.is_alive()

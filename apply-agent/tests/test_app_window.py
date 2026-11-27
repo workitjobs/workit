@@ -871,3 +871,20 @@ def test_a_second_kill_while_it_closes_ends_the_app_after_its_chromes_stopped(mo
             signal.signal(n, handler)
 
     assert swept == [True, 128 + signal.SIGINT]
+
+
+def test_a_window_that_closes_while_a_quit_reads_the_window_list_leaves_the_read_whole():
+    """Fault: pywebview's Cocoa quit reads each window's close question from its live dict of windows, and a window
+    our close thread destroys mid-question leaves it, so the app died with `dictionary changed size during
+    iteration` (run7, 2026-11-26)."""
+    view = types.SimpleNamespace(instances={"main": "window", "other": "window"})
+    app_window.steady_windows("darwin", view)
+    app_window.steady_windows("darwin", view)  # once only: run() may be called again
+    asked = []
+    for uid in view.instances:  # applicationShouldTerminate_ reads each, a close dialog up
+        asked.append(uid)
+        view.instances.pop("other", None)  # windowWillClose_ of the window our close thread destroyed
+    for window in view.instances.values():
+        view.instances.pop("main")
+    assert asked == ["main", "other"] and view.instances == {}  # pywebview stops the app on `instances == {}`
+    assert type(view.instances) is app_window.SteadyWindows

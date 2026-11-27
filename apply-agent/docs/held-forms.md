@@ -19,7 +19,7 @@ reads: it does not click, type or submit.
   (`fill_engine.readback_problems`), an empty file or a file in the wrong
   field, a value that is not one of the field's options, a graduation
   year that is not the profile's or a span of months that does not hold
-  its month, a start date in the past, pay out of the
+  its month (never a high school's graduation: `verify.OTHER_SCHOOL`), a start date in the past, pay out of the
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
@@ -184,6 +184,12 @@ goes on from the step that the page shows.
   page kept its window till the run ended, 2026-11-26); a page that went on to another step stays
   the student's. A pop-up keeps it open till only its page is
   left, at most `SENT_KEEP_S` after the confirmation (`_Kept.hold`).
+- **The run ends once no form is left.** A tile that holds no page and only waits on a button (already
+  applied, Fill it anyway) is `idle` in `rehearsal.rehearse`: once every other link has ended, the
+  run ends and those waits end with it. Before, an already-applied tile waited for Ctrl-C or Stop, so
+  a run whose held forms were all sent or closed by hand never ended (run7, 2026-11-26). A run of
+  already-applied links only still waits, so its window can be read. Test:
+  `tests/test_plain_window_close.py`.
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
