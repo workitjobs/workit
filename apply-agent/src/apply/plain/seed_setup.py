@@ -13,13 +13,12 @@ process's arguments. Only showing a folder has an entry for each OS (`Desk.revea
 
 Chrome writes a change to disk about 10 s after the click (measured on Chrome for Testing), and only
 a clean exit writes the rest: SIGTERM saves, SIGKILL loses it (measured on both Chromes). So Apply
-quits the seed's Chrome with SIGTERM, never SIGKILL, reads the files again, and says "done" only
-after a real Worker, copied from the seed, says hello.
+asks the seed's Chrome to quit (`launcher.ask_to_quit`: SIGTERM, or on Windows `taskkill` with no /F),
+never kills it, reads the files again, and says "done" only after a real Worker, copied from the seed,
+says hello.
 """
 
-import os
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -37,7 +36,9 @@ from apply.plain.bridge import BridgeBusy, Refused
 from apply.plain.launcher import (
     BRANDED,
     FLAGS,
+    Chrome,
     PlainWorkers,
+    ask_to_quit,
     developer_mode,
     start_in_background,
 )
@@ -48,7 +49,7 @@ EXTENSIONS_PAGE = "chrome://extensions"
 DETAILS_PAGE = f"{EXTENSIONS_PAGE}/?id={extension.EXTENSION_ID}"
 POLL = 1.0  # s between two reads of the preference files
 NUDGE = 45.0  # s on one step before Apply says what may have gone wrong
-QUIT_WAIT = 15.0  # s from SIGTERM to telling the user that Chrome is still up
+QUIT_WAIT = 15.0  # s from the ask to quit to telling the user that Chrome is still up
 OPEN_WAIT = 20.0  # s from opening Chrome to its holding the seed profile
 
 # The steps, in the order the user does them. Each problem below belongs to one of them.
@@ -170,11 +171,9 @@ class Desk:
         reaped."""
         return chrome_pid(self.seed)
 
-    def terminate(self, pid: int) -> None:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+    def terminate(self, pid: int, system: str = sys.platform) -> None:
+        """Ask the seed's Chrome to quit, so that it saves: never a kill."""
+        ask_to_quit(Chrome(pid), system)
 
 
 @dataclass
@@ -283,7 +282,7 @@ class Wizard:
             self.desk.reveal(self.folder.resolve())
 
     def _quit(self, wait: bool = True) -> None:
-        """Ask the seed's Chrome to quit, so that it saves. Never SIGKILL: that loses unsaved changes."""
+        """Ask the seed's Chrome to quit, so that it saves. Never a kill: that loses unsaved changes."""
         if (pid := self.desk.chrome()) is None:
             return
         self.out("Quitting the seed's Chrome.")

@@ -8,6 +8,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +16,7 @@ import pytest
 
 from apply import browsers
 from apply.browsers import ProfileInUse
-from apply.plain import extension, seed_setup
+from apply.plain import extension, launcher, seed_setup
 from apply.plain.bridge import Refused
 from apply.plain.seed_setup import (
     DETAILS_PAGE,
@@ -366,11 +367,21 @@ def test_a_chrome_too_slow_to_take_the_seed_is_a_setup_error(tmp_path, monkeypat
         Desk(tmp_path / "plain-seed", Path("/Chrome")).open_chrome(EXTENSIONS_PAGE)
 
 
-def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
-    sent = []
-    monkeypatch.setattr(os, "kill", lambda pid, number: sent.append((pid, number)))
-    Desk(tmp_path).terminate(77)
-    assert sent == [(77, signal.SIGTERM)]
+def test_the_desk_asks_the_seeds_chrome_to_quit_and_never_kills_it(tmp_path, monkeypatch):
+    """Fault: a kill loses the clicks that Chrome hasn't saved yet. On Windows os.kill's SIGTERM is a kill, so the
+    seed's Chrome lost Developer mode and Load unpacked there (P7): taskkill with no /F asks its windows to close."""
+    asked = tmp_path / "asked"
+    monkeypatch.setattr(launcher, "TASKKILL", (sys.executable, "-c",
+                                               f"import sys; open({str(asked)!r}, 'w').write(' '.join(sys.argv[1:]))"))
+    chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        Desk(tmp_path).terminate(chrome.pid, "win32")
+        assert asked.read_text() == f"/PID {chrome.pid}" and chrome.poll() is None  # asked, with no /F, not killed
+        Desk(tmp_path).terminate(chrome.pid, "darwin")
+        assert chrome.wait(5) == -signal.SIGTERM
+    finally:
+        chrome.kill()
+        chrome.wait()
 
 
 def test_the_desk_does_not_trust_a_lock_whose_pid_is_another_program(tmp_path):

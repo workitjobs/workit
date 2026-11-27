@@ -488,7 +488,7 @@ and failed the job (`ProfileInUse`, "Didn't go through").
   the Apply process's PID and its start time (psutil), so a PID the OS later gives to another process never
   counts as that Apply.
 - **Reclaim.** `PlainWorkers.launch` and `PlainSite.refuse_in_use` call `launcher.reclaim` on each profile
-  first. It stops the Chrome that holds the profile (SIGTERM, then SIGKILL, as Apply's own stop) only when
+  first. It stops the Chrome that holds the profile (`ask_to_quit`, then a kill, as Apply's own stop) only when
   all of these hold: the profile names an owner, that owner no longer runs, and the process the
   SingletonLock names is a browser (no `--type=`) whose `--user-data-dir` is this very profile.
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
@@ -600,9 +600,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   extension, wrong folder (names both folders: Remove that card), card turned off.
   A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
   nudge, and the path goes on the clipboard again.
-- **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
-  the seed's SingletonLock (checked with psutil: its arguments name the seed). A SIGTERM saves pending
-  changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
+- **Quit.** When all steps show, Apply asks the seed's Chrome to quit (`launcher.ask_to_quit`: SIGTERM, or on
+  Windows `taskkill` with no /F), sent to the PID of the browser that holds the seed (`chrome_pid`). A SIGTERM
+  saves pending changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
   after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
   After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
 - **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an

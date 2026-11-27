@@ -85,11 +85,12 @@ FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgroundin
 # Never passed to a plain Worker: each would make it an automated browser.
 NEVER = ("--remote-debugging-port", "--remote-debugging-pipe", "--enable-automation", "--headless")
 HELLO_WAIT = 30.0  # s from launch to the extension's hello
-STOP_WAIT = 10.0  # s from SIGTERM to SIGKILL
+STOP_WAIT = 10.0  # s from the ask to quit (ask_to_quit) to the kill
 START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
 OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
 CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Windows)
+TASKKILL = ("taskkill",)  # Windows' own, in System32; a test's stand-in records what it was asked
 # In each plain Worker profile: the Apply process that started its Chrome, written before the Chrome starts
 # (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
 # reclaims (stops) a Chrome whose owner is gone, never one a live Apply owns.
@@ -507,8 +508,8 @@ def orphan(profile: Path) -> int | None:
 
 
 def reclaim(profile: Path) -> bool:
-    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: SIGTERM, then SIGKILL. Says
-    whether it stopped one."""
+    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: ask it to quit, then kill it.
+    Says whether it stopped one."""
     pid = orphan(profile)
     if pid is None:
         return False
@@ -522,10 +523,26 @@ def _copy(source: Path, profile: Path) -> None:
     shutil.copytree(source, profile, symlinks=True, ignore=NOT_COPIED)
 
 
-def _stop(process: "Chrome | subprocess.Popen") -> None:
+def ask_to_quit(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:
+    """Ask a Chrome to quit as a person would, so that it saves its settings and session cookies (P7). macOS and
+    Linux: SIGTERM. On Windows every signal, Popen.terminate and psutil's terminate end a process at once, with
+    no save, so `taskkill` with no /F asks its windows to close, as a click on X does. A Chrome with no window
+    can't be asked so: its stop (`_stop`) kills it after STOP_WAIT."""
     if process.poll() is not None:
         return
-    process.send_signal(signal.SIGTERM)
+    if system != "win32":
+        process.send_signal(signal.SIGTERM)
+        return
+    # Still this process: a Popen holds its handle, so Windows gives its PID to no other; a Chrome checks its start
+    # time (poll above), and the PID can't go to another process in the moment between.
+    subprocess.run([*TASKKILL, "/PID", str(process.pid)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, check=False)
+
+
+def _stop(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:
+    if process.poll() is not None:
+        return
+    ask_to_quit(process, system)
     try:
         process.wait(STOP_WAIT)
     except subprocess.TimeoutExpired:

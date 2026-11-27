@@ -106,8 +106,8 @@ rules. What the code doesn't say:
 - **Two jobs in one folder need two lock files:** a second lock on a file
   that this process holds waits for good. So the Repair's one-at-a-time
   lock is `repairs/.running.lock` (`repairer.RUNNING`).
-- **Unix-only calls that are left** fail only when they run: SIGTERM (P7);
-  and in developer-only modules, `os.killpg` in `claude_cli.stream_claude`
+- **Unix-only calls that are left** fail only when they run: in
+  developer-only modules, `os.killpg` in `claude_cli.stream_claude`
   (`ask_model: claude`) and `os.getuid()` in `schedule.Launchctl` (the
   Mac's scheduled runs, which D10 drops).
 
@@ -234,24 +234,22 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
   with a window and let the OS keep that window behind.
 - **Done when.** It is measured, and the result is written here.
 
-### P7. Stopping a Chrome cleanly (signals)
+### P7. Stopping a Chrome cleanly: built from the Mac
 
-- **What it is.** Apply stops a Chrome with SIGTERM, then SIGKILL after
-  10 s (`Desk.terminate`, `launcher.Chrome`, `launcher._stop`, and the
-  tests' `chrome_reaper`). SIGTERM lets Chrome save.
-- **What breaks.** On Windows, SIGTERM, `Popen.terminate()` and psutil's
-  `terminate` all end the process at once, with no save. A Worker loses
-  the session cookies that `--restore-last-session` keeps, so its job-site
-  sign-ins go (KAN-718). The seed loses Developer mode and Load unpacked.
-- **Who.** Mostly the user: a developer on Chrome for Testing has no
-  seed, but their Workers still lose their sign-ins at each stop.
-- **Fix: options.**
-  - `taskkill /PID <pid>`, with no `/F`, asks the windows to close, as a
-    click on X does. Measure that Chrome saves.
-  - For the seed: ask the student to close that Chrome window, and wait.
-    The wizard already waits for it (`seed_setup._quit`). This sends no
-    signal at all.
-  - A Worker with no window (P6) may have nothing to close. Measure that.
+- **What broke.** Apply stopped a Chrome with SIGTERM, then SIGKILL after
+  10 s. SIGTERM lets Chrome save. On Windows, SIGTERM, `Popen.terminate()`
+  and psutil's `terminate` all end the process at once, with no save. A
+  Worker lost the session cookies that `--restore-last-session` keeps, so
+  its job-site sign-ins went (KAN-718). The seed lost Developer mode and
+  Load unpacked.
+- **Built.** `launcher.ask_to_quit` is the one ask, for a Worker
+  (`_stop`, `reclaim`) and the seed (`Desk.terminate`): SIGTERM on macOS
+  and Linux, and on Windows `taskkill /PID <pid>` with no `/F`, which asks
+  the windows to close, as a click on X does. A Worker that is still up
+  after `STOP_WAIT` is killed, as before. The seed is never killed: the
+  wizard says what to close, and waits.
+- **Still open (Windows):** Chrome saves on that close, and a Worker with
+  no window (P6) has nothing to close, so it waits 10 s and is killed.
 - **Done when.** On Windows, a setting changed in the seed's Chrome is on
   disk after that Chrome stops.
 
@@ -316,7 +314,7 @@ Windows entry, since the Mac has none.
 |---|---|
 | P1 to P5, P9 | Built (above) |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
-| P7 clean quit | The seed: the student closes its window. A Worker: `taskkill` with no `/F`, after a measurement |
+| P7 clean quit | Built: `taskkill` with no `/F` in `ask_to_quit`'s Windows entry |
 | P8 wizard words | A Windows text in the same function |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
@@ -334,7 +332,8 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | Built: `tests/test_each_os.py`, the tile's `chrome_of` under the same fake | The tile takes cmd.exe for a Worker's Chrome |
 | P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
 | P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
-| P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
+| P7 | Built: `tests/test_plain_seed_setup.py`, the seed's Chrome is asked with `taskkill` and no `/F`, never killed; `tests/test_each_os.py`, a Worker is asked first and killed only after `STOP_WAIT`, and a reused PID is never asked | A forced stop loses the student's clicks and the Workers' sign-ins |
+| P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard says the Windows words | A Windows user is told to press Cmd keys |
 | P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
