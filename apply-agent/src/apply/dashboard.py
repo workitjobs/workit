@@ -815,6 +815,12 @@ class Dashboard:
         with self._lock:
             self._shown[:len(workers)] = list(workers)
 
+    def aim_tile(self, tile: int, worker: int) -> None:
+        """Tile `tile` shows Worker `worker` from now on: its link moved there, its own Worker's Chrome gone."""
+        with self._lock:
+            if 0 <= tile < len(self._shown):
+                self._shown[tile] = worker
+
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
         with self._lock:

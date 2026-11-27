@@ -2111,7 +2111,7 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
     """Fault: every job opens its own window while forms wait on the student, and a long run slows the computer to
     a halt (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
     servers, held_at, opened_while_held = [], {}, []
 
@@ -2133,7 +2133,7 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
         with FakeJobServer(ARC_FORM) as fake:
             servers.append(fake)
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None)
+                               1, keep_open=True, out=lambda line: None)
             opened, submissions = len(fake.workers), fake.submissions
     finally:
         watchdog.cancel()
@@ -2141,14 +2141,14 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
     assert opened_while_held == [1]  # a second after the first was held, the second job still hadn't opened
     assert opened == 2 and len(held_at) == 2  # once it was let go, the second opened and was held in turn
     assert submissions == []
-    assert {"open_forms": 1} in board.runs
+    assert {"open_forms": 1} in board.runs  # OPEN_FORMS waiting, plus the one Worker's
 
 
 def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monkeypatch, tmp_path):
     """Fault: a submitted form's thank-you tab keeps its slot, so once OPEN_FORMS forms are sent the run waits for
     ever with jobs queued and nothing filling (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     monkeypatch.setattr(rehearsal, "CLOSE_AFTER_S", 600)  # its thank-you tab stays open
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"] if n == 1 else [])
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
@@ -2172,7 +2172,7 @@ def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monk
     try:
         with FakeJobServer(ARC_FORM) as fake:
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None, submitted_to=InMemoryTracker())
+                               1, keep_open=True, out=lambda line: None, submitted_to=InMemoryTracker())
             submissions = fake.submissions
     finally:
         watchdog.cancel()
@@ -2185,7 +2185,7 @@ def test_a_submit_the_job_system_never_confirms_frees_its_slot_while_its_handoff
     """Fault: each form Apply pressed Submit on but the job site never confirmed kept its slot as a handoff, so five of
     them stalled the run with jobs queued and nothing filling (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
     monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
@@ -2210,7 +2210,7 @@ def test_a_submit_the_job_system_never_confirms_frees_its_slot_while_its_handoff
     try:
         with FakeJobServer(ARC_FORM) as fake:
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None)
+                               1, keep_open=True, out=lambda line: None)
     finally:
         watchdog.cancel()
 

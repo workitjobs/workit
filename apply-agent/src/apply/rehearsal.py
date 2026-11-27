@@ -89,6 +89,7 @@ from apply.orchestrator import (
     by_filler,
     keep_repair_requests,
 )
+from apply.plain.bridge import WorkerGone
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled, Record
 from apply.request import resolve
@@ -208,9 +209,16 @@ STOPPED_APPLYING = "Stopped applying: nothing was submitted, and each filled for
 STOP_WAIT = 10.0
 # Stop new ones only (KAN-874): no job waiting starts, and each form already filled stays held for the student.
 STOPPED_NEW = "Stopped starting new jobs: each filled form stays open for you."
-# At most this many forms open at once: each is a browser window, and a long run's held forms slowed the student's
-# computer to a halt (live, 2026-11-26). The next job opens once the student sends, lets go of, or closes one.
+# At most this many forms wait on the student at once, beside one filling in each Worker: each is a browser window,
+# and a long run's held forms slowed the student's computer to a halt (live, 2026-11-26). The forms waiting never take
+# a Worker's turn: with jobs queued, every Worker fills one while up to this many wait (run10 filled one at a time
+# with four Workers, its five places full). The next job opens once the student sends, lets go of, or closes one.
 OPEN_FORMS = 5
+# A Worker's Chrome gone mid-fill (WorkerGone): the link fills once more, in it started again or in another Worker.
+GONE_AGAIN = "Browser {} closed mid-fill: Apply started it again and fills the form anew"
+GONE_RETIRED = "Browser {} closed and didn't start again: Apply sends no more jobs to it"
+GONE_MOVED = "Browser {} closed mid-fill and didn't start again: Apply fills the form anew in Browser {}"
+NO_WORKER_LEFT = "its browser closed, and no other browser of this run can take it"
 # The history line of a reopened form, first on its tile.
 REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
 
@@ -320,11 +328,12 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
-    # Forms open at once (OPEN_FORMS): taken before a form opens, given back once it is submitted or its page closes.
-    # Start together opens every form before any fills, so it isn't capped.
-    room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
-    if not together:
-        adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
+    # Forms open at once: OPEN_FORMS waiting on the student, plus one filling in each Worker (`gate`), so the forms
+    # waiting never leave a Worker idle while jobs are queued. A place is taken before a form opens and given back
+    # once it is submitted or its page closes. Start together opens every form before any fills, so it isn't capped.
+    room = threading.Semaphore(len(urls) if together else OPEN_FORMS + workers)
+    if not together:  # the window says why jobs wait once every place holds a form waiting on the student
+        adapters.board.run(open_forms=OPEN_FORMS + workers)
     start = _Together(len(urls) if together else 0, adapters.board.wait_for_start)
     if together:
         adapters.board.run(start="waiting")
@@ -400,6 +409,30 @@ def rehearse(
         release.set()
     if stopping := getattr(adapters.board, "stopping", None):
         stopping(stop)
+    # Workers whose Chrome went and wouldn't start again: no link goes to one any more. Plain Worker 1's Chrome died
+    # in run10 (2026-11-26), and each link sent in after went to it and failed minutes and many tokens later.
+    retired: set[int] = set()
+    up = lambda k: bool(getattr(adapters.site, "running", lambda k: False)(k))
+
+    def instead_of(worker: int) -> int | None:
+        """Another Worker of this run for a link meant for `worker`, never a retired one: one whose Chrome runs
+        first, else any (its next form starts it). None when there is none."""
+        with writing:
+            others = sorted(used - retired - {worker})
+        return next((k for k in others if up(k)), others[0] if others else None)
+
+    def revive(worker: int) -> int | None:
+        """Worker `worker`'s Chrome went mid-fill (WorkerGone): start it again on its own profile, else retire it.
+        The Worker the link fills anew in, or None when no Worker is left."""
+        if getattr(adapters.site, "relaunch", lambda k: False)(worker):
+            with writing:
+                retired.discard(worker)  # another form's relaunch failed, this one's worked: it takes links again
+            out(GONE_AGAIN.format(worker + 1))
+            return worker
+        with writing:
+            retired.add(worker)
+        out(GONE_RETIRED.format(worker + 1))
+        return instead_of(worker)
 
     @contextmanager
     def waiting_only():
@@ -414,7 +447,16 @@ def rehearse(
                 idle.discard(me)
 
     def one(n: int, url: str, worker: int | None = None) -> None:
-        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
+        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own). Whatever path its thread ends on
+        (a failure, an exception, a page gone), its place among the open forms is given back: five failed jobs
+        kept theirs, and the run filled one form at a time with jobs queued (live, 2026-11-26)."""
+        slot = _Slot(room)
+        try:
+            _one(n, url, worker, slot)
+        finally:
+            slot.give()
+
+    def _one(n: int, url: str, worker: int | None, slot: "_Slot") -> None:
         site = _Kept(adapters.site, n if worker is None else worker,
                      shown=lambda tab: getattr(adapters.board, "showing", lambda tile, tab: None)(n, tab))
         with writing:
@@ -466,7 +508,9 @@ def rehearse(
             return True
 
         def pressed_anyway() -> bool:
-            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open."""
+            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open. No page waits on
+            him meanwhile, so its place among the open forms goes to the next job; the fill takes one again."""
+            leave_room()
             with waiting_only():
                 while not release.is_set():
                     if adapters.board.resumed(n):
@@ -651,14 +695,8 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
-        roomy = [False]
-        while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
-            roomy[0] = room.acquire(timeout=0.5)
-
-        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
-            if roomy[0]:
-                roomy[0] = False
-                room.release()
+        slot.take(lambda: not stopped.is_set() and n not in dropped)  # a turn at a slot, given up on Stop
+        leave_room = slot.give  # sent, its page closed, or it never opened: the next job may open its form (once)
 
         def let_chrome_go() -> None:
             """Its form is done with: its page closed (site.close), its Worker's Chrome stops too once no other form
@@ -668,19 +706,42 @@ def rehearse(
                     free(site.worker)
                 except Exception as error:  # never in the way of the link's end: the run's close stops it after
                     print(f"Couldn't close Browser {site.worker + 1}: {type(error).__name__}: {error}", file=sys.stderr)
+
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
-        if not roomy[0] or not started(n):  # removed while it waited for its turn, or the run ended
+        if not slot.held or not started(n):  # removed while it waited for its turn, or the run ended
             gate.release()
             leave_room()
             start.leave(n)
             settles(n).set()
             return
+
+        def to(worker: int) -> None:  # the link fills in Worker `worker` from now on, its tile showing it
+            site.move(worker)
+            with writing:
+                used.add(worker)
+            if aim_tile := getattr(adapters.board, "aim_tile", None):
+                aim_tile(n, worker)
+        if site.worker in retired and (other := instead_of(site.worker)) is not None:
+            to(other)  # sent to a Worker retired while it waited: another takes it
+        with writing:
+            used.add(site.worker)  # its turn taken: this run fills in this Worker
+        fill_form = lambda gone_raises, history: _rehearse(
+            url, site, adapters, profile, calibration.hold, accounts, n, held, "getting ready" if together else "",
+            pause=paused, force=force, draft=draft, reopened=history, gone_raises=gone_raises)
         try:
             try:
-                done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
-                                 "getting ready" if together else "", pause=paused, force=force, draft=draft,
-                                 reopened=reopened)
+                try:
+                    done = fill_form(True, reopened)
+                except WorkerGone as gone:  # its Chrome went mid-fill: once more, in it started again or another
+                    site.close()
+                    if (again := revive(gone_from := site.worker)) is None:
+                        done = Rehearsed(Posting("", "", "", url), FAILED, f"WorkerGone: {gone}; {NO_WORKER_LEFT}")
+                    else:
+                        if again != gone_from:
+                            to(again)
+                        done = fill_form(False, GONE_AGAIN.format(gone_from + 1) if again == gone_from
+                                         else GONE_MOVED.format(gone_from + 1, again + 1))
             finally:
                 gate.release()  # its Worker's turn, taken above
         except SetupError as error:  # before the form opened (no Fill engine, say): one line, no traceback
@@ -738,6 +799,10 @@ def rehearse(
                         break
                     adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
+                    # Its place went while nothing of it waited on him (Fill it anyway with no page, an unconfirmed
+                    # Submit): the new fill opens a form, so it waits for one again, and never past the cap.
+                    if not slot.take(lambda: not release.is_set()):
+                        break
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force, draft=draft)
@@ -761,7 +826,14 @@ def rehearse(
         # A plain Worker of this run whose Chrome stopped once its forms were done (PlainSite.release) takes it all
         # the same: its Chrome starts again on its profile, its sign-ins kept.
         stopped_plain = worker in used and getattr(adapters.site, "plain", lambda k: False)(worker)
-        if running and not getattr(adapters.site, "running", lambda k: False)(worker) and not stopped_plain:
+        # Never to a Worker known dead: one retired, or one of this run's whose Chrome went (not one stopped once its
+        # forms were done). Another running one takes it.
+        with writing:
+            dead = worker in retired or running and worker in used and not up(worker) and not stopped_plain
+        if dead and (other := instead_of(worker)) is not None and (up(other) or not running):
+            out(f"Browser {worker + 1} isn't running: {url} goes to Browser {other + 1}")
+            worker = other
+        if running and not up(worker) and not stopped_plain:
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
@@ -879,6 +951,32 @@ def _until(release: threading.Event) -> str:
     return ""
 
 
+class _Slot:
+    """One link's place among a rehearsal's open forms (its `room`): taken before its form opens, given back once
+    nothing of it waits on the student. Each take is given back once, never twice, however many paths give it."""
+
+    def __init__(self, room: threading.Semaphore):
+        self._room, self._held, self._lock = room, False, threading.Lock()
+
+    @property
+    def held(self) -> bool:
+        return self._held
+
+    def take(self, wanted: Callable[[], bool]) -> bool:
+        """Wait for a place while `wanted()` says so. Whether it holds one now."""
+        while not self._held and wanted():
+            if self._room.acquire(timeout=0.5):
+                with self._lock:
+                    self._held = True
+        return self._held
+
+    def give(self) -> None:
+        with self._lock:
+            held, self._held = self._held, False
+        if held:
+            self._room.release()
+
+
 class _Together:
     """Holds each of `count` links at its first fill until every one has
     arrived there or ended and then `start` (the Start button) returns, so
@@ -921,14 +1019,16 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
               calibration: Callable[[], str], accounts: "_Accounts", n: int,
               before_fill: Callable[[], None] = lambda: None, stage: str = "",
               pause: Callable[[Rehearsed, Callable[[object], str]], bool | str] = lambda stopped, blocked: False,
-              anyway: str = "", force: bool = False, draft: dict | None = None, reopened: str = "") -> Rehearsed:
+              anyway: str = "", force: bool = False, draft: dict | None = None, reopened: str = "",
+              gone_raises: bool = False) -> Rehearsed:
     """One fill of the link. A stop mid-form for Lisul goes to `pause` with its
     summary and why Resume can't go on (apply_to's `on_pause`): True, he
     pressed Resume, and the fill goes on on the same page. Each pause and
     Resume is kept in the summary's history, its tile and its Record.
     `anyway` is why an earlier fill ruled him out, when he pressed Fill it anyway:
     the form is filled all the same, and its note says why. `draft` is what a reopened form held (apply_to's),
-    and `reopened` its first history line."""
+    and `reopened` its first history line. With `gone_raises`, a Worker's Chrome gone mid-fill (WorkerGone) raises,
+    for the caller to start it again and fill anew, instead of ending the fill failed."""
     claude, board = adapters.claude, adapters.board
     if fill_engine.fresh():  # a merged engine fix since the last posting: planned with it, no restart (KAN-645)
         trace.event("engine reloaded")
@@ -1047,6 +1147,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
                 result = Result(Status.FAILED, f"setup: {error}")
             except BaseException as error:
+                if gone_raises and isinstance(error, WorkerGone):
+                    raise
                 where = "".join(traceback.format_exception(error))
                 result = Result(Status.FAILED, f"{type(error).__name__}: {error}", traceback=where)
                 # The line says what failed; the log keeps where, for the fix.
@@ -1716,6 +1818,11 @@ class _Kept:
     def worker(self) -> int:
         """The Worker whose profile this link's pages open in."""
         return self._worker
+
+    def move(self, worker: int) -> None:
+        """This link's pages open in Worker `worker` from now on (its own Worker's Chrome went): its page closes."""
+        self.close()
+        self._worker = worker
 
     def acting(self):
         """Both guards back on while Apply acts on the held page from a hook of the hold's (Go to question,

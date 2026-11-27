@@ -207,6 +207,28 @@ class PlainSite:
                 keep = set(self._open.get(worker, ()))
             _leave_blank(context, page.tab, keep)
 
+    def relaunch(self, worker: int) -> bool:
+        """Worker `worker`'s Chrome went (a form's call raised WorkerGone): start it again on its own profile, the
+        one it started with, so its sign-ins stay. True once it runs again (another form may have started it
+        already); False when it wouldn't start, said on stderr."""
+        with self._tabs:
+            opening = self._opening.setdefault(worker, threading.Lock())
+        with opening:
+            running = self.workers.running.get(worker)
+            if running and not running.connection.closed.is_set():
+                return True
+            if running and (again := self.workers.bridge.connection(worker)) and not again.closed.is_set():
+                running.connection = again  # its extension said hello again: the same Chrome
+                return True
+            self.workers.stop(worker)
+            try:
+                with self._launching:
+                    self.workers.launch(worker)
+            except Exception as error:
+                print(f"Browser {worker + 1} didn't start again: {type(error).__name__}: {error}", file=sys.stderr)
+                return False
+            return True
+
     def release(self, worker: int) -> list[int]:
         """A form on Worker `worker` is done with (sent, let go, closed, skipped, already applied, or its rehearsal
         moving on): stop its Chrome once no other form is open in it, and every other Worker's Chrome that no form
@@ -291,6 +313,10 @@ class RoutedSite:
 
     def in_front(self, worker: int) -> bool:
         return (self.plain_site if self.plain(worker) else self.cdp).in_front(worker)
+
+    def relaunch(self, worker: int) -> bool:
+        """Worker `worker`'s plain Chrome went: start it again (PlainSite.relaunch). A CDP Worker raises no WorkerGone."""
+        return self.plain(worker) and self.plain_site.relaunch(worker)
 
     def release(self, worker: int) -> list[int]:
         """A form on Worker `worker` is done with: the plain Chromes no form holds now stop (PlainSite.release). A
