@@ -61,6 +61,7 @@ from apply import (
     lever,
     masked,
     on_page,
+    oracle,
     refused_submit,
     regenerate,
     send_button,
@@ -2078,7 +2079,10 @@ class _Kept:
                             codes = {key for key, _ in code_box.boxes(self._page)}
                             site_said = refused_submit.site_errors(self._page)
                             pressed_on = document(self._page)
-                            heard(send_button.press(self._page))  # theirs, as if they had pressed it
+                            # Oracle's unconfirmed application (its code never given): his Approve is CONFIRM's,
+                            # never REMOVE's, and the code step it goes on to asks for the code (code_given).
+                            heard(oracle.confirm(self._page) if oracle.unconfirmed(self._page)
+                                  else send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
                         except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
                             heard(unsure.words)

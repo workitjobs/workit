@@ -24,6 +24,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from apply import submit_guard
 from apply.accounts import Accounts
 from apply.model import Handoff
+from apply.send_button import NotPressed
 
 # Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
 # workflow.mail.us2.cloud.oracle.com) or the employer's own address with Oracle's
@@ -174,6 +175,42 @@ def _agree(page: Page, box) -> None:
         if box.is_checked() and not agree.is_visible():
             return
     raise Handoff("Oracle's legal disclaimer wouldn't stay ticked: finish the application yourself.")
+
+
+# Oracle's page for an application sent whose emailed code was never given (Emerson's, live 2026-11-27): "You already
+# applied for this job. ... Do you want to confirm your job application?", with REMOVE and CONFIRM. CONFIRM goes on to
+# the code step ("You're almost done"); REMOVE withdraws the application, and Apply never presses it.
+UNCONFIRMED = re.compile(r"you already applied for this job\b.{0,400}?\bconfirm your (?:job )?application",
+                         re.IGNORECASE | re.DOTALL)
+CONFIRM = re.compile(r"^\s*confirm\s*$", re.IGNORECASE)
+CONFIRM_ASK = ("An earlier application to this job is waiting for its email code: confirm it? Approve it (apply window "
+               "submit <tile> --yes) and Apply presses CONFIRM, never REMOVE; then give the code Oracle emails "
+               "(apply window code).")
+NO_CONFIRM = "Oracle's page shows no one CONFIRM button, so Apply pressed nothing: press it on the page yourself."
+
+
+def unconfirmed(page: Page) -> bool:
+    """Whether the page is Oracle's unconfirmed application's (UNCONFIRMED), with its CONFIRM button showing."""
+    try:
+        return bool(UNCONFIRMED.search(page.locator("body").inner_text(timeout=2_000))) and _confirm(page) is not None
+    except Exception:
+        return False
+
+
+def _confirm(page: Page):
+    """The one visible CONFIRM button on the page, else None."""
+    shown = [b for b in page.get_by_role("button", name=CONFIRM).all() if b.is_visible()]
+    return shown[0] if len(shown) == 1 else None
+
+
+def confirm(page: Page) -> str:
+    """Press CONFIRM on the unconfirmed application's page (never REMOVE): Lisul approved it. Its words; raises
+    send_button.NotPressed when the page shows no one CONFIRM button."""
+    if (button := _confirm(page)) is None:
+        raise NotPressed(NO_CONFIRM)
+    words = " ".join((button.inner_text() or "").split()) or "CONFIRM"
+    button.click(timeout=10_000)
+    return words
 
 
 def signed_in(page: Page) -> bool:
