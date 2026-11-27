@@ -9,6 +9,7 @@ import re
 import time
 from datetime import timedelta
 
+import pytest
 from conftest import FIXTURES, FORMS
 from fake_oracle import FakeOracleServer
 from fakes import FakeClaude
@@ -154,6 +155,51 @@ def test_the_cookie_banner_over_the_email_step_is_declined_before_next():
         oracle._decline_cookies(page)
         page.get_by_role("button", name="Next").click(timeout=2000)
         assert page.title() == "next"
+        browser.close()
+
+
+# Emerson's OneTrust banner (live 2026-11-27): no Reject All, a dark filter over the page, and its settings' Confirm My
+# Choices keeps only the necessary cookies.
+ONETRUST = """<div id="onetrust-consent-sdk"><div class="onetrust-pc-dark-filter"
+  style="position:fixed;inset:0;z-index:2147483645;background:rgba(0,0,0,.5)"></div>
+<div id="onetrust-banner-sdk" style="position:fixed;top:0;left:0;right:0;z-index:2147483646;background:#fff">
+  By clicking "Accept All Cookies", you agree to the storing of cookies on your device.
+  <button id="onetrust-pc-btn-handler" onclick="document.getElementById('onetrust-pc-sdk').style.display='block'">
+    Cookies Settings</button><button id="onetrust-accept-btn-handler">Accept All Cookies</button></div>
+<div id="onetrust-pc-sdk" style="display:none;position:fixed;bottom:0;z-index:2147483647;background:#fff">
+  <button class="save-preference-btn-handler" onclick="document.getElementById('onetrust-consent-sdk').remove();
+    document.title = 'necessary only'">Confirm My Choices</button></div></div>
+<button onclick="document.title += ', applied'">Apply Now</button>"""
+
+
+def test_a_onetrust_banner_with_no_reject_keeps_only_the_necessary_cookies_before_apply():
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(ONETRUST)
+        oracle._decline_cookies(page)
+        page.get_by_role("button", name="Apply Now").click(timeout=2000)
+        assert page.title() == "necessary only, applied"
+        browser.close()
+
+
+def test_an_apply_button_still_covered_is_a_handoff_not_a_timeout(monkeypatch):
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    monkeypatch.setattr(oracle, "TIMEOUT", 2.0)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_default_timeout(1000)
+        page.set_content('<div style="position:fixed;inset:0;z-index:9"></div><button>Apply Now</button>')
+        with pytest.raises(Handoff, match="covers its Apply button"):
+            oracle.sign_in(page, None, "Doe", True)
         browser.close()
 
 
