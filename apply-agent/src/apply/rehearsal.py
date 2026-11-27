@@ -166,6 +166,8 @@ SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it 
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
 CLOSE_AFTER_S = 10
+# How long a sent form's window may stay open for a pop-up it opened, from its confirmation: then it closes anyway.
+SENT_KEEP_S = 120
 OUTCOMES = {
     Status.HELD: READY,
     Status.HANDOFF: "handoff",
@@ -344,6 +346,7 @@ def rehearse(
             return settled.setdefault(n, threading.Event())
 
     writing = threading.Lock()
+    used: set[int] = set()  # each Worker a link of this run has filled in (into takes a link there)
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
     # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
@@ -395,7 +398,6 @@ def rehearse(
         release.set()
     if stopping := getattr(adapters.board, "stopping", None):
         stopping(stop)
-    used: set[int] = set()  # each Worker a link of this run has filled in
     # Workers whose Chrome went and wouldn't start again: no link goes to one any more. Plain Worker 1's Chrome died
     # in run10 (2026-11-26), and each link sent in after went to it and failed minutes and many tokens later.
     retired: set[int] = set()
@@ -434,6 +436,8 @@ def rehearse(
     def _one(n: int, url: str, worker: int | None, slot: "_Slot") -> None:
         site = _Kept(adapters.site, n if worker is None else worker,
                      shown=lambda tab: getattr(adapters.board, "showing", lambda tile, tab: None)(n, tab))
+        with writing:
+            used.add(site.worker)
         done = None
         first = []  # the link's first summary went to `finished` (at its first pause, else at its end)
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
@@ -660,6 +664,16 @@ def rehearse(
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
         slot.take(lambda: not stopped.is_set() and n not in dropped)  # a turn at a slot, given up on Stop
         leave_room = slot.give  # sent, its page closed, or it never opened: the next job may open its form (once)
+
+        def let_chrome_go() -> None:
+            """Its form is done with: its page closed (site.close), its Worker's Chrome stops too once no other form
+            holds it (PlainSite.release). Else each ended form left a Chrome on a blank tab till the run ended."""
+            if free := getattr(adapters.site, "release", None):
+                try:
+                    free(site.worker)
+                except Exception as error:  # never in the way of the link's end: the run's close stops it after
+                    print(f"Couldn't close Browser {site.worker + 1}: {type(error).__name__}: {error}", file=sys.stderr)
+
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
         if not slot.held or not started(n):  # removed while it waited for its turn, or the run ended
@@ -731,9 +745,12 @@ def rehearse(
                         return RESUME
                     return how
 
-                # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends.
+                # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends. A page
+                # opened to find its form (embedded.form_behind) closes now, and its Chrome with it.
                 if done.outcome == ALREADY:
                     leave_room()
+                    site.close()
+                    let_chrome_go()
                 how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
                 while True:
                     if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
@@ -756,6 +773,7 @@ def rehearse(
             finally:
                 site.close()
                 leave_room()
+                let_chrome_go()
 
     on = reopening.workers if reopening else [None] * len(urls)  # each link's Worker: its own, unless reopened
     threads = [threading.Thread(target=one, args=(n, url, on[n]), daemon=True) for n, url in enumerate(urls)]
@@ -766,13 +784,17 @@ def rehearse(
         unless not `running`: a reopened Worker's next link, whose profile holds its sign-in all the same."""
         if release.is_set() or closed_to_new.is_set():
             raise Refused("This rehearsal is ending.", 409)
-        # Never to a Worker known dead: one retired, or one of this run's whose Chrome went. Another running one takes it.
+        # A plain Worker of this run whose Chrome stopped once its forms were done (PlainSite.release) takes it all
+        # the same: its Chrome starts again on its profile, its sign-ins kept.
+        stopped_plain = worker in used and getattr(adapters.site, "plain", lambda k: False)(worker)
+        # Never to a Worker known dead: one retired, or one of this run's whose Chrome went (not one stopped once its
+        # forms were done). Another running one takes it.
         with writing:
-            dead = worker in retired or running and worker in used and not up(worker)
+            dead = worker in retired or running and worker in used and not up(worker) and not stopped_plain
         if dead and (other := instead_of(worker)) is not None and (up(other) or not running):
             out(f"Browser {worker + 1} isn't running: {url} goes to Browser {other + 1}")
             worker = other
-        if running and not up(worker):
+        if running and not up(worker) and not stopped_plain:
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
@@ -1780,9 +1802,10 @@ class _Kept:
         window is closed. Apply is done with it, so it is Lisul's: the submit
         guard comes off, and his own Submit goes through. Once he has clicked
         one and `job_system` confirms the application went in, `submitted(page)`
-        runs, once, and CLOSE_AFTER_S later the window closes, unless a pop-up
-        or another page has opened or the confirmation is gone: then it stays
-        his to close. Its note shows `warning`, red when an answer is `wrong`. When a
+        runs, once, and CLOSE_AFTER_S later the window closes, while its page is
+        still confirmed or went to about:blank, unless a pop-up or another page has opened:
+        then it closes once only its page is left, or SENT_KEEP_S after the
+        confirmation. Its note shows `warning`, red when an answer is `wrong`. When a
         press of his brings a step asking for an emailed code, `code` types it
         in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
@@ -2023,10 +2046,13 @@ class _Kept:
                         coding, code_wrong = 0.0, False  # a code read as wrong that went in after all: it was right
                         code_said("")
                     closing = time.monotonic() + CLOSE_AFTER_S
-                if closing and time.monotonic() > closing:
-                    if len(self._page.context.pages) == 1 and _confirmed(self._page, job_system):
-                        return ""  # done: its window closes
-                    closing = None
+                # Sent: its window closes CLOSE_AFTER_S later, on its confirmation or on about:blank (a cleared page
+                # whose window was never closed, live 2026-11-26); a page that went on to another step stays his. A
+                # pop-up keeps it open, at most SENT_KEEP_S: a sent form waits on no one, and its window must not stay.
+                if closing and (now := time.monotonic()) > closing and (
+                        len(self._page.context.pages) == 1 or now > closing - CLOSE_AFTER_S + SENT_KEEP_S) and (
+                        self._page.url == "about:blank" or _confirmed(self._page, job_system)):
+                    return ""  # done: its window closes
                 self._page.wait_for_timeout(500)
             except Exception:
                 return ""  # its browser was quit

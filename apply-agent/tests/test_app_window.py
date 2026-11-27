@@ -609,11 +609,15 @@ def test_report_this_application_finds_the_record_of_a_form_the_run_held(board, 
     assert "error" in bridge.review_report("form", "It picked the wrong school.", application_id="gh-2")
 
 
-def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
+@pytest.mark.parametrize("quit_by", ["SIGTERM", "SIGINT", "SIGHUP"])
+def test_kill_closes_the_window_instead_of_raising_inside_cocoa(quit_by):
     """Fault: `kill <pid>` raised KeyboardInterrupt inside a Cocoa callback, and macOS showed "python quit
-    unexpectedly"."""
+    unexpectedly"; Ctrl-C did the same, and a closed terminal ended the app at once: no `finally` ran, and its
+    Workers' Chromes stayed open."""
     import os
     import signal
+
+    number = getattr(signal, quit_by)
 
     class Closable:
         closed = False
@@ -623,16 +627,17 @@ def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
 
     import time
 
-    window, before = Closable(), signal.getsignal(signal.SIGTERM)
+    window, before = Closable(), {n: signal.getsignal(n) for n in app_window.QUITS}
     try:
         app_window.closing(window)
-        os.kill(os.getpid(), signal.SIGTERM)
+        os.kill(os.getpid(), number)
         deadline = time.monotonic() + 2
         while not window.closed and time.monotonic() < deadline:
             time.sleep(0.01)
     finally:
         signal.set_wakeup_fd(-1)
-        signal.signal(signal.SIGTERM, before)
+        for n, handler in before.items():
+            signal.signal(n, handler)
 
     assert window.closed
 
@@ -834,3 +839,35 @@ def test_links_sent_in_are_taken_once_per_posting(tmp_path):
                            "https://jobs.lever.co/acme/2"], inbox)
     assert app_window.take_links(inbox) == ["https://job-boards.greenhouse.io/acme/jobs/6270727004",
                                             "https://jobs.lever.co/acme/2"]
+
+
+def test_a_second_kill_while_it_closes_ends_the_app_after_its_chromes_stopped(monkeypatch):
+    """Fault: every quit signal stayed a no-op once the first closed the window: a stuck close left only `kill -9`,
+    which skips the exit sweep, and the Workers' Chromes stayed open."""
+    import os
+    import signal
+    import threading
+    import time
+
+    ended, swept = threading.Event(), []
+    monkeypatch.setattr(app_window.atexit, "_run_exitfuncs", lambda: swept.append(True))
+    monkeypatch.setattr(app_window.os, "_exit", lambda code: (swept.append(code), ended.set()))
+
+    class Stuck:
+        def destroy(self):
+            pass  # the window never goes
+
+    before = {n: signal.getsignal(n) for n in app_window.QUITS}
+    try:
+        app_window.closing(Stuck())
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.2)
+        assert not ended.is_set()  # one: the window closes, the app goes on with its `finally`s
+        os.kill(os.getpid(), signal.SIGINT)
+        ended.wait(2)
+    finally:
+        signal.set_wakeup_fd(-1)
+        for n, handler in before.items():
+            signal.signal(n, handler)
+
+    assert swept == [True, 128 + signal.SIGINT]
