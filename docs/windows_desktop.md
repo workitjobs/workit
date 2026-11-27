@@ -215,7 +215,8 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
 - **Built: the accounts host** (`native_host.install`, `apply
   chrome-passwords`) takes the same key and `.bat`, whose `set` line
   gives the host its data folder (`APPLY_HOME`). `doctor` reads the
-  manifest that the key names (`chrome_host.found`).
+  manifest that the key names (`chrome_host.found`), and its test of
+  that runs on the Mac and in CI (`Machine.system`).
 - **Still open (Windows):** Chrome runs the `.bat` and the host says
   hello; a venv's `python.exe`, a launcher, finds psutil under `-I`;
   `chcp 65001` in the hidden cmd.exe that Chrome starts, with a user

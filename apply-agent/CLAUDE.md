@@ -102,7 +102,9 @@ has neither.
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
-  (`tests/test_each_os.py` reads the source for the last three). Porting to
+  (`tests/test_each_os.py` reads the source for the last three). `doctor`'s
+  checks read Chrome for `Machine.system`, so `tests/test_doctor.py` (in CI,
+  on Ubuntu) runs their Mac case on any OS. Porting to
   Windows: `../docs/windows_desktop.md` (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the

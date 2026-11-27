@@ -274,6 +274,7 @@ jobs:
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_doctor.py \
             tests/test_each_os.py \
             tests/test_eightfold_filler.py \
             tests/test_engine_download.py \

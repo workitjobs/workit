@@ -10,6 +10,7 @@ refresh token on each use)."""
 import json
 import os
 import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -101,6 +102,8 @@ class Machine:
     waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
     native_hosts: Path = native_host.CHROME_HOSTS  # where everyday Chrome's host manifests go (chrome_host.folder)
+    system: str = sys.platform  # the OS the checks read Chrome for: its version, and where it finds a host
+    registry: object = None  # on Windows, winreg (None) or a test's stand-in: where Chrome finds a host
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
     # A provider's API key, by its name in ask_model.PROVIDERS; never printed.
     ask_key: Callable[[str], str | None] = lambda name: ask_model.key(ask_model.PROVIDERS[name])
@@ -184,8 +187,8 @@ def _ask_model(machine: Machine) -> list[Check]:
 
 
 def _chrome(machine: Machine) -> Check:
-    if not (version := chrome_finder.version(machine.chrome)):
-        where = f"no {machine.chrome}" if machine.chrome else "none in " + ", ".join(map(str, chrome_finder.places()))
+    if not (version := chrome_finder.version(machine.chrome, machine.system)):
+        where = f"no {machine.chrome}" if machine.chrome else "none in " + ", ".join(map(str, chrome_finder.places(machine.system)))
         return Check("Chrome", FAIL, f"Google Chrome isn't installed ({where})",
                      "install it from https://www.google.com/chrome/")
     return Check("Chrome", OK, version)
@@ -492,7 +495,7 @@ def _accounts_host(machine: Machine) -> Check:
     """The Apply accounts host (KAN-592): optional, so never a fail. Without it, the WorkIt extension in
     Lisul's Chrome has no Sign In button for the Employer accounts Apply made."""
     name, fix = "Apply accounts host", "run `uv run apply chrome-passwords`"
-    manifest = chrome_host.found(native_host.NAME, machine.native_hosts)  # on Windows the one its registry key names
+    manifest = chrome_host.found(native_host.NAME, machine.native_hosts, machine.system, machine.registry)
     try:
         written = json.loads(manifest.read_text()) if manifest else None
     except (OSError, ValueError):
@@ -503,6 +506,6 @@ def _accounts_host(machine: Machine) -> Check:
     if written.get("allowed_origins") != [native_host.EXTENSION_ORIGIN]:
         return Check(name, WARN, f"{manifest} names other callers than the WorkIt extension", fix)
     wrapper = Path(written.get("path", ""))
-    if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
+    if not wrapper.is_file() or (machine.system != "win32" and not os.access(wrapper, os.X_OK)):  # cmd.exe runs a .bat
         return Check(name, WARN, f"its wrapper {wrapper} is gone or can't run", fix)
     return Check(name, OK, f"installed for the WorkIt extension ({native_host.EXTENSION_ID})")
