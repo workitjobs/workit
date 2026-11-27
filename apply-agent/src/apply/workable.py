@@ -12,7 +12,7 @@ import re
 
 from playwright.sync_api import Page
 
-from apply import fill_engine
+from apply import fill_engine, refused_submit
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.model import Answers, QuestionSet, Readback
@@ -41,8 +41,13 @@ class WorkableFiller:
         return fill_engine.fill(page, "workable", questions, answers, {"uploadWait": SHOWN_WAIT})
 
     def submit(self, page: Page) -> None:
+        """Press Submit and wait for Workable's confirmation. Its toast "Something went wrong. We are working on
+        this, please try again later." (Digital Control, Infleqtion, live 2026-11-27) is its refusal: nothing went
+        in, and it is handed over in its words."""
+        before = refused_submit.site_errors(page)
         page.locator(SUBMIT).click()
-        wait_for_confirmation(page, page.get_by_text(SUBMITTED).first.is_visible)
+        wait_for_confirmation(page, page.get_by_text(SUBMITTED).first.is_visible,
+                              refused=lambda: refused_submit.new_site_error(page, before))
 
 
 def _fresh(page: Page) -> None:
