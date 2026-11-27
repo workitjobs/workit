@@ -88,3 +88,18 @@ def test_the_ethnicity_box_and_the_race_list_get_their_own_choices_and_the_races
     assert "q11" not in plan.answers  # not Hispanic: its one box stays unticked
     assert ticked == {"q12": ["Asian"]}
     assert page.is_checked("#dq-option-5") and not page.is_checked("#dq-option-4")
+
+
+@pytest.mark.parametrize(("level", "signed"), [("careful", False), ("balanced", False), ("full_auto", True)])
+def test_oracles_e_signature_is_signed_only_at_full_auto(tmp_path, level, signed):
+    # BGC's Oracle form (live 2026-11-27): at full_auto its "E-Signature: Full Name" held the form for Lisul to sign.
+    (tmp_path / "profile.yaml").write_text((FIXTURES / "planner-profile.yaml").read_text())
+    (tmp_path / "policies.yaml").write_text(f"safety_level: {level}\n")
+    profile = ApplicantProfile.load(tmp_path / "profile.yaml", APPLY / "policies.default.yaml")
+    question = Question("q25", "E-Signature: Full Name", "text", True)
+
+    plan = fill_engine.plan([question], POSTING, profile, today=date(2026, 11, 27))
+
+    first, last = profile.get("identity.legal_first_name"), profile.get("identity.legal_last_name")
+    assert plan.answers.get("q25") == (f"{first} {last}" if signed else None)
+    assert plan.attestations == ({} if signed else {"q25": "E-Signature: Full Name"})

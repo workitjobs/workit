@@ -10,9 +10,9 @@ Student build, which reads no policies.yaml).
 - full_auto: balanced, and every certification, acknowledgment, release and consent box is ticked (truth
   certifications, "I have personally completed this application", reference and background-check releases, at-will,
   drug-test and security-check acknowledgments), a background check, drug screen or reference check an offer depends
-  on is agreed to, a self-ID form's signature is signed with the name and today's date, the review-only holds
-  (High-stakes essays, the Calibration run) are lifted, and a ready form auto-submits, essays and all (Lisul,
-  2026-11-27). A box that states a fact ("I have a valid driver's license") still follows the profile.
+  on is agreed to, an e-signature or self-ID form's signature is signed with the name and today's date, the
+  review-only holds (High-stakes essays, the Calibration run) are lifted, and a ready form auto-submits, essays and
+  all (Lisul, 2026-11-27). A box that states a fact ("I have a valid driver's license") still follows the profile.
 
 A level only sets each policy's default: a key the applicant's policies.yaml sets itself wins over its level.
 
@@ -77,7 +77,7 @@ SAID = {
     BALANCED: ("Balanced", "Apply ticks arbitration and privacy acknowledgments and answers opinion questions from your "
                            "own facts. Essays and your first ten Applications still wait for you."),
     FULL_AUTO: ("Full auto", "Apply also ticks every certification, acknowledgment and consent box, agrees to the "
-                             "background and drug checks an offer depends on, signs self-identification forms with your "
+                             "background and drug checks an offer depends on, signs e-signatures and self-identification forms with your "
                              "name and today's date, holds nothing "
                              "just for review, and (in a Developer checkout) submits a ready form after a 10-minute countdown."),
 }
