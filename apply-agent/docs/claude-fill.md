@@ -282,7 +282,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   gives it (`add_button`, `steps._the_add`, KAN-728). Where several visible buttons share that name
   (SmartRecruiters' "Add" in Experience and in Education, live 2026-11-27), the one pressed is the one whose
   part of the page (the widest around it with no other such button) has an aria-label or first heading with a
-  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff.
+  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff. The look crosses
+  shadow roots: SmartRecruiters' "Add" is an spl-button's own button, named by its host's aria-label ("Add experience
+  entry"), and a step's fields are read in shadow roots too (`steps.FIELDS_SHOWN`), where its spl-inputs hold them.
 
 ## Form pages
 
