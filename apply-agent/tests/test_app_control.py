@@ -126,6 +126,20 @@ def test_submit_through_the_folder_is_the_buttons_own_route_with_its_refusals(bo
     assert not list(tmp_path.iterdir())  # nothing left behind
 
 
+def test_resume_through_the_folder_goes_on_with_a_paused_form_and_says_why_it_cant(board, tmp_path):
+    """Fault: a form paused at a handoff (Oracle's sign-in, finished on its page) can't be resumed headless, or
+    Resume reaches a form whose tab is gone."""
+    board.update(0, company="Acme", role="Intern", posting_url=ACME, status="handoff", resume={"ok": True})
+    board.update(1, company="Globex", role="Intern", posting_url=GLOBEX, status="handoff",
+                 resume={"ok": False, "why": dashboard.TAB_CLOSED})
+
+    said = through(board, "resume", {"id": "tile-0"}, tmp_path)
+    assert said["status"] == 200 and said["message"].startswith("Resuming")
+    assert board.resumed(0) and not board.resumed(0)  # each press given once
+    refused = through(board, "resume", {"id": "tile-1"}, tmp_path)
+    assert refused == {"status": 409, "error": dashboard.TAB_CLOSED} and not board.resumed(1)
+
+
 def test_a_request_taken_too_late_does_nothing(board, tmp_path):
     """Fault: a submit the command gave up on is pressed later, when the window next looks."""
     held(board, 0, ACME)
@@ -187,14 +201,14 @@ def test_the_command_sends_each_buttons_own_body(monkeypatch, capsys, tmp_path):
     resume = tmp_path / "cv.pdf"
     resume.write_bytes(b"%PDF")
     for argv in (["answer", "1", "Resume", "--file", str(resume)], ["answer", "1", "When can you start?", "June"],
-                 ["stop", "--new-only"], ["stop"], ["stop", "--yes"], ["remove", ACME]):
+                 ["stop", "--new-only"], ["stop"], ["stop", "--yes"], ["remove", ACME], ["resume", "tile-0"]):
         with pytest.raises(SystemExit):
             cli.main(["window", *argv])
     capsys.readouterr()
     assert sent == [("answer", {"id": "1", "question": "Resume", "answer": "",
                                 "file": {"name": "cv.pdf", "data": "JVBERg=="}}),
                     ("answer", {"id": "1", "question": "When can you start?", "answer": "June"}),
-                    ("stop", {"new_only": True}), ("stop", {}), ("remove", {"link": ACME})]
+                    ("stop", {"new_only": True}), ("stop", {}), ("remove", {"link": ACME}), ("resume", {"id": "tile-0"})]
 
 
 def test_a_code_through_the_folder_reaches_the_run_once_with_its_case(board, tmp_path):

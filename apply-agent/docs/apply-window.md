@@ -59,7 +59,8 @@ docstring first.
     reason) and the path of its Record's `screenshot`. `applied` lists
     what WorkIt's Tracker says was applied to.
   - `submit <tile> --yes`, `cancel <tile>`, `skip <tile> --yes`,
-    `fill-again <tile>`, `answer <id> "<question>" "<answer>"` (or
+    `fill-again <tile>`, `resume <tile>` (a paused form, once its step
+    is done on its page), `answer <id> "<question>" "<answer>"` (or
     `--file <path>`), `remove <link>` and `stop --yes` (or `--new-only`)
     are the page's buttons. Each posts to the route its button posts to,
     through `Bridge.request` with the board's token, so it has the same
