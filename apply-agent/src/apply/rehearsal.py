@@ -685,7 +685,7 @@ def rehearse(
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
                                 answers, fill, resume=wants, sent=sent, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
-                                ask=asker, **holds())
+                                ask=asker, signing_in=done.outcome == SIGN_IN, **holds())
             finally:
                 asker.close()
                 unheld()
@@ -778,7 +778,7 @@ def rehearse(
                                     _email_code(adapters, done.posting.job_system, told),
                                     resume=(lambda page: adapters.board.resumed(n)) if offered else None,
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
-                                    ask=asker, **holds())
+                                    ask=asker, signing_in=done.outcome == SIGN_IN, **holds())
                     asker.close()
                     unheld()
                     if offered and (how == RESUME or not how and site.empty() and pressed_anyway()):
@@ -1887,7 +1887,7 @@ class _Kept:
              changed: Callable[[], None] = lambda: None, override: Callable[[], bool] = lambda: False,
              heal: "Callable[[object, list[refused_submit.FieldError]], bool]" = lambda page, found: False,
              unsent: Callable[[str], None] = lambda why: None, code_given: Callable[[], str] = lambda: "",
-             code_said: Callable[[str], None] = lambda why: None) -> str:
+             code_said: Callable[[str], None] = lambda why: None, signing_in: bool = False) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1937,6 +1937,9 @@ class _Kept:
         a Submit: Apply enters it in the code field with both guards on, reads every box back, and presses the form's
         Submit once (apply.code_box). `code_said(why)` says how it went: "" once the job site confirms it (and
         `submitted` runs), else why not (a wrong code, a field that doesn't fit, no confirmation in CONFIRM_S).
+        `signing_in`: the page is held at a sign-in ("needs sign-in"), before any Submit: a code given then is the
+        sign-in's (Oracle's "Confirm your identity"). Apply enters it with both guards on and presses that step's
+        own Verify, never a Submit (code_box.sign_in), and `resume(page)` goes on with the fill once it is signed in.
         "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
             return ""
@@ -2081,7 +2084,15 @@ class _Kept:
                             unsent(REFUSED.format(said=refused_submit.words(found)))
                     else:
                         unsent((STILL_REFUSED if retried else REFUSED).format(said=refused_submit.words(found)))
-                if given := code_given():
+                if (given := code_given()) and signing_in and not (pressed or kept or blocked):
+                    try:  # the sign-in's code: no application is sent, so no Submit is held for it (KAN-781)
+                        with driving():
+                            given, why = "", code_box.sign_in(
+                                self._page, given, lambda let: submit_guard.let_account_click(self._page, let))
+                    except Exception:
+                        given, why = "", code_box.NOT_ENTERED
+                    code_said(why)
+                if given:
                     why = (APPLIED_FIRST if blocked else PRESSED_ALREADY if kept else HELD_FIRST if holding
                            else "" if pressed or signing else code_box.NOT_SENT_YET)
                     if not why and not (boxes := code_box.code_field(self._page)):

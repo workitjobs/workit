@@ -281,7 +281,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                help="send it past the Pre-submit review's holds (Send anyway), for this reason, kept "
                                     "in its Record; every other check still stands")
     coded = window_commands.add_parser("code", help="enter the code the job site emailed (Greenhouse's security code) "
-                                                    "in the held form's code field and press its Submit, once")
+                                                    "in the held form's code field and press its Submit, once; or, "
+                                                    "held at a sign-in (Oracle's one-time code), sign in with it and "
+                                                    "go on filling, with no Submit pressed")
     coded.add_argument("tile", help="the job's `tile` (or its `id`) from `apply window state`, such as tile-0")
     coded.add_argument("code", help="the code from the email, exactly as it is: case counts")
     coded.add_argument("--yes", action="store_true", help="you mean it: Submit is pressed, and it can't be undone")
@@ -596,18 +598,22 @@ def _window_code(named: str, code: str, said: Callable[[dict], int], wait: float
     reply = app_control.ask("code", {"id": tile, "code": code})
     if int(reply.get("status") or 0) >= 400:
         return said(reply)
-    deadline = time.monotonic() + wait
+    deadline, signing_in = time.monotonic() + wait, False
     while time.monotonic() < deadline:
         time.sleep(every)
         job = next((j for j in jobs() if j.get("tile") == tile), None)
         if job is None:
             return said({"status": 200, "message": "The code went in; the form is no longer in the window."})
+        # Held at a sign-in (Oracle's emailed code): the code signs in, and the fill goes on; no Submit is pressed.
+        signing_in = signing_in or job.get("ask") == "sign-in"
         if job.get("status") == "submitted":
             return said({"status": 200, "message": "Sent: the job site confirmed the application.", "tile": tile})
         if job.get("code_said"):
             return said({"status": 409, "error": job["code_said"], "tile": tile})
         if not job.get("coding"):
-            return said({"status": 200, "message": "The code went in and Submit was pressed.", "tile": tile})
+            return said({"status": 200, "tile": tile, "message": "The code went in and signed you in: Apply goes on "
+                         "filling the form, and presses no Submit." if signing_in else
+                         "The code went in and Submit was pressed."})
     return said({"status": 504, "error": "The job site hasn't answered yet: read `apply window state` for how it went.",
                  "tile": tile})
 
