@@ -434,9 +434,13 @@ class ClaudeFill:
             except Handoff as stopped:
                 # Oracle's unconfirmed application, drawn once the read began: CONFIRM or REMOVE is Lisul's, and
                 # the ask says which Apply presses on his Approve (Emerson's, live 2026-11-27).
-                if not isinstance(stopped, Captcha) and oracle.unconfirmed(page):
+                if not isinstance(stopped, Captcha) and oracle.unconfirmed(page, oracle.UNCONFIRMED_WAIT):
                     raise Handoff(oracle.CONFIRM_ASK) from stopped
                 raise
+            # Before any closed or not-a-posting reading: Claude read the page, headed "You already applied for this
+            # job", as closed and it was skipped (Emerson's, live 2026-11-27, run38). It is Lisul's to confirm.
+            if oracle.unconfirmed(page, oracle.UNCONFIRMED_WAIT):
+                raise Handoff(oracle.CONFIRM_ASK)
             self._carried_checked = True
             self._read_posting_text(page)  # else what the form's own page says about the job
             questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))
