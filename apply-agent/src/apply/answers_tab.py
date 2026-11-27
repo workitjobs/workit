@@ -107,7 +107,8 @@ class AnswersTab:
         steps of 0.05, for a 3.86): kept in the bank with those options, as his, so only a list of just those options
         gets it, never every form that asks by that wording (Freeform, 2026-11-26). False, with nothing saved, for
         any other answer, which goes to his facts."""
-        from apply import fill_engine  # imported here: the engine's module imports the bank's, as this one does
+        # Imported here: the engine's module imports the bank's, as this one does.
+        from apply import fill_engine
         from apply.model import Posting, Question
 
         question, answer = _question(question), _answer(answer, choices=False)
