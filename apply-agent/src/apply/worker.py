@@ -394,14 +394,14 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     continue  # he did the captcha: the questions are read again, from the page he left
                 if handoff is not stopped:  # a bot block: at once, to his own Chrome, never paused for a Resume that retries
                     raise handoff from stopped
-                if isinstance(handoff, Blocked) or not (rehearse and on_pause(_handed_off(handoff), blocked)):
+                if isinstance(handoff, Blocked) or not (rehearse and on_pause(_handed_off(handoff, named=_names(filler)), blocked)):
                     raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
         planned.text = read or getattr(filler, "posting_text", "") or fetched
         # A Request on a job system with no Filler: its link named no company, but its open page did
         # (Claude fill). Planned with that name, "why <company>?" is the High-stakes essay it is.
         # Else its link's host, when it is a job site known to be one company's (amazon.jobs: Amazon).
-        company, title = getattr(filler, "names", None) or ("", "")
+        company, title = _names(filler)
         planned.posting = posting = replace(posting, company=posting.company or company or host_company(posting.url),
                                             title=posting.title or title)
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
@@ -444,7 +444,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # What it planned and what the page showed so far, for its Record: a step Workday won't
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
-                        stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
+                        stopped = _handed_off(handoff, named=_names(filler), missing=planned.missing, choices=planned.choices,
                                               left_behind=_left_behind(filler),
                                               required=planned.required, where=planned.where,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
@@ -625,7 +625,12 @@ def choices(question: Question) -> dict | None:
 
 def _company(posting: Posting, filler) -> str:
     """The company the link names, else the one its open page names (Claude fill), else its known host's."""
-    return posting.company or (getattr(filler, "names", None) or ("", ""))[0] or host_company(posting.url)
+    return posting.company or _names(filler)[0] or host_company(posting.url)
+
+
+def _names(filler) -> tuple[str, str]:
+    """The company and role the open page named (Claude fill), else none."""
+    return getattr(filler, "names", None) or ("", "")
 
 
 # Why a left-behind answer is not on the form (KAN-687).
