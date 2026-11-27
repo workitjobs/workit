@@ -569,15 +569,23 @@ def _answer(value: Any) -> Any:
     return Path(value["file"]) if isinstance(value, dict) and "file" in value else value
 
 
+def _as_shown(meant: Any, shown: Any) -> Any:
+    """`meant` in the form `shown` takes: a file by its name, and one choice as the one box ticked when the field reads
+    back its boxes. Honeywell's Yes/No pair (Oracle, live 2026-11-27) was read as a group of boxes, so its planned "No"
+    read back as ["No"], and the match was flagged."""
+    meant = meant.name if isinstance(meant, Path) else meant
+    return [meant] if isinstance(meant, str) and isinstance(shown, list) and len(shown) == 1 else meant
+
+
 def shows(shown: Any, meant: Any, accepted: tuple[str, ...] = ()) -> bool:
     """Whether a field showing `shown` shows the answer `meant`, or a wording of it in `accepted`."""
-    return call_without_page("shows", shown, meant.name if isinstance(meant, Path) else meant, list(accepted))
+    return call_without_page("shows", shown, _as_shown(meant, shown), list(accepted))
 
 
 def readback_problems(questions: QuestionSet, answers: Answers, readback: Readback,
                       accepted: dict[str, tuple[str, ...]] | None = None) -> list[str]:
     """Each answer the Readback doesn't show as meant: "<label>: meant <answer>, page shows <shown>"."""
-    named = {name: value.name if isinstance(value, Path) else value for name, value in answers.items()}
+    named = {name: _as_shown(value, readback.get(name)) for name, value in answers.items()}
     return call_without_page("readbackProblems", questions_arg(questions), named, readback,
                              {name: list(wordings) for name, wordings in (accepted or {}).items()})
 
