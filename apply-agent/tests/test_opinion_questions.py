@@ -49,10 +49,10 @@ def test_only_the_policy_answers_it_from_the_closest_facts():
 def test_its_plan_asks_nothing_and_keeps_only_the_backed_slots():
     held = "I designed the dashboard for example.com in Figma, styled after VS Code."
     planned = essays.Plan("preference", slots=(essays.Backed("closest-project", (held,)),))
-    asked = essays._backed(planned, held)
-    assert asked.asks and asked.slots == planned.slots  # careful: the unbacked pick is asked
+    asked = essays._backed(essays.Plan("preference"), held)
+    assert asked.asks and not asked.closest  # careful, and no slot backed: the pick is asked
     nearest = essays._backed(planned, held, nearest=True)
-    assert nearest.asks == () and nearest.slots == planned.slots
+    assert nearest.asks == () and nearest.slots == planned.slots and nearest.closest
 
 
 # Fault: a one-off opinion question dropped as a Missing fact though Claude answered it from the sources.

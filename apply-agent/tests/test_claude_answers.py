@@ -1199,23 +1199,25 @@ DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tr
 PICKED = "Buses park at angles in the depot, so rotated boxes kept two side-by-side buses apart."
 
 
-def proud_plan(decision: list[str], ask: str = "") -> dict:
-    """A best-project plan for PROJECT, its decision slot backed by `decision` (or asking `ask`)."""
+def proud_plan(decision: list[str], ask: str = "", others: bool = True) -> dict:
+    """A best-project plan for PROJECT, its decision slot backed by `decision` (or asking `ask`), and its other
+    required slots backed by a Story bank line (or, without `others`, by none)."""
     bank = home.STORY_BANK.read_text()
     line = next(line for line in bank.splitlines() if "YOLOv8-OBB detector" in line)[2:80]
-    slots = [{"slot": s.name, "quotes": [line], "ask": ""} for s in answering.load()["best-project"].slots
+    slots = [{"slot": s.name, "quotes": [line] if others else [], "ask": ""} for s in answering.load()["best-project"].slots
              if s.required is True and s.name != "decision"]
     return {PROJECT: {"type": "best-project", "slots": [*slots, {"slot": "decision", "quotes": decision, "ask": ask}]}}
 
 
 def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the_story_bank(monkeypatch):
     form, tracker = ResearchForm("Northwood Space"), InMemoryTracker()
-    waiting = proud_plan([], DECISION)
+    waiting = proud_plan([], DECISION, others=False)  # no line backs any of it: nothing to write it from
     first = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[waiting, waiting])
+    project = f"{answering.load()['best-project'].slots[0].holds}?"  # its first slot's question, asked first
 
     [row] = run_all(monkeypatch, form, first, ["Example Co"], tracker=tracker)
 
-    assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {DECISION}")
+    assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {project}")
     assert form.submitted == []
     assert not any(PROJECT in json.dumps(c["data"]["questions"]) for c in asks(first))  # not written
     tracker.answer(row.application_id, PICKED)
@@ -1223,10 +1225,25 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the
 
     [row] = run_all(monkeypatch, form, second, ["Example Co"], tracker=tracker)
 
-    assert f"- {DECISION} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
+    assert f"- {project} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
     assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from the Story bank
     assert row.status == "submitted", row.reason
     assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+
+
+def test_an_essay_the_story_bank_tells_in_part_is_written_from_it_never_held(monkeypatch):
+    # Veeva (2026-11-27): "jobs or projects you had as a younger person" waited on FIRST swerve facts the bank
+    # roughly covers. A story some line backs is written from the closest facts, never asked for the rest.
+    form = ResearchForm("Northwood Space")
+    partial = proud_plan([], DECISION)  # every slot but the decision backed
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[partial, partial])
+
+    [row] = run_all(monkeypatch, form, claude, ["Example Co"])
+
+    assert row.status == "submitted", row.reason
+    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+    [sent] = [q for c in asks(claude) for q in c["data"]["questions"].values() if q["label"].startswith(PROJECT)]
+    assert sent["closest_facts"] is True  # told to give the nearest facts in place of the missing ones
 
 
 def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with_it():
@@ -1751,15 +1768,16 @@ def test_a_slot_failing_its_check_is_planned_again_and_a_bad_optional_quote_is_l
 def test_an_essay_whose_required_slot_no_line_backs_waits_for_lisul_and_is_not_written():
     ask = "What do you do differently since the Hitachi feed deadline slipped?"
     failure = Question("c", "Tell us about a time you failed.", "textarea", True)
-    slots = [{"slot": s.name, "quotes": [FIX], "ask": ""} for s in answering.load()["failure"].slots if s.required is True]
-    slots = [s if s["slot"] != "habit" else {"slot": "habit", "quotes": [], "ask": ask} for s in slots]
+    # No line backs any of it (a partly backed story is written from what backs it): nothing to write it from.
+    slots = [{"slot": s.name, "quotes": [], "ask": ask if s.name == "habit" else ""}
+             for s in answering.load()["failure"].slots if s.required is True]
     claude = FakeClaude(essays={"Tell us about a time": "A failure.", "Why Figma?": OWN},
                         plans=[{"Tell us about a time": {"type": "failure", "slots": slots}}])
 
     why, failed = write_figma(claude, [SHORT_WHY, failure])
 
     assert len(plans(claude)) == 2  # asked again once, then it waits
-    assert failed.text == "" and failed.plan.asks == (f"Essay fact: {ask}",)
+    assert failed.text == "" and f"Essay fact: {ask}" in failed.plan.asks
     assert why.text == OWN and why.plan.asks == ()
     [drafted] = asks(claude)
     assert list(drafted["data"]["questions"]) == ["q1"]  # the failure essay isn't written
