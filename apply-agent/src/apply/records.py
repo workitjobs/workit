@@ -43,6 +43,7 @@ class Record:
     verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
     history: tuple[str, ...] = ()  # a rehearsal's pauses and Resumes, "HH:MM Paused: why", in order
     asks: tuple[dict, ...] = ()  # each Ask Claude message on the held form and how it went (apply.ask), in order
+    usage: dict | None = None  # the tokens its model calls used, by stage (apply.usage)
     briefs: tuple[tuple[str, str], ...] = ()  # (question, Recording brief) of each video Lisul records (apply.recording)
 
 
@@ -65,7 +66,8 @@ def record_files(record: Record) -> dict[str, bytes]:
     GitHub shows when the Record's link is opened, after-submit.png once the
     form was submitted, essays.md when Claude wrote any, verification.json
     once the form was verified, and page.html when the page's HTML was kept
-    (a plain Worker's), and asks.json when Lisul asked Claude to fix the form, with every secret answer cut out."""
+    (a plain Worker's), asks.json when Lisul asked Claude to fix the form, and usage.json when a model call
+    was made (apply.usage), with every secret answer cut out."""
     rows = [
         {"question": q.label.strip(), "field": q.name, "kind": q.kind, "planned": _shown(q, record.filled.answers.get(q.name)),
          "on_page": _shown(q, record.filled.readback.get(q.name))}
@@ -86,6 +88,8 @@ def record_files(record: Record) -> dict[str, bytes]:
         files["asks.json"] = (json.dumps(list(record.asks), indent=2, ensure_ascii=False) + "\n").encode()
     if record.verification is not None:
         files["verification.json"] = (json.dumps(record.verification, indent=2, ensure_ascii=False) + "\n").encode()
+    if record.usage:
+        files["usage.json"] = (json.dumps(record.usage, indent=2) + "\n").encode()
     return files
 
 

@@ -106,3 +106,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
+
+## What each stage costs
+
+Every model call counts its usage under its stage (`apply.usage`): research,
+plan, write, check, edit, review, fill, and the kind's own name for the rest
+(`probe.typical`, `brief.team`). Each stage keeps its calls, turns, input,
+output, cache-read and cache-write tokens, and its calls per model. A
+rehearsal's Record keeps them in `usage.json`, its summary line names the
+four biggest stages after its tokens ("351,014 tokens (research 290k, edit
+61k ×2)"), and each call's Trace line carries its own row. Measure a change
+to a prompt, a cap or a model by these rows, before and after.

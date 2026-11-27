@@ -30,7 +30,7 @@ from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 
-from apply import send_click, stuck, trace
+from apply import send_click, stuck, trace, usage
 from apply.adapters import (
     ClaudeError,
     Drive,
@@ -202,14 +202,16 @@ class ClaudeCLI:
         model, built = local_prompts.build(kind, data, best=first_run.best_model())
         if model == local_prompts.BEST:
             model = self._best_or_sonnet(kind)
-        return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema)
+        return self.ask(model=model, system=built.system, prompt=built.prompt, schema=built.schema, kind=kind)
 
-    def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
+    def ask(self, *, model: str, system: str, prompt: str, schema: dict, kind: str = "ask") -> dict:
+        """`kind` names the call in its usage (apply.usage)."""
         argv = _argv(model, system, schema)
         events = _events(self._run(argv, prompt, _env()))
         result = self._result(events)
         self._spend(sum((result.get("usage") or {}).get(k) or 0 for k in TOKENS))
-        trace.event("claude", block="ask", model=model, answer=result["structured_output"])
+        used = usage.add(kind, model, result.get("usage"))
+        trace.event("claude", block="ask", model=model, answer=result["structured_output"], usage=used)
         return result["structured_output"]
 
     def _best_or_sonnet(self, kind: str) -> str:
@@ -262,7 +264,7 @@ class ClaudeCLI:
                 "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
                 "--settings", send_click.settings(sys.executable, hook),  # a click on the button that sends is refused
             ])
-            return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens)
+            return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens, "drive", model)
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
                  max_tokens: int) -> Drive:
@@ -272,7 +274,7 @@ class ClaudeCLI:
         argv = _argv(model, system, schema, tools=WEB_TOOLS, extra=["--allowedTools", ",".join(WEB_TOOLS)])
         NEUTRAL.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=NEUTRAL) as folder:
-            return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens)
+            return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens, "research", model)
 
     def work(self, *, folder: Path, model: str, system: str, prompt: str, schema: dict, tools: list[str],
              allowed: list[str], max_turns: int, max_tokens: int, env: dict | None = None,
@@ -287,12 +289,15 @@ class ClaudeCLI:
         # Without the caller's virtualenv, `uv run` in `folder` uses the folder's own code (seen live:
         # a Repair's tests imported the checkout that started it).
         environment = {k: v for k, v in _env().items() if k != "VIRTUAL_ENV"} | (env or {})
-        return self._session(argv, prompt, environment, folder, max_turns, max_tokens)
+        return self._session(argv, prompt, environment, folder, max_turns, max_tokens, "work", model)
 
-    def _session(self, argv: list[str], prompt: str, env: dict, folder: Path, max_turns: int, max_tokens: int) -> Drive:
+    def _session(self, argv: list[str], prompt: str, env: dict, folder: Path, max_turns: int, max_tokens: int,
+                 kind: str = "drive", model: str = "") -> Drive:
         """Stream one call in `folder`; every turn's tokens (cache reads
-        included) count toward `max_tokens`. Past either cap it is stopped."""
+        included) count toward `max_tokens`. Past either cap it is stopped.
+        Its usage counts under `kind` (apply.usage)."""
         usage: dict[str, int] = {}  # tokens by assistant message; a message can come in several events
+        fields: dict[str, dict] = {}  # each assistant message's usage fields, for a session stopped at its cap
         events = []
         lines = self._stream(argv, prompt, env, folder)
         try:
@@ -302,8 +307,10 @@ class ClaudeCLI:
                 message = event.get("message") or {}
                 if event.get("type") == "assistant" and message.get("id"):
                     usage[message["id"]] = sum((message.get("usage") or {}).get(k) or 0 for k in TOKENS)
+                    fields[message["id"]] = message.get("usage") or {}
                     if len(usage) > max_turns or sum(usage.values()) > max_tokens:
                         self._spend(sum(usage.values()))
+                        _used(kind, model, _summed(fields), len(usage), capped=True)
                         return Drive(None, len(usage), sum(usage.values()), capped=True)
         finally:
             lines.close()
@@ -311,6 +318,7 @@ class ClaudeCLI:
         totals = result.get("usage") or {}
         tokens = sum(totals.get(k) or 0 for k in TOKENS) if totals else sum(usage.values())
         self._spend(tokens)
+        _used(kind, model, totals or _summed(fields), len(usage))
         return Drive(result.get("structured_output"), len(usage), tokens)
 
     def _result(self, events: list[dict]) -> dict:
@@ -383,6 +391,16 @@ class ClaudeCLI:
 
 # What a turn's usage counts toward a drive's cap.
 TOKENS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+
+
+def _summed(fields: dict[str, dict]) -> dict:
+    """The usage fields of every assistant message, added up."""
+    return {k: sum(int(f.get(k) or 0) for f in fields.values()) for k in TOKENS}
+
+
+def _used(kind: str, model: str, totals: dict, turns: int, capped: bool = False) -> None:
+    """Count one session's usage (apply.usage) and trace it."""
+    trace.event("claude", block="usage", capped=capped, usage=usage.add(kind, model, totals, turns=turns))
 
 
 def _argv(model: str, system: str, schema: dict, extra: list[str] = (), tools: list[str] = (),
