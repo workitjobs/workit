@@ -816,7 +816,13 @@ Find files with a directory listing; these are the rules for where code goes.
   the rules above, else a scraped job no feed lists (an added one, or one
   the feed closed: `job_with_link`, the same three rules), else a new
   **added job** (`add_job`: `added_by_student`, published, only company,
-  title and link). `track_only` takes any web link, not only a form auto
+  title and link, plus its logo sources: `services/added_logos.py` copies
+  `company_domain` and `company_logo_url` from a scraped posting of the
+  same company, whole name, case aside, else reads the employer's
+  registered domain and favicon from a link on its own site; a hiring
+  system's, job board's or other vendor's host gives none, or the card
+  drew initials for every job Apply recorded; tests
+  `tests/test_added_logos.py`). `track_only` takes any web link, not only a form auto
   apply fills; a closed job gets the application and stays closed, as it
   is (never reopened or retitled); and the application is saved unless one
   exists (`track`), where Write with Claude moves it to needs_you. New jobs
