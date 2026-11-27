@@ -175,3 +175,38 @@ def test_a_posting_link_without_apply_opens_the_form_page():
     posting = "https://jobs.lever.co/hermeus/5b08e2df-c9db-4831-aece-67d89e744796"
     assert LeverFiller().form_url(posting) == posting + "/apply"
     assert LeverFiller().form_url(posting + "/apply") == posting + "/apply"
+
+
+def _confirmed_at(url: str, html: str) -> bool:
+    """lever.confirmed of `html` served at `url`, as a page after Apply's press."""
+    from playwright.sync_api import sync_playwright
+
+    from apply.lever import confirmed
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.route("**/*", lambda route: route.fulfill(content_type="text/html", body=html)
+                   if route.request.url == url else route.abort())
+        page.goto(url)
+        seen = confirmed(page)
+        browser.close()
+    return seen
+
+
+def test_lever_thanks_and_a_companys_own_received_page_are_confirmations():
+    """Fault: Zoox's form sent the browser to Zoox's own "Application Received!" page, not Lever's /thanks, so a
+    sent application was handed over as one that may not have gone in (live, 2026-11-26)."""
+    posting = "https://jobs.lever.co/zoox/8b32157b-ab44-4078-85ea-1d8d7b747a20"
+    assert _confirmed_at(posting + "/thanks", "<title>Zoox</title><h3>Application submitted!</h3>")
+    assert _confirmed_at("https://zoox.com/careers/received", "<title>Application Received!</title><p>Thanks</p>")
+    assert _confirmed_at("https://zoox.com/careers/received", "<h1>Thank you for applying</h1>")
+
+
+def test_a_lever_form_or_a_page_that_says_no_such_thing_is_no_confirmation():
+    """Fault: the form itself, which a refusal or a captcha keeps on screen, or any page after it, reads as sent."""
+    posting = "https://jobs.lever.co/zoox/8b32157b-ab44-4078-85ea-1d8d7b747a20"
+    form = ('<title>Application submitted</title><h3>Application submitted!</h3>'
+            '<form id="application-form"><button>Submit application</button></form>')
+    assert not _confirmed_at(posting + "/apply", form)
+    assert not _confirmed_at("https://zoox.com/careers", "<title>Zoox careers</title><h1>Open roles</h1>")
