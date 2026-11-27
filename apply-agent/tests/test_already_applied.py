@@ -100,6 +100,22 @@ def test_a_record_with_its_after_submit_screenshot_is_already_applied(tmp_path):
     assert seen.of(posting("https://jobs.lever.co/bolt/1", id="request-0002")) is None
 
 
+def test_a_record_whose_readme_says_submitted_is_already_applied_without_its_screenshot(tmp_path):
+    """Fault: Astranis Backend, sent through its emailed code in run10, was saved as submitted with no
+    after-submit.png (its confirmation's screenshot failed), so run11 filled it again as new."""
+    sent = tmp_path / "rehearsals" / "2026-11-26" / "astranis-request-0003"
+    sent.mkdir(parents=True)
+    (sent / "README.md").write_text("# Astranis: Backend Intern\n\n- Posting: https://job-boards.greenhouse.io/a/jobs/1\n"
+                                    "- Application ID: request-0003\n- Status: held (Rehearsal, not submitted.)\n")
+    seen = check(tmp_path, WorkIt(workit.LIVE, tmp_path / "no-login.json", InMemoryKeychain()))
+
+    assert seen.of(posting(id="request-0003")) is None
+    (sent / "README.md").write_text("# Astranis: Backend Intern\n\n- Application ID: request-0003\n"
+                                    "- Status: submitted (You submitted it yourself from a rehearsal; Apply filled it)\n")
+    found = seen.of(posting(id="request-0003"))
+    assert found and found.on == date(2026, 11, 26)
+
+
 def test_the_window_says_already_applied_and_that_nothing_was_filled():
     shown = verdict({"status": "already applied",
                      "why": "Already applied on 2026-10-28 (your Applications Tracker on WorkIt: applied)"})
