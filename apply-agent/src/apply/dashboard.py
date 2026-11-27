@@ -83,6 +83,7 @@ JPEG_QUALITY = 70
 MODIFIERS = ("Alt", "Control", "Meta", "Shift")
 # The most an Answers tab edit may send: room for the longest answer, and no more.
 MAX_BODY = 256 * 1024
+OVERRIDE_MAX = 300  # characters of a Send anyway reason kept in the Record
 MAX_FILE = 15 * 1024 * 1024  # an answer that is a file, base64 in its JSON
 # Seconds the window's page has to load again after it goes away (a reload) before its window counts as closed.
 CLOSE_GRACE = 3.0
@@ -514,6 +515,12 @@ class Board(Protocol):
         press is given once."""
         ...
 
+    def override_given(self, worker: int) -> str:
+        """Why the student sends tile `worker`'s held form past what holds it (`POST /submit` with an `override`,
+        `apply window submit --override`), given with its Approve and submit: its legal holds are dismissed and the
+        reason goes in its Record. Each reason is given once; "" for none."""
+        ...
+
     def code_given(self, worker: int) -> str:
         """The emailed code the student gave for tile `worker`'s held form since it last asked (`POST /code`, its
         card's box or `apply window code`), for Apply to enter and send (apply.code_box); "" for none. Each is given
@@ -590,6 +597,9 @@ class NoBoard:
 
     def auto_cancel_asked(self, worker: int) -> bool:
         return False
+
+    def override_given(self, worker: int) -> str:
+        return ""
 
     def code_given(self, worker: int) -> str:
         return ""
@@ -718,6 +728,7 @@ class Dashboard:
         self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
         self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
         self._codes: dict[int, str] = {}  # the emailed code given for each tile's held form (code_given)
+        self._overrides: dict[int, str] = {}  # why the student sends each tile's held form anyway (override_given)
         self._cancelling: set[int] = set()  # the tiles whose Auto-submit countdown the student ended (auto_cancel_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._named: dict[str, dict] = {}  # each other waiting link's names, found in the background (names_by)
@@ -878,6 +889,7 @@ class Dashboard:
                 self._submitting.discard(worker)
                 self._cancelling.discard(worker)
                 self._codes.pop(worker, None)
+                self._overrides.pop(worker, None)
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
@@ -1008,9 +1020,12 @@ class Dashboard:
             self._submitting.discard(worker)
             return asked
 
-    def submit_form(self, key: str) -> str:
+    def submit_form(self, key: str, override: str = "") -> str:
         """Approve and submit, on a tile's held form ("tile-<k>", ADR 0006): Apply presses its Submit, once, and the
-        tile says how it went. Raises Refused when no form is held there, or it still needs the student's answers."""
+        tile says how it went. Raises Refused when no form is held there, or it still needs the student's answers.
+        `override` is the student's reason to send it past the Pre-submit review's holds (Send anyway): they are
+        dismissed and the reason is kept in its Record. Nothing else gives way to it."""
+        override = " ".join(str(override or "").split())[:OVERRIDE_MAX]
         k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
         with self._lock:
             if not 0 <= k < self._workers:
@@ -1023,6 +1038,8 @@ class Dashboard:
                 raise Refused("It still needs your answers: answer them, then approve it.", 409)
             caption["submitting"], caption["submit_said"] = True, ""
             self._submitting.add(k)
+            if override:
+                self._overrides[k] = override
             caption["auto_at"] = None  # approved before Auto-submit's countdown ran out: the countdown ends
         return "Submitting it."
 
@@ -1031,6 +1048,10 @@ class Dashboard:
             asked = worker in self._cancelling
             self._cancelling.discard(worker)
             return asked
+
+    def override_given(self, worker: int) -> str:
+        with self._lock:
+            return self._overrides.pop(worker, "")
 
     def code_given(self, worker: int) -> str:
         with self._lock:
@@ -1940,14 +1961,14 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(403, {"error": "Only the Apply window may submit a form."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
-            key = str(body["id"])
+            key, override = str(body["id"]), str(body.get("override") or "")
         except (ValueError, KeyError, TypeError, AttributeError):
             return self._json(400, {"error": "Not a form to submit."})
         try:
-            message = self.dashboard.submit_form(key)
+            message = self.dashboard.submit_form(key, override)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Approved and submitting, in the window ({key})")
+        print(f"Approved and submitting, in the window ({key})" + (f", sent anyway: {override}" if override.strip() else ""))
         self._json(200, {"message": message})
 
     def _enter_code(self) -> None:

@@ -132,6 +132,7 @@ THANKS = re.compile(r"thank you for (applying|your application|submitting)|appli
                     r"|we['’]ve received your application|successfully submitted", re.IGNORECASE)
 # The reason of a Tracker row for an Application Lisul submitted himself from a rehearsal.
 SUBMITTED_BY_LISUL = "You submitted it yourself from a rehearsal; Apply filled it"
+SENT_ANYWAY = "; sent past the Pre-submit review's hold: {}"  # after SUBMITTED_BY_LISUL, with the student's reason
 # What a held page's hold() ends on, besides "" (closed): Lisul pressed Fill again, or Resume.
 AGAIN, RESUME = "again", "resume"
 # A rehearsal that ruled Lisul out (Not eligible, Closed) offers this button on its tile: the form is filled all the
@@ -152,6 +153,8 @@ FINAL = re.compile(r"\b(submit|send)\b", re.IGNORECASE)
 # Approve and submit (ADR 0006): why Apply didn't press Submit, and a press the job system never confirmed.
 APPLIED_FIRST = "You applied here before: dismiss that note on the form first, if you mean to apply again."
 HELD_FIRST = "Submit is held on the form: dismiss its red note first, or fix the answer it names."
+# A stay press (apply.keepalive) holds it, which Send anyway never lifts: unlike HELD_FIRST, the window offers none.
+SESSION_HELD = "Submit is held while Apply kept the job site's session open: dismiss the note on the form first."
 PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
 CONFIRM_S = 120
 CODE_STALE_S = 6.0  # a wrong-code message that showed before a code's press counts again only after this long
@@ -230,6 +233,7 @@ class Rehearsed:
     # (label, answer) of each answer that came after its step was saved without it (KAN-687): the hold fills each
     # on its own step once, through the window's in-place fill, and lists it as left blank till then.
     left_behind: tuple[tuple[str, object], ...] = ()
+    overridden: str = ""  # the student's reason to send it past the Pre-submit review's holds (Send anyway)
 
     def holding(self) -> str:
         """What holds Submit on the held page now: each legal problem Lisul hasn't dismissed; "" for none."""
@@ -487,6 +491,16 @@ def rehearse(
                 pass  # the data folder unwritable: the tile and the push said it
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
+        def overridden() -> bool:
+            """Whether the student sent this form anyway with its Approve and submit (Send anyway, `--override`): its
+            legal holds are dismissed, and the reason is kept for its Record."""
+            reason = getattr(adapters.board, "override_given", lambda k: "")(n)
+            if reason:
+                done.dismiss_holds()
+                done.overridden = reason
+                out(f"{done.posting.company or done.title or url}: sent anyway past the Pre-submit review: {reason}")
+            return bool(reason)
+
         def holds() -> dict:
             """What holds Submit on the held page (Rehearsed.holding), with its note, and the keeper of its
             session (apply.keepalive), for hold()."""
@@ -502,7 +516,7 @@ def rehearse(
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep,
                     "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
-                    "approved": approved, "changed": auto.stop,
+                    "approved": approved, "changed": auto.stop, "override": overridden,
                     "code_given": lambda: getattr(adapters.board, "code_given", lambda k: "")(n),
                     "code_said": lambda why: adapters.board.update(n, coding=False, code_said=why)}
 
@@ -1364,13 +1378,19 @@ def _record_asked(done: Rehearsed, changed: list[dict], adapters: Adapters) -> N
         done.why = "; ".join(filter(None, [done.why, f"Record not saved again: {error}"]))
 
 
+def _submitted_reason(done: Rehearsed) -> str:
+    """The Tracker's and the Record's reason for a form the student sent: with their Send anyway reason, if any."""
+    return SUBMITTED_BY_LISUL + (SENT_ANYWAY.format(done.overridden) if done.overridden else "")
+
+
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
     """Keep an Application Lisul submitted from a rehearsal in the Tracker as
     submitted, so no run applies to it again. Returns what to tell him."""
     if tracker is None:
         return "you submitted it; no Tracker to keep it in"
     posting = rehearsed.posting
-    fields = {"status": Status.SUBMITTED, "date_applied": today, "reason": SUBMITTED_BY_LISUL, "record": rehearsed.record}
+    fields = {"status": Status.SUBMITTED, "date_applied": today, "reason": _submitted_reason(rehearsed),
+              "record": rehearsed.record}
     try:
         if tracker.get(posting.id):
             tracker.update(posting.id, **fields)
@@ -1392,7 +1412,7 @@ def _keep_confirmation(page, done: Rehearsed, adapters: Adapters) -> str:
             shot = page.screenshot(full_page=True)
         except Exception:
             shot = b""  # the window went first: the Record still says submitted
-        saved = replace(done.saved, status=Status.SUBMITTED, reason=SUBMITTED_BY_LISUL,
+        saved = replace(done.saved, status=Status.SUBMITTED, reason=_submitted_reason(done),
                         filled=replace(done.saved.filled, after_submit=shot or done.saved.filled.after_submit))
         try:
             done.record, done.saved = adapters.records.save(saved), saved
@@ -1641,7 +1661,8 @@ class _Kept:
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
              keep: "keepalive.Keeper | None" = None, approve: Callable[[], bool] = lambda: False,
              approved: Callable[[str, bool], None] = lambda why, handoff: None,
-             changed: Callable[[], None] = lambda: None, code_given: Callable[[], str] = lambda: "",
+             changed: Callable[[], None] = lambda: None, override: Callable[[], bool] = lambda: False,
+             code_given: Callable[[], str] = lambda: "",
              code_said: Callable[[str], None] = lambda why: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
@@ -1681,6 +1702,8 @@ class _Kept:
         CONFIRM_S, and no captcha or refusal to explain it, is `approved(UNCONFIRMED, True)`: it may have gone in,
         so it is the student's, and Apply never presses it again. `changed()` runs whenever Apply changes an answer on
         the page (one from the window, a regenerated one, Ask Claude's): Auto-submit's countdown ends.
+        `override()`, read with each Approve, is whether the student sent it anyway (`--override`, Send anyway): the
+        form's legal holds are dismissed first, so only a session hold (apply.keepalive) still stops the press.
         `code_given()` is the emailed code the student gave in the window (`POST /code`, `apply window code`), after
         a Submit: Apply enters it in the code field with both guards on, reads every box back, and presses the form's
         Submit once (apply.code_box). `code_said(why)` says how it went: "" once the job site confirms it (and
@@ -1699,6 +1722,7 @@ class _Kept:
                     final.append(words)
             if code:
                 code.pressed(words)
+        form_held = held  # the Pre-submit review's holds alone, which Send anyway lifts (a stay press's it doesn't)
         if keep:  # a stay press holds Submit too, until his Dismiss, which takes back both (apply.keepalive)
             held_by_form, dismiss_form = held, dismiss
             held = lambda: held_by_form() or keep.holding()
@@ -1779,7 +1803,11 @@ class _Kept:
                 if let_go():  # Not applying to this one: let go, as if its window closed
                     return ""
                 if approve():
-                    why = APPLIED_FIRST if blocked else HELD_FIRST if holding else PRESSED_ALREADY if pressed or kept else ""
+                    if override() and holding and (now := held()) != holding:
+                        holding = now
+                        renote(self._page, *(note() if note else (warning, wrong)), holding)
+                    why = (APPLIED_FIRST if blocked else (HELD_FIRST if form_held() else SESSION_HELD) if holding
+                           else PRESSED_ALREADY if pressed or kept else "")
                     if not why:
                         try:
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it

@@ -69,6 +69,10 @@ docstring first.
     the window's second question. `add <link>...` sends links through
     `app-inbox`, as `apply app <link>` does: the window takes them once
     signed in and set up.
+  - `submit <tile> --yes --override "<reason>"` is the card's Send
+    anyway: it sends a form past the Pre-submit review's holds (a legal
+    answer it flagged) and keeps the reason in the Record. Every other
+    refusal stands.
   - `code <tile-or-id> <CODE> --yes` enters the code a job site emailed
     after Submit (Greenhouse's eight case-sensitive boxes) and presses
     Submit again: POST /code, the same as the card's "Paste the code from

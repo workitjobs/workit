@@ -246,3 +246,48 @@ def test_the_code_command_asks_yes_then_waits_for_the_job_sites_answer(monkeypat
     with pytest.raises(SystemExit) as done:
         cli.main(["window", "code", "tile-3", "OxNbtPnI", "--yes"])
     assert done.value.code == 0 and "confirmed" in capsys.readouterr().out
+
+
+def test_send_anyway_hands_its_reason_to_the_run_once_and_nothing_else_gives_way(board, tmp_path):
+    """Fault: an override reason is lost on the way (the Record never says why it was sent), handed to the run twice
+    or to the next form on the tile, or lets a form still missing a required answer through."""
+    held(board, 0, ACME, missing=["When can you start?"], required={"When can you start?": True})
+    held(board, 1, GLOBEX)
+
+    refused = through(board, "submit", {"id": "tile-0", "override": "The pay is mine"}, tmp_path)
+    assert refused["status"] == 409 and not board.override_given(0)
+    assert through(board, "submit", {"id": "tile-1", "override": "  $30/hr is\nmy policy  "}, tmp_path)["status"] == 200
+    assert board.submit_asked(1) and board.override_given(1) == "$30/hr is my policy" and board.override_given(1) == ""
+
+    assert through(board, "submit", {"id": "tile-1", "override": "again"}, tmp_path)["status"] == 200
+    board.update(1, status="filling")  # the next Application on the tile: none of the last one's reason
+    assert board.override_given(1) == ""
+
+
+def test_the_submit_command_sends_its_override_and_never_an_empty_one(monkeypatch, capsys):
+    """Fault: `apply window submit --override` drops its reason, or sends one with no words in it."""
+    from apply import app_window, cli
+
+    sent = []
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    monkeypatch.setattr(app_control, "ask", lambda action, body=None: sent.append((action, body)) or {"status": 200})
+    with pytest.raises(SystemExit):
+        cli.main(["window", "submit", "tile-2", "--yes", "--override", "Pay from policies.yaml"])
+    with pytest.raises(SystemExit) as empty:
+        cli.main(["window", "submit", "tile-2", "--yes", "--override", "  "])
+    assert empty.value.code == 1 and "needs a reason" in capsys.readouterr().out
+    assert sent == [("submit", {"id": "tile-2", "override": "Pay from policies.yaml"})]
+
+
+def test_a_form_sent_anyway_says_why_in_its_tracker_row():
+    """Fault: a form the student sent past the review's hold is kept as any other sent form, so no one can tell."""
+    from apply import rehearsal
+    from apply.model import Posting
+    from apply.tracker import InMemoryTracker
+
+    done = rehearsal.Rehearsed(Posting(id="a1", company="Relay", title="SWE Intern", url=ACME),
+                               rehearsal.READY, overridden="Pay from policies.yaml")
+    tracker = InMemoryTracker()
+    rehearsal._keep_submission(tracker, done, None)
+    assert tracker.get("a1").reason == rehearsal.SUBMITTED_BY_LISUL + "; sent past the Pre-submit review's hold: " \
+                                       "Pay from policies.yaml"

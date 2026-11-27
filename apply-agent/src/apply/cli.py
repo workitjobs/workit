@@ -276,6 +276,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
         if name in ("submit", "skip"):
             acted.add_argument("--yes", action="store_true", help="you mean it: it can't be undone")
+        if name == "submit":
+            acted.add_argument("--override", metavar="REASON", default="",
+                               help="send it past the Pre-submit review's holds (Send anyway), for this reason, kept "
+                                    "in its Record; every other check still stands")
     coded = window_commands.add_parser("code", help="enter the code the job site emailed (Greenhouse's security code) "
                                                     "in the held form's code field and press its Submit, once")
     coded.add_argument("tile", help="the job's `tile` (or its `id`) from `apply window state`, such as tile-0")
@@ -552,6 +556,10 @@ def _window(args) -> int:
     body: dict = {}
     if command in ("submit", "cancel", "skip", "fill-again"):
         body = {"id": args.tile}
+        if command == "submit" and args.override:
+            if not args.override.strip():
+                return said({"status": 400, "error": "--override needs a reason: it is kept in the Record."})
+            body["override"] = args.override
     elif command == "code":
         return _window_code(args.tile, args.code, said)
     elif command == "answer":
