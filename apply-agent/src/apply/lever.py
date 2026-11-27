@@ -3,6 +3,8 @@ Question set from its /apply page's HTML, fill the form, attach the one-pager
 and read every field back. Submitting stays here.
 """
 
+import re
+
 from playwright.sync_api import Page
 
 from apply import fill_engine
@@ -30,7 +32,24 @@ class LeverFiller:
         wait_for_confirmation(page, lambda: confirmed(page))
 
 
+# Lever's application form. A page that still has it was never sent on: refused in the page, sending, or a captcha.
+FORM = "form#application-form"
+# A heading or title that says the application went in. Lever's own /thanks says "Application submitted!"; a company
+# can send the browser to a page of its own instead (Zoox's "Application Received!", live 2026-11-26, whose
+# confirmation email came while the tile said it may not have gone in).
+THANKS = re.compile(r"application (has been |was )?(submitted|received)|thank(s| you) for (applying|your application)",
+                    re.IGNORECASE)
+
+
 def confirmed(page: Page) -> bool:
-    """Whether Lever shows its page for a submitted application."""
-    return page.url.split("?")[0].endswith("/thanks")
+    """Whether Lever shows its page for a submitted application (its /thanks link), or the page a company has Lever
+    send the browser to after the submit: no application form on it, and a title or heading that says it went in."""
+    try:
+        if page.url.split("#")[0].split("?")[0].rstrip("/").endswith("/thanks"):
+            return True
+        if page.locator(FORM).count():
+            return False
+        return bool(THANKS.search(page.title())) or page.locator("h1, h2, h3, h4").filter(has_text=THANKS).first.is_visible()
+    except Exception:
+        return False  # a page loading, or gone
 
