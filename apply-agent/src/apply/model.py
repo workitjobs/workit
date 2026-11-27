@@ -68,7 +68,8 @@ class Question:
     `description` is the help text the form shows under the label ("3-4
     sentences"), as plain text; `max_length` the most characters the field
     takes, when the form says; `section` the heading or intro the form shows
-    just before it, when the form reader finds one. None tells two Questions apart."""
+    just before it, when the form reader finds one; `url` that the field takes
+    only a web address. None tells two Questions apart."""
 
     name: str
     label: str
@@ -78,6 +79,7 @@ class Question:
     description: str = field(default="", compare=False)
     max_length: int | None = field(default=None, compare=False)
     section: str = field(default="", compare=False)
+    url: bool = field(default=False, compare=False)  # it takes only a web address (Ashby's Url, type="url")
 
 
 # Every question one Posting's form asks, read before the form is opened.

@@ -701,9 +701,11 @@ def answers_arg(answers: Answers) -> dict:
 
 def question_set(questions: list[dict]) -> QuestionSet:
     """Questions as the engine gives them, with the form's help text, character
-    limit and section heading when the engine reads them."""
+    limit and section heading when the engine reads them, and whether the field
+    takes only a web address."""
     return [Question(q["name"], q["label"], q["kind"], q["required"], tuple(q["options"]),
-                     q.get("description") or "", q.get("maxLength") or q.get("max_length"), q.get("section") or "")
+                     q.get("description") or "", q.get("maxLength") or q.get("max_length"), q.get("section") or "",
+                     q.get("url") is True)
             for q in questions]
 
 

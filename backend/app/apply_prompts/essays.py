@@ -54,6 +54,8 @@ class Question(BaseModel):
     description: Text = ""
     max_length: int | None = Field(default=None, ge=1)
     section: Text = ""
+    # The field takes only a web address (Ashby's Url field, an input of type="url"): its answer is one bare URL.
+    url: bool = False
 
 
 def _known(kind: str) -> str:
@@ -201,6 +203,9 @@ LEAN_PLAN = """Only the types these questions were matched to are listed: keep e
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
+# A field that takes only a web address: the browser drops any other text (Circleback's "What can we look at?",
+# 2026-11-26, got "URL : prose", even though its description asked what part was theirs).
+URL_ONLY = "web address field: the answer is one bare URL from <links> or the sources, with no other words"
 
 DESCRIBED = 400  # characters of a question's description Claude is shown
 
@@ -265,7 +270,7 @@ def _ask(q: Question) -> str:
     label = one_line(q.label)
     asked = f"{label} (write the cover letter)" if is_cover_letter(q) else label
     about = [_described(q), "required" if q.required else "optional", q.kind in FIELDS and f"{FIELDS[q.kind]} field",
-             q.max_length and f"at most {q.max_length} characters"]
+             q.max_length and f"at most {q.max_length} characters", q.url and URL_ONLY]
     return f"{asked} [{'; '.join(filter(None, about))}]"
 
 def _described(q: Question) -> str:
@@ -314,6 +319,8 @@ def _short(q: Question, about: str | None = None) -> dict:
         shown["field"] = FIELDS[q.kind]
     if q.max_length:
         shown["max_length"] = q.max_length
+    if q.url:
+        shown["field"] = URL_ONLY
     if q.options and not _unread(q):
         shown["options"] = list(q.options)
         if q.kind == "multi_select":

@@ -208,6 +208,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     written, drafted = given.get("essays") or {}, given.get("drafts") or {}
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
+    texts |= {key: bare_url(texts[key]) for key, q in keys.items() if q.url}  # a web address field takes one URL only
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
                                        description.block(posting, posting_text)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
@@ -226,6 +227,9 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     if over := _over_cap(checked, texts):  # one shorter rewrite; still over a stated cap, the worker keeps it off the form
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
+        failed = _gate(checked, texts)
+    if urls := {key: bare_url(texts[key]) for key, q in keys.items() if q.url and texts[key] != bare_url(texts[key])}:
+        texts |= urls  # the editor's pass may have put words back around it
         failed = _gate(checked, texts)
     own = own_facts(profile, types.values(), posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
@@ -256,10 +260,10 @@ def _redone(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, 
 
 def _sent(q: Question, kind: str | None = None) -> dict:
     """`q` as a kind's data holds it (backend/app/apply_prompts/essays.py's Question), with its Question
-    type when it is an essay."""
+    type when it is an essay, and `url` only for a field that takes only a web address."""
     return {"label": q.label, "kind": q.kind, "required": q.required, "options": list(q.options),
             "description": q.description, "max_length": q.max_length, "section": q.section} | (
-        {"type": kind} if kind else {})
+        {"type": kind} if kind else {}) | ({"url": True} if q.url else {})
 
 
 def _sameness(company: str, types: Mapping[str, str], defaults: Mapping[str, str], letters: set[str]):
@@ -875,12 +879,23 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
         usable = bool(picked) and len(picked) == (len(answer) if isinstance(answer, list) else 1)
         answer = picked
     else:
-        answer = str(answer or "").strip()
+        answer = bare_url(str(answer or "")) if q.url else str(answer or "").strip()
         usable = bool(answer) and (answer in choices if choices else not [
             c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
     if given.get("needs_lisul") is True or not usable:
         return Draft(q, "", needs_lisul=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
+
+
+URL = re.compile(r"https?://[^\s<>\"'()]+")
+
+
+def bare_url(text: str) -> str:
+    """The one web address in an answer for a field that takes only one (Question.url), without the words
+    around it; "" when it holds none, or more than one. Circleback's (Ashby, 2026-11-26) got "URL : prose",
+    which the browser dropped."""
+    found = list(dict.fromkeys(m.group().rstrip(".,;:!?") for m in URL.finditer(text)))
+    return found[0] if len(found) == 1 else ""
 
 
 def _facts(named: object, profile: ApplicantProfile) -> tuple[str, ...]:

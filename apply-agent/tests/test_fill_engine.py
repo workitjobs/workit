@@ -140,6 +140,7 @@ def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
     assert (question.description, question.max_length) == ("Please answer in 3-4 sentences.", 1500)
     [bare] = fill_engine.question_set([{k: v for k, v in found.items() if k not in ("description", "maxLength")}])
     assert (bare.description, bare.max_length) == ("", None)
+    assert not bare.url and fill_engine.question_set([found | {"url": True}])[0].url  # Ashby's Url field
 
 
 def engine_bundle(**env):

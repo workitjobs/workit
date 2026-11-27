@@ -106,6 +106,19 @@ def test_a_cover_letter_is_written_in_its_slots_and_a_choice_from_its_options():
     assert area == {"type": "array", "items": {"type": "string", "enum": ["Backend", "ML"]}, "maxItems": 2}
 
 
+def test_a_web_address_field_is_asked_for_a_bare_url():
+    # Circleback (Ashby, 2026-11-26): its Url field got "URL : prose", which the browser dropped.
+    site = {"label": "What can we look at?", "kind": "text", "url": True,
+            "description": "Share a link and tell us what part was yours."}
+    data = SAMPLES["essays.write", 1] | {"short_questions": {"d1": site},
+                                          "questions": {"q1": WHY | {"label": "Your project", "url": True}},
+                                          "plans": {"q1": PLANNED}}
+    kind = KINDS["essays.write", 1]
+    built = kind.build(kind.data.model_validate(data))
+    assert built.prompt.count(essays.URL_ONLY) == 2
+    assert essays.URL_ONLY not in _built(("essays.write", 1)).prompt
+
+
 @pytest.mark.parametrize("change", [
     {"questions": {"q1": WHY | {"type": "write-my-homework"}}, "plans": {"q1": PLANNED}},
     {"plans": {"q1": PLANNED}},  # q2 has no plan

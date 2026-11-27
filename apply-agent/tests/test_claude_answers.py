@@ -2019,3 +2019,26 @@ def test_with_a_hosted_model_the_one_off_questions_go_in_an_essays_write_call_of
 
     assert [(bool(c["data"]["questions"]), bool(c["data"]["short_questions"])) for c in asks(claude)] == [
         (True, False), (False, True)]
+
+
+def test_a_web_address_field_gets_only_a_bare_url(monkeypatch):
+    # Circleback (Ashby, 2026-11-26): "What can we look at?" is type="url", and the writer gave it "URL : prose",
+    # which the browser dropped on readback, twice.
+    claude = FakeClaude()
+    posting = Posting("p", "Circleback", "Software Engineer Intern", "https://jobs.example.com/1")
+    site = Question("site", "What can we look at?", "text", True, description="A link, and what part was yours.",
+                    url=True)
+    asked = "https://github.com/test/solver : the maze solver, which I wrote myself."
+
+    def ask_kind(kind, data):
+        claude.kinds.append({"kind": kind, "data": data})
+        return {"drafts": {"d1": {"answer": asked, "needs_lisul": False, "facts": []}}}
+    claude.ask_kind = ask_kind
+
+    _, [draft] = essays.answer(claude, posting, [], [site], ApplicantProfile.load(PROFILE, POLICIES))
+
+    assert draft.answer == "https://github.com/test/solver" and not draft.needs_lisul
+    assert claude.kinds[-1]["data"]["short_questions"]["d1"]["url"] is True
+    assert essays.bare_url("See https://a.example/x and https://b.example/y.") == ""  # which one is meant: unsure
+    assert essays.bare_url("The solver, which I wrote.") == ""
+    assert essays._sent(replace(site, url=False)).get("url") is None  # the server's older data takes no url key
