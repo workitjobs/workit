@@ -20,7 +20,7 @@ work_authorization:
 voluntary_self_id:
   veteran: I don't wish to answer
   # Kept empty, as the template keeps them: an empty fact is none, so these stay blank. A fact the profile
-  # doesn't keep at all is asked as an optional question (KAN-759).
+  # doesn't keep at all is left blank too when optional, never asked.
   gender:
   hispanic_or_latino:
   race:
