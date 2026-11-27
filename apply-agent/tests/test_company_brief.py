@@ -402,6 +402,63 @@ def test_a_section_that_found_few_facts_is_researched_again_after_7_days():
     assert edited.researched == []  # a fact Lisul deleted never makes the section thin
 
 
+def test_the_budgeted_research_asks_for_fewer_facts_within_its_searches():
+    assert "8 to 10 specific facts, with at most 16 searches" in brief.BUDGET_SYSTEM and "8 to 12" in brief.SYSTEM
+    assert all(words in brief.BUDGET_SYSTEM for words in ("3 or 4 engineering", "2 or 3 product", "1 or 2 customer",
+                                                           "1 people fact", "up to 3 more facts"))
+    assert brief.SEARCHES < brief.BUDGET_TURNS < brief.MAX_TURNS
+
+
+class Widening(FakeClaude):
+    """Finds `narrow` within the research budget and `wide` without it."""
+
+    def __init__(self, narrow, wide):
+        super().__init__(brief=narrow)
+        self.wide = wide
+
+    def research(self, **call):
+        done = super().research(**call)
+        return done if call["system"] == brief.BUDGET_SYSTEM else Drive({"facts": [dict(f) for f in self.wide]}, 8, 200_000)
+
+
+def test_research_is_in_full_unless_the_policy_sets_a_budget():
+    claude = FakeClaude(brief=[EMDASH])
+
+    brief.brief(CLOUDFLARE, PAGES, claude, TODAY)
+
+    assert claude.researched == ["<company>Cloudflare</company>"] and claude.budgeted == []
+
+
+def test_a_budgeted_section_short_of_own_facts_is_researched_once_more_in_full():
+    short = Widening([EMDASH], [EMDASH, X402, WORKERD])
+
+    facts = brief.brief(CLOUDFLARE, PAGES, short, TODAY, budget=True)
+
+    assert short.budgeted == short.researched == ["<company>Cloudflare</company>"]
+    assert all(name in facts for name in ("EmDash", "x402", "workerd"))
+    enough = Widening([EMDASH, X402, WORKERD], [])
+    brief.brief(CLOUDFLARE, PAGES, enough, date(2027, 6, 1), budget=True)
+    assert enough.budgeted == ["<company>Cloudflare</company>"] and enough.researched == []
+
+
+def test_a_team_kept_under_a_longer_name_is_found_by_its_words():
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH], team="Engineering - Workers Runtime", team_brief=[WORKERD]), TODAY)
+
+    same = FakeClaude(team="Workers Runtime", team_brief=[X402])
+    facts = brief.brief(CLOUDFLARE, PAGES, same, TODAY)
+
+    assert same.researched == [] and "workerd" in facts and kept().count("## Team:") == 1
+
+
+def test_a_team_sharing_only_one_word_with_a_kept_one_is_researched_on_its_own():
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH], team="Workers Runtime", team_brief=[WORKERD]), TODAY)
+
+    other = FakeClaude(team="Runtime", team_brief=[X402])
+    brief.brief(CLOUDFLARE, PAGES, other, TODAY)
+
+    assert other.researched == ["<company>Cloudflare</company>\n<team>Runtime</team>"] and kept().count("## Team:") == 2
+
+
 def test_a_deleted_section_is_researched_again():
     brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH]), TODAY)
     (brief.BRIEFS / "cloudflare.md").write_text("# Cloudflare\n")
