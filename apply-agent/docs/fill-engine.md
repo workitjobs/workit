@@ -118,8 +118,11 @@ stays blank and unticked, and the form holds with a "Yours to tick:
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
 `src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
 or data consent ("I agree to the privacy policy", the terms of a company's
-privacy notice) still follows `tick_consent_when_true`, and one solely a
-background-check consent `willing_to_undergo_checks`. Anything more beside
+privacy notice, its personal data protection regulation) still follows
+`tick_consent_when_true`, and one solely a background-check consent
+`willing_to_undergo_checks`. A consent's own "Confirm" and "Deny" are its
+Yes and No (Minitab's), and a "Terms and Conditions" heading over a privacy
+consent is only the section's name (DV Trading's, 2026-11-26). Anything more beside
 it in its label or help text makes the whole box Lisul's: a second thing
 joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
 non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
@@ -195,10 +198,10 @@ holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
 
 An optional question whose rule reads a profile fact that the profile
-doesn't keep at all goes in `Plan.optional` (KAN-759). Apply asks it in
-Needs you with a Skip, and never holds the form for it
-(`docs/held-forms.md`). A fact the profile keeps empty is none: the field
-stays blank and is never asked. An empty answer in `answered_questions`
+doesn't keep at all is left blank (`NO_SOURCE`), or No for a Yes/No, and
+never asked (2026-11-26, replacing KAN-759's ask; `docs/held-forms.md`).
+`Plan.optional` is always empty. A fact the profile keeps empty is none:
+the field stays blank. An empty answer in `answered_questions`
 is Lisul's Skip: an optional question of that wording stays blank. Address
 Line 2 and 3 are blank when the home address has a first line and no such
 line. Tax District is `identity.home_address.tax_district`, else blank
@@ -275,6 +278,10 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
+Lisul's answer that names a city the question's options or the Posting's
+Location line offer (ENFOS's "Willing to relocate to Durham or Chicago for
+the summer") is saved as `"<question> (<company> only)"` (the engine's
+`remember`), so it fills that company's forms and no other's.
 
 ## amazon.jobs (KAN-765)
 

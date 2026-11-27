@@ -1084,12 +1084,19 @@ class _Planned:
         """A Missing fact Result for the first required one of `missing`, in
         form order, then of `asks` (what an essay asks Lisul for,
         apply.essays.ASK); a rehearsal lists them all instead and goes on. An
-        optional one never stops the form: it is listed, with its Skip. A question Apply already
+        optional one is never asked: no fact of his is behind it, so it is left blank (Lisul, 2026-11-26),
+        unless a Resume stopped Claude from answering it on the page. A question Apply already
         holds the answer to (apply.asking.known) never reaches him: a text
         field gets that answer, and an ask is dropped. Each one asked has its
         context line (apply.asking): its step, the question it follows and its
         pair, or the essay it is for."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
+        # An optional one he hasn't been told about (an "If you chose ..." follow-up, a draft Claude can't write from his
+        # facts) never interrupts him: it is left blank, as a planned one is.
+        unasked = {q.name for q in missing if not q.required and q not in self._yours}
+        if unasked:
+            self.left |= unasked
+            missing = [q for q in missing if q.name not in unasked]
         found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
                  and (facts := asking.known(q.label, self.profile, self._bank, self.posting.company))}
         if found:
@@ -1111,7 +1118,7 @@ class _Planned:
                 self.where[q.label.strip()] = "\n".join(filter(None, [self.where.get(q.label.strip(), ""), shown]))
         if self._rehearse and self.missing != was:
             self._on_missing(self.missing, self.choices, self.required, self.where)
-        # An optional one never stops a run: the form is filled without it, and verifying notes it (KAN-759).
+        # Only a required one stops a run; what an optional essay asks him is listed, and the form goes on.
         if (stops := [asked for asked in self.missing if self.required.get(asked, True)]) and not self._rehearse:
             question = stops[0]
             where = self.where.get(question, "")

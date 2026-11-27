@@ -55,6 +55,18 @@ def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_pat
     assert fill_engine.readback_problems([shell], planned.answers, {"q1": "bash"}, planned.accepted)
 
 
+def test_his_own_bank_answer_beats_the_profiles_reading_of_a_yes_no(tmp_path):
+    # Etched's Ashby (rehearsal, 2026-11-26): the graduation rule typed a date into this Yes/No, and his own No was ignored.
+    label = ("Are you open to starting full-time immediately after your internship? "
+             "(either graduated or willing to take time off from school)")
+    asked = Question("q1", label, "textarea", True)
+    path = tmp_path / "answer-bank.yaml"
+    path.write_text(json.dumps({label.lower(): {"question": label, "answer": "Yes", "source": "lisul", "reviewed": True}}))
+
+    assert fill_engine.plan([asked], POSTING, PROFILE).answers["q1"] in ("Yes", "No")  # never a date
+    assert fill_engine.plan([asked], POSTING, PROFILE, AnswerBank(path)).answers["q1"] == "Yes"
+
+
 def test_an_engine_error_comes_back_as_apply_own():
     try:
         fill_engine.call_without_page("parseQuestions", "bamboohr", "")
@@ -140,6 +152,21 @@ def test_the_options_lisul_picked_for_a_missing_multi_select_are_each_ticked():
     fill_engine.remember(profile, POSTING, question, "Austin; Denver")  # as the Inbox joins his picks
 
     assert fill_engine.plan([question], POSTING, profile).answers["q1"] == ["Austin", "Denver"]
+
+
+def test_a_needs_you_answer_naming_the_postings_offices_is_kept_for_that_company_only():
+    # ENFOS (2026-11-26): this answer was kept by the bare wording, so it answered every company's location question.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("logistics.willing_to_relocate_for_summer", None)
+    relocate = "Willing to relocate to Durham or Chicago for the summer"
+    question = Question("q1", "Where are you currently located?", "select", True,
+                        ("In or near Durham, NC", "In or near Chicago, IL", relocate))
+    enfos = Posting("p", "ENFOS", "Software Engineer Intern", "https://job-boards.greenhouse.io/enfos/jobs/1")
+    fill_engine.remember(profile, enfos, question, relocate)
+
+    assert profile.answered("Where are you currently located?") is None
+    assert profile.answered("Where are you currently located? (ENFOS only)") == relocate
+    assert fill_engine.plan([question], enfos, profile).answers["q1"] == relocate
 
 
 def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():

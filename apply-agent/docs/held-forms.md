@@ -542,29 +542,35 @@ company.
 
 **Tests.** `tests/test_other_roles.py`.
 
-## An optional question no source answers (KAN-759)
+## An optional question no source answers
 
-Lisul answers optional questions too (Lisul, 2026-11-10: "if it's optional
-and i can provide it then it should prompt me for it"), but never one about
-a fact that can't exist for him ("if it's something that doesn't exist then
-don't prompt me for it").
+Replaced 2026-11-26 (the product owner's rule, for every student): a
+question the student hasn't been told about is assumed No, or left blank.
+It never goes to Needs you. KAN-759 had asked each optional fact that may
+exist for him ("if it's optional and i can provide it then it should
+prompt me for it", 2026-11-10); that ask is gone.
 
-- The engine's plan lists each such question in `Plan.optional`: a rule's
-  profile fact that the profile doesn't keep at all. A fact the profile keeps
-  empty (`line2: ""`, `minors: []`) is none: blank, never asked. The rules
-  for Address Line 2 and 3 and for Tax District (its table of local taxes,
-  `src/local-tax.ts` in the engine) leave those blank where the home has none
-  (`docs/fill-engine.md`). A one-off question that Claude can't answer goes
-  to Lisul as before, marked Optional by the form's own flag.
-- `_Planned.add` passes `Plan.optional` to `_missing` with the Missing facts.
-  A rehearsal lists them all. A run stops only for a required one
-  (`self.required`): an optional one is left blank and the form goes on.
-- Verifying (`verify._blanks`) notes an asked optional field that is still
-  blank (`OPTIONAL_UNANSWERED`). The note holds nothing.
-- The tile (`dashboard.verdict`) makes only the required questions a Missing
-  fact. With only optional ones left, it says `OPTIONAL_ASK`, after any real
-  flag or check, and the item's `optional` list puts their answer boxes on
-  the card whatever its kind.
+- The engine leaves an optional question blank when no source holds its
+  fact (`NO_SOURCE`), or answers No to a Yes/No one. An optional question
+  only he could answer (references, IDs, pay, criminal history) is blank
+  too. `Plan.optional` is always empty. A required Yes/No about his own
+  ties or history that the profile doesn't record (worked for, applied
+  to, relatives at the company, a relative who is a public official) is
+  No, never a Missing fact (`docs/fill-engine.md`).
+- A follow-up whose condition the answer before it doesn't meet ("If
+  yes, ...", "If other, ...", "If you chose X, Y, or Other, please
+  specify", Braze's after a LinkedIn answer) is blank, or N/A when
+  required.
+- `_Planned._missing` drops every optional question before it asks: a
+  draft Claude can't write from his facts, or a follow-up its answer
+  calls for. Each joins `self.left`, so verifying never flags it. Only a
+  question a Resume stopped Claude from answering (`self._yours`) is
+  still asked when optional. A required one is still a Missing fact.
+- Genuinely personal essays, attestations and signatures (KAN-676) and
+  the demographic questions keep their own rules.
+- The tile's `OPTIONAL_ASK` and the card's Skip stay for records from
+  before the change.
+
 - The card has a **Skip (leave blank)** button. It posts an empty answer to
   `/answer`, which calls the window's `answer` with `""`. `cli._answering`
   then saves the Skip as an empty answer in the profile's
