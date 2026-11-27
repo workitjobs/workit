@@ -1123,6 +1123,15 @@ _TEMPLATE = r"""
     const pop = up(n, '[role=dialog], dialog, [aria-modal=true]');
     return !!pop && !visibly(pop);
   };
+  // A shut cookie preference center's box: OneTrust's, left in the page once its banner is closed (Emerson's Oracle
+  // site, live 2026-11-27), with a tick per cookie group and an empty vendor search box. No person sees it, and a tick
+  // there is a cookie's, never an answer. Only a tick or an empty box, in OneTrust's own center no one sees, counts.
+  const cookieBox = (n) => {
+    const center = up(n, '#onetrust-pc-sdk');
+    if (!center || visibly(center) || visibly(n) || tag(n) !== 'INPUT') return false;
+    const kind = lower(typeOf(n));
+    return kind === 'checkbox' || (test(/^(text|search)$/, kind) && valueOf(n) === '' && text(attr(n, 'value')) === '');
+  };
   const loginForm = (form) => {
     const all_ = fields(form);
     let named = false;
@@ -1143,7 +1152,7 @@ _TEMPLATE = r"""
     for (let i = 0; i < boxes.length; i++) {
       const n = boxes[i];
       if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
-      if (formOf(n) === form || trap(n)) continue;
+      if (formOf(n) === form || trap(n) || cookieBox(n)) continue;
       return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
     }
     // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one

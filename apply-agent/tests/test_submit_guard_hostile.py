@@ -903,6 +903,14 @@ GET_FORM_PAGES = {
     "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": {START: _LOGIN_DRESS.replace(
         "<button id=b>", """<label for=hp>For robots only</label><input id=hp name=why value=Because
         style="position:absolute;width:1px;height:0;border:0;padding:0"><button id=b>""") % ""},
+    # Emerson's Oracle site (live 2026-11-27): OneTrust's preference center stays in the page, shut, once its banner is
+    # closed, with a tick per cookie group and an empty vendor search box; neither is an answer. A box there no one
+    # sees that holds an answer still is.
+    "a GET form dressed as a sign-in step beside a shut cookie preference center": {START: _LOGIN_DRESS
+        % """<div id=onetrust-pc-sdk style="display:none"><input type=checkbox id=ot-group-id-C0003 role=switch checked>
+        <input id=vendor-search-handler type=text value=""><input id=select-all-vendor-groups-handler type=checkbox></div>"""},
+    "a GET form dressed as a sign-in step beside a shut cookie preference center's box that holds an answer": {
+        START: _LOGIN_DRESS % '<div id=onetrust-pc-sdk style="display:none"><input name=why value=Because></div>'},
     # Round 5: a GET application with a password box (one that makes an account as it applies); and a declarative
     # root that code inside it listens on, its form submitted by a Next the page turns into a submit as it is
     # clicked, or by an Enter with no button at all.
@@ -920,7 +928,8 @@ PAGES |= GET_FORM_PAGES
 LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script",
                                  "a GET form dressed as a sign-in step beside an empty bot trap",
                                  "a GET form dressed as a sign-in step with a bot trap inside it",
-                                 "a GET form dressed as a sign-in step beside a shut pop-up's empty text box"})
+                                 "a GET form dressed as a sign-in step beside a shut pop-up's empty text box",
+                                 "a GET form dressed as a sign-in step beside a shut cookie preference center"})
 BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
           "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
@@ -1304,7 +1313,9 @@ PATH_FOR = {"a frame that forges the extension's touch": "the account click",
             "a GET form dressed as a sign-in step beside a bot trap whose markup holds an answer": "the account click",
             "a GET form dressed as a sign-in step beside a shut pop-up's text box that holds an answer": "the account click",
             "a GET form dressed as a sign-in step beside an empty text box no one sees in no pop-up": "the account click",
-            "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": "the account click"}
+            "a GET form dressed as a sign-in step with a box inside it no one sees that holds an answer": "the account click",
+            "a GET form dressed as a sign-in step beside a shut cookie preference center's box that holds an answer":
+                "the account click"}
 # Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
 # and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
 DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
