@@ -18,7 +18,9 @@ its facts stay, marked unchecked, and are never an essay's Named fact.
 Facts come from the company's own
 pages; press facts from the same call fill in only when fewer than MIN_OWN
 own facts pass (a site that blocks plain fetches), and never with a number. A section is researched again once it
-is older than FRESH (company 90 days, team 30), or deleted. Lisul may edit
+is older than FRESH (company 90 days, team 30), or deleted. A kept team
+section is found by its name's words (_find): "Engineering - Unreal Engine"
+is the team a later Posting calls "Unreal Engine". Lisul may edit
 or delete any line; the essays read the file as it is.
 
 Everything the research read is web text: the brief reaches the essay writer
@@ -398,8 +400,27 @@ def fresh(body: str, today: date, scope: str) -> bool:
 
 
 def _find(sections: dict[str, str], heading: str) -> str | None:
-    """The kept heading that is `heading`, whatever its case."""
-    return next((h for h in sections if h.casefold() == heading.casefold()), None)
+    """The kept heading that is `heading`, whatever its case; for a team, else the kept team whose name's words
+    (TEAM_WORDS left out) are the same as its own, or hold all of them when it has two or more: "Engineering -
+    Unreal Engine" for "Unreal Engine", "Network/Payload Software" for "Network/Payload" (Epic and Astranis, each
+    researched again under a second name). One word alone ("Software") never matches a longer name."""
+    if found := next((h for h in sections if h.casefold() == heading.casefold()), None):
+        return found
+    if not heading.startswith(TEAM):
+        return None
+    words = _team_words(heading)
+    return next((h for h in sections if h.startswith(TEAM) and (kept := _team_words(h)) and words and (
+        kept == words or (len(words) >= 2 and words < kept) or (len(kept) >= 2 and kept < words))), None)
+
+
+TEAM = "Team: "
+# Words that name no team by themselves: "Engineering - Unreal Engine" is the Unreal Engine team.
+TEAM_WORDS = {"team", "teams", "engineering", "engineer", "software", "group", "and", "the", "of", "for", "intern",
+              "internship", "department", "division", "org", "organization"}
+
+
+def _team_words(heading: str) -> frozenset[str]:
+    return frozenset(w for w in re.findall(r"[a-z0-9]+", heading.removeprefix(TEAM).casefold()) if w not in TEAM_WORDS)
 
 
 def slug(company: str) -> str:

@@ -380,6 +380,24 @@ def test_the_company_section_is_researched_again_after_90_days_and_a_team_after_
     assert at_90.researched == ["<company>Cloudflare</company>"] and "x402" in facts and "EmDash" not in facts
 
 
+def test_a_team_kept_under_a_longer_name_is_found_by_its_words():
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH], team="Engineering - Workers Runtime", team_brief=[WORKERD]), TODAY)
+
+    same = FakeClaude(team="Workers Runtime", team_brief=[X402])
+    facts = brief.brief(CLOUDFLARE, PAGES, same, TODAY)
+
+    assert same.researched == [] and "workerd" in facts and kept().count("## Team:") == 1
+
+
+def test_a_team_sharing_only_one_word_with_a_kept_one_is_researched_on_its_own():
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH], team="Workers Runtime", team_brief=[WORKERD]), TODAY)
+
+    other = FakeClaude(team="Runtime", team_brief=[X402])
+    brief.brief(CLOUDFLARE, PAGES, other, TODAY)
+
+    assert other.researched == ["<company>Cloudflare</company>\n<team>Runtime</team>"] and kept().count("## Team:") == 2
+
+
 def test_a_deleted_section_is_researched_again():
     brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH]), TODAY)
     (brief.BRIEFS / "cloudflare.md").write_text("# Cloudflare\n")
