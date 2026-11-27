@@ -61,9 +61,9 @@ class Row(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    question: Line
+    question: Answer  # a certification's label can run past a line (CesiumAstro's is over 2,000 characters)
     answer: Answer | list[Line] | None = None  # an essay read back can run past a line
-    ticked: list[Line] | None = None
+    ticked: list[Answer] | None = None
     options: list[Line] | None = Field(default=None, max_length=MAX_ROWS)
     his_own_answer: Literal[True] | None = None
 
