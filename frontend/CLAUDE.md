@@ -214,10 +214,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`/onboarding/applicant?step=extension`, which leads to Practice --
   `/extension-setup`'s "I Already Have One" button sends a signed-out
   visitor through this, not plain `/login`, so a student who already
-  finished onboarding keeps a route back to Practice instead of landing
-  on /home with no way there, KAN-495; `login/actions.ts`): never widen
-  it to any path, which would make the
-  sign-in page an open redirect. The list is `lib/sign-in-next.ts`, which
+  finished onboarding keeps a route (not plain `/home` with no way there,
+  KAN-495; `login/actions.ts`): never widen it to any path, which would
+  make the sign-in page an open redirect. **A finished seeker never
+  actually sees the Extension step again** (KAN-864,
+  `onboarding/applicant/page.tsx`): that page redirects `?step=extension`
+  straight to `/home?installed=1` once `account.onboarding_completed` is
+  true, before `./steps.ts`'s `startStep` ever runs, and Home's
+  `InstalledToast` (`(seeker)/home/installed-toast.tsx`) shows a one-time
+  "extension installed" toast there and strips the param. Only a seeker
+  still finishing onboarding reaches the wizard's Extension step through
+  this `next` value. The extension-setup page's own buttons (Create Your
+  Account, I Already Have One) are plain relative paths, so they always
+  resolve against whatever origin served that page, never a hardcoded or
+  build-time host; its optional "Connect your Claude" card links to
+  `/connect/claude/add` rather than calling `claudeConnectorLink()`
+  directly, since `/extension-setup` prerenders (confirmed in `npm run
+  build`'s route table, `○`) and a build-time read of `API_URL` would bake
+  in whatever host built the page -- the same class of bug KAN-368 fixed
+  on `/docs/mcp`. The list is `lib/sign-in-next.ts`, which
   the Google and LinkedIn sign-ins started on `/login` use too: Google's
   flow cookie carries `next` to `auth/google/callback`, and LinkedIn's
   `redirectTo` carries it to `auth/callback`, which follows it besides
