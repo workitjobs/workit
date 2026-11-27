@@ -84,6 +84,7 @@ FORM = """
   <label for="first-name">First Name</label><input id="first-name">
   <label for="last-name-field">Last Name</label><input id="last-name-field">
   <label for="phone">Phone Number</label><input id="phone">
+  <label for="email">Email Address</label><input id="email" readonly value="test.person@example.com">
   <label for="resume">Resume</label><input id="resume" type="file">
 </form>
 <div class="apply-flow-pagination"><div class="apply-flow-pagination__buttons">

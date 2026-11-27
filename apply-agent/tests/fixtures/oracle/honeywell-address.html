@@ -4,7 +4,7 @@ once the country was picked, cut down to its cascading geography fields in Oracl
 address: City, State, County and Zip Code are cx-select boxes that list nothing until searched. City lists
 "<city>, <county>, <state>" by what is typed; County and Zip Code then list only the picked city's. The page's
 script stands in for Oracle's search: it answers a moment after the typing, and a picked option shows its first
-part in the box. -->
+part in the box and reads as selected in its list. -->
 <html><head><meta charset="utf-8"><title>Job Application</title>
 <style>
   body { font: 14px sans-serif; width: 640px; }
@@ -73,6 +73,8 @@ part in the box. -->
 <script>
 // Oracle's geography search, made up: every city, its county and state, and its zip codes.
 const PLACES = [
+  ['Aurora', 'Kane', 'IL', ['60505']],
+  ['Bloomington', 'McLean', 'IL', ['61701']],
   ['Springfield', 'Sangamon', 'IL', ['62701', '62702', '62703']],
   ['Springfield', 'Clark', 'OH', ['45501', '45502']],
   ['Springfield', 'Hampden', 'MA', ['01103']],
@@ -80,13 +82,15 @@ const PLACES = [
   ['Shelbyville', 'Shelby', 'IL', ['62565']],
 ];
 const city = () => PLACES.find(([name, county, state]) => document.body.dataset.city === `${name}, ${county}, ${state}`);
-// What each box lists for the words typed in it: nothing until searched, as Oracle's does for 500+ places.
+// What each box lists for the words typed in it; with none typed, only its first places, as Oracle's lists the first
+// 500 of thousands ("Abbeville, SC" on).
 function listed(box, typed) {
-  const starts = (name) => typed && name.toLowerCase().startsWith(typed.toLowerCase());
+  const FIRST = 2;
+  const starts = (name, at) => typed ? name.toLowerCase().startsWith(typed.toLowerCase()) : at < FIRST;
   if (box.name === 'city') return PLACES.map(([n, c, s]) => `${n}, ${c}, ${s}`).filter(starts);
   const [name, county, state, zips] = city() || ['', '', '', []];
-  if (box.name === 'region1') return (county ? [`${county}, ${state}`] : ['Sangamon, IL', 'Shelby, IL', 'Clark, OH']).filter(starts);
-  if (box.name === 'postalCode') return zips.map(zip => `${zip}, ${name}`).filter(starts);
+  if (box.name === 'region1') return (county ? [`${county}, ${state}`] : ['Clark, OH', 'Hampden, MA', 'Sangamon, IL', 'Shelby, IL']).filter(starts);
+  if (box.name === 'postalCode') return zips.map(zip => `${zip}, ${name}, ${county}, ${state}`).filter(starts);
   return ['IL', 'MA', 'NY', 'OH'].filter(starts);
 }
 let open = null, timer = null;
@@ -110,12 +114,14 @@ function draw(box) {
     option.setAttribute('role', 'option');
     option.className = 'cx-select__list-item';
     option.textContent = name;
+    option.setAttribute('aria-selected', String(box.dataset.chosen === name));
     option.addEventListener('click', () => choose(box, name));
     list.appendChild(option);
   }
   box.closest('.input-row__control-container').appendChild(list);
 }
 function choose(box, name) {
+  box.dataset.chosen = name;
   box.value = name.split(',')[0];
   if (box.name === 'city') document.body.dataset.city = name;
   box.dispatchEvent(new Event('change', {bubbles: true}));

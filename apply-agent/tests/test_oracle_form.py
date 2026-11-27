@@ -206,4 +206,38 @@ def test_a_search_list_option_fits_by_its_first_part_then_by_the_parts_the_plan_
     assert claude_fill._fitting(names, "Springfield", {"sangamon", "il"}) == ["Springfield, Sangamon, IL"]
     assert claude_fill._fitting(names, "Springfield", {"il"}) == []
     assert claude_fill._fitting(names, "Springfield Gardens", set()) == ["Springfield Gardens, Queens, NY"]
-    assert claude_fill._fitting(("62701, Springfield",), "62701", set()) == ["62701, Springfield"]
+    assert claude_fill._fitting(("62701, Springfield, Sangamon, IL",), "62701", set()) == ["62701, Springfield, Sangamon, IL"]
+    assert claude_fill._fitting(names, "Springfield, Clark, OH", {"il"}) == ["Springfield, Clark, OH"]
+
+
+def test_the_first_places_a_search_list_shows_unsearched_are_never_read_as_its_choices_and_the_plan_fills_it(address):
+    # Live (Honeywell, run 24): opened with nothing typed, County listed its first 500 ("Abbeville, SC" on); read as
+    # its choices, the plan found the applicant's county among none of them, and City, County and Zip Code went blank.
+    # And "Address: County", asked as the home address's, was planned the whole address.
+    questions = [Question("q42", "Address: City", "select", True), Question("q43", "Address: State", "select", True),
+                 Question("q44", "Address: County", "select", True), Question("q45", "Address: Zip Code", "select", True)]
+
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set_answered("County", "Sangamon")  # the applicant's county, as Apply keeps it
+
+    found = claude_fill._with_options(address, questions)
+    plan = fill_engine.plan(found, POSTING, profile, today=date(2026, 11, 27))
+    picked = claude_fill._pick_in_comboboxes(address, found, plan.answers)
+
+    assert [q.options for q in found] == [(), (), (), ()]
+    assert {name: plan.answers.get(name) for name in ("q42", "q43", "q44", "q45")} == \
+        {"q42": "Springfield", "q43": "IL", "q44": "Sangamon", "q45": "62701"}
+    assert picked == {"q42": "Springfield", "q43": "IL", "q44": "Sangamon", "q45": "62701"}
+    assert address.evaluate("document.body.dataset.city") == "Springfield, Sangamon, IL"
+
+
+def test_a_place_answered_as_its_whole_option_is_picked_once_and_never_pressed_again(address):
+    # Lisul answered City "<city>, <county>, <state>", the whole option, but the box shows only the city: read as
+    # unpicked, Claude opened the list again, where a click on the picked option empties the box.
+    city = [Question("q42", "Address: City", "select", True)]
+    whole = {"q42": "Springfield, Clark, OH"}
+
+    assert claude_fill._pick_in_comboboxes(address, city, whole) == whole
+    assert address.evaluate("document.body.dataset.city") == "Springfield, Clark, OH"
+    assert claude_fill._pick_in_comboboxes(address, city, whole) == whole
+    assert address.input_value("#city-57") == "Springfield"

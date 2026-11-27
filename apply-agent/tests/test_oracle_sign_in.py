@@ -23,6 +23,8 @@ QUESTIONS = [
     {"label": "First Name", "kind": "text", "required": True, "options": []},
     {"label": "Last Name", "kind": "text", "required": True, "options": []},
     {"label": "Phone Number", "kind": "text", "required": True, "options": []},
+    # Locked once signed in, as Oracle locks it: a fill of it failed, and every other field of the batch with it.
+    {"label": "Email Address", "kind": "text", "required": True, "options": []},
     {"label": "Resume", "kind": "file", "required": True, "options": []},
 ]
 
@@ -72,6 +74,9 @@ def test_an_oracle_posting_is_signed_in_to_with_the_code_mailed_to_gmail_then_fi
     assert server.tried_codes == server.codes_sent  # the code from Gmail, typed once
     [sent] = server.submissions
     assert sent.application["first-name"] == "Test"
+    asked = [f["question"] for p in claude.prompts if "<fields>" in p
+             for f in json.loads(re.search(r"<fields>(.*?)</fields>", p, re.DOTALL)[1])]
+    assert "Email Address" not in asked and "Phone Number" in asked  # shown already, and locked
     assert sent.files["resume"] == (FIXTURES / "one-pager.pdf").read_bytes()
     assert world.tracker.employer_accounts() == []  # an emailed code is not an account
 
