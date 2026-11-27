@@ -173,3 +173,9 @@ def test_the_plan_the_draft_and_the_editor_never_name_workit_or_its_tools():
     assert "Also list every mention of WorkIt" in _built(("writing.check", 1)).system
     assert _built(("essays.plan", 1)).system.index("Never name WorkIt") < _built(("essays.plan", 1)).system.index(
         essays.TYPES_HEAD)
+
+
+def test_the_editor_and_the_check_hold_an_unknown_status_to_the_sources():
+    # Qumulo, 2026-11-26: "neither got there" where the Story bank says "production status unknown".
+    assert "the answer says no more than they do" in _built(("writing.edit", 1)).system
+    assert "whether the answer says it happened or that it never did" in _built(("writing.check", 1)).system
