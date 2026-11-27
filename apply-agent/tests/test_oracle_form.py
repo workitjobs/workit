@@ -8,11 +8,12 @@ import pytest
 from conftest import APPLY, FIXTURES
 from playwright.sync_api import sync_playwright
 
-from apply import claude_fill, fill_engine
+from apply import claude_fill, fill_engine, send_button
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
 STEP = FIXTURES / "oracle" / "honeywell-step.html"
+LAST_STEP = FIXTURES / "oracle" / "bgc-last-step.html"
 PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
 POSTING = Posting("p", "Honeywell Aerospace", "Embedded Engineering Intern",
                   "https://icfcjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Aerospace/job/120770")
@@ -103,3 +104,36 @@ def test_oracles_e_signature_is_signed_only_at_full_auto(tmp_path, level, signed
     first, last = profile.get("identity.legal_first_name"), profile.get("identity.legal_last_name")
     assert plan.answers.get("q25") == (f"{first} {last}" if signed else None)
     assert plan.attestations == ({} if signed else {"q25": "E-Signature: Full Name"})
+
+
+@pytest.fixture
+def last_step():
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.goto(LAST_STEP.as_uri())
+        yield page
+        browser.close()
+
+
+def test_oracles_own_submit_on_the_last_step_is_read_by_plain_code(last_step):
+    # BGC's form (live 2026-11-27): 33 of 33 fields filled, then Haiku named no button that sends beside Oracle's
+    # Submit, whose words come from i18n, and the fill was a Handoff instead of held at its last step.
+    assert claude_fill._last_step_submit(last_step) == "Submit"
+    assert last_step.evaluate(send_button.FIND) == ["Submit"]  # the one button Approve and submit presses
+
+
+def test_a_step_without_oracles_submit_names_none(page):
+    assert claude_fill._last_step_submit(page) == ""
+
+
+@pytest.mark.parametrize("change", [
+    "b => b.disabled = true",  # a required answer missing: Oracle keeps it disabled (isSubmitEnabled)
+    "b => b.hidden = true",
+    "b => b.querySelector('span').textContent = 'Save'",  # words that send nothing
+    "b => b.after(b.cloneNode(true))",  # two of them: never a guess between them
+])
+def test_oracles_submit_is_named_only_when_one_shows_enabled_and_its_words_send(last_step, change):
+    last_step.locator(claude_fill.LAST_STEP_SUBMIT).evaluate(change)
+
+    assert claude_fill._last_step_submit(last_step) == ""
