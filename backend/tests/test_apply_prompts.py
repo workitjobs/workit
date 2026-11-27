@@ -33,6 +33,9 @@ SAMPLES = {
     ("presubmit.review", 1): {"posting": "<posting>Acme</posting>",
                               "rows": [{"question": "Tools", "ticked": ["Go"], "options": ["Go", "Rust"]},
                                        {"question": "Password", "answer": "(secret)"}]},
+    ("presubmit.fix", 1): {"posting": "<posting>Acme</posting>", "sources": SOURCES,
+                           "rows": [{"question": "Which state do you live in?", "answer": "Riverton, New York, United States"}],
+                           "problems": ["Which state do you live in?: gives the city and country, not just the state"]},
     ("presubmit.replan", 1): {"fields": {"q1": {"question": "Phone", "meant": "631-555-0142", "shown": "(631) 555-0142"},
                                          "q2": {"question": "Tools", "options": ["Go"], "meant": ["Go"], "shown": [],
                                                 "multi_select": True}}},
@@ -121,7 +124,7 @@ def test_only_the_calls_apply_says_as_the_applicant_get_the_pronouns_note():
     # Apply's as_applicant wraps essays.py's calls and the Pre-submit review (worker.py), no others.
     assert {key for key, kind in KINDS.items() if kind.applicant} == {
         ("essays.plan", 1), ("essays.write", 1), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
-        ("presubmit.review", 1)}
+        ("presubmit.review", 1), ("presubmit.fix", 1)}
     assert "pronouns" not in _built(("brief.team", 1)).system
 
 
@@ -129,6 +132,20 @@ def test_a_review_row_holds_an_answer_or_ticked_boxes_never_both():
     row = {"question": "Tools", "answer": "Go", "ticked": ["Go"]}
     with pytest.raises(ValueError):
         presubmit.Reviewed.model_validate({**SAMPLES["presubmit.review", 1], "rows": [row]})
+
+
+def test_a_fix_is_asked_only_for_problems_the_review_found():
+    # Fault: a fix call with no problems would let the model rewrite answers nobody found wrong.
+    with pytest.raises(ValueError):
+        presubmit.Fixed.model_validate({**SAMPLES["presubmit.fix", 1], "problems": []})
+    prompt = _built(("presubmit.fix", 1)).prompt
+    assert "<problems>\n- Which state do you live in?: gives the city" in prompt and SOURCES in prompt
+
+
+def test_a_fix_names_what_only_the_applicant_can_answer():
+    check = Draft202012Validator(_built(("presubmit.fix", 1)).schema)
+    assert check.is_valid({"fixes": [], "yours": [{"question": "Start date", "why": "no start date is on file"}]})
+    assert not check.is_valid({"fixes": [{"question": "Start date"}], "yours": []})
 
 
 def test_a_replan_schema_takes_a_list_only_for_a_multi_select():
