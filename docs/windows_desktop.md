@@ -248,7 +248,8 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
 - **Built.** `launcher.ask_to_quit` is the one ask, for a Worker
   (`_stop`, `reclaim`) and the seed (`Desk.terminate`): SIGTERM on macOS
   and Linux, and on Windows `taskkill /PID <pid>` with no `/F`, which asks
-  the windows to close, as a click on X does. A Worker that is still up
+  the windows to close, as a click on X does (with `CREATE_NO_WINDOW`:
+  from the app, a console program would flash a console). A Worker that is still up
   after `STOP_WAIT` is killed, as before. The seed is never killed: the
   wizard says what to close, and waits.
 - **Still open (Windows):** Chrome saves on that close, and a Worker with

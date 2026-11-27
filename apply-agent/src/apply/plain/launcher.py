@@ -90,6 +90,7 @@ START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
 OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
 CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Windows)
+CREATE_NO_WINDOW = 0x08000000  # Windows' flag: a console program started from a window opens no console of its own
 TASKKILL = ("taskkill",)  # Windows' own, in System32; a test's stand-in records what it was asked
 # In each plain Worker profile: the Apply process that started its Chrome, written before the Chrome starts
 # (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
@@ -535,8 +536,11 @@ def ask_to_quit(process: "Chrome | subprocess.Popen", system: str = sys.platform
         return
     # Still this process: a Popen holds its handle, so Windows gives its PID to no other; a Chrome checks its start
     # time (poll above), and the PID can't go to another process in the moment between.
+    # taskkill is a console program: from the app, which has no console, it would flash one at each stop. The flag
+    # goes by the OS this runs on, not `system`: macOS refuses creationflags, and the tests run this entry there.
+    quiet = {"creationflags": CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     subprocess.run([*TASKKILL, "/PID", str(process.pid)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL, check=False)
+                   stderr=subprocess.DEVNULL, check=False, **quiet)
 
 
 def _stop(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:

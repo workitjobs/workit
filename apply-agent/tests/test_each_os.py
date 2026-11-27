@@ -577,6 +577,20 @@ def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_
         dashboard._STARTED.clear()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="the flag is Windows' own: macOS refuses it")
+def test_on_windows_taskkill_opens_no_console_window(monkeypatch):
+    """Fault: taskkill is a console program, so from the app, which has no console, each stop flashed one."""
+    asked = []
+    monkeypatch.setattr(launcher.subprocess, "run", lambda arguments, **kwargs: asked.append(kwargs))
+    chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        launcher.ask_to_quit(chrome, "win32")
+    finally:
+        chrome.kill()
+        chrome.wait()
+    assert asked[0]["creationflags"] & launcher.CREATE_NO_WINDOW
+
+
 def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(tmp_path, monkeypatch):
     """Fault: launcher.Chrome polls and signals a bare PID. Its Chrome had ended, the OS gave the PID to another
     program (played by this test's own process), and _stop sent that program SIGTERM, then SIGKILL (found in review,
