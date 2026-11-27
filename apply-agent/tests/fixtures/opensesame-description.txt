@@ -1,0 +1,20 @@
+At OpenSesame, our Engineering Team is the creative force behind the cutting-edge solutions that bring our mission to life.
+Performance Objectives
+By 2 Weeks
+Pair program with team members to gain hands-on experience and learn our engineering, DevOps, and deployment practices.
+Begin learning the technologies we use, such as TypeScript, React, Terraform, AWS, and CI/CD systems.
+Application and Creative Project
+Before you start, check out our Creative Project guide. It walks through what we're looking for below in more detail.
+To apply, submit one application, which includes a link to your creative project. We want to see how you think and what you've built, so your creative project must be a video (5 minutes or less), shared as a YouTube link (unlisted is fine). Applications without a working YouTube link will not be reviewed.
+We care more about your curiosity and how you think than a polished result, so don't let your experience level stop you from applying.
+You can talk to the camera, or walk us through slides, a demo, or a screen recording. How you show it is up to you. In your video, please cover:
+How do you see OpenSesame fitting into your career journey or long-term goals?
+What strengths, skills, or perspectives do you bring to OpenSesame to make an impact and contribute to our mission?
+Show us something you've built with AI. What problem did you solve, and what excites you about where AI is taking learning and work?
+Haven't built anything with AI yet? Make something today! Try an AI tool, experiment with a new idea, and show us or walk us through how you did it.
+Feel free to share something from your personal life, work, school, or anywhere else. Share whatever feels right to you.
+We're drawn to curiosity, creativity, growth mindset and authentic expression. Keep it concise and focused.
+Additional Program Details
+Application closes: Sunday, February 14th, 2027
+Commitment: Full-time (40 hours/week)
+Compensation: $25 an hour
