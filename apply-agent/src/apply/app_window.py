@@ -58,7 +58,7 @@ from urllib.parse import urlencode, urlsplit
 
 import psutil
 
-from apply import build, first_run, queued_names, report, sign_in_link, workit
+from apply import build, first_run, queued_names, report, sign_in_link, updates, workit
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
@@ -895,6 +895,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         from apply import app_control
 
         threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
+    updates.start()  # the built app's Sparkle updater (W8 step 3)
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
