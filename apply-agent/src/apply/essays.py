@@ -48,6 +48,9 @@ from apply.records import SECRET
 # The text fields' kinds, as a question names them to Claude.
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
 DESCRIBED = 400  # characters of a question's description Claude is shown
+# The most options a one-off question may send (backend/app/apply_prompts/essays.py's MAX_OPTIONS). A longer list
+# (Oracle's 500 cities) is Lisul's to pick: the server refuses it, and no one answer could be read back from it.
+MAX_OPTIONS = 300
 
 # A number in an essay: a count, a percentage, a year, a score.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -205,6 +208,10 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     it fails its check), the draft 1 Opus, the claim check 1 Opus and the
     editor 1-3 Opus: 4-7 calls. A form with no essays still costs one
     Sonnet call."""
+    if too_long := [q for q in drafts if len(q.options) > MAX_OPTIONS]:
+        written, drafted = answer(claude, posting, essays, [q for q in drafts if q not in too_long], profile, company,
+                                  posting_text, redraft, answered, planned, redo, sections)
+        return written, drafted + [Draft(q, "", needs_lisul=True) for q in too_long]
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
         written, _ = _answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
                              redo, sections)
@@ -227,7 +234,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
         return [Essay(q, "", plan=plans[key]) for key, q in waiting.items()], []
     # WorkIt's essays.write kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, essays),
             "style_card": writing.style_card() if keys else "", "form_answers": dict(shown) if keys else {},
             "questions": {key: _sent(q, types[key]) for key, q in keys.items()},
             "plans": {key: plans[key].shown() for key in keys},
@@ -243,7 +250,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
-                                       description.block(posting, posting_text)]))
+                                       description.block(posting, posting_text, essays)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
                              posting.company, company, profile.get("files.resume_pdf")) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
@@ -263,7 +270,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     own = own_facts(profile, types.values(), posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
-    given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
+    given = (company, description.block(posting, posting_text, essays), cover_letter.TEMPLATE)
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
@@ -342,7 +349,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     led = {kind: stories for kind, stories in sameness.Ledger().led(posting.company).items()
            if kind in classified.values()}
     held = "\n".join([sources(profile, company, types=answering.load(), employer=posting.company),
-                      description.block(posting, posting_text),
+                      description.block(posting, posting_text, essays),
                       json.dumps(shown or {}, ensure_ascii=False)])
     plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
                                    mapped=mapped, angles=angles, led=led, redo=redo), company, held)
@@ -511,7 +518,7 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
               redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[str, Plan]:
     # WorkIt's essays.plan kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, types=classified.values(), employer=posting.company),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, list(keys.values())),
             "questions": {key: _sent(q, classified[key]) for key, q in keys.items()}, "form_answers": dict(shown),
             "story_map": story_map.prompt_block(list(mapped)) if mapped else "", "typical": dict(angles or {}),
             "led_before": dict(led or {}), "replan": dict(failed or {}), "redo": _redone(redo, keys)}

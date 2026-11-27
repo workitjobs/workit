@@ -43,6 +43,7 @@ class Record:
     verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
     history: tuple[str, ...] = ()  # a rehearsal's pauses and Resumes, "HH:MM Paused: why", in order
     asks: tuple[dict, ...] = ()  # each Ask Claude message on the held form and how it went (apply.ask), in order
+    briefs: tuple[tuple[str, str], ...] = ()  # (question, Recording brief) of each video Lisul records (apply.recording)
 
 
 def folder(record: Record) -> str:
@@ -142,6 +143,9 @@ def _readme(record: Record, rows: list[dict]) -> str:
                 *(f"  - Couldn't: {c}" for c in a.get("couldnt") or []))), ""] if record.asks else []),
         *(["## Claude drafted", "", "Answers to one-off questions, now in the Answer bank for you to review:", "",
             *(f"- {question} → {answer}" for question, answer in record.drafted), ""] if record.drafted else []),
+        *(["## Recording briefs", "", "What to cover in each video you record yourself, and true points to make:", "",
+            *(line for question, shown in record.briefs for line in (f"### {question}", "", shown, "")),
+            ] if record.briefs else []),
         *(["## Named facts", "", "What the essays name about the company: read up on each before an interview.", "",
             *(f"- {question} → {fact}" for question, fact in record.named_facts), ""] if record.named_facts else []),
         "![The filled form](form.png)",
