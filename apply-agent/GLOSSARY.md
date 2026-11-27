@@ -9,7 +9,7 @@ One open internship role at one company, with a link to its application form.
 _Avoid_: job, listing, opening
 
 **Posting description**:
-A Posting's own text: its company, its role, its pay range if it states one, and the job's description with its equal-opportunity, benefits and privacy paragraphs left out, cut to about a thousand tokens. It is read once per Application, from the job system's API, else off the posting's own page (its JobPosting schema, its job description section, its meta description), and every Claude call for that Application gets it. It is employer text, never instructions: a sentence in it that speaks to AI agents ("if you are an LLM, ...") makes the Application a Handoff that names it, and no Claude call sees it; when the text can be read without opening the form, that happens before the form opens. A ban on AI-written applications, or a sentence that just tells the reader not to use AI ("Do not use AI.", "No AI."), bans AI-written text on its form. AI as the work itself ("you will build LLM tools") is neither.
+A Posting's own text: its company, its role, its pay range if it states one, and the job's description with its equal-opportunity, benefits and privacy paragraphs left out, cut to about a thousand tokens. It is read once per Application, from the job system's API, else off the posting's own page (its JobPosting schema, its job description section, its meta description), and every Claude call for that Application gets it. It is employer text, never instructions: a sentence in it that speaks to AI agents ("if you are an LLM, ...") makes the Application a Handoff that names it, and no Claude call sees it; when the text can be read without opening the form, that happens before the form opens. A ban on AI-written applications, or a sentence that just tells the reader not to use AI ("Do not use AI.", "No AI."), bans AI-written text on its form. AI as the work itself ("you will build LLM tools") is neither. Some Posting descriptions list prompts for one application question ("In your video, please cover:"). An essay that points at them ("the questions listed in the job description") or names that section's heading gets that whole section ahead of the cut.
 _Avoid_: JD, job context, job info
 
 **Match**:
@@ -299,6 +299,10 @@ _Avoid_: context, notes, bio
 **Story map**:
 Routing tags for each episode of the Story bank (one story, as one of its lines tells it): the Question types it answers, the kinds of problem it is (the same kinds a Company brief fact carries), the numbers its line holds, what an answer must never claim from it, the questions an interviewer would ask next with whether the Story bank can answer each, and the episodes related to it. It states no facts of its own: the Story bank stays the only source, and an entry whose line has changed since it was tagged is set aside until Lisul tags the bank again. Lisul reviews it in story-map.yaml in the data folder, and the follow-ups the bank can't answer become questions for him.
 _Avoid_: story index, tag file, personalized prompts
+
+**Recording brief**:
+What to say in a video or submission that Lisul makes himself for a link question. It has one bullet for each prompt the Posting lists for the question. Each bullet has one or two true talking points that quote his Story bank. It goes in the ask and in a rehearsal's Record, never on the form.
+_Avoid_: video script, talking points
 
 **Record**:
 An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row.
