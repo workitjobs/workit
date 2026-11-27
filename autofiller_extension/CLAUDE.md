@@ -773,8 +773,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   that reach a Workday sign-in save `WORKDAY_SIGNUP` first
   (`saveWorkdaySignup`, test/loaded-extension.ts).
 - **Apply's Employer accounts (KAN-592).** Apply (`apply-agent/`) makes a
-  Workday account per company with a generated password kept only in macOS
-  Keychain. With Use My Apply Accounts on (options page: the optional
+  Workday account per company with a generated password kept only in the
+  system's keychain (Keychain on a Mac, Credential Manager on Windows). With
+  Use My Apply Accounts on (options page: the optional
   `nativeMessaging` permission, so students never see a new install
   warning), the worker asks Apply's accounts host (`com.workit.apply_accounts`,
   installed by `uv run apply chrome-passwords`; `background/apply-accounts.js`)

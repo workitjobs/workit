@@ -475,13 +475,13 @@ window.WIA = window.WIA || {};
    */
   /**
    * On a Workday tenant Apply made an account at (KAN-592): one button that fills Apply's password
-   * from the Mac's Keychain (through Apply's host) and offers it to Chrome's password manager. Only
+   * from the system's keychain (through Apply's host) and offers it to Chrome's password manager. Only
    * the student's own press, never the page's.
    */
   function offerApplySignIn({ company, email, onPress }) {
     const card = momentCard("apply-sign-in", `
       <h2>Sign In with Your Apply Account</h2>
-      <p>Apply made your account at ${escape(company ?? "this company")} (${escape(email ?? "")}). WorkIt fills its password from your Mac's Keychain, and Chrome asks to save it, so Chrome fills it from then on.</p>
+      <p>Apply made your account at ${escape(company ?? "this company")} (${escape(email ?? "")}). WorkIt fills the password Apply keeps on this computer, and Chrome asks to save it, so Chrome fills it from then on.</p>
       <div class="actions">
         <button type="button" data-primary data-apply-sign-in>Sign In with Your Apply Account</button>
         <button type="button" data-secondary data-dismiss>Not Now</button>

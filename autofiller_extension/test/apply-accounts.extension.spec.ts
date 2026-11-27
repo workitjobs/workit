@@ -14,7 +14,7 @@ import { FakeWorkdays } from "./fake-job-systems";
 import { EXTENSION_ID, loadExtension, saveWorkdaySignup, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const CACI = "caci.wd1.myworkdayjobs.com";
-// Made up: the password Apply generated for CACI's Workday, as Keychain would hold it.
+// Made up: the password Apply generated for CACI's Workday, as the system's keychain would hold it.
 const APPLY_LOGIN = { company: "CACI", login: "test.person@example.com", password: "Apply-Made-Caci-Pass-9!x" };
 
 let loaded: Loaded | undefined;

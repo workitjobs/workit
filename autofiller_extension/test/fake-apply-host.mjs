@@ -1,6 +1,6 @@
 // A fake Apply accounts host (apply-agent's native_host.py) for the extension's tests (KAN-592): Chrome
 // starts it once per native message, with the caller's origin as its first argument. It answers from
-// a JSON file of made-up logins by tenant, as the real host answers from Keychain, and logs each
+// a JSON file of made-up logins by tenant, as the real host answers from the system's keychain, and logs each
 // request (origin, tenant, want), never an answer, to a file the test reads.
 import { appendFileSync, readFileSync } from "node:fs";
 
