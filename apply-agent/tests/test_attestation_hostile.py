@@ -92,7 +92,6 @@ def _send(tmp_path, driver, steps, **policies):
 # --- 1. Wording the engine's pattern misses: planned as a plain answer, ticked, and SENT with no hold.
 
 @pytest.mark.parametrize("label", [
-    "I confirm that the information I have provided is accurate and complete",
     "Applicant Certification",
     "I, the undersigned, certify that all answers are complete",
     "I acknowledge that all statements in this application are correct (see our privacy notice)",
@@ -108,9 +107,6 @@ def test_an_attestation_in_other_words_is_neither_answered_nor_sent(tmp_path, la
 
 @pytest.mark.parametrize("label, options", [
     ("I acknowledge all statements are correct (see our privacy notice)", ("Yes", "No")),
-    ("By submitting this application I confirm that the information is accurate and complete", ("I confirm",)),
-    ("I confirm that the information I have provided is accurate and complete", ("Yes", "No")),
-    ("I agree that all information provided is accurate", ("I agree",)),
     ("I understand that any false statement may result in dismissal", ("I understand",)),
     ("The undersigned certifies that all answers are complete", ("I agree",)),
     ("I, the undersigned, certify that all answers are complete", ("I agree",)),
@@ -130,6 +126,21 @@ def test_the_plan_never_answers_an_attestation_however_worded(label, options):
     planned = fill_engine.plan([q], POSTING, DEFAULTS)
     assert "q1" not in planned.answers, f"answered {planned.answers['q1']!r}"
     assert "q1" in planned.attestations
+
+
+@pytest.mark.parametrize("label, options", [
+    ("By submitting this application I confirm that the information is accurate and complete", ("I confirm",)),
+    ("I confirm that the information I have provided is accurate and complete", ("Yes", "No")),
+    ("I agree that all information provided is accurate", ("I agree",)),
+    ("I confirm all answers provided by me within this application are true and correct.", ("I Acknowledge / I Agree",)),
+])
+def test_a_plain_confirmation_that_the_answers_are_true_follows_tick_consent_when_true(label, options):
+    """Epic Games' Greenhouse form held such a box for Lisul (2026-11-26): it is true of him, so the policy ticks it. One
+    that certifies, attests, declares, swears or signs is still his (above)."""
+    q = Question("q1", label, "select", True, options)
+    planned = fill_engine.plan([q], POSTING, DEFAULTS)
+    assert planned.answers.get("q1") == options[0]
+    assert "q1" not in planned.attestations
 
 
 def test_the_date_and_name_of_a_signature_block_are_not_filled():
