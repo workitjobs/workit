@@ -116,7 +116,7 @@ builds it.
 | D21 | **Google Chrome is required.** First run checks for it and links to its download | Chrome for Testing can't turn on Allow User Scripts, and other browsers are untested | W5 |
 | D22 | **CDP Workers keep their debugging port on `127.0.0.1` in v1.** One Worker kind with no port is future work (F5) | Pipe mode adds automation switches; the bridge may later carry CDP Workers too | F5 |
 | D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
-| D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
+| D24 | **One to three Workers, by default from the computer's memory:** one under 8 GB, two from 8 to 16 GB, three over 16 GB (two when the memory can't be read). Settings' Automatic shows the count; a count the student picks wins. Each Worker is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
 | D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry. As built (KAN-837): a support form ("Report a problem", from Settings or an Application's tile): a category, the student's words, whether WorkIt may email them, and, if they include one, an Application's Record and masked Trace | Testers need a way to report; privacy first | W5, W1 |
 | D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by WorkIt's own CI on each merge that moves the engine pointer (`.github/workflows/publish-engine.yml` runs `backend/app/scripts/publish_engine.py`, with the key a secret of an environment that takes `main` only; 2026-11-15, it was the Fill engine's CI, then a person's hand run); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo. WorkIt's CI signs only the engine a merged pointer names, which its PR's checks built, and no person's computer holds the key after setup | W7 |
@@ -779,6 +779,7 @@ its own instructions or a hostile schema.
   | `writing.check` | `writing._check` | drafts, sources |
   | `writing.edit` | `writing._pass` | drafts, sources, flagged problems, the questions, their lengths |
   | `probe.typical` | `probe.typical` | the questions, the posting and its text, Company material |
+  | `recording.brief` | `recording.brief` | a video link question, the prompts its posting lists, sources, the posting |
   | `presubmit.review` | `presubmit` | the filled form's answers read back, sources, the posting |
   | `presubmit.fix` | `presubmit` | the review's problems, the answers it read, sources, the posting |
   | `presubmit.replan` | `presubmit` | the flagged fields, the posting |
@@ -1163,7 +1164,7 @@ on Windows each one stops Apply:
 - **A run:** the Auto Apply queue from WorkIt (the batch routes in
   `backend/app/routers/auto_apply.py`), the paste box, Start, tiles,
   Needs you, the Usage cap line (W1).
-- **Settings:** the Worker count (one to three, default two), "Remove all
+- **Settings:** the Worker count (one to three, default Automatic: from the memory, D24), "Remove all
   my data" (D25), "Send report" (D26), the disclosure, sign out.
 - **Notices** replace phone push: the window and macOS's own notification
   for "needs you".

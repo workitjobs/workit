@@ -11,7 +11,8 @@
 
 A plain Worker's Chrome stays up across the Applications it carries: PlainSite.open reuses it,
 with every guard of the last one taken off (guards.reset) and the last one's tabs closed, and
-close() stops each Chrome by its PID when the run or rehearsal ends.
+close() stops each Chrome by its PID when the run or rehearsal ends. A rehearsal also calls
+release() as each of its forms is done with: a Chrome no form holds then stops at once.
 
 A Worker can carry more than one form at once (`apply rehearse --into`, KAN-645): each open() gets
 a tab of its own, and the tabs of a form still open (held, paused or filling) are never closed,
@@ -31,7 +32,7 @@ from apply import submit_guard
 from apply.browsers import BUSY, ProfileInUse, WorkerBrowsers, in_use
 from apply.home import HOME
 from apply.plain import guards
-from apply.plain.launcher import WINDOW, PlainWorkers, reclaim
+from apply.plain.launcher import WINDOW, PlainWorkers, reclaim_all
 from apply.profile import load_policies
 
 MODES = ("cdp", "plain", "protected")
@@ -130,9 +131,8 @@ class PlainSite:
 
     def refuse_in_use(self) -> None:
         """A profile whose Chrome a gone Apply left running is reclaimed first (KAN-885): only a live one is busy."""
+        reclaim_all(self.profiles)
         profiles = [p for p in sorted(self.profiles.glob("plain-[0-9]*")) if p.is_dir()]
-        for profile in profiles:
-            reclaim(profile)
         busy = [p.name for p in profiles if in_use(p)]
         if busy:
             raise ProfileInUse(f"{', '.join(busy)} {BUSY}")
@@ -157,7 +157,7 @@ class PlainSite:
     @contextmanager
     def open(self, url: str, worker: int = 0):
         """Worker `worker`'s page at `url`: in its running Chrome, guards reset, else a new Chrome.
-        The page's tabs close after, leaving one blank tab so its window stays."""
+        The page's tabs close after, leaving one blank tab so its window stays till `release` stops its Chrome."""
         from apply.plain.page import PortContext
 
         with self._tabs:
@@ -206,6 +206,24 @@ class PlainSite:
                 self._open.get(worker, set()).discard(page.tab)
                 keep = set(self._open.get(worker, ()))
             _leave_blank(context, page.tab, keep)
+
+    def release(self, worker: int) -> list[int]:
+        """A form on Worker `worker` is done with (sent, let go, closed, skipped, already applied, or its rehearsal
+        moving on): stop its Chrome once no other form is open in it, and every other Worker's Chrome that no form
+        holds now too. So a rehearsal never keeps more Chromes than forms filling or held for the student: each one
+        left on its blank tab was a window, and a run of 17 links left 17 of them (live, 2026-11-26). A Worker's
+        next form starts its Chrome again (`launch`), its sign-ins kept (`--restore-last-session`). Each check
+        holds the Worker's `_opening` lock, so a form opening in it now is never stopped under. Returns the Workers
+        stopped."""
+        stopped = []
+        for k in sorted({worker, *list(self.workers.running)}):
+            with self._tabs:
+                opening = self._opening.setdefault(k, threading.Lock())
+            with opening:
+                if k in self.workers.running and not self.live(k):
+                    self.workers.stop(k)
+                    stopped.append(k)
+        return stopped
 
     def close(self) -> None:
         """Stop every plain Worker's Chrome this site started, by its PID."""
@@ -273,6 +291,11 @@ class RoutedSite:
 
     def in_front(self, worker: int) -> bool:
         return (self.plain_site if self.plain(worker) else self.cdp).in_front(worker)
+
+    def release(self, worker: int) -> list[int]:
+        """A form on Worker `worker` is done with: the plain Chromes no form holds now stop (PlainSite.release). A
+        CDP Worker's browser closes with its page."""
+        return self.plain_site.release(worker)
 
     @contextmanager
     def open(self, url: str, worker: int = 0):

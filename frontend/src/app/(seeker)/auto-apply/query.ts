@@ -24,6 +24,12 @@ export const SORTS = ["queue", "company", "status", "match", "applied"] as const
 export type Sort = (typeof SORTS)[number];
 export const DEFAULT_SORT: Sort = "queue";
 
+/** The sort a view opens on: the latest application first when it shows
+ *  only Applied, as the Tracker's Applied does; else the queue's order. */
+export function defaultSortFor(statuses: readonly StatusFilter[]): Sort {
+  return statuses.length === 1 && statuses[0] === "applied" ? "applied" : DEFAULT_SORT;
+}
+
 export type ActivityQuery = {
   /** Empty shows every status. */
   statuses: StatusFilter[];
@@ -35,20 +41,25 @@ export type ActivityQuery = {
 export function parseActivityQuery(params: URLSearchParams): ActivityQuery {
   const picked = new Set((params.get("status") ?? "").split(","));
   const sort = params.get("sort");
+  const statuses = STATUS_FILTERS.filter((status) => picked.has(status));
   return {
-    statuses: STATUS_FILTERS.filter((status) => picked.has(status)),
-    sort: SORTS.includes(sort as Sort) ? (sort as Sort) : DEFAULT_SORT,
+    statuses,
+    sort: SORTS.includes(sort as Sort) ? (sort as Sort) : defaultSortFor(statuses),
   };
 }
 
 /** The page's URL for `query` with `patch` applied. Defaults stay out of it,
  *  so the plain page is still `/auto-apply`; the status list keeps its commas
- *  readable, as ?stage= does on Applications. */
+ *  readable, as ?stage= does on Applications. A status pick on the default
+ *  sort moves to the new statuses' default (defaultSortFor). */
 export function activityHref(query: ActivityQuery, patch: Partial<ActivityQuery> = {}) {
   const next = { ...query, ...patch };
+  if (patch.sort === undefined && query.sort === defaultSortFor(query.statuses)) {
+    next.sort = defaultSortFor(next.statuses);
+  }
   const params = new URLSearchParams();
   if (next.statuses.length > 0) params.set("status", next.statuses.join(","));
-  if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
+  if (next.sort !== defaultSortFor(next.statuses)) params.set("sort", next.sort);
   const search = params.toString().replaceAll("%2C", ",");
   return search ? `/auto-apply?${search}` : "/auto-apply";
 }

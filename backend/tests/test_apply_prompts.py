@@ -29,6 +29,9 @@ SAMPLES = {
     ("essays.write", 1): {"sources": SOURCES, "posting": "<posting>Acme</posting>", "questions": {"q1": WHY, "q2": LETTER},
                           "plans": {"q1": PLANNED, "q2": PLANNED | {"type": "cover-letter"}},
                           "short_questions": {"d1": AREA}},
+    ("recording.brief", 1): {"sources": SOURCES, "posting": "<posting>Acme</posting>",
+                             "question": "Please include a YouTube link to your video.",
+                             "prompts": {"p1": "Why Acme?", "p2": "Show us something you built."}},
     ("probe.typical", 1): {"posting": "<posting>Acme</posting>", "questions": {"q1": "Why Acme? [required]"}},
     ("presubmit.review", 1): {"posting": "<posting>Acme</posting>",
                               "rows": [{"question": "Tools", "ticked": ["Go"], "options": ["Go", "Rust"]},
@@ -121,10 +124,10 @@ def test_write_data_that_doesnt_hold_together_is_refused(change):
 
 
 def test_only_the_calls_apply_says_as_the_applicant_get_the_pronouns_note():
-    # Apply's as_applicant wraps essays.py's calls and the Pre-submit review (worker.py), no others.
+    # Apply's as_applicant wraps essays.py's calls, the recording brief and the Pre-submit review (worker.py), no others.
     assert {key for key, kind in KINDS.items() if kind.applicant} == {
         ("essays.plan", 1), ("essays.write", 1), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
-        ("presubmit.review", 1), ("presubmit.fix", 1)}
+        ("recording.brief", 1), ("presubmit.review", 1), ("presubmit.fix", 1)}
     assert "pronouns" not in _built(("brief.team", 1)).system
 
 

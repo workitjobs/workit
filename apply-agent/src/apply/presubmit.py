@@ -5,7 +5,7 @@ answers that are valid but wrong."""
 
 from typing import NamedTuple
 
-from apply import description, fill_engine, private
+from apply import description, fill_engine, private, verify
 from apply.adapters import Claude
 from apply.model import Answers, Posting, QuestionSet, Readback, one_line
 from apply.records import SECRET
@@ -103,6 +103,29 @@ def _rows(questions: QuestionSet, readback: Readback, own: set[str] | frozenset[
          **({"his_own_answer": True} if q.name in own else {})}
         for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
     ]
+
+
+def backed_by_policies(found: Found, questions: QuestionSet, readback: Readback, profile, posting_text: str = "") -> Found:
+    """`found` without its problems (and fixes) about an answer policies.yaml gives (verify.from_policies: the pay
+    the `compensation` policy names). The review is never shown policies.yaml, so it called Relay's "$30/hr", the
+    `fallback_hourly` of a Posting that names no pay, "not backed by the profile" and held the form (live,
+    2026-11-26). Verifying's own pay check, which is code, still flags a figure off the policy."""
+    backed = {one_line(q.label) for q in questions if verify.from_policies(q, readback.get(q.name), profile, posting_text)}
+    if not backed:
+        return found
+    def said(text: str) -> str:
+        return " ".join(text.split()).casefold()
+
+    labels = sorted({said(q.label) for q in questions if q.label.strip()}, key=len, reverse=True)
+    backed_said = {said(label) for label in backed}
+
+    def about_backed(problem: str) -> bool:
+        """Whether the question `problem` names (the longest label in it: "Salary" is not "Salary (explain)") is one
+        policies.yaml answers."""
+        return next((label for label in labels if label in said(problem)), None) in backed_said
+
+    kept = [p for p in found if not about_backed(p)]
+    return Found(kept, {q: a for q, a in found.fixes.items() if q not in backed})
 
 
 def replan(claude: Claude, questions: QuestionSet, answers: Answers, readback: Readback,

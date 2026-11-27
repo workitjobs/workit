@@ -6,7 +6,14 @@ No browser, no network: the board is a stand-in site."""
 import json
 
 from fakes import FakeClaude
-from test_claude_answers import MICROMOUSE, PROJECT, ResearchForm, run_all, sent_answer
+from test_claude_answers import (
+    MICROMOUSE,
+    NOW,
+    PROJECT,
+    ResearchForm,
+    run_all,
+    sent_answer,
+)
 
 from apply import home, other_roles
 from apply.answer_bank import AnswerBank
@@ -142,3 +149,50 @@ def test_the_form_gets_the_answer_with_no_model_call_no_question_for_him_and_no_
     assert not any(e.question == asked for e in bank.entries())
     assert home.STORY_BANK.read_text() == story
 
+
+
+def test_his_reviewed_answer_bank_entry_wins_over_the_code_and_any_draft(monkeypatch):
+    # Fault: Strava's entry filed "<question> (strava only)", source lisul and reviewed, was ignored on refill:
+    # the textarea was filled with the code's "No, ... the only Strava internship" (Strava, 2026-11-26).
+    asked = "Are you applying to any other Example Co internships? If so, which ones and why?"
+    mine = "Yes. I'm applying to three Example Co internships, and I'd be glad to join whichever team fits best."
+    form = ResearchForm("Northwood Space")
+    form.questions = form.questions + [Question("qo", asked, "textarea", True)]
+    claude, bank = FakeClaude(essays={PROJECT: MICROMOUSE}), AnswerBank()
+    bank.answer(f"{asked} (Example Co only)", mine, NOW.date())
+
+    [row] = run_all(monkeypatch, form, claude, ["Example Co"], bank=bank)
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, asked) == mine
+    # Another company's entry ("(Acme only)") answers nothing here.
+    other = AnswerBank()
+    other.answer(f"{asked} (Acme only)", mine, NOW.date())
+    assert other.reviewed(asked, "Example Co") is None and other.reviewed(asked, "Acme").answer == mine
+    # A draft, unreviewed or Claude's, never wins this way: only his reviewed answer does.
+    other.add(Question("q", "Why us?", "textarea", True), "A draft.", "Acme", NOW.date())
+    assert other.reviewed("Why us?") is None
+
+
+def test_his_other_applications_there_are_named_from_the_records_too(tmp_path):
+    # Fault: Strava's Tracker had no row for its other internships, so a refill said "the only Strava internship"
+    # beside three Records of Strava roles (Strava, 2026-11-26).
+    def record(day: str, folder: str, head: str, url: str, status: str) -> None:
+        readme = tmp_path / day / folder / "README.md"
+        readme.parent.mkdir(parents=True)
+        readme.write_text(f"# {head}\n\n- Posting: {url}\n- Application ID: {folder}\n- Status: {status}\n- Date: {day}\n")
+
+    record("2026-11-25", "acme-request-2", "Acme: Data Science Intern", DATA, "held (Rehearsal, not submitted.)")
+    record("2026-11-26", "acme-request-3", "Acme: Data Science Intern", DATA, "submitted")  # its latest Record says
+    record("2026-11-26", "acme-request-4", "Acme: Software Engineering Intern, iOS", MOBILE, "handoff (Answer 'x')")
+    record("2026-11-26", "acme-request-1", f"Acme: {POSTING.title}", SERVER, "held")  # this posting
+    record("2026-11-26", "acme-request-5", "Acme: Hardware Intern", "https://jobs.ashbyhq.com/acme/5", "failed (no form)")
+    record("2026-11-26", "beta-request-6", "Beta: Beta Intern", "https://jobs.lever.co/beta/2", "submitted")
+    (tmp_path / "2026-11-26" / "unreadable").mkdir()
+
+    found = other_roles.others(POSTING, [], records=(tmp_path,))
+
+    assert sorted((o.title, o.applied) for o in found) == [
+        ("Data Science Intern", True), ("Software Engineering Intern, iOS", False)]
+    assert other_roles.answer(OTHERS, POSTING, found, [], profile(tmp_path)).startswith(
+        "Yes. I have also applied to Data Science Intern. I am applying to Software Engineering Intern, iOS")

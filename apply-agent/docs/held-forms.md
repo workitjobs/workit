@@ -43,7 +43,20 @@ reads: it does not click, type or submit.
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
-  (`docs/fill-engine.md`, KAN-753).
+  (`docs/fill-engine.md`, KAN-753). The review reads no `policies.yaml`,
+  so a problem it finds with a pay answer the `compensation` policy gave
+  (its `expectation`, the Posting's range, or `fallback_hourly` when the
+  Posting names no pay) is dropped (`presubmit.backed_by_policies`):
+  Relay's "$30/hr" was held as unbacked. Verifying's own pay check, which
+  is code, still flags a figure off the policy.
+- Send anyway: when a review hold keeps the run from pressing Submit
+  (`HELD_FIRST`), the card offers Send anyway, which asks once more. It
+  and `apply window submit <tile> --yes --override "<reason>"` post
+  `/submit` with an `override`. The run dismisses the form's legal holds
+  (`Rehearsed.dismiss_holds`), presses Submit, and keeps the reason in
+  the Tracker row and the Record (`SENT_ANYWAY`). Nothing else gives way:
+  a missing required answer, an application already sent, a press
+  already made and a session hold (apply.keepalive) still refuse it.
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   For a finding it gives no answer for, Apply asks for one itself
@@ -58,8 +71,14 @@ reads: it does not click, type or submit.
   Claude's guesses (its drafts, and its drafts the Answer bank gave back).
   It replaces an answer from the profile only when it narrows it
   (`worker._narrows`: Abridge's "New York" for the city, state and country
-  its state question was given), so it states no new fact. It never
-  replaces Lisul's own answer, an essay, a file or a secret. A
+  its state question was given), so it states no new fact, with two more
+  exceptions: a legal or eligibility choice (`verify.LEGAL`), and, on the
+  first review, a choice whose review reason rests on the profile ("the
+  profile says ..."). The second is a trial: kept only if the next review
+  passes it, else the plan's answer is filled again (`_Planned.unfix`) and
+  the problem holds the form (Pylon's relocate, CesiumAstro's GPA,
+  2026-11-26). It never replaces Lisul's own answer, an essay, a file or a
+  secret. A
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
@@ -168,6 +187,11 @@ goes on from the step that the page shows.
 - Signing in on a paused page never ends Resume: a press on a sign-in, account or code step is not
   his Submit, on any job system (KAN-781, `docs/sign-in.md`). Only the application's own Submit, or a
   confirmation page after any press of his, makes the form his to send (`rehearsal.SENT`).
+- **A sent form's window closes by itself.** `CLOSE_AFTER_S` after the job system confirms it, the
+  hold ends and its page closes, while it is still confirmed or went to `about:blank` (a cleared
+  page kept its window till the run ended, 2026-11-26); a page that went on to another step stays
+  the student's. A pop-up keeps it open till only its page is
+  left, at most `SENT_KEEP_S` after the confirmation (`_Kept.hold`).
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -424,6 +448,34 @@ through `worker._Planned._missing` first.
   Answer bank entry or draft the engine planned, unless the answer is
   Lisul's own. `known` never answers it from his links, and its context
   line leads with "Take it yourself at <link>, then paste its result".
+- `asking.to_make(q)` finds a text field that asks for a link to something
+  Lisul must make or host first: a video (YouTube, Loom, Vimeo, a
+  recording), a submission, a portfolio or a demo. OpenSesame's "shareable
+  YouTube link to your Creative Project submission" got a written essay
+  (2026-11-26). A link word counts only for what its clause names just
+  before it ("YouTube link") or after "to", "for" or "of" ("link to your
+  submission"), so "a project in your portfolio (links welcome)" stays an
+  essay. Only a link answers it. `fill_engine.plan` keeps an answer
+  that `asking.fits_made` takes (links alone, each to one video for a video
+  ask, and never one for a submission, which only Lisul has); any other
+  answer, essay or draft becomes a Missing fact, and is never held as a
+  high-stakes essay. `known` skips an earlier answer, Answer bank entry or
+  Story bank line for it that is not links alone. A question
+  the engine left blank or handed off stays as it planned it. `known`
+  answers a video ask only from a link to one video whose line names it
+  ("Creative Project video: https://youtu.be/..."), and a submission never
+  from his links. Its context line leads with "Record the video yourself,
+  then paste its YouTube link".
+- `recording.brief` writes the Recording brief for a video or submission
+  ask whose Posting lists prompts for it (`description.asked`): one bullet
+  for each prompt, with at most two talking points. Each point must quote
+  the Story bank or the Stock answers word for word, or it is dropped. One
+  call of WorkIt's `recording.brief` kind writes the points; when it fails,
+  the brief lists the prompts with no points. `Worker._missing` puts the
+  brief under the context line, in `Result.where`, so the window's card
+  shows it. The Tracker reason, the waiting list and the phone push keep
+  the first line only (`asking.first_line`). A rehearsal's Record has it
+  under "Recording briefs".
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date
@@ -443,8 +495,8 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k "already_holds or quiz"` and
-`test_dashboard.py -k says_where_it_sits` (opens Chromium).
+**Tests.** `test_claude_answers.py -k "already_holds or quiz or video or to_make"`,
+`test_recording.py` and `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
 ### Other roles at the same company (`apply.other_roles`)
 
@@ -461,7 +513,11 @@ company.
 - `other_roles.others` reads Apply's Tracker for his applications to the
   same company (`model.is_company`): a submitted row is "applied", a row
   still on its way is "applying". A Request on the same job board is
-  "applying". This posting is never one of them.
+  "applying". So is each Record of the company's other jobs (a rehearsal's
+  or a run's README, its latest per job; a Handoff is "applying" too):
+  Strava's Tracker had none of its three Records' roles, and a refill said
+  "the only Strava internship" (2026-11-26). This posting is never one of
+  them.
 - `other_roles.openings` reads the company's open postings from its board's
   public API (Greenhouse, Lever, Ashby). The board names a Request's role
   and gives the text for a why sentence. A board that can't be read leaves
@@ -477,6 +533,12 @@ company.
 - The answer goes on this form and its Record only. It is dropped from the
   plan's essays, drafts and Missing facts, and it never joins the Answer
   bank or the Story bank.
+- Lisul's own reviewed Answer bank entry wins over it, and over any rule,
+  draft or essay, on any question (`worker._Planned._reviewed`,
+  `AnswerBank.reviewed`). An entry filed as "<question> (<company> only)"
+  answers that company's form alone and comes first. Strava's
+  "(strava only)" entry was ignored on refill and the code's "No" was
+  filled again (2026-11-26).
 
 **Tests.** `tests/test_other_roles.py`.
 
