@@ -297,8 +297,8 @@ class Plan:
     # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
     # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
     attested: dict[str, str] = field(default_factory=dict)
-    # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
-    # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
+    # Optional questions for Lisul to answer or skip (KAN-759). Always empty since 2026-11-26: the engine leaves an
+    # optional question no source holds blank (or No, for a Yes/No) and never asks it. Kept for an older engine.
     optional: list[Question] = field(default_factory=list)
 
 
@@ -403,6 +403,13 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     # "Take this builder's quiz: https://awu-ramp.github.io/..." with his GitHub profile (2026-11-26).
     sources = result.get("sources") or {}
     takes = [q for q in questions if asking.takes_elsewhere(q) and sources.get(q.name) != "student"]
+    # A link to something Lisul must make or host first (a video, a submission, a portfolio, a demo) is never
+    # written: OpenSesame's YouTube link box got an essay (2026-11-26). An answer keeps only a link that fits it,
+    # and an essay or a draft is never written: he is asked, and asking.known fills it from a link of his that names it.
+    # One the engine left blank, handed off or asked him already stays as it planned it.
+    takes += [q for q in questions if q not in takes and asking.to_make(q) and sources.get(q.name) != "student"
+              and (q.name in answers or q in result["essays"] or q in result["drafts"])
+              and not asking.fits_made(q, answers.get(q.name))]
     for question in takes:
         answers.pop(question.name, None)
     essays, drafts = ([q for q in result[kind] if q not in takes] for kind in ("essays", "drafts"))
@@ -410,8 +417,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     return Plan(
         answers=answers,
         essays=essays, missing=missing, not_eligible=result["not_eligible"],
-        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=drafts, banked=result["banked"],
-        accepted=accepted, blanks=blanks,
+        high_stakes=[q for q in result["high_stakes"] if q not in takes], handoffs=result["handoffs"], drafts=drafts,
+        banked=result["banked"], accepted=accepted, blanks=blanks,
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
         attested=dict(result.get("attested") or {}),

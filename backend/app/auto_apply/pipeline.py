@@ -230,7 +230,7 @@ async def list_applications(
     score_for: AuthenticatedAccount | None = None,
 ) -> list[Application]:
     """
-    The applicant's applications in `stages` (all when empty), newest
+    The applicant's applications in `stages` (all when empty), latest applied
     first: the Auto Apply page's Live Activity and the Applications page.
 
     With `score_for` (the applicant's own account), each open job posting
