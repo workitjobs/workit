@@ -49,7 +49,8 @@ https://workitjobs.ai/jobs
 ## Env files
 
 The `.env` files come from Infisical, never from Slack. Once: accept the
-Infisical invite, ask an Admin to add you to `workit-dev`, install the CLI
+Infisical invite, join its `dev`, `prod` and `Logins` projects
+(`docs/secrets.md`, Access), install the CLI
 (`brew install infisical/get-cli/infisical` on macOS, `winget install
 infisical` on Windows) and run `infisical login`. Then, from the repo root:
 

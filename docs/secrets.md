@@ -31,15 +31,20 @@ A key that no folder holds yet is still set with `gh secret set`.
 ## Layout
 
 The Free plan allows 5 identities (people and machine identities together),
-any number of projects, 3 environments per project and 10 syncs. The
-built-in roles (Admin, Member, Viewer, No Access) cover a whole project, so
-the split by who may read is a split into projects.
+any number of projects, 3 environments per project and 10 syncs.
 
-| Project | Who | Environment (slug) | Folders |
+**Every team member is an Admin of the organization and of all three
+projects** (2026-11-27, the team's choice), so anyone on the team can read
+any value, the deploy, publishing and signing keys included. The projects
+split where values go (what `npm run env` pulls, what each sync carries),
+not who may read them. These docs call the projects by the first column's
+names; Infisical's project list shows the second column's.
+
+| Project | Name in Infisical | Environment (slug) | Folders |
 |---|---|---|---|
-| `workit-dev` | everyone, as Member | `dev` | `/root_env`, `/frontend_env`, `/scraper` |
-| `workit-prod` | Admins only | `prod` | `/api`, `/web`, `/github`, `/auto-apply-desktop`, `/team-computer`, `/ec2-job-alerts` |
-| `workit-logins` | Admins only | one | one folder per service |
+| `workit-dev` | `dev` | `dev` | `/root_env`, `/frontend_env`, `/scraper` |
+| `workit-prod` | `prod` | `prod` | `/api`, `/web`, `/github`, `/auto-apply-desktop`, `/team-computer`, `/ec2-job-alerts` |
+| `workit-logins` | `Logins` | one | one folder per service |
 
 Where each folder goes:
 
@@ -71,9 +76,8 @@ Where each folder goes:
     what it ships, as with the extension.
 - **Local development uses the production database.** `/root_env` holds the
   same `DATABASE_URL` and `SUPABASE_SERVICE_KEY` as `workit-prod/api`, so
-  every member can read them. The split protects the deploy and publishing
-  tokens, not the database. A separate dev Supabase project would close
-  this; it is not planned yet.
+  every developer's `.env` holds them. A separate dev Supabase project
+  would close this; it is not planned yet.
 
 ## Every key, folder by folder
 
@@ -280,15 +284,21 @@ default. The tables above mark each reference.
 
 ## Access
 
-**Join:** an Admin invites the person's email in the organization's member
-settings. They make their own Infisical account (US region), and an Admin
-adds them to `workit-dev` as Member. Only Admins join `workit-prod` and
-`workit-logins`. Keep two or three Admins, so the organization survives
-one leaving.
+**Join:**
+
+1. An Admin invites the person's email in the organization's member
+   settings, as Admin.
+2. The person accepts the invite and makes their Infisical account (US
+   region) with that same email. An account under another email is another
+   person to Infisical, outside the organization.
+3. The person joins each of the three projects as Admin: in Infisical, All
+   Projects, then Join as Admin on each. **The organization's Admin role
+   gives no project access by itself:** on 2026-11-26 every teammate was an
+   organization Admin in no project, and `npm run env` failed with 403 for
+   each of them.
 
 **Leave:** the same day, an Admin removes the person from the organization.
-Then rotate what they could read: the `workit-dev` values for a Member,
-everything for an Admin.
+Then rotate every value: as an Admin, they could read every project.
 
 ## Get your local `.env` files
 
@@ -303,9 +313,11 @@ and Cloudflare (Change a value).
 computer:
 
 1. Accept the email invite to the Infisical organization. Make your
-   account in the US region, and turn on two-factor sign-in.
-2. Ask an Admin to add you to `workit-dev` as Member (Access). Until then,
-   `npm run env` says you have no access.
+   account in the US region with the email the invite went to, and turn
+   on two-factor sign-in.
+2. Join the three projects (Access): All Projects, then Join as Admin on
+   `dev`, `prod` and `Logins`. Until you are in `dev`, `npm run env` says
+   you have no access.
 3. Install the CLI. On macOS, run `brew install infisical/get-cli/infisical`.
    On Windows, run `winget install infisical`.
 4. Run `infisical login` and pick "Infisical Cloud (US Region)". The browser
@@ -354,7 +366,7 @@ Cloudflare, the team computer or EC2.
 | A GitHub secret | Change or add it in `workit-prod/github`. The sync pushes it, and the next run uses it. |
 | An API value | Change it in `workit-prod/api`. Run "Deploy to Cloudflare" from the Actions tab: a running Container keeps its old values until a deploy restarts it. |
 | A value in more than one folder | Change it in each folder whose copy has the comment "also in ..." (References): `/api`'s `DATABASE_URL` is also in `workit-dev/root_env`. The references in `/team-computer` and `/ec2-job-alerts` follow by themselves. Then export those two folders with the CLI to the team computer's `.env` and the EC2 crontab, and restart the bank job (`backend/CLAUDE.md`, Deployment). |
-| A new key | Put it in its Infisical folder (any Member can add a `workit-dev` key; only an Admin a `workit-prod` one). In the same PR that first reads it, add it to its folder's table here and its name, with no value, to the `.env.example` beside its file. A new API setting also joins the Worker's `FORWARDED` list in that PR: without it, the Container never sees the value. Then tell the team to run `npm run env`. |
+| A new key | Put it in its Infisical folder. In the same PR that first reads it, add it to its folder's table here and its name, with no value, to the `.env.example` beside its file. A new API setting also joins the Worker's `FORWARDED` list in that PR: without it, the Container never sees the value. Then tell the team to run `npm run env`. |
 | Delete an API value | Delete it in Infisical, then in the Cloudflare dashboard (Workers, `workit-api`, Settings, Variables and Secrets). `wrangler secret bulk` never deletes. |
 | Rotate a value | Issue a new value at the provider, change it as above, check that the app works, then revoke the old value. |
 
