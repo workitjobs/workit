@@ -148,6 +148,15 @@ def test_oracles_own_submit_on_the_last_step_is_read_by_plain_code(last_step):
     assert last_step.evaluate(send_button.FIND) == ["Submit"]  # the one button Approve and submit presses
 
 
+def test_oracles_submit_disabled_while_it_checks_the_last_answers_is_waited_for(last_step):
+    # Honeywell's form (live 2026-11-27): every field filled, but Oracle's Submit was disabled while it checked the phone
+    # number just refilled, so it read as no button that sends, and the filled form was a Handoff.
+    last_step.locator(claude_fill.LAST_STEP_SUBMIT).evaluate(
+        "b => { b.disabled = true; setTimeout(() => b.disabled = false, 1000) }")
+
+    assert claude_fill._last_step_submit(last_step) == "Submit"
+
+
 def test_a_step_without_oracles_submit_names_none(page):
     assert claude_fill._last_step_submit(page) == ""
 
@@ -158,7 +167,8 @@ def test_a_step_without_oracles_submit_names_none(page):
     "b => b.querySelector('span').textContent = 'Save'",  # words that send nothing
     "b => b.after(b.cloneNode(true))",  # two of them: never a guess between them
 ])
-def test_oracles_submit_is_named_only_when_one_shows_enabled_and_its_words_send(last_step, change):
+def test_oracles_submit_is_named_only_when_one_shows_enabled_and_its_words_send(last_step, change, monkeypatch):
+    monkeypatch.setattr(claude_fill, "SUBMIT_SETTLES_S", 0.5)
     last_step.locator(claude_fill.LAST_STEP_SUBMIT).evaluate(change)
 
     assert claude_fill._last_step_submit(last_step) == ""

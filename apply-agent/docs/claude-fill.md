@@ -13,8 +13,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 - A step where Claude names no Next and no button that sends is a Handoff
   (KAN-636), unless plain code finds the job system's own last-step Submit
   (`claude_fill.LAST_STEP_SUBMIT`: Oracle Recruiting's pagination Submit,
-  whose words come from i18n). It must show, be enabled, and be the one
-  button of its words. Then the form is held at its last step as when
+  whose words come from i18n). It must show, be enabled (plain code waits
+  up to `SUBMIT_SETTLES_S` while Oracle disables it to check the last
+  answers), and be the one button of its words. Then the form is held at its last step as when
   Claude names it: nothing presses it until Approve and submit.
 - Claude's stop for a captcha holds the fill only when Apply's own check
   sees the challenge or its box showing to a person (`captcha.shows`,
