@@ -1935,9 +1935,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   tab, and for a while no link reached the page, so a student without
   Claude could not answer (KAN-566); then only the notice did, so with
   nothing waiting the saved answers and their Delete were out of reach.
-  **That gap is open again, on purpose**: with no question waiting, no
-  link reaches Your Answers. Give the saved answers a place on the queue
-  (a row's menu, an applied job's page) before a student needs them.
+  **Application Info's Written Answers card closes that gap** (2026-11-27,
+  `auto-apply/info/written-answers-link.tsx`, in the Answer Bank part): it
+  always links here, so the saved answers and their Remove are reachable
+  with no question waiting. **The page says it is the Chrome extension's**
+  (a quiet line under Back, with the extension's puzzle-piece glyph, as the
+  card has): WorkIt Auto Apply keeps its answers on each application's page.
   never the danger red (the student fixes it; nothing broke). Each box's
   save is `secondary` until the box has text (KAN-568): a card holds
   several questions, and a brand Save under each put five on one screen.
@@ -2026,7 +2029,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   showed on every page, and it took the phone's magnifier and sheet with it.
   Each page's own heading and line under the bar went, about 60px a page: the
   line under Written Answers too, so that page no longer says how answers
-  reach the tab. Auto Apply keeps its queue line, which is a count, not a
+  reach the tab. It has one short line back since 2026-11-27, naming the
+  Chrome extension as its answers' source, at the user's ask: a student
+  with WorkIt Auto Apply too read the page as every answer. Auto Apply keeps its queue line, which is a count, not a
   description. **The company bar does the same** (KAN-582,
   `company/bar-title.tsx`, its own `TITLES`): a new company section joins
   that list, and a company page draws no heading of its own unless it is a

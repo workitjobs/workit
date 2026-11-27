@@ -4,6 +4,7 @@ import {
   KeyIcon,
   NotebookIcon,
   PenNibIcon,
+  PuzzlePieceIcon,
   ScrollIcon,
   SealQuestionIcon,
   StampIcon,
@@ -46,6 +47,13 @@ export const INFO_SECTIONS = [
     label: "Answers From WorkIt Auto Apply",
     Icon: SealQuestionIcon,
     hash: "#section-app-answers",
+  },
+  // The door to Written Answers, the Chrome extension's essays: its glyph is the extension's, as the page's line is.
+  {
+    key: "written-answers",
+    label: "Written Answers",
+    Icon: PuzzlePieceIcon,
+    hash: "#section-written-answers",
   },
   { key: "transcript", label: "Transcript", Icon: ScrollIcon, hash: "#section-transcript" },
   {

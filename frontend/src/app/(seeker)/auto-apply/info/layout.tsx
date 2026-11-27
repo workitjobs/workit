@@ -19,6 +19,7 @@ import { Transcript } from "./transcript";
 import { InfoDiscardBar, InfoUnsaved } from "./unsaved";
 import { WorkdaySignup } from "./workday-signup";
 import { WritingSamples } from "./writing-samples";
+import { WrittenAnswersLink } from "./written-answers-link";
 
 export const metadata: Metadata = {
   title: "Application Info",
@@ -73,6 +74,7 @@ export default function ApplicationInfoLayout({ children }: { children: ReactNod
           <InfoPart name="answer-bank">
             <AnswerBank />
             <AppAnswers />
+            <WrittenAnswersLink />
           </InfoPart>
           <InfoPart name="files">
             <Transcript />

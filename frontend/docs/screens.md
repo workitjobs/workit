@@ -1619,7 +1619,11 @@ connector directory, `CLAUDE_CONNECTOR_LINK` points the button at the
 listing instead.
 
 **Written Answers** (`/auto-apply/answers`, KAN-385) is batch apply
-without Claude. The extension fills every factual field itself and leaves
+without Claude, for the forms the WorkIt Chrome extension fills: a quiet
+line under Back says so, with the extension's puzzle-piece glyph
+(2026-11-27), since WorkIt Auto Apply keeps its answers on each
+application's page instead. Application Info's Written Answers card (in
+the Answer Bank part) always links here. The extension fills every factual field itself and leaves
 the written questions (why this company, a project you're proud of) to the
 student's own Claude through the connector. A student without Claude
 answers them here: every question the batch's open tabs need written and
@@ -2613,6 +2617,12 @@ goes into the other.
 - **An open box with a change counts as unsaved** (`useUnsavedChanges` and
   `data-unsaved`), here and in Answers From WorkIt Auto Apply and the style
   card, so leaving Application Info asks first, as the forms do.
+
+**Written Answers (2026-11-27)** (`written-answers-link.tsx`) is the
+Answer Bank part's last card: the door to Written Answers, the Chrome
+extension's essays, always there (Up Next's notice leads there only while
+a question waits). Its glyph is the extension's puzzle piece, as the
+page's line is.
 
 **Answers From WorkIt Auto Apply (W11, 2026-11-27)** (`app-answers.tsx`,
 `lib/app-answers-actions.ts`, `lib/app-answers.ts`) is the second card of
