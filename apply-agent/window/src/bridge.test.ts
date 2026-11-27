@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { routes } from "./bridge.ts";
+import { SENT_ANYWAY } from "./view.ts";
 
 // What the routes bridge posts, caught where it leaves the page.
 function posts() {
@@ -43,10 +44,14 @@ test("Stop applying, Stop new ones only, Not applying, Approve and submit, Cance
   ]);
 });
 
-test("an emailed code reaches /code with its case kept", async () => {
+test("an emailed code reaches /code with its case kept, and Send anyway /submit with its reason", async () => {
   const { sent, bridge } = posts();
   await bridge.code("tile-3", "OxNbtPnI");
-  assert.deepEqual(sent, [{ path: "/code", token: "tok", body: { id: "tile-3", code: "OxNbtPnI" } }]);
+  await bridge.submit("tile-3", SENT_ANYWAY);
+  assert.deepEqual(sent, [
+    { path: "/code", token: "tok", body: { id: "tile-3", code: "OxNbtPnI" } },
+    { path: "/submit", token: "tok", body: { id: "tile-3", override: SENT_ANYWAY } },
+  ]);
 });
 
 // /state as Apply answers it: each reply in turn, a thrown one a request that never got an answer.

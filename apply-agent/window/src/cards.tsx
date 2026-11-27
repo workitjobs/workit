@@ -6,7 +6,7 @@ import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, toCheck, wantedFields } from "./view.ts";
+import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, isHeld, SENT_ANYWAY, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, toCheck, wantedFields } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -390,6 +390,7 @@ function Submit(props: Props) {
 }
 
 export const SUBMITTING = "Submitting. We'll mark it applied once the job site confirms it.";
+export const SEND_ANYWAY_ASK = "Send it with the flagged answers as they are? It can't be undone.";
 export const WE_SUBMIT = "We press Submit for you, once. Or open the form and submit it yourself.";
 
 // Approve and submit, and Fix in the form. On a form with something to check, fixing comes first and submitting it
@@ -398,6 +399,7 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
   const { job, bridge, fail } = props;
   const s = job.source;
   const [pressed, setPressed] = useState(false);
+  const [anyway, setAnyway] = useState(false);
   if (!job.held || job.worker === undefined) return <OpenForm label={fix ? "Open the form" : "Open form to submit"} {...props} />;
   if (s.submitting || (pressed && !s.submit_said))
     return (
@@ -405,11 +407,12 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
         {SUBMITTING}
       </p>
     );
-  const submit = () => {
+  const submit = (override?: string) => {
     setPressed(true);
-    bridge.submit(`tile-${job.worker}`).catch((e: Error) => (setPressed(false), fail(e.message)));
+    setAnyway(false);
+    bridge.submit(`tile-${job.worker}`, override).catch((e: Error) => (setPressed(false), fail(e.message)));
   };
-  if (s.auto_at) return <Countdown {...props} when={s.auto_at} submit={submit} />;
+  if (s.auto_at) return <Countdown {...props} when={s.auto_at} submit={() => submit()} />;
   // The decision stays in sight: it sticks to the window's foot while the answers above it scroll by.
   return (
     <div className="sticky bottom-0 z-[1] -mx-6 mt-1 border-t border-border bg-panel/95 px-6 pb-3 backdrop-blur">
@@ -419,8 +422,27 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
           {said(s.submit_said)}
         </p>
       )}
+      {isHeld(s.submit_said) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2.5">
+          {anyway ? (
+            <>
+              <span className="text-ink-muted">{SEND_ANYWAY_ASK}</span>
+              <Button tone="primary" onClick={() => submit(SENT_ANYWAY)}>
+                Yes, send it
+              </Button>
+              <Button tone="quiet" onClick={() => setAnyway(false)}>
+                Keep it held
+              </Button>
+            </>
+          ) : (
+            <Button tone="secondary" onClick={() => setAnyway(true)}>
+              Send anyway
+            </Button>
+          )}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2.5">
-        <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={submit}>
+        <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={() => submit()}>
           {fix ? "Submit as it is" : "Approve and submit"}
         </Button>
         <Button tone={fix ? "primary" : "secondary"} size="lg" onClick={() => show(props)}>
