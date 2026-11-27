@@ -287,8 +287,8 @@ with the failure it prevents.
   Profile (KAN-550). Read it before changing the seeker sidebar, the
   Jobs page's layout or any `/auto-apply` address.
 - `docs/secrets.md` — KAN-899, being set up: every shared secret lives in
-  Infisical (`workit-dev` for everyone, `workit-prod` and `workit-logins`
-  for Admins), and GitHub and Cloudflare hold copies a sync or a workflow
+  Infisical (`workit-dev`, `workit-prod` and `workit-logins`, every team
+  member an Admin of all three), and GitHub and Cloudflare hold copies a sync or a workflow
   writes; how to pull a `.env`, change a value and load the first values.
   Read it before adding, changing or sharing any secret.
 - `docs/search.md` — how the Jobs page's search reads a query.
