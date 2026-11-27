@@ -469,6 +469,12 @@ company.
 - The answer goes on this form and its Record only. It is dropped from the
   plan's essays, drafts and Missing facts, and it never joins the Answer
   bank or the Story bank.
+- Lisul's own reviewed Answer bank entry wins over it, and over any rule,
+  draft or essay, on any question (`worker._Planned._reviewed`,
+  `AnswerBank.reviewed`). An entry filed as "<question> (<company> only)"
+  answers that company's form alone and comes first. Strava's
+  "(strava only)" entry was ignored on refill and the code's "No" was
+  filled again (2026-11-26).
 
 **Tests.** `tests/test_other_roles.py`.
 

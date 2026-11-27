@@ -6,7 +6,14 @@ No browser, no network: the board is a stand-in site."""
 import json
 
 from fakes import FakeClaude
-from test_claude_answers import MICROMOUSE, PROJECT, ResearchForm, run_all, sent_answer
+from test_claude_answers import (
+    MICROMOUSE,
+    NOW,
+    PROJECT,
+    ResearchForm,
+    run_all,
+    sent_answer,
+)
 
 from apply import home, other_roles
 from apply.answer_bank import AnswerBank
@@ -142,3 +149,26 @@ def test_the_form_gets_the_answer_with_no_model_call_no_question_for_him_and_no_
     assert not any(e.question == asked for e in bank.entries())
     assert home.STORY_BANK.read_text() == story
 
+
+
+def test_his_reviewed_answer_bank_entry_wins_over_the_code_and_any_draft(monkeypatch):
+    # Fault: Strava's entry filed "<question> (strava only)", source lisul and reviewed, was ignored on refill:
+    # the textarea was filled with the code's "No, ... the only Strava internship" (Strava, 2026-11-26).
+    asked = "Are you applying to any other Example Co internships? If so, which ones and why?"
+    mine = "Yes. I'm applying to three Example Co internships, and I'd be glad to join whichever team fits best."
+    form = ResearchForm("Northwood Space")
+    form.questions = form.questions + [Question("qo", asked, "textarea", True)]
+    claude, bank = FakeClaude(essays={PROJECT: MICROMOUSE}), AnswerBank()
+    bank.answer(f"{asked} (Example Co only)", mine, NOW.date())
+
+    [row] = run_all(monkeypatch, form, claude, ["Example Co"], bank=bank)
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, asked) == mine
+    # Another company's entry ("(Acme only)") answers nothing here.
+    other = AnswerBank()
+    other.answer(f"{asked} (Acme only)", mine, NOW.date())
+    assert other.reviewed(asked, "Example Co") is None and other.reviewed(asked, "Acme").answer == mine
+    # A draft, unreviewed or Claude's, never wins this way: only his reviewed answer does.
+    other.add(Question("q", "Why us?", "textarea", True), "A draft.", "Acme", NOW.date())
+    assert other.reviewed("Why us?") is None

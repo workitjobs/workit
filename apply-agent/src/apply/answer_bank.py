@@ -85,6 +85,14 @@ class AnswerBank:
         none = found.get("none") is True and found.get("answer") == []
         return _entry(found) if none or found.get("answer") not in (None, "", []) else None
 
+    def reviewed(self, question: str, company: str = "") -> Entry | None:
+        """Lisul's own reviewed answer to `question`: the one filed for `company` alone ("<question> (<company>
+        only)") first, else the one under its wording. It wins over any draft or essay (Strava, 2026-11-26)."""
+        for wording in ([f"{question} ({company.strip()} only)"] if company.strip() else []) + [question]:
+            if (entry := self.get(wording)) and entry.source == LISUL and entry.reviewed:
+                return entry
+        return None
+
     def answers(self) -> dict[str, Entry]:
         """Every answer, by the question's wording as filed."""
         return {str(k): entry for k in list(self._entries) if (entry := self.get(str(k)))}

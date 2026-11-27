@@ -735,6 +735,7 @@ class _Planned:
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
         self._other_roles(planned)
+        self._reviewed(planned)
         if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -842,6 +843,28 @@ class _Planned:
             setattr(planned, part, [q for q in getattr(planned, part) if q.name not in self.roles])
         planned.waiting = {name: on for name, on in planned.waiting.items() if name not in self.roles}
 
+    def _reviewed(self, planned) -> None:
+        """Fill each question Lisul's reviewed Answer bank entry answers (apply.answer_bank.AnswerBank.reviewed, its
+        "(<company> only)" form first) with that answer, over any rule, draft, essay or other-roles answer: Strava's
+        "(strava only)" entry was ignored on refill and the textarea drafted again (2026-11-26). Never an
+        attestation, a file, a secret, nor a choice none of whose options is the answer."""
+        for q in self.questions:
+            wording = None if q.name in self.filed and self.filed[q.name] is None else self.wording(q)  # a bare date no section places
+            if (not wording or q.kind == "file" or q.name in planned.attestations or SECRET.search(q.label)
+                    or not (entry := self._bank.reviewed(wording, self.posting.company)) or entry.none):
+                continue
+            answer = entry.answer
+            picked = answer if isinstance(answer, list) else [answer]
+            if (q.options and not all(a in q.options for a in picked)) or isinstance(answer, list) != (q.kind == "multi_select"):
+                continue
+            planned.answers[q.name] = answer
+            self.roles.pop(q.name, None)
+            if q not in planned.banked:
+                planned.banked.append(q)
+            for part in ("essays", "drafts", "missing", "optional", "high_stakes"):
+                setattr(planned, part, [m for m in getattr(planned, part) if m.name != q.name])
+            planned.waiting.pop(q.name, None)
+
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
         Lisul's, as he fills them on the page, and listed as Missing facts till
@@ -879,7 +902,8 @@ class _Planned:
 
     def own(self) -> set[str]:
         """The questions the form took Lisul's own Answer bank answer for."""
-        return {q.name for q in self.banked if (entry := self._bank.get(self.wording(q))) and entry.source == LISUL}
+        return {q.name for q in self.banked if self._bank.reviewed(self.wording(q), self.posting.company)
+                or ((entry := self._bank.get(self.wording(q))) and entry.source == LISUL)}
 
     def wording(self, q: Question) -> str:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
