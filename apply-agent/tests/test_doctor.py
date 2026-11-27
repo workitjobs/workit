@@ -148,7 +148,7 @@ def test_no_chrome_fails_with_how_to_install_it(tmp_path):
     found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
-    assert "/Applications/Google Chrome.app" in found.detail  # where it looked, on the Mac
+    assert "Google Chrome.app" in found.detail  # where it looked on the Mac, in any OS's path form
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
