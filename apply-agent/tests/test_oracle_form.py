@@ -157,6 +157,14 @@ def test_oracles_submit_disabled_while_it_checks_the_last_answers_is_waited_for(
     assert claude_fill._last_step_submit(last_step) == "Submit"
 
 
+def test_oracles_submit_shown_in_capitals_is_named_by_its_words(last_step):
+    # Honeywell's site (live 2026-11-27) styles it text-transform: uppercase, so it read as "SUBMIT", a name no button
+    # has, and the filled form was a Handoff twice.
+    last_step.locator(claude_fill.LAST_STEP_SUBMIT).evaluate("b => b.style.textTransform = 'uppercase'")
+
+    assert claude_fill._last_step_submit(last_step) == "Submit"
+
+
 def test_a_step_without_oracles_submit_names_none(page):
     assert claude_fill._last_step_submit(page) == ""
 

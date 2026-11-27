@@ -896,7 +896,8 @@ def _last_step_submit(page: Page) -> str:
             if time.monotonic() > deadline:
                 return ""
             time.sleep(0.25)  # Oracle disables it while it checks the fields just filled
-        words = " ".join(buttons[0].inner_text().split())
+        # Its words as written, not as shown: Honeywell's CSS shows "SUBMIT", which names no button (live 2026-11-27).
+        words = " ".join((buttons[0].text_content() or "").split())
         if not SENDS.search(words) or page.get_by_role("button", name=words, exact=True).count() != 1:
             return ""
     except Exception:
