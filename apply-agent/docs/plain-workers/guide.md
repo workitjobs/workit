@@ -458,6 +458,15 @@ What changes on a plain Worker:
   Each reuse calls `guards.reset(worker)` and closes the last form's tabs. After each form, one blank
   tab stays, so the window stays. The run or rehearsal stops each Chrome by its PID as it ends
   (`cli._close_workers`, before the rehearsal's `os._exit`).
+- **A rehearsal keeps no Chrome that no form holds.** Each link's end (sent, let go, its tab closed,
+  skipped, already applied, or the rehearsal moving on) closes its page and calls `site.release(worker)`
+  (`rehearsal.rehearse`'s `let_chrome_go`). `PlainSite.release` stops that Worker's Chrome once no other
+  form is open in it, and every other Worker's Chrome that no form holds now. So the Chromes up are never
+  more than the forms filling or held for the student. Without it, each ended form left its Chrome on
+  `about:blank` till the run ended: 17 Chromes in one run (2026-11-26). A Worker's next form (Fill again,
+  a link sent in) starts its Chrome again, its sign-ins kept (`--restore-last-session`), so `into` takes
+  a link for a plain Worker of the run whose Chrome stopped. Tests: `tests/test_plain_window_close.py`
+  (in CI).
 - **The tile** uses `PortFrames`, which reads the field error for the stuck detector over the port
   (`stuck.field_error(page)`) on the window's own thread.
 - **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
@@ -504,6 +513,13 @@ and failed the job (`ProfileInUse`, "Didn't go through").
   now another process, such as the student's own Chrome.
 - **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
   started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
+  It sends SIGTERM to every Chrome first, then waits, so a quit waits `STOP_WAIT` once, not once each.
+- **Any exit.** `launcher.stop_everyone` runs at this process's exit (`atexit`) and stops every Chrome
+  each `PlainWorkers` of the process still runs: an exception or a quit by signal leaves none. The app
+  turns SIGTERM, SIGINT (Ctrl-C) and SIGHUP (a closed terminal) into its window's close
+  (`app_window.QUITS`), so its `finally` runs too. Only SIGKILL or a hard crash skips both: then the app,
+  as it starts, reclaims every plain profile's orphan Chrome (`student.reclaim_left`,
+  `launcher.reclaim_all`), not only once a run reaches each profile.
 - Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)

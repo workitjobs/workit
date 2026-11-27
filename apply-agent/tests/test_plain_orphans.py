@@ -141,3 +141,25 @@ def test_stop_all_stops_a_chrome_still_starting(tmp_path, started):
     workers.stop_all()
     assert ended(process)
     assert not workers._starting
+
+
+def test_this_apply_exiting_stops_every_chrome_it_started(tmp_path, started):
+    """Fault: an Apply that exits without its own stop (an exception, a quit by signal) leaves its Workers' Chromes up,
+    since they run on their own."""
+    workers = PlainWorkers(tmp_path, kind="testing")
+    started.append(process := chrome(tmp_path / "plain-1"))
+    workers._starting[0] = launcher.Chrome(process.pid)
+    launcher.stop_everyone()  # what atexit runs
+    assert ended(process)
+
+
+def test_the_app_closes_every_chrome_a_gone_apply_left_as_it_starts(tmp_path, started, monkeypatch):
+    """Fault: after a crash, the Chromes it left (one per form) stay open till a run reaches each profile."""
+    from apply import student
+
+    for name in ("plain-1", "plain-7"):
+        started.append(chrome(tmp_path / name))
+        gone_owner(tmp_path / name)
+    monkeypatch.setenv("APPLY_PROFILES", str(tmp_path))
+    student.reclaim_left()
+    assert all(ended(process) for process in started)
