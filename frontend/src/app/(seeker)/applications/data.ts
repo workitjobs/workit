@@ -18,7 +18,7 @@ export const getNow = cache(() => new Date());
 
 /**
  * Every application the seeker is tracking: their saved and applied jobs,
- * newest first, or an `error` when the API can't be read (never stand-in
+ * latest applied first, then newest added, or an `error` when the API can't be read (never stand-in
  * cards: backend/CLAUDE.md). cache() so the pages and the components under
  * them read the API once per request.
  */

@@ -1,6 +1,6 @@
 // The window: one screen that answers "what do I do now?".
 import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
@@ -8,7 +8,7 @@ import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, findsJobs, joinedWords, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -37,9 +37,12 @@ export function App({ bridge }: { bridge: Bridge }) {
   useEffect(() => {
     if (v) document.title = v.todo.length ? `WorkIt Auto Apply (${v.todo.length})` : "WorkIt Auto Apply";
   }, [v]);
-  // A run started from Find jobs or the queue: its board is home now.
+  // A run started from Find jobs or the queue: its board is home now. Only as it starts: Find jobs stays open beside
+  // a run going.
+  const wasRunning = useRef(false);
   useEffect(() => {
-    if (v?.running && (page === "add" || page === "find")) setPage("home");
+    if (v?.running && !wasRunning.current && (page === "add" || page === "find")) setPage("home");
+    if (v) wasRunning.current = v.running;
   }, [v?.running, page]);
   if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
@@ -61,7 +64,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         </button>
         <nav className="ml-auto flex items-center gap-1 text-note">
           {v.running && !first && <Stop v={v} bridge={bridge} fail={setToast} />}
-          {addsJobs(v, !!app.start) && !!app.matches && (
+          {findsJobs(!!app.start, !!app.matches) && (
             <Button tone="quiet" className={cx("h-8 px-3", first && finds && "bg-hover text-ink")} onClick={() => setPage("find")}>
               <MagnifyingGlassIcon className="size-4" /> Find jobs
             </Button>
@@ -93,7 +96,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         {page === "applied" ? (
           <Applied jobs={v.applied} app={app} />
         ) : first && finds ? (
-          <Find app={app} queue={add} />
+          <Find app={app} queue={v.running ? undefined : add} joined={v.running ? (n) => (setPage("home"), setToast(joinedWords(n))) : undefined} />
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (

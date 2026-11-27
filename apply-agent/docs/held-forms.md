@@ -43,7 +43,20 @@ reads: it does not click, type or submit.
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
-  (`docs/fill-engine.md`, KAN-753).
+  (`docs/fill-engine.md`, KAN-753). The review reads no `policies.yaml`,
+  so a problem it finds with a pay answer the `compensation` policy gave
+  (its `expectation`, the Posting's range, or `fallback_hourly` when the
+  Posting names no pay) is dropped (`presubmit.backed_by_policies`):
+  Relay's "$30/hr" was held as unbacked. Verifying's own pay check, which
+  is code, still flags a figure off the policy.
+- Send anyway: when a review hold keeps the run from pressing Submit
+  (`HELD_FIRST`), the card offers Send anyway, which asks once more. It
+  and `apply window submit <tile> --yes --override "<reason>"` post
+  `/submit` with an `override`. The run dismisses the form's legal holds
+  (`Rehearsed.dismiss_holds`), presses Submit, and keeps the reason in
+  the Tracker row and the Record (`SENT_ANYWAY`). Nothing else gives way:
+  a missing required answer, an application already sent, a press
+  already made and a session hold (apply.keepalive) still refuse it.
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   Apply fills that answer in place of the wrong one (`_Planned.fix`). It
@@ -422,6 +435,34 @@ through `worker._Planned._missing` first.
   Answer bank entry or draft the engine planned, unless the answer is
   Lisul's own. `known` never answers it from his links, and its context
   line leads with "Take it yourself at <link>, then paste its result".
+- `asking.to_make(q)` finds a text field that asks for a link to something
+  Lisul must make or host first: a video (YouTube, Loom, Vimeo, a
+  recording), a submission, a portfolio or a demo. OpenSesame's "shareable
+  YouTube link to your Creative Project submission" got a written essay
+  (2026-11-26). A link word counts only for what its clause names just
+  before it ("YouTube link") or after "to", "for" or "of" ("link to your
+  submission"), so "a project in your portfolio (links welcome)" stays an
+  essay. Only a link answers it. `fill_engine.plan` keeps an answer
+  that `asking.fits_made` takes (links alone, each to one video for a video
+  ask, and never one for a submission, which only Lisul has); any other
+  answer, essay or draft becomes a Missing fact, and is never held as a
+  high-stakes essay. `known` skips an earlier answer, Answer bank entry or
+  Story bank line for it that is not links alone. A question
+  the engine left blank or handed off stays as it planned it. `known`
+  answers a video ask only from a link to one video whose line names it
+  ("Creative Project video: https://youtu.be/..."), and a submission never
+  from his links. Its context line leads with "Record the video yourself,
+  then paste its YouTube link".
+- `recording.brief` writes the Recording brief for a video or submission
+  ask whose Posting lists prompts for it (`description.asked`): one bullet
+  for each prompt, with at most two talking points. Each point must quote
+  the Story bank or the Stock answers word for word, or it is dropped. One
+  call of WorkIt's `recording.brief` kind writes the points; when it fails,
+  the brief lists the prompts with no points. `Worker._missing` puts the
+  brief under the context line, in `Result.where`, so the window's card
+  shows it. The Tracker reason, the waiting list and the phone push keep
+  the first line only (`asking.first_line`). A rehearsal's Record has it
+  under "Recording briefs".
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date
@@ -441,8 +482,8 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k "already_holds or quiz"` and
-`test_dashboard.py -k says_where_it_sits` (opens Chromium).
+**Tests.** `test_claude_answers.py -k "already_holds or quiz or video or to_make"`,
+`test_recording.py` and `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
 ### Other roles at the same company (`apply.other_roles`)
 

@@ -1318,7 +1318,7 @@ STYLE = r"""
   .ask { margin-top: 14px; }
   .ask > label { display: block; margin-bottom: 8px; color: var(--body); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .ask .options, .ask select { margin-bottom: 8px; }
-  .ask > .where { margin: -4px 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .ask > .where { margin: -4px 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; white-space: pre-line; }
   .ask > label.question { margin: 10px 0 4px; color: var(--ink); font-weight: 600; }
   .ask .need { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--rail-line); border-radius: 999px;
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
