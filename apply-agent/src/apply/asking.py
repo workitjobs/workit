@@ -172,8 +172,19 @@ def graduation(profile: ApplicantProfile) -> str:
     can be older (Anduril's cover letter, 2026-11-25, waited on a Story bank date the profile had moved)."""
     given = str(profile.get("education.expected_graduation") or "").strip()
     if (m := re.fullmatch(r"(\d{4})-(\d{1,2})(?:-\d{1,2})?", given)) and 1 <= int(m[2]) <= 12:
-        return f"Expected graduation: {date(int(m[1]), int(m[2]), 1):%B %Y}"
+        return f"Expected graduation: {date(int(m[1]), int(m[2]), 1):%B %Y}{_flexible(profile)}"
     return f"Expected graduation: {given}" if given else ""
+
+
+def _flexible(profile: ApplicantProfile) -> str:
+    """The terms a flexible graduation may move to (education.graduation_flexible), as the graduation line's tail:
+    " (can move to any May or December term from May 2027)"; "" when it can't move. A posting's window may ask for
+    one of them (Lisul, 2026-11-27)."""
+    earliest = str(profile.get("education.graduation_flexible.earliest") or "").strip()
+    if profile.get("education.graduation_flexible.any_term_from_earliest") is not True or not (
+            (m := re.fullmatch(r"(\d{4})-(\d{1,2})", earliest)) and 1 <= int(m[2]) <= 12):
+        return ""
+    return f" (can move to any May or December term from {date(int(m[1]), int(m[2]), 1):%B %Y})"
 
 
 def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None, employer: str = "") -> tuple[str, ...]:

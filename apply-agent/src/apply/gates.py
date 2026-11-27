@@ -300,6 +300,7 @@ SEASON = {"spring": {3, 4, 5}, "summer": {6, 7, 8}, "fall": {9, 10, 11}, "autumn
 WHEN = re.compile(r"\b(?:(january|february|march|april|may|june|july|august|september|october|november|december"
                   r"|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|spring|summer|fall|autumn|winter)\.?\s+(?:of\s+)?)?"
                   r"((?:19|20)\d\d)\b", re.IGNORECASE)
+FLEXIBLE = re.compile(r"\(can move to any May or December term from ([^)]*)\)")
 PROFILE_DATE = re.compile(r"(january|february|march|april|may|june|july|august|september|october|november|december)"
                           r"\s+((?:19|20)\d\d)", re.IGNORECASE)
 
@@ -311,20 +312,29 @@ def graduation(text: str, graduates: str) -> list[str]:
     if not (m := PROFILE_DATE.search(graduates)):
         return []
     month, year = MONTH[m.group(1)[:3].casefold()], int(m.group(2))
+    # A flexible graduation ("... (can move to any May or December term from May 2027)") may give any of those terms.
+    terms = [(month, year)]
+    if (flex := FLEXIBLE.search(graduates)) and (start := PROFILE_DATE.search(flex.group(1))):
+        first = (int(start.group(2)), MONTH[start.group(1)[:3].casefold()])
+        terms += [(t, y) for y in range(first[0], first[0] + 7) for t in (5, 12) if (y, t) >= first]
     found = []
     for said_at in GRADUATES.finditer(text):
         # The date it gives: in the same clause, within a few words ("graduating in May 2028", "class of 2028").
         clause = re.split(r"[,;.!?()]|\s(?:and|but|while)\s", text[said_at.end():said_at.end() + 40])[0]
         if when := WHEN.search(clause):
             word, said = (when.group(1) or "").casefold(), int(when.group(2))
-            if word in SEASON:
-                fits = month in SEASON[word] and said in ({year, year - 1} if month in (1, 2) else {year})  # winter spans two
-            else:
-                fits = said == year and (not word or MONTH[word[:3]] == month)
+            fits = any(_gives(word, said, month, year) for month, year in terms)
             if not fits:
                 found.append(f'gives graduation as "{when.group().strip()}", but the profile says '
                              f'{m.group(1)} {year}: state the profile\'s date')
     return found
+
+
+def _gives(word: str, said: int, month: int, year: int) -> bool:
+    """Whether "<word> <said>" ("May 2028", "winter 2027", "2028") names graduating in `month` `year`."""
+    if word in SEASON:
+        return month in SEASON[word] and said in ({year, year - 1} if month in (1, 2) else {year})  # winter spans two
+    return said == year and (not word or MONTH[word[:3]] == month)
 
 
 # (j) The tools that fill the application.
