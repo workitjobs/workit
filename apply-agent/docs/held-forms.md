@@ -80,7 +80,9 @@ reads: it does not click, type or submit.
   for both, `worker._flagged`). The second is a trial: kept only if the next review
   passes it, else the plan's answer is filled again (`_Planned.unfix`) and
   the problem holds the form (Pylon's relocate, CesiumAstro's GPA,
-  2026-11-26). It never replaces Lisul's own answer, an essay, a file or a
+  2026-11-26). A fix to a group of boxes ticks the boxes it names whole,
+  and is no fix if it names anything else (`worker._ticks`). It never
+  replaces Lisul's own answer, an essay, a file or a
   secret. A question's repeat in another section (Oracle's
   "Application Questions: <question>", `worker._repeats`) takes the fix
   its question took, and is undone with it. A
