@@ -12,7 +12,7 @@ import yaml
 from conftest import FIXTURES
 from fakes import FakeClaude
 
-from apply import cli, dashboard, verify, worker
+from apply import cli, dashboard, worker
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
 from apply.dashboard import Dashboard, NoFrames
