@@ -877,14 +877,26 @@ def _only_its_submit(blocked: list[str], said: dict) -> bool:
 LAST_STEP_SUBMIT = ".apply-flow-pagination__submit-button"
 
 
+# How long Oracle's Submit may stay disabled once the fill stops: it disables it while it checks a field just filled
+# (the phone number), and a disabled one read as none handed Honeywell's filled form off (live 2026-11-27).
+SUBMIT_SETTLES_S = 8
+
+
 def _last_step_submit(page: Page) -> str:
     """The words of the job system's own last-step Submit (LAST_STEP_SUBMIT), when the page shows exactly one, enabled,
     whose words send and name exactly one button (as submit() finds it); else "". Plain code reads it, and nothing
     presses it here: the form is held at its last step, as when Claude names it."""
     try:
-        buttons = [b for b in page.locator(LAST_STEP_SUBMIT).all() if b.is_visible()]
-        if len(buttons) != 1 or not buttons[0].is_enabled():
-            return ""
+        deadline = time.monotonic() + SUBMIT_SETTLES_S
+        while True:
+            buttons = [b for b in page.locator(LAST_STEP_SUBMIT).all() if b.is_visible()]
+            if len(buttons) != 1:
+                return ""
+            if buttons[0].is_enabled():
+                break
+            if time.monotonic() > deadline:
+                return ""
+            time.sleep(0.25)  # Oracle disables it while it checks the fields just filled
         words = " ".join(buttons[0].inner_text().split())
         if not SENDS.search(words) or page.get_by_role("button", name=words, exact=True).count() != 1:
             return ""
