@@ -51,6 +51,7 @@ from apply import (
     bot_signals,
     build,
     captcha,
+    claude_cli,
     code_box,
     description,
     eightfold,
@@ -844,6 +845,16 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         trace.event("engine reloaded")
     started, spent = time.monotonic(), claude.spent()
     history: list[str] = [f"{adapters.clock.now().strftime('%H:%M')} {reopened}"] if reopened else []
+    refusals = getattr(claude, "refused", list)
+    noted = len(refusals())  # Opus refusals Sonnet answered before this fill (an earlier one's, in this thread)
+
+    def note_refusals() -> None:
+        """Each call of this fill Opus's safeguards refused, and Sonnet answered, goes in its history (and Record)."""
+        nonlocal noted
+        refused = refusals()
+        at = adapters.clock.now().strftime("%H:%M")
+        history.extend(f"{at} {claude_cli.REFUSED.format(kind)}" for kind in refused[noted:])
+        noted = len(refused)
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     posting, result = resolve(url, site)
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
@@ -884,6 +895,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         at = adapters.clock.now().strftime("%H:%M")
         summary = _summary(named(posting, stopped), stopped, site, claude.spent() - spent, time.monotonic() - started)
         summary.files = list(files)
+        note_refusals()
         history.append(f"{at} Paused: {one_line(summary.why) or summary.outcome}")
         summary.history = tuple(history)
         shown.append(summary)
@@ -961,6 +973,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                 # The line says what failed; the log keeps where, for the fix.
                 print(f"{posting.company or url}: {where}", file=sys.stderr, flush=True)
             trace.result(result)
+    note_refusals()
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
