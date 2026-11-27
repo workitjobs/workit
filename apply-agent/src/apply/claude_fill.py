@@ -498,6 +498,10 @@ class ClaudeFill:
             picked = _pick_in_comboboxes(page, unpicked, answers)
             # Then groups of boxes (Oracle's races), never an attestation: Lisul's own, or the plan's for Claude to tick.
             picked |= _tick_in_groups(page, [q for q in unpicked if q.name not in picked and q.name not in attests | settled], answers)
+            # A box the job site locked that shows its answer already (Oracle's email once signed in): Claude's fill of
+            # it failed, and with it each other field of the same batch (Honeywell's, live 2026-11-27).
+            picked |= {name: value for name, value in answers.items() if name not in picked and name not in self._picked
+                       and name in labels and isinstance(value, str) and value and _locked_showing(page, labels[name], value)}
             self._picked.update(picked)
             self._readback.update(picked)
             todo = {name: value for name, value in answers.items()
@@ -1126,6 +1130,19 @@ FIELD_OF = r"""(els) => {
     return by ? `labelled ${by}` : `field ${i}`;
   });
 }"""
+
+
+LOCKED = "el => !!(el.readOnly || el.disabled || el.getAttribute('aria-readonly') === 'true') ? String(el.value || '') : null"
+
+
+def _locked_showing(page: Page, label: str, answer: str) -> bool:
+    """Whether the one text box the page labels `label` is read-only and shows `answer`: nothing to fill."""
+    try:
+        fields = _labelled_fields(page, _bare(label))
+        shown = fields[0].evaluate(LOCKED) if len(fields) == 1 else None
+    except Exception:
+        return False
+    return shown is not None and shown.strip().casefold() == answer.strip().casefold()
 
 
 def _labelled_fields(page: Page, label: str) -> list:

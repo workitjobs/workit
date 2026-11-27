@@ -261,6 +261,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   fits that option, and a box that already shows its place is never pressed
   again (a press on the picked option empties it). "Address: County" is
   planned as the bare "County", never as the home address's.
+- A box the job site locked (read-only) that already shows its answer
+  (Oracle's email once signed in) is read back by plain code and never given
+  to Claude: its fill failed, and every field of the same batch with it.
 - A choice question asked as a group of checkboxes (Oracle's races) is ticked by
   plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
   `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
