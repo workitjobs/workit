@@ -40,6 +40,12 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 # The application form's own pages, once signed in (.../job/<id>/apply/section/1).
 FORM_SECTION = re.compile(r"/apply/section/\d+")
+# The application form's blocks, which a draft an earlier attempt held shows at .../apply/email too (Emerson's,
+# live 2026-11-27: "Job application form", with no email step), where the email step has none.
+FORM_BLOCK = ".apply-flow-block"
+# The email step in phone mode, as Oracle shows it to a candidate it last reached by phone (Emerson's, live
+# 2026-11-27): a phone box, no email box, and this switch to the email.
+EMAIL_INSTEAD = "#applyFlowVerifyEmail, .quick-apply-flow-verify-method__button:has-text('email')"
 # The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
 COOKIES = ".cookie-consent-modal"
 DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
@@ -86,7 +92,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     email = page.locator("input[type=email]").first
     if FORM_SECTION.search(page.url):  # a form section has no email box or Apply button to wait for (KAN-680)
         return
-    _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
+    _until(page, lambda: _by_email(page, email) or _apply_button(page).is_visible() or _signed_in(page, email))
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
     if not email.is_visible():
@@ -98,7 +104,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
         # A browser still signed in from an earlier attempt goes on to the form, or to a page of its own, with no email
         # step (Emerson's refill, live 2026-11-27: the email box was waited for, and the fill failed with a timeout).
         try:
-            _until(page, lambda: email.is_visible() or _signed_in(page, email))
+            _until(page, lambda: _by_email(page, email) or _signed_in(page, email))
         except TimeoutError:
             raise Handoff(NO_EMAIL_STEP.format(url=page.url, shows=_shows(page))) from None
         if _signed_in(page, email):
@@ -176,13 +182,24 @@ def signed_in(page: Page) -> bool:
 
 
 def _signed_in(page: Page, email) -> bool:
-    """The application form is open already: a section of it, or its own email field, which can't be edited."""
+    """The application form is open already: a section of it, its blocks, or its own email field, which can't be
+    edited."""
     if FORM_SECTION.search(page.url):
         return True
     try:
-        return email.is_visible() and not email.is_editable()
+        return page.locator(FORM_BLOCK).first.is_visible() or (email.is_visible() and not email.is_editable())
     except Exception:
         return False
+
+
+def _by_email(page: Page, email) -> bool:
+    """Whether the email step shows its email box; in phone mode, it is switched to the email first."""
+    if email.is_visible():
+        return True
+    switch = page.locator(EMAIL_INSTEAD)
+    if switch.count() and switch.first.is_visible():
+        switch.first.click()
+    return False
 
 
 def _shows(page: Page) -> str:
