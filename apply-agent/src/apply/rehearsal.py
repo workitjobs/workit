@@ -2138,7 +2138,13 @@ class _Kept:
                     if not why:
                         stale, code_wrong = code_box.wrong(self._page), False
                         try:
-                            heard(send_button.press(self._page))  # the student's, as their Approve's is
+                            # The code step's own VERIFY when it has one (Oracle's "You're almost done", live
+                            # 2026-11-27): it finishes the Submit he approved. Else the form's Submit (Greenhouse's).
+                            if verified := code_box.verify(
+                                    self._page, lambda let: submit_guard.let_account_click(self._page, let)):
+                                heard(verified, account=True)
+                            else:
+                                heard(send_button.press(self._page))  # the student's, as their Approve's is
                             coding = time.monotonic()
                         except send_button.Unsure as unsure:
                             heard(unsure.words)
@@ -2150,7 +2156,11 @@ class _Kept:
                     if why:
                         code_said(why)
                 if coding and not kept:
-                    if code_box.wrong(self._page) and (not stale or time.monotonic() - coding > CODE_STALE_S):
+                    if code_box.expired(self._page) and (not stale or time.monotonic() - coding > CODE_STALE_S):
+                        coding, code_wrong = 0.0, True  # a new code is asked for, and given again in the window
+                        code_said(code_box.resend(self._page, lambda let: submit_guard.let_account_click(self._page, let))
+                                  or code_box.EXPIRED_SENT)  # on his lifted page, as VERIFY: it sends no application
+                    elif code_box.wrong(self._page) and (not stale or time.monotonic() - coding > CODE_STALE_S):
                         coding, code_wrong = 0.0, True
                         code_said(code_box.WRONG_CODE)
                     elif time.monotonic() - coding > CONFIRM_S:

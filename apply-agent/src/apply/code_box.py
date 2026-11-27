@@ -9,6 +9,10 @@ When the student gives the code instead (the card's code box or `apply window co
 held page with locator actions only, so it works on a plain Worker's page too: one character per box, read
 back before the run presses Submit again.
 
+A code step after Submit with a button of its own (Oracle's "You're almost done": six boxes, VERIFY and Send New
+Code, live 2026-11-27) is sent by that button (`verify`), never by a Send New Code, which would void the code.
+When the site says the code expired, `resend` presses Send New Code and the student is asked for the new one.
+
 A code a sign-in asks for (Oracle's "Confirm your identity", held as "needs sign-in" because the Student build reads
 no mail) is given the same way: `sign_in` enters it and presses that step's own Verify or Continue, never a Submit,
 and the paused fill goes on once the page is past its sign-in.
@@ -91,6 +95,12 @@ WRONG = re.compile(rf"\b(?:incorrect|invalid|wrong|expired)\b[^.\n]{{0,20}}{_EMA
 
 # A sign-in code step's own button: Oracle's Verify. Never Submit or Send, which may be an application's.
 GO_ON = re.compile(r"^\s*(?:verify|confirm|continue|next|sign in|log in)\s*$", re.IGNORECASE)
+# Asks the job site for another code: never the press that sends a code (Oracle's "Send New Code").
+RESEND = re.compile(r"^\s*(?:send (?:a |me a )?new code|resend(?: (?:the )?code)?|send (?:the )?code again|"
+                    r"get a new code|request a new code)\s*$", re.IGNORECASE)
+# What a job site says when the code is too old ("The verification code has expired").
+EXPIRED = re.compile(rf"\bexpired\b[^.\n]{{0,20}}{_EMAILED}|{_EMAILED}[^.\n]{{0,30}}\bexpired\b"
+                     r"|\bcode\b[^.\n]{0,20}\b(?:has |is )?expired\b", re.IGNORECASE)
 SIGN_IN_WAIT_S = 20.0  # how long a sign-in's code step has to go on after its Verify
 
 NOT_A_CODE_GIVEN = "That isn't a code: give the letters and digits from the email, as they are (case counts)."
@@ -105,6 +115,10 @@ NO_GO_ON = ("Apply entered the code, but the sign-in step shows no Verify or Con
             "Open the form and press it yourself.")
 STILL_SIGNING_IN = ("Apply entered the code and pressed {button}, but the sign-in step is still there. Open the form "
                     "to see what it says.")
+EXPIRED_SENT = ("The code had expired, so Apply pressed Send New Code: give the newest code from the job site's email "
+                "(apply window code).")
+EXPIRED_NO_RESEND = ("The code had expired, and the page shows no Send New Code button, so Apply pressed nothing. Open "
+                     "the form to ask for a new code.")
 NO_ANSWER = ("Apply entered the code and pressed Submit, but the job site didn't show that it went in. Open the form "
              "to see what it says.")
 
@@ -173,6 +187,57 @@ def go_on(page):
         except Exception:
             continue  # a frame gone or going
     return None
+
+
+def _shown(page, pattern: re.Pattern):
+    """The first visible button or link whose words match `pattern`, in any frame; None for none."""
+    for frame in page.frames:
+        try:
+            for role in ("button", "link"):
+                for found in frame.get_by_role(role, name=pattern).all():
+                    if found.is_visible():
+                        return found
+        except Exception:
+            continue  # a frame gone or going
+    return None
+
+
+def _press(page, button, let_press: Callable[[bool], None]) -> str:
+    """Click `button` through both guards (`let_press`, as sign_in does); its words."""
+    words = " ".join((button.inner_text() or "").split())
+    let_press(True)
+    try:
+        button.click(timeout=10_000)
+    except Exception:
+        pass  # the step went on as it was pressed: the caller reads the page
+    finally:
+        let_press(False)
+    return words
+
+
+def verify(page, let_press: Callable[[bool], None]) -> str:
+    """Press a code step's own button (GO_ON: Oracle's VERIFY) once the code is in; its words, "" when the step has
+    none (Greenhouse's code goes with the form's Submit). It finishes a Submit the student already approved."""
+    return _press(page, button, let_press) if (button := go_on(page)) is not None else ""
+
+
+def expired(page) -> bool:
+    """Whether the page says the code entered has expired."""
+    for frame in page.frames:
+        try:
+            if frame.get_by_text(EXPIRED).first.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def resend(page, let_press: Callable[[bool], None]) -> str:
+    """Ask the job site for a new code (RESEND: Send New Code): "" once pressed, else why not."""
+    if (button := _shown(page, RESEND)) is None:
+        return EXPIRED_NO_RESEND
+    _press(page, button, let_press)
+    return ""
 
 
 def sign_in(page, code: str, let_press: Callable[[bool], None], wait: float = SIGN_IN_WAIT_S) -> str:
