@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, findsJobs, joinedWords, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
+import { addsJobs, findsJobs, joinedWords, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, fileIn, flagged, openLabel, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -628,4 +628,26 @@ test("Auto-submit's countdown reads minutes and seconds, and never goes below ze
   assert.equal(autoLeft(1000 + 582, 1000_000), "9:42");
   assert.equal(autoLeft(1000 + 5.2, 1000_000), "0:06");
   assert.equal(autoLeft(1000 - 30, 1000_000), "0:00");
+});
+
+test("a held form's flag on its cover letter opens the very file the form was given", () => {
+  const files = [
+    { label: "Resume", name: "Lisul_Resume.pdf" },
+    { label: "Cover Letter", name: "Lisul_Cover_Letter.pdf" },
+  ];
+  const flags = [{ field: "Cover Letter", why: "names Rippling, another company, unlike your resume" }];
+  const held = job({ tone: "needs", kind: "check", again: true, flags, files });
+  const [onTile] = view({ tiles: [job({ tone: "idle" }), held], items: [] }).todo;
+  const line = toCheck(onTile.source)[0];
+  const file = fileIn(onTile.files, line)!;
+  assert.equal(file.link, "/file/1/1"); // tile 1's second file: named by its question, though the line says "resume" too
+  assert.equal(openLabel(file), "Open cover letter");
+  assert.equal(openLabel(fileIn(onTile.files, "Resume: Lisul_Resume.pdf")!), "Open resume");
+  assert.equal(fileIn(onTile.files, "Graduation date: 2027 is not on your profile"), undefined);
+  // An ended Application Apply keeps opens by its item's id; a live item's id names no file.
+  const [ended] = view({ tiles: [], items: [{ ...held, tone: "needs", id: 7 }] }).todo;
+  assert.equal(fileIn(ended.files, line)!.link, "/file/item/7/1");
+  assert.equal(view({ tiles: [], items: [{ ...held, id: "live-0" }] }).todo[0].files, undefined);
+  // A file named only by its name: "Open" and the name.
+  assert.equal(openLabel({ label: "Portfolio", name: "work.pdf", link: "/file/0/0" }), "Open work.pdf");
 });
