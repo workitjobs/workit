@@ -26,8 +26,10 @@ pre-submit review). It looks for four kinds of claim:
   (KAN-750). The project is the one the sentence names, else the one the
   nearest sentence before it names, else the answer's planned story: a
   section's heading ("## Hitachi Rail: Software Intern", a bank entry or a
-  Story bank section), else a name a fact outside any section gives. A fact
-  in a section is about its headings only, so a tool two projects share
+  Story bank section; not what it says in brackets, and never a text's
+  "# " title), else a name only one section's lines give ("the DCC
+  Server"), else a name a fact outside any section gives. A fact in a
+  section is about its headings only, so a tool two projects share
   ("Python") tells neither; one outside any is about the names it gives.
   An outcome in a sentence whose project none of that tells is a claim.
 
@@ -245,7 +247,8 @@ def _facts(texts: Iterable[str]) -> list[Fact]:
         heads: list[tuple[int, list[str]]] = []
         for line in text.splitlines():
             if m := HEADING.fullmatch(line):
-                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), heading=True))]
+                level = len(m.group(1))
+                heads = [h for h in heads if h[0] < level] + [(level, _headed(m.group(2)) if level > 1 else [])]
             elif TAG.fullmatch(line):
                 heads = []
             facts.append(Fact(tuple(n for _, given in heads for n in given),
@@ -253,10 +256,25 @@ def _facts(texts: Iterable[str]) -> list[Fact]:
     return facts
 
 
+def _headed(heading: str) -> list[str]:
+    """The names a heading gives its section, leaving out what it says in
+    brackets: its dates, place and tools ("Micromouse (2024-present; C/C++)"
+    is about Micromouse, not C++)."""
+    return names(re.sub(r"\([^()]*\)", " ", heading), heading=True)
+
+
 def _about(named: list[str], facts: list[Fact]) -> list[str]:
-    """The names in a sentence that tell its project: those a heading gives,
-    else those a fact outside any section gives."""
-    return [n for n in named if any(_same(n, h) for f in facts for h in f.heads)] \
+    """The names in a sentence that tell its project: those a heading gives;
+    else, for a name only one section's lines give ("the DCC Server" in a
+    Hitachi Rail bullet), that section's headings; else those a fact outside
+    any section gives."""
+    if headed := [n for n in named if any(_same(n, h) for f in facts for h in f.heads)]:
+        return headed
+    told: list[str] = []
+    for n in named:
+        sections = [set(f.heads) for f in facts if f.heads and any(_same(n, g) for g in f.given)]
+        told += [h for h in dict.fromkeys(h for f in facts for h in f.heads) if sections and all(h in s for s in sections)]
+    return list(dict.fromkeys(told)) \
         or [n for n in named if any(_same(n, f_name) for f in facts if not f.heads for f_name in f.given)]
 
 

@@ -125,6 +125,23 @@ def test_a_tool_two_projects_share_tells_neither_project():
         ("outcome", "went into use")]
 
 
+def test_an_outcome_stands_on_a_whole_bullet_its_project_gives():
+    # Astranis, 2026-11-26: "merged" sits late in the Hitachi Rail bullet, and the C++ in Micromouse's heading
+    # (in brackets, with its dates) must not pull the sentence over to Micromouse.
+    own = ("# Story bank: Test Person\n"
+           "## Hitachi Rail: Software Intern (Jun-Aug 2026)\n"
+           "- Extended the C++ DCC Server to protocol v3. Read network logs to confirm v1 still worked. "
+           "Reviewed by his managers and two engineers, merged, not yet deployed.\n"
+           "## Micromouse (IEEE, 2024-present; C/C++, Raspberry Pi Pico)\n- Wrote the maze solver.")
+    answer = ("At Hitachi Rail I extended the C++ server that relays dispatch messages. "
+              "It merged after review by my managers and two engineers.")
+    assert _found_in(answer, (own,)) == []
+    # A name only one project's bullets give tells that project.
+    assert _found_in("I extended the DCC Server to protocol v3. It merged after review.", (own,)) == []
+    assert _found_in("For Micromouse I wrote the maze solver. It merged after review.", (own,)) == [
+        ("outcome", "merged")]
+
+
 def test_the_plans_story_tells_the_project_when_no_sentence_names_one():
     own = ("## Software Intern, Hitachi Rail\nBuilt a depot tracker that went into use at every depot",
            "## WorkIt\nBuilt the job search")
