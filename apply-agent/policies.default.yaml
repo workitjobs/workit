@@ -287,6 +287,7 @@ provider_sign_in: google
 claude_fill:
   max_turns: 80
   max_tokens: 1200000
+  max_session_tokens: 1500000  # one Claude session's share: a session that rereads a big form each turn bails out here
   max_steps: 20  # Nexts and profile pop-ups before a Handoff, a guard against a loop (KAN-649, KAN-658)
 
 # The model behind Apply's text calls (`ask`: answers, essays, edits, checks).

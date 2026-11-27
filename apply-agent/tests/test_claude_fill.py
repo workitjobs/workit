@@ -282,6 +282,22 @@ def test_claude_fill_stopped_at_its_cap_is_a_handoff_and_nothing_is_sent(tmp_pat
     assert server.submissions == []
 
 
+def test_one_claude_session_past_its_own_cap_is_a_handoff_long_before_the_whole_cap(tmp_path):
+    # Live (Honeywell, 2026-11-27): one session reread the big form each turn and spent 5.3 million of the
+    # Application's 6 million tokens before the cap stopped it.
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()})
+    (tmp_path / "policies.yaml").write_text((tmp_path / "policies.yaml").read_text()
+                                            + "claude_fill:\n  max_turns: 300\n  max_tokens: 6000000\n  max_session_tokens: 50000\n")
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": "A draft."}, drive_tokens=[25_000, 5_300_000])
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, lunar_match(), claude=claude)
+
+    assert row.status == "handoff"
+    assert "one session's cap (50,000 tokens)" in row.reason
+    assert server.submissions == []
+
+
 def test_a_form_claude_cannot_fill_alone_is_a_handoff_with_its_reason(tmp_path):
     profile = profile_with(tmp_path)
     claude = FakeClaude(driver=BambooDriver(blocked="Sign-in needed: the form asks to create an account."))

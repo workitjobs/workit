@@ -100,6 +100,9 @@ MODEL = "haiku"
 # The cap on one Application, across its sessions. policies.yaml can change it.
 MAX_TURNS = 40
 MAX_TOKENS = 400_000
+# The cap on one session, whatever is left of the Application's: a session that rereads a big form each turn bails out
+# here, not at the whole cap (Honeywell's spent 5.3 million tokens in 21 turns of one session, live 2026-11-27).
+MAX_SESSION_TOKENS = 1_500_000
 PAGE_SETTLES_MS = 5_000  # how long the posting page may load before its text is read
 KINDS = ["text", "textarea", "file", "select", "multi_select"]
 PAGES = ["application form", "closed posting", "not a job posting"]
@@ -309,7 +312,7 @@ class ClaudeFill:
     """A Filler for one Application on a job system with no Filler of its own."""
 
     def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS, max_steps: int = MAX_STEPS,
-                 sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
+                 max_session_tokens: int = MAX_SESSION_TOKENS, sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
                  page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None,
@@ -344,6 +347,7 @@ class ClaudeFill:
         self._max_turns = max_turns
         self._max_steps = max_steps
         self._max_tokens = max_tokens
+        self._max_session_tokens = max_session_tokens
         self._turns = 0
         self._tokens = 0
         self._sessions = 0
@@ -793,10 +797,11 @@ class ClaudeFill:
         if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url) and _opens_only(self._url):
             self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
+        left = self._max_tokens - self._tokens
         try:
             drive = self._claude.drive(
                 page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
-                max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
+                max_turns=self._max_turns - self._turns, max_tokens=min(left, self._max_session_tokens),
             )
         finally:
             self._guard.rest()  # a captcha's frame takes Lisul's clicks again
@@ -819,10 +824,9 @@ class ClaudeFill:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
         if drive.capped or drive.output is None:
-            raise Handoff(
-                f"Claude fill stopped at its cap ({self._max_turns} turns, {self._max_tokens:,} tokens) "
-                "before the form was filled. Fill it in yourself."
-            )
+            cap = (f"one session's cap ({self._max_session_tokens:,} tokens)" if self._max_session_tokens < left
+                   else f"its cap ({self._max_turns} turns, {self._max_tokens:,} tokens)")
+            raise Handoff(f"Claude fill stopped at {cap} before the form was filled. Fill it in yourself.")
         if drive.output.get("blocked") is True:
             why = str(drive.output.get("why")).strip()
             if captcha.SAYS_BLOCKED.search(why):  # no challenge to solve: Lisul applies in his own Chrome
