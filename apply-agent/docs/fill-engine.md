@@ -198,10 +198,10 @@ holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
 
 An optional question whose rule reads a profile fact that the profile
-doesn't keep at all goes in `Plan.optional` (KAN-759). Apply asks it in
-Needs you with a Skip, and never holds the form for it
-(`docs/held-forms.md`). A fact the profile keeps empty is none: the field
-stays blank and is never asked. An empty answer in `answered_questions`
+doesn't keep at all is left blank (`NO_SOURCE`), or No for a Yes/No, and
+never asked (2026-11-26, replacing KAN-759's ask; `docs/held-forms.md`).
+`Plan.optional` is always empty. A fact the profile keeps empty is none:
+the field stays blank. An empty answer in `answered_questions`
 is Lisul's Skip: an optional question of that wording stays blank. Address
 Line 2 and 3 are blank when the home address has a first line and no such
 line. Tax District is `identity.home_address.tax_district`, else blank
@@ -237,6 +237,13 @@ multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
+
+A draft of Claude's whose `facts` name a Story bank line the bank no
+longer holds, word for word, is no answer (`answer_bank.stale`): the plan
+doesn't get it, and the question's next draft replaces it. Lisul took that
+fact out of the bank, so a draft drawn on it must not go on a form (ENFOS,
+2026-11-26). His own answers are never stale. The bank's text is read
+again whenever its file's mtime or size changes.
 
 Apply adds the Tracker to the facts that it gives the engine's plan
 (`fill_engine._facts`). Each company with a submitted Application, except

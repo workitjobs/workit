@@ -24,6 +24,8 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+import psutil
+
 from apply import build, chrome_finder
 from apply.home import CODE, HOME
 from apply.keychain import SystemKeychain
@@ -36,8 +38,10 @@ EULA = CODE / "legal" / "EULA.txt"
 # The third-party notices: W8 puts them in the app's bundle; a checkout makes them with scripts/third_party_notices.py.
 NOTICES = CODE / "dist" / "THIRD-PARTY-NOTICES.txt"
 CHROME_DOWNLOAD = "https://www.google.com/chrome/"
-# Workers at once (D24): two by default, one to three.
+# Workers at once (D24): one to three. Until the student picks a count in Settings, the count follows the
+# computer's memory (automatic_workers); WORKERS is the count when the memory can't be read.
 WORKERS, MOST_WORKERS = 2, 3
+GB = 2**30
 CHROME, SHOWN, SCREEN, SEED, READY = "chrome", "disclosure", "screen", "seed", "ready"
 
 
@@ -54,17 +58,49 @@ def _keep(state: Path, **values: object) -> None:
     state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n")
 
 
-def workers(state: Path | None = None) -> int:
-    """The Worker count the student set in Settings, within one to MOST_WORKERS."""
+def memory() -> int | None:
+    """The computer's total memory in bytes, or None when it can't be read."""
     try:
-        count = int(_kept(state or STATE).get("workers", WORKERS))
-    except (TypeError, ValueError):
-        count = WORKERS
+        return int(psutil.virtual_memory().total) or None
+    except Exception:  # any failure falls back to WORKERS
+        return None
+
+
+def automatic_workers(total: int | None = None) -> int:
+    """The Worker count for this computer's memory (D24): under 8 GB one, 8 to 16 GB two, over 16 GB three.
+    The memory is rounded to whole GB first, as a laptop sold with 8 GB can report a little less."""
+    total = memory() if total is None else total
+    if not total:
+        return WORKERS
+    size = round(total / GB)
+    return 1 if size < 8 else 2 if size <= 16 else MOST_WORKERS
+
+
+def chosen_workers(state: Path | None = None) -> int | None:
+    """The Worker count the student set in Settings, within one to MOST_WORKERS, or None for Automatic."""
+    try:
+        count = int(_kept(state or STATE)["workers"])
+    except (KeyError, TypeError, ValueError):
+        return None
     return min(max(count, 1), MOST_WORKERS)
 
 
-def set_workers(count: int, state: Path | None = None) -> int:
-    _keep(state or STATE, workers=min(max(int(count), 1), MOST_WORKERS))
+def workers(state: Path | None = None) -> int:
+    """The Worker count a run uses: the student's choice in Settings, else the automatic count."""
+    chosen = chosen_workers(state)
+    return automatic_workers() if chosen is None else chosen
+
+
+def set_workers(count: int | None, state: Path | None = None) -> int:
+    """Keep Settings' Worker count; None goes back to Automatic."""
+    path = state or STATE
+    if count is None:
+        kept = _kept(path)
+        kept.pop("workers", None)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(kept, indent=1) + "\n")
+    else:
+        _keep(path, workers=min(max(int(count), 1), MOST_WORKERS))
     return workers(state)
 
 

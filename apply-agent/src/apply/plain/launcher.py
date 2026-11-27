@@ -26,6 +26,7 @@ Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It star
 background by each OS's own way (`start_in_background`).
 """
 
+import atexit
 import json
 import os
 import shlex
@@ -34,6 +35,7 @@ import signal
 import subprocess
 import sys
 import time
+import weakref
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -173,6 +175,7 @@ class PlainWorkers:
         self.running: dict[int, PlainWorker] = {}
         # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
         self._starting: dict[int, Chrome | subprocess.Popen] = {}
+        _ALIVE.add(self)  # stopped when this process exits (stop_everyone)
 
     @property
     def seed(self) -> Path:
@@ -376,13 +379,19 @@ class PlainWorkers:
             _stop(running.process)
 
     def stop_all(self) -> None:
-        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch)."""
+        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch). Each
+        is sent SIGTERM first, then each is waited for: a quit with many Chromes up waits STOP_WAIT once, not each."""
+        processes = []
         for worker in list(self.running):
-            self.stop(worker)
+            if running := self.running.pop(worker, None):
+                KEEPER.forget(running.pid)
+                running.connection.close()
+                processes.append(running.process)
         for worker, process in list(self._starting.items()):
             self._starting.pop(worker, None)
             KEEPER.forget(process.pid)
-            _stop(process)
+            processes.append(process)
+        _stop_many(processes)
         self.bridge.stop()
 
     def show(self, worker: int) -> bool:
@@ -529,11 +538,42 @@ def _copy(source: Path, profile: Path) -> None:
 
 
 def _stop(process: "Chrome | subprocess.Popen") -> None:
-    if process.poll() is not None:
-        return
-    process.send_signal(signal.SIGTERM)
-    try:
-        process.wait(STOP_WAIT)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(5)
+    _stop_many([process])
+
+
+def _stop_many(processes: list) -> None:
+    """SIGTERM to each that still runs, then SIGKILL to each still running STOP_WAIT later."""
+    running = [p for p in processes if p.poll() is None]
+    for process in running:
+        process.send_signal(signal.SIGTERM)
+    deadline = time.monotonic() + STOP_WAIT
+    for process in running:
+        try:
+            process.wait(max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            with suppress(subprocess.TimeoutExpired):
+                process.wait(5)
+
+
+# Every PlainWorkers of this process: their Chromes run on their own (start_in_background), so an Apply that exits
+# without its own stop (an exception, a signal the app turns into a quit, a crash in a run's thread) left them up.
+_ALIVE: "weakref.WeakSet[PlainWorkers]" = weakref.WeakSet()
+
+
+@atexit.register
+def stop_everyone() -> None:
+    """At this process's exit, stop every plain Worker's Chrome it started and still runs. A SIGKILL skips this: the
+    next start reclaims those Chromes (reclaim_all)."""
+    for workers in list(_ALIVE):
+        try:
+            workers.stop_all()
+        except Exception as error:  # the next one still stops
+            print(f"Couldn't stop the plain Workers in {workers.profiles}: {type(error).__name__}: {error}",
+                  file=sys.stderr)
+
+
+def reclaim_all(profiles: Path) -> list[Path]:
+    """Stop each orphan Chrome on a plain Worker profile in `profiles` (reclaim): those a gone Apply left up. The
+    profiles of a live Apply's are never touched. Returns the profiles whose Chrome it stopped."""
+    return [p for p in sorted(profiles.glob("plain-[0-9]*")) if p.is_dir() and reclaim(p)]

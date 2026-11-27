@@ -572,8 +572,10 @@ class ClaudeFill:
                 if kept and kept not in self.extra_entries:
                     self.extra_entries.append(kept)
             counts = [name for name, label in labels.items() if ENTRIES_COUNT.match(label.strip())]
-            if (add := str(done.get("add_button") or "").strip()) and any(_fewer(self._readback.get(n), answers.get(n)) for n in counts):
-                self._add_entry(page, add, counts)
+            short = [n for n in counts if _fewer(self._readback.get(n), answers.get(n))]
+            if (add := str(done.get("add_button") or "").strip()) and short:
+                # The short section's name ("Work Experience"), to tell its add button from another section's.
+                self._add_entry(page, add, counts, re.sub(r"\s*\(entries\)\s*$", "", labels[short[0]].strip()))
                 continue
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
@@ -596,15 +598,16 @@ class ClaudeFill:
                 return dict(self._readback)
             self._next_step(page, next_button)
 
-    def _add_entry(self, page: Page, name: str, counts: list[str]) -> None:
+    def _add_entry(self, page: Page, name: str, counts: list[str], section: str = "") -> None:
         """Press a work section's add button by plain code (TAL.net's "Add another" posts the page, which the guard
         blocks from Claude's session, KAN-728), then fill again: the new entry's fields come back as unlisted, and
-        the section's count is read back once more."""
+        the section's count is read back once more. `section` ("Work Experience") tells its button from another
+        section's of the same name."""
         self._adds += 1
         if self._adds > MAX_ADDS:
             raise Handoff(f"Apply pressed {name!r} {MAX_ADDS} times and the work section still asks for more entries. "
                           "Add the rest yourself.")
-        press_step(page, self._guard, name, add=True)
+        press_step(page, self._guard, name, add=True, section=section)
         for count in counts:
             self._put.pop(count, None)
 
