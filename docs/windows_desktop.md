@@ -311,6 +311,9 @@ decisions beside D17 and D18.
   on Windows the first notice stopped the run. Off the Mac a notice now
   goes to the terminal (`notify.desktop`, `TerminalNotifier`). A Windows
   toast needs a library: later, if a developer misses it.
+- **A temp data folder: built from the Mac.** `home.in_temp` compared
+  path text with "/", so on Windows a data folder in the temp folder was
+  never refused (KAN-665). It compares path parts now.
 - **Not ported, developer-only:** the Repairer (`apply repair`, after a
   run with `repair.max_per_day`) starts `npm` by its bare name, which is
   `npm.cmd` on Windows: `subprocess` finds only an `.exe` so. `claude`
