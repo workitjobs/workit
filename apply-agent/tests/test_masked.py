@@ -15,7 +15,7 @@ EMAIL, PHONE = "pat.lee@mailhost.example", "+1 (631) 555-0142"
 TOKEN_URL = "https://acme.tal.net/vx/lang-en-GB/user-36/xf-9a8b7c6d5e/candidate/so/pm/1/pl/3?token=abc123&page=2"
 PROFILE = {
     "identity": {"legal_first_name": "Patience", "legal_last_name": "Leeward", "email": EMAIL, "phone": PHONE,
-                 "home_address": {"line1": "12 Birch Lane", "state": "NY"}},
+                 "home_address": {"line1": "12 Birch Lane", "state": "NY"}, "name_in_native_script": "N/A"},
     "links": {"linkedin_url": "https://www.linkedin.com/in/patience-leeward"},
     "education": {"gpa": 3.91, "graduated": False, "graduation": "2028-05"},
     "answered_questions": {"Who referred you?": "Marigold Thimblewick", "Are you 18?": "Yes"},
@@ -74,6 +74,11 @@ def test_a_line_with_nothing_private_stays(known, line):
 
 def test_a_short_answer_is_not_masked_everywhere(known):
     assert known.scrub("Yes, NY") == "Yes, NY"
+
+
+def test_a_fact_that_says_none_is_not_masked(known):
+    # SambaNova, 2026-11-27: a box labelled "N/A" printed as <identity.name_in_native_script>.
+    assert known.scrub("blank ('Remote - US', 'N/A')") == "blank ('Remote - US', 'N/A')"
 
 
 def test_a_typed_answer_prints_its_size_only():
