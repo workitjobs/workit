@@ -347,7 +347,11 @@ for a student, not from `dashboard_page.py`.
   (sent, let go, or its window closed). A form gives it back at once,
   with its tab still open, when it is sent, when the student presses Not
   applying to this one, and when Apply pressed its Submit but the job
-  site never confirmed it (that Handoff waits on no Worker). The run says the cap
+  site never confirmed it (that Handoff waits on no Worker). A job that
+  ends with no page left (failed, already applied, ruled out with its
+  page gone) gives it back too, and every path gives it back once only
+  (`rehearsal._Slot`); Fill it anyway takes one again before it fills
+  (`tests/test_open_slots.py`). The run says the cap
   (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is

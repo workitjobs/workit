@@ -381,7 +381,16 @@ def rehearse(
         stopping(stop)
 
     def one(n: int, url: str, worker: int | None = None) -> None:
-        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
+        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own). Whatever path its thread ends on
+        (a failure, an exception, a page gone), its place among the open forms is given back: five failed jobs
+        kept theirs, and the run filled one form at a time with jobs queued (live, 2026-11-26)."""
+        slot = _Slot(room)
+        try:
+            _one(n, url, worker, slot)
+        finally:
+            slot.give()
+
+    def _one(n: int, url: str, worker: int | None, slot: "_Slot") -> None:
         site = _Kept(adapters.site, n if worker is None else worker,
                      shown=lambda tab: getattr(adapters.board, "showing", lambda tile, tab: None)(n, tab))
         done = None
@@ -431,7 +440,9 @@ def rehearse(
             return True
 
         def pressed_anyway() -> bool:
-            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open."""
+            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open. No page waits on
+            him meanwhile, so its place among the open forms goes to the next job; the fill takes one again."""
+            leave_room()
             while not release.is_set():
                 if adapters.board.resumed(n):
                     return True
@@ -594,17 +605,11 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
-        roomy = [False]
-        while not roomy[0] and not stopped.is_set() and n not in dropped:  # a turn at a slot, given up on Stop
-            roomy[0] = room.acquire(timeout=0.5)
-
-        def leave_room() -> None:  # sent, its page closed, or it never opened: the next job may open its form (once)
-            if roomy[0]:
-                roomy[0] = False
-                room.release()
+        slot.take(lambda: not stopped.is_set() and n not in dropped)  # a turn at a slot, given up on Stop
+        leave_room = slot.give  # sent, its page closed, or it never opened: the next job may open its form (once)
         gate.acquire()
         _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
-        if not roomy[0] or not started(n):  # removed while it waited for its turn, or the run ended
+        if not slot.held or not started(n):  # removed while it waited for its turn, or the run ended
             gate.release()
             leave_room()
             start.leave(n)
@@ -663,6 +668,10 @@ def rehearse(
                         break
                     adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
+                    # Its place went while nothing of it waited on him (Fill it anyway with no page, an unconfirmed
+                    # Submit): the new fill opens a form, so it waits for one again, and never past the cap.
+                    if not slot.take(lambda: not release.is_set()):
+                        break
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force, draft=draft)
@@ -787,6 +796,32 @@ def _until(release: threading.Event) -> str:
     while not release.is_set():
         time.sleep(0.5)
     return ""
+
+
+class _Slot:
+    """One link's place among a rehearsal's open forms (its `room`): taken before its form opens, given back once
+    nothing of it waits on the student. Each take is given back once, never twice, however many paths give it."""
+
+    def __init__(self, room: threading.Semaphore):
+        self._room, self._held, self._lock = room, False, threading.Lock()
+
+    @property
+    def held(self) -> bool:
+        return self._held
+
+    def take(self, wanted: Callable[[], bool]) -> bool:
+        """Wait for a place while `wanted()` says so. Whether it holds one now."""
+        while not self._held and wanted():
+            if self._room.acquire(timeout=0.5):
+                with self._lock:
+                    self._held = True
+        return self._held
+
+    def give(self) -> None:
+        with self._lock:
+            held, self._held = self._held, False
+        if held:
+            self._room.release()
 
 
 class _Together:
