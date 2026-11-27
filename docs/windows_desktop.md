@@ -1,7 +1,7 @@
 # WorkIt Auto Apply on Windows
 
-**Status (KAN-929):** being built. P1 to P5 are built and tested on the
-Mac. Nothing has run on Windows yet. Section 7 says what comes next. This note takes F4 and W4's "Found on the way" list
+**Status (KAN-929):** being built. P1 to P5 and P9 are built and tested
+on the Mac. Nothing has run on Windows yet. Section 7 says what comes next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
 
@@ -268,19 +268,22 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
 - **Done when.** `uv run apply plain seed` ends with "Setup is done" on
   Windows.
 
-### P9. The developer's way past the seed
+### P9. The developer's way past the seed: built
 
-- **What it is.** `plain_chrome: testing` (or `APPLY_PLAIN_CHROME=testing`,
-  `launcher.chrome_kind`) runs plain Workers on Chrome for Testing, with
-  no seed.
-- **What breaks.** The app window's first run ignores it:
-  `first_run.seed_problem` makes `PlainWorkers(kind="chrome")`, so
-  `uv run apply app` stays on the Seed step.
-- **Fix.** Outside the Student build, `seed_problem` reads
-  `chrome_kind()`, and the Seed step is done when it is `testing`. The
-  Student build keeps Google Chrome (D21).
-- **Done when.** `uv run apply app` with `plain_chrome: testing` gets past
-  first run with no seed.
+`plain_chrome: testing` (or `APPLY_PLAIN_CHROME=testing`,
+`launcher.chrome_kind`) runs plain Workers on Chrome for Testing, with no
+seed. The app window's first run asked for the seed anyway, so
+`uv run apply app` stayed on the Seed step. Now `first_run.seed_problem`
+reads `chrome_kind()`, and the Seed step comes only for Google Chrome
+(PR #676, 2026-11-26).
+
+- **The Student build keeps Google Chrome (D21):** it reads no
+  `policies.yaml`, and `policies.default.yaml` says `plain_chrome:
+  chrome`. Only `APPLY_PLAIN_CHROME` changes it.
+- **First run's first step still looks for Google Chrome**
+  (`chrome_finder.find`), with Chrome for Testing too.
+- **Still open (Windows):** `uv run apply app` with `plain_chrome:
+  testing` gets past first run with no seed.
 
 ### P10. The Windows package
 
@@ -311,11 +314,10 @@ Windows entry, since the Mac has none.
 
 | Problem | Kind of fix |
 |---|---|
-| P1 to P5 | Built (above) |
+| P1 to P5, P9 | Built (above) |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
 | P7 clean quit | The seed: the student closes its window. A Worker: `taskkill` with no `/F`, after a measurement |
 | P8 wizard words | A Windows text in the same function |
-| P9 first run | The same code on every OS |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
 
@@ -333,7 +335,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
 | P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
-| P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
+| P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
 - **A Windows CI job: later** (decided 2026-11-24). A `windows-latest`
@@ -350,7 +352,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
 | M1 | A developer runs CDP Workers | P1, P2, P3 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
-| M2 | A developer runs plain Workers, with no seed | P4, P5 (built), P6, P9 | `plain_chrome: testing` | Every host fills, with no seed |
+| M2 | A developer runs plain Workers, with no seed | P4, P5, P9 (built), P6 | `plain_chrome: testing` | Every host fills, with no seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 **The Windows checks come last** (decided 2026-11-24). Fixes go on from a
@@ -358,7 +360,8 @@ Mac until every blocker seems fixed. Then a teammate runs all the checks
 on Windows at once: M1 with `worker_mode: cdp`, then plain Workers, then
 section 8. Each result goes into this note.
 
-**Next: P9.** P6 needs a measurement on Windows first.
+**Next:** P7, P8 and P11, from the Mac. P6 needs a measurement on
+Windows first.
 
 ## 8. Open questions
 
