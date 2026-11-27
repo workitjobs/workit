@@ -1257,6 +1257,18 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
 
 
+def test_claim_check_false_edits_an_essay_with_no_claim_check_call(tmp_path):
+    claude = FakeClaude()
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    question = Question("q1", "Why Figma?", "textarea", True)
+
+    essays.write(claude, posting, [question], ApplicantProfile.load(with_policies(tmp_path, "claim_check: false\n")))
+
+    kinds = [k["kind"] for k in claude.kinds]
+    assert "writing.check" not in kinds
+    assert claude.kinds[kinds.index("writing.edit")]["data"]["flagged"] == {}
+
+
 def test_every_essay_of_a_form_is_edited_in_one_call():
     claude = FakeClaude(essays={"Why": "Because.", "Tell": "A project."})
     posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
