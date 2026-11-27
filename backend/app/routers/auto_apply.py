@@ -21,7 +21,7 @@ POST /applicants/{id}/applications  {"job_id": ...}
      its detail saying why. A job board's posting (LinkedIn, Indeed) is
      taken only through the employer's form it names, its `form_url`.
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
-     The applications, newest first (every stage without ?stage=), each
+     The applications, latest applied first, then newest added (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).
      ?scored=true adds `match`, the Jobs page's score, and its `highlights`
      to each open one
@@ -218,7 +218,7 @@ async def list_applications(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[Application]:
-    """The applicant's applications, newest first; with ?scored=true, each
+    """The applicant's applications, latest applied first, then newest added; with ?scored=true, each
     open job posting's match score."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.list_applications(

@@ -3,8 +3,9 @@ meant (the Fill engine's read-back comparison, fill_engine.readback_problems);
 then Claude reviews each question next to the answer on the page, for
 answers that are valid but wrong."""
 
+from typing import NamedTuple
 
-from apply import description, fill_engine, private
+from apply import description, fill_engine, private, verify
 from apply.adapters import Claude
 from apply.model import Answers, Posting, QuestionSet, Readback, one_line
 from apply.records import SECRET
@@ -30,17 +31,7 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
     Lisul's own words (his Answer bank answers). Secrets never leave Apply, nor does an answer that is exactly
     one of his self-ID answers (`self_ids`: private.self_id, D8), and his private details go as placeholders
     (apply.private). The read-back check, which is code, still checks every field the engine typed."""
-    rows = [
-        # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
-        {"question": one_line(q.label),
-         # Only typed answers can hold a secret; an option picked ("I agree... trade secrets") is shown.
-         "ticked" if q.kind == "multi_select" else "answer":
-             "(secret)" if q.kind in ("text", "textarea") and (SECRET.search(q.label) or SECRET.search(q.name))
-             else readback[q.name],
-         **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
-         **({"his_own_answer": True} if q.name in own else {})}
-        for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
-    ]
+    rows = _rows(questions, readback, own, self_ids)
     if not rows:
         return Found()
     # WorkIt's presubmit.review kind (D5, KAN-723): its prompt is on the server.
@@ -55,6 +46,86 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
         if question in asked and answer:
             fixes[question] = answer
     return Found(problems, fixes)
+
+
+MAX_PROBLEMS = 20  # problems one fix call takes (WorkIt's MAX_KEYS); a form has fewer
+
+
+class Fixes(NamedTuple):
+    """The fix call's answers: `fixes`, the answer to enter by the question as the review named it (its label on
+    one line), and `yours`, why each question only the applicant can answer can't be fixed, by the same name."""
+
+    fixes: dict[str, str]
+    yours: dict[str, str]
+
+
+def fix(claude: Claude, posting: Posting, questions: QuestionSet, readback: Readback, problems: list[str],
+        sources: str = "", posting_text: str = "", own: set[str] | frozenset[str] = frozenset(),
+        self_ids: frozenset[str] = frozenset()) -> Fixes:
+    """The answer to enter for each problem the review found and gave no fix for (an answer with more than its
+    question asks, in another format than its label asks), from the same rows and sources the review read:
+    Apply fixes what it can, so only a fact the applicant alone knows reaches them. A fix names a question the
+    rows hold, else it is dropped; an empty one is no fix."""
+    rows = _rows(questions, readback, own, self_ids)
+    if not rows or not problems:
+        return Fixes({}, {})
+    # WorkIt's presubmit.fix kind: its prompt and schema are on the server.
+    given = claude.ask_kind("presubmit.fix", {"sources": sources, "posting": description.block(posting, posting_text),
+                                              "rows": rows, "problems": list(problems)[:MAX_PROBLEMS]})
+    asked = {row["question"] for row in rows}
+
+    def named(items, field: str) -> dict[str, str]:
+        out = {}
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            question = str(item.get("question") or "").strip().strip("'\"“”")
+            value = str(item.get(field) or "").strip()
+            if question in asked and value and question not in out:
+                out[question] = value
+        return out
+
+    yours = named(given.get("yours"), "why")
+    return Fixes({q: a for q, a in named(given.get("fixes"), "answer").items() if q not in yours}, yours)
+
+
+def _rows(questions: QuestionSet, readback: Readback, own: set[str] | frozenset[str],
+          self_ids: frozenset[str]) -> list[dict]:
+    """Each answered field as the review reads it: never a secret's answer, nor one that is a self-ID answer."""
+    return [
+        # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
+        {"question": one_line(q.label),
+         # Only typed answers can hold a secret; an option picked ("I agree... trade secrets") is shown.
+         "ticked" if q.kind == "multi_select" else "answer":
+             "(secret)" if q.kind in ("text", "textarea") and (SECRET.search(q.label) or SECRET.search(q.name))
+             else readback[q.name],
+         **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
+         **({"his_own_answer": True} if q.name in own else {})}
+        for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
+    ]
+
+
+def backed_by_policies(found: Found, questions: QuestionSet, readback: Readback, profile, posting_text: str = "") -> Found:
+    """`found` without its problems (and fixes) about an answer policies.yaml gives (verify.from_policies: the pay
+    the `compensation` policy names). The review is never shown policies.yaml, so it called Relay's "$30/hr", the
+    `fallback_hourly` of a Posting that names no pay, "not backed by the profile" and held the form (live,
+    2026-11-26). Verifying's own pay check, which is code, still flags a figure off the policy."""
+    backed = {one_line(q.label) for q in questions if verify.from_policies(q, readback.get(q.name), profile, posting_text)}
+    if not backed:
+        return found
+    def said(text: str) -> str:
+        return " ".join(text.split()).casefold()
+
+    labels = sorted({said(q.label) for q in questions if q.label.strip()}, key=len, reverse=True)
+    backed_said = {said(label) for label in backed}
+
+    def about_backed(problem: str) -> bool:
+        """Whether the question `problem` names (the longest label in it: "Salary" is not "Salary (explain)") is one
+        policies.yaml answers."""
+        return next((label for label in labels if label in said(problem)), None) in backed_said
+
+    kept = [p for p in found if not about_backed(p)]
+    return Found(kept, {q: a for q, a in found.fixes.items() if q not in backed})
 
 
 def replan(claude: Claude, questions: QuestionSet, answers: Answers, readback: Readback,

@@ -35,8 +35,6 @@ from apply.records import SECRET
 BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND, LEFTOVER = (
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history",
     "leftover")
-# Why an optional question Lisul is asked (no source of his holds it) shows blank: a note, never a hold (KAN-759).
-OPTIONAL_UNANSWERED = "optional, not answered yet: answer it in Needs you, or skip it"
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
 # The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
@@ -62,6 +60,10 @@ SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 MY_NAME = re.compile(r"\bmy name is ([A-Z][a-z]+)")
 SIGN_OFF = re.compile(r"(?:Sincerely|Best|Regards|Best regards|Thank you|Thanks),?\s*\n\s*([A-Z][\w'-]+(?: [A-Z][\w'-]+)+)\s*$")
 GRADUATION = re.compile(r"graduat", re.IGNORECASE)
+# A graduation from another school than the degree's: its year is never the degree's graduation (IMC's "When did you
+# graduate from High School?", answered 2024, was flagged against a 2027 graduation, live 2026-11-26).
+OTHER_SCHOOL = re.compile(r"high[ -]?school|secondary school|\bG\.?E\.?D\b|\bA[ -]levels?\b|\bsixth form\b|\bmatricul",
+                          re.IGNORECASE)
 START = re.compile(r"start date|earliest (?:date|start)|available to start|availability date|when can you start", re.IGNORECASE)
 # A start date of the applicant's history, which is past by nature: a field of a numbered entry ("Work Experience 1 /
 # Start date"), one a form caps at this month, or one about schooling or a job held (Infleqtion's Workable, live 2026-11-04).
@@ -275,9 +277,7 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str], plann
     for q in questions:
         if q.name in answers or not _blank(readback.get(q.name)) or q.name in left:
             continue
-        if q.label.strip() in asked:  # a Missing fact Lisul is asked already: one optional is only noted (KAN-759)
-            if not q.required:
-                flags.append(Flag(one_line(q.label), OPTIONAL_UNANSWERED, BLANK, holds=False))
+        if q.label.strip() in asked:  # a Missing fact Lisul is asked already
             continue
         if _norm(q.label) in answered:
             continue  # the other way to give the same thing (a resume pasted as text, when the file is attached)
@@ -373,7 +373,7 @@ def _date_in(text: str) -> date | None:
 
 
 def _dates(questions, readback, profile, today: date) -> list[Flag]:
-    """A graduation year that isn't the profile's, and an availability or internship start date already past.
+    """A graduation year that isn't the profile's (never a high school's), and an availability or internship start date already past.
     A start date of a school or job held is past by nature, so it is not checked."""
     flags = []
     graduation = str(profile.get("education.expected_graduation") or "")
@@ -381,7 +381,7 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
         shown = readback.get(q.name)
         if not isinstance(shown, str) or not shown.strip():
             continue
-        if GRADUATION.search(q.label) and graduation[:4].isdigit() and q.kind != "textarea":
+        if GRADUATION.search(q.label) and not OTHER_SCHOOL.search(q.label) and graduation[:4].isdigit() and q.kind != "textarea":
             years = YEAR.findall(shown)
             # A span of months must hold the graduation month: Airbnb's "Bachelors - Senior (December 2026 - June
             # 2027)" names 2027 but ends before a December 2027 graduation (live, 2026-11-26).
@@ -460,25 +460,50 @@ def _hourly(value: float) -> float:
     return value / 2080 if value > 1000 else value
 
 
-def _pay(questions, readback, profile, posting_text: str) -> list[Flag]:
-    """A pay figure outside the Posting's own range, or off the fallback rate when the Posting names none."""
+def _stated_pay(posting_text: str) -> list[float]:
+    """The Posting's own pay range, per hour: none when it names no pay."""
     from apply.description import pay_range  # its patterns read the Posting's text
 
-    stated = [_hourly(v) for v in _amounts(pay_range(posting_text or ""))]
+    return [_hourly(v) for v in _amounts(pay_range(posting_text or ""))]
+
+
+def _pay_off(question, shown, profile, stated: list[float]) -> str:
+    """Why a pay answer is off its sources (the Posting's range, else the policies' fallback_hourly); "" when it is
+    no pay figure, or on them."""
+    if not PAY_QUESTION.search(question.label) or not isinstance(shown, str) or question.kind == "textarea":
+        return ""
+    asked = [_hourly(v) for v in _amounts(shown)]
     fallback = profile.policy("compensation.fallback_hourly")
-    flags = []
-    for q in questions:
-        shown = readback.get(q.name)
-        if not PAY_QUESTION.search(q.label) or not isinstance(shown, str) or q.kind == "textarea":
-            continue
-        asked = [_hourly(v) for v in _amounts(shown)]
-        if not asked:
-            continue
-        if stated and any(not min(stated) * 0.99 <= a <= max(stated) * 1.01 for a in asked):
-            flags.append(Flag(one_line(q.label), f"shows {shown!r}, outside the posting's pay range", PAY))
-        elif not stated and fallback and any(abs(a - float(fallback)) > 0.5 for a in asked):
-            flags.append(Flag(one_line(q.label), f"shows {shown!r}; your fallback rate is ${fallback}/hr", PAY))
-    return flags
+    if not asked:
+        return ""
+    if stated and any(not min(stated) * 0.99 <= a <= max(stated) * 1.01 for a in asked):
+        return f"shows {shown!r}, outside the posting's pay range"
+    if not stated and fallback and any(abs(a - float(fallback)) > 0.5 for a in asked):
+        return f"shows {shown!r}; your fallback rate is ${fallback}/hr"
+    return ""
+
+
+def from_policies(question, shown, profile, posting_text: str) -> bool:
+    """Whether a pay answer is the one policies.yaml gives (`compensation`): its `expectation` word for word, the
+    middle of the Posting's own range, or `fallback_hourly` when the Posting names no pay. The Pre-submit review
+    reads no policies.yaml, so it called such an answer unbacked (Relay's "$30/hr", live 2026-11-26): its problem
+    with one is dropped (presubmit.backed_by_policies), and this check, which is code, judges the figure instead."""
+    if not PAY_QUESTION.search(question.label) or not isinstance(shown, str) or question.kind == "textarea":
+        return False
+    expectation = profile.policy("compensation.expectation")
+    if isinstance(expectation, str) and expectation.strip() and _norm(shown) == _norm(expectation):
+        return True
+    stated = _stated_pay(posting_text)
+    if not _amounts(shown) or _pay_off(question, shown, profile, stated):
+        return False
+    return bool(stated) or bool(profile.policy("compensation.fallback_hourly"))
+
+
+def _pay(questions, readback, profile, posting_text: str) -> list[Flag]:
+    """A pay figure outside the Posting's own range, or off the fallback rate when the Posting names none."""
+    stated = _stated_pay(posting_text)
+    return [Flag(one_line(q.label), why, PAY) for q in questions
+            if (why := _pay_off(q, readback.get(q.name), profile, stated))]
 
 
 def _names(profile: ApplicantProfile) -> list[str]:

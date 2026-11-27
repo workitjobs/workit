@@ -318,16 +318,20 @@ def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_no
     assert "your relationship" not in json.dumps(claude.asked, default=str)  # nor sent to Claude to draft
 
 
-def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):
+@pytest.mark.parametrize("required", [False, True])
+def test_an_if_yes_follow_up_to_a_yes_is_asked_only_when_required(tmp_path, required):
     posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
     claude = FakeClaude(drafts={"Do you know anyone": "Yes"})
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
                               AnswerBank(), date(2026, 11, 4))
+    if_yes = Question(IF_YES.name, IF_YES.label, IF_YES.kind, required)
 
-    # Asked in Needs you, optional: it never stops the form (KAN-759).
-    assert planned.add([KNOWS, IF_YES]) is None
+    assert planned.add([KNOWS, if_yes]) is None  # a rehearsal goes on either way
     label = IF_YES.label.strip()
-    assert (planned.missing, planned.required) == ((label,), {label: False})  # a Missing fact, never an Essay fact
+    # Required: asked with the form's own label, a Missing fact, never an Essay fact. Optional: no fact of his is
+    # behind it, so it is left blank and never interrupts him (Lisul, 2026-11-26).
+    assert (planned.missing, planned.required) == (((label,), {label: True}) if required else ((), {}))
+    assert ("if_yes" in planned.left) is not required
     assert planned.written == []
 
 

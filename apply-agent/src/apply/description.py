@@ -10,11 +10,13 @@ It is employer text: Claude reads it as data and never follows instructions in i
 
 import json
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from apply import company
 from apply.adapters import JobSite
 from apply.company import text_of
-from apply.model import Posting, one_line
+from apply.model import Posting, Question, one_line
 
 CAP = 4_000  # characters of the Posting's text in each call, about 1,000 tokens
 
@@ -99,14 +101,108 @@ def from_link(posting: Posting, site: JobSite) -> str:
         return ""
 
 
-def block(posting: Posting, text: str) -> str:
+def block(posting: Posting, text: str, questions: Sequence[Question] = ()) -> str:
     """The <posting> block for every Claude call of one Application: the
-    company, the role, its pay range if the text states one, and the text."""
+    company, the role, its pay range if the text states one, and the text.
+    Each of `questions` that the text lists prompts for (asked) gets that
+    section first, in an <asked_in_description> block the cut never reaches."""
     text = _safe(text)
     head = {"company": posting.company, "role": posting.title} | ({"pay": pay} if (pay := pay_range(text)) else {})
     body = _cut(_without_boilerplate(text))
-    return "\n".join(["<posting>", json.dumps(head, ensure_ascii=False),
+    listed = [f'<asked_in_description>\nFor the question "{_quoted(q.label)}":\n{found.text}\n</asked_in_description>'
+              for q in questions if (found := asked(text, q))]
+    return "\n".join(["<posting>", json.dumps(head, ensure_ascii=False), *listed,
                       *([f"<description>\n{body}\n</description>"] if body else []), "</posting>"])
+
+
+# --- Prompts the Posting lists for an application question ---------------------
+# OpenSesame's form asked for "a shareable YouTube link to your Creative Project submission ... Your project should
+# answer the Creative Project questions listed in the job description" (2026-11-26). The questions were past the
+# block's cut, so the essay writer never saw them. A question that points at the Posting's text gets that section.
+
+# A question that points at instructions in the Posting's own text.
+POINTS_AT = re.compile(r"\b(?:job|role|position)\s+(?:description|posting|listing|post|ad)\b|\b(?:the|this)\s+(?:posting|listing)\b"
+                       r"|\b(?:questions?|prompts?|topics?)\s+(?:listed|given|outlined|described|above|below)\b",
+                       re.IGNORECASE)
+# A line that leads into a list of prompts for the applicant ("In your video, please cover:").
+LEADS_IN = re.compile(r"\b(?:cover|answer|address|include|respond\s+to|tell\s+us|share|discuss|questions?|prompts?|topics?)\b"
+                      r"[^:]{0,60}:$", re.IGNORECASE)
+# One prompt of that list: a question, or an ask ("Show us something you've built with AI").
+PROMPT = re.compile(r"\?|^(?:show|tell|share|describe|explain|walk|give|talk|list|demonstrate|include)\b", re.IGNORECASE)
+# Words too common to tie a question to a section by.
+COMMON = frozenset({"about", "above", "after", "also", "answer", "answers", "application", "applications", "apply",
+                    "applying", "before", "below", "cover", "description", "every", "include", "including", "into",
+                    "job", "link", "list", "listed", "more", "must", "other", "please", "posting", "question",
+                    "questions", "role", "should", "submission", "submit", "that", "their", "there", "these",
+                    "they", "this", "those", "what", "when", "where", "which", "will", "with", "would", "you",
+                    "your"})
+ASKED_CHARS = 1_500  # characters of one section given for a question
+TIES = 2  # distinctive words a question shares with a section's heading and lead-in, when it doesn't point at the text
+
+
+@dataclass(frozen=True)
+class Asked:
+    """One section of the Posting's text that lists prompts for the applicant to answer."""
+
+    heading: str  # the section's heading, "" when the text gives none
+    lead: str  # the line that leads into its prompts ("In your video, please cover:")
+    text: str  # the whole section, from its heading to the next one, cut to ASKED_CHARS
+    prompts: tuple[str, ...]  # each prompt it lists, in order
+
+
+def prompt_sections(text: str) -> list[Asked]:
+    """Every section of the Posting's text that lists prompts: a line that leads into
+    them (LEADS_IN), then one or more prompts (PROMPT), one a line."""
+    lines = [line.strip() for line in _safe(text).splitlines() if line.strip()]
+    found = []
+    for n, line in enumerate(lines):
+        if not LEADS_IN.search(line):
+            continue
+        listed = []
+        for prompt in lines[n + 1:]:  # a short prompt with no "?" ("Tell us about yourself") is no heading
+            if not PROMPT.search(prompt):
+                break
+            listed.append(prompt)
+        if not listed:
+            continue
+        start = next((i for i in range(n, -1, -1) if _section_heading(lines[i])), None)
+        end = next((i for i in range(n + 1 + len(listed), len(lines)) if _section_heading(lines[i])), len(lines))
+        body = "\n".join(lines[(start if start is not None else n):end])
+        found.append(Asked(lines[start] if start is not None else "", line, _cut_to(body, ASKED_CHARS), tuple(listed)))
+    return found
+
+
+def asked(text: str, q: Question) -> Asked | None:
+    """The section of the Posting's text that lists the prompts `q` asks the applicant to answer, or None. A
+    question that points at the text ("the questions listed in the job description") gets the section it shares
+    the most words with, if it shares one; any other question only one whose heading and lead-in share TIES
+    distinctive words with it ("Creative Project")."""
+    sections = prompt_sections(text)
+    if not sections:
+        return None
+    said = f"{q.label}\n{q.description}"
+    words = _words(said)
+    tie = lambda s: len(words & _words(f"{s.heading} {s.lead}"))
+    best = max(sections, key=tie)
+    return best if tie(best) >= (1 if POINTS_AT.search(one_line(said)) else TIES) else None
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z]{4,}", text.casefold()) if w not in COMMON}
+
+
+def _section_heading(line: str) -> bool:
+    """A heading of the Posting's text: short, and no question, ask or sentence."""
+    return _is_heading(line) and not line.endswith(("?", ":", "!"))
+
+
+def _quoted(label: str) -> str:
+    label = one_line(label).replace('"', "'")
+    return label if len(label) <= 160 else label[:159].rstrip() + "…"
+
+
+def _cut_to(text: str, cap: int) -> str:
+    return text if len(text) <= cap else text[:cap].rsplit("\n", 1)[0].rstrip() + "\n(cut)"
 
 
 def pay_range(text: str) -> str:

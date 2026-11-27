@@ -6,7 +6,7 @@ import type { App, Bridge, Upload } from "./bridge.ts";
 import { Report } from "./report.tsx";
 import { said } from "./words.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, WAITING_IN_CHROME, type Job, type Row, answerOf, asking, changes, checks, clip, filledIn, toCheck, wantedFields } from "./view.ts";
+import { type Asked, autoLeft, FIX_IN_FORM, FROM, HANDOFF, isHeld, SENT_ANYWAY, WAITING_IN_CHROME, type Job, type Row, type Sent, answerOf, asking, changes, checks, clip, fileIn, filledIn, openLabel, toCheck, wantedFields } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -56,9 +56,12 @@ function Body(props: Props) {
       );
     case "code":
       return (
-        <Open title="Type the code they emailed you" button="Open the form" {...props}>
-          {HANDOFF.code}
-        </Open>
+        <>
+          <Open title="Type the code they emailed you" button="Open the form" {...props}>
+            {HANDOFF.code}
+          </Open>
+          {job.held && job.worker !== undefined && <EnterCode {...props} />}
+        </>
       );
     case "captcha":
       return (
@@ -121,6 +124,47 @@ function Open({ title, button, note, children, ...props }: Props & { title: stri
       <OpenForm label={button} {...props} />
       {note && <Note>{note}</Note>}
     </>
+  );
+}
+
+export const CODE_LABEL = "Paste the code from your email";
+export const ENTERING_CODE = "Entering the code and submitting. We'll mark it applied once the job site confirms it.";
+
+// The emailed code (Greenhouse's eight case-sensitive characters), typed for the student: Apply puts one character
+// in each box, reads them back and presses Submit, once.
+function EnterCode({ job, bridge, fail }: Props) {
+  const s = job.source;
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  if (s.coding || (sent && !s.code_said))
+    return (
+      <p role="status" className="mt-5 animate-pulse font-medium text-ink-muted">
+        {ENTERING_CODE}
+      </p>
+    );
+  const given = code.replace(/\s+/g, "");
+  const send = () => {
+    setSent(true);
+    bridge.code(`tile-${job.worker}`, given).catch((e: Error) => (setSent(false), fail(e.message)));
+  };
+  return (
+    <form className="mt-5" onSubmit={(e) => (e.preventDefault(), given && send())}>
+      <label htmlFor={`code-${job.key}`} className="font-medium">
+        {CODE_LABEL}
+      </label>
+      {s.code_said && (
+        <p role="alert" className="mt-2 flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
+          <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
+          {said(s.code_said)}
+        </p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2.5">
+        <input id={`code-${job.key}`} value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" spellCheck={false} autoCapitalize="off" className="h-11 min-w-0 flex-1 rounded-card border border-border bg-panel px-3 font-mono tracking-widest" />
+        <Button tone="primary" size="lg" type="submit" disabled={!given}>
+          Submit with this code
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -346,6 +390,7 @@ function Submit(props: Props) {
 }
 
 export const SUBMITTING = "Submitting. We'll mark it applied once the job site confirms it.";
+export const SEND_ANYWAY_ASK = "Send it with the flagged answers as they are? It can't be undone.";
 export const WE_SUBMIT = "We press Submit for you, once. Or open the form and submit it yourself.";
 
 // Approve and submit, and Fix in the form. On a form with something to check, fixing comes first and submitting it
@@ -354,6 +399,7 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
   const { job, bridge, fail } = props;
   const s = job.source;
   const [pressed, setPressed] = useState(false);
+  const [anyway, setAnyway] = useState(false);
   if (!job.held || job.worker === undefined) return <OpenForm label={fix ? "Open the form" : "Open form to submit"} {...props} />;
   if (s.submitting || (pressed && !s.submit_said))
     return (
@@ -361,11 +407,12 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
         {SUBMITTING}
       </p>
     );
-  const submit = () => {
+  const submit = (override?: string) => {
     setPressed(true);
-    bridge.submit(`tile-${job.worker}`).catch((e: Error) => (setPressed(false), fail(e.message)));
+    setAnyway(false);
+    bridge.submit(`tile-${job.worker}`, override).catch((e: Error) => (setPressed(false), fail(e.message)));
   };
-  if (s.auto_at) return <Countdown {...props} when={s.auto_at} submit={submit} />;
+  if (s.auto_at) return <Countdown {...props} when={s.auto_at} submit={() => submit()} />;
   // The decision stays in sight: it sticks to the window's foot while the answers above it scroll by.
   return (
     <div className="sticky bottom-0 z-[1] -mx-6 mt-1 border-t border-border bg-panel/95 px-6 pb-3 backdrop-blur">
@@ -375,8 +422,27 @@ function Decide({ fix, ...props }: Props & { fix?: boolean }) {
           {said(s.submit_said)}
         </p>
       )}
+      {isHeld(s.submit_said) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2.5">
+          {anyway ? (
+            <>
+              <span className="text-ink-muted">{SEND_ANYWAY_ASK}</span>
+              <Button tone="primary" onClick={() => submit(SENT_ANYWAY)}>
+                Yes, send it
+              </Button>
+              <Button tone="quiet" onClick={() => setAnyway(false)}>
+                Keep it held
+              </Button>
+            </>
+          ) : (
+            <Button tone="secondary" onClick={() => setAnyway(true)}>
+              Send anyway
+            </Button>
+          )}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2.5">
-        <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={submit}>
+        <Button tone={fix ? "secondary" : "primary"} size="lg" onClick={() => submit()}>
           {fix ? "Submit as it is" : "Approve and submit"}
         </Button>
         <Button tone={fix ? "primary" : "secondary"} size="lg" onClick={() => show(props)}>
@@ -452,6 +518,17 @@ function LetGo({ job, bridge, fail }: Props) {
     </div>
   );
 }
+// Opens a file the form was given (the cover letter WorkIt wrote, say) in the computer's own viewer: app_window.SHIM
+// hands the link to Bridge.open, which opens only a file the tile or item lists.
+function OpenFile({ file }: { file: Sent }) {
+  return (
+    <a href={file.link} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 font-medium text-brand-ink hover:underline">
+      {openLabel(file)}
+      <ArrowSquareOutIcon className="size-3.5" />
+    </a>
+  );
+}
+
 // A form verifying found answers in that need the student: each one first, in plain words, and what to do.
 function Check(props: Props) {
   const lines = toCheck(props.job.source);
@@ -460,12 +537,16 @@ function Check(props: Props) {
     <>
       <Title>{n === 1 ? "Check one answer before you submit" : `Check ${n} answers before you submit`}</Title>
       <ul className="mt-3 grid gap-2">
-        {lines.map((line) => (
-          <li key={line} className="flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
-            <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
-            {line}
-          </li>
-        ))}
+        {lines.map((line) => {
+          const file = fileIn(props.job.files, line);
+          return (
+            <li key={line} className="flex items-start gap-2.5 rounded-card bg-warning-tint px-3.5 py-2.5 text-ink-muted">
+              <WarningIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-warning-deep" />
+              <span className="min-w-0 flex-1">{line}</span>
+              {file && <OpenFile file={file} />}
+            </li>
+          );
+        })}
       </ul>
       <p className="mt-3 font-medium">{FIX_IN_FORM}</p>
       <Changed {...props} />
@@ -510,9 +591,9 @@ function WhatWeFilled({ job }: Props) {
           {look.length > 0 && <p className="mt-1 text-note text-ink-meta">Worth a look before you submit:</p>}
           <ul className="mt-2 grid gap-2">
             {look.map((row, i) => (
-              <Answer key={`look-${i}`} row={row} />
+              <Answer key={`look-${i}`} row={row} files={job.files} />
             ))}
-            {all && rest.map((row, i) => <Answer key={`rest-${i}`} row={row} />)}
+            {all && rest.map((row, i) => <Answer key={`rest-${i}`} row={row} files={job.files} />)}
           </ul>
           {rest.length > 0 && (
             <Button tone="quiet" className="mt-2 h-8 px-2 text-note" onClick={() => setAll(!all)}>
@@ -525,9 +606,11 @@ function WhatWeFilled({ job }: Props) {
   );
 }
 
-function Answer({ row }: { row: Row }) {
+// An answer that is a file (kind or topic "file") gets the button that opens the very file the form was given.
+function Answer({ row, files }: { row: Row; files?: Sent[] }) {
   const [more, setMore] = useState(false);
   const short = clip(row.answer);
+  const file = row.kind === "file" || row.topic === "file" ? fileIn(files, `${row.question} ${row.answer}`) : undefined;
   return (
     <li className={cx("rounded-card px-3.5 py-2.5", row.glance ? "border border-brand-pale bg-brand-tint" : "bg-surface")}>
       <div className="flex items-baseline gap-2">
@@ -540,7 +623,10 @@ function Answer({ row }: { row: Row }) {
           {more ? "Show less" : "Show more"}
         </button>
       )}
-      <div className="mt-0.5 text-note text-ink-faint">{FROM[row.from]}</div>
+      <div className="mt-0.5 flex items-baseline gap-3 text-note">
+        <span className="text-ink-faint">{FROM[row.from]}</span>
+        {file && <OpenFile file={file} />}
+      </div>
     </li>
   );
 }

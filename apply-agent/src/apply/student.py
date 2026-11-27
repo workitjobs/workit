@@ -7,6 +7,8 @@ starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse
 """
 
 import os
+import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -31,7 +33,7 @@ from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.awake import awake
-from apply.browsers import ProfileInUse
+from apply.browsers import PROFILES, ProfileInUse
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
@@ -214,6 +216,18 @@ class Runs:
             self._site = None
 
 
+def reclaim_left() -> None:
+    """Stop the plain Workers' Chromes an Apply that crashed or was killed left up (launcher.reclaim_all), as the app
+    starts, not only once a run reaches each profile: a crash left one per form open till then."""
+    from apply.plain.launcher import reclaim_all
+
+    try:
+        reclaim_all(Path(os.environ.get("APPLY_PROFILES") or PROFILES))
+    except Exception as error:  # a run's own launch reclaims its profile all the same
+        print(f"Couldn't close the browsers a closed Apply left open: {type(error).__name__}: {error}",
+              file=sys.stderr)
+
+
 def app() -> None:
     """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, takes them through
     first run, then shows their Auto Apply queue and runs it (W5)."""
@@ -222,6 +236,7 @@ def app() -> None:
     profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
     answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
     runs = Runs(profile)
+    threading.Thread(target=reclaim_left, daemon=True, name="reclaim").start()
     try:
         with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, tracker_url=tracker_url(),
                        serve=False) as board:
