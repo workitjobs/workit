@@ -65,6 +65,19 @@ def test_tax_district_on_an_ohio_home_is_left_blank_and_never_asked(tmp_path):
     assert note.holds is False and note.why.startswith("left blank on purpose")
 
 
+def test_an_optional_question_claude_cant_answer_is_left_blank_not_asked(tmp_path):
+    asked = Question("q1", "Which robotics competitions have you judged?", "text", False)
+    form = worker._Planned(ORACLE, None, ApplicantProfile.load(profile_at(tmp_path, **HOME)),
+                           FakeClaude(needs_lisul=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
+
+    assert form.add([CITY, asked]) is None
+    assert form.missing == () and "q1" in form.left and "q1" not in form.answers
+    required = worker._Planned(ORACLE, None, ApplicantProfile.load(profile_at(tmp_path, **HOME)),
+                               FakeClaude(needs_lisul=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
+    result = required.add([CITY, Question("q1", asked.label, "text", True)])
+    assert result is not None and result.missing_fact == asked.label  # a required one is still his
+
+
 def test_an_if_you_chose_follow_up_to_another_pick_is_left_blank(tmp_path):
     heard = Question("q1", "Which robotics league did you compete in?", "select", True, ("FIRST", "VEX", "Other"))
     specify = Question("q2", "If you chose VEX or Other, please specify here:", "text", False)
