@@ -4,7 +4,10 @@
 // Its text goes in trusted where it can (ops/typing.js, KAN-716).
 
 import { inPage, vendor } from "./shared.js";
-import { available, finish } from "./typing.js";
+import { available, finish, ready } from "./typing.js";
+
+// The dom methods that focus a field and may then ask for trusted text or keys in it.
+const TYPES = new Set(["fill", "type", "press", "keys", "insert"]);
 
 // One page/dom.js method in one frame, loading the scripts first if the frame has none yet.
 export async function domCall(params, method, args, trusted = false) {
@@ -20,6 +23,7 @@ export async function domCall(params, method, args, trusted = false) {
 
 async function dom(params) {
   const trusted = available();
+  if (trusted && TYPES.has(params.method)) await ready(params.tab); // focus emulation first: typing.js's `ready`
   const answer = await domCall(params, params.method, params.args, trusted);
   return finish(params, answer, (method, args) => domCall(params, method, args, trusted));
 }
