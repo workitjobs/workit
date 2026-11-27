@@ -130,7 +130,9 @@ def plan(kept: list[dict], profiles: Path) -> Plan:
 def draft(form: dict) -> dict[str, tuple[str, object]]:
     """What a form held when its Record was last saved, by field name, with its question: each answer the page
     showed, never one only planned, a file, a secret, or an attestation, consent or signature (those stay Lisul's
-    to tick or sign, send_click.ATTEST). {} when it has no Record. `worker.apply_to` keeps one only where the
+    to tick or sign, send_click.ATTEST). Nor one the page showed as Apply planned it: that was Apply's own answer, not
+    Lisul's, so a reopen or Fill again plans it afresh and his Answer bank answer wins (Match Group's accommodation,
+    2026-11-26, kept a drafted Yes over his banked No). {} when it has no Record. `worker.apply_to` keeps one only where the
     field asks the same question now: Claude fill numbers its fields, and a number may name another field."""
     try:
         rows = json.loads((Path(form["record"]) / "answers.json").read_text())
@@ -140,7 +142,7 @@ def draft(form: dict) -> dict[str, tuple[str, object]]:
     for row in rows if isinstance(rows, list) else []:
         value, question = row.get("on_page"), str(row.get("question") or "")
         if not row.get("field") or value in (None, "", []) or value in NOT_REFILLED or row.get("kind") == "file" \
-                or ATTEST.search(question):
+                or value == row.get("planned") or ATTEST.search(question):
             continue
         if "kind" not in row and isinstance(value, str) and FILE_NAME.search(value):
             continue  # a Record from before rows named their kind: a file is told by its name

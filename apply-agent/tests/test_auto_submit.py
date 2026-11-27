@@ -86,6 +86,14 @@ def test_anything_that_needs_a_person_keeps_it_for_the_student():
     assert why(other, Tracker(submitted=["other"])) == auto_submit.NEW_SYSTEM.format("other")
 
 
+def test_auto_submit_essays_lets_a_checked_essay_go_but_never_a_held_one():
+    """Fault: auto_submit_essays ignored (full_auto still waits on every essay), or sending an essay a check held."""
+    essay = SimpleNamespace(written=[SimpleNamespace(essay=object())])
+    profile = Profile(auto_submit_essays=True)
+    assert why(done(form=essay), profile=profile) == ""
+    assert why(done(form=essay, why="'Why Notion?' claims what no source backs: 40%"), profile=profile) == auto_submit.HELD
+
+
 def test_an_account_made_on_an_earlier_day_doesnt_hold_it():
     before = Tracker(accounts=[SimpleNamespace(company="Notion", created=date(2026, 11, 1))])
     assert why(done(), before) == ""

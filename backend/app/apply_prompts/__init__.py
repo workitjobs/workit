@@ -22,13 +22,14 @@ from app.apply_prompts import (
     own_application,
     presubmit,
     probe,
+    recording,
     story_map,
     writing,
 )
 from app.apply_prompts.kind import Built, Kind, said
 
 KINDS: dict[tuple[str, int], Kind] = {(k.name, k.version): k for k in (
-    *brief.KINDS, *claude_fill.KINDS, *essays.KINDS, *generic_fill.KINDS, *own_application.KINDS, *presubmit.KINDS, *probe.KINDS,
+    *brief.KINDS, *claude_fill.KINDS, *essays.KINDS, *generic_fill.KINDS, *own_application.KINDS, *presubmit.KINDS, *probe.KINDS, *recording.KINDS,
     *story_map.KINDS, *writing.KINDS,
 )}
 

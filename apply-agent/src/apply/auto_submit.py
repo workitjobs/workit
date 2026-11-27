@@ -6,7 +6,8 @@ policies.yaml, so it never auto-submits. A form goes only when nothing about it 
 
 - it passed the Pre-submit check with no flags: no problem, no Missing fact, no legal hold, no answer left behind,
   and no reason to hold it (a review flag, an overused answer, the Calibration run);
-- Claude wrote no Essay for it, in a text box or as a file;
+- Claude wrote no Essay for it, in a text box or as a file, unless `auto_submit_essays` is on (the Safety level's
+  full_auto): then an Essay that passed every check (no hold) goes too;
 - it names its company;
 - it never paused for the student (a sign-in, a captcha, an emailed code);
 - it isn't for a Target company;
@@ -74,7 +75,8 @@ def why_not(done, ready: str, profile, tracker, today: date) -> str:
         return FLAGGED
     if done.why:
         return HELD
-    if done.saved and done.saved.essays or done.form and any(w.essay is not None for w in done.form.written):
+    essay = done.saved and done.saved.essays or done.form and any(w.essay is not None for w in done.form.written)
+    if essay and profile.policy("auto_submit_essays") is not True:  # with it, an essay that passed every check goes
         return ESSAY
     if done.history:
         return PAUSED

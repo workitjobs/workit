@@ -273,6 +273,15 @@ export function mock(
       }
       push();
     },
+    async code(id, code) {
+      // Apply types the code in and presses Submit; a code that isn't the mock's is wrong.
+      const held = state.tiles[Number(id.slice(5))];
+      if (held) {
+        Object.assign(held, { coding: true, code_said: "" });
+        later(() => Object.assign(held, code === "OxNbtPnI" ? { tone: "submitted", coding: false } : { coding: false, code_said: "The job site says the code is wrong." }), 1800);
+      }
+      push();
+    },
     async cancelAuto(id) {
       const held = state.tiles[Number(id.slice(5))];
       if (held) Object.assign(held, { auto_at: null, auto_said: "Auto-submit cancelled: it's yours to approve." });

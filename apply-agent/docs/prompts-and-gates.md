@@ -66,6 +66,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   sources hold, never one that neither holds (`writing._usable`). Each
   edit that wrote in the count the claim check gave was dropped before
   (Sierra, 2026-11-26), so both essays stayed at 157 and 145 words of 120.
+- An essay is written from the Story bank as it is when the writing ends
+  (`essays.answer`). The plan, the draft, the claim check and the editor
+  read the bank once, at the start, and take minutes. When the bank's file
+  changed while they ran (`essays.bank_stamp`: its mtime and size), the
+  essays are planned and written again from the new bank, up to
+  `essays.BANK_EDITS` times. On ENFOS's form (2026-11-26) Lisul moved the
+  WorkIt facts out of the bank at 19:50:03, and the editor's passes at
+  19:50:24 and 19:50:55 still wrote them, from the bank read at 19:48.
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the
@@ -98,3 +106,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
+
+## What each stage costs
+
+Every model call counts its usage under its stage (`apply.usage`): research,
+plan, write, check, edit, review, fill, and the kind's own name for the rest
+(`probe.typical`, `brief.team`). Each stage keeps its calls, turns, input,
+output, cache-read and cache-write tokens, and its calls per model. A
+rehearsal's Record keeps them in `usage.json`, its summary line names the
+four biggest stages after its tokens ("351,014 tokens (research 290k, edit
+61k ×2)"), and each call's Trace line carries its own row. Measure a change
+to a prompt, a cap or a model by these rows, before and after.

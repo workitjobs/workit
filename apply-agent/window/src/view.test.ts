@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
+import { addsJobs, findsJobs, joinedWords, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, fileIn, flagged, openLabel, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -376,8 +376,17 @@ test("+ Add jobs shows whenever no run is going and the window can start one, ne
   const idle = view({ tiles: [], items: [], run: {} });
   const run = view({ tiles: [job({})], items: [], run: { mode: "rehearsal", queued: 0 } });
   assert.equal(addsJobs(idle, true), true);
-  assert.equal(addsJobs(run, true), false); // app_window.Bridge.start refuses a second run
+  assert.equal(addsJobs(run, true), false); // the queue screen starts runs; Find jobs adds to one
   assert.equal(addsJobs(idle, false), false); // a Developer checkout's window has no queue or Start
+});
+
+test("Find jobs stays reachable during a run, whose picks join it", () => {
+  // Fault: a run started from `apply app <link>` hid Find jobs till its last form closed (live, 2026-11-26).
+  assert.equal(findsJobs(true, true), true);
+  assert.equal(findsJobs(false, true), false); // a window that can't start a run can't take a pick
+  assert.equal(findsJobs(true, false), false); // nor one that can't read matches
+  assert.equal(joinedWords(1), "Added 1 job to this run.");
+  assert.equal(joinedWords(3), "Added 3 jobs to this run.");
 });
 
 test("Applied lists this run's submitted jobs, then what WorkIt has from before, each once", () => {
@@ -394,6 +403,25 @@ test("Applied lists this run's submitted jobs, then what WorkIt has from before,
   assert.deepEqual(all.map((j) => [j.company, j.status]), [["Stripe", "submitted"], ["Acme", "submitted"]]);
   assert.equal(all[1].source.company_domain, "acme.com");
   assert.deepEqual(appliedJobs(sent, null).map((j) => j.company), ["Stripe"]); // WorkIt not read (yet)
+});
+
+test("Applied lists the latest applied first, and a job of this run takes WorkIt's logo for it", () => {
+  const sent = view({
+    tiles: [
+      job({ tone: "submitted", company: "Stripe", posting_url: "https://job-boards.greenhouse.io/stripe/jobs/1", since: 100 }),
+      job({ tone: "submitted", company: "Figma", role: "Intern", posting_url: "https://job-boards.greenhouse.io/figma/jobs/2", since: 200 }),
+    ],
+    items: [],
+  }).applied;
+  const earlier = [
+    { url: "https://jobs.lever.co/old/1", company: "Old", title: "Intern", applied_at: "2026-11-01T10:00:00Z" },
+    { url: "https://job-boards.greenhouse.io/figma/jobs/2", company: "Figma", title: "Intern", company_domain: "figma.com", applied_at: "2026-11-26T10:00:00Z" },
+    { url: "https://jobs.lever.co/new/1", company: "New", title: "Intern", applied_at: "2026-11-20T10:00:00Z" },
+  ];
+  const all = appliedJobs(sent, earlier);
+  assert.deepEqual(all.map((j) => j.company), ["Figma", "Stripe", "New", "Old"]);
+  assert.equal(all[0].source.company_domain, "figma.com");
+  assert.equal(all[1].source.company_domain, undefined);
 });
 
 test("the Submit card lists only what Apply says it did: checked against the profile, a resume attached", () => {
@@ -600,4 +628,26 @@ test("Auto-submit's countdown reads minutes and seconds, and never goes below ze
   assert.equal(autoLeft(1000 + 582, 1000_000), "9:42");
   assert.equal(autoLeft(1000 + 5.2, 1000_000), "0:06");
   assert.equal(autoLeft(1000 - 30, 1000_000), "0:00");
+});
+
+test("a held form's flag on its cover letter opens the very file the form was given", () => {
+  const files = [
+    { label: "Resume", name: "Lisul_Resume.pdf" },
+    { label: "Cover Letter", name: "Lisul_Cover_Letter.pdf" },
+  ];
+  const flags = [{ field: "Cover Letter", why: "names Rippling, another company, unlike your resume" }];
+  const held = job({ tone: "needs", kind: "check", again: true, flags, files });
+  const [onTile] = view({ tiles: [job({ tone: "idle" }), held], items: [] }).todo;
+  const line = toCheck(onTile.source)[0];
+  const file = fileIn(onTile.files, line)!;
+  assert.equal(file.link, "/file/1/1"); // tile 1's second file: named by its question, though the line says "resume" too
+  assert.equal(openLabel(file), "Open cover letter");
+  assert.equal(openLabel(fileIn(onTile.files, "Resume: Lisul_Resume.pdf")!), "Open resume");
+  assert.equal(fileIn(onTile.files, "Graduation date: 2027 is not on your profile"), undefined);
+  // An ended Application Apply keeps opens by its item's id; a live item's id names no file.
+  const [ended] = view({ tiles: [], items: [{ ...held, tone: "needs", id: 7 }] }).todo;
+  assert.equal(fileIn(ended.files, line)!.link, "/file/item/7/1");
+  assert.equal(view({ tiles: [], items: [{ ...held, id: "live-0" }] }).todo[0].files, undefined);
+  // A file named only by its name: "Open" and the name.
+  assert.equal(openLabel({ label: "Portfolio", name: "work.pdf", link: "/file/0/0" }), "Open work.pdf");
 });

@@ -103,7 +103,7 @@ def flags(text: str) -> list[str]:
 
 def edit(claude, drafts: dict[str, str], sources: str, letters: frozenset[str] = frozenset(),
          questions: dict[str, str] | None = None, lengths: dict[str, str] | None = None,
-         checks: Callable[[str, dict[str, str]], list[str]] | None = None) -> dict[str, str]:
+         checks: Callable[[str, dict[str, str]], list[str]] | None = None, check: bool = True) -> dict[str, str]:
     """`drafts` (answer by key) after the claim check and the editor's pass,
     given the drafting call's `sources` (Story bank, Stock answers, Posting,
     Company material). The claim check (CHECK) lists what the sources don't
@@ -118,14 +118,17 @@ def edit(claude, drafts: dict[str, str], sources: str, letters: frozenset[str] =
     left it. `lengths` gives, by key, the length an answer keeps to when its
     question states none (its Question type's default, "70-120 words").
     `checks(key, answers)`, when given, adds its own flags for the answer
-    under `key`, given every answer as the last pass left them (apply.sameness)."""
+    under `key`, given every answer as the last pass left them (apply.sameness).
+    `check` False skips the claim check (policy claim_check): the editor's own
+    fact pass alone, a fifth of the edit's tokens saved on 33 replayed essays
+    but six more flags left on them (2026-11-26)."""
     asked = questions or {}
     base = dict(drafts)
     edited = dict(base)
 
     def take(given: dict[str, str]) -> None:  # each pass's edit, where usable; else the last usable one stays
         edited.update({key: text for key, text in given.items() if _usable(base[key], text, key in letters, sources)})
-    take(_pass(claude, base, sources, _check(claude, base, sources), asked, lengths))
+    take(_pass(claude, base, sources, _check(claude, base, sources) if check else {}, asked, lengths))
     for _ in range(2):
         flagged = {key: found for key, text in edited.items()
                    if (found := [*flags(text), *(checks(key, dict(edited)) if checks else [])])}
