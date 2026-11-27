@@ -74,13 +74,16 @@ reads: it does not click, type or submit.
   its state question was given), so it states no new fact, with two more
   exceptions: a legal or eligibility choice (`verify.LEGAL`), and, on the
   first review, a choice whose review reason rests on the profile ("the
-  profile says ..."; a reason that quotes the question and its repeat
+  profile says ...", or that it contradicts another of the form's answers,
+  which come from the profile; a reason that quotes the question and its repeat
   under a section, as Oracle's "Application Questions:" shows it, counts
   for both, `worker._flagged`). The second is a trial: kept only if the next review
   passes it, else the plan's answer is filled again (`_Planned.unfix`) and
   the problem holds the form (Pylon's relocate, CesiumAstro's GPA,
   2026-11-26). It never replaces Lisul's own answer, an essay, a file or a
-  secret. A
+  secret. A question's repeat in another section (Oracle's
+  "Application Questions: <question>", `worker._repeats`) takes the fix
+  its question took, and is undone with it. A
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
