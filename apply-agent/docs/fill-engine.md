@@ -268,6 +268,10 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
+Lisul's answer that names a city the question's options or the Posting's
+Location line offer (ENFOS's "Willing to relocate to Durham or Chicago for
+the summer") is saved as `"<question> (<company> only)"` (the engine's
+`remember`), so it fills that company's forms and no other's.
 
 ## amazon.jobs (KAN-765)
 

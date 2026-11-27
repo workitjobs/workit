@@ -132,6 +132,21 @@ def test_the_options_lisul_picked_for_a_missing_multi_select_are_each_ticked():
     assert fill_engine.plan([question], POSTING, profile).answers["q1"] == ["Austin", "Denver"]
 
 
+def test_a_needs_you_answer_naming_the_postings_offices_is_kept_for_that_company_only():
+    # ENFOS (2026-11-26): this answer was kept by the bare wording, so it answered every company's location question.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("logistics.willing_to_relocate_for_summer", None)
+    relocate = "Willing to relocate to Durham or Chicago for the summer"
+    question = Question("q1", "Where are you currently located?", "select", True,
+                        ("In or near Durham, NC", "In or near Chicago, IL", relocate))
+    enfos = Posting("p", "ENFOS", "Software Engineer Intern", "https://job-boards.greenhouse.io/enfos/jobs/1")
+    fill_engine.remember(profile, enfos, question, relocate)
+
+    assert profile.answered("Where are you currently located?") is None
+    assert profile.answered("Where are you currently located? (ENFOS only)") == relocate
+    assert fill_engine.plan([question], enfos, profile).answers["q1"] == relocate
+
+
 def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
     # the essay call needs them: Figma asks for "3-4 sentences" only in a description
     found = {"name": "q1", "label": "Why Figma?", "kind": "textarea", "required": True, "options": [],
