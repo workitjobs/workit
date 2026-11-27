@@ -94,8 +94,10 @@ has neither.
   Apply's child, or macOS blames the built app for what Chrome's updater
   does: "prevented from modifying apps"), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
-  Mac, so Chrome never runs as Apply's child), showing a folder
-  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
+  Mac, so Chrome never runs as Apply's child), a developer's Apply window
+  (`dashboard.open_window`: the Dock app on the Mac, Chrome itself with
+  `--app` elsewhere, found by its profile), showing a folder
+  (`plain/seed_setup.reveal`), a tile's capture (`window_capture.mode`),
   and keeping the computer awake during a run
   (`awake.awake`: `caffeinate` on the Mac, `SetThreadExecutionState` on Windows). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS

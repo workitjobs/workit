@@ -308,6 +308,23 @@ decisions beside D17 and D18.
   forward. Check that Windows keeps Workers behind the student's apps
   (F4's "Test early").
 
+### P12. A developer's Apply window: built from the Mac
+
+- **What broke.** Every `apply rehearse` and `apply run` opens its Apply
+  window (`dashboard.open_window`) with the Dock app and `open -na`,
+  finds it with `pgrep`, and raises it with AppleScript. Windows has none
+  of them, so each run stopped at its start, and each window's close too.
+  Found on the way (2026-11-27): M1 needed it.
+- **Built.** Off the Mac the window is Google Chrome itself
+  (`_open_elsewhere`), started with `--app` on the window's own profile
+  through `launcher.start_in_background`, and found by that profile
+  (`browsers.chrome_pid`, then its `--app`). It quits through
+  `ask_to_quit`. With no Chrome, the run goes on and prints the address.
+  A tile's Show in Finder goes through `seed_setup.reveal`.
+- **Still open.** Off the Mac nothing raises the window: `raise_window`
+  says False. The button still says "Show in Finder". **Windows:** the
+  window opens behind the student's work, and closes when its run ends.
+
 ## 5. Kind of fix
 
 `apply-agent/CLAUDE.md` ("Code that differs by OS") has the rules: a
@@ -324,6 +341,7 @@ Windows entry, since the Mac has none.
 | P8 wizard words | Built: a Windows text in the same function |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | Built: a Windows entry in `awake.awake` |
+| P12 Apply window | Built: one entry for the Mac and one for the rest, in each window function |
 
 ## 6. Tests
 
@@ -340,6 +358,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
 | P7 | Built: `tests/test_plain_seed_setup.py`, the seed's Chrome is asked with `taskkill` and no `/F`, never killed; `tests/test_each_os.py`, a Worker is asked first and killed only after `STOP_WAIT`, and a reused PID is never asked | A forced stop loses the student's clicks and the Workers' sign-ins |
 | P8 | Built: `tests/test_plain_seed_setup.py`, every line the wizard says on Windows | A Windows user is told Finder and Cmd keys |
+| P12 | Built: `tests/test_each_os.py`, the window on Windows opens, is found by its profile, isn't opened twice, and an older one is asked to close | A developer's run on Windows stops at its start |
 | P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
@@ -356,7 +375,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
-| M1 | A developer runs CDP Workers | P1, P2, P3 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
+| M1 | A developer runs CDP Workers | P1, P2, P3, P12 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
 | M2 | A developer runs plain Workers, with no seed | P4, P5, P9 (built), P6 | `plain_chrome: testing` | Every host fills, with no seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 

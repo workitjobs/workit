@@ -41,11 +41,13 @@ import secrets
 import signal
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 from collections import Counter
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1650,7 +1652,10 @@ class _Handler(BaseHTTPRequestHandler):
         listed = self._listed(path)
         if not listed:
             return self._json(404, {"error": "That file is gone."})
-        subprocess.run(["open", "-R", str(listed)], check=False)
+        from apply.plain.seed_setup import reveal
+
+        with suppress(OSError, subprocess.CalledProcessError):  # each OS's file manager (seed_setup.reveal)
+            reveal(listed)
         self._send(204, "text/plain", b"")
 
     def _from_window(self) -> bool:
@@ -2506,23 +2511,26 @@ def _dispatch(page, event: dict) -> dict | None:
     return None
 
 
-def open_window(url: str, profile: Path, front: bool = True) -> None:
+def open_window(url: str, profile: Path, front: bool = True, system: str = sys.platform) -> None:
     """Open the dashboard as a Chrome app window, in a plain profile of its
     own (never a Worker profile), as the Apply app in the Dock (dock_app),
     and bring it to the front; or, not `front` (a run starting while Lisul
     works in another app), leave it behind his app till he clicks Apply.
+    Off the Mac it is the Chrome finder's Chrome itself (`_open_elsewhere`).
 
     Only one Chrome may use a profile: when one already shows this server's
     window it is brought forward, not launched again; one left showing an
     older server's window (a run gone by) is quit first."""
     profile.mkdir(parents=True, exist_ok=True)
     _OPENED[urlsplit(url).netloc] = profile
-    for pid, shown in _window_chromes(profile):
+    for pid, shown in _window_chromes(profile, system):
         if urlsplit(shown).netloc == urlsplit(url).netloc:
             if front:
-                raise_window(profile)
+                raise_window(profile, system=system)
             return
-        _quit(pid)
+        _quit(pid, system=system)
+    if system != "darwin":
+        return _open_elsewhere(url, profile, front, system)
     from apply import (
         dock_app,  # a Developer checkout's (apply.build): W5's window replaces this one
     )
@@ -2540,6 +2548,25 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
                 KEEPER.watch(pid, seconds=BEHIND_FOR)  # Chrome comes forward a moment after it starts, too
 
 
+# Off the Mac, the window's Chrome as this process started it: held, so its Popen isn't collected while it runs.
+_STARTED: dict[Path, object] = {}
+
+
+def _open_elsewhere(url: str, profile: Path, front: bool, system: str) -> None:
+    """The window off the Mac (KAN-929): Google Chrome itself, with `--app` on the window's own profile, started by
+    each OS's background start (launcher.start_in_background). No Dock app and no AppleScript. With no Chrome the
+    run goes on, and the caller prints the window's address."""
+    from apply import chrome_finder
+    from apply.plain.launcher import start_in_background
+
+    if (binary := chrome_finder.find(system)) is None:
+        print(f"{NO_CHROME}. Till then, open {url} in a browser.", file=sys.stderr)
+        return
+    arguments = [str(binary), f"--app={url}", f"--user-data-dir={profile}", "--no-first-run",
+                 "--no-default-browser-check"]
+    _STARTED[profile] = start_in_background(arguments, profile, profile.with_suffix(".log"), system, front=front)
+
+
 def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
     """The pids of the Chrome showing the window in `profile`, once it has started."""
     deadline = time.monotonic() + timeout
@@ -2552,9 +2579,18 @@ def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
 _OPENED: dict[str, Path] = {}
 
 
-def _window_chromes(profile: Path) -> list[tuple[int, str]]:
+def _window_chromes(profile: Path, system: str = sys.platform) -> list[tuple[int, str]]:
     """Each Chrome (pid, the URL its window opened on) running the window in `profile`:
-    Chrome itself, not the `open` command that launched it with the same arguments."""
+    Chrome itself, not the `open` command that launched it with the same arguments. Off the Mac, with no pgrep:
+    the browser that holds the profile (browsers.chrome_pid), and the `--app` it started with."""
+    if system != "darwin":
+        from apply.browsers import chrome_pid
+
+        try:
+            arguments = psutil.Process(pid).cmdline() if (pid := chrome_pid(profile, system)) else []
+        except psutil.Error:  # it ended in between
+            arguments = []
+        return [(pid, a.removeprefix("--app=")) for a in arguments if a.startswith("--app=")][:1]
     found = subprocess.run(["pgrep", "-lf", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
                            capture_output=True, text=True, check=False)
     chromes = []
@@ -2566,8 +2602,20 @@ def _window_chromes(profile: Path) -> list[tuple[int, str]]:
     return chromes
 
 
-def _quit(pid: int, timeout: float = 10.0) -> None:
-    """Quit the window's Chrome as Cmd-Q would, and wait for it to be gone."""
+def _quit(pid: int, timeout: float = 10.0, system: str = sys.platform) -> None:
+    """Quit the window's Chrome as Cmd-Q would, and wait for it to be gone. Off the Mac through launcher.ask_to_quit:
+    on Windows a signal would kill it at once."""
+    if system != "darwin":
+        from apply.plain.launcher import Chrome, ask_to_quit
+
+        try:
+            process = psutil.Process(pid)
+        except psutil.Error:
+            return
+        ask_to_quit(Chrome(pid), system)
+        with suppress(psutil.Error):  # gone, or still up after `timeout`
+            process.wait(timeout)  # this process's own child is reaped here too
+        return
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -2579,19 +2627,24 @@ def _quit(pid: int, timeout: float = 10.0) -> None:
         time.sleep(0.1)
 
 
-def window_open(profile: Path) -> bool:
+def window_open(profile: Path, system: str = sys.platform) -> bool:
     """Whether the window opened in `profile` is still open."""
+    if system != "darwin":
+        return bool(_window_chromes(profile, system))
     found = subprocess.run(["pgrep", "-f", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
                            capture_output=True, text=True, check=False)
     return bool(found.stdout.split())
 
 
-def raise_window(profile: Path, timeout: float = 10.0) -> bool:
+def raise_window(profile: Path, timeout: float = 10.0, system: str = sys.platform) -> bool:
     """Bring the dashboard window in front of every other window.
 
     It is a Chrome of its own, so Chrome's Dock icon finds Lisul's everyday
     Chrome, not this window, and a window opened behind others stays lost.
+    Off the Mac, with no AppleScript, it brings nothing forward: False.
     """
+    if system != "darwin":
+        return False
     deadline = time.monotonic() + timeout
     while True:
         # Chrome itself, not the `open` command that launched it with the same arguments.

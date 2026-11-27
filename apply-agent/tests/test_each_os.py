@@ -27,6 +27,7 @@ from apply import (
     captcha,
     chrome_finder,
     chrome_host,
+    dashboard,
     focus,
     home,
     native_host,
@@ -490,6 +491,49 @@ def test_on_windows_a_worker_is_asked_to_close_and_killed_only_after_the_wait(tm
     finally:
         chrome.kill()
         chrome.wait()
+
+
+def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_path, monkeypatch):
+    """Fault: every rehearsal and run opened its Apply window with `open -na` and the Dock app, and found it with
+    pgrep, none of which Windows has: `apply rehearse` stopped at its start there, and each window's close too."""
+    real_run = subprocess.run
+
+    def run(arguments, **kwargs):
+        if arguments[0] in ("open", "pgrep", "osascript"):
+            pytest.fail(f"a Mac command off the Mac: {arguments}")
+        return real_run(arguments, **kwargs)
+
+    started, chromes = [], []
+
+    def start(arguments, profile, log, system, front=False):  # a stand-in Chrome, as launcher's Windows start
+        started.append((arguments, front))
+        chromes.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", *arguments[1:]]))
+        return chromes[-1]
+
+    monkeypatch.setattr(dashboard.subprocess, "run", run)
+    monkeypatch.setattr(launcher, "start_in_background", start)
+    monkeypatch.setattr(chrome_finder, "find", lambda system=None: Path("C:/Chrome/chrome.exe"))
+    # Windows' taskkill as a Chrome takes it: its window closes, and so it quits.
+    asked = tmp_path / "asked"
+    monkeypatch.setattr(launcher, "TASKKILL", (sys.executable, "-c", f"import os, sys; open({str(asked)!r}, 'w')"
+                                               ".write(' '.join(sys.argv[1:])); os.kill(int(sys.argv[2]), 15)"))
+    profile = tmp_path / "dashboard"
+    try:
+        dashboard.open_window("http://127.0.0.1:5001", profile, front=False, system="win32")
+        (arguments, front), = started
+        assert arguments[0] == "C:/Chrome/chrome.exe" and not front
+        assert {"--app=http://127.0.0.1:5001", f"--user-data-dir={profile}"} <= set(arguments)
+        assert dashboard.window_open(profile, "win32")  # found by its profile
+        dashboard.open_window("http://127.0.0.1:5001", profile, system="win32")  # this server's window: not again
+        assert len(started) == 1
+        dashboard.open_window("http://127.0.0.1:6002", profile, system="win32")  # an older run's: it quits first
+        assert asked.read_text() == f"/PID {chromes[0].pid}"  # asked to close: a signal would kill it at once
+        assert len(started) == 2 and dashboard._window_chromes(profile, "win32")[0][1] == "http://127.0.0.1:6002"
+    finally:
+        for process in chromes:
+            process.kill()
+            process.wait()
+        dashboard._STARTED.clear()
 
 
 def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(tmp_path, monkeypatch):

@@ -142,6 +142,19 @@ def _press_return() -> bool:
     return True
 
 
+def reveal(path: Path, system: str = sys.platform) -> None:
+    """Show `path` in the OS's file manager, selected where the OS can: no library does this on every OS.
+    macOS: Finder (`open -R`). Windows: File Explorer (`explorer /select,`). Linux: its parent folder in the
+    desktop's file manager (`xdg-open`)."""
+    if system == "darwin":
+        command: list[str] | str = ["open", "-R", str(path)]
+    elif system == "win32":  # one string: Explorer reads /select, only outside the quotes, and Python quotes
+        command = f'explorer /select,"{path}"'  # a whole argument that holds a space (C:\Users\Jane Doe\...)
+    else:
+        command = ["xdg-open", str(path.parent)]
+    subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
+
+
 @dataclass
 class Desk:
     """What the wizard does outside its own files. Tests give fakes."""
@@ -167,17 +180,7 @@ class Desk:
         except pyperclip.PyperclipException:
             pass
 
-    def reveal(self, path: Path, system: str = sys.platform) -> None:
-        """Show `path` in the OS's file manager, selected where the OS can: no library does this on every OS.
-        macOS: Finder (`open -R`). Windows: File Explorer (`explorer /select,`). Linux: its parent folder in the
-        desktop's file manager (`xdg-open`)."""
-        if system == "darwin":
-            command: list[str] | str = ["open", "-R", str(path)]
-        elif system == "win32":  # one string: Explorer reads /select, only outside the quotes, and Python quotes
-            command = f'explorer /select,"{path}"'  # a whole argument that holds a space (C:\Users\Jane Doe\...)
-        else:
-            command = ["xdg-open", str(path.parent)]
-        subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
+    reveal = staticmethod(reveal)
 
     def chrome(self) -> int | None:
         """The PID of the Chrome that runs this seed. chrome_pid takes the lock's PID only while its arguments
