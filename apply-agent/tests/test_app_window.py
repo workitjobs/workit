@@ -9,7 +9,7 @@ import types
 import pytest
 from fake_workit import FakeWorkIt
 
-from apply import app_window, dashboard, workit
+from apply import app_window, build, dashboard, workit
 from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
 from apply.first_run import READY, SHOWN
@@ -734,6 +734,30 @@ def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
     app_window.badge(3)
     app_window.badge(0)
     assert labels == ["3", ""]
+
+
+def test_a_checkouts_window_shows_workits_name_and_logo_and_the_built_app_keeps_its_bundles(monkeypatch, tmp_path):
+    # Fault: `apply app` from a checkout shows Python's name and a blank page in the Dock, or the Student build's
+    # bundle icon is replaced.
+    icons, info = [], {"CFBundleName": "Python"}
+    image = object()
+    app = types.SimpleNamespace(setApplicationIconImage_=icons.append)
+    appkit = types.SimpleNamespace(
+        NSApplication=types.SimpleNamespace(sharedApplication=lambda: app),
+        NSImage=types.SimpleNamespace(alloc=lambda: types.SimpleNamespace(
+            initWithContentsOfFile_=lambda path: image if path == str(app_window.ICON) else None)))
+    foundation = types.SimpleNamespace(NSBundle=types.SimpleNamespace(
+        mainBundle=lambda: types.SimpleNamespace(infoDictionary=lambda: info)))
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "Foundation", foundation)
+    assert app_window.ICON.is_file()
+    assert app_window.look_like_the_app() is True
+    assert icons == [image] and info["CFBundleName"] == app_window.TITLE
+    assert app_window.look_like_the_app(tmp_path / "app-icon.png") is False  # the built app: no logo beside its code
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert app_window.look_like_the_app() is False
+    assert icons == [image]
 
 
 def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(monkeypatch):

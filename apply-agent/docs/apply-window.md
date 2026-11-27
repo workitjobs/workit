@@ -210,6 +210,12 @@ for a student, not from `dashboard_page.py`.
   submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
   (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
   (`dashboard.todo_count`), and clears when the run ends.
+- **A checkout's name and icon.** `apply app` from a Developer checkout
+  runs as Python, so the Dock showed Python's blank-page icon and the menu
+  bar said "Python". `app_window.look_like_the_app` sets WorkIt's logo
+  (`assets/app-icon.png`, the built app's icon) as the Dock icon and
+  "WorkIt Auto Apply" as the menu bar's name, before the window starts. The
+  built app's bundle gives both itself, so the Student build skips it.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,

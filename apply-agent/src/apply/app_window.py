@@ -70,6 +70,8 @@ from apply.tracker import FileTracker, Row
 TITLE = "WorkIt Auto Apply"
 # The student page, built from window/ by Vite (`npm run build`) into one file: CI checks it matches its source.
 STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
+# WorkIt's logo, the built app's icon (scripts/build_app.py's ICON): a checkout's window shows it in the Dock too.
+ICON = Path(__file__).parents[2] / "assets" / "app-icon.png"
 # The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
 PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
@@ -806,6 +808,28 @@ def badge(count: int) -> None:
     AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
 
 
+def look_like_the_app(icon: Path = ICON) -> bool:
+    """A Developer checkout's window as WorkIt Auto Apply in the Dock and the menu bar: its process is Python, so
+    macOS showed Python's name and a blank page for its icon. The built app's bundle names it and gives its icon
+    (scripts/build_app.py), and has no `icon` file beside its code, so this changes nothing there. On a Mac only, and
+    before webview.start, so the menu bar reads the name as it starts. True when the icon was set."""
+    if sys.platform != "darwin" or build.STUDENT or not icon.is_file():
+        return False
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        import Foundation
+    except ImportError:
+        return False
+    info = Foundation.NSBundle.mainBundle().infoDictionary()
+    if info is not None:  # Python's own Info.plist, read once: the menu bar names the app from it
+        info["CFBundleName"] = TITLE
+    image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(icon))
+    if image is None:
+        return False
+    AppKit.NSApplication.sharedApplication().setApplicationIconImage_(image)
+    return True
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""
@@ -895,6 +919,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
 
         threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
     updates.start()  # the built app's Sparkle updater (W8 step 3)
+    look_like_the_app()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
