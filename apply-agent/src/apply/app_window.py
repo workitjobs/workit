@@ -265,8 +265,10 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 </style>
 <main class="settings">
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
-<label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
-<p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
+<label>Workers at once <select id="workers"><option value="0" id="workers-auto">Automatic</option>
+<option>1</option><option>2</option><option>3</option></select></label>
+<p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. Automatic picks the count from this Mac's memory.
+The next Start uses the new count.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
@@ -334,7 +336,8 @@ document.getElementById('report-send').addEventListener('click', async () => {
 });
 ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
-  count.value = String(state.workers);
+  document.getElementById('workers-auto').textContent = `Automatic (${state.automatic} for this Mac)`;
+  count.value = String(state.workers || 0);
   document.getElementById('notices').hidden = !state.notices;
   if (state.claude) {
     document.getElementById('claude').hidden = false;
@@ -637,7 +640,8 @@ class Bridge:
     def settings_state(self) -> dict:
         """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
         `claude -p` uses, and why the Best model last paused."""
-        state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        state = {"workers": first_run.chosen_workers() or 0, "automatic": first_run.automatic_workers(),
+                 "notices": NOTICES.is_file()}
         from apply import student
 
         if not build.STUDENT and os.environ.get(student.MAX_PLAN):
@@ -650,7 +654,8 @@ class Bridge:
         return {"best": first_run.set_best_model(on)}
 
     def set_workers(self, count: int) -> dict:
-        return {"workers": first_run.set_workers(count)}
+        """0 is Settings' Automatic: the count from the computer's memory."""
+        return {"workers": first_run.set_workers(int(count) or None)}
 
     def show_notices(self) -> dict:
         if not NOTICES.is_file():
