@@ -372,3 +372,12 @@ def test_jpmorgans_documents_get_the_resume_only_in_its_slot_and_a_link_in_link_
 
     assert isinstance(plan.answers["r"], fill_engine.Path)
     assert "c" not in plan.answers and plan.answers["l"] == "https://test-person.example.com"
+
+
+def test_one_choice_read_back_as_its_one_ticked_box_is_shown():
+    # Honeywell (Oracle, live 2026-11-27): a Yes/No pair read as a group of boxes, planned "No", read back ["No"].
+    pair = Question("q51", "Application Questions: Eligible within 12 months?", "multi_select", True, ("Yes", "No"))
+
+    assert fill_engine.readback_problems([pair], {"q51": "No"}, {"q51": ["No"]}) == []
+    assert fill_engine.shows(["No"], "No") and not fill_engine.shows(["Yes"], "No")
+    assert fill_engine.readback_problems([pair], {"q51": "No"}, {"q51": ["Yes"]})
