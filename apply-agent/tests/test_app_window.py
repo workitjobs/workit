@@ -9,7 +9,7 @@ import types
 import pytest
 from fake_workit import FakeWorkIt
 
-from apply import app_window, build, dashboard, workit
+from apply import app_window, build, dashboard, first_run, workit
 from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
 from apply.first_run import READY, SHOWN
@@ -776,6 +776,18 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
         assert bridge.set_best_model(False) == {"best": False}
         assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_settings_offers_automatic_workers_until_the_student_picks_a_count(tmp_path, monkeypatch):
+    """Fault: Settings showing a count the student never picked as their choice, or its Automatic not going back
+    to the count from the computer's memory."""
+    monkeypatch.setattr(first_run, "STATE", tmp_path / "app.json")
+    monkeypatch.setattr(first_run, "memory", lambda: 8 * first_run.GB)
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state() | {"notices": None} == {"workers": 0, "automatic": 2, "notices": None}
+        assert bridge.set_workers(3) == {"workers": 3} and bridge.settings_state()["workers"] == 3
+        assert bridge.set_workers(0) == {"workers": 2} and bridge.settings_state()["workers"] == 0
 
 
 def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():

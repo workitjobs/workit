@@ -140,7 +140,8 @@ docstring first.
   before the window starts). Without either (off a Mac, a data folder in a
   temp folder) the code box still works. `docs/workit.md` has the PKCE flow.
 - First run's steps and the app's settings (`app.json` in the data folder:
-  the disclosure, the Screen Recording ask, the Worker count) are in
+  the disclosure, the Screen Recording ask, the Worker count, which is
+  Automatic, from the computer's memory, until Settings sets one: D24) are in
   `apply/first_run.py`, each check a callable that tests replace. The seed
   step (Set Up the Worker Extension) comes only when the Workers run on
   Google Chrome (`plain_chrome: chrome`, the default). With

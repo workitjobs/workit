@@ -59,7 +59,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "matches": [],  # Find jobs, where the page opens (KAN-882): a list, as Bridge.matches answers
         "usage": {"used": 72000, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
-        "settings_state": {"workers": 3, "notices": True, "claude": {
+        "settings_state": {"workers": 3, "automatic": 2, "notices": True, "claude": {
             "best": True, "login": "your setup token in Keychain", "dropped": "Opus paused: near the 5-hour limit."}},
         "review_report": {"parts": ["Your words"]},
         "send_report": {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."},
@@ -95,6 +95,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.evaluate(sent, "not the token") == 403
         assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
+        assert settings.inner_text("#workers-auto") == "Automatic (2 for this Mac)"
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
         assert settings.is_checked("#best")
         assert settings.inner_text("#claude-login") == "Claude signs in with your setup token in Keychain."
