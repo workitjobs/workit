@@ -150,6 +150,13 @@ def test_a_review_row_holds_an_answer_or_ticked_boxes_never_both():
         presubmit.Reviewed.model_validate({**SAMPLES["presubmit.review", 1], "rows": [row]})
 
 
+def test_a_review_row_takes_a_certification_label_past_a_line():
+    # Fault: CesiumAstro's certification label runs past 2,000 characters, and the review refused the whole form.
+    label = "By submitting your application you hereby certify " + "that the facts are true. " * 100
+    rows = [{"question": label, "ticked": [label]}]
+    assert presubmit.Reviewed.model_validate({**SAMPLES["presubmit.review", 1], "rows": rows}).rows[0].question == label
+
+
 def test_a_fix_is_asked_only_for_problems_the_review_found():
     # Fault: a fix call with no problems would let the model rewrite answers nobody found wrong.
     with pytest.raises(ValueError):
