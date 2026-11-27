@@ -95,7 +95,8 @@ with the guards of any rehearsal. It never submits.
 - **What it held.** `batch.draft` reads the form's Record (`answers.json`, which now names each
   row's `kind`): each answer the page showed, with its question. Never one only planned, a file, a
   secret, or an attestation, consent or signature (`send_click.ATTEST`: those stay his to tick or
-  sign). `apply_to(draft=...)` keeps one only where the field asks the same question now
+  sign), nor one the page showed just as Apply planned it: that is Apply's own answer, planned
+  afresh so his Answer bank answer wins. `apply_to(draft=...)` keeps one only where the field asks the same question now
   (`worker._held`: Claude fill numbers its fields, and a number may name another field), before each fill, with what the job system's own saved draft shows on the step
   (`worker._saved_draft`, the Filler's `resumed`: Workday's steps), as a Resume keeps Lisul's
   (`_Planned.keep`). So nothing on the form is written over. Claude may still plan the form again;
