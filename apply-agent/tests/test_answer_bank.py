@@ -286,3 +286,24 @@ def test_a_bare_date_is_filed_under_its_section_never_its_label_alone(tmp_path):
     assert bank.get("From (MM/DD/YYYY)") is None
     assert bank.get("work experience / From (MM/DD/YYYY)").answer == "06/01/2026"
     assert "work experience / from (mm/dd/yyyy):" in (tmp_path / "answer-bank.yaml").read_text()
+
+
+def test_a_question_filed_twice_reads_as_its_last_entry_and_saves_once(tmp_path, capsys):
+    path = tmp_path / "answer-bank.yaml"
+    AnswerBank(path).answer("Why Notion?", "First answer", DAY)
+    AnswerBank(path).answer("Are you open to a hybrid schedule?", "Yes", DAY)
+    first = path.read_text().split("are you open")[0]
+    path.write_text(path.read_text() + first.replace("First answer", "Hand-appended answer"))  # run10's Notion
+
+    bank = AnswerBank(path)
+    bank.read_again()
+
+    assert bank.get("Why Notion?").answer == "Hand-appended answer"  # the last wins
+    assert bank.get("Are you open to a hybrid schedule?").answer == "Yes"
+    assert capsys.readouterr().err.count("more than once") == 1  # warned once
+
+    bank.answer("Why Notion?", "Merged answer", DAY)
+
+    assert path.read_text().count("why notion?:") == 1
+    assert AnswerBank(path).get("Why Notion?").answer == "Merged answer"
+    assert AnswerBank(path).get("Are you open to a hybrid schedule?").answer == "Yes"
