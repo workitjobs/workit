@@ -20,6 +20,8 @@ from fakes import (
     RecordingBoard,
     ScriptedUsage,
 )
+from test_recording import HELD as AI_GUIDE
+from test_recording import Briefing
 
 from apply import (
     answering,
@@ -1055,6 +1057,26 @@ def test_a_link_to_a_video_to_make_is_a_missing_fact_never_written_text(monkeypa
     assert "Record the video yourself, then paste its YouTube link" in row.reason
     assert "Creative Project submission" not in json.dumps(claude.asked)  # never planned, drafted or written
     assert form.submitted == []
+
+
+def test_a_video_link_ask_carries_a_recording_brief_of_the_postings_prompts(monkeypatch):
+    # OpenSesame's video answers the Creative Project prompts in its posting: the ask and the Record list them.
+    form = ResearchForm("GCM Grosvenor")
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind="textarea") if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    text = (FIXTURES / "opensesame-description.txt").read_text()
+    site = Browser({POSTING_PAGE: "".join(f"<p>{line}</p>" for line in text.splitlines() if line.strip())})
+    board, claude = RecordingBoard(), Briefing({"p1": [{"say": "Check an agent's code", "quote": AI_GUIDE}]})
+
+    [row] = run_all(monkeypatch, form, claude, ["GCM Grosvenor"], site=site, board=board)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Recording brief" not in row.reason  # the Tracker's reason keeps the ask's first line only
+    [shown] = [c["where"][OPENSESAME_LINK] for c in board.captions.values() if OPENSESAME_LINK in (c.get("where") or {})]
+    first, *brief = shown.splitlines()
+    assert first.startswith("Record the video yourself, then paste its YouTube link")
+    assert brief[0].startswith("Recording brief: cover each prompt")
+    assert "  - Check an agent's code" in brief and "- Show us something you've built with AI." in "\n".join(brief)
 
 
 def test_a_video_link_is_known_only_from_a_link_to_one_video_that_names_it():

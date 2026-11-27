@@ -222,6 +222,12 @@ def where(q: Question, questions: Sequence[Question]) -> str:
     return " · ".join(filter(None, [take, _place(q, questions)]))
 
 
+def first_line(where: str) -> str:
+    """A context line alone, without the lines a Recording brief adds under it (apply.recording): for a one-line
+    place such as a Tracker reason."""
+    return where.split("\n", 1)[0]
+
+
 def made(q: Question) -> str:
     """What the applicant does for a link question of `to_make`, as its context line leads with it; "" for any other."""
     kind = to_make(q)

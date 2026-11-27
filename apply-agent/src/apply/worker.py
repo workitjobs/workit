@@ -30,6 +30,7 @@ from apply import (
     gates,
     other_roles,
     private,
+    recording,
     regenerate,
     sameness,
     stuck,
@@ -184,6 +185,7 @@ class Result:
     problems: tuple[str, ...] = ()  # answers the Pre-submit check found wrong, or a rehearsal couldn't fill
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank, in form order
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one, in form order
+    briefs: tuple[tuple[str, str], ...] = ()  # (question, Recording brief) of each video link Lisul makes (apply.recording)
     named: tuple[str, str] = ("", "")  # the company and role the form's own page named (Claude fill)
     # (question, answer, uses) of each unreviewed draft the Answer bank answered this form with, in form order
     reused: tuple[tuple[str, str, int], ...] = ()
@@ -301,6 +303,7 @@ def apply_to(
     if result.filled is not None:
         result.listed, result.fixed = tuple(planned.listed()), tuple(planned.fixed)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
+    result.briefs = tuple((question, shown) for question, shown in planned.briefs.items() if shown)
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
     return result
@@ -598,7 +601,8 @@ class _Planned:
         self.missing: tuple[str, ...] = ()  # left blank, in a rehearsal
         self.choices: dict[str, dict] = {}  # the options of each of those that offers some, by question
         self.required: dict[str, bool] = {}  # whether its form requires each of those, by question
-        self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking)
+        self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking), and its brief's lines
+        self.briefs: dict[str, str] = {}  # the Recording brief of each link to a video he makes, by question ("" for none)
         self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self.failed: list[tuple[str, object]] = []  # each of those fields, by its label, with its planned answer
@@ -996,17 +1000,31 @@ class _Planned:
             | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
+        for q in missing:  # a video he records for prompts the Posting lists: what to say, under its line
+            if shown := self._brief(q):
+                self.where[q.label.strip()] = "\n".join(filter(None, [self.where.get(q.label.strip(), ""), shown]))
         if self._rehearse and self.missing != was:
             self._on_missing(self.missing, self.choices, self.required, self.where)
         # An optional one never stops a run: the form is filled without it, and verifying notes it (KAN-759).
         if (stops := [asked for asked in self.missing if self.required.get(asked, True)]) and not self._rehearse:
             question = stops[0]
             where = self.where.get(question, "")
-            return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{where}" if where else ""),
+            line = asking.first_line(where)  # a Recording brief's lines stay out of the Tracker reason
+            return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{line}" if line else ""),
                           missing_fact=question,
                           choices={question: self.choices[question]} if question in self.choices else {},
                           required={question: self.required[question]}, where={question: where} if where else {})
         return None
+
+    def _brief(self, q: Question) -> str:
+        """The Recording brief's lines for a link to a video or submission Lisul makes (apply.recording), written
+        once per question; "" for any other question, or one whose Posting lists no prompts for it."""
+        label = q.label.strip()
+        if label not in self.briefs:
+            made = asking.to_make(q) in ("video", "submission")
+            found = made and recording.brief(self.claude, self.posting, q, self.profile, self.text or self.posting_text())
+            self.briefs[label] = found.shown() if found else ""
+        return self.briefs[label]
 
     def skip(self, error: FillError) -> bool:
         """Drop the answer a Filler couldn't fill, named first in its error

@@ -300,6 +300,10 @@ _Avoid_: context, notes, bio
 Routing tags for each episode of the Story bank (one story, as one of its lines tells it): the Question types it answers, the kinds of problem it is (the same kinds a Company brief fact carries), the numbers its line holds, what an answer must never claim from it, the questions an interviewer would ask next with whether the Story bank can answer each, and the episodes related to it. It states no facts of its own: the Story bank stays the only source, and an entry whose line has changed since it was tagged is set aside until Lisul tags the bank again. Lisul reviews it in story-map.yaml in the data folder, and the follow-ups the bank can't answer become questions for him.
 _Avoid_: story index, tag file, personalized prompts
 
+**Recording brief**:
+What to say in a video or submission that Lisul makes himself for a link question. It has one bullet for each prompt the Posting lists for the question. Each bullet has one or two true talking points that quote his Story bank. It goes in the ask and in a rehearsal's Record, never on the form.
+_Avoid_: video script, talking points
+
 **Record**:
 An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row.
 _Avoid_: log, artifact, receipt

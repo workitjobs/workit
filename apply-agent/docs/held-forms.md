@@ -428,6 +428,16 @@ through `worker._Planned._missing` first.
   ("Creative Project video: https://youtu.be/..."), and a submission never
   from his links. Its context line leads with "Record the video yourself,
   then paste its YouTube link".
+- `recording.brief` writes the Recording brief for a video or submission
+  ask whose Posting lists prompts for it (`description.asked`): one bullet
+  for each prompt, with at most two talking points. Each point must quote
+  the Story bank or the Stock answers word for word, or it is dropped. One
+  call of WorkIt's `recording.brief` kind writes the points; when it fails,
+  the brief lists the prompts with no points. `Worker._missing` puts the
+  brief under the context line, in `Result.where`, so the window's card
+  shows it. The Tracker reason, the waiting list and the phone push keep
+  the first line only (`asking.first_line`). A rehearsal's Record has it
+  under "Recording briefs".
 - `asking.graduation(profile)` is the profile's expected graduation as one
   line ("Expected graduation: May 2028"). Essays get it as `<graduation>`
   (`essays.sources`), and `known` answers an ask for the graduation date
@@ -447,8 +457,8 @@ through `worker._Planned._missing` first.
   Handoff's "Answer 'X' too (line)", the Tracker reason
   (`Missing fact: <q>; In: <line>`) and the phone push.
 
-**Tests.** `test_claude_answers.py -k "already_holds or quiz or video or to_make"` and
-`test_dashboard.py -k says_where_it_sits` (opens Chromium).
+**Tests.** `test_claude_answers.py -k "already_holds or quiz or video or to_make"`,
+`test_recording.py` and `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
 ### Other roles at the same company (`apply.other_roles`)
 
