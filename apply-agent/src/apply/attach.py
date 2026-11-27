@@ -38,6 +38,7 @@ before Claude spends a token on a page it can't click.
 """
 
 import re
+import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -312,16 +313,35 @@ def pass_jobvite_gate(page: Page) -> None:
 # The résumé and cover letter an earlier, unsent attempt left on an Oracle application (its draft keeps them): each
 # shows its file's name and a Remove button where its upload area was, so the read finds no file to give it, and the
 # old file went with the application (Emerson's, live 2026-11-27: a cover letter written for another company name).
+# Live, its button reads "Remove Resume" or "Remove Cover Letter", its aria-label the same.
+CARRIED_SLOTS = "resume-upload-button, cover-letter-upload-button"
 CARRIED_DOCUMENTS = ("resume-upload-button .attachment-upload-button__filled, "
                      "cover-letter-upload-button .attachment-upload-button__filled")
 CARRIED_NAME = ".attachment-upload-button__download"
-CARRIED_REMOVE = ".attachment-upload-button__bottom-button"
+CARRIED_REMOVE = ".attachment-upload-button__bottom-button, button[aria-label^='Remove ' i]"
 REMOVED_WITHIN = 10.0
+# How long an Oracle form's Supporting Documents may take to show, with the draft's files in them, once its blocks
+# show: live (Emerson's, 2026-11-27), the read came first, found no documents and none were removed.
+SETTLED_WITHIN = 10.0
+
+
+def _documents_settled(page: Page) -> None:
+    """On an Oracle form, once its Supporting Documents show and the page is quiet, so a draft's files are in them."""
+    if not page.locator(".apply-flow-block").count():
+        return
+    deadline = time.monotonic() + SETTLED_WITHIN
+    while not page.locator(CARRIED_SLOTS).count() and time.monotonic() < deadline:
+        page.wait_for_timeout(200)
+    try:
+        page.wait_for_load_state("networkidle", timeout=SETTLED_WITHIN * 1000)
+    except Error:
+        pass  # some pages never go quiet
 
 
 def drop_carried_documents(page: Page) -> list[str]:
     """Remove the résumé and cover letter an earlier attempt left on the form, so this fill's own files go in their
     place; the names of the files removed. One that stays after its Remove is left, and the read sees it as before."""
+    _documents_settled(page)
     carried = page.locator(CARRIED_DOCUMENTS)
     dropped: list[str] = []
     for _ in range(carried.count()):
@@ -335,6 +355,7 @@ def drop_carried_documents(page: Page) -> list[str]:
         while carried.count() >= left and time.monotonic() < deadline:
             page.wait_for_timeout(200)
         if carried.count() >= left:
+            print(f"Left what an earlier attempt attached: {name} stayed after its Remove", file=sys.stderr)
             break
         dropped.append(name)
     return dropped
