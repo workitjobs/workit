@@ -2237,3 +2237,17 @@ def test_a_phone_read_back_in_its_fields_format_is_not_filled_again():
     readback = {"phone": "(555) 010-0199", "city": "Springfield", "school": ""}
 
     assert claude_fill._read_back_as_put(put, readback) == {"phone": "5550100199", "city": "Springfield"}
+
+
+def test_a_sign_in_handoff_still_names_the_company_its_page_does():
+    # Emerson's Oracle site (live 2026-11-27): the sign-in handed off before the page was read, so its Record
+    # named no company ("# : Software Engineering Intern").
+    def sign_in(page):
+        page.set_content("<title>Software Engineering Intern - Emerson Career Site</title><h1>Submit your job application!</h1>")
+        raise Handoff("Oracle didn't go on past its email step after Next: finish signing in yourself.")
+
+    filler = ClaudeFill(FakeClaude(), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site, pytest.raises(Handoff):
+        filler.question_set(LUNAR_URL, site)
+
+    assert filler.names == ("Emerson", "Software Engineering Intern")

@@ -212,3 +212,13 @@ def test_a_form_builders_page_title_names_the_company(browser):
         assert description.names_on_page(page) == ("Netflix", "Internship")
     finally:
         page.close()
+
+
+def test_an_oracle_postings_title_names_its_company_after_the_role(browser):
+    # Emerson's Oracle site (live): no schema, so its Record named no company.
+    page = browser.new_page()
+    try:
+        page.set_content("<title>Software Engineering Intern - Emerson Career Site</title><body></body>")
+        assert description.names_on_page(page) == ("Emerson", "Software Engineering Intern")
+    finally:
+        page.close()
