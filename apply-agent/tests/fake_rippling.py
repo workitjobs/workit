@@ -182,6 +182,11 @@ form.addEventListener('submit', async (e) => {
 });
 </script></body></html>"""
 
+# Rippling's form where it crashed (seen live 2026-11-27 on Overland AI's): its notice in place of the fields.
+CRASHED = """<!doctype html><html><body><h1>Application: %(title)s</h1><form><span data-testid="errorboundary-icon"></span>
+<div>We're experiencing an issue. Check back shortly.</div></form>
+<button data-testid="Apply" type="submit">Apply</button></body></html>"""
+
 CONFIRMATION = "<!doctype html><html><body><h1>You have successfully applied to %(title)s</h1></body></html>"
 
 
@@ -191,10 +196,11 @@ class FakeRipplingServer:
     the résumé parser takes, in ms, and `parse_settles` how long the page then
     takes to put in what it parsed; `rejects` names fields the page marks
     required however they are filled; `turnstile` makes Cloudflare's Turnstile
-    challenge the visitor at the submit click."""
+    challenge the visitor at the submit click; the form's first `crashes` loads
+    show Rippling's crashed form."""
 
     def __init__(self, *forms: Path, parse_delay: int = 1500, parse_settles: int = 0, turnstile: bool = False,
-                 rejects: tuple[str, ...] = ()):
+                 rejects: tuple[str, ...] = (), crashes: int = 0):
         self._jobs: dict[str, dict] = {}
         for form in forms:
             job = json.loads((form / "job.json").read_text())
@@ -203,6 +209,8 @@ class FakeRipplingServer:
         self._parse_settles = parse_settles
         self._turnstile = turnstile
         self._rejects = list(rejects)
+        self._crashes = crashes
+        self.form_loads = 0  # how many times the form's page was served
         self.parsed: list[str] = []  # the name of every résumé parsed
         self.submissions: list[Submission] = []
 
@@ -252,6 +260,9 @@ class FakeRipplingServer:
             return route.fulfill(content_type="text/html", body=CONFIRMATION % {"title": job["name"]})
         if url == job["url"]:
             return route.fulfill(content_type="text/html", body=LANDING % {"title": job["name"]})
+        self.form_loads += 1
+        if self.form_loads <= self._crashes:
+            return route.fulfill(content_type="text/html", body=CRASHED % {"title": job["name"]})
         return route.fulfill(content_type="text/html", body=FORM % {
             "title": job["name"], "parse_delay": self._parse_delay, "parse_settles": self._parse_settles, "rejects": json.dumps(self._rejects), "turnstile": json.dumps(self._turnstile), "job": json.dumps(job), "parsed": json.dumps(PARSED), "places": json.dumps(PLACES),
             "eeoc": json.dumps(EEOC), "pronouns": json.dumps(PRONOUNS)})

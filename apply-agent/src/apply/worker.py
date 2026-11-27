@@ -412,6 +412,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         attempts = 2 + SELF_FIXES  # the first fill, the replan's and each self-fix's
         for attempt in range(attempts):
             with site.open(form_url) as page:
+                # A form that won't show fails here, in seconds, not after Claude planned it (Rippling's crashed form).
+                getattr(filler, "form_shown", lambda page: None)(page)
                 if rehearse and attempt == 0 and (stop := _plan(planned, questions, filler, page, go_on)):
                     return stop
                 before_fill()

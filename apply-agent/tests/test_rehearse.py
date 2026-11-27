@@ -33,6 +33,7 @@ from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
 from fake_paylocity import URL as PAYLOCITY_URL
 from fake_paylocity import FakePaylocityServer
+from fake_rippling import FakeRipplingServer
 from fake_workday import EXPERIENCE_STEPS, STEPS, FakeWorkdayServer
 from fake_workday import Field as WorkdayField
 from fakes import (
@@ -59,6 +60,7 @@ from test_claude_fill import (
 )
 from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
 from test_greenhouse_filler import board_listing_schools
+from test_rippling_filler import RIPPLING_FORM, RIPPLING_URL
 from test_run_answers import profile_with
 
 from apply import auto_submit, rehearsal, rescue, send_button, worker
@@ -1730,6 +1732,19 @@ def test_add_context_and_regenerate_on_the_form_writes_that_answer_again_into_it
 def rehearsal_record(tmp_path) -> Path:
     [readme] = (tmp_path / "rehearsals").glob("*/*/README.md")
     return readme.parent
+
+
+def test_a_form_that_never_shows_fails_before_claude_plans_it(tmp_path):
+    # Overland AI's Rippling form (seen live 2026-11-27) showed "We're experiencing an issue" in place of its
+    # fields; the rehearsal planned every answer with Claude, then waited out the engine, and failed after 275 s.
+    claude = FakeClaude()
+    with FakeRipplingServer(RIPPLING_FORM, crashes=99) as fake:
+        [done] = rehearse([RIPPLING_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.outcome == "failed"
+    assert "the form never showed" in done.why and "experiencing an issue" in done.why
+    assert (claude.calls, claude.kinds, done.tokens) == ([], [], 0)
+    assert fake.submissions == []
 
 
 def test_no_fill_engine_stops_its_link_on_one_line_before_the_form_opens(monkeypatch, tmp_path, capsys):
