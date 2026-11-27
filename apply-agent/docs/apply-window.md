@@ -224,6 +224,12 @@ for a student, not from `dashboard_page.py`.
   submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
   (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
   (`dashboard.todo_count`), and clears when the run ends.
+- **A checkout's name and icon.** `apply app` from a Developer checkout
+  runs as Python, so the Dock showed Python's blank-page icon and the menu
+  bar said "Python". `app_window.look_like_the_app` sets WorkIt's logo
+  (`assets/app-icon.png`, the built app's icon) as the Dock icon and
+  "WorkIt Auto Apply" as the menu bar's name, before the window starts. The
+  built app's bundle gives both itself, so the Student build skips it.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,
@@ -232,7 +238,11 @@ for a student, not from `dashboard_page.py`.
 - **Applied** (`appliedJobs`) is this run's submitted jobs, then what the
   student applied to on WorkIt before (`Bridge.applied`:
   `GET /applicants/{id}/applications?stage=applied`), each once by its link,
-  form address, or company and role. Its button is on the start screen too.
+  form address, or company and role, latest applied first: this run's by
+  when each was sent, WorkIt's by `applied_at`. A job of this run with no
+  logo sources takes WorkIt's for the same job, so a link nothing named
+  still shows its company's logo once WorkIt has one. Its button is on the
+  start screen too.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't
@@ -248,7 +258,14 @@ for a student, not from `dashboard_page.py`.
   bank (the route's 404) says to add experience on WorkIt first. A card's
   click or Add to Auto Apply picks it, Add my top 5 picks the first five,
   and Start applying runs the picked links through `Bridge.start`, as
-  ticked queued jobs run. The ✕ (Not interested) hides a card on this
+  ticked queued jobs run. Find jobs stays in the header during a run
+  (`findsJobs`): a run started by `apply app <link>...` lasts till its
+  last form closes, and Find jobs was out of reach all that time
+  (2026-11-26). There its button says Add to this run, and
+  `Bridge.start` hands the picks into the run going (`Bridge._join`,
+  `Dashboard.into`), as links sent in go; a run that takes no new links
+  keeps them for the next run. The queue's link is hidden then: the
+  queue starts runs. The ✕ (Not interested) hides a card on this
   page only: the website's Not Interested stores nothing yet
   (`NOT_INTERESTED_LIVE` is off), so there is no route to send it to.
   Matches read for a set of filters are kept while the window is open,
@@ -286,6 +303,15 @@ for a student, not from `dashboard_page.py`.
   Pre-submit review; with no part left, "One answer doesn't match your
   WorkIt profile." Then "Fix it in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
+- **Open cover letter / Open resume.** A flag on the Check card, or a
+  file answer in What we filled, that names a file the form was given
+  (by its question or name, else "cover letter" or "resume" of a file
+  that is one: `fileIn`) gets a link that opens that very file in the
+  computer's own viewer (`openLabel` names it). The link is the tile's
+  `/file/<k>/<i>`, or `/file/item/<id>/<i>` for an ended Application
+  Apply keeps (`view`'s `files`), so the shim hands it to `Bridge.open`,
+  which opens only a file the tile or item lists. A live item's
+  `live-<k>` id names no file, so it gets none.
 - **Handing back.** Each to-do card says how the student hands the form
   back (`HANDOFF` in `view.ts`): sign in yourself in the window that
   opens; check your email for the code and type it (Apply reads no email);
