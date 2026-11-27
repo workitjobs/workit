@@ -61,6 +61,7 @@ from apply import (
     description,
     fill_engine,
     on_page,
+    oracle,
     provider_sign_in,
     steps,
     upload_origin,
@@ -426,7 +427,16 @@ class ClaudeFill:
             # the read after Lisul's code is the one that finds them.
             if not self._carried_checked and (dropped := drop_carried_documents(page)):
                 print(f"Removed what an earlier attempt attached: {', '.join(dropped)}", file=sys.stderr)
-            found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
+            if oracle.unconfirmed(page):
+                raise Handoff(oracle.CONFIRM_ASK)
+            try:
+                found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
+            except Handoff as stopped:
+                # Oracle's unconfirmed application, drawn once the read began: CONFIRM or REMOVE is Lisul's, and
+                # the ask says which Apply presses on his Approve (Emerson's, live 2026-11-27).
+                if not isinstance(stopped, Captcha) and oracle.unconfirmed(page):
+                    raise Handoff(oracle.CONFIRM_ASK) from stopped
+                raise
             self._carried_checked = True
             self._read_posting_text(page)  # else what the form's own page says about the job
             questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))

@@ -22,7 +22,7 @@ from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUs
 from test_matches import feed_record
 from test_run_answers import profile_with
 
-from apply import claude_fill, fill_engine
+from apply import claude_fill, fill_engine, oracle
 from apply.adapters import Adapters, UsageLimitHit
 from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
@@ -2350,6 +2350,31 @@ def test_documents_are_removed_after_a_read_that_stopped_at_the_sign_ins_code_pa
         questions = filler.question_set(LUNAR_URL, site)  # Resume, once he gave the code
 
     assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
+UNCONFIRMED = """<h1>You already applied for this job.</h1><p>You previously applied for job requisition <b>Software
+Engineering Intern, Austin, TX, United States</b> on 11/27/2026. Do you want to confirm your job application?</p>
+<button type=button>REMOVE</button><button type=button>CONFIRM</button>"""
+
+
+@pytest.mark.parametrize("drawn_late", [False, True])
+def test_oracles_unconfirmed_application_hands_off_with_its_confirm_ask(drawn_late):
+    """Emerson's refill (live 2026-11-27, run37): after sign-in Oracle showed the earlier application, sent but never
+    confirmed by its emailed code, with REMOVE and CONFIRM. The read rightly chose neither, and the stop said only that
+    the form wasn't finished. Now its ask names the choice; Apply presses neither. Drawn before the read, or during it."""
+    def sign_in(page):
+        page.set_content("<p>Loading</p>" if drawn_late else UNCONFIRMED)
+
+    def read(page, schema, prompt, files):
+        page.set_content(UNCONFIRMED)
+        raise Handoff("Claude fill can't finish this form: Remove or Confirm is the person's to choose")
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff) as stopped:
+            filler.question_set(LUNAR_URL, site)
+
+    assert str(stopped.value) == oracle.CONFIRM_ASK
 
 
 def test_a_form_with_no_carried_documents_is_left_as_it_is():

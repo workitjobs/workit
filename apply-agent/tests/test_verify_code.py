@@ -1,21 +1,30 @@
 """A code step after the student's approved Submit with a button of its own: Oracle's "You're almost done" (six
 one-digit boxes, VERIFY, Send New Code). The code given in the window (`apply window code`) goes in, Apply presses
 VERIFY, never Send New Code, and the thank-you page marks it sent. An expired code gets Send New Code pressed and the
-newest code asked for. A fake Oracle page, in a real browser."""
+newest code asked for. Oracle's unconfirmed application (its code never given) gets CONFIRM on Approve, then
+the same code step. A fake Oracle page, in a real browser."""
 
 import threading
 
+import pytest
+from playwright.sync_api import sync_playwright
 from test_rehearse import OnePage
 
-from apply import code_box, rehearsal
+from apply import code_box, oracle, rehearsal, send_button
 
 URL = "https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/26013632/apply/section/1"
 CODE, OLD = "182876", "554433"
 
 # The form's Submit leads to Oracle's post-submit code step. The right code and VERIFY show Oracle's thanks; the old
 # one shows the expiry Oracle words; Send New Code takes that away (a new code is mailed).
+FORM = '<div id="form"><label>Phone<input value="5555550100"></label><button id="submit" type="button">Submit</button></div>'
+# Oracle's page for an application sent whose code was never given (Emerson's, live 2026-11-27): CONFIRM goes on to the
+# same code step; REMOVE would withdraw it.
+UNCONFIRMED = """<div id="form"><h1>You already applied for this job.</h1><p>You previously applied for job requisition
+  <b>Software Engineering Intern, Austin, TX, United States</b> on 11/27/2026. Do you want to confirm your job
+  application?</p><button id="remove" type="button">REMOVE</button><button id="submit" type="button">CONFIRM</button></div>"""
 PAGE = """<!doctype html><title>Oracle</title>
-<div id="form"><label>Phone<input value="5555550100"></label><button id="submit" type="button">Submit</button></div>
+{start}
 <script>
   window.clicks = [];
   document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) window.clicks.push(b.textContent); }, true);
@@ -37,7 +46,7 @@ PAGE = """<!doctype html><title>Oracle</title>
 </script>"""
 
 
-def hold(*given: str):
+def hold(*given: str, start: str = FORM):
     """Hold the page with Submit approved once, then each code of `given` typed in the window once the last was
     answered. Returns what the window was told (code_said), whether it was marked sent, and the page's clicks."""
     release, said, sent, codes, approvals = threading.Event(), [], [], list(given), [True]
@@ -50,7 +59,7 @@ def hold(*given: str):
     def submitted(page) -> None:
         sent.append(True)
         release.set()
-    site = rehearsal._Kept(OnePage(PAGE), 0)
+    site = rehearsal._Kept(OnePage(PAGE.replace("{start}", start)), 0)
     try:
         with site.open(URL) as opened:
             site.hold(release, job_system="oracle", submitted=submitted, approve=lambda: bool(approvals and approvals.pop()),
@@ -76,3 +85,31 @@ def test_an_expired_code_gets_a_new_one_sent_and_the_newest_code_goes_in():
 
     assert clicks == ["Submit", "VERIFY", "Send New Code", "VERIFY"]
     assert said == [code_box.EXPIRED_SENT, ""] and sent
+
+
+def test_an_unconfirmed_applications_approve_presses_confirm_and_its_code_finishes_it():
+    """Emerson (live 2026-11-27, run37): the run36 application, never verified, came back as Oracle's "You already
+    applied for this job" with REMOVE and CONFIRM. Approve (apply window submit) presses CONFIRM, never REMOVE, and
+    the code step after it takes the code and VERIFY, so the thank-you page marks it sent."""
+    said, sent, clicks = hold(CODE, start=UNCONFIRMED)
+
+    assert clicks == ["CONFIRM", "VERIFY"]
+    assert sent and said == [""]
+
+
+@pytest.mark.parametrize("html, shows", [
+    (UNCONFIRMED, True),
+    (UNCONFIRMED.replace('<button id="submit" type="button">CONFIRM</button>', ""), False),  # no CONFIRM to press
+    ("<h1>You already applied for this job.</h1><p>Withdraw it?</p><button>CONFIRM</button>", False),  # another ask
+    (FORM, False)])
+def test_only_oracles_unconfirmed_application_is_confirmed(html, shows):
+    """Fault: Apply's Approve presses a CONFIRM that isn't the unconfirmed application's, or presses with none."""
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        assert oracle.unconfirmed(page) is shows
+        if "CONFIRM<" not in html:
+            with pytest.raises(send_button.NotPressed):
+                oracle.confirm(page)
+        browser.close()
