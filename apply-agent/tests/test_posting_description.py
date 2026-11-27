@@ -70,6 +70,24 @@ def test_a_question_that_neither_points_at_the_posting_nor_shares_its_heading_ge
     assert description.asked("Interns ship code.", CREATIVE) is None  # no section lists prompts
 
 
+def test_short_prompts_with_no_question_mark_are_listed_and_not_taken_for_headings():
+    text = "Video Introduction\nIn your video, please cover:\nTell us about yourself\nShow us something you've built\nBenefits\nPaid time off."
+    video = Question("q4", "Please include a link to your video introduction, covering the questions in the job description.",
+                     "textarea", True)
+
+    found = description.asked(text, video)
+
+    assert found and found.prompts == ("Tell us about yourself", "Show us something you've built")
+    assert "Paid time off" not in found.text
+
+
+def test_a_question_that_points_at_the_posting_gets_no_section_it_shares_no_word_with():
+    text = "What You'll Do\nIn this role you'll answer questions like:\nHow do we scale the grader?\nWhat breaks first?"
+    why = Question("q5", "Why this internship? Answer the questions below.", "textarea", True)
+
+    assert description.asked(text, why) is None
+
+
 def posting_text(form: str) -> str:
     """A saved Greenhouse Posting's own text, as company.description reads it."""
     content = json.loads((FORMS / form / "questions.json").read_text())["content"]

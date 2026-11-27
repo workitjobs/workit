@@ -130,11 +130,12 @@ LEADS_IN = re.compile(r"\b(?:cover|answer|address|include|respond\s+to|tell\s+us
 # One prompt of that list: a question, or an ask ("Show us something you've built with AI").
 PROMPT = re.compile(r"\?|^(?:show|tell|share|describe|explain|walk|give|talk|list|demonstrate|include)\b", re.IGNORECASE)
 # Words too common to tie a question to a section by.
-COMMON = frozenset({"about", "after", "also", "apply", "application", "applications", "applying", "before",
-                    "below", "above", "every", "include", "including", "into", "job", "link", "list", "listed",
-                    "more", "must", "other", "please", "posting", "questions", "question", "role", "should",
-                    "submit", "submission", "that", "their", "there", "these", "they", "this", "those", "what",
-                    "when", "where", "which", "will", "with", "would", "your", "you"})
+COMMON = frozenset({"about", "above", "after", "also", "answer", "answers", "application", "applications", "apply",
+                    "applying", "before", "below", "cover", "description", "every", "include", "including", "into",
+                    "job", "link", "list", "listed", "more", "must", "other", "please", "posting", "question",
+                    "questions", "role", "should", "submission", "submit", "that", "their", "there", "these",
+                    "they", "this", "those", "what", "when", "where", "which", "will", "with", "would", "you",
+                    "your"})
 ASKED_CHARS = 1_500  # characters of one section given for a question
 TIES = 2  # distinctive words a question shares with a section's heading and lead-in, when it doesn't point at the text
 
@@ -158,14 +159,14 @@ def prompt_sections(text: str) -> list[Asked]:
         if not LEADS_IN.search(line):
             continue
         listed = []
-        for prompt in lines[n + 1:]:
-            if not PROMPT.search(prompt) or _section_heading(prompt):
+        for prompt in lines[n + 1:]:  # a short prompt with no "?" ("Tell us about yourself") is no heading
+            if not PROMPT.search(prompt):
                 break
             listed.append(prompt)
         if not listed:
             continue
         start = next((i for i in range(n, -1, -1) if _section_heading(lines[i])), None)
-        end = next((i for i in range(n + 1, len(lines)) if _section_heading(lines[i])), len(lines))
+        end = next((i for i in range(n + 1 + len(listed), len(lines)) if _section_heading(lines[i])), len(lines))
         body = "\n".join(lines[(start if start is not None else n):end])
         found.append(Asked(lines[start] if start is not None else "", line, _cut_to(body, ASKED_CHARS), tuple(listed)))
     return found
@@ -174,8 +175,8 @@ def prompt_sections(text: str) -> list[Asked]:
 def asked(text: str, q: Question) -> Asked | None:
     """The section of the Posting's text that lists the prompts `q` asks the applicant to answer, or None. A
     question that points at the text ("the questions listed in the job description") gets the section it shares
-    the most words with; any other question only one whose heading and lead-in share TIES distinctive words
-    with it ("Creative Project")."""
+    the most words with, if it shares one; any other question only one whose heading and lead-in share TIES
+    distinctive words with it ("Creative Project")."""
     sections = prompt_sections(text)
     if not sections:
         return None
@@ -183,7 +184,7 @@ def asked(text: str, q: Question) -> Asked | None:
     words = _words(said)
     tie = lambda s: len(words & _words(f"{s.heading} {s.lead}"))
     best = max(sections, key=tie)
-    return best if POINTS_AT.search(one_line(said)) or tie(best) >= TIES else None
+    return best if tie(best) >= (1 if POINTS_AT.search(one_line(said)) else TIES) else None
 
 
 def _words(text: str) -> set[str]:
