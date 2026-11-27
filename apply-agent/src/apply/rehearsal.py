@@ -68,6 +68,7 @@ from apply import (
     tailored,
     trace,
     upload_origin,
+    usage,
     verify,
     workday,
     workit,
@@ -214,6 +215,7 @@ class Rehearsed:
     missing: tuple[str, ...] = ()
     tokens: int = 0
     seconds: float = 0.0
+    usage: dict = field(default_factory=dict)  # those tokens by stage (apply.usage)
     record: str = ""  # where its Record is, once filled
     problems: tuple[str, ...] = ()  # what the Pre-submit check and review found wrong on the form
     files: list[dict] = field(default_factory=list)  # each file the form was given, as its tile lists them
@@ -271,7 +273,7 @@ class Rehearsed:
             outcome,
             f"{self.filled}/{self.asked} fields filled",
             "Missing facts: " + ("; ".join(self.missing) or "none"),
-            f"{self.tokens:,} tokens",
+            f"{self.tokens:,} tokens" + (f" ({usage.short(self.usage)})" if self.usage else ""),
             f"{self.seconds:.0f} s",
         ])
 
@@ -842,7 +844,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     claude, board = adapters.claude, adapters.board
     if fill_engine.fresh():  # a merged engine fix since the last posting: planned with it, no restart (KAN-645)
         trace.event("engine reloaded")
-    started, spent = time.monotonic(), claude.spent()
+    started, spent, used = time.monotonic(), claude.spent(), usage.snapshot()
     history: list[str] = [f"{adapters.clock.now().strftime('%H:%M')} {reopened}"] if reopened else []
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     posting, result = resolve(url, site)
@@ -883,6 +885,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     def on_pause(stopped: Result, blocked: Callable[[object], str]) -> bool:
         at = adapters.clock.now().strftime("%H:%M")
         summary = _summary(named(posting, stopped), stopped, site, claude.spent() - spent, time.monotonic() - started)
+        summary.usage = usage.since(used)
         summary.files = list(files)
         history.append(f"{at} Paused: {one_line(summary.why) or summary.outcome}")
         summary.history = tuple(history)
@@ -964,6 +967,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
+    rehearsed.usage = usage.since(used)
     if anyway:  # the page's note and the tile say why it was ruled out before
         rehearsed.problems = (FILLED_ANYWAY.format(one_line(anyway)), *rehearsed.problems)
     rehearsed.files = list(files)
@@ -1015,7 +1019,8 @@ def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters:
     try:
         saved = Record(rehearsed.posting, result.status, _record_reason(rehearsed), filled, adapters.clock.now().date(),
                        result.essay, result.drafted, result.named_facts,
-                       result.verification.as_json() if result.verification else None, rehearsed.history)
+                       result.verification.as_json() if result.verification else None, rehearsed.history,
+                       usage=rehearsed.usage or None)
         rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
         for summary in shown:
             summary.record, summary.saved = rehearsed.record, saved
