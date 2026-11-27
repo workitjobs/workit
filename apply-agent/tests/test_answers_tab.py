@@ -541,3 +541,38 @@ def test_with_nothing_to_check_the_tab_opens_on_all(files, window):
         entry(window, HEARD.label).wait_for()
 
         assert window.is_checked("[name=answers-filter][value=all]")
+
+
+def test_a_window_pick_from_a_list_the_gpa_doesnt_fit_is_kept_for_that_list_never_as_his_gpa(tmp_path):
+    # Freeform (2026-11-26): "3.85" picked on a GPA list in steps of 0.05 was saved as "GPA (Undergraduate): '3.85'"
+    # in his facts, so a later GPA text box of that wording would get 3.85, not his 3.86.
+    import yaml
+    from conftest import FIXTURES
+
+    from apply import cli, fill_engine
+    from apply.model import Posting
+
+    facts = yaml.safe_load((FIXTURES / "profile.yaml").read_text())
+    facts.setdefault("education", {})["gpa_cumulative"] = 3.86
+    path = tmp_path / "profile.yaml"
+    path.write_text(yaml.safe_dump(facts, sort_keys=False))
+    (tmp_path / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text())
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    steps = ["3.75", "3.80", "3.85", "3.90"]
+    answer = cli._answering(lambda: None, AnswersTab(bank, path))
+
+    said = answer({"status": "ready to submit", "company": "Freeform", "choices": {"GPA (Undergraduate)": steps}},
+                  "GPA (Undergraduate)", "3.85")
+
+    assert said.startswith("Saved for this list of options")
+    assert "GPA (Undergraduate)" not in (ApplicantProfile.load(path).get("answered_questions") or {})
+    assert bank.get("GPA (Undergraduate)").options == tuple(steps)
+    posting = Posting("p", "Acme", "Intern", "https://jobs.example.com/acme/1")
+    profile = ApplicantProfile.load(path)
+    assert fill_engine.plan([Question("q1", "GPA (Undergraduate)", "select", True, tuple(steps))], posting, profile,
+                            bank).answers["q1"] == "3.85"
+    assert fill_engine.plan([Question("q1", "GPA (Undergraduate)", "text", True)], posting, profile,
+                            bank).answers["q1"] == "3.86"
+    # Any other question still goes to his facts.
+    answer({"status": "ready to submit", "choices": {"Shirt size": ["S", "M", "L"]}}, "Shirt size", "M")
+    assert ApplicantProfile.load(path).get("answered_questions") == {"Shirt size": "M"}

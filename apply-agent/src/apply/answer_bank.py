@@ -25,7 +25,7 @@ import json
 import re
 import sys
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -170,16 +170,19 @@ class AnswerBank:
                     was = found.get("uses") if isinstance(found.get("uses"), dict) else {}
                     found["uses"] = {"count": int(was.get("count") or 0) + 1, "last": day}
 
-    def answer(self, question: str, answer: str | list[str], day: date) -> None:
+    def answer(self, question: str, answer: str | list[str], day: date, options: Sequence[str] = ()) -> None:
         """Lisul's own answer to `question`, from the Apply window: it replaces
         any draft (source lisul, reviewed). A question new to the bank joins
-        it as first seen on `day`."""
+        it as first seen on `day`. `options`, when given, are the list he picked
+        it from, which the plan then gives it for alone."""
         with self._writing() as entries:
             found = _find(entries, question)
             if not isinstance(found, dict):
                 found = entries[key(question)] = {"question": one_line(question), "answer": "", "options": [],
                                                   "first_seen": {"date": day, "company": ""}}
             found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
+            if options:
+                found["options"] = [_text(o) for o in options]
             found["source"], found["reviewed"] = LISUL, True
             if answer == []:  # none of a multi-select's options holds
                 found["none"] = True

@@ -713,7 +713,7 @@ class _Planned:
         for q in questions:
             # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
             if q.label.strip() in self._answered and not context_free(q.label):
-                remember(profile, posting, q, self._answered[q.label.strip()])
+                remember(profile, posting, q, self._answered[q.label.strip()], self._bank, self._today)
         for asked, answer in self._answered.items():  # what an essay asked him: its answer joins the Story bank
             if asked.startswith(essays.ASK):
                 essays.remember_fact(asked, answer, posting.company, self._today)
