@@ -152,6 +152,12 @@ cover_letter_never: [Amazon]
 # essays replayed, 2026-11-26), so it stays on.
 claim_check: true
 
+# Research budget (apply.brief): true researches each Company brief section for
+# fewer facts within 16 searches, about half the tokens, and once more in full
+# when it confirms fewer than 3 facts on the company's own pages. Off: essays
+# written from its briefs were less specific to their company (2026-11-26).
+research_budget: false
+
 # A form's list of roles ("Which role are you applying for?") gets the one the
 # Posting's title names, else the first of these an option's wording holds.
 target_role_wordings: [software engineer, software development, software]

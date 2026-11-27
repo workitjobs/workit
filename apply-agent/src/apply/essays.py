@@ -48,6 +48,9 @@ from apply.records import SECRET
 # The text fields' kinds, as a question names them to Claude.
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
 DESCRIBED = 400  # characters of a question's description Claude is shown
+# The most options a one-off question may send (backend/app/apply_prompts/essays.py's MAX_OPTIONS). A longer list
+# (Oracle's 500 cities) is Lisul's to pick: the server refuses it, and no one answer could be read back from it.
+MAX_OPTIONS = 300
 
 # A number in an essay: a count, a percentage, a year, a score.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -137,6 +140,18 @@ def write(claude: Claude, posting: Posting, questions: list[Question], profile: 
     return answer(claude, posting, questions, [], profile, company, posting_text)[0]
 
 
+BANK_EDITS = 2  # times one answer() starts again on a Story bank edit, so an edit made each minute can't loop it
+
+
+def bank_stamp() -> tuple[int, int] | None:
+    """When the Story bank last changed, as its mtime and size; None when there is none."""
+    try:
+        found = data_folder.STORY_BANK.stat()
+    except OSError:
+        return None
+    return found.st_mtime_ns, found.st_size
+
+
 def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: list[Question], profile: ApplicantProfile,
            company: str = "", posting_text: str = "",
            redraft: dict[Question, tuple[str, ...]] | None = None,
@@ -144,6 +159,28 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
            planned: Mapping[Question, "Plan"] | None = None,
            redo: Mapping[Question, tuple[str, str]] | None = None,
            sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
+    """`_answer`, from the Story bank as it is when it returns. Its plan, draft, claim check and
+    editor read the bank once, at the start, and take minutes: an edit Lisul saves meanwhile
+    would leave his removed facts in the answers. So when the bank changed while it ran, it
+    plans and writes again from the new bank, up to BANK_EDITS times (ENFOS, 2026-11-26: the
+    WorkIt facts moved out of the bank at 19:50:03, and the editor's passes at 19:50:24 and
+    19:50:55 still kept them, read at 19:48)."""
+    for tries in range(BANK_EDITS + 1):
+        stamp = bank_stamp()
+        result = _answer(claude, posting, essays, drafts, profile, company, posting_text, redraft, answered,
+                         planned, redo, sections)
+        if bank_stamp() == stamp or tries == BANK_EDITS:
+            return result
+        planned = None  # its plans quote the old bank
+
+
+def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: list[Question], profile: ApplicantProfile,
+            company: str = "", posting_text: str = "",
+            redraft: dict[Question, tuple[str, ...]] | None = None,
+            answered: Mapping[Question, object] | None = None,
+            planned: Mapping[Question, "Plan"] | None = None,
+            redo: Mapping[Question, tuple[str, str]] | None = None,
+            sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
     """One Claude call writing every essay in `essays` and drafting every
     one-off question in `drafts`, after one call planning the essays (plan),
     unless `planned` gives their Plans already. `company` is the Application's <company>
@@ -171,11 +208,15 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     it fails its check), the draft 1 Opus, the claim check 1 Opus and the
     editor 1-3 Opus: 4-7 calls. A form with no essays still costs one
     Sonnet call."""
+    if too_long := [q for q in drafts if len(q.options) > MAX_OPTIONS]:
+        written, drafted = answer(claude, posting, essays, [q for q in drafts if q not in too_long], profile, company,
+                                  posting_text, redraft, answered, planned, redo, sections)
+        return written, drafted + [Draft(q, "", needs_lisul=True) for q in too_long]
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
-        written, _ = answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
-                            redo, sections)
-        return written, answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
-                               sections=sections)[1]
+        written, _ = _answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
+                             redo, sections)
+        return written, _answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
+                                sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     shown = form_answers(answered or {}, private.self_id(profile))
@@ -193,7 +234,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         return [Essay(q, "", plan=plans[key]) for key, q in waiting.items()], []
     # WorkIt's essays.write kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, essays),
             "style_card": writing.style_card() if keys else "", "form_answers": dict(shown) if keys else {},
             "questions": {key: _sent(q, types[key]) for key, q in keys.items()},
             "plans": {key: plans[key].shown() for key in keys},
@@ -209,7 +250,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
-                                       description.block(posting, posting_text)]))
+                                       description.block(posting, posting_text, essays)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
                              posting.company, company, profile.get("files.resume_pdf")) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
@@ -230,7 +271,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     own = own_facts(profile, types.values(), posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
-    given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
+    given = (company, description.block(posting, posting_text, essays), cover_letter.TEMPLATE)
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
@@ -242,8 +283,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
               for key, q in {**keys, **waiting}.items()]
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
-        redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
-                                                answered, planned, redo)[0]}
+        redone = {e.question: e for e in _answer(claude, posting, list(again), [], profile, company, posting_text, again,
+                                                 answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
     return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
 
@@ -309,7 +350,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     led = {kind: stories for kind, stories in sameness.Ledger().led(posting.company).items()
            if kind in classified.values()}
     held = "\n".join([sources(profile, company, types=answering.load(), employer=posting.company),
-                      description.block(posting, posting_text),
+                      description.block(posting, posting_text, essays),
                       json.dumps(shown or {}, ensure_ascii=False)])
     plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
                                    mapped=mapped, angles=angles, led=led, redo=redo), company, held)
@@ -478,7 +519,7 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
               redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[str, Plan]:
     # WorkIt's essays.plan kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, types=classified.values(), employer=posting.company),
-            "posting": description.block(posting, posting_text),
+            "posting": description.block(posting, posting_text, list(keys.values())),
             "questions": {key: _sent(q, classified[key]) for key, q in keys.items()}, "form_answers": dict(shown),
             "story_map": story_map.prompt_block(list(mapped)) if mapped else "", "typical": dict(angles or {}),
             "led_before": dict(led or {}), "replan": dict(failed or {}), "redo": _redone(redo, keys)}

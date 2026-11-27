@@ -254,3 +254,89 @@ async def test_an_added_job_takes_a_sent_resume_and_a_closed_one_does_not(studen
         await _check_posting(session, sam, added)
         with pytest.raises(NotFound):  # closed, and Sam has no application on it
             await _check_posting(session, sam, closed)
+
+
+async def _seed_listed(database, company: str, domain: str | None, logo: str | None) -> None:
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, company_domain, company_logo_url)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', :company, :url, :domain, :logo)"
+            ),
+            {"company": company, "url": _form(), "domain": domain, "logo": logo},
+        )
+        await session.commit()
+
+
+async def _added_job(client, sam, page: dict) -> dict:
+    job_id = (await client.post("/jobs/added-by-link", json=page)).json()["job_id"]
+    return (await client.get(f"/applicants/{sam}/applications/{job_id}")).json()["job"]
+
+
+async def test_an_added_job_takes_the_logo_of_its_company_in_the_catalog(students, database):
+    client, (sam, _) = students
+    await _seed_listed(database, "twitch", "twitch.tv", "https://s2-recruiting.cdn.greenhouse.io/twitch.png")
+
+    job = await _added_job(client, sam, _page(_form()))
+    assert job["company_domain"] == "twitch.tv"
+    assert job["logo_url"] == "https://s2-recruiting.cdn.greenhouse.io/twitch.png"
+
+
+async def test_an_added_job_on_the_employers_own_site_takes_its_domain(students):
+    client, (sam, _) = students
+    url = f"https://careers.acmerobotics.com/jobs/intern?gh_jid={uuid.uuid4().int % 10**9}"
+
+    job = await _added_job(client, sam, {**_page(url), "company": "Acme Robotics"})
+    assert job["company_domain"] == "acmerobotics.com"
+    assert "acmerobotics.com" in job["logo_url"]
+
+
+async def test_an_added_job_on_a_hiring_system_with_no_catalog_company_has_no_logo(students):
+    client, (sam, _) = students
+
+    job = await _added_job(client, sam, {**_page(_form()), "company": "Nobody Listed"})
+    assert job["company_domain"] is None
+    assert job["logo_url"] is None
+
+
+async def test_the_catalogs_logo_beats_the_own_site_and_matches_the_whole_name(students, database):
+    client, (sam, _) = students
+    await _seed_listed(database, "A_B Labs", "ablabs.com", None)
+    await _seed_listed(database, "AxB Labs", "axblabs.com", None)
+    url = f"https://careers.abl.io/jobs/1?gh_jid={uuid.uuid4().int % 10**9}"
+
+    job = await _added_job(client, sam, {**_page(url), "company": "A_B Labs"})
+    assert job["company_domain"] == "ablabs.com"
+    other = await _added_job(client, sam, {**_page(_form()), "company": "AyB Labs"})
+    assert other["company_domain"] is None
+
+
+async def test_another_added_jobs_logo_is_never_copied(students, database):
+    client, (sam, _) = students
+    own = f"https://careers.guessco.com/jobs/1?gh_jid={uuid.uuid4().int % 10**9}"
+    assert (await _added_job(client, sam, {**_page(own), "company": "Guess Co"}))["company_domain"] == "guessco.com"
+
+    job = await _added_job(client, sam, {**_page(_form()), "company": "Guess Co"})
+    assert job["company_domain"] is None
+
+
+async def test_an_added_job_kept_with_no_logo_reads_its_own_sites(students, database):
+    client, (sam, _) = students
+    url = f"https://careers.oldrobotics.com/jobs/1?gh_jid={uuid.uuid4().int % 10**9}"
+    async with database() as session:
+        job_id = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, added_by_student)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Old Robotics', :url, TRUE) RETURNING id"
+            ),
+            {"url": url},
+        )
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id, stage) VALUES (:a, :j, 'applied')"),
+            {"a": sam, "j": job_id},
+        )
+        await session.commit()
+
+    job = (await client.get(f"/applicants/{sam}/applications/{job_id}")).json()["job"]
+    assert job["company_domain"] == "oldrobotics.com"
+    assert "oldrobotics.com" in job["logo_url"]
