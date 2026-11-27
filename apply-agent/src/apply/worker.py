@@ -71,11 +71,15 @@ from apply.model import (
     is_company,
     one_line,
 )
-from apply.presubmit import replan, review
+from apply.presubmit import Found, replan, review
+from apply.presubmit import fix as ask_fix
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled
 
 SENT = HOME / "sent"
+# How many times the Pre-submit review's problems are fixed, the form filled again and reviewed again, before what
+# is still wrong reaches the student: Apply fixes what it can itself (Lisul, 2026-11-26).
+SELF_FIXES = 2
 
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
@@ -393,8 +397,9 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         if not rehearse and (stop := planned.add(questions)):
             return stop
         form_url = getattr(filler, "form_url", lambda url: url)(posting.url)  # where its form is, if not the posting
-        replanned = fixed = False  # each is tried once: a fill again after a readback mismatch, and after the review's fixes
-        for attempt in range(3):
+        replanned, self_fixed = False, 0  # a fill again after a readback mismatch, once; after the review's fixes, twice
+        attempts = 2 + SELF_FIXES  # the first fill, the replan's and each self-fix's
+        for attempt in range(attempts):
             with site.open(form_url) as page:
                 if rehearse and attempt == 0 and (stop := _plan(planned, questions, filler, page, go_on)):
                     return stop
@@ -448,7 +453,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 for name, wordings in getattr(filler, "picked", lambda answers, readback: {})(answers, readback).items():
                     planned.accepted[name] = tuple(dict.fromkeys((*planned.accepted.get(name, ()), *wordings)))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
-                if problems and not replanned and attempt < 2:
+                if problems and not replanned and attempt < attempts - 1:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
                     # those answers again, and the form is filled once more in a fresh page.
                     replanned = True
@@ -479,14 +484,21 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     sources = essays.sources(profile, planned.known(), facts=True,
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
-                    found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
-                    if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
+                    reviewer = as_applicant(claude, profile)  # its reasons say the applicant's own pronouns
+                    found = review(reviewer, posting, questions, readback, sources, planned.text,
+                                   planned.own(), private.self_id(profile))
+                    if found and self_fixed < SELF_FIXES and attempt < attempts - 1:
                         # The review named the right answer for a wrong one (an internship start in a school's
-                        # From): it is filled in its place, and the form filled and reviewed again, before
-                        # Lisul sees it as ready.
-                        fixed = True
-                        continue
+                        # From), or the fix call gave one for a problem it named none for (Abridge's state, given
+                        # as city, state and country): it is filled in its place, and the form filled and
+                        # reviewed again, before Lisul sees it as ready. Only what Apply can't fix reaches him.
+                        stuck.doing("Fixing the answers the Pre-submit review found wrong")
+                        fixes = _self_fixes(found, lambda unfixed: ask_fix(
+                            reviewer, posting, questions, readback, unfixed, sources, planned.text, planned.own(),
+                            private.self_id(profile)).fixes)
+                        if planned.fix(fixes, readback):
+                            self_fixed += 1
+                            continue
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))
@@ -518,6 +530,23 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
                               bot_signals=tuple(met or ()), problems=rescued, verification=verification)
+
+
+def _self_fixes(found: Found, ask: Callable[[list[str]], dict[str, str]]) -> dict[str, str]:
+    """The answer to enter for each problem the review found, by the question as it named it: its own fixes, then
+    the fix call's (`ask`) for each problem that names none of their questions."""
+    fixes = dict(found.fixes)
+    unfixed = [problem for problem in found if not any(question in problem for question in fixes)]
+    if unfixed:
+        fixes |= {question: answer for question, answer in ask(unfixed).items() if question not in fixes}
+    return fixes
+
+
+def _narrows(answer: str, shown: object) -> bool:
+    """Whether `answer` says only part of what the field shows, in its words ("New York" of "Riverton, New York,
+    United States"): the same facts, fewer of them, so no fact the profile doesn't hold."""
+    words = re.findall(r"\w+", answer.casefold())
+    return bool(words) and isinstance(shown, str) and set(words) <= set(re.findall(r"\w+", shown.casefold()))
 
 
 def _where(filler) -> str:
@@ -892,6 +921,8 @@ class _Planned:
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
         fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A fix that only narrows a profile answer (worker._narrows: Abridge's "New York" for the city, state and
+        country its state question was given) states no new fact, so it is filled over the profile's too.
         A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
         exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
         Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
@@ -901,7 +932,8 @@ class _Planned:
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or (q.name not in guessed | legal and not _narrows(answer, readback.get(q.name)))
+                    or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
                     or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
