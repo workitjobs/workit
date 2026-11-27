@@ -211,7 +211,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
                                        description.block(posting, posting_text)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
-                             posting.company, company, profile.get("files.resume_pdf")) for key in keys}
+                             posting.company, company, profile.get("files.resume_pdf"),
+                             asking.graduation(profile)) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
     questions = {key: _ask(q) for key, q in keys.items()}
     lengths = {key: length for key in keys if (length := _default_length(keys[key], types[key]))}
@@ -534,11 +535,12 @@ class _Checked:
     company: str  # the company's name
     brief: str  # the <company> block, with the Company brief
     resume: Path | None = None  # the profile's resume PDF, for the not-on-resume gate
+    graduates: str = ""  # the profile's graduation (asking.graduation), the only date an essay may give for it
 
     def gates(self, text: str) -> list[str]:
         from apply import gates  # gates imports this module
         return gates.answer(text, self.question, self.type, self.sources, self.company, self.brief,
-                            letter=self.type == "cover-letter", resume=self.resume)
+                            letter=self.type == "cover-letter", resume=self.resume, graduates=self.graduates)
 
 
 def _gate(checked: Mapping[str, _Checked], texts: Mapping[str, str]) -> dict[str, list[str]]:

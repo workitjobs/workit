@@ -178,3 +178,16 @@ def test_answer_runs_every_gate_on_one_answer():
                         SOURCES, "Figma") == [
         "a number no source holds: 14", "a name no source holds: PyTorch", "names another company: Notion",
         'opens on a date: "In summer 2026,"']
+
+
+def test_a_graduation_date_other_than_the_profiles_fails():
+    # Apex, 2026-11-26: the letter moved graduation to May 2028 to fit the posting's Fall 2027-Spring 2028 window.
+    profile = "Expected graduation: December 2027"
+    assert gates.graduation("I'm a CS student graduating in May 2028, and I'd love to join.", profile) == [
+        'gives graduation as "May 2028", but the profile says December 2027: state the profile\'s date']
+    assert gates.graduation("I am expected to graduate in 2028.", profile) != []
+    for fine in ("I'm graduating in December 2027, and I'm applying for your Summer 2027 internship.",
+                 "I graduate in winter 2027.", "Class of 2027.", "I graduated high school and moved on.",
+                 "I'm graduating in May 2028."):
+        assert gates.graduation(fine, profile if "May" not in fine else "Expected graduation: May 2028") == [], fine
+    assert gates.graduation("Graduating in May 2028.", "") == []
