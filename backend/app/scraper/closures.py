@@ -106,41 +106,60 @@ async def update_sources(
     """
     if not postings:
         return
-    inline_versions = inline_versions or {}
-    rows = [
-        {
-            "schedule_id": schedule_id,
-            "apply_url": url,
-            "external_id": eid,
-            "description_version": inline_versions.get(url),
-            "description_fetched_at": func.now() if url in inline_versions else None,
-        }
-        for url, eid in postings
-    ]
-    stmt = insert(_sources).values(rows)
-    newer = stmt.excluded.description_version > func.coalesce(
-        _sources.c.description_version, -1
-    )
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[_sources.c.schedule_id, _sources.c.apply_url],
-        set_={
-            "description_version": case(
-                (newer, stmt.excluded.description_version),
-                else_=_sources.c.description_version,
-            ),
-            "description_fetched_at": case(
-                (newer, stmt.excluded.description_fetched_at),
-                else_=_sources.c.description_fetched_at,
-            ),
-            "last_seen_at": func.greatest(
-                _sources.c.last_seen_at, stmt.excluded.last_seen_at
-            ),
-            "external_id": func.coalesce(
-                stmt.excluded.external_id, _sources.c.external_id
-            ),
-        },
-    )
-    await conn.execute(stmt)
+    await bulk_update_sources(conn, [(schedule_id, postings, inline_versions)])
+
+
+async def bulk_update_sources(
+    conn: AsyncConnection,
+    boards: list[tuple[uuid.UUID, list[tuple[str, str]], dict[str, int] | None]],
+) -> None:
+    """Upsert job_sources for many boards in one statement.
+
+    *boards* is a list of ``(schedule_id, postings, inline_versions)`` tuples,
+    one per board.  Each board's postings are ``(apply_url, external_id)``
+    pairs.  Flattens all boards into one INSERT ... ON CONFLICT.
+    """
+    rows: list[dict] = []
+    for schedule_id, postings, inline_versions in boards:
+        iv = inline_versions or {}
+        for url, eid in postings:
+            rows.append({
+                "schedule_id": schedule_id,
+                "apply_url": url,
+                "external_id": eid,
+                "description_version": iv.get(url),
+                "description_fetched_at": func.now() if url in iv else None,
+            })
+    if not rows:
+        return
+    # 7 bind parameters per row; asyncpg caps at 32,767.
+    _SOURCES_BATCH = 4000
+    for start in range(0, len(rows), _SOURCES_BATCH):
+        chunk = rows[start : start + _SOURCES_BATCH]
+        stmt = insert(_sources).values(chunk)
+        newer = stmt.excluded.description_version > func.coalesce(
+            _sources.c.description_version, -1
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[_sources.c.schedule_id, _sources.c.apply_url],
+            set_={
+                "description_version": case(
+                    (newer, stmt.excluded.description_version),
+                    else_=_sources.c.description_version,
+                ),
+                "description_fetched_at": case(
+                    (newer, stmt.excluded.description_fetched_at),
+                    else_=_sources.c.description_fetched_at,
+                ),
+                "last_seen_at": func.greatest(
+                    _sources.c.last_seen_at, stmt.excluded.last_seen_at
+                ),
+                "external_id": func.coalesce(
+                    stmt.excluded.external_id, _sources.c.external_id
+                ),
+            },
+        )
+        await conn.execute(stmt)
 
 
 async def detect_and_close(conn: AsyncConnection) -> int:
@@ -155,7 +174,7 @@ async def detect_and_close(conn: AsyncConnection) -> int:
             _DETECT_AND_CLOSE_SQL,
             {"floor": MASS_CLOSE_FLOOR, "share": MASS_CLOSE_SHARE},
         )
-    ).first()
+    ).one()
 
     closing, total, closed, allowed = row.closing, row.total, row.closed, row.allowed
 

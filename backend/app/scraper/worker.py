@@ -34,8 +34,8 @@ from app.models.job_roles import Job_Role
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
 from app.scraper.closures import (
+    bulk_update_sources,
     detect_and_close,
-    update_sources,
 )
 from app.scraper.schedules import (
     advance_fingerprint,
@@ -365,17 +365,17 @@ async def _write_batch(
                     role_resolver=role_resolver,
                 )
 
-        # 2. update_sources for changed boards only (D2).
-        for r in changed:
-            if r.all_postings:
-                await update_sources(
-                    conn,
-                    r.schedule.id,
-                    r.all_postings,
-                    inline_versions={
-                        url: providers.PAGE_VERSION for url in r.inline_urls
-                    },
-                )
+        # 2. update_sources for changed boards only (D2), one INSERT for all.
+        source_boards = [
+            (
+                r.schedule.id,
+                r.all_postings,
+                {url: providers.PAGE_VERSION for url in r.inline_urls},
+            )
+            for r in changed
+            if r.all_postings
+        ]
+        await bulk_update_sources(conn, source_boards)
 
         # 2b. Touch last_seen_at for unchanged boards (finding #1).
         # Unchanged boards skip update_sources, but their jobs are still
@@ -394,14 +394,13 @@ async def _write_batch(
             )
 
         # 3. Bulk schedule updates.
+        done_ids: list = []
+        fp_pairs: list[tuple] = []
         for r in batch:
             if r.status == "done":
-                # advance_reads for ALL done boards, changed and unchanged (D2).
-                await advance_reads(conn, r.schedule.id)
+                done_ids.append(r.schedule.id)
                 if r.fingerprint is not None:
-                    await advance_fingerprint(
-                        conn, r.schedule.id, new_fingerprint=r.fingerprint
-                    )
+                    fp_pairs.append((r.schedule.id, r.fingerprint))
                 summary["boards_ok"] += 1
                 if r.unchanged:
                     summary["boards_unchanged"] += 1
@@ -413,6 +412,10 @@ async def _write_batch(
                 await record_failure(conn, r.schedule.id)
                 summary["boards_failed"] += 1
 
+        # One UPDATE for all done boards, one for all fingerprints.
+        await advance_reads(conn, done_ids)
+        await advance_fingerprint(conn, fp_pairs)
+
         # 4. Bulk task log INSERT (D4, H3).
         task_rows = []
         for r in batch:
@@ -421,7 +424,7 @@ async def _write_batch(
                 "status": "done" if r.status in ("done", "missing") else "failed",
                 "started_at": r.started_at,
                 "finished_at": r.finished_at,
-                "boards_s": r.boards_s if r.boards_s else None,
+                "boards_s": r.boards_s if r.boards_s is not None else None,
                 "error": r.error,
             })
         await bulk_log_tasks(conn, task_rows)
@@ -436,6 +439,7 @@ async def _write_batch(
             summary["boards_missing"] = _missing_before
             summary["boards_failed"] = _failed_before + len(batch)
             summary["jobs_scraped"] = _scraped_before
+            summary["lease_lost"] = True
             return False
 
         # 6. Commit.
@@ -676,17 +680,24 @@ async def run_cycle(
             )
 
         # 6. Description enrichment (phase 2).
+        #    Skip when the lease was lost: another worker owns the cycle.
         async with engine.connect() as conn:
-            try:
-                await _fetch_descriptions(conn, summary, robots=robots)
-            except Exception:
-                await conn.rollback()
-                logger.exception(
-                    "Description enrichment failed; continuing to closures"
-                )
+            if not summary.get("lease_lost"):
+                try:
+                    await _fetch_descriptions(conn, summary, robots=robots)
+                except Exception:
+                    await conn.rollback()
+                    logger.exception(
+                        "Description enrichment failed; continuing to closures"
+                    )
 
-            # 7. Closure detection (D10: skip when no boards changed).
-            if summary["boards_changed"] > 0:
+            # 7. Closure detection (D10: skip when no boards changed,
+            #    or when the lease was lost to another worker).
+            if summary.get("lease_lost"):
+                logger.warning(
+                    "Skipping closures: lease was lost mid-cycle"
+                )
+            elif summary["boards_changed"] > 0:
                 summary["jobs_closed"] = await detect_and_close(conn)
                 await conn.commit()
             else:

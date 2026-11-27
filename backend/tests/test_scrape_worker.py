@@ -105,8 +105,8 @@ async def test_a_complete_read_keeps_the_one_before(database, boards_csv):
         row = await _schedule(conn)
         first = text("'2026-11-01T00:00:00+00'::timestamptz")
         second = text("'2026-11-02T00:00:00+00'::timestamptz")
-        await schedules.advance_reads(conn, row.id, now_expr=first)
-        await schedules.advance_reads(conn, row.id, now_expr=second)
+        await schedules.advance_reads(conn, [row.id], now_expr=first)
+        await schedules.advance_reads(conn, [row.id], now_expr=second)
         row = await _schedule(conn)
     assert row.prior_read_at == datetime.datetime(2026, 11, 1, tzinfo=datetime.UTC)
     assert row.last_read_at == datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
@@ -264,6 +264,20 @@ async def test_unchanged_board_skips_import_but_advances_reads(database, boards_
     # advance_reads ran: last_read_at advanced.
     assert second_read > first_read
 
+    # The unchanged board's touch bumped last_seen_at on its job_sources
+    # rows.  Without the touch, last_seen_at freezes while advance_reads
+    # advances prior_read_at, and after two unchanged reads the closure
+    # detection falsely closes every job on those boards.
+    async with get_engine().connect() as conn:
+        seen_at = await conn.scalar(
+            text("SELECT last_seen_at FROM job_sources LIMIT 1")
+        )
+    assert seen_at is not None, "job_sources.last_seen_at must exist after two cycles"
+    assert seen_at >= second_read, (
+        f"last_seen_at ({seen_at}) must be >= last_read_at ({second_read}) "
+        "after the unchanged board's touch"
+    )
+
 
 async def test_parallel_workers_read_all_boards(database, tmp_path, monkeypatch):
     """Four boards, four workers: every board is read and logged."""
@@ -331,6 +345,49 @@ async def test_lease_prevents_concurrent_cycles(database, boards_csv, monkeypatc
     assert summary["boards_ok"] == 0
 
 
+async def test_lease_lost_mid_batch_rolls_back(database, boards_csv, monkeypatch):
+    """When renew_lease returns False the batch is rolled back, the board
+    counts as failed, and no task-log or schedule change is committed."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
+
+    async def skip_descriptions(conn, summary, robots=None):
+        pass
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(schedules, "BOARDS_CSV", boards_csv)
+
+    job = _job("Software Engineering Intern", 1)
+    monkeypatch.setattr(
+        worker, "read_board_listing",
+        lambda board, robots=None: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
+    )
+
+    # Make renew_lease always return False so the batch is aborted.
+    async def fake_renew(conn, lease_id, holder, duration=None):
+        return False
+
+    monkeypatch.setattr(worker, "renew_lease", fake_renew)
+
+    async with get_engine().begin() as conn:
+        await _seed_cycle_lease(conn)
+        await schedules.sync_catalog(conn, boards_csv)
+
+    engine = get_engine()
+    summary = await worker.run_cycle(engine)
+
+    # The board should be counted as failed, not ok.
+    assert summary["boards_ok"] == 0
+    assert summary["boards_failed"] == 1
+    assert summary["jobs_scraped"] == 0
+    assert summary.get("lease_lost") is True
+
+    # Nothing was committed: no task-log rows, schedule not advanced.
+    async with get_engine().connect() as conn:
+        tasks_count = await conn.scalar(text("SELECT count(*) FROM scraper_tasks"))
+        read_at = await conn.scalar(text("SELECT last_read_at FROM scraper_schedules"))
+    assert tasks_count == 0
+    assert read_at is None
+
+
 # ---------------------------------------------------------------------------
 # Quiet board stagger: filter_quiet as a pure function
 # ---------------------------------------------------------------------------
@@ -386,9 +443,9 @@ async def test_advance_fingerprint_sets_rest_on_unchanged(database, boards_csv):
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_reads(conn, [row.id])
         # First read: sets fingerprint, unchanged_reads = 0 (new fingerprint)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.fingerprint == "aabbccdd"
         assert row.unchanged_reads == 0
@@ -396,7 +453,7 @@ async def test_advance_fingerprint_sets_rest_on_unchanged(database, boards_csv):
         assert row.has_kept is True
 
         # Second read, same fingerprint: unchanged_reads = 1, fingerprint_until set
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 1
         assert row.fingerprint_until is not None
@@ -406,16 +463,16 @@ async def test_advance_fingerprint_resets_on_change(database, boards_csv):
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         # Second read, same → rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 1
         assert row.fingerprint_until is not None
 
         # Third read, different → reset
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="11223344")
+        await schedules.advance_fingerprint(conn, [(row.id, "11223344")])
         row = await _schedule(conn)
         assert row.unchanged_reads == 0
         assert row.fingerprint_until is None
@@ -427,8 +484,8 @@ async def test_has_kept_is_sticky(database, boards_csv):
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
         assert row.has_kept is False
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.has_kept is True
         # advance_fingerprint always sets has_kept true; it never goes back
@@ -438,10 +495,10 @@ async def test_record_missing_second_miss_clears_fingerprint(database, boards_cs
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_reads(conn, [row.id])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         # Same fingerprint → rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
         row = await _schedule(conn)
         assert row.fingerprint_until is not None
 
@@ -465,10 +522,10 @@ async def test_select_due_from_rows_skips_fingerprint_resting(database, boards_c
     async with get_engine().begin() as conn:
         await schedules.sync_catalog(conn, boards_csv)
         row = await _schedule(conn)
-        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_reads(conn, [row.id])
         # Set fingerprint and make it rest
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
-        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
+        await schedules.advance_fingerprint(conn, [(row.id, "aabbccdd")])
 
         all_rows, _, db_now = await schedules.sync_catalog_diff(conn, boards_csv)
 

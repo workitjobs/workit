@@ -167,16 +167,19 @@ def select_due_from_rows(
 
 
 async def advance_reads(
-    conn: AsyncConnection, schedule_id, *, now_expr=text("now()")
+    conn: AsyncConnection, schedule_ids: list, *, now_expr=text("now()")
 ) -> None:
-    """After a complete board read: move last_read_at to prior_read_at, so the
-    last two complete reads are kept, then advance last_read_at and clear
-    failures and rest."""
+    """Bulk-advance reads for every done board in one statement.
+
+    Moves last_read_at → prior_read_at, sets last_read_at = now(), and clears
+    failures and rest.  Postgres reads each row's own last_read_at before the
+    UPDATE writes it, so prior_read_at gets the old value."""
+    if not schedule_ids:
+        return
     await conn.execute(
         update(_schedules)
-        .where(_schedules.c.id == schedule_id)
+        .where(_schedules.c.id.in_(schedule_ids))
         .values(
-            # The old value: SET reads every column as it was before the UPDATE.
             prior_read_at=_schedules.c.last_read_at,
             last_read_at=now_expr,
             missing_at=None,
@@ -187,37 +190,38 @@ async def advance_reads(
 
 
 async def advance_fingerprint(
-    conn: AsyncConnection, schedule_id, *, new_fingerprint: str
+    conn: AsyncConnection,
+    pairs: list[tuple],
 ) -> None:
-    """Update fingerprint state after a hot board read. Single UPDATE, no prior read.
+    """Bulk-update fingerprint state for many boards in one statement.
 
-    Sets has_kept sticky to True. If the fingerprint is unchanged, increments
-    unchanged_reads and sets fingerprint_until. If changed, resets both.
-    The CASE reads unchanged_reads before the UPDATE sets the new value,
-    so the exponent is the pre-increment count.
-    """
+    *pairs* is a list of ``(schedule_id, new_fingerprint)`` tuples.  Uses
+    ``unnest`` with paired arrays so Postgres joins each id to its own
+    fingerprint value.  The CASE expressions read the row's pre-UPDATE
+    values, same as the single-row version."""
+    if not pairs:
+        return
+    ids = [p[0] for p in pairs]
+    fps = [p[1] for p in pairs]
     await conn.execute(
-        update(_schedules)
-        .where(_schedules.c.id == schedule_id)
-        .values(
-            fingerprint=new_fingerprint,
-            has_kept=text("true"),
-            unchanged_reads=text(
-                "CASE WHEN fingerprint = :fp"
-                " THEN unchanged_reads + 1 ELSE 0 END"
-            ),
-            fingerprint_until=text(
-                "CASE WHEN fingerprint = :fp AND has_kept"
-                " THEN now() + make_interval("
-                "   secs => LEAST("
-                f"     {int(FINGERPRINT_FIRST.total_seconds())}"
-                "       * pow(2, unchanged_reads),"
-                f"     {int(FINGERPRINT_LONGEST.total_seconds())}"
-                "   ))"
-                " ELSE NULL END"
-            ),
+        text(
+            "UPDATE scraper_schedules s"
+            " SET fingerprint      = v.fp,"
+            "     has_kept         = true,"
+            "     unchanged_reads  = CASE WHEN s.fingerprint = v.fp"
+            "                             THEN s.unchanged_reads + 1"
+            "                             ELSE 0 END,"
+            "     fingerprint_until = CASE WHEN s.fingerprint = v.fp AND s.has_kept"
+            "                              THEN now() + make_interval("
+            "                                secs => LEAST("
+            f"                                  {int(FINGERPRINT_FIRST.total_seconds())}"
+            "                                    * pow(2, s.unchanged_reads),"
+            f"                                  {int(FINGERPRINT_LONGEST.total_seconds())}))"
+            "                              ELSE NULL END"
+            " FROM unnest(CAST(:ids AS uuid[]), CAST(:fps AS varchar[])) AS v(id, fp)"
+            " WHERE s.id = v.id"
         ),
-        {"fp": new_fingerprint},
+        {"ids": ids, "fps": fps},
     )
 
 
