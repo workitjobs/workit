@@ -445,7 +445,9 @@ says so.
    none of them crashes.
 4. **Sign in.** `uv run apply login`, or the window: `uv run apply app`.
 5. **M1, CDP Workers.** `worker_mode: cdp` in
-   `%USERPROFILE%\.config\apply\policies.yaml`, then
+   `$HOME\.config\apply\policies.yaml`, edited in Notepad or VS Code:
+   `>` in Windows PowerShell 5.1 writes UTF-16, which Apply can't read.
+   Then
    `uv run apply rehearse https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362`.
    The Apply window opens behind your work (P12), the form fills and is
    held, and the window closes when you end the run. Then the same
