@@ -664,7 +664,9 @@ def _default_encoding(call: ast.Call) -> bool:
             return _text_mode(keywords["mode"])
         if not call.args:
             return not call.keywords
-        return isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str) and _text_mode(call.args[0])
+        first = call.args[0]  # a mode, never a URL: webbrowser.open("https://...") takes no encoding
+        return isinstance(first, ast.Constant) and isinstance(first.value, str) and set(first.value) <= set("rwxabt+") \
+            and _text_mode(first)
     return False
 
 
