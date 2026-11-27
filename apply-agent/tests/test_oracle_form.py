@@ -57,6 +57,30 @@ def test_a_choice_under_the_error_paragraph_that_covers_the_open_list_is_still_p
     assert page.input_value("[id=\"300000007362128-25\"]") == "December"
 
 
+def test_the_phone_country_code_is_picked_by_plain_code_though_its_box_shows_only_the_code(page):
+    # BGC's form (live 2026-11-27): plain code picked "+1 (United States)", but the box shows "+1", so the pick
+    # read as failed. Each fill round left it to Claude, which spent turns on the open list, and the read-back "+1"
+    # sent it to be planned again.
+    code = Question("q7", "Country code", "select", True)
+
+    [found] = claude_fill._with_options(page, [code])
+    picked = claude_fill._pick_in_comboboxes(page, [found], {"q7": "+1 (United States)"})
+
+    assert "+1 (United States)" in found.options
+    assert picked == {"q7": "+1 (United States)"}
+    assert page.input_value("#country-codes-dropdownphoneNumber") == "+1"
+
+
+def test_a_box_that_shows_another_choices_code_is_not_read_as_the_choice(page):
+    code = Question("q7", "Country code", "select", True)
+    [found] = claude_fill._with_options(page, [code])
+
+    assert claude_fill._pick_in_comboboxes(page, [found], {"q7": "+44 (United Kingdom)"}) == {"q7": "+44 (United Kingdom)"}
+    box = page.locator("#country-codes-dropdownphoneNumber")
+    assert not claude_fill._shows_choice(box, "+1 (United States)")
+    assert not claude_fill._shows_choice(box, "+4")
+
+
 def test_each_part_of_the_address_block_is_planned_from_its_own_fact_not_the_street():
     # Live: the read named the block's fields under its heading, and the plan put the street in "Address: Country".
     questions = [Question("q8", "Address: Country", "select", True, ("Canada", "United States")),

@@ -234,7 +234,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   each one, leaving Honeywell's required Country empty (2026-11-25). A label read
   under its section's heading ("Address: Country") also fits the dropdown named
   by the part after it, and a box that shows its choice only as its value
-  (Oracle's) reads back as picked. An option a click can't reach is pressed on
+  (Oracle's) reads back as picked, as does one that shows only the code of a
+  "<code> (<name>)" choice (Oracle's phone "+1 (United States)" shows "+1"; read
+  as unpicked, BGC's went to Claude each round, 2026-11-27). An option a click can't reach is pressed on
   its own element (`_press_option`, the engine's `press`): Oracle's required
   field's error paragraph lay over the open graduation month list and took every
   click on its options.
