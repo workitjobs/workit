@@ -138,8 +138,12 @@ docstring first.
   reason (`Bridge.status`).
 - Remove All My Data deletes the data folder only when `build.STUDENT`:
   in a Developer checkout it says the folder is the developer's. It
-  forgets each job-site password the Tracker's Employer accounts name
-  first: once the folder goes, nothing names them.
+  forgets each job-site password the keychain's account list names (and an
+  older version's `tracker.json`, still there), the list, and the password
+  chosen for new accounts first: once they go, nothing names them. Its
+  button is red, and one press only opens a confirmation that lists what
+  goes (the Worker windows and their sign-ins, the job-site passwords, the
+  WorkIt sign-in, any open form) with Remove Everything and Cancel.
 - Report a problem (Settings, and an Application's card with its id) is
   two calls: `review_report` builds the report and keeps it, the page
   shows its `parts`, and `send_report` sends that kept report, never the

@@ -136,6 +136,14 @@ def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_coul
     assert [keychain.password(site) for site in sites] == [None, None]
     assert keychain.password("made-by-hand.example.com") == "kept"
 
+    # W11: the app keeps no tracker.json; its accounts are the keychain's list, which goes with their passwords.
+    from apply.tracker import ACCOUNT_LIST, KeychainTracker
+    keychain = InMemoryKeychain({sites[0]: "one"})
+    KeychainTracker(keychain).add_employer_account(EmployerAccount("Acme", sites[0], "t@example.com", date(2026, 11, 27)))
+    home.mkdir(parents=True)
+    assert remove_all_data(lambda: None, home, keychain).startswith("Removed.")
+    assert keychain.password(sites[0]) is None and keychain.password(ACCOUNT_LIST) is None
+
     class Locked(InMemoryKeychain):
         def forget(self, site):
             raise RuntimeError("the keychain is locked")

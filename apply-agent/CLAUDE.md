@@ -222,6 +222,24 @@ WorkIt Auto Apply's own data folder is `home.APP_FOLDER`, each OS's
 standard place from `platformdirs` (D25); W5 makes it the Student build's
 `APPLY_HOME`.
 
+**WorkIt Auto Apply keeps on the Mac only what can't leave it** (W11,
+2026-11-27, `src/apply/local_data.py`): the Worker Chrome profiles and
+their seed, the keychain (its WorkIt sign-in, each job-site account's
+password, and the list of those accounts, `tracker.ACCOUNT_LIST`), each
+open form's working files while it is open (its Record, trace and dismissed
+flags; `open-forms.json`), small caches with no personal data, and the
+writes that wait for WorkIt. It writes no `tracker.json` (`KeychainTracker`:
+rows in memory for the run), no `sent/` copies, and deletes a tailored
+resume once the form has it (Fill again reads it from WorkIt again). At the
+student's Submit, what the form sent goes to WorkIt with the applied write
+(`rehearsal.sent_answers`, `PUT .../sent`), and the Sent resume by its id;
+once WorkIt has it, the application's files go (`local_data.forget`), and
+at once when the student lets a form go. `local_data.sweep` runs as the app
+opens: every application's files but an open form's, the profile's file
+copies, and an older version's `tracker.json`, its accounts moved into the
+keychain first. Only `build.STUDENT`: a Developer checkout keeps all of
+these, which are its own.
+
 The repo holds only generic inputs: `policies.default.yaml` (with
 `live_runs` off) and the profile template. The Question types come from
 WorkIt (`GET /apply-app/types`, `apply.answering`) into the data folder's

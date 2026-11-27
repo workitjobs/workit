@@ -89,3 +89,28 @@ class Job_Application(Base):
             ondelete="SET NULL (sent_resume_id)", name="job_applications_sent_resume_fkey",
         ),
     )
+
+
+class Sent_Application(Base):
+    '''
+    what one application sent (W11, routers/sent_applications.py): each
+    question the form asked and the answer WorkIt Auto Apply filled and read
+    back, at the student's own Submit, so nothing of it stays on their Mac.
+    One per application, deleted with it. Its own table, not a column of
+    job_applications: every Tracker list selects that table's columns, and a
+    form's answers (17 KB at most on the engine's 25 saved forms) would ride
+    along on each read
+    '''
+    __tablename__ = "sent_applications"
+    applicant_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    job_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    # [{"question", "answer" (text, or the options picked), "ai" (an answer AI wrote)}], in the form's order
+    answers: Mapped[list] = mapped_column(JSONB)
+    sent_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["applicant_id", "job_id"], ["job_applications.applicant_id", "job_applications.job_id"],
+            ondelete="CASCADE"),
+        CheckConstraint("jsonb_typeof(answers) = 'array'", name="sent_applications_answers_array"),
+    )

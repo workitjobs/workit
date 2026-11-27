@@ -19,6 +19,7 @@ from apply import (
     build,
     captcha,
     home,
+    local_data,
     rehearsal,
     tailored,
     worker_tiles,
@@ -40,11 +41,11 @@ from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import FolderRecords
-from apply.tracker import FileTracker, WorkItTracker
+from apply.tracker import FileTracker, KeychainTracker, WorkItTracker
 from apply.worker import sent_resume
-from apply.workit import WaitingWrites, WorkIt, WorkItError, site
+from apply.workit import WaitingWrites, WorkIt, WorkItError, Write, site
 
-RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
+RECORDS = local_data.RECORDS  # each held form's Record, while its form is open (W11)
 MAX_PLAN = "APPLY_MAX_PLAN"  # set by a Developer checkout's `apply app --max-plan`
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
 NO_MAIL = "WorkIt Auto Apply reads no email: type the code or open the link from your inbox yourself"
@@ -119,12 +120,18 @@ def adapters(profile: ApplicantProfile, bank: AnswerBank) -> Adapters:
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
     asks = as_applicant(asking(policies), profile)  # no private detail in a kind (apply.private)
     resume = Path(str(profile.get("files.resume_pdf") or "")).name
+    keychain = SystemKeychain()
+    student = build.STUDENT
     return Adapters(
         feed=live_feed(),
-        # Apply's Tracker in the data folder, as a Developer checkout's: the Employer accounts (and so their
-        # passwords' keychain items, for Remove All My Data) outlive a launch, and the student's own Submit is
-        # written to their Applications Tracker on WorkIt with the resume the form was given (KAN-544).
-        tracker=WorkItTracker(FileTracker(), WaitingWrites(), lambda application: sent_resume(application, resume)),
+        # The student's own Submit goes to their Applications Tracker on WorkIt (KAN-544) with the Sent resume and
+        # what the form sent (W11). WorkIt Auto Apply keeps no Tracker file: its rows live for the run, its Employer
+        # accounts in the keychain, and an application's files go once WorkIt has it (apply.local_data). A Developer
+        # checkout's `apply app` keeps its Tracker file and its files, and names the Sent resume by its copy.
+        tracker=WorkItTracker(KeychainTracker(keychain) if student else FileTracker(),
+                              WaitingWrites(delivered=forget_sent if student else None),
+                              lambda application: "" if student else sent_resume(application, resume),
+                              ref_of=resume_ref, sent_of=lambda application: rehearsal.SENT_ANSWERS.pop(application, [])),
         site=site,
         claude=asks,
         mailbox=NoMailbox(),
@@ -133,7 +140,7 @@ def adapters(profile: ApplicantProfile, bank: AnswerBank) -> Adapters:
         records=FolderRecords(RECORDS),
         notifier=Silent(),
         phone=None,
-        keychain=SystemKeychain(),
+        keychain=keychain,
         repairs=NoRepairs(),
         answer_bank=bank,
         signed_in=site.signed_in(),
@@ -196,8 +203,12 @@ class Runs:
             raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
                              "Press Start again in a moment.")
         self._refresh()
-        with self._awake():  # the Mac never sleeps mid-run (KAN-885)
-            self._rehearse_shown(links, show, jobs or {})
+        try:
+            with self._awake():  # the Mac never sleeps mid-run (KAN-885)
+                self._rehearse_shown(links, show, jobs or {})
+        finally:
+            if build.STUDENT:  # the profile's file copies: the next Start reads them again (W11)
+                local_data.forget_files()
 
     def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str]) -> None:
         made = self._make(self._profile, self._bank)
@@ -230,7 +241,21 @@ class Runs:
 
 
 # The files the student's profile names, as WorkIt gave them at the last Start: the default resume, the transcript.
-FILES = HOME / "files"
+FILES = local_data.FILES
+# The default resume's id on WorkIt, as the last Start read it ({"uploaded_resume_id"} or {"built_resume_id"}): the
+# Sent resume a form given it names (W11), so no copy of the file is kept.
+RESUME_REF: dict = {}
+
+
+def resume_ref(application_id: str) -> dict:
+    """The Sent resume of an Application the student submitted, by its id on WorkIt: the tailored resume its form was
+    given (apply.tailored.GIVEN), else the profile's."""
+    return tailored.GIVEN.pop(application_id, None) or dict(RESUME_REF)
+
+
+def forget_sent(write: Write) -> None:
+    """WorkIt has what the Application sent: nothing of it stays on the Mac (W11)."""
+    local_data.forget(write.company, write.application_id)
 
 
 def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None) -> None:
@@ -242,6 +267,9 @@ def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None)
     try:
         got = client.applicant_profile()
         facts = got["profile"]
+        resume = got["files"].get("resume") or {}
+        RESUME_REF.clear()
+        RESUME_REF.update({k: str(resume[k]) for k in ("uploaded_resume_id", "built_resume_id") if resume.get(k)})
         for key, fact in (("resume", "resume_pdf"), ("transcript", "unofficial_transcript_pdf")):
             if where := got["files"].get(key):
                 FILES.mkdir(parents=True, exist_ok=True)
@@ -299,6 +327,8 @@ def app() -> None:
     first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
     (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
     Start."""
+    if build.STUDENT:  # what an older version or a crash left: only open forms' files and the sign-ins stay (W11)
+        local_data.sweep(SystemKeychain())
     profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
     # The Story bank and voice are WorkIt's too, read with the profile at each Start: never the data folder's files,
     # which a Developer checkout's `apply app` would read.

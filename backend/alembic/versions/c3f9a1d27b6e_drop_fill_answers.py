@@ -9,7 +9,7 @@ before it selects fill_answers with every profile read, so dropped first,
 every signed-in request answers 500 (backend/CLAUDE.md, Deployment).
 
 Revision ID: c3f9a1d27b6e
-Revises: b7e4c2a9d816
+Revises: d6a2f8c41e07
 Create Date: 2026-11-24 13:00:00.000000
 
 """
@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'c3f9a1d27b6e'
-down_revision: Union[str, Sequence[str], None] = 'b7e4c2a9d816'
+down_revision: Union[str, Sequence[str], None] = 'd6a2f8c41e07'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

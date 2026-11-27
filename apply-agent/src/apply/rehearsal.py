@@ -77,7 +77,7 @@ from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
-from apply.essays import ASK, TOLD
+from apply.essays import ASK, TOLD, from_cell, headings
 from apply.model import Posting, Question, Site, Status, one_line
 from apply.orchestrator import (
     CALIBRATION,
@@ -389,6 +389,8 @@ def rehearse(
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
 
         def submitted(page) -> None:  # Lisul sent the form from the held page
+            if done.saved is not None:  # what it sent, for the applied write to give WorkIt
+                SENT_ANSWERS[done.posting.id] = sent_answers(done.saved)
             with writing:
                 note = _keep_submission(submitted_to, done, adapters.clock.now().date())
             note += _keep_confirmation(page, done, adapters)
@@ -510,6 +512,12 @@ def rehearse(
             if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
                 return False
             leave_room()
+            batch.done(url)  # not applying: no restart brings it back
+            if build.STUDENT:  # and nothing of it stays on the Mac (W11)
+                from apply import (
+                    local_data,  # here: local_data imports the worker, which imports this module's peers
+                )
+                local_data.forget(done.posting.company, done.posting.id)
             return True
 
         def approved(why: str, handoff: bool) -> None:
@@ -966,6 +974,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                 result = Result(Status.FAILED, f"{type(error).__name__}: {error}", traceback=where)
                 # The line says what failed; the log keeps where, for the fix.
                 print(f"{posting.company or url}: {where}", file=sys.stderr, flush=True)
+            finally:
+                tailored.forget(profile)  # uploaded: Fill again reads it from WorkIt again (W11)
             trace.result(result)
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
@@ -1366,6 +1376,36 @@ def _record_asked(done: Rehearsed, changed: list[dict], adapters: Adapters) -> N
         done.why = "; ".join(filter(None, [done.why, f"Record not saved again: {error}"]))
 
 
+# What each form sent, by Application, from the student's Submit until its applied write takes it (W11): WorkIt keeps
+# it (PUT .../sent), so no Record of it stays on the Mac. In memory only, as TOLD.
+SENT_ANSWERS: dict[str, list[dict]] = {}
+
+
+def sent_answers(record: Record) -> list[dict]:
+    """What the form sent, for WorkIt: each question it asked and the answer the page showed (else the one planned),
+    an essay's whole text (a cover letter's too, when the form took it as a file), a file by its name alone, in the
+    form's order. A secret's answer (a password, a PIN, an SSN) and an empty one never go. `ai` marks an essay and an
+    answer AI drafted."""
+    written = {one_line(e.question.label): e.text for e in from_cell(record.essays, headings(record.essays))
+               if e.text} if record.essays else {}
+    drafted = {one_line(question) for question, _ in record.drafted}
+    sent = []
+    for q in record.filled.questions:
+        label = one_line(q.label)
+        if not label or SECRET.search(q.label) or SECRET.search(q.name):
+            continue
+        answer = written.get(label) or record.filled.readback.get(q.name) or record.filled.answers.get(q.name)
+        if isinstance(answer, (list, tuple)):
+            answer = [str(a.name if isinstance(a, Path) else a).strip() for a in answer]
+            answer = [a for a in answer if a]
+        elif answer is not None:
+            answer = str(answer.name if isinstance(answer, Path) else answer).strip()
+        if answer:
+            sent.append({"question": label[:2000], "answer": answer if isinstance(answer, list) else answer[:20000],
+                         "ai": label in written or label in drafted})
+    return sent[:300]
+
+
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
     """Keep an Application Lisul submitted from a rehearsal in the Tracker as
     submitted, so no run applies to it again. Returns what to tell him."""
@@ -1389,7 +1429,7 @@ def _keep_confirmation(page, done: Rehearsed, adapters: Adapters) -> str:
     screenshot of the confirmation (`after-submit.png`), before its window
     closes. Returns what to add to the note."""
     shown = ""
-    if done.saved is not None:
+    if done.saved is not None and not build.STUDENT:  # WorkIt Auto Apply keeps no Record once a form is sent (W11)
         try:
             shot = page.screenshot(full_page=True)
         except Exception:

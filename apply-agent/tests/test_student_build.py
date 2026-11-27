@@ -295,18 +295,23 @@ def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch)
     assert site.busy == 0
 
 
-def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
-    """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
-    removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""
+def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build, monkeypatch):
+    """Fault: the Student build's Employer accounts (and the passwords Remove All My Data removes) were lost at each
+    launch, it kept a Tracker file (W11: only the keychain holds them), or the student's own Submit never reached
+    their Applications Tracker."""
     from apply.home import HOME
-    from apply.tracker import EmployerAccount, WorkItTracker
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import TRACKER, EmployerAccount, WorkItTracker
 
+    keychain = InMemoryKeychain()
+    monkeypatch.setattr(student, "SystemKeychain", lambda: keychain)
     applicant = profile.ApplicantProfile.load(HOME / "applicant-profile.yaml")
     account = EmployerAccount("Acme", "acme.wd1.myworkdayjobs.com", "test.person@example.com", date(2026, 11, 15))
     first = student.adapters(applicant, AnswerBank())
     assert isinstance(first.tracker, WorkItTracker)
     first.tracker.add_employer_account(account)
     assert student.adapters(applicant, AnswerBank()).tracker.employer_accounts() == [account]  # the next launch's
+    assert not TRACKER.exists()
 
 
 def test_a_run_waits_for_the_answer_bank_and_starts_nothing_without_it(monkeypatch):

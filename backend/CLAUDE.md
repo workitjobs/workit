@@ -895,6 +895,18 @@ Find files with a directory listing; these are the rules for where code goes.
   queue, and the extension would fill the application. Not applied: an applied or later one answers 409
   (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
   back. Tests: `tests/test_tracker.py`.
+- **What each application sent** (W11, `routers/sent_applications.py`,
+  table `sent_applications`, `models/applications.py`'s
+  `Sent_Application`): WorkIt Auto Apply's applied write keeps each
+  question and the answer it filled and read back (`ai` on one AI wrote;
+  never a password, PIN or SSN answer), so no Record of it stays on the
+  student's Mac, and the application's page shows it under What You Sent.
+  `PUT .../applications/{job_id}/sent` only for an application applied or
+  later (409), `GET` the same; deleted with the application (its foreign
+  key cascades). A table of its own, not a column, so a Tracker list never
+  reads the answers. Measured on the Fill engine's 25 saved forms: 4 KB a
+  form at the median, 17 KB at most; option lists, 7 KB and 110 KB, are not
+  kept. Tests: `tests/test_sent_applications.py`.
 - **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove, and their own words for the card or its delete,
@@ -2099,9 +2111,11 @@ go then. A change needs to work on Cloudflare only.
   (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
   main"). The runner's scrape needs none of this: each run checks out the
   commit it runs.
-- **KAN-834's two migrations go on around one deploy, in two commands.**
+- **KAN-834's migrations go on around one deploy, in two commands.**
   Its `b7e4c2a9d816` adds `answer_banks`, which the new code reads for
-  every Answer bank read and save; its `c3f9a1d27b6e` drops
+  every Answer bank read and save, and `d6a2f8c41e07` adds
+  `sent_applications` (what each application WorkIt Auto Apply filled
+  sent); its `c3f9a1d27b6e` drops
   `applicant_profiles.fill_answers`, which the old code selects with every
   profile read. So no one `upgrade head` is safe: before the deploy it
   drops a column the running code reads (every signed-in request 500), and
@@ -2109,14 +2123,15 @@ go then. A change needs to work on Cloudflare only.
   and saves, the Written Answers page's saves, WorkIt Auto Apply's PATCH and
   `GET /apply-app/usage` 500). The order, once the PR has merged (never from
   its branch: `alembic/CLAUDE.md`):
-  1. `uv run alembic upgrade b7e4c2a9d816` right away. It only adds a
-     table, empty until a student's first read fills their row, so the old
-     code never meets it.
+  1. `uv run alembic upgrade d6a2f8c41e07` right away. It only adds two
+     tables, empty until the new code writes them, so the old code never
+     meets them.
   2. Let the deploy finish.
   3. The one-time save of what Apply's old sync left in `fill_answers`
      into each student's Answer bank: a script run by hand and deleted,
      never committed. Skipped, those answers are lost with the column.
-  4. `uv run alembic upgrade head` for `c3f9a1d27b6e`.
+  4. `uv run alembic upgrade head` for `c3f9a1d27b6e`, which sits on
+     `d6a2f8c41e07`.
   `b7e4c2a9d816` sits on `756dd185aedb` (the scraper's cycle leases), so
   step 1 applies `main`'s migrations before it first where they are not
   yet applied. It sat on `a9d4c2e7f893` until main's scraper migrations

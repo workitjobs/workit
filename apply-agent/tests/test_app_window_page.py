@@ -95,12 +95,15 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.evaluate(sent, "not the token") == 403
         assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
-        assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
+        assert settings.is_visible("#notices") and not settings.is_visible("#remove-confirm")
         assert settings.is_checked("#best")
         assert settings.inner_text("#claude-login") == "Claude signs in with your setup token in Keychain."
         assert settings.inner_text("#claude-dropped") == "Opus paused: near the 5-hour limit."
         settings.click("#remove")
-        assert settings.is_visible("#remove-sure")  # a second press removes: one press never does
+        # One press only asks, saying what goes; Cancel puts the button back, and nothing was removed.
+        assert "Keychain" in settings.inner_text("#remove-confirm") and not settings.is_visible("#remove")
+        settings.click("#remove-cancel")
+        assert settings.is_visible("#remove") and not settings.is_visible("#remove-confirm")
         # Report a problem: what goes is shown before Send Report, and a changed answer is shown again first.
         settings.fill("#report-note", "The window froze.")
         settings.click("#report button")

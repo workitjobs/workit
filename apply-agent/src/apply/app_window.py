@@ -185,7 +185,9 @@ DISCLOSURE = """<ul>
 address and self-identification answers; your applications' stages; the answers you approve or edit, and the
 short answers its AI drafts for your Answer bank, marked for your review; the answers you give to the questions it
 asks you, kept with your WorkIt profile, except an answer for one application's essay, which goes only into the AI
-calls that write that application's essays and is not kept; your Auto Apply queue.
+calls that write that application's essays and is not kept; each application you submit, with its questions and
+the answers the form sent (never a password or an SSN), which WorkIt shows on that application's page; your Auto
+Apply queue.
 One application's record and log go only when you press Send Report.</li>
 <li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
 tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
@@ -193,8 +195,9 @@ tier may use the prompts and answers it gets to improve its products, and people
 <li><b>To Brandfetch:</b> the website of each company in your queue, to show its logo, as WorkIt's website does.
 Without one there, the logo comes from the company's job board or Google's website icons the same way.</li>
 </ul>
-<p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
-Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>"""
+<p>The Chrome windows' profiles and sign-ins, and your job-site accounts and passwords (in the Keychain), stay on
+your Mac. An open form's record and log stay only until WorkIt has what you sent, or you let the form go.
+WorkIt Auto Apply never presses Submit: you do.</p>"""
 
 FIRST_RUN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
 <meta name="color-scheme" content="light"><style>{style}
@@ -263,6 +266,11 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
   main.settings { max-width: 34rem; margin: 8vh auto; display: flex; flex-direction: column; gap: 0.8rem; }
   main.settings .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
   main.settings .top { justify-content: space-between; align-items: center; }
+  /* Remove All My Data's red: the one action here that can't be undone. White on #b42318 is 6.5:1. */
+  main.settings button.danger { background: #b42318; border-color: transparent; color: #fff; }
+  main.settings button.danger:hover { background: #912018; color: #fff; }
+  main.settings .confirm { border: 1px solid #f04438; background: #fef3f2; border-radius: 8px; padding: 0.8rem 1rem; }
+  main.settings .confirm ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
 </style>
 <main class="settings">
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
@@ -291,10 +299,21 @@ and paste the token. <code>uv run apply claude-token --forget</code> goes back t
 <div class="row"><button class="primary" id="report-send">Send Report</button></div></div>
 <p id="report-said" role="status"></p>
 <div class="row"><button data-do="sign_out">Sign Out</button></div>
-<p>Remove All My Data deletes everything WorkIt Auto Apply keeps on this Mac: the Worker profiles and their
-sign-ins, the seed, the records and logs of your applications, and its WorkIt sign-in. Your WorkIt account stays.</p>
-<div class="row"><button id="remove">Remove All My Data</button>
-<button id="remove-sure" data-do="remove_data" hidden>Press Again to Remove Everything</button></div>
+<h2>Remove All My Data</h2>
+<p>Deletes what WorkIt Auto Apply keeps on this Mac. Your WorkIt account, and what it holds, stays.</p>
+<div class="row"><button id="remove" class="danger">Remove All My Data</button></div>
+<div id="remove-confirm" class="confirm" role="alertdialog" aria-labelledby="remove-title" hidden>
+<p id="remove-title"><strong>Remove all of WorkIt Auto Apply's data from this Mac?</strong> This deletes:</p>
+<ul>
+<li>The Chrome windows it fills forms in, with every job site you signed in to there</li>
+<li>The job-site accounts' passwords it made for you, from your Keychain</li>
+<li>Its WorkIt sign-in: you sign in again the next time you open it</li>
+<li>Any form still open, with what was filled in it</li>
+</ul>
+<p>You can't undo this. WorkIt Auto Apply closes when it's done.</p>
+<div class="row"><button class="danger" data-do="remove_data">Remove Everything</button>
+<button id="remove-cancel">Cancel</button></div>
+</div>
 <p id="said" role="status"></p>
 <div class="row"><button class="primary" data-do="back">Done</button></div>
 </main>
@@ -303,7 +322,10 @@ sign-ins, the seed, the records and logs of your applications, and its WorkIt si
 const said = document.getElementById('said'), count = document.getElementById('workers');
 document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
-document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
+const removing = open => {  // Remove All My Data asks first, saying what goes
+  document.getElementById('remove-confirm').hidden = !open; document.getElementById('remove').hidden = open; };
+document.getElementById('remove').addEventListener('click', () => removing(true));
+document.getElementById('remove-cancel').addEventListener('click', () => removing(false));
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
 const best = document.getElementById('best');
 best.addEventListener('change', async () => { await ready; await window.pywebview.api.set_best_model(best.checked); });

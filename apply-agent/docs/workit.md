@@ -194,7 +194,18 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   PDF named resume) kept as the Sent resume. This is
   `WorkIt.record_applied`, the import's write sequence. A job that is
   applied or later on WorkIt already stays as it is ("already
-  interviewing").
+  interviewing"). **WorkIt Auto Apply's applied write** (W11, 2026-11-27)
+  names the Sent resume by its id on WorkIt instead (`Write.resume_ref`:
+  the tailored resume the form was given, `tailored.GIVEN`, else the
+  profile's, `student.RESUME_REF`; `POST .../sent-resumes`), since it keeps
+  no `sent/` copy, and carries what the form sent (`Write.answers`, from
+  `rehearsal.sent_answers` at the Submit; `PUT .../applications/{job}/sent`).
+  Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
+  application's files from the Mac (`apply.local_data`); a write that
+  waits keeps its answers in `workit-queue.json` until it is sent. Its
+  Tracker is `tracker.KeychainTracker`: no `tracker.json`, its rows in
+  memory for the run, its Employer accounts in the keychain
+  (`tracker.ACCOUNT_LIST`).
   handoff, missing fact and held to `needs_you` (the stage PUT; a 409
   means the job is applied already, and is not an error). Apply never
   writes `queued`: on WorkIt that is the batch apply queue, and the

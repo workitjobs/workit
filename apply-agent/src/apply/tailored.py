@@ -8,7 +8,9 @@ given to SENT; the write to the Applications Tracker sends that copy).
 
 The tailored PDF is written to TAILORED/<application>/ under the profile's
 resume file name, so the employer gets the name it always gets, and
-`worker.sent_resume` finds it by that name. The profile itself never
+`worker.sent_resume` finds it by that name. It is deleted once the form has
+it (`forget`, W11): Fill again reads it from WorkIt again, and WorkIt Auto
+Apply names the Sent resume by its id (`GIVEN`). The profile itself never
 changes: the Application gets a view of it (`_WithResume`) whose resume is
 the tailored file; every other read and every write goes to the profile.
 
@@ -16,6 +18,7 @@ No WorkIt login, WorkIt down, a job WorkIt does not list, or no tailored
 resume for it: the profile's resume, as before."""
 
 import re
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -27,6 +30,9 @@ from apply.model import Posting
 from apply.profile import ApplicantProfile
 
 TAILORED = HOME / "tailored"
+# The tailored resume each Posting's form was given, by Application: {"built_resume_id"} on WorkIt, which WorkIt Auto
+# Apply's applied write names as the Sent resume (apply.student.resume_ref), so the file needs no copy on the Mac.
+GIVEN: dict[str, dict] = {}
 RESUME = "files.resume_pdf"
 
 # The PDF of the tailored resume for a Posting, or None.
@@ -42,14 +48,15 @@ def from_workit(client: workit.WorkIt | None = None) -> Tailored:
         if not client.logged_in():
             return None
         try:
-            pdf = client.tailored_resume(posting.url)
+            got = client.tailored_resume(posting.url)
         except workit.WorkItError as error:
             print(f"{posting.company}: your tailored resume could not be read from WorkIt ({error}); "
                   "the profile's resume is used", file=sys.stderr)
             return None
-        if pdf is not None and not pdf.startswith(b"%PDF"):
+        if got is None or not got[0].startswith(b"%PDF"):
             return None
-        return pdf
+        GIVEN[posting.id] = {"built_resume_id": got[1]}  # the Sent resume, by its id: no copy stays (W11)
+        return got[0]
     return tailored
 
 
@@ -80,3 +87,10 @@ class _WithResume:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._profile, name)
+
+
+def forget(profile: ApplicantProfile) -> None:
+    """The tailored resume's file, deleted once the form has it (W11: nothing of an application stays on the Mac).
+    Fill again reads it from WorkIt again (resume_for), and the Sent resume names it by its id."""
+    if isinstance(profile, _WithResume):
+        shutil.rmtree(profile._path.parent, ignore_errors=True)

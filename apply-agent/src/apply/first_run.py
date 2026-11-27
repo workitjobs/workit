@@ -26,8 +26,8 @@ from pathlib import Path
 
 from apply import build, chrome_finder
 from apply.home import CODE, HOME
-from apply.keychain import SystemKeychain
-from apply.tracker import TRACKER, FileTracker
+from apply.keychain import CHOSEN, SystemKeychain
+from apply.tracker import ACCOUNT_LIST, TRACKER, FileTracker, accounts_in
 
 STATE = HOME / "app.json"
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
@@ -79,9 +79,9 @@ def set_best_model(on: bool, state: Path | None = None) -> bool:
 
 
 def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None) -> str:
-    """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item), each job-site password
-    Apply made (the keychain's apply-ats item of each Employer account in the Tracker), and its whole data folder,
-    which holds the Worker profiles, the seed, the Records, the Traces and the local copy of the student's data.
+    """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item), each job-site account's
+    password Apply made and their list (the keychain's apply-ats items, W11), the password chosen for new accounts,
+    and its whole data folder, which holds the Worker profiles, the seed, and any open form's working files.
     Only the Student build, whose data folder is its own (home.APP_FOLDER): a Developer checkout's is the developer's."""
     if not build.STUDENT:
         return f"Only WorkIt Auto Apply removes its data. This checkout's data folder is yours: {home}"
@@ -92,18 +92,23 @@ def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None
     return f"Removed.{stay} WorkIt Auto Apply closes now; your WorkIt account stays."
 
 
-def _forget_passwords(tracker: Path, keychain) -> list[str]:
-    """Forget the password of each Employer account `tracker` lists: the sites whose item the keychain kept."""
+def _forget_passwords(older: Path, keychain) -> list[str]:
+    """Forget each job-site account's password the keychain's list names (and an older version's tracker.json,
+    still there), the list itself and the password chosen for new accounts: the sites whose item stayed."""
     try:
-        accounts = FileTracker(tracker).employer_accounts() if tracker.is_file() else []
-    except Exception:  # a Tracker that won't read names no site: say so rather than leave them unsaid
+        accounts = accounts_in(keychain) + (FileTracker(older).employer_accounts() if older.is_file() else [])
+    except Exception:  # a list that won't read names no site: say so rather than leave them unsaid
         return ["every job site's (the list of them would not read)"]
     kept = []
-    for site in dict.fromkeys(account.site for account in accounts):
+    for site in dict.fromkeys([*(account.site for account in accounts), CHOSEN]):
         try:
             keychain.forget(site)
         except RuntimeError:  # a locked keychain, access denied
             kept.append(site)
+    try:
+        keychain.forget(ACCOUNT_LIST)
+    except RuntimeError:
+        pass  # the list holds no password: a site's own item is what the student needs to hear about
     return kept
 
 

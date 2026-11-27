@@ -93,7 +93,7 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests and the Employer accounts. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`); WorkIt Auto Apply keeps its rows in memory for the run and its Employer accounts in the keychain, with no file. It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests and the Employer accounts. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
 
 **Waiting write**:
@@ -301,11 +301,11 @@ Routing tags for each episode of the Story bank (one story, as one of its lines 
 _Avoid_: story index, tag file, personalized prompts
 
 **Record**:
-An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row.
+An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row. WorkIt Auto Apply keeps one only while its form is open: at the Submit, what the form sent goes to WorkIt, and the Record goes once WorkIt has it.
 _Avoid_: log, artifact, receipt
 
 **Trace**:
-What happened in one Application, step by step, kept on this Mac only: each page navigation, console line (the submit guard's blocks among them, naming the request they stopped), page error, non-GET request, failed request and error response, each step of a Claude fill session, and how it ended. Read with `apply trace [query]`; kept two weeks.
+What happened in one Application, step by step, kept on this Mac only: each page navigation, console line (the submit guard's blocks among them, naming the request they stopped), page error, non-GET request, failed request and error response, each step of a Claude fill session, and how it ended. Read with `apply trace [query]`; kept two weeks, and in WorkIt Auto Apply only while its form is open.
 _Avoid_: log, debug log, transcript
 
 **Request**:

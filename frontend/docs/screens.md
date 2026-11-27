@@ -1427,10 +1427,14 @@ tracker row, and the tab title comes from the posting's own read:
   resume anywhere else. Resume and Answers sit in one elevated white card
   under the heading, as Interviews & Dates' events do (a flat card until
   KAN-824). With none sent, one quiet line with
-  its glyph says "No resume sent yet", a resume row's height. Answers is
-  that same line for now: neither Apply nor auto apply keeps the answers
-  typed into the employer's form yet, and the line holds their place so
-  the section keeps its shape when they arrive. Both were dashed boxes, the
+  its glyph says "No resume sent yet", a resume row's height. Answers lists
+  what an application WorkIt Auto Apply filled sent (W11, 2026-11-27,
+  `GET .../applications/{job_id}/sent`, read with the page's other reads):
+  each question over its answer, a multi-select's options joined by "; ",
+  and Written by AI under an answer AI wrote. The app keeps it on WorkIt at
+  the student's Submit, so its Mac keeps no Record. An application sent
+  another way (the extension, by hand) keeps the quiet line, which says
+  where the answers come from. Both were dashed boxes, the
   upload dropzone's outline on the grey ground, until 2026-11-10, and read
   as places to drop a file.
 - **Overview**, the job page's name for the posting's tab, for an open

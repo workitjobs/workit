@@ -233,6 +233,22 @@ def dismiss(application_id: str, field: str, why: str) -> None:
         os.replace(part, DISMISSED)
 
 
+def keep_dismissed(application_ids: set[str]) -> None:
+    """Forget the flags dismissed for every Application but `application_ids` (W11: WorkIt Auto Apply keeps nothing
+    of an application once it is sent or let go); with none left, the file goes."""
+    with locks.held(DISMISSED.with_suffix(".lock")):
+        every = _read_dismissed()
+        kept = {key: flags for key, flags in every.items() if key in application_ids}
+        if kept == every:
+            return
+        if not kept:
+            DISMISSED.unlink(missing_ok=True)
+            return
+        part = DISMISSED.with_suffix(".part")
+        part.write_text(json.dumps(kept, indent=2, ensure_ascii=False) + "\n")
+        os.replace(part, DISMISSED)
+
+
 def _read_dismissed() -> dict[str, list[list[str]]]:
     try:
         return json.loads(DISMISSED.read_text())

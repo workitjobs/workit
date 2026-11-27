@@ -79,10 +79,10 @@ SENT = HOME / "sent"
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
     """The Application's folder under SENT, where a copy of each file its form is given is kept."""
-    return SENT / day.isoformat() / _sent_name(company, application_id)
+    return SENT / day.isoformat() / sent_name(company, application_id)
 
 
-def _sent_name(company: str, application_id: str) -> str:
+def sent_name(company: str, application_id: str) -> str:
     """An Application's folder name under SENT's day folders: its company's slug, then its id."""
     slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "company"
     return f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
@@ -106,7 +106,7 @@ def sent_files(company: str, application_id: str, sent: Path | None = None) -> l
     """Every file kept for the Application's form under SENT (the resume, the cover letter Apply wrote for it, a
     transcript), its newest folder's first (KAN-789). Only its own folder, by its whole name: a suffix match
     (`*-<id>`) also took another Application's whose id ends in this one's ("acme-9-123" for id 123)."""
-    root, name = sent or SENT, _sent_name(company, application_id)
+    root, name = sent or SENT, sent_name(company, application_id)
     days = sorted((day for day in root.iterdir() if (day / name).is_dir()), reverse=True) if root.is_dir() else []
     folders = [day / name for day in days]
     return [f for folder in folders for f in sorted(folder.iterdir()) if f.is_file() and not f.name.startswith(".")]
@@ -669,12 +669,17 @@ class _Planned:
 
     def _keep_files(self) -> None:
         """Copy each file the form is given to the Application's folder under
-        SENT, and tell `on_files` when the list changed."""
+        SENT, and tell `on_files` when the list changed. WorkIt Auto Apply keeps
+        no copy (W11): its window names each file by its own path, and WorkIt
+        keeps the Sent resume by its id."""
         folder = sent_folder(self.posting.company, self.posting.id, self._today)
         files, taken = [], set()
         for q in self.questions:
             path = self._answers.get(q.name)
             if not isinstance(path, Path) or not path.is_file():
+                continue
+            if build.STUDENT:
+                files.append({"label": one_line(q.label), "name": path.name, "path": str(path)})
                 continue
             name = path.name if path.name not in taken else f"{len(taken) + 1}-{path.name}"
             taken.add(name)

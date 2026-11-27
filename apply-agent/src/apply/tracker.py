@@ -9,6 +9,7 @@ import dataclasses
 import json
 import os
 import sys
+import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -159,8 +160,40 @@ class InMemoryTracker:
         self._requests.append(url.strip())
 
 
-# The Tracker file in the data folder.
+# The Tracker file in the data folder: a Developer checkout's. WorkIt Auto Apply keeps none (KeychainTracker).
 TRACKER = HOME / "tracker.json"
+
+# The keychain item, under the Employer accounts' service, that lists the accounts WorkIt Auto Apply made (W11): no
+# site is named this (a site is a host), so it never reads as an account. Their passwords are the service's other items.
+ACCOUNT_LIST = "account list"
+
+
+def accounts_in(keychain) -> list[EmployerAccount]:
+    """The Employer accounts the keychain's list names (ACCOUNT_LIST); none when it names none."""
+    kept = keychain.password(ACCOUNT_LIST)
+    return [EmployerAccount(**{**a, "created": date.fromisoformat(a["created"])}) for a in json.loads(kept or "[]")]
+
+
+def keep_accounts(keychain, accounts: list[EmployerAccount]) -> None:
+    keychain.save(ACCOUNT_LIST, json.dumps([dataclasses.asdict(a) for a in accounts], default=_plain))
+
+
+class KeychainTracker(InMemoryTracker):
+    """WorkIt Auto Apply's Tracker (W11): no file. Its rows live in memory for the run (WorkIt's Applications
+    Tracker is the record of where each application stands), and its Employer accounts, which must outlive a launch
+    so a job site's account is signed in to and never made again, live in the keychain beside their passwords."""
+
+    def __init__(self, keychain):
+        super().__init__()
+        self._keychain = keychain
+        self._list = threading.Lock()  # two Workers' new accounts at once: each read-and-add sees the other's
+
+    def employer_accounts(self) -> list[EmployerAccount]:
+        return accounts_in(self._keychain)
+
+    def add_employer_account(self, account: EmployerAccount) -> None:
+        with self._list:
+            keep_accounts(self._keychain, [*accounts_in(self._keychain), account])
 
 # FileTracker's methods that change the file; every other one only reads it.
 _WRITES = ("add", "update", "answer", "approve", "edit_as_lisul", "remove_request", "add_request", "paste_request",
@@ -271,10 +304,16 @@ class WorkItTracker:
     submitted form was given as the resume ("" for none), kept as its Sent
     resume. A write that fails is said and never stops the run."""
 
-    def __init__(self, inner, writes, resume_of: Callable[[str], str]):
+    def __init__(self, inner, writes, resume_of: Callable[[str], str],
+                 ref_of: Callable[[str], dict] = lambda application_id: {},
+                 sent_of: Callable[[str], list] = lambda application_id: []):
+        """WorkIt Auto Apply's applied write (W11) names its Sent resume by its id on WorkIt (`ref_of`, with no file)
+        and carries what the form sent (`sent_of`)."""
         self.inner = inner
         self._writes = writes
         self._resume_of = resume_of
+        self._ref_of = ref_of
+        self._sent_of = sent_of
 
     def __getattr__(self, name):
         return getattr(self.inner, name)
@@ -293,10 +332,13 @@ class WorkItTracker:
         stage = STAGES.get(row.status)
         if stage is None or row.status == before:
             return
+        applied = stage == Stage.APPLIED
         try:
             said = self._writes.send(Write(
                 row.application_id, row.posting_url, row.company or "Unknown company", row.role or "Job", stage,
-                self._resume_of(row.application_id) if stage == Stage.APPLIED else ""))
+                self._resume_of(row.application_id) if applied else "",
+                resume_ref=self._ref_of(row.application_id) if applied else {},
+                answers=self._sent_of(row.application_id) if applied else []))
         except Exception as error:  # the run goes on: the row is in Apply's own Tracker
             said = f"not in your Applications Tracker ({type(error).__name__}: {error})"
         print(f"{row.company}, {row.role}: {said}", file=sys.stderr)

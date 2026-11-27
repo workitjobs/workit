@@ -59,7 +59,7 @@ import urllib.request
 import webbrowser
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from email.message import Message
@@ -278,26 +278,37 @@ class WorkIt:
         self.call("DELETE", f"/applicants/{applicant_id}/applications/{job_id}")
 
     def record_applied(self, link: str, company: str, title: str, resume: Path | None = None,
-                       stage: Stage = Stage.APPLIED, applied_on: date | None = None) -> str | None:
+                       stage: Stage = Stage.APPLIED, applied_on: date | None = None, resume_ref: dict | None = None,
+                       answers: list[dict] | None = None) -> str | None:
         """Put the job at `link` on the student's Applications Tracker at `stage` (applied or later), with the
-        file at `resume` kept as its Sent resume: add by link, keep the Sent resume, set the stage and the
-        applied date (`applied_on`, else today), then name the Sent resume. Apply's submit writes and the Tracker
+        file at `resume` kept as its Sent resume, or the resume WorkIt holds that `resume_ref` names
+        ({"uploaded_resume_id"} or {"built_resume_id"}: WorkIt Auto Apply's, which keeps no copy): add by link,
+        keep the Sent resume, set the stage and the applied date (`applied_on`, else today), name the Sent resume,
+        then keep what the form sent (`answers`, W11, `PUT .../sent`). Apply's submit writes and the Tracker
         Sheet import both use it. An application already applied or later stays as it is: answers its stage
         then, else None."""
         job, before = self.add_by_link(link, company, title)
         if before in APPLIED_STAGES:
             return before
         me = self.applicant_id()
-        sent = self.send_resume(me, job, resume) if resume else None
+        sent = self.send_resume(me, job, resume) if resume else self.name_resume(me, job, resume_ref) \
+            if resume_ref else None
         self.set_stage(me, job, stage, applied_on)
         if sent:
             self.link_resume(job, sent)
+        if answers:
+            self.call("PUT", f"/applicants/{me}/applications/{job}/sent", {"answers": answers})
         return None
 
-    def tailored_resume(self, url: str) -> bytes | None:
-        """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now;
-        None when WorkIt does not list the job or the student has no tailored resume for it (KAN-547). Writes
-        nothing."""
+    def name_resume(self, applicant_id: str, job_id: str, ref: dict) -> str:
+        """Keep the resume WorkIt holds that `ref` names as a Sent resume to the job (WorkIt keeps its file or a
+        snapshot itself): its id."""
+        return str(self.call("POST", f"/applicants/{applicant_id}/sent-resumes", {"job_posting_id": job_id, **ref})["id"])
+
+    def tailored_resume(self, url: str) -> tuple[bytes, str] | None:
+        """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now,
+        and its built resume's id; None when WorkIt does not list the job or the student has no tailored resume
+        for it (KAN-547). Writes nothing."""
         listed = self.listed_by_link(url)
         if listed is None:
             return None
@@ -306,7 +317,8 @@ class WorkIt:
                        if r.get("job_posting_id") == listed[0]), None)
         if resume is None:
             return None
-        return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
+        pdf = base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
+        return pdf, str(resume["id"])
 
     def send_report(self, report: dict) -> str:
         """Send report (D26, KAN-837): one Application's Record and masked Trace, as apply.report builds it, to
@@ -467,6 +479,10 @@ class Write:
     stage: str
     resume: str = ""
     not_before: float = 0.0  # epoch seconds: past WorkIt's daily cap, the write waits until then
+    # WorkIt Auto Apply's applied write (W11): the Sent resume by its id on WorkIt, and what the form sent, which
+    # WorkIt keeps so no Record of it stays on the Mac. A queued one keeps them until it is delivered.
+    resume_ref: dict = field(default_factory=dict)
+    answers: list = field(default_factory=list)
 
 
 def cap_wait(write: Write) -> str:
@@ -483,9 +499,13 @@ class WaitingWrites:
     process at a time sends (a lock file), so a write is never sent twice
     at once."""
 
-    def __init__(self, client: WorkIt | None = None, path: Path = QUEUE):
+    def __init__(self, client: WorkIt | None = None, path: Path = QUEUE,
+                 delivered: Callable[[Write], None] | None = None):
+        """`delivered(write)` runs once WorkIt has an applied write: WorkIt Auto Apply deletes what its Mac kept
+        of that application then (apply.local_data)."""
         self.client = client or WorkIt()
         self.path = path
+        self._delivered = delivered
 
     def send(self, write: Write) -> str:
         """Queue `write` (in place of a waiting one for the same Application), send every waiting write,
@@ -516,6 +536,8 @@ class WaitingWrites:
                 continue
             try:
                 said[write.application_id] = self._deliver(write)
+                if self._delivered and write.stage == Stage.APPLIED:
+                    self._delivered(write)
             except (NotLoggedIn, LoginExpired) as error:
                 for w in waiting[at:]:
                     said[w.application_id] = f"kept to send to your Applications Tracker later ({error}): " \
@@ -537,7 +559,8 @@ class WaitingWrites:
         if write.stage == Stage.APPLIED:
             resume = Path(write.resume) if write.resume else None
             before = self.client.record_applied(write.link, write.company, write.title,
-                                                resume if resume and resume.is_file() else None)
+                                                resume if resume and resume.is_file() else None,
+                                                resume_ref=write.resume_ref or None, answers=write.answers or None)
             if before:
                 return f"already {SHOWN.get(before, before)} in your Applications Tracker"
         else:
