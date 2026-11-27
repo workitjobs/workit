@@ -3,6 +3,7 @@ meant (the Fill engine's read-back comparison, fill_engine.readback_problems);
 then Claude reviews each question next to the answer on the page, for
 answers that are valid but wrong."""
 
+from typing import NamedTuple
 
 from apply import description, fill_engine, private
 from apply.adapters import Claude
@@ -45,6 +46,47 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
         if question in asked and answer:
             fixes[question] = answer
     return Found(problems, fixes)
+
+
+MAX_PROBLEMS = 20  # problems one fix call takes (WorkIt's MAX_KEYS); a form has fewer
+
+
+class Fixes(NamedTuple):
+    """The fix call's answers: `fixes`, the answer to enter by the question as the review named it (its label on
+    one line), and `yours`, why each question only the applicant can answer can't be fixed, by the same name."""
+
+    fixes: dict[str, str]
+    yours: dict[str, str]
+
+
+def fix(claude: Claude, posting: Posting, questions: QuestionSet, readback: Readback, problems: list[str],
+        sources: str = "", posting_text: str = "", own: set[str] | frozenset[str] = frozenset(),
+        self_ids: frozenset[str] = frozenset()) -> Fixes:
+    """The answer to enter for each problem the review found and gave no fix for (an answer with more than its
+    question asks, in another format than its label asks), from the same rows and sources the review read:
+    Apply fixes what it can, so only a fact the applicant alone knows reaches them. A fix names a question the
+    rows hold, else it is dropped; an empty one is no fix."""
+    rows = _rows(questions, readback, own, self_ids)
+    if not rows or not problems:
+        return Fixes({}, {})
+    # WorkIt's presubmit.fix kind: its prompt and schema are on the server.
+    given = claude.ask_kind("presubmit.fix", {"sources": sources, "posting": description.block(posting, posting_text),
+                                              "rows": rows, "problems": list(problems)[:MAX_PROBLEMS]})
+    asked = {row["question"] for row in rows}
+
+    def named(items, field: str) -> dict[str, str]:
+        out = {}
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            question = str(item.get("question") or "").strip().strip("'\"“”")
+            value = str(item.get(field) or "").strip()
+            if question in asked and value and question not in out:
+                out[question] = value
+        return out
+
+    yours = named(given.get("yours"), "why")
+    return Fixes({q: a for q, a in named(given.get("fixes"), "answer").items() if q not in yours}, yours)
 
 
 def _rows(questions: QuestionSet, readback: Readback, own: set[str] | frozenset[str],
