@@ -2019,3 +2019,58 @@ def test_with_a_hosted_model_the_one_off_questions_go_in_an_essays_write_call_of
 
     assert [(bool(c["data"]["questions"]), bool(c["data"]["short_questions"])) for c in asks(claude)] == [
         (True, False), (False, True)]
+
+
+
+RELOCATE = "Are you based in the SF / Bay Area, or willing to relocate there?"
+RELOCATE_OPTIONS = ("Yes, I'm based in the SF / Bay Area", "Yes, I'd relocate within 1-2 months", "No")
+SAYS_PROFILE = f"{RELOCATE}: the profile says he lives in New York and will relocate"
+
+
+def _relocating(monkeypatch, reason: str, *more: list[str]) -> tuple[ResearchForm, FakeClaude, str, str]:
+    """The form with RELOCATE added, what the plan alone answers it with, and a review that fixes it to the other
+    Yes for `reason`, then gives `more` reviews."""
+    form = ResearchForm("Northwood Space")
+    form.questions = form.questions + [Question("qr", RELOCATE, "select", True, RELOCATE_OPTIONS)]
+    alone = ResearchForm("Northwood Space")
+    alone.questions = form.questions
+    run_all(monkeypatch, alone, FakeClaude(essays={PROJECT: MICROMOUSE}), ["Pylon"])
+    planned = alone.filled[-1][RELOCATE]
+    fix = RELOCATE_OPTIONS[1] if planned != RELOCATE_OPTIONS[1] else RELOCATE_OPTIONS[0]
+    review = {"problems": [reason], "fixes": [{"question": RELOCATE, "answer": fix}]}
+    return form, FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[review, *more]), planned, fix
+
+
+def test_the_reviews_fix_over_a_profile_choice_its_profile_reason_backs_is_kept_once_reviewed_again(monkeypatch):
+    # Pylon (2026-11-26): the plan picked "based in the Bay Area" for a home in New York, and the review's fix, the
+    # relocate option, was refused as over a profile answer. A fix over a profile-derived choice is filled when the
+    # review's reason rests on the profile, and kept once the second review passes it.
+    form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE)
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert planned in RELOCATE_OPTIONS and fix != planned
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
+def test_a_fix_over_a_profile_choice_the_second_review_still_flags_is_undone_and_held(monkeypatch):
+    still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
+    form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE, [still], [still])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held" and f"Pre-submit review: {still}" in row.reason
+    assert [filled[RELOCATE] for filled in form.filled] == [planned, fix, planned]  # the plan's again, reviewed again
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 3
+
+
+def test_a_fix_over_a_profile_choice_whose_reason_isnt_the_profile_is_never_taken(monkeypatch):
+    # General Motors' degree (live): a reason of the review's own reading, not the profile, never changes his answer.
+    form, claude, planned, _ = _relocating(monkeypatch, f"{RELOCATE}: Bay Area roles usually want locals")
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held" and [filled[RELOCATE] for filled in form.filled] == [planned]
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 1

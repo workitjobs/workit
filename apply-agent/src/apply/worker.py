@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
@@ -481,7 +481,9 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
                                    planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
-                    if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
+                    if fixed and attempt < 2 and planned.unfix(found):
+                        continue  # a fix over a profile answer the second review still flags: the plan's answer again
+                    if not fixed and attempt < 2 and planned.fix(found.fixes, readback, found, trial=attempt < 1):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before
                         # Lisul sees it as ready.
@@ -581,6 +583,18 @@ def _unasked(filler, page, questions: list[Question]) -> list[str]:
     return [f"Required on the form but not in the Question set, so left empty: {', '.join(missed)}"] if missed else []
 
 
+# A Pre-submit review's reason that rests on the applicant's profile ("the profile says Woodbury, NY and willing to
+# relocate"), not on its own reading of the form.
+PROFILE_REASON = re.compile(r"\bprofile\b", re.IGNORECASE)
+
+
+def _flagged(q: Question, problems: Sequence[str]) -> list[str]:
+    """The reasons `problems` ("<question>: why") give against `q`."""
+    label = one_line(q.label).casefold()
+    return [said[len(lead) + 1:].strip() for p in problems for said in [one_line(str(p))]
+            for lead in (label, f"'{label}'", f'"{label}"') if said.casefold().startswith(f"{lead}:")]
+
+
 class _Planned:
     """One Application's answers, planned as its form shows its questions:
     all at once, or a step at a time."""
@@ -617,6 +631,7 @@ class _Planned:
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
         self.fixed: list[tuple[str, str, str]] = []  # (question, answer before, answer) of each, for Verifying to list
+        self.trials: dict[str, object] = {}  # fixes over a profile answer, by name: the plan's answer, till reviewed again
         self.kept_blank: dict[str, str] = {}  # optional catch-all boxes Apply leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
@@ -909,7 +924,7 @@ class _Planned:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
         return self.filed.get(q.name) or q.label
 
-    def fix(self, fixes: dict[str, str], readback: dict) -> bool:
+    def fix(self, fixes: dict[str, str], readback: dict, problems: Sequence[str] = (), trial: bool = False) -> bool:
         """Fill the Pre-submit review's `fixes` (its right answer, by the question's label on one line) in
         place of Claude's guesses: its drafts, and its earlier drafts the Answer bank answered with. Never over
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
@@ -918,14 +933,20 @@ class _Planned:
         fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
         A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
         exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
-        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again.
+        With `trial` (a fill and a review still to come), so is a fix over another choice the plan took from the
+        profile, when the review's reason for it (in `problems`, "<question>: why") rests on the profile: Pylon's
+        "SF / Bay Area" for a home in New York the profile will move from, CesiumAstro's GPA 3.8 for 3.86. It is
+        kept only if the second review passes it (`unfix`)."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
         legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
+        backed = {q.name for q in self.questions if trial and q.options and q.name not in own | guessed | legal
+                  and any(PROFILE_REASON.search(why) for why in _flagged(q, problems))}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or q.name not in guessed | legal | backed or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
@@ -936,11 +957,26 @@ class _Planned:
                     self._bank.delete(self.wording(q))
                 self.drafted.remove(draft)
             self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
+            if q.name in backed - legal:
+                self.trials[q.name] = self._answers.get(q.name)
             self.fixes[q.name] = answer
             changed = True
         if changed:
             self.answers = self._answers
         return changed
+
+    def unfix(self, problems: Sequence[str]) -> bool:
+        """Undo each trial fix over a profile answer (`fix`) the second review still flags in `problems`: the
+        plan's answer is filled again, and the review's problem stays for Lisul. True if any was undone."""
+        undone = [q for q in self.questions if q.name in self.trials and _flagged(q, problems)]
+        for q in undone:
+            self.fixes.pop(q.name)
+            self.fixed = [f for f in self.fixed if f[0] != one_line(q.label)]
+            self._answers[q.name] = self.trials.pop(q.name)
+        self.trials.clear()  # the rest passed the second review: kept
+        if undone:
+            self.answers = self._answers
+        return bool(undone)
 
     def listed(self) -> list[dict]:
         """Each answer the form is filled with, in form order, as the student page's "What we filled" lists it:

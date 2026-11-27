@@ -51,7 +51,13 @@ reads: it does not click, type or submit.
   before the window shows the form as ready. It does this once. A fix
   replaces only Claude's guesses (its drafts, and its drafts the Answer
   bank gave back). It never replaces an answer from the profile, Lisul's
-  own answer, an essay, a file or a secret. A
+  own answer, an essay, a file or a secret, with two exceptions: a legal
+  or eligibility choice (`verify.LEGAL`), and, on the first review, a
+  choice whose review reason rests on the profile ("the profile says
+  ..."). The second is a trial: kept only if the second review passes it,
+  else the plan's answer is filled again (`_Planned.unfix`) and the
+  problem holds the form (Pylon's relocate, CesiumAstro's GPA,
+  2026-11-26). A
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
