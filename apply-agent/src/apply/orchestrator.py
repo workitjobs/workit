@@ -494,7 +494,7 @@ class _Run:
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
             # Its context line (apply.asking) follows its question, as in its Tracker reason.
-            where = result.where.get(result.missing_fact, "")
+            where = asking.first_line(result.where.get(result.missing_fact, ""))
             self.waiting.append((result.status, named_posting.company, named_posting.title,
                                  f"{result.missing_fact}; {asking.IN}{where}" if where else result.missing_fact or reason))
         if not is_request(posting.id) and result.status in (Status.SUBMITTED, Status.HELD):
@@ -695,7 +695,7 @@ def keep_record(adapters: Adapters, posting: Posting, result: Result, today: dat
         return "", result.reason
     try:
         record = Record(posting, result.status, result.reason, result.filled, today, drafted=result.drafted,
-                        named_facts=result.named_facts,
+                        named_facts=result.named_facts, fixed=result.fixed, briefs=result.briefs,
                         verification=result.verification.as_json() if result.verification else None)
         return adapters.records.save(record), result.reason
     except Exception as e:

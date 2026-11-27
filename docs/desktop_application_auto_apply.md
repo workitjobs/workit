@@ -779,7 +779,9 @@ its own instructions or a hostile schema.
   | `writing.check` | `writing._check` | drafts, sources |
   | `writing.edit` | `writing._pass` | drafts, sources, flagged problems, the questions, their lengths |
   | `probe.typical` | `probe.typical` | the questions, the posting and its text, Company material |
+  | `recording.brief` | `recording.brief` | a video link question, the prompts its posting lists, sources, the posting |
   | `presubmit.review` | `presubmit` | the filled form's answers read back, sources, the posting |
+  | `presubmit.fix` | `presubmit` | the review's problems, the answers it read, sources, the posting |
   | `presubmit.replan` | `presubmit` | the flagged fields, the posting |
   | `story_map.tag` | `story_map` | the Story bank (the server knows the Question types) |
   | `brief.team` | `brief.name_team` | the posting's title and text |

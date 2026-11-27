@@ -195,3 +195,99 @@ def test_the_command_sends_each_buttons_own_body(monkeypatch, capsys, tmp_path):
                                 "file": {"name": "cv.pdf", "data": "JVBERg=="}}),
                     ("answer", {"id": "1", "question": "When can you start?", "answer": "June"}),
                     ("stop", {"new_only": True}), ("stop", {}), ("remove", {"link": ACME})]
+
+
+def test_a_code_through_the_folder_reaches_the_run_once_with_its_case(board, tmp_path):
+    """Fault: /code changes the code's case or drops a character, hands it to the run twice, or takes what is no code
+    or a form that isn't held (sent already)."""
+    held(board, 0, ACME)
+    held(board, 1, GLOBEX)
+    board.update(1, status="submitted")
+
+    assert through(board, "code", {"id": "tile-0", "code": "Ox N!"}, tmp_path)["status"] == 400
+    assert through(board, "code", {"id": "tile-1", "code": "OxNbtPnI"}, tmp_path)["status"] == 409
+    assert through(board, "code", {"id": "tile-0", "code": " OxNb tPnI "}, tmp_path) == {
+        "status": 200, "message": "Entering the code."}
+    assert through(board, "code", {"id": "tile-0", "code": "OxNbtPnI"}, tmp_path)["status"] == 409  # one at a time
+    assert board.code_given(0) == "OxNbtPnI" and board.code_given(0) == ""
+    board.update(0, coding=False, code_said="The job site says the code is wrong")
+    [job] = [j for j in through(board, "state", None, tmp_path)["state"]["needs_you"] if j["tile"] == "tile-0"]
+    assert job["code_said"] == "The job site says the code is wrong" and job["coding"] is False
+
+
+def test_the_code_command_asks_yes_then_waits_for_the_job_sites_answer(monkeypatch, capsys):
+    """Fault: `apply window code` goes without --yes, sends the code to another form, or reports it sent before the
+    job site confirmed it, or a wrong code as done."""
+    from apply import app_window, cli
+
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    sent, states = [], []
+
+    def ask(action, body=None):
+        sent.append((action, body))
+        if action == "code":
+            return {"status": 200, "message": "Entering the code."}
+        job = states.pop(0) if states else {}
+        return {"status": 200, "state": {"needs_you": [{"tile": "tile-3", "id": "7", **job}]}}
+
+    monkeypatch.setattr(app_control, "ask", ask)
+    with pytest.raises(SystemExit) as unsure:
+        cli.main(["window", "code", "tile-3", "OxNbtPnI"])
+    assert unsure.value.code == 1 and not sent
+
+    states[:] = [{}, {"coding": True}, {"coding": False, "code_said": "The job site says the code is wrong"}]
+    with pytest.raises(SystemExit) as wrong:
+        cli.main(["window", "code", "7", "OxNbtPnI", "--yes"])  # by its id: the first state names its tile
+    assert wrong.value.code == 1 and "wrong" in capsys.readouterr().out
+    assert sent[1] == ("code", {"id": "tile-3", "code": "OxNbtPnI"})
+
+    states[:] = [{"coding": True}, {"coding": True, "status": "submitted"}]
+    with pytest.raises(SystemExit) as done:
+        cli.main(["window", "code", "tile-3", "OxNbtPnI", "--yes"])
+    assert done.value.code == 0 and "confirmed" in capsys.readouterr().out
+
+
+def test_send_anyway_hands_its_reason_to_the_run_once_and_nothing_else_gives_way(board, tmp_path):
+    """Fault: an override reason is lost on the way (the Record never says why it was sent), handed to the run twice
+    or to the next form on the tile, or lets a form still missing a required answer through."""
+    held(board, 0, ACME, missing=["When can you start?"], required={"When can you start?": True})
+    held(board, 1, GLOBEX)
+
+    refused = through(board, "submit", {"id": "tile-0", "override": "The pay is mine"}, tmp_path)
+    assert refused["status"] == 409 and not board.override_given(0)
+    assert through(board, "submit", {"id": "tile-1", "override": "  $30/hr is\nmy policy  "}, tmp_path)["status"] == 200
+    assert board.submit_asked(1) and board.override_given(1) == "$30/hr is my policy" and board.override_given(1) == ""
+
+    assert through(board, "submit", {"id": "tile-1", "override": "again"}, tmp_path)["status"] == 200
+    board.update(1, status="filling")  # the next Application on the tile: none of the last one's reason
+    assert board.override_given(1) == ""
+
+
+def test_the_submit_command_sends_its_override_and_never_an_empty_one(monkeypatch, capsys):
+    """Fault: `apply window submit --override` drops its reason, or sends one with no words in it."""
+    from apply import app_window, cli
+
+    sent = []
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    monkeypatch.setattr(app_control, "ask", lambda action, body=None: sent.append((action, body)) or {"status": 200})
+    with pytest.raises(SystemExit):
+        cli.main(["window", "submit", "tile-2", "--yes", "--override", "Pay from policies.yaml"])
+    with pytest.raises(SystemExit) as empty:
+        cli.main(["window", "submit", "tile-2", "--yes", "--override", "  "])
+    assert empty.value.code == 1 and "needs a reason" in capsys.readouterr().out
+    assert sent == [("submit", {"id": "tile-2", "override": "Pay from policies.yaml"})]
+
+
+def test_a_form_sent_anyway_says_why_in_its_tracker_row():
+    """Fault: a form the student sent past the review's hold is kept as any other sent form, so no one can tell."""
+    from apply import rehearsal
+    from apply.model import Posting
+    from apply.tracker import InMemoryTracker
+
+    done = rehearsal.Rehearsed(Posting(id="a1", company="Relay", title="SWE Intern", url=ACME),
+                               rehearsal.READY, overridden="Pay from policies.yaml")
+    tracker = InMemoryTracker()
+    rehearsal._keep_submission(tracker, done, None)
+    assert tracker.get("a1").reason == rehearsal.SUBMITTED_BY_LISUL + "; sent past the Pre-submit review's hold: " \
+                                       "Pay from policies.yaml"

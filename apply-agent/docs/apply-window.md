@@ -69,6 +69,20 @@ docstring first.
     the window's second question. `add <link>...` sends links through
     `app-inbox`, as `apply app <link>` does: the window takes them once
     signed in and set up.
+  - `submit <tile> --yes --override "<reason>"` is the card's Send
+    anyway: it sends a form past the Pre-submit review's holds (a legal
+    answer it flagged) and keeps the reason in the Record. Every other
+    refusal stands.
+  - `code <tile-or-id> <CODE> --yes` enters the code a job site emailed
+    after Submit (Greenhouse's eight case-sensitive boxes) and presses
+    Submit again: POST /code, the same as the card's "Paste the code from
+    your email" box. The run types one character per box
+    (`code_box.put`: fill, then a change event, then real keys for a box
+    the fill left empty), reads every box back and presses only when each
+    holds its character, case kept. The command then waits up to 150 s:
+    it exits 0 once the job site's confirmation page marks the tile sent,
+    and 1 with the job site's words for a wrong or expired code, or when
+    no confirmation came. The code is never logged.
   - The channel is a folder, `APPLY_HOME/app-control/`. The command writes
     one `.request` file (written whole, then renamed). The window looks
     every 0.25 s, renames it `.taken`, answers in a thread of its own and
@@ -103,6 +117,19 @@ docstring first.
   reads it; on a Mac the question's words are read before that event, so a
   thread sets them again each `CLOSE_GUARD_EVERY`. The count is
   `Dashboard.held`: each tile whose page is held (`again`), not submitted.
+- `kill <pid>`, Ctrl-C in its terminal and a closed terminal (`QUITS`)
+  close the window as its own close does (`closing`), so each `finally`
+  stops the run's Workers' Chromes. Without it, Ctrl-C aborted the app
+  inside Cocoa and SIGHUP ended it at once, and their Chromes stayed open
+  (`docs/plain-workers/guide.md`, "Any exit"). A second one while it
+  closes ends the app at once, after the atexit sweep stops the Chromes.
+- On a Mac, pywebview's window list (`BrowserView.instances`) is a
+  `SteadyWindows` (`steady_windows`, in `run`): its reads are snapshots. A
+  quit (Cmd-Q, the Dock's Quit) reads each window's close question in
+  turn, and with held forms that is a dialog whose run loop ran the
+  `closing` thread's `window.destroy`. The window left the dict mid-read,
+  and the app died with `<class 'RuntimeError'>: dictionary changed size
+  during iteration` (run7, 2026-11-26). Test: `tests/test_app_window.py`.
 - A link to `/...` opens through `Bridge.open`, which opens only a file
   a tile or History lists (`Dashboard.listed`). `sendBeacon('/closed')`
   does nothing: the window's own close ends the app.
@@ -126,13 +153,19 @@ docstring first.
   before the window starts). Without either (off a Mac, a data folder in a
   temp folder) the code box still works. `docs/workit.md` has the PKCE flow.
 - First run's steps and the app's settings (`app.json` in the data folder:
-  the disclosure, the Screen Recording ask, the Worker count, which is
-  Automatic, from the computer's memory, until Settings sets one: D24) are in
+  the disclosure, the Safety level, the Screen Recording ask, the Worker
+  count, which is Automatic, from the computer's memory, until Settings
+  sets one: D24) are in
   `apply/first_run.py`, each check a callable that tests replace. The seed
   step (Set Up the Worker Extension) comes only when the Workers run on
   Google Chrome (`plain_chrome: chrome`, the default). With
   `plain_chrome: testing` or `APPLY_PLAIN_CHROME=testing`, Workers load the
   worker extension with `--load-extension`, so first run skips the step.
+- The Safety level (`apply/safety.py`) is first run's step after the
+  disclosure and a select in Settings. In a Developer checkout the choice
+  is written to policies.yaml too (round trip, comments kept), since a
+  `safety_level` there wins over app.json; the Student build reads only
+  app.json and never auto-submits, whatever the level.
 - A run is `student.Runs.run` in a thread of the bridge's: one at a time,
   its own `Dashboard(serve=False)` shown while it goes, the queue's again
   after. A `SetupError` (no engine, a profile in use) is its one-line
@@ -211,6 +244,12 @@ for a student, not from `dashboard_page.py`.
   submit"), at most one a minute (`Dashboard._tell`). The Dock icon's badge
   (`app_window.badge`, through pyobjc on a Mac) is the number of to-dos
   (`dashboard.todo_count`), and clears when the run ends.
+- **A checkout's name and icon.** `apply app` from a Developer checkout
+  runs as Python, so the Dock showed Python's blank-page icon and the menu
+  bar said "Python". `app_window.look_like_the_app` sets WorkIt's logo
+  (`assets/app-icon.png`, the built app's icon) as the Dock icon and
+  "WorkIt Auto Apply" as the menu bar's name, before the window starts. The
+  built app's bundle gives both itself, so the Student build skips it.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,
@@ -219,7 +258,11 @@ for a student, not from `dashboard_page.py`.
 - **Applied** (`appliedJobs`) is this run's submitted jobs, then what the
   student applied to on WorkIt before (`Bridge.applied`:
   `GET /applicants/{id}/applications?stage=applied`), each once by its link,
-  form address, or company and role. Its button is on the start screen too.
+  form address, or company and role, latest applied first: this run's by
+  when each was sent, WorkIt's by `applied_at`. A job of this run with no
+  logo sources takes WorkIt's for the same job, so a link nothing named
+  still shows its company's logo once WorkIt has one. Its button is on the
+  start screen too.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't
@@ -235,7 +278,14 @@ for a student, not from `dashboard_page.py`.
   bank (the route's 404) says to add experience on WorkIt first. A card's
   click or Add to Auto Apply picks it, Add my top 5 picks the first five,
   and Start applying runs the picked links through `Bridge.start`, as
-  ticked queued jobs run. The ✕ (Not interested) hides a card on this
+  ticked queued jobs run. Find jobs stays in the header during a run
+  (`findsJobs`): a run started by `apply app <link>...` lasts till its
+  last form closes, and Find jobs was out of reach all that time
+  (2026-11-26). There its button says Add to this run, and
+  `Bridge.start` hands the picks into the run going (`Bridge._join`,
+  `Dashboard.into`), as links sent in go; a run that takes no new links
+  keeps them for the next run. The queue's link is hidden then: the
+  queue starts runs. The ✕ (Not interested) hides a card on this
   page only: the website's Not Interested stores nothing yet
   (`NOT_INTERESTED_LIVE` is off), so there is no route to send it to.
   Matches read for a set of filters are kept while the window is open,
@@ -273,6 +323,15 @@ for a student, not from `dashboard_page.py`.
   Pre-submit review; with no part left, "One answer doesn't match your
   WorkIt profile." Then "Fix it in the form, then press Submit there." Like every card, it has no
   Submit of its own: Apply never submits.
+- **Open cover letter / Open resume.** A flag on the Check card, or a
+  file answer in What we filled, that names a file the form was given
+  (by its question or name, else "cover letter" or "resume" of a file
+  that is one: `fileIn`) gets a link that opens that very file in the
+  computer's own viewer (`openLabel` names it). The link is the tile's
+  `/file/<k>/<i>`, or `/file/item/<id>/<i>` for an ended Application
+  Apply keeps (`view`'s `files`), so the shim hands it to `Bridge.open`,
+  which opens only a file the tile or item lists. A live item's
+  `live-<k>` id names no file, so it gets none.
 - **Handing back.** Each to-do card says how the student hands the form
   back (`HANDOFF` in `view.ts`): sign in yourself in the window that
   opens; check your email for the code and type it (Apply reads no email);
@@ -342,17 +401,32 @@ for a student, not from `dashboard_page.py`.
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
-- **At most five forms open.** Each open form is a browser window, so a
-  rehearsal opens at most `rehearsal.OPEN_FORMS` (5) at once: a job takes
+- **At most five forms wait, and every Worker fills.** Each open form is
+  a browser window, so a rehearsal opens at most `rehearsal.OPEN_FORMS`
+  (5) forms waiting on the student plus one filling in each Worker: with
+  four Workers, nine at once. The forms waiting never take a Worker's
+  turn, so while jobs are queued every Worker fills one until all the
+  places hold forms waiting on the student. A job takes
   a slot before its form opens and gives it back when its page closes
   (sent, let go, or its window closed). A form gives it back at once,
   with its tab still open, when it is sent, when the student presses Not
   applying to this one, and when Apply pressed its Submit but the job
-  site never confirmed it (that Handoff waits on no Worker). The run says the cap
-  (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
+  site never confirmed it (that Handoff waits on no Worker). A job that
+  ends with no page left (failed, already applied, ruled out with its
+  page gone) gives it back too, and every path gives it back once only
+  (`rehearsal._Slot`); Fill it anyway takes one again before it fills
+  (`tests/test_open_slots.py`). The run says the cap
+  (`run.open_forms`, every place: `OPEN_FORMS` plus the Workers); while nothing fills, jobs wait and the to-dos fill
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
   not capped.
+- **A Worker whose Chrome goes mid-fill** (`WorkerGone`). Apply starts
+  that Worker's Chrome again on the same profile (`PlainSite.relaunch`)
+  and fills the job anew there, once; a second WorkerGone fails the job.
+  If Chrome won't start again, Apply retires the Worker and moves the job,
+  and every later one, to another Worker this run fills in. A link sent
+  in for a retired or closed Worker goes to a running one instead, so no
+  job waits on a dead Chrome (`tests/test_open_slots.py`).
 - **Auto-submit** (ADR 0006, `apply.auto_submit`). With `auto_submit: true`
   in a Developer checkout's policies.yaml (off by default; the Student build
   reads no policies.yaml), a held form that needs nobody counts down ten
@@ -387,8 +461,20 @@ for a student, not from `dashboard_page.py`.
   application), and after any Submit. A click that never answers, as a
   Submit that sends the whole page away can end it (`send_button.Unsure`),
   counts as pressed. The job system's confirmation is
-  read as for the student's own press; with none within two minutes
-  (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
+  read as for the student's own press. With none after 15 s
+  (`rehearsal.HEAL_AFTER_S`), the form is read for the job system's own
+  refusal in the page (`apply.refused_submit`: a field marked invalid, a
+  red message, as Greenhouse's "Please accept the terms to proceed."
+  under an unticked consent): nothing was sent, so Apply fills each
+  field it names again from the Plan with the Fill engine, and when the
+  page then shows no error, presses Submit once more, once. A message
+  about no question Apply planned, a field the Plan leaves to the student
+  (a Missing fact, "Yours to tick"), a file, or a second refusal makes the
+  form a Handoff that quotes the page's words (`REFUSED`,
+  `STILL_REFUSED`), never marked sent. A code step after the press is
+  asked for on its card ("needs code"), never handed over. A captcha is
+  never touched. With no confirmation within two minutes
+  (`rehearsal.CONFIRM_S`) and nothing of these to explain it, the
   form becomes a Handoff that says it may have gone in, and Apply never
   presses its Submit again. A card with flags leads with Fix in the form
   and offers Submit as it is. Opening the form and pressing Submit by

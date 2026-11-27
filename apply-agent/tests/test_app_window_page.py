@@ -196,3 +196,35 @@ def test_a_logo_that_fails_to_load_falls_back_to_the_next_source_then_to_initial
         beta = page.locator("label", has_text="Analyst")
         assert beta.locator("span[aria-hidden]").inner_text() == "B"
         browser.close()
+
+
+def test_open_cover_letter_on_a_flagged_held_form_opens_the_pdf_it_was_given(tmp_path, monkeypatch):
+    """Fault: a Check card flags the cover letter WorkIt wrote ("names Rippling, another company") with no way to read
+    the very PDF the form was sent, or its button opens another file or none."""
+    from apply import dashboard
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
+    resume, letter = tmp_path / "Resume.pdf", tmp_path / "Cover_Letter.pdf"
+    resume.write_bytes(b"%PDF-1.4 resume")
+    letter.write_bytes(b"%PDF-1.4 letter")
+    opened, errors = [], []
+    with Dashboard(1, OneFrame(), serve=False) as board, sync_playwright() as playwright:
+        board.update(0, company="ENFOS", role="Intern", status="held", posting_url="https://jobs.lever.co/enfos/1",
+                     files=[{"label": "Resume", "name": resume.name, "path": str(resume)},
+                            {"label": "Cover Letter", "name": letter.name, "path": str(letter)}],
+                     verification={"state": "flagged", "flags": [
+                         {"field": "Cover Letter", "why": "names Rippling, another company", "holds": True}]})
+        bridge = Bridge(board, WorkIt(workit.LIVE), opened.append)
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.route("**/*", lambda route: route.abort())
+        page.expose_function("__bridge", lambda name, args: getattr(bridge, name)(*args)
+                             if name in ("request", "open") else {})
+        page.set_content(app_window.student_page(board), wait_until="domcontentloaded")
+        page.evaluate(PYWEBVIEW)
+        page.click("text=Open cover letter", timeout=5000)
+        page.wait_for_timeout(300)
+        browser.close()
+    assert opened == [letter.as_uri()]
+    assert errors == []
