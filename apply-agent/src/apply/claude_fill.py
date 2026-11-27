@@ -389,9 +389,16 @@ class ClaudeFill:
             pass  # some pages never go quiet
         try:
             self.posting_text = self.posting_text or description.from_page(page)
-            if not all(self.names):
-                company, title = description.names_on_page(page)
-                self.names = (self.names[0] or company, self.names[1] or title)
+        except Exception:
+            pass
+        if not all(self.names):
+            self._read_names(page)
+
+    def _read_names(self, page: Page) -> None:
+        """The company and role the open page names, where the link named neither; none read leaves them as they are."""
+        try:
+            company, title = description.names_on_page(page)
+            self.names = (self.names[0] or company, self.names[1] or title)
         except Exception:
             pass
 
@@ -399,7 +406,11 @@ class ClaudeFill:
         self._url = url
         with site.open(url) as page:
             if self._sign_in:
-                self._sign_in(page)
+                try:
+                    self._sign_in(page)
+                except Handoff:  # its Record still names the company the page does (Emerson's, live)
+                    self._read_names(page)
+                    raise
             pass_jobvite_gate(page)
             self._clear_pop_up(page)
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button

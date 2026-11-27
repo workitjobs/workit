@@ -278,6 +278,8 @@ PAGE_TITLES = [
     # A form builder's page: "2027 Netflix Internship Application - Airtable"
     re.compile(r"^(?:(?:summer |fall )?\d{4} )?(?P<company>[^-]+?) (?P<title>(?:summer )?internships?(?: program)?) application"
                r"(?: form)?(?: - [^-]+)?$", re.IGNORECASE),
+    # An Oracle Recruiting posting: "Software Engineering Intern - Emerson Career Site" (live 2026-11-27).
+    re.compile(r"^(?P<title>.+) - (?P<company>[^-]+?) careers?(?: site)?$", re.IGNORECASE),
 ]
 
 
