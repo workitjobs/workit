@@ -206,12 +206,64 @@ def test_an_apply_button_still_covered_is_a_handoff_not_a_timeout(monkeypatch):
 POSTING = "https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1"
 
 
-def _posting_whose_apply_goes_to(page, where: str) -> None:
-    """A posting whose Apply Now goes to `where`, a path under it, which shows a page of its own."""
+def _posting_whose_apply_goes_to(page, where: str,
+                                 shows: str = "<h1>Continue your application</h1><button>Continue</button>") -> None:
+    """A posting whose Apply Now goes to `where`, a path under it, which `shows` a page of its own."""
     page.route("**/*", lambda route: route.fulfill(content_type="text/html", body=(
         "<h1>Software Engineering Intern</h1><button onclick=\"location.href = location.href + '%s'\">Apply Now</button>"
-        % where if route.request.url == POSTING else "<h1>Continue your application</h1><button>Continue</button>")))
+        % where if route.request.url == POSTING else shows)))
     page.goto(POSTING)
+
+
+# The form of a draft an earlier attempt held, as Emerson's showed it at .../apply/email (live 2026-11-27).
+DRAFT_FORM = ('<h1>Job application form</h1><div class="apply-flow-block"><h2>Contact Information</h2>'
+              '<input name="lastName" value="Person"></div><div class="apply-flow-block"><h2>Supporting Documents</h2>'
+              '</div><button class="apply-flow-pagination__submit-button">Submit</button>')
+
+
+def test_an_apply_that_opens_the_form_of_an_earlier_draft_at_its_email_path_needs_no_email_step(monkeypatch):
+    """Emerson's refill (live 2026-11-27): Apply opened the held draft's form at .../apply/email, with no email box."""
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    monkeypatch.setattr(oracle, "TIMEOUT", 3.0)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _posting_whose_apply_goes_to(page, "/apply/email", DRAFT_FORM)
+        oracle.sign_in(page, None, "Doe", True)
+        assert page.url.endswith("/apply/email") and oracle.signed_in(page)
+        page.goto(POSTING + "/apply/email")  # Resume on that form: no Apply to press, and nothing waited for
+        oracle.sign_in(page, None, "Doe", True)
+        browser.close()
+
+
+# The email step in phone mode, as Oracle shows it to a candidate it last reached by phone (Emerson's, live
+# 2026-11-27): the email box shows only once its switch is pressed.
+PHONE_MODE = """document.addEventListener('DOMContentLoaded', () => {
+  document.head.insertAdjacentHTML('beforeend', '<style>body:not(.by-email) input[type=email] {display: none}</style>');
+  const shown = setInterval(() => {
+    const email = document.querySelector('input[type=email]');
+    if (!email) return;
+    clearInterval(shown);
+    email.insertAdjacentHTML('beforebegin', '<button type="button" id="applyFlowVerifyEmail" '
+      + 'class="quick-apply-flow-verify-method__button">Do you want to communicate by email instead?</button>');
+    document.getElementById('applyFlowVerifyEmail').onclick = () => document.body.classList.add('by-email');
+  }, 100);
+})"""
+
+
+def test_an_email_step_in_phone_mode_is_switched_to_the_email_and_signed_in_to():
+    from apply import oracle, submit_guard
+
+    with submit_guard.guarding_on_open(), FakeOracleServer(MACYS_FORM, verify=None) as server, server.open(MACYS_URL) as page:
+        page.add_init_script(PHONE_MODE)
+        page.reload()
+        oracle.sign_in(page, _Accounts(), "Person", agree_to_terms=True)
+        assert page.url.endswith("/__fake__/form")
+    [email_step] = server.emails
+    assert email_step["email"] == "test.person@example.com"
 
 
 def test_an_apply_that_goes_on_to_the_form_of_an_earlier_sign_in_needs_no_email_step(monkeypatch):

@@ -74,6 +74,12 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Workday's `google`. The Google press is a click path in `tests/test_submit_guard_hostile.py`.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+- Oracle may show its email step in phone mode, to a candidate it last
+  reached by phone: a phone box and a "communicate by email instead"
+  switch. `oracle.sign_in` presses the switch (`_by_email`). A draft an
+  earlier attempt held can open as the application form at
+  `.../apply/email`: its `.apply-flow-block`s mean signed in
+  (`_signed_in`), so nothing is typed (Emerson's, live 2026-11-27).
 - Workday's Create Account is a `POST <site>/register` that answers JSON
   (Workday's cx-jobs code, 2026.44). A refusal is `{"type": "ERROR",
   "message": ...}`. A made account is a root (or redirect) widget. Then
