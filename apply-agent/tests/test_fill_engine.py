@@ -55,6 +55,18 @@ def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_pat
     assert fill_engine.readback_problems([shell], planned.answers, {"q1": "bash"}, planned.accepted)
 
 
+def test_his_own_bank_answer_beats_the_profiles_reading_of_a_yes_no(tmp_path):
+    # Etched's Ashby (rehearsal, 2026-11-26): the graduation rule typed a date into this Yes/No, and his own No was ignored.
+    label = ("Are you open to starting full-time immediately after your internship? "
+             "(either graduated or willing to take time off from school)")
+    asked = Question("q1", label, "textarea", True)
+    path = tmp_path / "answer-bank.yaml"
+    path.write_text(json.dumps({label.lower(): {"question": label, "answer": "Yes", "source": "lisul", "reviewed": True}}))
+
+    assert fill_engine.plan([asked], POSTING, PROFILE).answers["q1"] in ("Yes", "No")  # never a date
+    assert fill_engine.plan([asked], POSTING, PROFILE, AnswerBank(path)).answers["q1"] == "Yes"
+
+
 def test_an_engine_error_comes_back_as_apply_own():
     try:
         fill_engine.call_without_page("parseQuestions", "bamboohr", "")

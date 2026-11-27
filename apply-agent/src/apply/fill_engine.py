@@ -297,8 +297,8 @@ class Plan:
     # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
     # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
     attested: dict[str, str] = field(default_factory=dict)
-    # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
-    # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
+    # Optional questions for Lisul to answer or skip (KAN-759). Always empty since 2026-11-26: the engine leaves an
+    # optional question no source holds blank (or No, for a Yes/No) and never asks it. Kept for an older engine.
     optional: list[Question] = field(default_factory=list)
 
 

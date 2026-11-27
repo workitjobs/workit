@@ -1,6 +1,7 @@
-"""An optional question no source answers (KAN-759): asked in Needs you with a Skip, never holding the form, and never
-asked when the known facts say it can't exist. JPMorgan's Oracle form (2026-11-10) left its optional Tax District
-blank and listed Address Line 2 and 3 as needing Lisul. No browser: the engine's plan, the window's routes and fakes."""
+"""An optional question no source answers: left blank, never asked in Needs you nor holding the form (Lisul,
+2026-11-26, replacing KAN-759's optional ask). JPMorgan's Oracle form (2026-11-10) left its optional Tax District blank
+and listed Address Line 2 and 3 as needing Lisul; Braze's Greenhouse (2026-11-26) asked an "If you chose ..., please
+specify" box after a LinkedIn answer. No browser: the engine's plan, the window's routes and fakes."""
 
 import json
 import urllib.request
@@ -55,19 +56,23 @@ def test_tax_district_on_a_new_york_home_is_left_blank_and_never_asked(tmp_path)
     assert {f.field for f in flags if f.holds} == set()  # only notes: blank on purpose
 
 
-def test_tax_district_on_an_ohio_home_is_an_optional_question_with_its_own_flag(tmp_path):
-    form = planned(profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"})), rehearse=True)
-
-    assert form.add([CITY, TAX]) is None  # the form goes on
-    assert form.missing == ("Tax District",) and form.required == {"Tax District": False}
-
-
-def test_an_optional_question_never_stops_a_run_and_verifying_only_notes_it(tmp_path):
+def test_tax_district_on_an_ohio_home_is_left_blank_and_never_asked(tmp_path):
     form = planned(profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"})), rehearse=False)
 
-    assert form.add([CITY, TAX]) is None  # a required Missing fact would be a Result here
+    assert form.add([CITY, TAX]) is None  # the form goes on
+    assert form.missing == () and form.blanks == {"tax": "Optional, and no source of yours has it"}
     [note] = [f for f in form.verify({"city": "Columbus", "tax": ""}, [], ()).flags if f.field == "Tax District"]
-    assert (note.why, note.holds) == (verify.OPTIONAL_UNANSWERED, False)
+    assert note.holds is False and note.why.startswith("left blank on purpose")
+
+
+def test_an_if_you_chose_follow_up_to_another_pick_is_left_blank(tmp_path):
+    heard = Question("q1", "Which robotics league did you compete in?", "select", True, ("FIRST", "VEX", "Other"))
+    specify = Question("q2", "If you chose VEX or Other, please specify here:", "text", False)
+    form = worker._Planned(ORACLE, None, ApplicantProfile.load(profile_at(tmp_path, **HOME)),
+                           FakeClaude(drafts={"Which robotics": "FIRST"}), {}, None, False, AnswerBank(), date(2026, 11, 10))
+
+    assert form.add([CITY, heard, specify]) is None
+    assert form.missing == () and form.answers["q1"] == "FIRST" and "q2" not in form.answers and "q2" in form.left
 
 
 def test_a_required_missing_fact_still_stops_a_run(tmp_path):
