@@ -172,3 +172,27 @@ def test_his_reviewed_answer_bank_entry_wins_over_the_code_and_any_draft(monkeyp
     # A draft, unreviewed or Claude's, never wins this way: only his reviewed answer does.
     other.add(Question("q", "Why us?", "textarea", True), "A draft.", "Acme", NOW.date())
     assert other.reviewed("Why us?") is None
+
+
+def test_his_other_applications_there_are_named_from_the_records_too(tmp_path):
+    # Fault: Strava's Tracker had no row for its other internships, so a refill said "the only Strava internship"
+    # beside three Records of Strava roles (Strava, 2026-11-26).
+    def record(day: str, folder: str, head: str, url: str, status: str) -> None:
+        readme = tmp_path / day / folder / "README.md"
+        readme.parent.mkdir(parents=True)
+        readme.write_text(f"# {head}\n\n- Posting: {url}\n- Application ID: {folder}\n- Status: {status}\n- Date: {day}\n")
+
+    record("2026-11-25", "acme-request-2", "Acme: Data Science Intern", DATA, "held (Rehearsal, not submitted.)")
+    record("2026-11-26", "acme-request-3", "Acme: Data Science Intern", DATA, "submitted")  # its latest Record says
+    record("2026-11-26", "acme-request-4", "Acme: Software Engineering Intern, iOS", MOBILE, "handoff (Answer 'x')")
+    record("2026-11-26", "acme-request-1", f"Acme: {POSTING.title}", SERVER, "held")  # this posting
+    record("2026-11-26", "acme-request-5", "Acme: Hardware Intern", "https://jobs.ashbyhq.com/acme/5", "failed (no form)")
+    record("2026-11-26", "beta-request-6", "Beta: Beta Intern", "https://jobs.lever.co/beta/2", "submitted")
+    (tmp_path / "2026-11-26" / "unreadable").mkdir()
+
+    found = other_roles.others(POSTING, [], records=(tmp_path,))
+
+    assert sorted((o.title, o.applied) for o in found) == [
+        ("Data Science Intern", True), ("Software Engineering Intern, iOS", False)]
+    assert other_roles.answer(OTHERS, POSTING, found, [], profile(tmp_path)).startswith(
+        "Yes. I have also applied to Data Science Intern. I am applying to Software Engineering Intern, iOS")

@@ -453,7 +453,11 @@ company.
 - `other_roles.others` reads Apply's Tracker for his applications to the
   same company (`model.is_company`): a submitted row is "applied", a row
   still on its way is "applying". A Request on the same job board is
-  "applying". This posting is never one of them.
+  "applying". So is each Record of the company's other jobs (a rehearsal's
+  or a run's README, its latest per job; a Handoff is "applying" too):
+  Strava's Tracker had none of its three Records' roles, and a refill said
+  "the only Strava internship" (2026-11-26). This posting is never one of
+  them.
 - `other_roles.openings` reads the company's open postings from its board's
   public API (Greenhouse, Lever, Ashby). The board names a Request's role
   and gives the text for a why sentence. A board that can't be read leaves
