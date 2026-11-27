@@ -632,10 +632,23 @@ PROFILE_REASON = re.compile(r"\bprofile\b", re.IGNORECASE)
 
 
 def _flagged(q: Question, problems: Sequence[str]) -> list[str]:
-    """The reasons `problems` ("<question>: why") give against `q`."""
+    """The reasons `problems` ("<question>: why") give against `q`. A problem may instead open on the question in
+    quotes, with no colon, and name its repeat under a section (Honeywell, live 2026-11-27: "'If you are currently
+    enrolled...?' (and its 'Application Questions:' repeat) is answered Yes..."): then the whole problem is the
+    reason, for the question and for its repeat ("Application Questions: If you are currently enrolled...?")."""
     label = one_line(q.label).casefold()
-    return [said[len(lead) + 1:].strip() for p in problems for said in [one_line(str(p))]
-            for lead in (label, f"'{label}'", f'"{label}"') if said.casefold().startswith(f"{lead}:")]
+    section, _, base = label.partition(": ")
+    reasons = []
+    for p in problems:
+        said = one_line(str(p))
+        low = said.casefold()
+        lead = next((lead for lead in (label, f"'{label}'", f'"{label}"') if low.startswith(f"{lead}:")), None)
+        if lead is not None:
+            reasons.append(said[len(lead) + 1:].strip())
+        elif low.startswith((f"'{label}'", f'"{label}"')) or (
+                base and low.startswith((f"'{base}'", f'"{base}"')) and f"{section}:" in low):
+            reasons.append(said)
+    return reasons
 
 
 class _Planned:
