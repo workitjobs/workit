@@ -331,6 +331,10 @@ def rehearse(
 
     writing = threading.Lock()
     used: set[int] = set()  # each Worker a link of this run has filled in (into takes a link there)
+    # Links' threads that hold no page and only wait on a button (an already-applied tile, Fill it anyway): they never
+    # keep the run up once every other link has ended. Else a run whose forms were all sent or closed ran on, the
+    # window's run still going, till Ctrl-C (run7, 2026-11-26).
+    idle: set[threading.Thread] = set()
     waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
     dropped: set[int] = set()  # links taken out of the run before they started (remove)
     # Each posting's tile in this run, by its key (workit.job_key): a link sent in again, as the same or another link
@@ -382,6 +386,18 @@ def rehearse(
         release.set()
     if stopping := getattr(adapters.board, "stopping", None):
         stopping(stop)
+
+    @contextmanager
+    def waiting_only():
+        """This link's thread holds no page now and only waits on a button: it is in `idle` till it goes on."""
+        me = threading.current_thread()
+        with writing:
+            idle.add(me)
+        try:
+            yield
+        finally:
+            with writing:
+                idle.discard(me)
 
     def one(n: int, url: str, worker: int | None = None) -> None:
         """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
@@ -437,10 +453,11 @@ def rehearse(
 
         def pressed_anyway() -> bool:
             """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open."""
-            while not release.is_set():
-                if adapters.board.resumed(n):
-                    return True
-                time.sleep(0.5)
+            with waiting_only():
+                while not release.is_set():
+                    if adapters.board.resumed(n):
+                        return True
+                    time.sleep(0.5)
             return False
 
         def answers() -> list[tuple[str, object]]:
@@ -671,7 +688,13 @@ def rehearse(
                     leave_room()
                     site.close()
                     let_chrome_go()
-                how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
+                if after:
+                    how = after.pop()
+                elif done.outcome == ALREADY:
+                    with waiting_only():
+                        how = _until(release)
+                else:
+                    how = hold()
                 while True:
                     if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
                         anyway, how = done.why or done.outcome, AGAIN
@@ -760,10 +783,21 @@ def rehearse(
                 out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
                     "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
                     "close the windows, or press Ctrl-C, to end.")
-        while not stopped.is_set() and any(thread.is_alive() for thread in list(threads) + feeders):
+        only_already = all(done.outcome == ALREADY for done in ended)  # nothing to see but the window: it stays
+
+        def going() -> bool:
+            alive = [thread for thread in list(threads) + feeders if thread.is_alive()]
+            with writing:
+                return bool(alive) and (only_already or any(thread not in idle for thread in alive))
+        while not stopped.is_set() and going():
             while not finished.empty():  # a link sent in since (--into): its summary line as it ends
                 out(finished.get_nowait().line())
             time.sleep(0.5)
+        if not stopped.is_set():  # every form was sent or closed: the idle tiles' waits end with the run
+            release.set()
+            ending = time.monotonic() + STOP_WAIT
+            for thread in list(threads):
+                thread.join(max(0.0, ending - time.monotonic()))
         if stopped.is_set():
             ending = time.monotonic() + STOP_WAIT
             for thread in list(threads) + feeders:
