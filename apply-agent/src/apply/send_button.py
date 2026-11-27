@@ -2,7 +2,7 @@
 
 The page is the student's by then (the submit guard is off), so the press is the one they would make. Apply presses
 only a button it is sure of: exactly one visible button, in the page or any of its frames, whose words send the
-application (rehearsal.FINAL: Submit, Send). None, or more than one, and it presses nothing: the student presses it.
+application (rehearsal.FINAL: Submit, Send), never one that names a code (Send New Code). None, or more than one, and it presses nothing: the student presses it.
 Nor while the form still has a required field blank (BLANK): the job site would turn the press down unsent, and a
 Send anyway that pressed it sent a form with a required answer missing (Veeva, live 2026-11-27).
 """
@@ -19,7 +19,8 @@ FIND = r"""() => {
   };
   document.querySelectorAll('[data-apply-send]').forEach(el => el.removeAttribute('data-apply-send'));
   const found = [...document.querySelectorAll('button, input[type=submit], [role=button]')]
-    .filter(el => shown(el) && words(el).length <= 40 && /\b(submit|send)\b/i.test(words(el)));
+    .filter(el => shown(el) && words(el).length <= 40 && /\b(submit|send)\b/i.test(words(el))
+      && !/\bcode\b/i.test(words(el)));  // a code step's Send New Code asks for a code and voids the one typed
   if (found.length === 1) found[0].setAttribute('data-apply-send', '');
   return found.map(words);
 }"""

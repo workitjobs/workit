@@ -38,6 +38,15 @@ def test_none_or_several_and_it_presses_nothing(browser):
     assert page.evaluate("window.pressed") == []
 
 
+def test_a_code_steps_send_new_code_is_never_the_submit(browser):
+    """Fault (Emerson on Oracle, live 2026-11-27): on "You're almost done" (six boxes, VERIFY, Send New Code) the press
+    after the code landed on Send New Code, the one button saying "send", which voided the code just typed."""
+    page = page_of(browser, "<button>VERIFY</button><button>Send New Code</button><a role=button>Resend code</a>")
+    with pytest.raises(send_button.NotPressed, match="no Submit button"):
+        send_button.press(page)
+    assert page.evaluate("window.pressed") == []
+
+
 def test_a_press_that_sends_the_page_away_is_unsure_never_none(browser):
     """Fault: a Submit whose page navigates away (Lever's whole-page post) ends the click with an error, and Apply
     reads that as no Submit button found, so it never watches for the job site's confirmation."""
