@@ -246,6 +246,13 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+A draft of Claude's whose `facts` name a Story bank line the bank no
+longer holds, word for word, is no answer (`answer_bank.stale`): the plan
+doesn't get it, and the question's next draft replaces it. Lisul took that
+fact out of the bank, so a draft drawn on it must not go on a form (ENFOS,
+2026-11-26). His own answers are never stale. The bank's text is read
+again whenever its file's mtime or size changes.
+
 Apply adds the Tracker to the facts that it gives the engine's plan
 (`fill_engine._facts`). Each company with a submitted Application, except
 the Posting being filled, joins `screeners.previously_applied_to` when the

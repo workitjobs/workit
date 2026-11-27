@@ -954,9 +954,19 @@ class OnePage:
 SENT = "<button onclick=\"document.body.innerHTML = '<p>Thank you for applying!</p>'{}\">Submit</button>"
 
 
-@pytest.mark.parametrize("pop_up, closes", [("", True), ("; window.open('about:blank')", False)])
-def test_a_confirmed_page_closes_its_window_after_a_wait_unless_a_pop_up_came(monkeypatch, pop_up, closes):
+# Faults: a sent page that went to about:blank after its confirmation (the confirmation gone) kept its window till the
+# run ended (live, 2026-11-26); a pop-up kept a sent form's window for good; a page that went on to another step
+# after a confirmation closed under him.
+@pytest.mark.parametrize("pop_up, keep_s, closes", [
+    ("", 600, True),
+    ("; window.open('about:blank')", 600, False),
+    ("; setTimeout(() => location.href = 'about:blank', 100)", 600, True),
+    ("; window.open('about:blank')", 1.5, True),
+    ("; setTimeout(() => document.body.innerHTML = '<p>One more step</p>', 100)", 1.5, False),
+])
+def test_a_confirmed_page_closes_its_window_after_a_wait_unless_a_pop_up_came(monkeypatch, pop_up, keep_s, closes):
     monkeypatch.setattr(rehearsal, "CLOSE_AFTER_S", 0.5)
+    monkeypatch.setattr(rehearsal, "SENT_KEEP_S", keep_s)
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit"])
     site, release, kept = rehearsal._Kept(OnePage(SENT.format(pop_up)), 0), threading.Event(), []
     threading.Timer(5, release.set).start()  # else: Ctrl-C, after five seconds

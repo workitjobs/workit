@@ -137,14 +137,37 @@ def test_workers_on_chrome_for_testing_skip_the_seed_step(tmp_path, monkeypatch)
     assert run.step() == READY
 
 
-def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path):
+def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path, monkeypatch):
     """Fault: a count past D24's one to three reaching the run, or Settings' choice lost at the next launch."""
-    from apply.first_run import MOST_WORKERS, WORKERS, set_workers, workers
+    from apply import first_run
+    from apply.first_run import MOST_WORKERS, chosen_workers, set_workers, workers
 
+    monkeypatch.setattr(first_run, "memory", lambda: 32 * first_run.GB)
     state = tmp_path / "app.json"
-    assert workers(state) == WORKERS
+    assert chosen_workers(state) is None and workers(state) == 3  # Automatic until the student picks a count
     assert set_workers(9, state) == MOST_WORKERS and set_workers(0, state) == 1
-    assert workers(state) == 1
+    assert workers(state) == 1 and chosen_workers(state) == 1  # the student's choice wins over 32 GB's three
+    assert set_workers(None, state) == 3 and chosen_workers(state) is None  # back to Automatic
+
+
+def test_the_automatic_worker_count_follows_the_memory():
+    """Fault: a Mac with little memory given more Chromes than it can hold (D24), or a boundary on the wrong side."""
+    from apply.first_run import GB, WORKERS, automatic_workers
+
+    assert [automatic_workers(size * GB) for size in (4, 7, 8, 12, 16, 17, 32)] == [1, 1, 2, 2, 2, 3, 3]
+    assert automatic_workers(int(7.8 * GB)) == 2  # an 8 GB laptop that reports a little less
+    assert automatic_workers(0) == WORKERS == 2  # memory reported as nothing
+
+
+def test_the_automatic_worker_count_is_two_when_the_memory_cannot_be_read(monkeypatch):
+    """Fault: a computer whose memory can't be read failing the run instead of taking the default."""
+    from apply import first_run
+
+    def broken():
+        raise OSError("no memory figure")
+
+    monkeypatch.setattr(first_run.psutil, "virtual_memory", broken)
+    assert first_run.memory() is None and first_run.automatic_workers() == first_run.WORKERS == 2
 
 
 def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_could_not(tmp_path, monkeypatch):
