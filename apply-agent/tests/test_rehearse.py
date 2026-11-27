@@ -2623,15 +2623,22 @@ def test_a_job_sites_thanks_reads_as_confirmed(said):
 
 # Workable's answer to Apply's press (Digital Control, Infleqtion, live 2026-11-27): a toast in no field, with no role
 # or error class, gone within seconds; no confirmation and no email followed.
-TOAST = """() => {
+TOAST = """(lines) => {
   const toast = document.createElement('div');
-  toast.textContent = 'Something went wrong. We are working on this, please try again later.';
+  toast.innerText = lines.join('\\n');
   document.body.append(toast);
   setTimeout(() => toast.remove(), 3000);
 }"""
+WORKABLE_TOAST = ["Something went wrong. We are working on this, please try again later."]
+# Oracle's, once a second tile signed in to the same site (Honeywell, live 2026-11-27): it was read as no refusal,
+# and the form was handed over as one that may have gone in.
+ORACLE_OTHER_TAB = ["Your application couldn't be submitted.",
+                    "You already created your profile in another browser tab. To resume your job application, you need "
+                    "to confirm your identity."]
 
 
-def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(monkeypatch, tmp_path):
+@pytest.mark.parametrize("lines, why", [(WORKABLE_TOAST, "SITE_REFUSED"), (ORACLE_OTHER_TAB, "OTHER_TAB_REFUSED")])
+def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(monkeypatch, tmp_path, lines, why):
     """Fault: Workable's "Something went wrong ... try again later" toast went before the form was read for errors,
     and the form was handed over as one that may have gone in (marked sent, never brought back), not as refused."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
@@ -2641,7 +2648,7 @@ def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(
     monkeypatch.setattr(batch, "note", lambda url, **fields: noted.append(fields))
 
     def press(page) -> str:
-        page.evaluate(TOAST)
+        page.evaluate(TOAST, lines)
         presses.append("refused")
         return "Submit application"
     monkeypatch.setattr(send_button, "press", press)
@@ -2665,8 +2672,7 @@ def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(
         watchdog.cancel()
 
     assert presses == ["refused"] and submissions == []
-    assert board.captions[0]["why"] == rehearsal.SITE_REFUSED.format(
-        said="Something went wrong. We are working on this, please try again later.")
+    assert board.captions[0]["why"] == getattr(rehearsal, why).format(said=" ".join(lines))
     assert {"status": batch.SENT} not in noted  # nothing went in: never kept from being sent again
 
 

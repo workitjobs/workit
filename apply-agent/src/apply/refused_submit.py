@@ -101,7 +101,13 @@ def fixable(found: list[FieldError], questions: tuple[Question, ...] | list[Ques
 # Infleqtion, live 2026-11-27) came with no confirmation and no email, and went within seconds.
 SITE_ERROR = re.compile(r"something went wrong|(please )?try again later|an? (unexpected |unknown |internal )?error "
                         r"(has )?occurred|(could ?n[o'’]t|unable to|failed to) (submit|send|process|save) (your |the |this )?"
-                        r"(application|form|submission)|submission failed", re.IGNORECASE)
+                        r"(application|form|submission)|submission failed"
+                        # Oracle's, once another tab signed in to its site (Honeywell, live 2026-11-27): "Your
+                        # application couldn't be submitted. You already created your profile in another browser tab."
+                        r"|(application|form|submission) (could|can|was|has) ?(n[o'’]t|not) (be|been) (submitted|sent)"
+                        r"|in another (browser )?tab", re.IGNORECASE)
+# The site's refusal because another tab of the same site signed in since (OTHER_TAB_REFUSED).
+OTHER_TAB = re.compile(r"in another (browser )?tab", re.IGNORECASE)
 # Each line of the page's text, Apply's own notes (id apply-*) left out.
 LINES = r"""() => {
   const own = new Set();
@@ -112,21 +118,21 @@ LINES = r"""() => {
 }"""
 
 
-def site_errors(page) -> set[str]:
-    """Each line the page shows now that says the site refused a send (SITE_ERROR), in the frames of the form's own
-    site; none for a page that can't be read. Never a captcha's frame."""
-    found: set[str] = set()
+def site_errors(page) -> dict[str, None]:
+    """Each line the page shows now that says the site refused a send (SITE_ERROR), in page order, in the frames of
+    the form's own site; none for a page that can't be read. Never a captcha's frame."""
+    found: dict[str, None] = {}
     for n, frame in enumerate(page.frames):
         if n and (captcha.in_frame(frame.url) or not upload_origin.frame_may_upload(frame)):
             continue
         try:
-            found |= {line for line in frame.evaluate(LINES) or [] if SITE_ERROR.search(line)}
+            found |= {line: None for line in frame.evaluate(LINES) or [] if SITE_ERROR.search(line)}
         except Exception:
             continue  # a frame gone or going
     return found
 
 
-def new_site_error(page, before: set[str]) -> str:
-    """The site's refusal that came after Apply's press, as the page words it (`before`: site_errors at the press, so
-    a question or text already on the form never counts); "" for none."""
-    return next(iter(sorted(site_errors(page) - before)), "")
+def new_site_error(page, before) -> str:
+    """The site's refusal that came after Apply's press, as the page words it, each of its lines in page order
+    (`before`: site_errors at the press, so a question or text already on the form never counts); "" for none."""
+    return " ".join(line for line in site_errors(page) if line not in before)

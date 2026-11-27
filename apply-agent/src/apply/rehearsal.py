@@ -174,6 +174,9 @@ HEAL_AFTER_S = 15
 REFUSED = "Apply pressed Submit, but the job site refused it: {said} Fix that on the form, then press Submit yourself."
 SITE_REFUSED = ("Apply pressed Submit, but the job site refused it: '{said}' Nothing went in. Press Submit on the form "
                 "yourself, or apply on the job's site later.")
+OTHER_TAB_REFUSED = ("Apply pressed Submit, but the job site refused it: '{said}' Nothing went in: another window signed "
+                     "in to the same job site after this form did, which signed this one out. Confirm who you are on the "
+                     "page, then press Submit yourself.")
 STILL_REFUSED = ("Apply pressed Submit, fixed what the job site named and pressed it once more, but it still says: {said} "
                  "Fix that on the form, then press Submit yourself.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
@@ -2015,7 +2018,7 @@ class _Kept:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
         retried, codes = False, set()  # Apply's Submit pressed once more; the form's code boxes before its press
-        site_said: set[str] = set()  # the lines saying a send failed that the page showed before Apply's press
+        site_said: dict[str, None] = {}  # the lines saying a send failed that the page showed before Apply's press
         document, never_sent = NEVER_SENT.get(job_system, (lambda page: None, lambda page, before: False))
         pressed_on = None  # the page's document at Apply's press (NEVER_SENT)
         coding = 0.0  # when Apply pressed Submit after entering a code the student gave
@@ -2064,7 +2067,7 @@ class _Kept:
                         and (said := refused_submit.new_site_error(self._page, site_said))
                         and not _confirmed(self._page, job_system)):
                     pressing = 0.0  # the site's own toast: nothing went in, read at once, as it goes within seconds
-                    unsent(SITE_REFUSED.format(said=said))
+                    unsent((OTHER_TAB_REFUSED if refused_submit.OTHER_TAB.search(said) else SITE_REFUSED).format(said=said))
                 if pressing and not kept and not told and not turned_down and code_box.new_boxes(self._page, codes):
                     pressing = 0.0  # a code step: it went on, and the code is asked for (code), not handed over
                 # A confirmation in an alert (Oracle's "Thank you for your job application.", BGC's, live 2026-11-27)
