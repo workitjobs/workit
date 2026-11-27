@@ -164,6 +164,36 @@ def test_a_required_essay_is_written_by_claude_and_sent_with_the_form(monkeypatc
     assert essay == MICROMOUSE
 
 
+class GoneOnce(ResearchForm):
+    """A form whose Worker goes away during its first fill (WorkerGone), after its essays were written."""
+
+    def __init__(self, company: str):
+        super().__init__(company)
+        self.gone = 1
+
+    def fill(self, page, questions, answers):
+        if self.gone:
+            self.gone -= 1
+            raise ConnectionError("plain Worker 1 closed during fill")
+        return super().fill(page, questions, answers)
+
+
+def test_an_application_that_failed_after_its_essays_takes_them_on_its_next_attempt(monkeypatch):
+    form = GoneOnce("Northwood Space")
+    first = FakeClaude(essays={PROJECT: MICROMOUSE})
+    [failed] = run_all(monkeypatch, form, first, ["Example Co"])
+    assert failed.status == "failed" and any(k["kind"] == "essays.write" for k in first.kinds)
+
+    again = FakeClaude(essays={PROJECT: "written again"})
+    [row] = run_all(monkeypatch, form, again, ["Example Co"])  # tried again: a new Tracker row
+
+    assert row.status == "submitted", row.reason
+    assert not [k for k in again.kinds if k["kind"] in ("essays.plan", "essays.write", "writing.check", "writing.edit")]
+    [essay] = [answer for label, answer in form.submitted[0].items() if label.startswith(PROJECT)]
+    assert essay == MICROMOUSE
+    assert not list((home.HOME / "unsent-essays").glob("*.md"))  # sent: forgotten
+
+
 def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_never_sent(monkeypatch):
     # The truth check (apply.truth, KAN-748): the Story bank never says 47 clubs, nor that any adopted it.
     form = ResearchForm("Northwood Space")
