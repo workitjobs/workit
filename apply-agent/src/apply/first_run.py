@@ -38,9 +38,10 @@ EULA = CODE / "legal" / "EULA.txt"
 # The third-party notices: W8 puts them in the app's bundle; a checkout makes them with scripts/third_party_notices.py.
 NOTICES = CODE / "dist" / "THIRD-PARTY-NOTICES.txt"
 CHROME_DOWNLOAD = "https://www.google.com/chrome/"
-# Workers at once (D24): one to three. Until the student picks a count in Settings, the count follows the
-# computer's memory (automatic_workers); WORKERS is the count when the memory can't be read.
-WORKERS, MOST_WORKERS = 2, 3
+# Workers at once (D24): one to four (four since 2026-11-26). Until the student picks a count in Settings, the count
+# follows the computer's memory (automatic_workers), at most AUTOMATIC_MOST; WORKERS is the count when the memory
+# can't be read. Four is the student's own choice only.
+WORKERS, AUTOMATIC_MOST, MOST_WORKERS = 2, 3, 4
 GB = 2**30
 CHROME, SHOWN, SCREEN, SEED, READY = "chrome", "disclosure", "screen", "seed", "ready"
 
@@ -73,7 +74,7 @@ def automatic_workers(total: int | None = None) -> int:
     if not total:
         return WORKERS
     size = round(total / GB)
-    return 1 if size < 8 else 2 if size <= 16 else MOST_WORKERS
+    return 1 if size < 8 else 2 if size <= 16 else AUTOMATIC_MOST
 
 
 def chosen_workers(state: Path | None = None) -> int | None:

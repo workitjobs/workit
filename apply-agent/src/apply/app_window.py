@@ -266,7 +266,7 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <main class="settings">
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
 <label>Workers at once <select id="workers"><option value="0" id="workers-auto">Automatic</option>
-<option>1</option><option>2</option><option>3</option></select></label>
+<option>1</option><option>2</option><option>3</option><option>4</option></select></label>
 <p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. Automatic picks the count from this Mac's memory.
 The next Start uses the new count.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
