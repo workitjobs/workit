@@ -131,7 +131,7 @@ CONFIRMED = {"greenhouse": greenhouse.confirmed, "lever": lever.confirmed, "ashb
 # What the tile says when a job system turned Lisul's own Submit down as a bot's (Lever's "error verifying"):
 # sending it again from the Worker's Chrome gets the same answer.
 TURNED_DOWN = "Nothing went in. {}; the Record has every answer"
-THANKS = re.compile(r"thank you for (applying|your application|submitting)|application (has been |was )?(submitted|received)"
+THANKS = re.compile(r"thank you for (applying|your (job )?application|submitting)|application (has been |was )?(submitted|received)"
                     r"|we['’]ve received your application|successfully submitted", re.IGNORECASE)
 # The reason of a Tracker row for an Application Lisul submitted himself from a rehearsal.
 SUBMITTED_BY_LISUL = "You submitted it yourself from a rehearsal; Apply filled it"
@@ -2067,8 +2067,11 @@ class _Kept:
                     unsent(SITE_REFUSED.format(said=said))
                 if pressing and not kept and not told and not turned_down and code_box.new_boxes(self._page, codes):
                     pressing = 0.0  # a code step: it went on, and the code is asked for (code), not handed over
+                # A confirmation in an alert (Oracle's "Thank you for your job application.", BGC's, live 2026-11-27)
+                # is no refusal: it went in.
                 if (pressing and not kept and not told and not turned_down
-                        and time.monotonic() - pressing > HEAL_AFTER_S and (found := refused_submit.errors(self._page))):
+                        and time.monotonic() - pressing > HEAL_AFTER_S and (found := refused_submit.errors(self._page))
+                        and not _confirmed(self._page, job_system)):
                     pressing = 0.0
                     with driving():  # Apply fixes the fields the page named with both guards on, as any drive of its
                         fixed = not retried and heal(self._page, found) and not refused_submit.errors(self._page)

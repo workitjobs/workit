@@ -67,6 +67,7 @@ from apply import auto_submit, batch, rehearsal, rescue, send_button, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
+from apply.claude_fill import THANKS as FILL_THANKS
 from apply.claude_fill import ClaudeFill
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
@@ -2579,6 +2580,45 @@ def test_a_refusal_about_no_question_of_the_form_is_handed_over_unpressed(monkey
 
     assert presses == ["refused"]
     assert board.captions[0]["why"] == rehearsal.REFUSED.format(said="'Please review the form before you send it.'")
+
+
+def test_a_confirmation_in_an_alert_after_an_approved_submit_is_sent_never_refused(monkeypatch, tmp_path):
+    """Fault: Oracle's "Thank you for your job application." (BGC's, live 2026-11-27, and the confirmation email came)
+    showed in an alert, matched no thanks, and was read as a field error: the card said the site refused it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.delitem(rehearsal.CONFIRMED, "greenhouse")  # read by THANKS, as Oracle's page is
+    presses, asked = [], []
+
+    def press(page) -> str:
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<div role="alert" class="notification-error">Thank you for your job application.</div>')""")
+        presses.append("sent")
+        return "Submit"
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["sent"]  # never pressed again
+    assert board.captions[0]["status"] == "submitted", board.captions[0].get("why")
+
+
+@pytest.mark.parametrize("said", ["Thank you for your job application.", "Thank you for your application!",
+                                  "Thank you for applying."])
+def test_a_job_sites_thanks_reads_as_confirmed(said):
+    assert rehearsal.THANKS.search(said) and FILL_THANKS.search(said)
 
 
 # Workable's answer to Apply's press (Digital Control, Infleqtion, live 2026-11-27): a toast in no field, with no role
