@@ -32,6 +32,8 @@ QUERY = re.compile(r"token|auth|key|secret|session|sid|code|sig|user|uid|email|p
 # The profile's sections that are the person, and how short a value goes unrecognised ("Yes", a state's "NY").
 PERSON = ("identity", "links")
 SHORTEST, SHORTEST_ANSWER = 3, 8
+# A value that says there is none ("N/A" for a name in a native script) is no one's, and is a common label.
+NOTHING = re.compile(r"(?:n/?a|none|null|nil|not applicable|-+)", re.IGNORECASE)
 HIDDEN = "<hidden>"
 
 
@@ -65,7 +67,7 @@ class Known:
 
     def add(self, value: str, label: str, shortest: int = SHORTEST) -> None:
         value = value.strip()
-        if len(value) >= shortest:
+        if len(value) >= shortest and not NOTHING.fullmatch(value):
             self._values.setdefault(value, label)
             self._pattern = None
 

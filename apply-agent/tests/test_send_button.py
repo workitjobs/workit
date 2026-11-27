@@ -74,6 +74,19 @@ def test_a_form_with_a_required_field_blank_is_never_pressed_and_the_field_is_na
     assert send_button.press(page) == "Submit application"
 
 
+def test_a_required_checkbox_group_with_a_box_ticked_is_answered(browser):
+    """Fault: SambaNova's "Preferred office?" (2026-11-27), a Greenhouse group whose every box is `required`, had San
+    Jose and Austin ticked, yet each unticked box was told as a required field blank, so Submit was never pressed."""
+    boxes = "".join(f'<label><input type="checkbox" required name="question_1[]" value="{v}"{" checked" * ticked}>{v}'
+                    "</label>" for v, ticked in (("San Jose, CA", True), ("Austin, TX", True), ("Remote - US", False),
+                                                 ("N/A", False)))
+    form = ('<form><fieldset class="checkbox"><legend class="label">Preferred office? <span class="required">*</span>'
+            f"</legend>{boxes}</fieldset>"'<button type="button">Submit application</button></form>')
+    assert send_button.press(page_of(browser, form)) == "Submit application"
+    page = page_of(browser, form.replace(" checked", ""))
+    assert send_button.blank_required(page) == ["Preferred office?"]
+
+
 def test_a_click_that_never_reached_submit_is_not_pressed_never_unsure(browser):
     """Fault: a cookie banner over Submit kept the click off it until it timed out, and Apply read that as a press
     whose reply was lost: "it may have gone in", though nothing was sent."""

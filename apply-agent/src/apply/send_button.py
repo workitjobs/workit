@@ -34,10 +34,17 @@ BLANK = r"""() => {
   const label = (e) => said(e.labels && e.labels[0])
     || said(e.closest('.application-question, li, fieldset, .field')?.querySelector('.application-label, label, legend'))
     || e.getAttribute('aria-label') || e.name || e.id;
+  // A checkbox group (Greenhouse's "Preferred office?", each box `required`) is answered when any of its boxes is
+  // ticked, and named by its heading, not by a box (SambaNova, 2026-11-27).
+  const group = (e) => e.type === 'checkbox' && e.name
+    ? [...e.form.elements].filter((o) => o.type === 'checkbox' && o.name === e.name) : [];
   const out = [];
   for (const e of document.querySelectorAll('input[required], select[required], textarea[required]')) {
     if (!e.form || e.form.noValidate || !e.validity || !e.validity.valueMissing || !shown(e)) continue;
-    const words = label(e);
+    const boxes = group(e);
+    if (boxes.some((o) => o.checked)) continue;
+    const words = boxes.length > 1
+      ? said(e.closest('fieldset')?.querySelector('legend')) || e.getAttribute('description') || e.name : label(e);
     if (words && !out.includes(words)) out.push(words.slice(0, 120));
   }
   return out;
