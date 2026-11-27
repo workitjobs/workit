@@ -230,8 +230,6 @@ export function WritingSamples() {
         </ul>
       )}
 
-      {samples && samples.length > 0 && <StyleCard card={card} onChange={setCard} />}
-
       {adding && (
         <form
           onSubmit={handleSubmit}
@@ -270,6 +268,8 @@ export function WritingSamples() {
           </div>
         </form>
       )}
+      {/* After the Add box, so a new sample's box opens under the samples, not under the card's heading. */}
+      {samples && samples.length > 0 && <StyleCard card={card} onChange={setCard} />}
       {!adding && error && (
         <p role="alert" className="text-note text-danger mt-4">
           {error}

@@ -14,15 +14,17 @@ import { changeAppAnswers, getAppAnswers } from "@/lib/app-answers-actions";
 
 import { SectionAction } from "../../profile/section-action";
 import { INFO_CARD, InfoCardHead } from "./card-head";
+import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
 const OFFLINE = "Could not reach the server. Check your connection and try again.";
 /** The API's limit (backend/app/schemas/apply_app.py, AnsweredText). */
 const MAX_ANSWER = 20_000;
 
 const INTRO =
-  "What you answered in WorkIt Auto Apply's Needs You. WorkIt fills each one into every later " +
-  "form that asks it, from WorkIt Auto Apply and from the extension. Remove one, and the next " +
-  "form that asks it asks you again.";
+  "What you answered in WorkIt Auto Apply's Needs You that no field on WorkIt holds. WorkIt " +
+  "fills each one into every later form that asks it, from WorkIt Auto Apply and from the " +
+  "extension. An answer that fits a field is saved in that field instead, such as Application " +
+  "Answers or your LinkedIn. Remove one, and the next form that asks it asks you again.";
 
 /** One row: a Needs You answer by its question, or a fact the Fill engine read from one, by its key. */
 type Row = { kind: "answered" | "fact"; id: string; label: string; value: FactValue };
@@ -46,6 +48,7 @@ export function AppAnswers() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null); // the row's kind and id
   const [text, setText] = useState("");
+  const [base, setBase] = useState(""); // the value as its box opened (boxText), so an untouched box is no change
   const [picked, setPicked] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,9 +87,16 @@ export function AppAnswers() {
   function open(row: Row) {
     setEditing(key(row));
     setText(boxText(row.value));
+    setBase(boxText(row.value));
     setPicked(typeof row.value === "boolean" ? row.value : null);
     setError(null);
   }
+
+  // An open box with a change is unsaved work: leaving Application Info asks first (./unsaved.tsx).
+  const opened = rows?.find((r) => key(r) === editing);
+  const dirty =
+    opened !== undefined && (typeof opened.value === "boolean" ? String(picked) : text) !== base;
+  useUnsavedChanges(dirty);
 
   /** Saves `value` as the row's; once WorkIt keeps it, the row shows it. The reason it didn't, or null. */
   async function save(row: Row, value: FactValue): Promise<string | null> {
@@ -142,7 +152,11 @@ export function AppAnswers() {
 
   // An id by place: a question's words can hold spaces, which split an aria-labelledby into several ids.
   const box = (row: Row, n: number) => (
-    <form onSubmit={(e) => submit(e, row)} className="mt-3 flex flex-col gap-4">
+    <form
+      onSubmit={(e) => submit(e, row)}
+      data-unsaved={dirty || undefined}
+      className="mt-3 flex flex-col gap-4"
+    >
       {typeof row.value === "boolean" ? (
         <YesNoChips
           labelledBy={`app-answer-${n}`}
@@ -153,6 +167,7 @@ export function AppAnswers() {
         <TextAreaField
           id="app-answer"
           label="Answer"
+          autoFocus
           rows={3}
           maxLength={MAX_ANSWER}
           hint={Array.isArray(row.value) ? "One a line." : undefined}

@@ -59,7 +59,10 @@ GET  /apply-app/profile  AppProfile {profile, policies, files, writing}: the
 PATCH /apply-app/profile  AnsweredChange {answered, facts, remove_answered,
      remove_facts} -> 204: Needs you answers by question and facts by
      dotted key (never files.*), kept in fill_profile, and the questions
-     and facts the website's Remove takes out. An Essay fact's answer never comes:
+     and facts the website's Remove takes out. A fact one of the website's
+     own fields holds (an Application answer, My Profile's phone or a
+     link) is saved in that field instead, as the website saves it
+     (services/workit_fields.py), unless the student answered it there. An Essay fact's answer never comes:
      the app keeps it for that one form's essay. A fill adds nothing
      to the Story bank on WorkIt: its prompts carry only the website's.
 GET  /apply-app/answered  SavedAnswers {answered, facts}: what WorkIt fills
@@ -128,6 +131,7 @@ from app.db import get_session, get_supabase
 from app.deps import get_current_account, is_admin
 from app.models.profiles import Applicant_Profile
 from app.queries import answer_banks, model_usage, writing
+from app.queries.autofill_answers import merge_answers
 from app.queries.engine_student import engine_student
 from app.schemas.apply_app import (
     FACT_KEY,
@@ -159,6 +163,7 @@ from app.services.engine_profile import engine_policies, engine_profile, workit_
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
 from app.services.story_bank import story_bank
+from app.services.workit_fields import workit_field
 
 logger = logging.getLogger(__name__)
 
@@ -231,21 +236,33 @@ async def save_answered(
     # shortcut: read, change, write the whole column; one student's answers come one at a time from one window.
     facts = json.loads(json.dumps(row.fill_profile or {}))  # a copy, so the column's change is seen
     answered = {**(facts.get("answered_questions") or {}), **body.answered}
-    if len(answered) > ANSWERED_MAX:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
     for question in body.remove_answered:
         answered.pop(question, None)
+    # Counted after the removals: a profile imported over the cap can still take its Remove.
+    if len(answered) > ANSWERED_MAX:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
     facts["answered_questions"] = answered
+    # A fact one of the website's own fields holds goes into that field (services/workit_fields.py), saved as the
+    # website saves it: Application answers through merge_answers, My Profile's phone and links set on the row.
+    student = await engine_student(db, account.id, account.email, account.full_name or "") if body.facts else None
+    today, to_answers = _now().date().isoformat(), {}
     for key, value in body.facts.items():
-        *sections, name = key.split(".")
-        at = facts
-        for section in sections:
-            if not isinstance(at.get(section), dict):
-                at[section] = {}  # a section's place held by a value: the section takes it
-            at = at[section]
-        at[name] = value
+        found = workit_field(student, today, key, value)
+        if found is None:
+            _put(facts, tuple(key.split(".")), value, over=True)
+            continue
+        where, field, saved = found
+        if where == "answers":
+            to_answers[field] = saved
+            student["answers"] = {**(student.get("answers") or {}), field: saved}
+        else:
+            setattr(row, field, saved)
+            student[field] = saved
+        _drop(facts, key.split("."))  # an older copy under the field, which the field wins over
     for key in body.remove_facts:
         _drop(facts, key.split("."))
+    if to_answers:
+        await merge_answers(db, account.id, to_answers, [])
     row.fill_profile = facts
     await db.commit()
 
@@ -366,8 +383,11 @@ def _lacks(tree: dict, path: tuple) -> bool:
     return tree in (None, "", [], {})
 
 
-def _put(tree: dict, path: tuple, value: object) -> bool:
+def _put(tree: dict, path: tuple, value: object, over: bool = False) -> bool:
+    """`value` at `path`; a value where a section belongs blocks it, unless `over` lets the section take its place."""
     for key in path[:-1]:
+        if over and not isinstance(tree.get(key), dict):
+            tree[key] = {}
         if not isinstance(tree.setdefault(key, {}), dict):
             return False
         tree = tree[key]

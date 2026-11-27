@@ -9,6 +9,7 @@ tested in ../scout/tests/test_scout.py.
 """
 
 import datetime
+import json
 import uuid
 
 import httpx
@@ -343,3 +344,37 @@ async def test_application_info_lists_what_fills_from_the_apps_answers_and_remov
     async with database() as session:
         fill = await session.scalar(text("SELECT fill_profile FROM applicant_profiles WHERE id = :id"), {"id": student.id})
     assert "screeners" not in fill  # the section the Remove emptied goes with it
+
+
+async def test_a_needs_you_fact_a_website_field_holds_is_saved_in_that_field(student):
+    """A fact the app's Needs you saves goes where the website shows it. Fault: it stayed in fill_profile (Application
+    Info's field showed nothing), a field the student answered was written over, or one typed answer took a field it
+    isn't (a city in Address Line 1)."""
+    async with _api() as api:
+        saved = await api.patch("/apply-app/profile", json={"facts": {
+            "logistics.willing_to_relocate_for_summer": True, "identity.pronouns": "she/her",
+            "links.linkedin_url": "linkedin.com/in/sam", "identity.phone": "631-555-0199",
+            "identity.home_address.city": "Boston", "screeners.made_up_fact": True}})
+        answers = (await api.get(f"/applicants/{student.id}/autofill-answers")).json()
+        profile = (await api.get(f"/applicants/{student.id}/profile")).json()
+        listed = (await api.get("/apply-app/answered")).json()
+
+    assert saved.status_code == 204, saved.text
+    assert (answers["willing_to_relocate"], answers["pronouns"]) == ("yes", "she_her")
+    assert answers["address_line1"] is None
+    assert profile["linkedin_url"] == "https://linkedin.com/in/sam"  # as My Profile's own save keeps a link
+    assert profile["phone_number"] == "631-555-0142"  # the student's own, never written over
+    assert listed["facts"] == [{"key": "identity.home_address.city", "value": "Boston"},
+                               {"key": "screeners.made_up_fact", "value": True}]
+
+
+async def test_a_profile_over_the_answer_cap_can_still_remove_one(student, database):
+    """Fault: the cap was counted before the Remove, so an imported profile over it could never shrink."""
+    many = {f"Question {n}?": "Yes" for n in range(2_001)}
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = CAST(:fill AS jsonb) WHERE id = :id"),
+                              {"id": student.id, "fill": json.dumps({"answered_questions": many})})
+        await session.commit()
+    async with _api() as api:
+        removed = await api.patch("/apply-app/profile", json={"remove_answered": ["Question 0?"]})
+    assert removed.status_code == 204, removed.text

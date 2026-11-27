@@ -460,7 +460,18 @@ Find files with a directory listing; these are the rules for where code goes.
   Application Info, and the PATCH's `remove_answered` and `remove_facts`
   take one out, a section it empties too. A fact a WorkIt field holds is
   not listed: that field wins on every form, so an edit there would
-  change nothing. **`POST
+  change nothing. **A Needs you fact one of the website's own fields holds
+  goes into that field** (2026-11-27, `services/workit_fields.py`): an
+  Application answer through `merge_answers`, My Profile's phone or a link
+  set on the row, each checked by the website's own schema
+  (`AutofillAnswers`, `ApplicantProfileUpdate`). The field is found by
+  running WorkIt's own mapping (`workit_profile`) on each field the
+  student left unanswered, never by a second table that could drift: a
+  field with options takes the option that gives the fact's value, a text
+  field only when the key holds its own value (a probe value checks it,
+  since an address line fills the home's city from the location). A list
+  field, a field the student answered, and a fact no field gives stay in
+  `fill_profile`. Tests: `tests/test_apply_app.py`. **`POST
   /apply-app/profile/upload` is a Developer checkout's** (`apply upload`):
   its own files, taking only what WorkIt lacks, so a second upload changes
   nothing the student edited since. Writing samples and the style card

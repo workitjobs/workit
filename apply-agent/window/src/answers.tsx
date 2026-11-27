@@ -10,15 +10,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Bridge } from "./bridge.ts";
 import { answerText, parseAnswer, rows, sameQuestion, type BankRow, type BankView } from "./bank.ts";
 import { FromWorkIt } from "./profile.tsx";
-import { Button } from "./ui.tsx";
+import { Button, ICON_BUTTON as ICON, TEXT_BOX as BOX } from "./ui.tsx";
 
 const INTRO =
   "Your answers to the short questions forms ask once, such as how you heard about a company. WorkIt fills each one " +
   "into every later form that asks it, from the extension and from WorkIt Auto Apply. Answers its AI drafted show " +
   "Needs Review until you check them.";
-const BOX = "w-full resize-y rounded-control border border-border-surface bg-panel p-2.5 text-body font-normal outline-none focus:border-brand";
-// A row's icon action: the window's Button keeps its own padding, which leaves an icon no room.
-const ICON = "grid size-8 cursor-pointer place-items-center rounded-control text-ink-meta hover:bg-hover hover:text-ink";
 
 export function AnswerBank({ bridge }: { bridge: Bridge }) {
   const [view, setView] = useState<BankView | Error | null>(null);

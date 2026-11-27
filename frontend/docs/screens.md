@@ -2606,6 +2606,9 @@ goes into the other.
 - **WorkIt's rule decides what enters.** A save it keeps out (a follow-up,
   an answer about one company) says the rule's reason under the box and
   keeps the text.
+- **An open box with a change counts as unsaved** (`useUnsavedChanges` and
+  `data-unsaved`), here and in Answers From WorkIt Auto Apply and the style
+  card, so leaving Application Info asks first, as the forms do.
 
 **Answers From WorkIt Auto Apply (W11, 2026-11-27)** (`app-answers.tsx`,
 `lib/app-answers-actions.ts`, `lib/app-answers.ts`) is the second card of
@@ -2619,7 +2622,9 @@ answer WorkIt stores has a page where the student sees and edits it.
   engine read from an answer, by its key in words ("Willing to travel").
   The API lists only what fills forms (`GET /apply-app/answered`): a fact
   a WorkIt field holds is left out, since that field wins and is edited
-  where it shows.
+  where it shows. Since 2026-11-27 such a fact rarely lands here: a Needs
+  You answer that fits one of the website's fields (an Application
+  answer, the phone, a link) is saved in that field, so it shows there.
 - **Read once, changed in place**, as the Answer Bank: Edit keeps the
   value's kind (a list one item a line, a number, Yes or No picked on
   chips), and Remove takes it out at once with Undo, so the next form asks

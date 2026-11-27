@@ -352,8 +352,11 @@ the facts the Fill engine read from them, never a file's path, and the
 questions whose answers the student removed on the Answers page
 (`remove_answered`, sent only when there is one, so a save still reaches a
 server from before it), in order, so an answer given again after its
-Remove wins. A send WorkIt doesn't answer stays in the profile and goes
-with the next save. The website's Application Info shows and edits the
+Remove wins. A fact one of the website's own fields holds (an Application
+answer, the phone, a link) WorkIt saves in that field, as the website
+saves it, so the student sees it there (backend
+`services/workit_fields.py`); the app changes nothing for it. A send
+WorkIt doesn't answer stays in the profile and goes with the next save. The website's Application Info shows and edits the
 same answers (`GET /apply-app/answered`, the same PATCH). A
 report's log is masked with the profile read from WorkIt as it goes. A
 Developer checkout keeps its profile file and Test Person. Tests:

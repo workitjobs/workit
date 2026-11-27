@@ -16,6 +16,7 @@ import { changeAnswerBank, getAnswerBank, type BankSave } from "@/lib/answer-ban
 
 import { SectionAction } from "../../profile/section-action";
 import { INFO_CARD, InfoCardHead } from "./card-head";
+import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
 const OFFLINE = "Could not reach the server. Check your connection and try again.";
 /** The API's limits (backend/app/schemas/applications.py, BankEntry). */
@@ -44,6 +45,7 @@ export function AnswerBank() {
   const [editing, setEditing] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [text, setText] = useState("");
+  const [base, setBase] = useState(""); // the answer as its box opened, so an untouched box is no change
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
@@ -65,8 +67,13 @@ export function AnswerBank() {
     setEditing(entry ? entry.question : "");
     setQuestion("");
     setText(entry ? answerText(entry.answer) : "");
+    setBase(entry ? answerText(entry.answer) : "");
     setError(null);
   }
+
+  // An open box with typed words is unsaved work: leaving Application Info asks first (./unsaved.tsx).
+  const dirty = editing !== null && (text !== base || question.trim() !== "");
+  useUnsavedChanges(dirty);
 
   /** Saves one answer; once WorkIt keeps it, it takes its question's place in the list. The reason it didn't, or null. */
   async function save(saved: BankSave): Promise<string | null> {
@@ -140,11 +147,12 @@ export function AnswerBank() {
   }
 
   const box = (entry?: BankEntry) => (
-    <form onSubmit={submit} className="mt-3 flex flex-col gap-4">
+    <form onSubmit={submit} data-unsaved={dirty || undefined} className="mt-3 flex flex-col gap-4">
       {!entry && (
         <TextField
           id="bank-question"
           label="Question"
+          autoFocus
           maxLength={MAX_QUESTION}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -153,6 +161,7 @@ export function AnswerBank() {
       <TextAreaField
         id="bank-answer"
         label="Answer"
+        autoFocus={!!entry}
         rows={3}
         maxLength={MAX_ANSWER}
         hint={

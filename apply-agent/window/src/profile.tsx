@@ -8,10 +8,8 @@ import { useState, type FormEvent } from "react";
 
 import type { Bridge } from "./bridge.ts";
 import { answerText, words, type BankView } from "./bank.ts";
-import { Button } from "./ui.tsx";
+import { Button, ICON_BUTTON as ICON, TEXT_BOX as BOX } from "./ui.tsx";
 
-const BOX = "w-full resize-y rounded-control border border-border-surface bg-panel p-2.5 text-body font-normal outline-none focus:border-brand";
-const ICON = "grid size-8 cursor-pointer place-items-center rounded-control text-ink-meta hover:bg-hover hover:text-ink";
 
 export function FromWorkIt({ view, onView, bridge }: { view: BankView; onView: (view: BankView) => void; bridge: Bridge }) {
   const [editing, setEditing] = useState<string | null>(null); // the question whose box is open
@@ -25,7 +23,7 @@ export function FromWorkIt({ view, onView, bridge }: { view: BankView; onView: (
   ].filter((s) => s.facts.length);
 
   const change = (edit: "save" | "delete", question: string, answer?: string) =>
-    bridge.changeAnswered(edit, { question, answer }).then(onView, (err: Error) => {
+    bridge.changeAnswered(edit, { question, answer }).then((next) => (setError(""), onView(next)), (err: Error) => {
       setError(err.message);
       throw err;
     });
@@ -42,7 +40,7 @@ export function FromWorkIt({ view, onView, bridge }: { view: BankView; onView: (
     <>
       <h2 className="mt-10 text-title">Your Needs You Answers</h2>
       <p className="mt-1 text-body text-ink-meta">
-        Answers you gave in Needs you. WorkIt fills each one into every later form that asks it. Remove one, and the next form that asks it asks you again.
+        Answers you gave in Needs you. WorkIt fills each one into every later form that asks it. An answer that fits a field on WorkIt is saved in that field, and shows under Your Profile. Remove one, and the next form that asks it asks you again.
       </p>
       {editing === null && error && (
         <p role="alert" className="mt-4 text-note text-warning-deep">

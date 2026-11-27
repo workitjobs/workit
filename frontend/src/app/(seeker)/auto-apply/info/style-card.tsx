@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { removeStyleCard, saveStyleCard } from "@/lib/writing-samples-actions";
 
 import { SectionAction } from "../../profile/section-action";
+import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
 const OFFLINE = "Could not reach the server. Check your connection and try again.";
 /** The API's limit (backend/app/schemas/writing.py, CARD_MAX). */
@@ -37,6 +38,10 @@ export function StyleCard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+
+  // An open box with a change is unsaved work: leaving Application Info asks first (./unsaved.tsx).
+  const dirty = editing && text !== (card ?? "");
+  useUnsavedChanges(dirty);
 
   function open() {
     setText(card ?? "");
@@ -111,12 +116,15 @@ export function StyleCard({
       {editing && (
         <form
           onSubmit={submit}
+          data-unsaved={dirty || undefined}
           className="mt-3 flex flex-col gap-4"
           aria-labelledby="style-card-heading"
         >
           <TextAreaField
             id="style-card"
             label="Style Card"
+            // The box takes the focus as it opens, as Writing Samples' Add does: typing went nowhere before.
+            autoFocus
             rows={6}
             maxLength={CARD_MAX}
             value={text}
