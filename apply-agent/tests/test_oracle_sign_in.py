@@ -203,6 +203,48 @@ def test_an_apply_button_still_covered_is_a_handoff_not_a_timeout(monkeypatch):
         browser.close()
 
 
+POSTING = "https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1"
+
+
+def _posting_whose_apply_goes_to(page, where: str) -> None:
+    """A posting whose Apply Now goes to `where`, a path under it, which shows a page of its own."""
+    page.route("**/*", lambda route: route.fulfill(content_type="text/html", body=(
+        "<h1>Software Engineering Intern</h1><button onclick=\"location.href = location.href + '%s'\">Apply Now</button>"
+        % where if route.request.url == POSTING else "<h1>Continue your application</h1><button>Continue</button>")))
+    page.goto(POSTING)
+
+
+def test_an_apply_that_goes_on_to_the_form_of_an_earlier_sign_in_needs_no_email_step(monkeypatch):
+    """Emerson's refill (live 2026-11-27): the browser still held the first attempt's sign-in."""
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    monkeypatch.setattr(oracle, "TIMEOUT", 3.0)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _posting_whose_apply_goes_to(page, "/apply/section/1")
+        oracle.sign_in(page, None, "Doe", True)
+        assert page.url.endswith("/apply/section/1")
+        browser.close()
+
+
+def test_an_apply_that_shows_no_email_step_is_a_handoff_that_says_what_it_shows(monkeypatch):
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    monkeypatch.setattr(oracle, "TIMEOUT", 2.0)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _posting_whose_apply_goes_to(page, "/apply/draft")
+        with pytest.raises(Handoff, match=r'no email step \(.*/apply/draft, "Continue your application"\)'):
+            oracle.sign_in(page, None, "Doe", True)
+        browser.close()
+
+
 def test_a_form_lisul_signed_in_to_himself_is_not_signed_in_to_again():
     """On a pause he signed in himself; Resume finds the form's own email field, which can't be edited (KAN-636)."""
     from playwright.sync_api import sync_playwright
