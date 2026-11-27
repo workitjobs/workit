@@ -360,6 +360,13 @@ for a student, not from `dashboard_page.py`.
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
   not capped.
+- **A Worker whose Chrome goes mid-fill** (`WorkerGone`). Apply starts
+  that Worker's Chrome again on the same profile (`PlainSite.relaunch`)
+  and fills the job anew there, once; a second WorkerGone fails the job.
+  If Chrome won't start again, Apply retires the Worker and moves the job,
+  and every later one, to another Worker this run fills in. A link sent
+  in for a retired or closed Worker goes to a running one instead, so no
+  job waits on a dead Chrome (`tests/test_open_slots.py`).
 - **Auto-submit** (ADR 0006, `apply.auto_submit`). With `auto_submit: true`
   in a Developer checkout's policies.yaml (off by default; the Student build
   reads no policies.yaml), a held form that needs nobody counts down ten

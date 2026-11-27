@@ -5,6 +5,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUsage
@@ -14,6 +15,7 @@ from apply import fill_engine, rehearsal
 from apply.adapters import Adapters
 from apply.feed import SimplifyFeed
 from apply.model import Posting, Status
+from apply.plain.bridge import WorkerGone
 from apply.profile import ApplicantProfile
 from apply.tracker import InMemoryTracker
 
@@ -32,7 +34,19 @@ class Page:
 
 
 class Site:
-    """No browser: rehearsal._rehearse is faked, so nothing opens through it."""
+    """No browser: rehearsal._rehearse is faked, so nothing opens through it. Each Worker's Chrome runs, but those
+    in `dead`, which don't start again either."""
+
+    def __init__(self):
+        self.dead: set[int] = set()
+        self.relaunched: list[int] = []
+
+    def running(self, worker: int) -> bool:
+        return worker not in self.dead
+
+    def relaunch(self, worker: int) -> bool:
+        self.relaunched.append(worker)
+        return worker not in self.dead
 
     def fetch(self, url, body=None):
         return b""
@@ -49,6 +63,8 @@ class Run:
     def __init__(self, plans: dict[str, list[str]]):
         self.plans = plans  # link -> how each fill of it ends, in turn
         self.started: list[str] = []  # each fill's link, as it started
+        self.workers: list[tuple[str, int]] = []  # each fill's link and the Worker it filled in
+        self.gone_after = 0  # a "gone" fill raises once this many fills have started
         self.open: set[int] = set()  # tiles with a page open now
         self.most = 0  # the most pages open at once
         self.filling = 0  # fills under way now
@@ -58,10 +74,18 @@ class Run:
     def fill(self, url, site, adapters, profile, calibration, accounts, n, *args, **kw) -> rehearsal.Rehearsed:
         with self.lock:
             self.started.append(url)
+            self.workers.append((url, site.worker))
             how = self.plans[url].pop(0)
         posting = Posting(f"id-{n}", "Company", "Role", url)
         if how == "raises":
             raise RuntimeError("the filler broke")
+        if how == "gone":  # its Worker's Chrome went mid-fill: raised for the caller, or a failed fill
+            ending = time.monotonic() + WAIT
+            while len(self.started) < self.gone_after and time.monotonic() < ending:
+                time.sleep(0.02)
+            if kw.get("gone_raises"):
+                raise WorkerGone(f"plain Worker {site.worker + 1} is gone")
+            how = "failed"
         if how == "fills":  # it fills till the test lets it end, held: a Worker's turn taken meanwhile
             with self.lock:
                 self.filling += 1
@@ -135,12 +159,15 @@ class Board(RecordingBoard):
     def stopping(self, stop):
         self.stop = stop
 
+    def taking(self, into):
+        self.into = into
+
     def let_go_asked(self, worker: int) -> bool:
         return worker in self.let_go
 
 
-def start(links: list[str], board: Board, tmp_path, workers: int = 1) -> threading.Thread:
-    adapters = Adapters(feed=SimplifyFeed(lambda: b"[]"), site=Site(), claude=FakeClaude(), tracker=InMemoryTracker(),
+def start(links: list[str], board: Board, tmp_path, workers: int = 1, site: Site | None = None) -> threading.Thread:
+    adapters = Adapters(feed=SimplifyFeed(lambda: b"[]"), site=site or Site(), claude=FakeClaude(), tracker=InMemoryTracker(),
                         mailbox=FakeMailbox(), usage=ScriptedUsage(), clock=FakeClock(NOW), board=board)
     profile = ApplicantProfile.load(profile_with(tmp_path))
     thread = threading.Thread(target=rehearsal.rehearse, args=(links, adapters, profile, workers),
@@ -242,3 +269,87 @@ def test_forms_waiting_on_the_student_never_leave_a_worker_idle_while_jobs_are_q
     until(lambda: len(run.started) == 5, "the fifth job to start once a form was let go")
     run.go.set()
     end(board, thread)
+
+
+def test_a_worker_whose_chrome_went_is_started_again_and_the_job_fills_anew_once(faked, tmp_path):
+    """Fault: a Worker's Chrome gone mid-fill (WorkerGone) failed the job, or filled it again and again."""
+    links = ["https://jobs.example/gone", "https://jobs.example/gone-twice"]
+    run = faked({links[0]: ["gone", "held"], links[1]: ["gone", "gone"]})
+    site, board = Site(), Board()
+    thread = start(links, board, tmp_path, workers=2, site=site)
+
+    until(lambda: len(run.started) == 4, "each job to fill once more")
+    time.sleep(0.5)
+    end(board, thread)
+    assert sorted(run.workers) == sorted([(links[0], 0), (links[0], 0), (links[1], 1), (links[1], 1)])
+    assert sorted(site.relaunched) == [0, 1]  # each Chrome started again on its own Worker, once
+    assert board.captions[0]["status"] == "filling" and board.captions[1]["status"] == "failed"
+
+
+def test_a_worker_that_wont_start_again_is_retired_and_its_jobs_go_to_the_others(faked, tmp_path):
+    """Fault: a link sent in after a Worker's Chrome died went to it all the same, and failed minutes and many
+    tokens later (run10, 2026-11-26: plain Worker 1)."""
+    links = ["https://jobs.example/on-dead", "https://jobs.example/beside"]
+    late = "https://jobs.example/sent-in-later"
+    run = faked({links[0]: ["gone", "held"], links[1]: ["held"], late: ["held"]})
+    run.gone_after = 2  # both Workers filled in once, so the other one is this run's
+    site, board = Site(), Board()
+    site.dead.add(0)
+    thread = start(links, board, tmp_path, workers=2, site=site)
+
+    until(lambda: len(run.started) == 3, "the job on the dead Worker to fill again")
+    assert run.workers[-1] == (links[0], 1)  # in the other Worker
+    assert board.into(late, 0)["worker"] == 1  # sent to the dead one, it goes to the other too
+    until(lambda: late in run.started, "the link sent in to start")
+    end(board, thread)
+    assert run.workers[-1] == (late, 1) and site.relaunched == [0]
+
+
+class _Workers:
+    """PlainWorkers without Chrome: launch starts a fresh connection, or raises `fails`."""
+
+    def __init__(self, fails: Exception | None = None):
+        self.running, self.calls, self.fails, self.hello = {}, [], fails, None
+        self.bridge = SimpleNamespace(connection=lambda k: self.hello)
+        self.profiles = None
+
+    def stop(self, worker: int) -> None:
+        self.calls.append(("stop", worker))
+        self.running.pop(worker, None)
+
+    def launch(self, worker: int = 0):
+        self.calls.append(("launch", worker))
+        if self.fails:
+            raise self.fails
+        self.running[worker] = SimpleNamespace(connection=_connection(closed=False))
+        return self.running[worker]
+
+
+def _connection(closed: bool):
+    event = threading.Event()
+    if closed:
+        event.set()
+    return SimpleNamespace(closed=event)
+
+
+def test_relaunch_starts_a_gone_chrome_again_on_its_profile_or_says_it_wont():
+    """Fault: a Worker whose Chrome went was retired though it would start again, or counted as running when not."""
+    from apply.plain.site import PlainSite
+
+    workers = _Workers()
+    site = PlainSite(workers, fetcher=object())
+    workers.running[1] = SimpleNamespace(connection=_connection(closed=False))
+    assert site.relaunch(1) and workers.calls == []  # still up (another form started it): left as it is
+
+    workers.running[1].connection = _connection(closed=True)
+    workers.hello = _connection(closed=False)
+    assert site.relaunch(1) and workers.calls == [] and workers.running[1].connection is workers.hello
+
+    workers.hello = None
+    workers.running[1].connection = _connection(closed=True)
+    assert site.relaunch(1) and workers.calls == [("stop", 1), ("launch", 1)] and site.running(1)
+
+    dead = _Workers(fails=RuntimeError("Chrome won't start"))
+    dead.running[0] = SimpleNamespace(connection=_connection(closed=True))
+    assert not PlainSite(dead, fetcher=object()).relaunch(0)
+    assert dead.calls == [("stop", 0), ("launch", 0)]
