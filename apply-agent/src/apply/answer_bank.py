@@ -225,7 +225,7 @@ class AnswerBank:
             with locks.held(self._path.with_suffix(".lock")):  # its own lock file, never the bank itself
                 if not self._path.exists():  # a new bank: an empty file to read
                     self._path.touch()
-                text = self._path.read_text()
+                text = self._path.read_text(encoding="utf-8")
                 self._entries = self._read()
                 before = _dump(self._entries)
                 synced = {str(k): _synced(v) for k, v in self._entries.items()} if self._on_change else {}
@@ -237,7 +237,7 @@ class AnswerBank:
                     return
                 # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
                 notes = "" if _yaml().load(text) else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
-                self._path.write_text(notes + after)
+                self._path.write_text(notes + after, encoding="utf-8")
         if changed or deleted:
             try:  # the bank is saved: a sync that fails never fails the write
                 self._on_change(changed, deleted)
@@ -245,7 +245,7 @@ class AnswerBank:
                 print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
 
     def _read(self) -> dict:
-        return _yaml().load(self._path.read_text()) or CommentedMap()
+        return _yaml().load(self._path.read_text(encoding="utf-8")) or CommentedMap()
 
 
 def _synced(entry: Any) -> tuple:

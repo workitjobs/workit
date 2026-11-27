@@ -583,12 +583,12 @@ def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
     ASK), as a Story bank line under ANSWERED, so this essay and every one
     after can quote it. An answer already there is not added again."""
     fact = f"- {one_line(asked.removeprefix(ASK))} {one_line(answer)}"
-    bank = data_folder.STORY_BANK.read_text()
+    bank = data_folder.STORY_BANK.read_text(encoding="utf-8")
     if fact in bank:
         return
     if ANSWERED not in bank:
         bank = f"{bank.rstrip()}\n\n{ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word.\n"
-    data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n")
+    data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n", encoding="utf-8")
 
 
 # One line under ANSWERED: the question and answer, then the company it was asked for and the day.
@@ -609,7 +609,7 @@ def story_bank(employer: str = "") -> str:
     there that doesn't name it: it is kept for `employer`'s forms and left
     out of every other's (Strava, 2026-11-26)."""
     kept, under = [], False
-    for line in data_folder.STORY_BANK.read_text().splitlines(keepends=True):
+    for line in data_folder.STORY_BANK.read_text(encoding="utf-8").splitlines(keepends=True):
         if line.startswith("## "):
             under = line.strip() == ANSWERED
         elif under and (m := ANSWERED_LINE.match(line.strip())) and (re.search(
@@ -884,7 +884,7 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
 def _facts(named: object, profile: ApplicantProfile) -> tuple[str, ...]:
     """The facts Claude named that a source holds: a profile key it was sent,
     or a Story bank line word for word; any other is dropped, unchecked."""
-    story = data_folder.STORY_BANK.read_text()
+    story = data_folder.STORY_BANK.read_text(encoding="utf-8")
     facts = profile_facts(profile)
     held = lambda f: (f.split(".")[0] in facts and profile.get(f) is not None) or (len(f) > 10 and f in story)
     return tuple(dict.fromkeys(f.strip() for f in named if isinstance(f, str) and held(f.strip()))) \

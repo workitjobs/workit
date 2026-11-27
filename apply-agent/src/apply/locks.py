@@ -28,7 +28,7 @@ import portalocker
 def held(path: Path) -> Iterator[None]:
     """Hold the lock file `path` until the block ends. Waits as long as another process holds it."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as lock:
+    with open(path, "a", encoding="utf-8") as lock:
         while True:
             try:
                 portalocker.lock(lock, portalocker.LockFlags.EXCLUSIVE)
@@ -46,7 +46,7 @@ def tried(path: Path) -> Iterator[bool]:
     """Take the lock file `path` only if no other process holds it, and hold it until the block ends. Yields
     whether it took it."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as lock:
+    with open(path, "a", encoding="utf-8") as lock:
         try:
             portalocker.lock(lock, portalocker.LockFlags.EXCLUSIVE | portalocker.LockFlags.NON_BLOCKING)
         except portalocker.AlreadyLocked:

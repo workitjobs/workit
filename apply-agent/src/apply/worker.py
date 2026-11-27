@@ -874,7 +874,7 @@ class _Planned:
             cover_letter.pdf(text, self.posting, self.profile, path, self._today)
         except (OSError, RuntimeError, subprocess.SubprocessError):
             path = path.with_suffix(".txt")
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8")
         return path
 
     def own(self) -> set[str]:

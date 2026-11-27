@@ -68,7 +68,7 @@ NOT_COPIED = shutil.ignore_patterns("Singleton*", "DevToolsActivePort", "Running
 def google_account(profile: Path) -> str | None:
     """The Google account a Worker profile is signed in to, if any."""
     try:
-        preferences = json.loads((profile / "Default" / "Preferences").read_text())
+        preferences = json.loads((profile / "Default" / "Preferences").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return next((a["email"] for a in preferences.get("account_info", []) if a.get("email")), None)
@@ -84,7 +84,7 @@ def web_google_account(profile: Path) -> str | None:
     the web, which is what Google's account chooser offers. Read from disk, it
     may be stale: Google may have signed the session out since."""
     try:
-        preferences = json.loads((profile / "Default" / "Preferences").read_text())
+        preferences = json.loads((profile / "Default" / "Preferences").read_text(encoding="utf-8"))
         listed = base64.b64decode(preferences.get("gaia_cookie", {}).get("last_list_accounts_binary_data", ""))
     except (OSError, ValueError, binascii.Error, AttributeError):
         return None
@@ -187,13 +187,13 @@ class WorkerBrowsers:
         """Note that Lisul signed the Worker profiles in to `site` (walls.site) by hand."""
         sites = sorted(self.signed_in() | {site})
         self._profiles.mkdir(parents=True, exist_ok=True)
-        (self._profiles / SIGNED_IN).write_text(json.dumps(sites, indent=1) + "\n")
+        (self._profiles / SIGNED_IN).write_text(json.dumps(sites, indent=1) + "\n", encoding="utf-8")
 
     def signed_in(self) -> frozenset[str]:
         """The sites Lisul signed the Worker profiles in to by hand. Only their
         names are kept: never a password."""
         try:
-            return frozenset(json.loads((self._profiles / SIGNED_IN).read_text()))
+            return frozenset(json.loads((self._profiles / SIGNED_IN).read_text(encoding="utf-8")))
         except (OSError, ValueError):
             return frozenset()
 
@@ -305,7 +305,7 @@ class WorkerBrowsers:
         """Where another client (the dashboard) can reach Worker `worker`'s
         browser over CDP, while it is open."""
         try:
-            return f"http://127.0.0.1:{int((self._profiles / f'worker-{worker + 1}' / 'DevToolsActivePort').read_text().split()[0])}"
+            return f"http://127.0.0.1:{int((self._profiles / f'worker-{worker + 1}' / 'DevToolsActivePort').read_text(encoding="utf-8").split()[0])}"
         except (OSError, ValueError, IndexError):
             return None
 
@@ -333,13 +333,13 @@ def _no_saved_passwords(profile: Path) -> None:
     """Turn off Chrome's offer to save a password in `profile`, before Lisul signs in there."""
     preferences = profile / "Default" / "Preferences"
     try:
-        settings = json.loads(preferences.read_text())
+        settings = json.loads(preferences.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         settings = {}
     settings["credentials_enable_service"] = False
     settings.setdefault("profile", {})["password_manager_enabled"] = False
     preferences.parent.mkdir(parents=True, exist_ok=True)
-    preferences.write_text(json.dumps(settings))
+    preferences.write_text(json.dumps(settings), encoding="utf-8")
 
 
 def _copy(source: Path, profile: Path) -> None:
@@ -361,7 +361,7 @@ def headed(page: Page) -> bool:
 def _port(profile: Path) -> int:
     active = profile / "DevToolsActivePort"
     for _ in range(100):
-        if active.exists() and active.read_text().strip():
-            return int(active.read_text().split()[0])
+        if active.exists() and active.read_text(encoding="utf-8").strip():
+            return int(active.read_text(encoding="utf-8").split()[0])
         time.sleep(0.05)
     raise RuntimeError(f"Chrome never opened its DevTools port for {profile.name}")

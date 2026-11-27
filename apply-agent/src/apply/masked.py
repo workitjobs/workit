@@ -108,7 +108,7 @@ def sized(text: Any, kind: str = "answer") -> str:
 
 def _read(path: Path) -> dict:
     try:
-        tree = yaml.safe_load(path.read_text())
+        tree = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, yaml.YAMLError):
         return {}
     return tree if isinstance(tree, dict) else {}

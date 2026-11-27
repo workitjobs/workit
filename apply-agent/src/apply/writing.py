@@ -57,12 +57,12 @@ POSTING_TALK = re.compile(r"\b(?:(?:the|your|this)\ (?:job\ )?(?:posting|listing
 
 
 def style_card() -> str:
-    return VOICE.read_text() if VOICE.is_file() else ""
+    return VOICE.read_text(encoding="utf-8") if VOICE.is_file() else ""
 
 
 def samples() -> str:
     """The applicant's own essays and answers, word for word, from the Story bank."""
-    own = re.findall(rf"{OWN}(.*?)(?=^## )", home.STORY_BANK.read_text(),
+    own = re.findall(rf"{OWN}(.*?)(?=^## )", home.STORY_BANK.read_text(encoding="utf-8"),
                      re.MULTILINE | re.DOTALL)
     return "\n".join(own).strip()
 

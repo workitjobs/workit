@@ -70,7 +70,7 @@ def helper() -> Path | None:
     # Each process builds into its own file: test processes (pytest -n) build at once, and one's rename took the
     # shared .partial from under another's (nightly, 2026-11-14, KAN-841). The last rename wins; each is whole.
     partial = built.with_suffix(f".{os.getpid()}.partial")
-    made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True)
+    made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True, encoding="utf-8")
     if made.returncode != 0:
         partial.unlink(missing_ok=True)
         return None
@@ -88,7 +88,7 @@ def running_app() -> str:
     """The app at the top of Apply's process chain, the one macOS asks permission for: "Terminal"."""
     pid, app = os.getpid(), ""
     for _ in range(30):
-        found = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+        found = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8").stdout.strip()
         if not found:
             break
         parent, command = found.split(None, 1)

@@ -111,7 +111,7 @@ def stale(story_bank_text: str) -> list[str]:
 def material(types: Iterable[str]) -> str:
     """The approved, fresh Stock answer of each of `types` (each once), for the
     essay prompt as his core answer for that type; "" when there is none."""
-    old = set(stale(home.STORY_BANK.read_text())) if home.STORY_BANK.exists() else set()
+    old = set(stale(home.STORY_BANK.read_text(encoding="utf-8"))) if home.STORY_BANK.exists() else set()
     found = [s for t in dict.fromkeys(types) if (s := get(t)) and t not in old]
     if not found:
         return ""
@@ -134,11 +134,11 @@ def _stock(type: str, raw: dict) -> Stock:
 
 def _read() -> dict:
     with _lock:
-        return (_yaml().load(PATH.read_text()) if PATH.exists() else None) or {}
+        return (_yaml().load(PATH.read_text(encoding="utf-8")) if PATH.exists() else None) or {}
 
 
 def _write(data: dict) -> None:
-    with PATH.open("w") as f:
+    with PATH.open("w", encoding="utf-8") as f:
         _yaml().dump(data, f)
 
 

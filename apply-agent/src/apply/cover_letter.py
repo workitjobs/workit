@@ -117,7 +117,7 @@ def pdf(text: str, posting: Posting, profile: ApplicantProfile, path: Path, toda
         raise RuntimeError(chrome_finder.NO_CHROME)
     with tempfile.TemporaryDirectory(prefix="apply-letter-") as scratch:
         source = Path(scratch) / "letter.html"
-        source.write_text(page)
+        source.write_text(page, encoding="utf-8")
         subprocess.run([str(CHROME), "--headless", "--disable-gpu", "--no-pdf-header-footer", "--no-first-run",
                         f"--user-data-dir={scratch}/chrome", f"--print-to-pdf={path}", source.as_uri()],
                        capture_output=True, timeout=60, check=False)

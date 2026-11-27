@@ -55,7 +55,7 @@ def host_of(url: str) -> str:
 def learned(path: Path | None = None) -> list[str]:
     try:
         path = path or LEARNED
-        return [h for h in json.loads(path.read_text()) if isinstance(h, str)]
+        return [h for h in json.loads(path.read_text(encoding="utf-8")) if isinstance(h, str)]
     except (OSError, ValueError, TypeError):
         return []
 
@@ -66,7 +66,7 @@ def learn(url: str, path: Path | None = None) -> None:
     if not host or protected(url, hosts=learned(path)):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(sorted({*learned(path), host}), indent=1) + "\n")
+    path.write_text(json.dumps(sorted({*learned(path), host}), indent=1) + "\n", encoding="utf-8")
 
 
 def protected(url: str, policies: dict | None = None, hosts: list[str] | None = None) -> bool:

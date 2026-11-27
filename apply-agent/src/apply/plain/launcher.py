@@ -113,7 +113,7 @@ def developer_mode(profile: Path) -> bool:
     (`unsupportedDeveloperExtension`, Chrome for Testing 156)."""
     for name in ("Secure Preferences", "Preferences"):
         try:
-            prefs = json.loads((profile / "Default" / name).read_text())
+            prefs = json.loads((profile / "Default" / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if prefs.get("extensions", {}).get("ui", {}).get("developer_mode") is True:
@@ -482,14 +482,14 @@ def own(profile: Path) -> None:
     """Note in `profile` that this Apply process starts its Chrome: its PID and when it started, so a later PID
     that the OS hands to another process is never taken for it."""
     me = psutil.Process()
-    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n")
+    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n", encoding="utf-8")
 
 
 def _owner_alive(profile: Path) -> bool | None:
     """Whether the Apply that started `profile`'s Chrome still runs; None when no Apply noted it (a Chrome from
     before KAN-885, or one started some other way): not Apply's to judge."""
     try:
-        owner = json.loads((profile / OWNER).read_text())
+        owner = json.loads((profile / OWNER).read_text(encoding="utf-8"))
         pid, started = int(owner["pid"]), float(owner["started"])
     except (OSError, ValueError, KeyError, TypeError):
         return None

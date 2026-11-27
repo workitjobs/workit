@@ -42,12 +42,12 @@ class ApplicantProfile:
     @classmethod
     def load(cls, path: Path, policies: Path = POLICIES) -> "ApplicantProfile":
         """A policies.yaml beside the profile overrides `policies` key by key; none does in the Student build."""
-        facts = _yaml().load(path.read_text()) or {}
+        facts = _yaml().load(path.read_text(encoding="utf-8")) or {}
         _refuse_secrets(facts)
         rules = load_policies(policies)
         beside = path.parent / "policies.yaml"
         if not build.STUDENT and beside.exists() and beside.resolve() != policies.resolve():
-            rules |= yaml.safe_load(beside.read_text()) or {}
+            rules |= yaml.safe_load(beside.read_text(encoding="utf-8")) or {}
         return cls(facts, path.parent, rules, path)
 
     def save(self) -> None:
@@ -55,11 +55,11 @@ class ApplicantProfile:
         the copy loaded at its start would undo what changed on disk since
         (seen live: a rehearsal's dashboard answer dropped a fact added meanwhile)."""
         with self._lock:
-            facts = (_yaml().load(self._path.read_text()) or {}) if self._path.exists() else {}
+            facts = (_yaml().load(self._path.read_text(encoding="utf-8")) or {}) if self._path.exists() else {}
             for change in self._changes:
                 _apply(facts, *change)
             _refuse_secrets(facts)
-            with self._path.open("w") as f:
+            with self._path.open("w", encoding="utf-8") as f:
                 _yaml().dump(facts, f)
             self._facts, self._changes = facts, []
 
@@ -150,11 +150,11 @@ def load_policies(path: Path = POLICIES) -> dict:
     """The policies, for what runs without an Applicant profile (the dry run, the Feed):
     the defaults with the data folder's policies.yaml laid over them key by key. The Student build reads no
     policies.yaml: its own fixed policies (apply.build.STUDENT_POLICIES) go over the defaults instead."""
-    rules = yaml.safe_load(path.read_text()) or {}
+    rules = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if build.STUDENT:
         return rules | build.STUDENT_POLICIES
     if Path(path).resolve() == POLICIES.resolve() and OVERRIDE.is_file():
-        rules |= yaml.safe_load(OVERRIDE.read_text()) or {}
+        rules |= yaml.safe_load(OVERRIDE.read_text(encoding="utf-8")) or {}
     return rules
 
 

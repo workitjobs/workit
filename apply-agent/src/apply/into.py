@@ -40,7 +40,7 @@ def windows(folder: Path | None = None) -> list[dict]:
     found = []
     for path in sorted((folder or notes()).glob("*.json")):
         try:
-            window = json.loads(path.read_text())
+            window = json.loads(path.read_text(encoding="utf-8"))
             pid = int(window["pid"])
         except (OSError, ValueError, KeyError, TypeError):
             continue

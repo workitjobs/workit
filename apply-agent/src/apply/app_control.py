@@ -45,7 +45,7 @@ ORDER = ["sign-in", "question", "code", "captcha", "check", "approve", "finish",
 def _write(path: Path, data: dict) -> None:
     """`data` as JSON at `path`, only the user's to read, written whole before it takes its name."""
     part = path.with_suffix(".part")
-    part.write_text(json.dumps(data))
+    part.write_text(json.dumps(data), encoding="utf-8")
     part.chmod(0o600)
     part.rename(path)
 
@@ -61,7 +61,7 @@ def ask(action: str, body: dict | None = None, folder: Path = CONTROL, timeout: 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if reply.exists():
-            got = json.loads(reply.read_text())
+            got = json.loads(reply.read_text(encoding="utf-8"))
             reply.unlink(missing_ok=True)
             return got
         time.sleep(0.05)
@@ -112,7 +112,7 @@ def serve(bridge, folder: Path = CONTROL) -> list[threading.Thread]:
 
 def _answer(bridge, taken: Path) -> None:
     try:
-        request = json.loads(taken.read_text())
+        request = json.loads(taken.read_text(encoding="utf-8"))
         if not isinstance(request, dict) or not isinstance(request.get("body", {}), dict):
             raise TypeError
         expires = float(request.get("expires") or 0)

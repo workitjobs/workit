@@ -41,7 +41,7 @@ def blob_sha(path: Path) -> str:
 def _gh_sha(repo: str, path: str, branch: str) -> str:
     """The file's blob sha on the branch. Raises when `gh` can't say: not installed, offline or no such file."""
     done = subprocess.run(["gh", "api", f"repos/{repo}/contents/{quote(path)}?ref={quote(branch)}", "--jq", ".sha"],
-                          capture_output=True, text=True, timeout=GH_TIMEOUT, stdin=subprocess.DEVNULL)
+                          capture_output=True, text=True, timeout=GH_TIMEOUT, stdin=subprocess.DEVNULL, encoding="utf-8")
     sha = done.stdout.strip()
     if done.returncode or len(sha) != 40:
         raise RuntimeError(" ".join(done.stderr.split())[:200] or "no sha in gh's answer")
@@ -50,7 +50,7 @@ def _gh_sha(repo: str, path: str, branch: str) -> str:
 
 def _kept(cache: Path, key: str, now: float) -> str | None:
     try:
-        kept = json.loads(cache.read_text())
+        kept = json.loads(cache.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return kept["sha"] if isinstance(kept, dict) and kept.get("key") == key and now - kept.get("at", 0) < FRESH_SECONDS else None
@@ -77,7 +77,7 @@ def compare(source: dict | None, resume: Path | None, gh: Callable[[str, str, st
             return Verdict(UNKNOWN, f"couldn't read {where} with gh, so the resume was not checked ({error})")
         try:
             cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(json.dumps({"key": key, "sha": theirs, "at": now()}))
+            cache.write_text(json.dumps({"key": key, "sha": theirs, "at": now()}), encoding="utf-8")
         except OSError:
             pass  # only a kept answer lost: the next start asks gh again
     mine = blob_sha(Path(resume))

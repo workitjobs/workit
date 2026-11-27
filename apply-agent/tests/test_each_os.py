@@ -613,6 +613,34 @@ def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, mo
     assert made == [(channel.pipe_name(path), "AF_PIPE")]
 
 
+def _text_mode(mode: ast.expr | None) -> bool:
+    return mode is None or (isinstance(mode, ast.Constant) and isinstance(mode.value, str) and "b" not in mode.value)
+
+
+def _default_encoding(call: ast.Call) -> bool:
+    """Whether `call` reads or writes text with no `encoding`, so in the OS's own: read_text, write_text, open or
+    fdopen in a text mode, a path's open(), and a command's output as text (text=True)."""
+    keywords = {k.arg: k.value for k in call.keywords}
+    if "encoding" in keywords:
+        return False
+    if any(k.arg in ("text", "universal_newlines") and isinstance(k.value, ast.Constant) and k.value.value is True
+           for k in call.keywords):
+        return True
+    func = call.func
+    name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
+    if name in ("read_text", "write_text"):
+        return True
+    if name == "fdopen" or isinstance(func, ast.Name) and name == "open":
+        return _text_mode(keywords.get("mode", call.args[1] if len(call.args) > 1 else None))
+    if name == "open":  # a path's open(mode): a page's or a browser's open(url) takes no mode
+        if "mode" in keywords:
+            return _text_mode(keywords["mode"])
+        if not call.args:
+            return not call.keywords
+        return isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str) and _text_mode(call.args[0])
+    return False
+
+
 def _stops_windows(node: ast.AST, module: Path) -> str | None:
     """Why `node`, in `module`, is a call that works on macOS and Linux but stops Apply on Windows
     (docs/windows_desktop.md), or None."""
@@ -626,18 +654,21 @@ def _stops_windows(node: ast.AST, module: Path) -> str | None:
         return "checks a process with os.kill(pid, 0) (P2: psutil.pid_exists)"
     if isinstance(node, ast.Attribute) and node.attr == "AF_UNIX" and module.name != "channel.py":
         return "makes a Unix socket of its own (P4: open the channel through apply.plain.channel)"
+    if isinstance(node, ast.Call) and _default_encoding(node):
+        return 'reads or writes text in the OS\'s encoding (P13: cp1252 on Windows): give it encoding="utf-8"'
     return None
 
 
 def test_no_module_of_apply_makes_a_call_that_stops_windows():
     """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts),
     checks a process with `os.kill(pid, 0)` (P2: on Windows signal 0 is CTRL_C_EVENT, and any other number ends the
-    process), or makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX). It reads the
-    source: on this computer each call works, and portalocker itself imports `fcntl` on macOS and Linux, so only
-    Windows would show the fault."""
+    process), makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX), or reads or writes
+    text with no encoding (P13: on Windows that is cp1252, so a UTF-8 file with "Łukasz" in it fails to read, and
+    one with "→" fails to write). It reads the source: on this computer each call works, and portalocker itself
+    imports `fcntl` on macOS and Linux, so only Windows would show the fault."""
     source = Path(home.__file__).parent
     found = [f"{path.relative_to(source)}:{node.lineno}: {why}"
              for path in sorted(source.rglob("*.py"))
-             for node in ast.walk(ast.parse(path.read_text()))
+             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
              if (why := _stops_windows(node, path))]
     assert found == []

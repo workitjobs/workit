@@ -52,7 +52,7 @@ def ready() -> bool:
         return False
     stamp = HELPER / "Contents" / "inbox"  # which INBOX the applet writes to
     try:
-        if not (stamp.is_file() and stamp.read_text() == str(INBOX)):
+        if not (stamp.is_file() and stamp.read_text(encoding="utf-8") == str(INBOX)):
             HOME.mkdir(parents=True, exist_ok=True)
             subprocess.run(["osacompile", "-o", str(HELPER), "-e", SCRIPT.format(inbox=INBOX)],
                            check=True, capture_output=True, timeout=60)
@@ -62,7 +62,7 @@ def ready() -> bool:
             # The edit broke osacompile's ad-hoc signature: macOS won't launch it unsigned.
             subprocess.run(["codesign", "--force", "--sign", "-", str(HELPER)], check=True, capture_output=True,
                            timeout=60)
-            stamp.write_text(str(INBOX))
+            stamp.write_text(str(INBOX), encoding="utf-8")
         subprocess.run([LSREGISTER, "-f", str(HELPER)], check=True, capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
         return False
@@ -90,7 +90,7 @@ def take() -> str | None:
             link, _handed = _handed, None
     else:
         try:
-            link = INBOX.read_text().strip()
+            link = INBOX.read_text(encoding="utf-8").strip()
         except OSError:
             return None
         INBOX.unlink(missing_ok=True)

@@ -54,7 +54,7 @@ def tracing(application_id: str, url: str, folder: Path | None = None, today: da
     _prune(folder, today)
     path = folder / today.isoformat() / f"{_safe(application_id)}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", buffering=1) as file:  # line-buffered: a stuck run's trace is readable as it goes
+    with open(path, "a", buffering=1, encoding="utf-8") as file:  # line-buffered: a stuck run's trace is readable as it goes
         _current.file, _current.started = file, time.monotonic()
         try:
             event("start", application_id=application_id, url=url)
@@ -168,14 +168,14 @@ def latest(query: str = "", folder: Path | None = None) -> Path | None:
 
 
 def _first_line(path: Path) -> str:
-    with open(path) as file:
+    with open(path, encoding="utf-8") as file:
         return file.readline()
 
 
 def timeline(path: Path) -> str:
     """A trace as one line per event, for reading."""
     lines = []
-    for raw in path.read_text().splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         try:
             e = json.loads(raw)
         except json.JSONDecodeError:

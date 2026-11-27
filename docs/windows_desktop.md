@@ -332,6 +332,20 @@ decisions beside D17 and D18.
   says False. The button still says "Show in Finder". **Windows:** the
   window opens behind the student's work, and closes when its run ends.
 
+### P13. Text in the OS's encoding: built from the Mac
+
+- **What broke.** 177 text reads and writes named no encoding
+  (`read_text`, `write_text`, `open`, and a command's output with
+  `text=True`), so they used the OS's own: UTF-8 on a Mac, the code page
+  on Windows (cp1252 on US Windows). A UTF-8 file with "Łukasz" in it
+  failed to read there, and an answer with "→" failed to write. Chrome's
+  Preferences, the profile, the Answer bank and the Fill engine are UTF-8.
+  Found on the way (2026-11-27).
+- **Built.** Each one names `encoding="utf-8"`, and
+  `tests/test_each_os.py` fails on a new one in `src/apply`.
+- **Tests on Windows run with `PYTHONUTF8=1`:** the tests' own reads and
+  writes name no encoding. The source test covers Apply's.
+
 ## 5. Kind of fix
 
 `apply-agent/CLAUDE.md` ("Code that differs by OS") has the rules: a
@@ -349,6 +363,7 @@ Windows entry, since the Mac has none.
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | Built: a Windows entry in `awake.awake` |
 | P12 Apply window | Built: one entry for the Mac and one for the rest, in each window function |
+| P13 encoding | Built: the same code on every OS |
 
 ## 6. Tests
 
@@ -366,6 +381,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P7 | Built: `tests/test_plain_seed_setup.py`, the seed's Chrome is asked with `taskkill` and no `/F`, never killed; `tests/test_each_os.py`, a Worker is asked first and killed only after `STOP_WAIT`, and a reused PID is never asked | A forced stop loses the student's clicks and the Workers' sign-ins |
 | P8 | Built: `tests/test_plain_seed_setup.py`, every line the wizard says on Windows | A Windows user is told Finder and Cmd keys |
 | P12 | Built: `tests/test_each_os.py`, the window on Windows opens, is found by its profile, isn't opened twice, and an older one is asked to close | A developer's run on Windows stops at its start |
+| P13 | Built: `tests/test_each_os.py` reads the source | A text read or write in Windows' code page |
 | P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 

@@ -34,7 +34,7 @@ def _inside(name: str, home: Path) -> Path:
 
 def _tree(path: Path) -> Any:
     try:
-        return json.loads(path.read_text()) if path.suffix == ".json" else yaml.safe_load(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8")) if path.suffix == ".json" else yaml.safe_load(path.read_text(encoding="utf-8"))
     except (ValueError, yaml.YAMLError, UnicodeDecodeError) as error:
         raise Refused(f"{path.name} doesn't parse ({type(error).__name__}).") from error
 

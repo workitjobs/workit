@@ -2592,7 +2592,7 @@ def _window_chromes(profile: Path, system: str = sys.platform) -> list[tuple[int
             arguments = []
         return [(pid, a.removeprefix("--app=")) for a in arguments if a.startswith("--app=")][:1]
     found = subprocess.run(["pgrep", "-lf", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, encoding="utf-8")
     chromes = []
     for line in found.stdout.splitlines():
         pid, _, command = line.partition(" ")
@@ -2632,7 +2632,7 @@ def window_open(profile: Path, system: str = sys.platform) -> bool:
     if system != "darwin":
         return bool(_window_chromes(profile, system))
     found = subprocess.run(["pgrep", "-f", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, encoding="utf-8")
     return bool(found.stdout.split())
 
 
@@ -2649,12 +2649,12 @@ def raise_window(profile: Path, timeout: float = 10.0, system: str = sys.platfor
     while True:
         # Chrome itself, not the `open` command that launched it with the same arguments.
         found = subprocess.run(["pgrep", "-f", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                               capture_output=True, text=True, check=False)
+                               capture_output=True, text=True, check=False, encoding="utf-8")
         for pid in found.stdout.split():
             script = (f'tell application "System Events" to tell (first process whose unix id is {pid})\n'
                       "if (count of windows) is 0 then return false\n"
                       "set frontmost to true\nreturn frontmost\nend tell")
-            raised = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False)
+            raised = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False, encoding="utf-8")
             if raised.stdout.strip() == "true":
                 return True
         if time.monotonic() >= deadline:

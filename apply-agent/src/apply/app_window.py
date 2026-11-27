@@ -832,7 +832,7 @@ def send_links(links: list[str], inbox: Path = INBOX) -> Path:
     inbox.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = inbox / f"{time.time_ns()}-{os.getpid()}.json"
     part = path.with_suffix(".part")
-    part.write_text(json.dumps({"links": list(links)}))
+    part.write_text(json.dumps({"links": list(links)}), encoding="utf-8")
     part.chmod(0o600)
     part.rename(path)
     return path
@@ -844,7 +844,7 @@ def take_links(inbox: Path = INBOX) -> list[str]:
     links: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
-            links += [str(link).strip() for link in json.loads(path.read_text())["links"]]
+            links += [str(link).strip() for link in json.loads(path.read_text(encoding="utf-8"))["links"]]
         except (OSError, ValueError, KeyError, TypeError):
             pass
         path.unlink(missing_ok=True)
@@ -858,7 +858,7 @@ def take_links(inbox: Path = INBOX) -> list[str]:
 def running(note: Path = PID_NOTE) -> int | None:
     """The PID of the WorkIt Auto Apply window running now (run() notes it), or None."""
     try:
-        pid = int(note.read_text())
+        pid = int(note.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return pid if psutil.pid_exists(pid) else None
@@ -888,7 +888,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
-    PID_NOTE.write_text(str(os.getpid()))
+    PID_NOTE.write_text(str(os.getpid()), encoding="utf-8")
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
     if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
         from apply import app_control

@@ -134,7 +134,7 @@ def claude_auth_status() -> str:
     """What `claude auth status` prints, run as a run's calls are: without
     ANTHROPIC_API_KEY, which would win over the Max login."""
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-    done = subprocess.run(["claude", "auth", "status"], env=env, capture_output=True, text=True, timeout=30)
+    done = subprocess.run(["claude", "auth", "status"], env=env, capture_output=True, text=True, timeout=30, encoding="utf-8")
     return done.stdout or done.stderr
 
 
@@ -395,7 +395,7 @@ def _records(machine: Machine) -> Check:
 
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], capture_output=True, text=True, timeout=30,
-                          env=os.environ | {"GIT_TERMINAL_PROMPT": "0"})  # never wait on a password prompt
+                          env=os.environ | {"GIT_TERMINAL_PROMPT": "0"}, encoding="utf-8")  # never wait on a password prompt
 
 
 def _said(done: subprocess.CompletedProcess) -> str:
@@ -497,7 +497,7 @@ def _accounts_host(machine: Machine) -> Check:
     name, fix = "Apply accounts host", "run `uv run apply chrome-passwords`"
     manifest = chrome_host.found(native_host.NAME, machine.native_hosts, machine.system, machine.registry)
     try:
-        written = json.loads(manifest.read_text()) if manifest else None
+        written = json.loads(manifest.read_text(encoding="utf-8")) if manifest else None
     except (OSError, ValueError):
         written = None
     if written is None:

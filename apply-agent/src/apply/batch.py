@@ -36,7 +36,7 @@ def _locked(path: Path):
 
 def _read(path: Path) -> dict[str, dict]:
     try:
-        forms = json.loads(path.read_text())
+        forms = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {f["link"]: f for f in forms if isinstance(f, dict) and f.get("link")} if isinstance(forms, list) else {}
@@ -44,7 +44,7 @@ def _read(path: Path) -> dict[str, dict]:
 
 def _write(path: Path, forms: dict[str, dict]) -> None:
     handle, temporary = tempfile.mkstemp(prefix=".open-forms-", dir=path.parent)
-    with os.fdopen(handle, "w") as out:
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
         json.dump(list(forms.values()), out, indent=1)
         out.write("\n")
     os.chmod(temporary, 0o600)
@@ -133,7 +133,7 @@ def draft(form: dict) -> dict[str, tuple[str, object]]:
     to tick or sign, send_click.ATTEST). {} when it has no Record. `worker.apply_to` keeps one only where the
     field asks the same question now: Claude fill numbers its fields, and a number may name another field."""
     try:
-        rows = json.loads((Path(form["record"]) / "answers.json").read_text())
+        rows = json.loads((Path(form["record"]) / "answers.json").read_text(encoding="utf-8"))
     except (KeyError, TypeError, OSError, ValueError):
         return {}
     held = {}

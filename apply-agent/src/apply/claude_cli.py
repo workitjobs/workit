@@ -116,7 +116,7 @@ def run_claude(argv: list[str], stdin: str, env: dict, sleep: Callable[[float], 
 def _run_once(argv: list[str], stdin: str, env: dict) -> subprocess.CompletedProcess:
     """One run of claude, to its end; Lisul's Resume on the wait (apply.stuck) kills it and raises Stopped."""
     process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
-                               cwd=NEUTRAL, text=True)
+                               cwd=NEUTRAL, text=True, encoding="utf-8")
     killed = _stopped_by_resume(process, process.kill)
     try:
         stdout, stderr = process.communicate(stdin)
@@ -172,7 +172,7 @@ def kill_tree(process: subprocess.Popen, system: str = sys.platform) -> None:
 def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator[str]:
     try:
         process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   env=env, cwd=cwd, text=True, start_new_session=True)
+                                   env=env, cwd=cwd, text=True, start_new_session=True, encoding="utf-8")
     except FileNotFoundError:
         raise SetupError(INSTALL) from None
     def kill() -> None:

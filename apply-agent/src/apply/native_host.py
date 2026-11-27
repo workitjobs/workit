@@ -93,7 +93,7 @@ def serve(argv: Sequence[str], stdin: BinaryIO, stdout: BinaryIO, tracker, keych
         request, reply = {}, {"none": f"Apply's host failed ({type(error).__name__})"}
     _write(stdout, reply)
     if "password" in reply:
-        with log.open("a") as file:
+        with log.open("a", encoding="utf-8") as file:
             file.write(f"{datetime.now().isoformat(timespec='seconds')} gave the WorkIt extension "
                        f"the password of {request['tenant']}\n")
 

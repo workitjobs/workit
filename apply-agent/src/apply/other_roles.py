@@ -126,7 +126,7 @@ def others(posting: Posting, board: Sequence[Opening], path: Path | None = None)
     if not posting.company.strip():
         return []
     try:
-        saved = json.loads((path or TRACKER).read_text())
+        saved = json.loads((path or TRACKER).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     own, found, seen = _job(posting.url), [], set()

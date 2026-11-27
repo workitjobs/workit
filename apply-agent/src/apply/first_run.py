@@ -43,7 +43,7 @@ CHROME, SHOWN, SCREEN, SEED, READY = "chrome", "disclosure", "screen", "seed", "
 
 def _kept(state: Path) -> dict:
     try:
-        kept = json.loads(state.read_text())
+        kept = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return kept if isinstance(kept, dict) else {}
@@ -51,7 +51,7 @@ def _kept(state: Path) -> dict:
 
 def _keep(state: Path, **values: object) -> None:
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n")
+    state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n", encoding="utf-8")
 
 
 def workers(state: Path | None = None) -> int:

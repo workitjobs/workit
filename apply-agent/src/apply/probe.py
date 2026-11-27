@@ -57,7 +57,7 @@ def _path(company: str, asked: str) -> Path:
 def _cached(company: str, asked: str) -> Typical | None:
     path = _path(company, asked)
     try:
-        raw = json.loads(path.read_text())
+        raw = json.loads(path.read_text(encoding="utf-8"))
         return Typical(str(raw["answer"]), tuple(raw.get("angles") or ()))
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -67,4 +67,4 @@ def _keep(company: str, asked: str, found: Typical) -> None:
     path = _path(company, asked)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"question": one_line(asked), "answer": found.answer, "angles": list(found.angles)},
-                               indent=1))
+                               indent=1), encoding="utf-8")

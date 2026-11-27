@@ -120,7 +120,7 @@ class RepairRequests:
         if self.folder is None:
             texts = [self._memory[k] for k in sorted(self._memory)]
         else:
-            texts = [p.read_text() for p in sorted(self.folder.glob("*.json"))] if self.folder.exists() else []
+            texts = [p.read_text(encoding="utf-8") for p in sorted(self.folder.glob("*.json"))] if self.folder.exists() else []
         return [RepairRequest.from_json(text) for text in texts]
 
     def waiting(self) -> list[RepairRequest]:
@@ -131,13 +131,13 @@ class RepairRequests:
         if self.folder is None:
             return self._memory.get(signature)
         path = self.folder / f"{signature}.json"
-        return path.read_text() if path.exists() else None
+        return path.read_text(encoding="utf-8") if path.exists() else None
 
     def _write(self, request: RepairRequest) -> None:
         if self.folder is None:
             self._memory[request.signature] = request.to_json()
         else:
-            (self.folder / f"{request.signature}.json").write_text(request.to_json())
+            (self.folder / f"{request.signature}.json").write_text(request.to_json(), encoding="utf-8")
 
     @contextmanager
     def _locked(self):

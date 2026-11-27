@@ -221,7 +221,7 @@ def prove(stream, path: Path):
             raise NotApply(f"the channel at {path} sent no challenge")
         # Only now: a listener writes its new secret just after it takes the address, and challenges only after
         # that. Read sooner, a host that connected in between had the Apply before's secret.
-        secret = bytes.fromhex(secret_path(path).read_text().strip())
+        secret = bytes.fromhex(secret_path(path).read_text(encoding="utf-8").strip())
         mine = secrets.token_bytes(SIZE)
         stream.sendall(_mac(secret, b"client", challenge) + mine)
         proof = _exact(stream, SIZE)
@@ -313,7 +313,7 @@ def _new_secret(where: Path) -> bytes:
     secret = secrets.token_bytes(SIZE)
     part = where.with_name(where.name + ".part")
     part.unlink(missing_ok=True)
-    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
+    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as file:
         file.write(secret.hex())
     os.replace(part, where)
     return secret
