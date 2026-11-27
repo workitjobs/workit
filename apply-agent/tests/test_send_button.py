@@ -55,3 +55,39 @@ def test_a_press_that_sends_the_page_away_is_unsure_never_none(browser):
     with pytest.raises(send_button.Unsure) as unsure:
         send_button.press(page)
     assert unsure.value.words == "Submit"
+
+
+def test_a_form_with_a_required_field_blank_is_never_pressed_and_the_field_is_named(browser):
+    """Fault: Send anyway pressed Submit on a form with a required answer still blank (Veeva, live 2026-11-27), and
+    the press was told as maybe sent, though the browser itself sends no form with a required field empty."""
+    page = page_of(browser, """<form><ul>
+        <li class="application-question"><div class="application-label">Question 2: Tell us about a project ✱</div>
+          <textarea name="cards[a][field1]" required></textarea></li>
+        <li class="application-question"><label for="n">Full name</label><input id="n" name="name" required value="Ada"></li>
+        <li><input type="hidden" name="token" required></li>
+        </ul><button type="button">Submit application</button></form>""")
+    with pytest.raises(send_button.NotPressed, match="'Question 2: Tell us about a project'") as refused:
+        send_button.press(page)
+    assert "Full name" not in str(refused.value)
+    assert page.evaluate("window.pressed") == []
+    page.fill("textarea", "A robot")
+    assert send_button.press(page) == "Submit application"
+
+
+def test_a_click_that_never_reached_submit_is_not_pressed_never_unsure(browser):
+    """Fault: a cookie banner over Submit kept the click off it until it timed out, and Apply read that as a press
+    whose reply was lost: "it may have gone in", though nothing was sent."""
+    page = page_of(browser, """<button style="position:fixed;bottom:10px;left:10px">Submit application</button>
+        <div id="cookie-banner" style="position:fixed;inset:auto 0 0 0;height:120px;background:#000"></div>""")
+    real = page.frames[0].locator
+
+    class Quick:
+        def __init__(self, selector):
+            self._real = real(selector)
+
+        def click(self, **kwargs):
+            self._real.click(**{**kwargs, "timeout": 500})
+    page.frames[0].locator = Quick
+    with pytest.raises(send_button.NotPressed, match="cookie-banner"):
+        send_button.press(page)
+    assert page.evaluate("window.pressed") == []

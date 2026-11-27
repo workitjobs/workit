@@ -210,3 +210,28 @@ def test_a_lever_form_or_a_page_that_says_no_such_thing_is_no_confirmation():
             '<form id="application-form"><button>Submit application</button></form>')
     assert not _confirmed_at(posting + "/apply", form)
     assert not _confirmed_at("https://zoox.com/careers", "<title>Zoox careers</title><h1>Open roles</h1>")
+
+
+def test_a_press_that_left_lever_s_form_where_it_was_never_sent_it():
+    """Fault: Lever's invisible hCaptcha never answered Apply's press (Palantir, Veeva, live 2026-11-27), the form
+    stayed as it was, and Apply said it may have gone in, so a form that sent nothing was never sent again. A page
+    the press replaced (Lever's /thanks, its "error verifying" page) is no such form."""
+    from playwright.sync_api import sync_playwright
+
+    from apply.lever import document_of, never_sent
+
+    posting = "https://jobs.lever.co/palantir/b3d81928-6c26-432f-8a0a-36602c2eefcb"
+    form = ('<form id="application-form" method="post"><button id="btn-submit" type="button">Submit application'
+            '</button></form>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.route("**/*", lambda route: route.fulfill(content_type="text/html", body=form))
+        page.goto(posting + "/apply")
+        before = document_of(page)
+        page.click("#btn-submit")  # hCaptcha's check, which never answers: nothing is posted
+        assert never_sent(page, before)
+        page.goto(posting + "/apply")  # Lever's answer to a post: its page again, with "error verifying" on it
+        assert not never_sent(page, before)
+        assert not never_sent(page, None)  # the document was never read: it may have gone in
+        browser.close()

@@ -2415,6 +2415,42 @@ def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pre
     assert board.captions[0]["submit_said"] == ""
 
 
+def test_an_approved_submit_that_left_the_form_where_it_was_is_handed_over_as_unsent(monkeypatch, tmp_path):
+    """Fault: Lever's hCaptcha held Apply's press back (Palantir, Veeva, live 2026-11-27): the same page, the form
+    still on it, no email. Apply said it may have gone in and marked it sent, so it was never sent at all."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    pressed_on = []
+    monkeypatch.setitem(rehearsal.NEVER_SENT, "greenhouse",
+                        (lambda page: pressed_on.append(1) or 1.0, lambda page, before: before == 1.0))
+    noted = []
+    real_note = rehearsal.batch.note
+    monkeypatch.setattr(rehearsal.batch, "note", lambda url, **kw: (noted.append(kw.get("status")), real_note(url, **kw)))
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            caption = self.captions.get(worker, {})
+            return bool(caption.get("again")) and caption.get("status") != "handoff" and not pressed_on
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert pressed_on == [1]
+    assert board.captions[0]["why"] == rehearsal.NOT_SENT
+    assert rehearsal.batch.SENT not in noted  # nothing went in: never kept from being sent again
+
+
 # Greenhouse's own check in the page, as Epic Games' form answered Apply's press (live, 2026-11-26): the field is
 # marked invalid under a red message, nothing is sent, and the message goes once the field takes an answer.
 REFUSES = r"""(name) => {
