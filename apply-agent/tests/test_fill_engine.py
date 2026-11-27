@@ -83,6 +83,16 @@ def test_an_essay_on_a_job_system_the_policies_name_holds_its_application():
     assert fill_engine.plan([essay], ashby, PROFILE).high_stakes == [essay]
 
 
+def test_a_link_to_a_video_to_make_is_missing_not_held_as_a_high_stakes_essay():
+    # Ashby holds an essay for Lisul to edit; a link he must record a video for is asked, never held as one.
+    video = Question("q1", "Please include a shareable YouTube link to your Creative Project video.", "textarea", True)
+    ashby = Posting("p", "Acme", "Intern", "https://jobs.ashbyhq.com/acme/00000000-0000-0000-0000-000000000000")
+
+    planned = fill_engine.plan([video], ashby, PROFILE)
+
+    assert planned.missing == [video] and planned.high_stakes == [] and planned.essays == []
+
+
 class Site:
     """A JobSite's fetch over saved answers, recording what was asked."""
 

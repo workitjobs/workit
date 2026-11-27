@@ -20,6 +20,7 @@ from sqlalchemy import (
     Select,
     Uuid,
     and_,
+    case,
     cast,
     delete,
     func,
@@ -36,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.applications import Job_Application
 from app.models.built_resume import Built_Resume
 from app.models.disabled_job_systems import Disabled_Job_System
-from app.models.dto import application_stage, job_post_status
+from app.models.dto import BEFORE_APPLIED, application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
@@ -56,8 +57,10 @@ from app.schemas.applications import (
     WrittenAnswer,
     WrittenQuestion,
 )
+from app.schemas.jobs import JobListing
 from app.schemas.sent_resume import SentResumeResponse
 from app.services import apply_answers
+from app.services.added_logos import own_site
 from app.services.postings import ADDED, typed_text
 
 
@@ -154,9 +157,19 @@ def _applications(applicant_id: uuid.UUID) -> Select:
     )
 
 
+def _with_own_site_logo(job: JobListing) -> JobListing:
+    """`job`, with the employer's own site as its logo sources when it has
+    none (services/added_logos.py): an added job from before add_job kept
+    them, whose card showed initials on the Tracker and in Apply's Applied."""
+    if job.company_domain or job.logo_url:
+        return job
+    found = own_site(job.apply_url)
+    return job.model_copy(update={"company_domain": found[0], "logo_url": found[1]}) if found else job
+
+
 def _to_application(row) -> Application:
     return Application(
-        job=to_listing(row),
+        job=_with_own_site_logo(to_listing(row)),
         stage=row.stage,
         added_at=row.added_at,
         applied_at=row.applied_at,
@@ -185,13 +198,22 @@ async def fetch_applications(
     applicant_id: uuid.UUID,
     stages: Sequence[application_stage] = (),
 ) -> list[Application]:
-    """This applicant's applications in `stages` (every stage when empty),
-    newest first. Closed job postings stay in, marked `open=False`."""
+    """This applicant's applications in `stages` (every stage when empty):
+    the latest applied first (`applied_at`), then the rest newest added
+    first, so Applied reads latest first on the Tracker's board and in
+    Apply's window. Closed job postings stay in, marked `open=False`."""
     query = _applications(applicant_id)
     if stages:
         query = query.where(Job_Application.stage.in_(stages))
     rows = await db.execute(
-        query.order_by(Job_Application.created_at.desc(), Job_Application.job_id)
+        query.order_by(
+            # Only a sent application's date counts: an unsent one may hold a
+            # stale one from an older insert's now() default (set_stage).
+            case((Job_Application.stage.in_(BEFORE_APPLIED), None), else_=Job_Application.applied_at)
+            .desc().nulls_last(),
+            Job_Application.created_at.desc(),
+            Job_Application.job_id,
+        )
     )
     return [_to_application(row) for row in rows]
 
