@@ -421,11 +421,13 @@ class ClaudeFill:
             pass_jobvite_gate(page)
             self._clear_pop_up(page)
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
-            if not self._carried_checked:  # an earlier attempt's résumé and letter: this fill's go in their place
-                self._carried_checked = True
-                if dropped := drop_carried_documents(page):
-                    print(f"Removed what an earlier attempt attached: {', '.join(dropped)}", file=sys.stderr)
+            # An earlier attempt's résumé and letter: this fill's go in their place. Looked for until a read gets to
+            # the form: a read stopped at a sign-in's code page (Emerson's, live 2026-11-27) was before the form, and
+            # the read after Lisul's code is the one that finds them.
+            if not self._carried_checked and (dropped := drop_carried_documents(page)):
+                print(f"Removed what an earlier attempt attached: {', '.join(dropped)}", file=sys.stderr)
             found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
+            self._carried_checked = True
             self._read_posting_text(page)  # else what the form's own page says about the job
             questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))
         why = str(found.get("why") or "").strip()

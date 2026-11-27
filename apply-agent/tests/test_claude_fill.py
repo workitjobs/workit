@@ -2328,6 +2328,30 @@ def test_documents_oracle_shows_after_its_form_are_removed_before_the_read():
     assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
 
 
+def test_documents_are_removed_after_a_read_that_stopped_at_the_sign_ins_code_page():
+    """Emerson's refill (live 2026-11-27, run35): the first read stopped at Oracle's code page, a Needs sign-in pause;
+    after Lisul's code, the read of the form came with no look for the earlier attempt's documents, so they stayed."""
+    pages = iter(["<h1>Confirm your identity</h1><label>Verification code <input></label>", LIVE_DOCUMENTS])
+
+    def sign_in(page):
+        page.set_content(next(pages))
+
+    def read(page, schema, prompt, files):
+        if page.get_by_text("Confirm your identity").count():
+            raise Handoff("Needs sign-in: type the code yourself")
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff):
+            filler.question_set(LUNAR_URL, site)
+        questions = filler.question_set(LUNAR_URL, site)  # Resume, once he gave the code
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
 def test_a_form_with_no_carried_documents_is_left_as_it_is():
     from playwright.sync_api import sync_playwright
 
