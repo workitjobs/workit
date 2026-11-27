@@ -161,6 +161,11 @@ SESSION_HELD = "Submit is held while Apply kept the job site's session open: dis
 PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
 CONFIRM_S = 120
 CODE_STALE_S = 6.0  # a wrong-code message that showed before a code's press counts again only after this long
+# A job system whose Submit posts the whole page: the same page, its form still there, sent nothing (apply.lever).
+NEVER_SENT = {"lever": (lever.document_of, lever.never_sent)}
+NOT_SENT = ("Apply pressed Submit, but the job site never sent the form: the page is the one Apply pressed it on, with "
+            "the form still there, so nothing went in. Its bot check (Lever's invisible hCaptcha) most likely held the "
+            "press back. Press Submit on the form yourself, or finish it in your own Chrome.")
 UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went in. It may have: look for a "
                "confirmation email before you apply again. Apply won't press Submit on it again.")
 # How long Apply's press waits for its confirmation before the form is read for why not (apply.refused_submit): the
@@ -2008,6 +2013,8 @@ class _Kept:
         kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
         retried, codes = False, set()  # Apply's Submit pressed once more; the form's code boxes before its press
         site_said: set[str] = set()  # the lines saying a send failed that the page showed before Apply's press
+        document, never_sent = NEVER_SENT.get(job_system, (lambda page: None, lambda page, before: False))
+        pressed_on = None  # the page's document at Apply's press (NEVER_SENT)
         coding = 0.0  # when Apply pressed Submit after entering a code the student gave
         stale = False  # the page said a code was wrong before that press: a last try's words, read again only later
         code_wrong = False  # Apply said the code was wrong: taken back if the job site confirms it after all
@@ -2038,6 +2045,7 @@ class _Kept:
                         try:
                             codes = {key for key, _ in code_box.boxes(self._page)}
                             site_said = refused_submit.site_errors(self._page)
+                            pressed_on = document(self._page)
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
                         except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
@@ -2107,7 +2115,10 @@ class _Kept:
                         code_said(code_box.NO_ANSWER)
                 if pressing and not kept and not told and not turned_down and time.monotonic() - pressing > CONFIRM_S:
                     pressing = 0.0
-                    approved(UNCONFIRMED, True)
+                    if never_sent(self._page, pressed_on):  # nothing went in: the student's to send, never marked sent
+                        unsent(NOT_SENT)
+                    else:
+                        approved(UNCONFIRMED, True)
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
                 # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.

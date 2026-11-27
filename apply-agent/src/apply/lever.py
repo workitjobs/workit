@@ -53,3 +53,28 @@ def confirmed(page: Page) -> bool:
     except Exception:
         return False  # a page loading, or gone
 
+
+
+# The page's own document, by when it began: Lever's Submit posts the whole page, so any answer to it (its /thanks, a
+# company's page, its "error verifying" page) is a new document.
+DOCUMENT = "() => performance.timeOrigin"
+
+
+def document_of(page: Page) -> float | None:
+    """The page's document, as never_sent compares it; None when it can't be read."""
+    try:
+        return page.evaluate(DOCUMENT)
+    except Exception:
+        return None
+
+
+def never_sent(page: Page, before: float | None) -> bool:
+    """Whether a press of Submit left Lever's form where it was, unsent: the same document as `before` (document_of at
+    the press), its form still on it. Lever's invisible hCaptcha decides before anything is posted, and a check that
+    never answered (Palantir, Veeva, live 2026-11-27: no email, no error, the form as it was) posts nothing."""
+    if before is None:
+        return False
+    try:
+        return page.evaluate(DOCUMENT) == before and bool(page.locator(FORM).count())
+    except Exception:
+        return False  # a page loading, or gone: it may have gone in
