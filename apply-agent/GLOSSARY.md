@@ -172,6 +172,10 @@ _Avoid_: session, browser, Chrome profile
 The extension through which a plain Worker reads and fills a form. It lives only in Apply's Worker profiles, never in the applicant's own Chrome.
 _Avoid_: helper extension, plugin, "the extension" (that is WorkIt's)
 
+**Safety level**:
+The one setting "How careful should Apply be?", asked once in the first run and changed in Settings or as `safety_level` in policies.yaml: careful (today's behaviour), balanced (arbitration and privacy acknowledgments ticked, opinion questions answered from the closest backed facts) or full_auto (also self-ID signatures signed, the High-stakes essay and Calibration run holds lifted, ready forms auto-submitted). It sets those policies' defaults (`apply.safety`); a key set in policies.yaml wins. No level touches the hard guards: bot checks and captchas, invented facts or essays naming the tools that wrote them, take-home tests, and the company and daily caps.
+_Avoid_: autonomy level, mode, risk setting
+
 **Seed**:
 The Worker profile that gets the Worker extension once, by the applicant's own clicks. Each new plain Worker's profile starts as a copy of it.
 _Avoid_: template profile, base profile

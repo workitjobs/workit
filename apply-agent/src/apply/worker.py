@@ -836,6 +836,10 @@ class _Planned:
             return stop
         for essay in written:
             self.holds += self._holds(essay, essay.question in planned.high_stakes)
+        for draft in self.drafted + self.unbanked:  # the hard guard on short answers too, at every level
+            if isinstance(draft.answer, str) and (tools := essays.names_tools(draft.answer)):
+                self.holds.append(f"'{one_line(draft.question.label)}' names {', '.join(tools)}, which says the "
+                                  "application was automated")
         answers = dict(planned.answers) | {d.question.name: d.answer for d in self.drafted + self.unbanked
                                            if not left_blank(d.question, d.answer) and d.question not in moot}
         answers |= {q.name: answer for q, answer in moot.items() if answer is not None}
@@ -1129,7 +1133,8 @@ class _Planned:
             writer = "Claude wrote" if self._approved is None else "The approved Essay column has"
             return [f"{writer} nothing for '{one_line(q.label)}'"]
         holds = []
-        if high_stakes and self._approved is None:
+        # Lifted with hold_high_stakes_essays: false (the Safety level's full_auto); the truth checks below still hold it.
+        if high_stakes and self._approved is None and self.profile.policy("hold_high_stakes_essays") is not False:
             holds.append(f"High-stakes essay: '{one_line(q.label)}'")
         if essay.needs_lisul:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
@@ -1139,6 +1144,8 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
         if essay.sensitive:  # for Lisul to look at: an essay may mean to say it, so it is never cut here
             holds.append(f"'{one_line(q.label)}' may share something private: {'; '.join(essay.sensitive)}")
+        if tools := essays.names_tools(essay.text):  # a hard guard: no Safety level lifts it
+            holds.append(f"'{one_line(q.label)}' names {', '.join(tools)}, which says the application was automated")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")

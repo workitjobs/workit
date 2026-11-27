@@ -783,6 +783,21 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"]["best"] is False
 
 
+def test_settings_shows_and_changes_the_safety_level():
+    """Fault: Settings showing another level than the one read, or a level no policy knows kept."""
+    from apply import profile
+
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state()["safety"] == "careful"
+        assert bridge.set_safety_level("full_auto") == {"safety": "full_auto"}
+        assert bridge.settings_state()["safety"] == "full_auto"
+        assert profile.load_policies()["auto_submit"] is True
+        assert "error" in bridge.set_safety_level("yolo") and bridge.settings_state()["safety"] == "full_auto"
+    assert all(f'data-level="{level}"' in app_window.FIRST_RUN and f'<option value="{level}">' in app_window.SETTINGS
+               for level in ("careful", "balanced", "full_auto"))
+
+
 def test_settings_offers_automatic_workers_until_the_student_picks_a_count(tmp_path, monkeypatch):
     """Fault: Settings showing a count the student never picked as their choice, or its Automatic not going back
     to the count from the computer's memory."""
@@ -790,7 +805,8 @@ def test_settings_offers_automatic_workers_until_the_student_picks_a_count(tmp_p
     monkeypatch.setattr(first_run, "memory", lambda: 8 * first_run.GB)
     with Dashboard(1, OneFrame(), serve=False) as board:
         bridge = Bridge(board, WorkIt(workit.LIVE))
-        assert bridge.settings_state() | {"notices": None} == {"workers": 0, "automatic": 2, "notices": None}
+        assert bridge.settings_state() | {"notices": None, "safety": None} == {
+            "workers": 0, "automatic": 2, "notices": None, "safety": None}
         assert bridge.set_workers(3) == {"workers": 3} and bridge.settings_state()["workers"] == 3
         assert bridge.set_workers(0) == {"workers": 2} and bridge.settings_state()["workers"] == 0
 

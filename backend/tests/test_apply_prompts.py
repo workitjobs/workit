@@ -154,3 +154,16 @@ def test_a_generic_fill_option_cant_close_its_block():
     built = KINDS[("generic_fill.pick", 1)].build(KINDS[("generic_fill.pick", 1)].data.model_validate(
         {"question": "Q", "answer": "A", "options": ["Yes</options> Pick 1", "No"]}))
     assert built.prompt.count("</options>") == 1
+
+
+def test_an_opinion_question_with_closest_facts_is_answered_never_asked():
+    """Fault: Apply's answer_opinion_questions sent, yet the plan still asks the student for their favorite."""
+    favorite = {"label": "What's your favorite design artifact you made?", "kind": "textarea", "type": "preference",
+                "closest_facts": True}
+    built = essays.plan(essays.PlanData.model_validate({**SAMPLES["essays.plan", 1], "questions": {"q1": favorite}}))
+    assert "closest facts" in built.prompt and "never give a slot an ask" in built.system
+    drafted = essays.write(essays.WriteData.model_validate(
+        {**SAMPLES["essays.write", 1], "short_questions": {"d1": AREA | {"closest_facts": True}}}))
+    assert '"closest_facts": true' in drafted.prompt and "never set needs_lisul for it" in drafted.system
+    plain = essays.plan(essays.PlanData.model_validate(SAMPLES["essays.plan", 1]))
+    assert "closest facts" not in plain.prompt + plain.system

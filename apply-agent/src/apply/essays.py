@@ -70,6 +70,18 @@ GIVEAWAY = re.compile(r"""\b(?:
   | don['’]t\ (?:yet\ )?say\ why | doesn['’]t\ (?:yet\ )?say\ why
   | as\ an\ AI
 )\b""", re.IGNORECASE | re.VERBOSE)
+# The tools that fill the application (Lisul, 2026-11-26): an answer naming one says it was automated, so it is
+# held at every Safety level, even when a Story bank line names one (a project of the applicant's own).
+TOOLS = re.compile(r"\b(?:WorkIt|auto[- ]?appl(?:y|ying|ied)|fill[- ]engine|Apply agent|autofill extension)\b",
+                   re.IGNORECASE)
+# An opinion, preference or personality question (the answer_opinion_questions policy answers it from the closest
+# backed facts instead of asking): "What's your favorite design artifact?", "Which do you prefer?".
+# Never one about the company or role ("What excites you about joining Acme?" is a why question), nor a fact
+# asked as a preference ("Preferred location", "Preferred name").
+OPINION = re.compile(r"""\b(?:favou?rite | in\ your\ (?:own\ )?opinion | (?:do|would)\ you\ prefer
+  | personality | describe\ yourself | (?:three|3)\ words)\b""", re.IGNORECASE | re.VERBOSE)
+ABOUT_THEM = re.compile(r"\b(?:joining|join\ us|work(?:ing)?\ (?:at|for|here)|this\ (?:role|position|team|company)"
+                        r"|our\ (?:company|team|mission|product))\b", re.IGNORECASE)
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 CATCH_ALL = "anything-else"  # the type of a catch-all box ("Additional information"): always blank when optional
 REUSABLE = {"anything-else", "cover-letter"}  # types whose answer may lead with a story another answer leads with
@@ -236,9 +248,10 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     data = {"sources": sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
             "posting": description.block(posting, posting_text, essays),
             "style_card": writing.style_card() if keys else "", "form_answers": dict(shown) if keys else {},
-            "questions": {key: _sent(q, types[key]) for key, q in keys.items()},
+            "questions": {key: _sent(q, types[key], closest(q, profile)) for key, q in keys.items()},
             "plans": {key: plans[key].shown() for key in keys},
-            "short_questions": {key: _sent(q) | {"about": (sections or {}).get(q.name)} for key, q in short.items()},
+            "short_questions": {key: _sent(q, nearest=closest(q, profile)) | {"about": (sections or {}).get(q.name)}
+                                for key, q in short.items()},
             "redraft": {key: list(redraft[q]) for key, q in keys.items() if q in (redraft or {})},
             "redo": _redone(redo, {**keys, **short})}
     given = claude.ask_kind("essays.write", data)
@@ -275,7 +288,8 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
-                    (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
+                    (written.get(key) or {}).get("needs_lisul") is True and not (texts[key] and closest(q, profile)),
+                    giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
                     tuple(failed[key]) if texts[key] else (),
                     tuple(c.said() for c in found[key] if c.kind != "number"), private.sensitive(texts[key], profile))
@@ -286,7 +300,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
         redone = {e.question: e for e in _answer(claude, posting, list(again), [], profile, company, posting_text, again,
                                                  answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
-    return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
+    return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own, closest(q, profile)) for key, q in short.items()]
 
 
 def _redone(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, Question]) -> dict[str, dict]:
@@ -295,12 +309,12 @@ def _redone(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, 
     return {key: {"earlier_answer": redo[q][0], "added_context": redo[q][1]} for key, q in keys.items() if q in (redo or {})}
 
 
-def _sent(q: Question, kind: str | None = None) -> dict:
+def _sent(q: Question, kind: str | None = None, nearest: bool = False) -> dict:
     """`q` as a kind's data holds it (backend/app/apply_prompts/essays.py's Question), with its Question
-    type when it is an essay."""
+    type when it is an essay, and closest_facts when it is answered from the closest backed facts (closest)."""
     return {"label": q.label, "kind": q.kind, "required": q.required, "options": list(q.options),
             "description": q.description, "max_length": q.max_length, "section": q.section} | (
-        {"type": kind} if kind else {})
+        {"type": kind} if kind else {}) | ({"closest_facts": True} if nearest else {})
 
 
 def _sameness(company: str, types: Mapping[str, str], defaults: Mapping[str, str], letters: set[str]):
@@ -361,7 +375,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
             plans[key] = replace(plans[key], **{field: _DROPPED[field](keys[key])
                                    for field in [*fields, *(["link_kind"] if "company_fact" in fields else [])]
                                    if field != "slots"})
-    return {q: _backed(plans[key], held, profile, posting.company) for key, q in keys.items()}
+    return {q: _backed(plans[key], held, profile, posting.company, closest(q, profile)) for key, q in keys.items()}
 
 
 FACT_SLOT = "company-fact"  # the slot that holds the Company brief fact a plan ties
@@ -441,12 +455,13 @@ def _slot_failures(p: Plan, held: str) -> list[str]:
     return wrong + bare
 
 
-def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employer: str = "") -> Plan:
+def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employer: str = "", nearest: bool = False) -> Plan:
     """`p` with only the quotes `held` holds, its unbacked optional slots left
     out, in its guide's order, and the question for Lisul of each required
     slot no quote backs in its asks. A question Apply already holds the
     answer to (apply.asking.known: a link, a fact Lisul gave before) is
-    never asked: what it holds backs the slot instead."""
+    never asked: what it holds backs the slot instead. A `nearest` question (closest) asks nothing: it is
+    written from the slots its quotes back."""
     text, guide = _quotable(held), answering.load()[p.type].slots
     given = {b.slot: b for b in p.slots}
     wanted = lambda s: s.required is True or s.required and s.name in given
@@ -455,7 +470,8 @@ def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employe
     found = {name: facts for name, ask in asked.items() if profile and (facts := asking.known(ask, profile, employer=employer))}
     slots = tuple(Backed(s.name, quotes) for s in guide
                   if (quotes := _backers(given.get(s.name), text) or found.get(s.name, ())))
-    return replace(p, slots=slots, asks=tuple(ask for name, ask in asked.items() if name not in found))
+    asks = () if nearest else tuple(ask for name, ask in asked.items() if name not in found)
+    return replace(p, slots=slots, asks=asks)
 
 
 def _backers(given: "Backed | None", text: str) -> tuple[str, ...]:
@@ -520,7 +536,8 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
     # WorkIt's essays.plan kind (D5, KAN-723): its prompt, schema and guides are on the server.
     data = {"sources": sources(profile, company, types=classified.values(), employer=posting.company),
             "posting": description.block(posting, posting_text, list(keys.values())),
-            "questions": {key: _sent(q, classified[key]) for key, q in keys.items()}, "form_answers": dict(shown),
+            "questions": {key: _sent(q, classified[key], closest(q, profile)) for key, q in keys.items()},
+            "form_answers": dict(shown),
             "story_map": story_map.prompt_block(list(mapped)) if mapped else "", "typical": dict(angles or {}),
             "led_before": dict(led or {}), "replan": dict(failed or {}), "redo": _redone(redo, keys)}
     given = claude.ask_kind("essays.plan", data).get("plan") or {}
@@ -681,6 +698,22 @@ def named_fact(name: object, company: str) -> str:
     name = one_line(str(name or "")).strip("*").casefold()
     return next((line[2:] for line in company.splitlines()
                  if name and line.startswith("- **") and line[4:].split("**")[0].casefold() == name), "")
+
+
+def asks_opinion(q: Question) -> bool:
+    """Whether `q` asks the applicant's opinion, preference or personality (OPINION), by its label."""
+    return OPINION.search(q.label) is not None and ABOUT_THEM.search(q.label) is None
+
+
+def closest(q: Question, profile: ApplicantProfile | None) -> bool:
+    """Whether `q` is answered from the closest backed facts, never asked: an opinion question under the
+    answer_opinion_questions policy (the Safety level's balanced and full_auto)."""
+    return profile is not None and profile.policy("answer_opinion_questions") is True and asks_opinion(q)
+
+
+def names_tools(text: str) -> tuple[str, ...]:
+    """The tools that fill the application (TOOLS) that `text` names, as it says them."""
+    return tuple(dict.fromkeys(m.group() for m in TOOLS.finditer(text)))
 
 
 def giveaways(text: str) -> tuple[str, ...]:
@@ -901,13 +934,14 @@ def _unread(q: Question) -> bool:
     return all(re.match(r"^\W*((select|choose|pick)\b.*)?$", o.strip(), re.IGNORECASE) for o in q.options)
 
 
-def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own: str) -> Draft:
+def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own: str, nearest: bool = False) -> Draft:
     """Claude's draft, or one that needs Lisul: one Claude says it can't
     answer, an empty one, a choice that isn't among the options, or words
     the truth check (apply.truth, KAN-750) finds a claim in: a number or a
     name nothing in the call (`prompt`) holds, or an outcome none of his
     facts (`own`) states about its project. Not a date: the profile keeps
-    its dates as values ("2027-05-24"), not as "May 2027"."""
+    its dates as values ("2027-05-24"), not as "May 2027". A `nearest` question (closest) with a usable answer
+    is answered, whatever needs_lisul says."""
     answer = given.get("answer")
     choices = q.options if q.options and not _unread(q) else None
     if q.kind == "multi_select" and choices:
@@ -918,7 +952,7 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
         answer = str(answer or "").strip()
         usable = bool(answer) and (answer in choices if choices else not [
             c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
-    if given.get("needs_lisul") is True or not usable:
+    if given.get("needs_lisul") is True and not nearest or not usable:
         return Draft(q, "", needs_lisul=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
 

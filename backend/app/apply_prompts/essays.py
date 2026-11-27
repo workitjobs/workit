@@ -54,6 +54,9 @@ class Question(BaseModel):
     description: Text = ""
     max_length: int | None = Field(default=None, ge=1)
     section: Text = ""
+    # An opinion, preference or personality question Apply's answer_opinion_questions policy answers from the closest
+    # backed facts, never asking the student (Apply's Safety level).
+    closest_facts: bool = False
 
 
 def _known(kind: str) -> str:
@@ -196,6 +199,10 @@ Question types, each with its company link and its slots (required, asked, or op
 
 REDO_PLAN = """<redo>, when given, holds under a question's key @NAME@'s earlier answer to it and the context they typed when they asked for a better one (added_context). Plan the new answer by that context: a fact about @NAME@ in it is in <story_bank> under "Added while reviewing answers", so quote it from there; follow its directions (a story to lead with, what to stress or cut). Do not plan the earlier answer again unless the context asks to keep it."""
 
+CLOSEST = """A question marked "closest facts" asks @NAME@'s opinion, preference or personality (a favorite tool, design or project, how they like to work): answer it from the closest true facts the sources hold, as their pick among the things they did, built, designed or used, and why it fits. Never ask @NAME@ for it and never set needs_lisul for it; never state a preference, habit or experience no source backs."""
+
+CLOSEST_PLAN = """For a question marked "closest facts", never give a slot an ask: quote the closest lines the sources hold for each slot, and leave out a slot no line comes near."""
+
 LEAN_PLAN = """Only the types these questions were matched to are listed: keep each question's type."""
 
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
@@ -286,7 +293,7 @@ def _tagged(q: Question, kind: str) -> str:
     its company link and, when the form states no length, its default length."""
     length = _default_length(q, kind)
     tags = [f"type: {kind}", f"company link: {load()[kind].company_link}",
-            length and f"default length: {length}"]
+            length and f"default length: {length}", q.closest_facts and "closest facts"]
     return f"{_ask(q)} {{{'; '.join(filter(None, tags))}}}"
 
 def _answer_schema(q: Question, asked: str) -> dict:
@@ -310,6 +317,8 @@ def _short(q: Question, about: str | None = None) -> dict:
     if q.description:
         shown["description"] = _described(q)
     shown["required"] = q.required
+    if q.closest_facts:
+        shown["closest_facts"] = True
     if q.kind in FIELDS:
         shown["field"] = FIELDS[q.kind]
     if q.max_length:
@@ -374,7 +383,9 @@ def plan(data: PlanData) -> Built:
         _redo_block(data.redo, keys),
     ]))
     listed = [types[t] for t in dict.fromkeys(q.type for q in keys.values())]
-    system = PLAN + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}" + (f"\n\n{REDO_PLAN}" if data.redo else "")
+    closest = any(q.closest_facts for q in keys.values())
+    system = (PLAN + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}" + (f"\n\n{REDO_PLAN}" if data.redo else "")
+              + (f"\n\n{CLOSEST}\n{CLOSEST_PLAN}" if closest else ""))
     return Built(system, prompt, schema)
 
 
@@ -405,7 +416,8 @@ def write(data: WriteData) -> Built:
     letters = any(is_cover_letter(q) for q in keys.values())
     system = "\n\n".join(filter(None, [keys and SYSTEM, keys and WRITE, keys and rules(True),
                                        keys and guide_text(types.values(), True), letters and LETTER_RULES,
-                                       short and DRAFTS, data.redraft and REDRAFT, data.redo and REDO]))
+                                       short and DRAFTS, data.redraft and REDRAFT, data.redo and REDO,
+                                       any(q.closest_facts for q in (*keys.values(), *short.values())) and CLOSEST]))
     return Built(system, prompt, schema)
 
 

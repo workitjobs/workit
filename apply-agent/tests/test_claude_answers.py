@@ -209,6 +209,30 @@ def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_
     assert form.submitted == []
 
 
+def test_an_essay_naming_workit_is_held_even_from_a_story_bank_line(monkeypatch):
+    # A hard guard (Lisul, 2026-11-26): naming the tools that fill the form says it was automated, at every level.
+    form = ResearchForm("Northwood Space")
+    told = "I built WorkIt, a job platform, and wrote its fill engine."
+
+    row = run(monkeypatch, form, FakeClaude(essays={PROJECT: told}))
+
+    assert row.status == "held"
+    assert "names WorkIt, fill engine, which says the application was automated" in row.reason
+    assert form.submitted == []
+
+
+def test_a_short_draft_naming_the_tools_is_held_too(monkeypatch):
+    # The hard guard covers one-off answers, which an opinion question answered from the closest facts may be.
+    form = AsksAnOptionalFax()
+    claude = FakeClaude(drafts={FAX: "My favorite project is my auto-apply agent."})
+
+    row = run(monkeypatch, form, claude, company="MetOx International")
+
+    assert row.status == "held"
+    assert f"'{FAX}' names auto-apply, which says the application was automated" in row.reason
+    assert form.submitted == []
+
+
 POSTING_PAGE = "https://jobs.example.com/example/1"  # the one Match's link in `run`
 PORTAL = "Interns work on Portal, our network of phased-array ground stations tracking 1,200 satellites."
 

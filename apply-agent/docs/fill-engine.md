@@ -159,6 +159,17 @@ confirm" of a statement about sponsorship or work status is an attestation
 too: before, the sponsorship rule answered JPMorgan's "I understand that
 JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
 
+Two policies the Safety level sets (both off when careful) answer two
+kinds the engine otherwise leaves to Lisul. `sign_self_id` (full_auto)
+fills a voluntary self-ID form's signature with the full name and its
+date with today's, MM/DD/YYYY (Lever's CC-305 Name and Date,
+`holds.selfIdSignature`); an optional one with no name is left blank, a
+required one goes on as an attestation. `tick_arbitration` (balanced and
+full_auto) ticks an arbitration, GDPR or privacy acknowledgment
+(`holds.legalAcknowledgment`) with its one affirming option, never one
+that also commits to anything else or accepts other terms. A certify-true
+statement keeps the rules above, and a bot check is never ticked.
+
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
 

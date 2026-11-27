@@ -223,6 +223,19 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     # Two drives, then 1,000 for each other call: the essay's probe, plan, draft, checks and editor's passes, and the review.
     assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) + len(claude.kinds) - 2)  # kinds spend too
     assert "Claude fill:" not in done.why  # its cost is in the tokens, not among the holds
+
+
+def test_hold_high_stakes_essays_false_holds_no_essay_only_for_review(tmp_path):
+    """Fault: full_auto's hold_high_stakes_essays: false ignored, so every Ashby-like essay still waits for review."""
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()})
+    (tmp_path / "policies.yaml").write_text("hold_high_stakes_essays: false\ncalibration_run: 0\n")
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": WHY_LUNAR})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, profile, claude)
+
+    assert any(asked["kind"] == "essays.write" for asked in claude.kinds)
+    assert "High-stakes essay" not in done.why
     assert server.submissions == []
 
 
