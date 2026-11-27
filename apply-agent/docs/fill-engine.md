@@ -118,8 +118,11 @@ stays blank and unticked, and the form holds with a "Yours to tick:
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
 `src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
 or data consent ("I agree to the privacy policy", the terms of a company's
-privacy notice) still follows `tick_consent_when_true`, and one solely a
-background-check consent `willing_to_undergo_checks`. Anything more beside
+privacy notice, its personal data protection regulation) still follows
+`tick_consent_when_true`, and one solely a background-check consent
+`willing_to_undergo_checks`. A consent's own "Confirm" and "Deny" are its
+Yes and No (Minitab's), and a "Terms and Conditions" heading over a privacy
+consent is only the section's name (DV Trading's, 2026-11-26). Anything more beside
 it in its label or help text makes the whole box Lisul's: a second thing
 joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
 non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
