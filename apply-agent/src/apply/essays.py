@@ -109,6 +109,7 @@ class Plan:
     link_kind: str = ""  # the problem kind its story and company fact share (the story map's), never shown to the writer
     slots: tuple[Backed, ...] = ()  # the slots of its type the sources back, in the guide's order
     asks: tuple[str, ...] = ()  # for each required slot no line backs, the question for Lisul (ASK opens each)
+    closest: bool = False  # written from the closest facts its backed slots hold, its unbacked ones never asked
 
     def shown(self) -> dict:
         return {"type": self.type, "parts": list(self.parts), "story": self.story,
@@ -248,7 +249,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     data = {"sources": sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
             "posting": description.block(posting, posting_text, essays),
             "style_card": writing.style_card() if keys else "", "form_answers": dict(shown) if keys else {},
-            "questions": {key: _sent(q, types[key], closest(q, profile)) for key, q in keys.items()},
+            "questions": {key: _sent(q, types[key], closest(q, profile) or plans[key].closest) for key, q in keys.items()},
             "plans": {key: plans[key].shown() for key in keys},
             "short_questions": {key: _sent(q, nearest=closest(q, profile)) | {"about": (sections or {}).get(q.name)}
                                 for key, q in short.items()},
@@ -293,7 +294,8 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
-                    (written.get(key) or {}).get("needs_lisul") is True and not (texts[key] and closest(q, profile)),
+                    (written.get(key) or {}).get("needs_lisul") is True
+                    and not (texts[key] and (closest(q, profile) or plans[key].closest)),
                     giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
                     tuple(failed[key]) if texts[key] else (),
@@ -466,8 +468,8 @@ def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employe
     out, in its guide's order, and the question for Lisul of each required
     slot no quote backs in its asks. A question Apply already holds the
     answer to (apply.asking.known: a link, a fact Lisul gave before) is
-    never asked: what it holds backs the slot instead. A `nearest` question (closest) asks nothing: it is
-    written from the slots its quotes back."""
+    never asked: what it holds backs the slot instead. A `nearest` question (closest), or one some quote
+    backs, asks nothing: it is written from the slots its quotes back (`closest`)."""
     text, guide = _quotable(held), answering.load()[p.type].slots
     given = {b.slot: b for b in p.slots}
     wanted = lambda s: s.required is True or s.required and s.name in given
@@ -476,8 +478,12 @@ def _backed(p: Plan, held: str, profile: ApplicantProfile | None = None, employe
     found = {name: facts for name, ask in asked.items() if profile and (facts := asking.known(ask, profile, employer=employer))}
     slots = tuple(Backed(s.name, quotes) for s in guide
                   if (quotes := _backers(given.get(s.name), text) or found.get(s.name, ())))
-    asks = () if nearest else tuple(ask for name, ask in asked.items() if name not in found)
-    return replace(p, slots=slots, asks=asks)
+    asks = tuple(ask for name, ask in asked.items() if name not in found)
+    # A story the sources tell in part is written from what they hold, never held for the rest (Lisul, 2026-11-27:
+    # Veeva's "jobs or projects you had as a younger person" waited on FIRST swerve facts the bank roughly covers).
+    # Only an essay no line backs at all asks him: there is nothing to write it from.
+    close = bool(asks) and (nearest or bool(slots))
+    return replace(p, slots=slots, asks=() if close or nearest else asks, closest=close)
 
 
 def _backers(given: "Backed | None", text: str) -> tuple[str, ...]:

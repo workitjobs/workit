@@ -219,3 +219,15 @@ def test_an_opinion_question_with_closest_facts_is_answered_never_asked():
     assert '"closest_facts": true' in drafted.prompt and "never set needs_lisul for it" in drafted.system
     plain = essays.plan(essays.PlanData.model_validate(SAMPLES["essays.plan", 1]))
     assert "closest facts" not in plain.prompt + plain.system
+
+
+def test_an_essay_the_sources_tell_in_part_is_written_from_the_nearest_facts_with_no_invented_age():
+    """Fault: Veeva's "jobs or projects you had as a younger person" held for FIRST facts the bank roughly covers."""
+    younger = {"label": "Tell us about some of the jobs or projects you had as a younger person. What was the job/project, "
+               "at what age, and what is something you learned?", "kind": "textarea", "type": "best-project",
+               "closest_facts": True}
+    built = essays.write(essays.WriteData.model_validate(
+        {**SAMPLES["essays.write", 1], "questions": {"q1": younger}, "plans": {"q1": {"type": "best-project"}}}))
+    assert "closest facts" in built.prompt and "never set needs_lisul for it" in built.system
+    assert "give the nearest thing the sources state about that story" in built.system
+    assert "never with an age or a year they don't give" in built.system
