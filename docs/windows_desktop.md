@@ -302,6 +302,11 @@ decisions beside D17 and D18.
   clears it when the thread ends, so a crash can't leave it on. No
   `wakepy`: it would be a library for one call. **Still open
   (Windows):** the screen stays on through a long run.
+- **Notices: built from the Mac.** `apply run` and the Repairer sent
+  each notice to Notification Center through `osascript`, on every OS, so
+  on Windows the first notice stopped the run. Off the Mac a notice now
+  goes to the terminal (`notify.desktop`, `TerminalNotifier`). A Windows
+  toast needs a library: later, if a developer misses it.
 - **Smooth tiles.** The Swift capture helper is the Mac's. Elsewhere a
   tile shows about 2 frames a second until `Page.startScreencast` (W6).
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker

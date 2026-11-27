@@ -69,7 +69,7 @@ from apply.gmail import live_mailbox
 from apply.home import HOME
 from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
-from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
+from apply.notify import SET_UP, TEST_PUSH, RecordingNotifier, desktop, live_phone
 from apply.plain.site import live_site
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
@@ -1097,7 +1097,7 @@ def live_repairer(branch: str | None = None, push: bool = True) -> Repairer:
     claude = ClaudeCLI()
     return Repairer(
         repo=Path(git("rev-parse", "--show-toplevel")), requests=RepairRequests(REPAIRS), claude=claude, usage=claude,
-        notifier=MacNotifier(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
+        notifier=desktop(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
         policy=policy, push=push,
     )
 
@@ -1136,7 +1136,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,
-        notifier=MacNotifier() if notifier is None else notifier,
+        notifier=desktop() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
         keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),

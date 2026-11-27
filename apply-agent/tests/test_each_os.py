@@ -31,6 +31,7 @@ from apply import (
     focus,
     home,
     native_host,
+    notify,
 )
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
@@ -193,6 +194,14 @@ def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
             keeper.watch(4243, seconds=5)
         keeper.forget(4242)
         assert keeper.bring(4242) is False  # its caller brings the Worker through Chrome
+
+
+def test_off_the_mac_a_notice_goes_to_the_terminal(monkeypatch, capsys):
+    """Fault: a run's notices went to osascript on every OS, so on Windows the first one stopped the run."""
+    monkeypatch.setattr(notify.subprocess, "run", lambda *a, **k: pytest.fail("osascript off the Mac"))
+    assert isinstance(notify.desktop("darwin"), notify.MacNotifier)
+    notify.desktop("win32").notify("Apply", "3 submitted")
+    assert capsys.readouterr().err == "Apply: 3 submitted\n"
 
 
 def test_linux_is_not_kept_awake():
