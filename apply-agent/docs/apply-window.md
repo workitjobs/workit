@@ -24,11 +24,12 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 (pywebview, WKWebView on a Mac) with no port (D11). Read the module's
 docstring first.
 
-- A run keeps the Mac awake (KAN-885): `student.Runs.run` runs inside
-  `awake.awake()`, which starts `caffeinate -dims -w <Apply's PID>` and
-  stops it when the run ends. `-w` ends it with Apply too, even on a crash
-  or SIGKILL. Windows and Linux do nothing yet (F4); `awake.py` is the one
-  place for that OS call (`tests/test_each_os.py`).
+- A run keeps the computer awake (KAN-885): `student.Runs.run` runs inside
+  `awake.awake()`. On the Mac it starts `caffeinate -dims -w <Apply's PID>`
+  and stops it when the run ends; `-w` ends it with Apply too, even on a
+  crash or SIGKILL. On Windows it calls `SetThreadExecutionState`, which
+  Windows clears when the calling thread ends (KAN-929). Linux does nothing
+  yet. `awake.py` is the one place for that OS call (`tests/test_each_os.py`).
 - Links sent in (`uv run apply app <link>...`): an agent or a script hands
   the window links with no port and no clicks. `send_links` writes them as
   one file in `APPLY_HOME/app-inbox/`; the window takes them every 2 s

@@ -182,7 +182,7 @@ class Runs:
 
     def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
         """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed."""
-        with self._awake():  # the Mac never sleeps mid-run (KAN-885)
+        with self._awake():  # the computer never sleeps mid-run (KAN-885)
             self._rehearse_shown(links, show)
 
     def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None]) -> None:

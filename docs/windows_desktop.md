@@ -296,9 +296,12 @@ decisions beside D17 and D18.
 
 ### P11. Smaller gaps
 
-- **Keep awake.** `awake.command` returns None off the Mac, so Windows can
-  sleep during a run. Use `SetThreadExecutionState` (`ctypes`) or
-  `wakepy`.
+- **Keep awake: built from the Mac.** Windows could sleep during a run.
+  `awake.awake` now calls `SetThreadExecutionState` through `ctypes`
+  (system and display on), and sets it back when the run ends. Windows
+  clears it when the thread ends, so a crash can't leave it on. No
+  `wakepy`: it would be a library for one call. **Still open
+  (Windows):** the screen stays on through a long run.
 - **Smooth tiles.** The Swift capture helper is the Mac's. Elsewhere a
   tile shows about 2 frames a second until `Page.startScreencast` (W6).
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker
@@ -320,7 +323,7 @@ Windows entry, since the Mac has none.
 | P7 clean quit | Built: `taskkill` with no `/F` in `ask_to_quit`'s Windows entry |
 | P8 wizard words | Built: a Windows text in the same function |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
-| P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
+| P11 keep awake | Built: a Windows entry in `awake.awake` |
 
 ## 6. Tests
 

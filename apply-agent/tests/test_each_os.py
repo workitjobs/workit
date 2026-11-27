@@ -194,12 +194,22 @@ def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
         assert keeper.bring(4242) is False  # its caller brings the Worker through Chrome
 
 
-def test_only_the_mac_is_kept_awake_and_only_while_apply_runs():
+def test_linux_is_not_kept_awake():
     assert awake.command("darwin", 4242) == ["/usr/bin/caffeinate", "-dims", "-w", "4242"]
-    for system in ("win32", "linux"):
-        assert awake.command(system) is None
-        with awake.awake(system, popen=lambda *a, **k: pytest.fail("an OS call off the Mac")):
-            pass
+    assert awake.command("win32") is None and awake.command("linux") is None
+    with awake.awake("linux", popen=lambda *a, **k: pytest.fail("an OS call"), state=lambda flags: pytest.fail()):
+        pass
+
+
+def test_windows_is_kept_awake_for_the_block_only():
+    """Fault: Windows slept during a run, mid-form (P11): the keep-awake did nothing off the Mac."""
+    asked = []
+    with pytest.raises(KeyError):  # a run that fails lets Windows sleep again too
+        with awake.awake("win32", popen=lambda *a, **k: pytest.fail("Windows needs no process"),
+                         state=lambda flags: asked.append(flags) or 1):
+            assert asked == [0x80000003]  # ES_CONTINUOUS, ES_SYSTEM_REQUIRED and ES_DISPLAY_REQUIRED
+            raise KeyError
+    assert asked == [0x80000003, 0x80000000]  # ES_CONTINUOUS alone: sleep as usual
 
 
 def test_on_the_mac_caffeinate_runs_for_the_block_only():
