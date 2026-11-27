@@ -61,6 +61,7 @@ from apply import (
     lever,
     masked,
     on_page,
+    refused_submit,
     regenerate,
     send_button,
     stuck,
@@ -156,6 +157,12 @@ PRESSED_ALREADY = "Submit was pressed already: Apply never presses it twice."
 CONFIRM_S = 120
 UNCONFIRMED = ("Apply pressed Submit, but the job site didn't show that it went in. It may have: look for a "
                "confirmation email before you apply again. Apply won't press Submit on it again.")
+# How long Apply's press waits for its confirmation before the form is read for why not (apply.refused_submit): the
+# job system's own check answers in the page at once, its confirmation within seconds.
+HEAL_AFTER_S = 15
+REFUSED = "Apply pressed Submit, but the job site refused it: {said} Fix that on the form, then press Submit yourself."
+STILL_REFUSED = ("Apply pressed Submit, fixed what the job site named and pressed it once more, but it still says: {said} "
+                 "Fix that on the form, then press Submit yourself.")
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
@@ -501,7 +508,8 @@ def rehearse(
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong()), "keep": keep,
                     "approve": lambda: auto.due(getattr(adapters.board, "submit_asked", lambda k: False)(n)),
-                    "approved": approved, "changed": auto.stop}
+                    "approved": approved, "changed": auto.stop, "unsent": unsent,
+                    "heal": lambda page, found: _heal(page, found, done, profile, adapters.answer_bank)}
 
         def let_go() -> bool:
             """Not applying to this one: its slot is given back at once, before its hold unwinds and its tab closes,
@@ -520,6 +528,13 @@ def rehearse(
             batch.note(url, status=batch.SENT)  # it may have gone in: never brought back to be sent again
             # Pressed, and Apply presses it no more: like a sent form, it waits on no Worker, so the next job may open.
             # Five such held their slots, and the run stalled with jobs queued (live, 2026-11-26).
+            leave_room()
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
+
+        def unsent(why: str) -> None:
+            """The job site refused Approve and submit's press in the page, and Apply couldn't fix what it named:
+            nothing went in, so it is the student's to fix and send, never marked sent. It waits on no Worker."""
+            adapters.board.update(n, status="handoff", why=why, submitting=False, submit_said="", resume=None)
             leave_room()
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
@@ -1117,6 +1132,24 @@ def _engine_fill(page, done: Rehearsed, question: str, answer: "str | Path", own
     return False
 
 
+def _heal(page, found: "list[refused_submit.FieldError]", done: Rehearsed, profile: ApplicantProfile,
+          bank=None) -> bool:
+    """Fill again each field the job site's refusal named (apply.refused_submit), with the Plan's answer as the
+    engine plans it now, and the Fill engine's fill, with no model. Whether every one shows its answer: never when a
+    message is about no question the form asked, the Plan leaves one to the student (a Missing fact, an attestation:
+    "Yours to tick"), or one is a file."""
+    questions = refused_submit.fixable(found, done.questions)
+    if not questions or any(q.kind == "file" for q in questions):
+        return False
+    try:
+        planned = fill_engine.plan(tuple(questions), done.posting, profile, bank)
+    except Exception:
+        return False
+    if any(q.name not in planned.answers or q.name in planned.attestations for q in questions):
+        return False
+    return all(_engine_fill(page, done, q.label, planned.answers[q.name]) for q in questions)
+
+
 def _planned(left_behind: tuple[tuple[str, object], ...]) -> dict[str, str]:
     """Each answer the form didn't take, by its question, as the window's Needs-you box starts with it (KAN-855):
     several picks joined by "; ", as the window joins them; a file is the window's file box, which starts empty."""
@@ -1638,7 +1671,9 @@ class _Kept:
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
              keep: "keepalive.Keeper | None" = None, approve: Callable[[], bool] = lambda: False,
              approved: Callable[[str, bool], None] = lambda why, handoff: None,
-             changed: Callable[[], None] = lambda: None) -> str:
+             changed: Callable[[], None] = lambda: None,
+             heal: "Callable[[object, list[refused_submit.FieldError]], bool]" = lambda page, found: False,
+             unsent: Callable[[str], None] = lambda why: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1675,7 +1710,11 @@ class _Kept:
         (apply.send_button) as theirs, once, and the job system's confirmation goes on as for their own press. Never
         while Submit is held, nor after any Submit: `approved(why, False)` says why not. No confirmation within
         CONFIRM_S, and no captcha or refusal to explain it, is `approved(UNCONFIRMED, True)`: it may have gone in,
-        so it is the student's, and Apply never presses it again. `changed()` runs whenever Apply changes an answer on
+        so it is the student's, and Apply never presses it again. Before that, HEAL_AFTER_S after the press, a form
+        that shows field errors (apply.refused_submit) sent nothing: `heal(page, errors)` fixes those fields, with
+        both guards on, and when it did and the page shows none any more, Apply presses Submit once more, once a
+        hold; otherwise `unsent(why)` hands it over with the page's own words. A code step after the press waits on
+        `code`'s ask, never handed over. `changed()` runs whenever Apply changes an answer on
         the page (one from the window, a regenerated one, Ask Claude's): Auto-submit's countdown ends.
         "" when the page closed, `release` was set or `let_go()` said so."""
         if self._page is None or release.is_set():
@@ -1750,6 +1789,7 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent, pressing = False, None, False, False, False, 0.0
+        retried, codes = False, set()  # Apply's Submit pressed once more; the form's code boxes before its press
         # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
         # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
         unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
@@ -1771,6 +1811,7 @@ class _Kept:
                     why = APPLIED_FIRST if blocked else HELD_FIRST if holding else PRESSED_ALREADY if pressed or kept else ""
                     if not why:
                         try:
+                            codes = {key for key, _ in code_box.boxes(self._page)}
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
                         except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away
@@ -1782,6 +1823,25 @@ class _Kept:
                             why = send_button.NONE
                     if why:
                         approved(why, False)
+                if pressing and not kept and not told and not turned_down and code_box.new_boxes(self._page, codes):
+                    pressing = 0.0  # a code step: it went on, and the code is asked for (code), not handed over
+                if (pressing and not kept and not told and not turned_down
+                        and time.monotonic() - pressing > HEAL_AFTER_S and (found := refused_submit.errors(self._page))):
+                    pressing = 0.0
+                    with driving():  # Apply fixes the fields the page named with both guards on, as any drive of its
+                        fixed = not retried and heal(self._page, found) and not refused_submit.errors(self._page)
+                    if fixed:
+                        retried = True
+                        try:
+                            heard(send_button.press(self._page))  # once more, once: the first sent nothing
+                            pressing = time.monotonic()
+                        except send_button.Unsure as unsure:
+                            heard(unsure.words)
+                            pressing = time.monotonic()
+                        except Exception:
+                            unsent(REFUSED.format(said=refused_submit.words(found)))
+                    else:
+                        unsent((STILL_REFUSED if retried else REFUSED).format(said=refused_submit.words(found)))
                 if pressing and not kept and not told and not turned_down and time.monotonic() - pressing > CONFIRM_S:
                     pressing = 0.0
                     approved(UNCONFIRMED, True)
