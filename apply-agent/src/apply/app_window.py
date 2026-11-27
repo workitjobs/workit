@@ -2,7 +2,8 @@
 (pywebview: WKWebView on a Mac) and no port.
 
 The app's window shows the student page (KAN-867: window/, built into STUDENT_PAGE); a window that can start no run
-(a Developer checkout's) shows the Apply window's own page (apply.dashboard's). Either is served by no server:
+shows the Apply window's own page (apply.dashboard's). `apply app` gives its window a start in a Developer checkout too
+(apply.student.app), so `apply app --max-plan` shows the student page. Either is served by no server:
 Dashboard(serve=False) listens on nothing, and SHIM, put in the page before its scripts, sends the page's requests to `Bridge`, pywebview's
 JavaScript bridge (js_api), which answers each one in this process through the same routes, checks and token as
 the server (Dashboard.respond). The tiles' frames come from Bridge.frames as the server's /frames stream would; a
@@ -17,7 +18,7 @@ Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
 A run (W5 step 4): with no run going, the student page shows Find jobs, the student's best matches to pick from
-(Bridge.matches, KAN-882), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
+(Bridge.matches, KAN-882; during a run its picks join the run, as links sent in do), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
 one posting's link and Start (Bridge.start), and says when today's model use nears the
 Usage cap (Bridge.usage). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers
 and shows the run's own board, till every form it held is closed; then the window shows the idle board again. The
@@ -70,6 +71,8 @@ from apply.tracker import FileTracker, Row
 TITLE = "WorkIt Auto Apply"
 # The student page, built from window/ by Vite (`npm run build`) into one file: CI checks it matches its source.
 STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
+# WorkIt's logo, the built app's icon (scripts/build_app.py's ICON): a checkout's window shows it in the Dock too.
+ICON = Path(__file__).parents[2] / "assets" / "app-icon.png"
 # The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
 PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
@@ -577,14 +580,16 @@ class Bridge:
         return {"running": self._running.is_set(), "said": self._said}
 
     def start(self, links: list | None = None) -> dict:
-        """Start a run of `links` (Start), one at a time: {started} or {error}."""
+        """Start a run of `links` (Start), one at a time: {started} or {error}. While a run goes (Find jobs beside it,
+        as a run of `apply app <link>` keeps going for hours), they join it as links sent in do (_join): {added}."""
         links = [str(link).strip() for link in links or [] if str(link).strip()]
         if self._start is None:
             return {"error": "This window can't start a run."}
         if not links:
             return {"error": "Tick a job in your queue, or paste a job posting's link."}
         if self._running.is_set():
-            return {"error": "A run is going: its forms are in the window."}
+            self._join(links)
+            return {"added": len(links)}
         self._running.set()
         self._said = ""
         threading.Thread(target=self._run, args=(links,), daemon=True).start()
@@ -600,15 +605,20 @@ class Bridge:
         waiting = {workit.job_key(link) for link in self._waiting}
         links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
         if self._running.is_set():
-            for link in links:
-                try:
-                    self._dashboard.into(link)
-                except Refused:  # this run takes no new links (a CDP Worker), or it is ending
-                    self._waiting.append(link)
+            self._join(links)
             return
         links, self._waiting = self._waiting + links, []
         if links and "error" in self.start(links):
             self._waiting = links
+
+    def _join(self, links: list[str]) -> None:
+        """`links` into the run going, each into its Workers beside its forms (Dashboard.into); one the run won't
+        take waits for the next run."""
+        for link in links:
+            try:
+                self._dashboard.into(link)
+            except Refused:  # this run takes no new links (a CDP Worker), or it is ending
+                self._waiting.append(link)
 
     def show_board(self, board: Dashboard) -> None:
         """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo,
@@ -811,6 +821,28 @@ def badge(count: int) -> None:
     AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
 
 
+def look_like_the_app(icon: Path = ICON) -> bool:
+    """A Developer checkout's window as WorkIt Auto Apply in the Dock and the menu bar: its process is Python, so
+    macOS showed Python's name and a blank page for its icon. The built app's bundle names it and gives its icon
+    (scripts/build_app.py), and has no `icon` file beside its code, so this changes nothing there. On a Mac only, and
+    before webview.start, so the menu bar reads the name as it starts. True when the icon was set."""
+    if sys.platform != "darwin" or build.STUDENT or not icon.is_file():
+        return False
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        import Foundation
+    except ImportError:
+        return False
+    info = Foundation.NSBundle.mainBundle().infoDictionary()
+    if info is not None:  # Python's own Info.plist, read once: the menu bar names the app from it
+        info["CFBundleName"] = TITLE
+    image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(icon))
+    if image is None:
+        return False
+    AppKit.NSApplication.sharedApplication().setApplicationIconImage_(image)
+    return True
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""
@@ -900,6 +932,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
 
         threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
     updates.start()  # the built app's Sparkle updater (W8 step 3)
+    look_like_the_app()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:

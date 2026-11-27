@@ -124,3 +124,40 @@ async def test_unsubmitted_never_queues_an_application_the_extension_didnt_say_w
         f"/applicants/{me}/applications/{job}/finish", json={"outcome": "submitted", "state": "ready"}
     )
     assert res.status_code == 422
+
+
+async def test_applied_lists_the_latest_applied_first(student, database):  # noqa: F811
+    client, me = student
+    jobs = [await _seed_posting(database) for _ in range(3)]
+    async with database() as session:
+        # Added oldest first, applied in another order: the list follows applied_at.
+        for job, added, applied in zip(jobs, ("3 hours", "2 hours", "1 hour"), ("1 minute", "1 day", "1 hour")):
+            await session.execute(
+                text(
+                    "INSERT INTO job_applications (applicant_id, job_id, stage, applied_at, created_at)"
+                    f" VALUES (:a, :j, 'applied', now() - interval '{applied}', now() - interval '{added}')"
+                ),
+                {"a": me, "j": job},
+            )
+        await session.commit()
+
+    listed = (await client.get(f"/applicants/{me}/applications", params={"stage": "applied"})).json()
+    assert [a["job"]["id"] for a in listed] == [jobs[0], jobs[2], jobs[1]]
+
+
+async def test_an_unsent_applications_stale_date_never_puts_it_first(student, database):  # noqa: F811
+    client, me = student
+    sent, stale = await _seed_posting(database), await _seed_posting(database)
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO job_applications (applicant_id, job_id, stage, applied_at, created_at)"
+                " VALUES (:a, :sent, 'applied', now() - interval '1 day', now() - interval '2 days'),"
+                " (:a, :stale, 'queued', now(), now() - interval '3 days')"
+            ),
+            {"a": me, "sent": sent, "stale": stale},
+        )
+        await session.commit()
+
+    listed = (await client.get(f"/applicants/{me}/applications")).json()
+    assert [a["job"]["id"] for a in listed] == [sent, stale]
