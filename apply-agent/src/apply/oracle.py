@@ -52,6 +52,8 @@ ONETRUST_REJECT = "#onetrust-reject-all-handler"
 ONETRUST_SETTINGS = "#onetrust-pc-btn-handler"
 ONETRUST_SAVE = "#onetrust-pc-sdk .save-preference-btn-handler"
 ONETRUST_COVER = ".onetrust-pc-dark-filter"
+NO_EMAIL_STEP = ("After Apply, Oracle showed no email step ({url}, \"{shows}\"): this browser may still hold an earlier "
+                 "sign-in or draft of this application. Open the application form yourself (or sign in), then Resume.")
 COVERED = ("Something on Oracle's page covers its Apply button (a cookie banner or pop-up Apply couldn't close): "
            "close it and press Apply yourself, then Resume.")
 
@@ -93,7 +95,14 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
             _apply_button(page).click()
         except PlaywrightTimeout:  # still covered: a banner or pop-up Apply doesn't know
             raise Handoff(COVERED) from None
-    email.wait_for(timeout=TIMEOUT * 1000)
+        # A browser still signed in from an earlier attempt goes on to the form, or to a page of its own, with no email
+        # step (Emerson's refill, live 2026-11-27: the email box was waited for, and the fill failed with a timeout).
+        try:
+            _until(page, lambda: email.is_visible() or _signed_in(page, email))
+        except TimeoutError:
+            raise Handoff(NO_EMAIL_STEP.format(url=page.url, shows=_shows(page))) from None
+        if _signed_in(page, email):
+            return
     email.fill(accounts.login)
     disclaimer = page.locator("#legal-disclaimer-checkbox")
     if disclaimer.count() and not disclaimer.is_checked():
@@ -174,6 +183,16 @@ def _signed_in(page: Page, email) -> bool:
         return email.is_visible() and not email.is_editable()
     except Exception:
         return False
+
+
+def _shows(page: Page) -> str:
+    """What the page says it is, for a Handoff: its first heading, else its title."""
+    try:
+        headings = page.locator("h1:visible, h2:visible, [role=heading]:visible")
+        said = headings.first.inner_text(timeout=1000) if headings.count() else page.title()
+    except Exception:
+        return ""
+    return " ".join(said.split())[:120]
 
 
 def _apply_button(page: Page):
