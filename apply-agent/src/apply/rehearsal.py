@@ -194,8 +194,10 @@ STOPPED_APPLYING = "Stopped applying: nothing was submitted, and each filled for
 STOP_WAIT = 10.0
 # Stop new ones only (KAN-874): no job waiting starts, and each form already filled stays held for the student.
 STOPPED_NEW = "Stopped starting new jobs: each filled form stays open for you."
-# At most this many forms open at once: each is a browser window, and a long run's held forms slowed the student's
-# computer to a halt (live, 2026-11-26). The next job opens once the student sends, lets go of, or closes one.
+# At most this many forms wait on the student at once, beside one filling in each Worker: each is a browser window,
+# and a long run's held forms slowed the student's computer to a halt (live, 2026-11-26). The forms waiting never take
+# a Worker's turn: with jobs queued, every Worker fills one while up to this many wait (run10 filled one at a time
+# with four Workers, its five places full). The next job opens once the student sends, lets go of, or closes one.
 OPEN_FORMS = 5
 # The history line of a reopened form, first on its tile.
 REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
@@ -304,11 +306,12 @@ def rehearse(
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
     gate = threading.Semaphore(len(urls) if together else workers)
-    # Forms open at once (OPEN_FORMS): taken before a form opens, given back once it is submitted or its page closes.
-    # Start together opens every form before any fills, so it isn't capped.
-    room = threading.Semaphore(len(urls) if together else OPEN_FORMS)
-    if not together:
-        adapters.board.run(open_forms=OPEN_FORMS)  # the window says why jobs wait once that many wait on the student
+    # Forms open at once: OPEN_FORMS waiting on the student, plus one filling in each Worker (`gate`), so the forms
+    # waiting never leave a Worker idle while jobs are queued. A place is taken before a form opens and given back
+    # once it is submitted or its page closes. Start together opens every form before any fills, so it isn't capped.
+    room = threading.Semaphore(len(urls) if together else OPEN_FORMS + workers)
+    if not together:  # the window says why jobs wait once every place holds a form waiting on the student
+        adapters.board.run(open_forms=OPEN_FORMS + workers)
     start = _Together(len(urls) if together else 0, adapters.board.wait_for_start)
     if together:
         adapters.board.run(start="waiting")

@@ -341,8 +341,12 @@ for a student, not from `dashboard_page.py`.
   which posts `/remove` with its link: the run drops it before its turn
   (`rehearse`'s remove), and refuses one that started already. Both routes
   take only the window's token.
-- **At most five forms open.** Each open form is a browser window, so a
-  rehearsal opens at most `rehearsal.OPEN_FORMS` (5) at once: a job takes
+- **At most five forms wait, and every Worker fills.** Each open form is
+  a browser window, so a rehearsal opens at most `rehearsal.OPEN_FORMS`
+  (5) forms waiting on the student plus one filling in each Worker: with
+  four Workers, nine at once. The forms waiting never take a Worker's
+  turn, so while jobs are queued every Worker fills one until all the
+  places hold forms waiting on the student. A job takes
   a slot before its form opens and gives it back when its page closes
   (sent, let go, or its window closed). A form gives it back at once,
   with its tab still open, when it is sent, when the student presses Not
@@ -352,7 +356,7 @@ for a student, not from `dashboard_page.py`.
   page gone) gives it back too, and every path gives it back once only
   (`rehearsal._Slot`); Fill it anyway takes one again before it fills
   (`tests/test_open_slots.py`). The run says the cap
-  (`run.open_forms`); while nothing fills, jobs wait and the to-dos fill
+  (`run.open_forms`, every place: `OPEN_FORMS` plus the Workers); while nothing fills, jobs wait and the to-dos fill
   every slot, "Still working on" says the next starts when the student
   submits, lets go of, or closes one (`view`'s `full`). Start together is
   not capped.

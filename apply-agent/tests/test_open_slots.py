@@ -51,6 +51,8 @@ class Run:
         self.started: list[str] = []  # each fill's link, as it started
         self.open: set[int] = set()  # tiles with a page open now
         self.most = 0  # the most pages open at once
+        self.filling = 0  # fills under way now
+        self.go = threading.Event()  # set: each fill under way ends
         self.lock = threading.Lock()
 
     def fill(self, url, site, adapters, profile, calibration, accounts, n, *args, **kw) -> rehearsal.Rehearsed:
@@ -60,6 +62,13 @@ class Run:
         posting = Posting(f"id-{n}", "Company", "Role", url)
         if how == "raises":
             raise RuntimeError("the filler broke")
+        if how == "fills":  # it fills till the test lets it end, held: a Worker's turn taken meanwhile
+            with self.lock:
+                self.filling += 1
+            self.go.wait(WAIT)
+            with self.lock:
+                self.filling -= 1
+            how = "held"
         if how in ("held", "failed here", "not eligible here"):  # its page stays open for the student
             site._page = Page()
             with self.lock:
@@ -159,7 +168,7 @@ def test_each_way_a_job_fails_gives_its_place_back_and_the_next_queued_job_start
     """Fault: a job that failed, raised, was already applied to, or was ruled out with no page left kept its place
     among the open forms, so jobs stayed queued with Workers free (run10, 2026-11-26: five failed jobs, one form
     filling, three queued)."""
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     ends = ["raises", "failed", "already", "not eligible"]  # none leaves a page open
     links = [f"https://jobs.example/{k}" for k in range(len(ends) + 1)]
     run = faked({link: [how] for link, how in zip(links, ends + ["held"])})
@@ -174,11 +183,11 @@ def test_each_way_a_job_fails_gives_its_place_back_and_the_next_queued_job_start
 def test_a_failed_form_still_open_holds_its_place_until_let_go_and_never_twice(monkeypatch, faked, tmp_path):
     """Fault: a place given back twice (once as the student lets the form go, once as its thread ends) lets two
     forms open under a cap of one."""
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     links = [f"https://jobs.example/{k}" for k in range(3)]
     run = faked({links[0]: ["failed here"], links[1]: ["held"], links[2]: ["held"]})
     board = Board()
-    thread = start(links, board, tmp_path, workers=3)
+    thread = start(links, board, tmp_path)
 
     until(lambda: run.started == links[:1], "the first job to start")
     time.sleep(0.5)
@@ -192,7 +201,7 @@ def test_a_failed_form_still_open_holds_its_place_until_let_go_and_never_twice(m
 
 def test_fill_it_anyway_takes_a_place_again_before_it_fills(monkeypatch, faked, tmp_path):
     """Fault: a ruled-out job whose page is gone waits for Fill it anyway holding no place, then fills past the cap."""
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     links = ["https://jobs.example/ruled-out", "https://jobs.example/next"]
     run = faked({links[0]: ["not eligible", "held"], links[1]: ["held"]})
     pressed = []
@@ -205,7 +214,7 @@ def test_fill_it_anyway_takes_a_place_again_before_it_fills(monkeypatch, faked, 
             return False
 
     board = Pressing()
-    thread = start(links, board, tmp_path, workers=2)
+    thread = start(links, board, tmp_path)
 
     until(lambda: pressed, "Fill it anyway to be pressed")
     time.sleep(0.5)
@@ -213,4 +222,23 @@ def test_fill_it_anyway_takes_a_place_again_before_it_fills(monkeypatch, faked, 
     board.let_go.add(1)
     until(lambda: run.started == links + links[:1], "the ruled-out job to fill again")
     assert run.most == 1
+    end(board, thread)
+
+
+def test_forms_waiting_on_the_student_never_leave_a_worker_idle_while_jobs_are_queued(monkeypatch, faked, tmp_path):
+    """Fault: the forms waiting on the student and the ones filling shared one cap, so with OPEN_FORMS held only
+    one Worker of four filled while jobs were queued (run10, 2026-11-26)."""
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 2)
+    links = [f"https://jobs.example/{k}" for k in range(5)]
+    run = faked({link: ["held"] if k < 2 else ["fills"] for k, link in enumerate(links)})
+    board = Board()
+    thread = start(links, board, tmp_path, workers=2)
+
+    until(lambda: run.filling == 2, "both Workers to fill beside the two forms waiting on the student")
+    time.sleep(0.5)
+    assert len(run.started) == 4  # two waiting and two filling: the fifth waits for a place
+    assert {"open_forms": 4} in board.runs  # the window's cap: every place, when all hold a form waiting on the student
+    board.let_go.add(0)
+    until(lambda: len(run.started) == 5, "the fifth job to start once a form was let go")
+    run.go.set()
     end(board, thread)
