@@ -879,6 +879,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 
+    steady_windows()
     bridge = Bridge(dashboard, client, start=start)
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
@@ -899,6 +900,37 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+class SteadyWindows(dict):
+    """pywebview's windows by uid, whose views are snapshots: a window that closes while one is read leaves it whole.
+    On a Mac, a quit (Cmd-Q, the Dock's Quit) reads every window's close question in turn, and with held forms that
+    question is a dialog whose run loop runs our `closing` thread's `window.destroy`: the window's close took it out
+    of the dict mid-read, and the app died with `<class 'RuntimeError'>: dictionary changed size during iteration`
+    (run7, 2026-11-26)."""
+
+    def __iter__(self):
+        return iter(list(super().keys()))
+
+    def keys(self):
+        return list(super().keys())
+
+    def values(self):
+        return list(super().values())
+
+    def items(self):
+        return list(super().items())
+
+
+def steady_windows(system: str = sys.platform, view=None) -> None:
+    """On a Mac, make pywebview's Cocoa window list (BrowserView.instances) a SteadyWindows. Its other backends
+    read no window list while a window closes. `view` is the class that holds the list (tests)."""
+    if view is None:
+        if system != "darwin":
+            return
+        from webview.platforms.cocoa import BrowserView as view
+    if not isinstance(view.instances, SteadyWindows):
+        view.instances = SteadyWindows(view.instances)
 
 
 def line_by_line(*streams) -> None:
