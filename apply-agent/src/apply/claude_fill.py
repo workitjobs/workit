@@ -487,8 +487,7 @@ class ClaudeFill:
         pass_jobvite_gate(page)
         self._clear_pop_up(page)
         if self._submit_button:  # filled to the last step once: fill again what didn't read back as meant
-            self._put = {name: value for name, value in self._put.items()
-                         if self._readback.get(name) == (value.name if isinstance(value, Path) else value)}
+            self._put = _read_back_as_put(self._put, self._readback)
         if not self._attached:
             self._attached = self._attach_resume(page, labels, answers)
         self._readback.update(self._attached)
@@ -938,6 +937,14 @@ def entry_history(profile) -> dict:
 def _entry_label(label: str) -> str:
     """A question's label as the Fill engine knows its section's entries: a bare "Experience" is "Work Experience"."""
     return BARE_EXPERIENCE.sub("Work Experience", label.strip())
+
+
+def _read_back_as_put(put: dict, readback: dict) -> dict:
+    """The answers of `put` the page reads back as filled, in its own format too (fill_engine.shows): Oracle shows
+    5550100199 as "(555) 010-0199", which read as unfilled had Claude type the phone again each round (Honeywell's,
+    live 2026-11-27)."""
+    return {name: value for name, value in put.items()
+            if name in readback and fill_engine.shows(readback[name], value)}
 
 
 def _fewer(shown: object, wanted: object) -> bool:

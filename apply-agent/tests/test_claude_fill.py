@@ -2229,3 +2229,11 @@ def test_the_entries_claude_gets_are_the_profiles_jobs_and_school(tmp_path):
     history = claude_fill.entry_history(profile)
     assert [j["title"] for j in history["jobs"]] == ["Software Engineer Intern", "Software Engineer (Part-Time)"]
     assert [s["school"] for s in history["schools"]] == ["State University"]
+
+
+def test_a_phone_read_back_in_its_fields_format_is_not_filled_again():
+    # Honeywell (Oracle, live 2026-11-27): 5550100199 read back as "(555) 010-0199" and Claude typed it every round.
+    put = {"phone": "5550100199", "city": "Springfield", "school": "Example State University"}
+    readback = {"phone": "(555) 010-0199", "city": "Springfield", "school": ""}
+
+    assert claude_fill._read_back_as_put(put, readback) == {"phone": "5550100199", "city": "Springfield"}
