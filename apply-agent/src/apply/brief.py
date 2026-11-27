@@ -18,7 +18,8 @@ its facts stay, marked unchecked, and are never an essay's Named fact.
 Facts come from the company's own
 pages; press facts from the same call fill in only when fewer than MIN_OWN
 own facts pass (a site that blocks plain fetches), and never with a number. A section is researched again once it
-is older than FRESH (company 90 days, team 30), or deleted. A kept team
+is older than FRESH (company 90 days, team 30), or THIN (7 days) when it
+found fewer than MIN_OWN facts, or deleted. A kept team
 section is found by its name's words (_find): "Engineering - Unreal Engine"
 is the team a later Posting calls "Unreal Engine". Lisul may edit
 or delete any line; the essays read the file as it is.
@@ -43,6 +44,12 @@ from apply.model import Posting, Question, host_company, one_line
 BRIEFS = HOME / "company-briefs"
 COMPANY = "Company"  # the company section's heading; a team's is "Team: <team>"
 FRESH = {"company": timedelta(days=90), "team": timedelta(days=30)}
+# A section whose research confirmed fewer than MIN_OWN facts is tried again sooner: Twitch's, one fact on
+# 2026-11-02 ("Twitch invites developers to build custom tools"), left every essay nothing specific to say, and
+# its cover letter read true of any company (2026-11-26). Marked on its date's line, so a fact Lisul deletes
+# never makes a full section look thin.
+THIN = timedelta(days=7)
+FEW = "(few facts found: researched again after 7 days)"
 MODEL = "sonnet"
 MAX_TURNS = 25
 MAX_TOKENS = 1_500_000  # every turn's tokens, cache reads included; search results make turns long
@@ -378,7 +385,8 @@ def section(today: date, about: list[str], facts: list[dict]) -> str:
     mission and values (`about`), then its facts."""
     lines = [f"- {_name(f)}" + (f" ({note})" if (note := _note(f)) else "")
              + f": {one_line(str(f['fact']))} {f['url']}" for f in facts]
-    return "\n".join([f"Researched {today.isoformat()}", "", *about, *([""] if about else []), *(lines or [NOTHING])])
+    few = f" {FEW}" if len(facts) < MIN_OWN else ""
+    return "\n".join([f"Researched {today.isoformat()}{few}", "", *about, *([""] if about else []), *(lines or [NOTHING])])
 
 
 def _name(fact: dict) -> str:
@@ -409,10 +417,12 @@ def parse(kept: str) -> dict[str, str]:
 
 
 def fresh(body: str, today: date, scope: str) -> bool:
-    """Whether a section was researched less than FRESH[scope] before `today`."""
+    """Whether a section was researched less than FRESH[scope] before `today`, or less than THIN when its
+    research confirmed fewer than MIN_OWN facts (FEW on its date's line)."""
     found = RESEARCHED.search(body)
     try:
-        return bool(found) and today - date.fromisoformat(found.group(1)) < FRESH[scope]
+        kept_for = THIN if found and found.group(0) + f" {FEW}" in body else FRESH[scope]
+        return bool(found) and today - date.fromisoformat(found.group(1)) < kept_for
     except ValueError:
         return False
 

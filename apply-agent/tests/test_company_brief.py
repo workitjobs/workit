@@ -4,7 +4,7 @@ section: 90 days for the company, 30 for a team."""
 
 import threading
 import urllib.error
-from datetime import date
+from datetime import date, timedelta
 
 from fakes import FakeClaude
 
@@ -20,6 +20,8 @@ X402 = {"name": "x402", "url": "https://blog.cloudflare.com/x402/", "quote": "La
         "fact": "x402 lets an AI agent pay for a web request over HTTP with the 402 status code."}
 WORKERD = {"name": "workerd", "url": "https://github.com/cloudflare/workerd",
            "quote": "the javascript / wasm runtime", "fact": "workerd is the open-source JavaScript and Wasm runtime that runs Cloudflare Workers."}
+D1 = {"name": "D1", "url": "https://blog.cloudflare.com/d1/", "quote": "a serverless SQL database",
+      "fact": "D1 is a serverless SQL database built on SQLite."}
 
 
 class Site:
@@ -40,7 +42,8 @@ class Site:
 
 PAGES = Site({EMDASH["url"]: "<h1>Introducing EmDash</h1><p>The spiritual successor to WordPress.</p>",
               X402["url"]: "<h1>Launching the x402 Foundation with Coinbase</h1>",
-              WORKERD["url"]: "<h1>workerd</h1><p>The JavaScript / Wasm runtime that powers Cloudflare Workers</p>"})
+              WORKERD["url"]: "<h1>workerd</h1><p>The JavaScript / Wasm runtime that powers Cloudflare Workers</p>",
+              D1["url"]: "<h1>D1</h1><p>D1 is a serverless SQL database built on SQLite.</p>"})
 
 
 def kept() -> str:
@@ -356,7 +359,7 @@ def test_another_teams_posting_keeps_the_company_section_and_adds_its_own():
 
 
 def test_a_brief_is_kept_for_lisul_to_read_and_edit_and_his_edits_stand():
-    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH, X402]), TODAY)
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH, X402, D1]), TODAY)
     assert kept().startswith("# Cloudflare\nEssays use each fact below as it is")
     x402 = next(line for line in kept().splitlines() if "x402" in line)
     (brief.BRIEFS / "cloudflare.md").write_text(kept().replace(x402 + "\n", ""))
@@ -368,7 +371,8 @@ def test_a_brief_is_kept_for_lisul_to_read_and_edit_and_his_edits_stand():
 
 
 def test_the_company_section_is_researched_again_after_90_days_and_a_team_after_30():
-    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH], team="Workers Runtime", team_brief=[WORKERD]), TODAY)
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH, X402, D1], team="Workers Runtime", team_brief=[WORKERD]),
+                TODAY)
 
     at_30 = FakeClaude(brief=[X402], team="workers runtime", team_brief=[WORKERD])
     brief.brief(CLOUDFLARE, PAGES, at_30, date(2026, 11, 18))
@@ -378,6 +382,24 @@ def test_the_company_section_is_researched_again_after_90_days_and_a_team_after_
     assert at_30.researched == ["<company>Cloudflare</company>\n<team>workers runtime</team>"]
     assert kept().count("## Team:") == 1  # the same team, whatever its case
     assert at_90.researched == ["<company>Cloudflare</company>"] and "x402" in facts and "EmDash" not in facts
+
+
+def test_a_section_that_found_few_facts_is_researched_again_after_7_days():
+    # Twitch (2026-11-26): one fact from 2026-11-02 gave its cover letter nothing specific to say.
+    brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH]), TODAY)
+    assert brief.FEW in kept()
+
+    soon = FakeClaude(brief=[X402])
+    brief.brief(CLOUDFLARE, PAGES, soon, TODAY + timedelta(days=6))
+    later = FakeClaude(brief=[EMDASH, X402, D1])
+    facts = brief.brief(CLOUDFLARE, PAGES, later, TODAY + timedelta(days=7))
+
+    assert soon.researched == [] and later.researched == ["<company>Cloudflare</company>"] and "x402" in facts
+    assert brief.FEW not in kept()  # three facts: kept for 90 days again
+    (brief.BRIEFS / "cloudflare.md").write_text(kept().replace(next(l for l in kept().splitlines() if "x402" in l) + "\n", ""))
+    edited = FakeClaude(brief=[X402])
+    brief.brief(CLOUDFLARE, PAGES, edited, TODAY + timedelta(days=20))
+    assert edited.researched == []  # a fact Lisul deleted never makes the section thin
 
 
 def test_the_budgeted_research_asks_for_fewer_facts_within_its_searches():

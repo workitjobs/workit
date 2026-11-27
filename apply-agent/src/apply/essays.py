@@ -262,10 +262,12 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     written, drafted = given.get("essays") or {}, given.get("drafts") or {}
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
              else str((written.get(key) or {}).get("answer") or "").strip() for key, q in keys.items()}
+    texts |= {key: bare_url(texts[key]) for key, q in keys.items() if q.url}  # a web address field takes one URL only
     material = "\n".join(filter(None, [sources(profile, company, types=types.values(), employer=posting.company),
                                        description.block(posting, posting_text, essays)]))
     checked = {key: _Checked(keys[key], types[key], f"{prompt}\n{keys[key].label}\n{keys[key].description}",
-                             posting.company, company, profile.get("files.resume_pdf")) for key in keys}
+                             posting.company, company, profile.get("files.resume_pdf"),
+                             asking.graduation(profile)) for key in keys}
     letter_keys = frozenset(key for key, q in keys.items() if cover_letter.is_cover_letter(q))
     questions = {key: _ask(q) for key, q in keys.items()}
     lengths = {key: length for key in keys if (length := _default_length(keys[key], types[key]))}
@@ -280,6 +282,9 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     if over := _over_cap(checked, texts):  # one shorter rewrite; still over a stated cap, the worker keeps it off the form
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
+        failed = _gate(checked, texts)
+    if urls := {key: bare_url(texts[key]) for key, q in keys.items() if q.url and texts[key] != bare_url(texts[key])}:
+        texts |= urls  # the editor's pass may have put words back around it
         failed = _gate(checked, texts)
     own = own_facts(profile, types.values(), posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
@@ -311,10 +316,11 @@ def _redone(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, 
 
 def _sent(q: Question, kind: str | None = None, nearest: bool = False) -> dict:
     """`q` as a kind's data holds it (backend/app/apply_prompts/essays.py's Question), with its Question
-    type when it is an essay, and closest_facts when it is answered from the closest backed facts (closest)."""
+    type when it is an essay, closest_facts when it is answered from the closest backed facts (closest), and `url`
+    only for a field that takes only a web address."""
     return {"label": q.label, "kind": q.kind, "required": q.required, "options": list(q.options),
             "description": q.description, "max_length": q.max_length, "section": q.section} | (
-        {"type": kind} if kind else {}) | ({"closest_facts": True} if nearest else {})
+        {"type": kind} if kind else {}) | ({"closest_facts": True} if nearest else {}) | ({"url": True} if q.url else {})
 
 
 def _sameness(company: str, types: Mapping[str, str], defaults: Mapping[str, str], letters: set[str]):
@@ -593,11 +599,12 @@ class _Checked:
     company: str  # the company's name
     brief: str  # the <company> block, with the Company brief
     resume: Path | None = None  # the profile's resume PDF, for the not-on-resume gate
+    graduates: str = ""  # the profile's graduation (asking.graduation), the only date an essay may give for it
 
     def gates(self, text: str) -> list[str]:
         from apply import gates  # gates imports this module
         return gates.answer(text, self.question, self.type, self.sources, self.company, self.brief,
-                            letter=self.type == "cover-letter", resume=self.resume)
+                            letter=self.type == "cover-letter", resume=self.resume, graduates=self.graduates)
 
 
 def _gate(checked: Mapping[str, _Checked], texts: Mapping[str, str]) -> dict[str, list[str]]:
@@ -949,12 +956,23 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
         usable = bool(picked) and len(picked) == (len(answer) if isinstance(answer, list) else 1)
         answer = picked
     else:
-        answer = str(answer or "").strip()
+        answer = bare_url(str(answer or "")) if q.url else str(answer or "").strip()
         usable = bool(answer) and (answer in choices if choices else not [
             c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
     if given.get("needs_lisul") is True and not nearest or not usable:
         return Draft(q, "", needs_lisul=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
+
+
+URL = re.compile(r"https?://[^\s<>\"'()]+")
+
+
+def bare_url(text: str) -> str:
+    """The one web address in an answer for a field that takes only one (Question.url), without the words
+    around it; "" when it holds none, or more than one. Circleback's (Ashby, 2026-11-26) got "URL : prose",
+    which the browser dropped."""
+    found = list(dict.fromkeys(m.group().rstrip(".,;:!?") for m in URL.finditer(text)))
+    return found[0] if len(found) == 1 else ""
 
 
 def _facts(named: object, profile: ApplicantProfile) -> tuple[str, ...]:
