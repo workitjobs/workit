@@ -72,7 +72,7 @@ from apply.model import (
     is_company,
     one_line,
 )
-from apply.presubmit import replan, review
+from apply.presubmit import backed_by_policies, replan, review
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled
 
@@ -484,6 +484,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
                                    planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
+                    found = backed_by_policies(found, questions, readback, profile, planned.text)
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before

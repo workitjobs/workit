@@ -347,6 +347,11 @@ export const FIX_IN_FORM = "Fix it in the form, or submit it as it is if it's ri
 // types into an employer's sign-in, solves a captcha or reads email.
 export const WAITING_IN_CHROME = "Waiting for you in Chrome…";
 
+// Send anyway: why the student sent a form past the Pre-submit review's hold, as its Record keeps it.
+export const SENT_ANYWAY = "The student chose Send anyway in the window and confirmed the flagged answers.";
+// The run's words when the review's hold kept it from pressing Submit (rehearsal.HELD_FIRST).
+export const isHeld = (said?: string) => !!said?.startsWith("Submit is held on the form");
+
 export const HANDOFF = {
   "sign-in": "Sign in yourself in the window that opens, then come back here. We'll carry on.",
   code: "Check your email for the code and type it into the form. We don't read your email.",

@@ -43,7 +43,20 @@ reads: it does not click, type or submit.
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
-  (`docs/fill-engine.md`, KAN-753).
+  (`docs/fill-engine.md`, KAN-753). The review reads no `policies.yaml`,
+  so a problem it finds with a pay answer the `compensation` policy gave
+  (its `expectation`, the Posting's range, or `fallback_hourly` when the
+  Posting names no pay) is dropped (`presubmit.backed_by_policies`):
+  Relay's "$30/hr" was held as unbacked. Verifying's own pay check, which
+  is code, still flags a figure off the policy.
+- Send anyway: when a review hold keeps the run from pressing Submit
+  (`HELD_FIRST`), the card offers Send anyway, which asks once more. It
+  and `apply window submit <tile> --yes --override "<reason>"` post
+  `/submit` with an `override`. The run dismisses the form's legal holds
+  (`Rehearsed.dismiss_holds`), presses Submit, and keeps the reason in
+  the Tracker row and the Record (`SENT_ANYWAY`). Nothing else gives way:
+  a missing required answer, an application already sent, a press
+  already made and a session hold (apply.keepalive) still refuse it.
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   Apply fills that answer in place of the wrong one (`_Planned.fix`). It
