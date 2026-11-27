@@ -60,6 +60,8 @@ MADE = {"video": re.compile(r"\b(?:youtube|loom|vimeo|videos?|recordings?|screen
 VIDEO_LINK = re.compile(r"(?:youtube\.com/(?:watch\?v=|shorts/|embed/)|youtu\.be/|loom\.com/(?:share|embed)/|vimeo\.com/\d)",
                         re.IGNORECASE)
 HOSTS = {"youtube": "YouTube", "loom": "Loom", "vimeo": "Vimeo"}
+CLAUSE = re.compile(r"[.?!;:()]")  # where the words a link word is for stop
+LINKED = 6  # words at most on each side of a link word that say what it is for
 # Words too common to tie a link line to the thing a question asks for.
 PLAIN = frozenset({"please", "include", "shareable", "link", "links", "your", "video", "videos", "submission", "required",
                    "accessible", "anyone", "with", "should", "will", "that", "this", "from", "into", "applications",
@@ -72,20 +74,35 @@ def to_make(q: Question | str) -> str:
     if not isinstance(q, str) and q.kind not in ("text", "textarea"):
         return ""
     text = one_line(q if isinstance(q, str) else q.label)
-    if not LINK_WORD.search(text):
-        return ""
+    linked = " ".join(_linked(text, m) for m in LINK_WORD.finditer(text))
     # "Portfolio, Video, or Website Link" takes any of them: a video is one choice, so it is a portfolio's ask.
-    others = any(KINDS[kind].search(text) for kind in ("github", "linkedin", "site"))
-    return next((kind for kind, named in MADE.items() if named.search(text) and not (kind == "video" and others)), "")
+    others = any(KINDS[kind].search(linked) for kind in ("github", "linkedin", "site"))
+    return next((kind for kind, named in MADE.items() if named.search(linked) and not (kind == "video" and others)), "")
+
+
+def _linked(text: str, link: re.Match) -> str:
+    """What one link word in `text` is for: the words of its clause just before it ("YouTube link", "Portfolio,
+    Video, or Website Link") and what "to", "for" or "of" names after it ("link to your take-home submission").
+    "Tell us about a project in your portfolio (links welcome)" links nothing it names, nor "include a link to
+    the repo" a video game it is about."""
+    before = CLAUSE.split(text[:link.start()])[-1].split()[-LINKED:]
+    after = re.match(r"\s+(?:to|for|of)\b([^.?!;:()]*)", text[link.end():])
+    return " ".join([*before, link[0], *(after[1].split()[:LINKED] if after else [])])
 
 
 def fits_made(q: Question | str, answer: object) -> bool:
     """Whether `answer` can stand in the link field `q` (to_make): links alone, each one to a single video when
-    it asks for a video."""
+    it asks for a video. No answer but Lisul's own stands in for a submission."""
     if not isinstance(answer, str) or not answer.strip():
         return False
+    return to_make(q) != "submission" and _links_for(q, answer)  # only Lisul has it: no rule's profile link
+
+
+def _links_for(q: Question | str, answer: str) -> bool:
+    """Whether `answer` is links alone, each one to a single video when `q` asks for a video."""
     words = answer.split()
-    return all(URL.fullmatch(w) for w in words) and (to_make(q) != "video" or all(VIDEO_LINK.search(w) for w in words))
+    return bool(words) and all(URL.fullmatch(w) for w in words) and (
+        to_make(q) != "video" or all(VIDEO_LINK.search(w) for w in words))
 
 
 def _made_links(asked: str, held: Sequence[str]) -> tuple[str, ...]:
@@ -172,14 +189,18 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None,
     asked = one_line(asked.removeprefix(essays.ASK))
     if not asked:
         return ()
+    # A link to something Lisul makes takes only links that fit it: never the prose an earlier run drafted for it.
+    def fits(given: tuple[str, ...]) -> bool:
+        return not to_make(asked) or _links_for(asked, value(given))
+
     answered = {key(q): a for q, a in (profile.get(ANSWERED) or {}).items() if a not in (None, "", [])}
-    if key(asked) in answered:
-        return (_shown(answered[key(asked)]),)
-    if bank and (entry := bank.get(asked)) and entry.answer:
-        return (_shown(entry.answer),)
+    if key(asked) in answered and fits(said := (_shown(answered[key(asked)]),)):
+        return said
+    if bank and (entry := bank.get(asked)) and entry.answer and fits(said := (_shown(entry.answer),)):
+        return said
     stories = essays.story_bank(employer) if data_folder.STORY_BANK.is_file() else ""
-    if line := next((one_line(line)[2:] for line in stories.splitlines()
-                     if one_line(line).casefold().startswith(f"- {asked}".casefold())), ""):
+    if (line := next((one_line(line)[2:] for line in stories.splitlines()
+                      if one_line(line).casefold().startswith(f"- {asked}".casefold())), "")) and fits((line,)):
         return (line,)
     if GRADUATION_ASK.search(asked) and (graduates := graduation(profile)):
         return (graduates,)
@@ -232,7 +253,7 @@ def made(q: Question) -> str:
     """What the applicant does for a link question of `to_make`, as its context line leads with it; "" for any other."""
     kind = to_make(q)
     if kind == "video":
-        host = next((name for word, name in HOSTS.items() if word in q.label.casefold()), "")
+        host = next((name for word, name in HOSTS.items() if re.search(rf"\b{word}\b", q.label, re.IGNORECASE)), "")
         return f"Record the video yourself, then paste its {host or 'video'} link"
     return f"Make the {kind} yourself, then paste its link" if kind else ""
 

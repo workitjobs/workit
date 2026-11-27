@@ -420,9 +420,15 @@ through `worker._Planned._missing` first.
   Lisul must make or host first: a video (YouTube, Loom, Vimeo, a
   recording), a submission, a portfolio or a demo. OpenSesame's "shareable
   YouTube link to your Creative Project submission" got a written essay
-  (2026-11-26). Only a link answers it. `fill_engine.plan` keeps an answer
+  (2026-11-26). A link word counts only for what its clause names just
+  before it ("YouTube link") or after "to", "for" or "of" ("link to your
+  submission"), so "a project in your portfolio (links welcome)" stays an
+  essay. Only a link answers it. `fill_engine.plan` keeps an answer
   that `asking.fits_made` takes (links alone, each to one video for a video
-  ask); any other answer, essay or draft becomes a Missing fact. A question
+  ask, and never one for a submission, which only Lisul has); any other
+  answer, essay or draft becomes a Missing fact, and is never held as a
+  high-stakes essay. `known` skips an earlier answer, Answer bank entry or
+  Story bank line for it that is not links alone. A question
   the engine left blank or handed off stays as it planned it. `known`
   answers a video ask only from a link to one video whose line names it
   ("Creative Project video: https://youtu.be/..."), and a submission never

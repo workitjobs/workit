@@ -1094,6 +1094,10 @@ def test_a_video_link_is_known_only_from_a_link_to_one_video_that_names_it():
     ("Portfolio URL", "portfolio"), ("Link to a demo of your project", "demo"),
     ("Portfolio, Video, or Website Link", "portfolio"),  # any of them: a portfolio link fits
     ("LinkedIn Profile", ""), ("GitHub URL", ""), ("Tell us about a video game you love.", ""),
+    ("Share a link to a short video introducing yourself to Bloomberg", "video"),
+    # A link word that is for something else: the question is an essay.
+    ("Tell us about a project in your portfolio (links welcome).", ""),
+    ("Describe a video game you've built; include a link to the repo.", ""), ("Why YouTube? Share any links.", ""),
 ])
 def test_what_a_link_question_asks_the_applicant_to_make(label, kind):
     assert asking.to_make(Question("q", label, "text")) == kind
@@ -1108,6 +1112,24 @@ def test_only_a_link_to_one_video_fits_a_video_link_field():
     assert not asking.fits_made(video, "https://www.youtube.com/@testperson")  # a channel
     assert not asking.fits_made(video, "I built a tool that fills forms.")
     assert asking.fits_made(Question("p", "Portfolio URL", "text"), "https://test-person.dev")
+    # Only Lisul has a submission: the engine's GitHub rule gave its profile link to OpenSesame's.
+    assert not asking.fits_made(Question("s", "Link to your take-home submission", "text"), "https://github.com/test-person")
+
+
+def test_a_video_asks_context_line_names_its_host_only_as_a_word():
+    assert asking.made(Question("q", "Share a link to a short video introducing yourself to Bloomberg", "text")) \
+        == "Record the video yourself, then paste its video link"
+    assert asking.made(Question("q", OPENSESAME_LINK, "textarea")).endswith("paste its YouTube link")
+
+
+def test_prose_an_earlier_run_banked_for_a_video_link_never_answers_it():
+    profile, bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "I built a tool that fills forms.", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ()
+
+    bank = AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "https://youtu.be/abc123", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ("https://youtu.be/abc123",)
 
 
 def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
