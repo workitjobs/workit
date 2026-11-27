@@ -291,3 +291,23 @@ def test_a_form_sent_anyway_says_why_in_its_tracker_row():
     rehearsal._keep_submission(tracker, done, None)
     assert tracker.get("a1").reason == rehearsal.SUBMITTED_BY_LISUL + "; sent past the Pre-submit review's hold: " \
                                        "Pay from policies.yaml"
+
+
+def test_the_code_command_on_a_form_held_at_its_sign_in_says_the_fill_goes_on(monkeypatch, capsys):
+    """Fault: `apply window code` at a sign-in (Oracle's one-time code) says Submit was pressed, when none was."""
+    from apply import app_window, cli
+
+    monkeypatch.setattr(app_window, "running", lambda: 4242)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    states = [{"ask": "sign-in", "coding": True}, {"ask": "", "status": "filling", "coding": False}]
+
+    def ask(action, body=None):
+        if action == "code":
+            return {"status": 200, "message": "Entering the code."}
+        return {"status": 200, "state": {"needs_you": [{"tile": "tile-0", **states.pop(0)}]}}
+
+    monkeypatch.setattr(app_control, "ask", ask)
+    with pytest.raises(SystemExit) as done:
+        cli.main(["window", "code", "tile-0", "482913", "--yes"])
+    said = capsys.readouterr().out
+    assert done.value.code == 0 and "signed you in" in said and "Submit was pressed" not in said

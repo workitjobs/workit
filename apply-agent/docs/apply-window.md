@@ -83,6 +83,17 @@ docstring first.
     it exits 0 once the job site's confirmation page marks the tile sent,
     and 1 with the job site's words for a wrong or expired code, or when
     no confirmation came. The code is never logged.
+  - The same `code <tile> <CODE> --yes` answers a form held at its
+    sign-in (ask `sign-in`): Oracle's "Confirm your identity" six-digit
+    code, which the Student build reads from no mail. Before any Submit,
+    on a hold paused at a sign-in (`_Kept.hold`'s `signing_in`), the run
+    enters the code with both guards on and presses only that step's own
+    Verify, Continue or Next (`code_box.sign_in`, `GO_ON`), never a
+    Submit or Send, let through as a sign-in press
+    (`let_account_click`). It exits 0 once the code field is gone (the
+    paused fill then goes on by itself, as after a sign-in on the page),
+    and 1 for a wrong code or a step that didn't go on. Any other form
+    with no Submit pressed yet still says `NOT_SENT_YET`.
   - The channel is a folder, `APPLY_HOME/app-control/`. The command writes
     one `.request` file (written whole, then renamed). The window looks
     every 0.25 s, renames it `.taken`, answers in a thread of its own and
