@@ -426,7 +426,8 @@ into it and the window shows "Sample data".
   and 3 of the review put the answers outside the form). An empty bot trap
   no one sees (Workday's beside the form, KAN-886; Oracle's honeypot in it)
   and a shut pop-up's empty text box (Oracle's AI Assist summary) are no
-  answer box. The residual: an
+  answer box, nor is a tick or an empty box in OneTrust's shut cookie
+  preference center (Emerson's, `cookieBox`). The residual: an
   app whose answers a script holds, behind one email box, looks like a
   sign-in step under that press. A wizard whose Next submits a GET form is a
   step no code or model presses: a Handoff, the student's on the held page,

@@ -302,6 +302,28 @@ def test_a_rehearsals_guard_lets_the_email_steps_next_go_on():
     assert (email_step["email"], email_step["accepted"], email_step["honeypot"]) == ("test.person@example.com", True, "")
 
 
+# OneTrust's preference center as it stays in Emerson's page, shut, once its banner is closed (live 2026-11-27).
+SHUT_ONETRUST = """document.addEventListener('DOMContentLoaded', () => document.body.insertAdjacentHTML('beforeend',
+  '<div id="onetrust-consent-sdk"><div id="onetrust-pc-sdk" style="display:none">'
+  + '<input type="checkbox" id="ot-group-id-C0003" role="switch" checked>'
+  + '<input id="vendor-search-handler" type="text" value=""><input id="chkbox-id" type="checkbox"></div></div>'))"""
+
+
+def test_the_email_steps_next_goes_on_beside_a_shut_cookie_preference_center():
+    """Emerson's Oracle site (live): once OneTrust's banner was closed, its shut preference center's ticks and empty
+    search box were taken for answers outside the email step's form, so the guard blocked Next as an application's."""
+    from apply import oracle, submit_guard
+
+    with submit_guard.guarding_on_open(), FakeOracleServer(MACYS_FORM, verify=None) as server, server.open(MACYS_URL) as page:
+        page.add_init_script(SHUT_ONETRUST)
+        page.reload()
+        assert page.locator("#ot-group-id-C0003").count() == 1
+        oracle.sign_in(page, _Accounts(), "Person", agree_to_terms=True)
+        assert page.url.endswith("/__fake__/form")
+    [email_step] = server.emails
+    assert email_step["email"] == "test.person@example.com"
+
+
 def test_a_next_that_doesnt_go_on_is_a_handoff_not_a_timeout(monkeypatch):
     """A Next the page or a guard stops leaves the email step showing with no error: Lisul goes on himself."""
     from playwright.sync_api import sync_playwright
