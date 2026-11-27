@@ -20,6 +20,7 @@ from app.models.dto import BEFORE_APPLIED, application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED, OPEN
+from app.services.added_logos import added_logo
 from app.services.postings import tracked_by
 
 # mark_applied's default: leave the application's sent resume as it is.
@@ -305,12 +306,17 @@ async def add_job(db: AsyncSession, url: str, company: str, title: str) -> uuid.
     the link: a closed scraped job stays closed, with the feed's company and
     title, so no student can reopen or rewrite it for everyone (the router
     refuses that form, or tracks it as it is). None when the link is a
-    company's own posting. Flushes; the caller commits
+    company's own posting. Its logo sources come from a posting of the same
+    company in the catalog, else the employer's own site
+    (services/added_logos.py), so its card shows a logo, not initials.
+    Flushes; the caller commits
     '''
+    domain, logo = await added_logo(db, url, company)
     job_id = await db.scalar(
         insert(Job_Post).values(
             apply_url=url, company_name=company, title=title,
             status=job_post_status.published, added_by_student=True,
+            company_domain=domain, company_logo_url=logo,
         )
         .on_conflict_do_nothing(index_elements=["apply_url"])
         .returning(Job_Post.id)

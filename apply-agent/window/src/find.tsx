@@ -29,7 +29,8 @@ const read = new Map<string, Match[]>();
 // How long "Finding jobs that fit you…" shows before the page says the first search is slow.
 const SLOW_MATCHES = 6_000;
 
-export function Find({ app, queue }: { app: App; queue: () => void }) {
+// During a run (`joined`), Start applying adds the picks to it, and the queue's link is gone: the queue starts runs.
+export function Find({ app, queue, joined }: { app: App; queue?: () => void; joined?: (n: number) => void }) {
   const [filters, setFilters] = useState<Filters>({ job_type: ["internship"] });
   const [q, setQ] = useState("");
   const [jobs, setJobs] = useState<Match[] | null>(null);
@@ -99,7 +100,11 @@ export function Find({ app, queue }: { app: App; queue: () => void }) {
   const start = () => {
     setStarting(true);
     setWhy("");
-    app.start!([...picked.keys()]).catch((e: Error) => (setStarting(false), setWhy(e.message)));
+    const n = picked.size;
+    app.start!([...picked.keys()]).then(
+      () => joined && (setStarting(false), setPicked(new Map()), joined(n)),
+      (e: Error) => (setStarting(false), setWhy(e.message)),
+    );
   };
   const set = (name: Menu["name"], values: string[]) => setFilters((f) => ({ ...f, [name]: values }));
   const filtered = MENUS.some((m) => filters[m.name]?.length);
@@ -110,9 +115,11 @@ export function Find({ app, queue }: { app: App; queue: () => void }) {
           <MagnifyingGlassIcon className="size-4" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search jobs or companies" aria-label="Search jobs" className="flex-1 bg-transparent text-ink outline-none" />
         </label>
-        <Button tone="quiet" className="h-10 px-3" onClick={queue}>
-          Your queue · paste a link
-        </Button>
+        {queue && (
+          <Button tone="quiet" className="h-10 px-3" onClick={queue}>
+            Your queue · paste a link
+          </Button>
+        )}
       </div>
       {why && (
         <p role="alert" className="mt-3 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
@@ -179,7 +186,7 @@ export function Find({ app, queue }: { app: App; queue: () => void }) {
           </button>
           <Button tone="primary" size="lg" disabled={starting} onClick={start}>
             <LightningIcon className="size-4" />
-            {starting ? "Starting…" : "Start applying"}
+            {starting ? (joined ? "Adding…" : "Starting…") : joined ? "Add to this run" : "Start applying"}
           </Button>
         </div>
       )}
