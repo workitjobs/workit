@@ -2285,6 +2285,49 @@ def test_documents_an_earlier_attempt_left_are_removed_so_this_fills_own_go_in()
     assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
 
 
+# The same slots as Emerson's live form showed them (its saved page, live 2026-11-27; the file names made up), in the
+# form's Supporting Documents, which show only after its blocks do, as the draft loads. Remove puts the upload area
+# back, as Oracle's does.
+LIVE_SLOT = """<{tag} params="model: x"><div data-bind="css: {{}}"> <!-- ko if: isDragAndDropActive() -->
+  <div class="attachment-upload-button attachment-upload-button--filled" role="application">
+  <div class="attachment-upload-button__container font-family-secondary">
+  <!-- ko if: status() === STATES.FILLED --> <div class="attachment-upload-button__filled">
+  <button type="button" class="attachment-upload-button__download" data-bind="text: model().fileName">{file}</button>
+  <button type="button" class="attachment-upload-button__bottom-button" aria-label="Remove {label}"
+    title="Remove attachment {file}">Remove {label}</button>
+  </div> <!-- /ko --> </div></div> <!-- /ko --></div></{tag}>"""
+LIVE_DOCUMENTS = ("<title>Software Engineering Intern - Acme Career Site</title>"
+                  '<div class="apply-flow-block"><h2>Contact Information</h2><label>Last Name <input></label></div>'
+                  '<div class="apply-flow-block" id="documents"><h2>Supporting Documents</h2></div><script>'
+                  "setTimeout(() => { document.getElementById('documents').insertAdjacentHTML('beforeend', "
+                  + json.dumps(LIVE_SLOT.format(tag="resume-upload-button", file="Old_Resume.pdf", label="Resume")
+                               + LIVE_SLOT.format(tag="cover-letter-upload-button", file="Old_Cover_Letter.pdf",
+                                                  label="Cover Letter"))
+                  + "); document.querySelectorAll('.attachment-upload-button__bottom-button').forEach(b => b.onclick ="
+                  " () => setTimeout(() => { b.closest('resume-upload-button, cover-letter-upload-button').innerHTML ="
+                  " '<label>' + b.textContent.replace('Remove ', '') + ' <input type=file></label>'; }, 300)); }, 1500)"
+                  "</script>")
+
+
+def test_documents_oracle_shows_after_its_form_are_removed_before_the_read():
+    """Emerson's refill (live 2026-11-27, after #758): the read came before the draft's documents showed, so none were
+    removed, and the old résumé and cover letter stayed on the held form."""
+
+    def sign_in(page):
+        page.set_content(LIVE_DOCUMENTS)
+
+    def read(page, schema, prompt, files):
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        questions = filler.question_set(LUNAR_URL, site)
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
 def test_a_form_with_no_carried_documents_is_left_as_it_is():
     from playwright.sync_api import sync_playwright
 
