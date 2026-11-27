@@ -406,3 +406,34 @@ def test_a_required_catch_all_box_is_still_answered(tmp_path):
 
     assert planned.add([WHY, required]) is None
     assert planned.kept_blank == {} and planned.answers["extra"] == "I can start on May 18 and intern for twelve weeks."
+
+
+GROUPS = Question("groups", "Which student groups are you part of?", "multi_select", True,
+                  ("Hackathons", "Robotics Club", "Other student groups"))
+
+
+@pytest.mark.parametrize("fix, ticks", [
+    ("Robotics Club", ["Robotics Club"]),
+    ("Hackathons, Robotics Club", ["Hackathons", "Robotics Club"]),
+    ("Robotics Club and a chess club", None),  # names a box the group lacks: never half of it
+])
+def test_the_reviews_fix_to_a_group_of_boxes_ticks_the_boxes_it_names(tmp_path, fix, ticks):
+    # Shield AI (Ashby, live 2026-11-27): the review said "Robotics Club" fit better than "Other student groups", but
+    # a fix to a group of boxes was never taken, so the form was held for what Apply could fix itself.
+    posting = Posting("shield", "Shield AI", "Software Engineering Intern", "https://jobs.ashbyhq.com/shieldai/1")
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), FakeClaude(), {}, None,
+                              True, AnswerBank(), date(2026, 11, 27))
+    planned.add([GROUPS])
+    planned.answers = {"groups": ["Other student groups"]}
+    why = [f"{GROUPS.label}: the profile lists the Robotics Club, not another group"]
+
+    assert planned.fix({GROUPS.label: fix}, {"groups": ["Other student groups"]}, why, trial=True) == bool(ticks)
+    assert planned.answers["groups"] == (ticks or ["Other student groups"])
+
+
+def test_a_fix_names_the_boxes_of_a_group_whole():
+    options = ("Other", "Other student groups", "Robotics Club")
+
+    assert worker._ticks("'Other student groups'.", options) == ["Other student groups"]  # never "Other" in it
+    assert worker._ticks("Robotics Club; Other", options) == ["Other", "Robotics Club"]
+    assert worker._ticks("Robotics", options) == []

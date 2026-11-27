@@ -570,9 +570,23 @@ def _repeats(questions: Sequence[Question]) -> dict[str, set[str]]:
     return {name: same - {name} for same in by_label.values() if len(same) > 1 for name in same}
 
 
-def _narrows(answer: str, shown: object) -> bool:
+def _ticks(answer: str, options: Sequence[str]) -> list[str]:
+    """The boxes of a group (`options`) a fix names, as the review writes them on one line ("Robotics Club",
+    "Robotics Club, Hackathons"; Shield AI's on Ashby, live 2026-11-27, which no fix could change): each option
+    named whole, in the group's order, when the fix names nothing else; else none."""
+    rest, named = one_line(answer).casefold(), set()
+    for option in sorted(options, key=len, reverse=True):  # "Other student groups" before "Other"
+        if (said := one_line(option).casefold()) and re.search(rf"(?<!\w){re.escape(said)}(?!\w)", rest):
+            rest = re.sub(rf"(?<!\w){re.escape(said)}(?!\w)", " ", rest)
+            named.add(option)
+    return [o for o in options if o in named] if not re.sub(r"[\s,;/&'\"“”.]|\band\b", "", rest) else []
+
+
+def _narrows(answer: object, shown: object) -> bool:
     """Whether `answer` says only part of what the field shows, in its words ("New York" of "Riverton, New York,
     United States"): the same facts, fewer of them, so no fact the profile doesn't hold."""
+    if not isinstance(answer, str):
+        return False
     words = re.findall(r"\w+", answer.casefold())
     return bool(words) and isinstance(shown, str) and set(words) <= set(re.findall(r"\w+", shown.casefold()))
 
@@ -1027,15 +1041,18 @@ class _Planned:
                   and any(PROFILE_REASON.search(why) for why in _flagged(q, problems))}
         repeats = _repeats(self.questions)
 
-        def kept(q: Question, answer: str | None) -> bool:  # an answer no fix may change, or a fix not to take
-            return (answer is None or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
+        def kept(q: Question, answer: object) -> bool:  # an answer no fix may change, or a fix not to take
+            return (answer is None or q.kind == "file" or q.name in self.lisuls or q.name in own
                     or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
-                    or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer))
+                    or (q.options and isinstance(answer, str) and answer not in q.options)
+                    or shows(readback.get(q.name, ""), answer))
 
         changed = False
         for q in self.questions:
-            answer = fixes.get(one_line(q.label))
+            answer: object = fixes.get(one_line(q.label))
+            if q.kind == "multi_select" and isinstance(answer, str):  # a group of boxes: the ones the fix names
+                answer = _ticks(answer, q.options) or None
             if kept(q, answer) or (q.name not in guessed | legal | backed and not _narrows(answer, readback.get(q.name))):
                 continue
             changed |= self._take(q, answer, trial=q.name in backed - legal)
@@ -1049,14 +1066,14 @@ class _Planned:
             self.answers = self._answers
         return changed
 
-    def _take(self, q: Question, answer: str, trial: bool) -> bool:
+    def _take(self, q: Question, answer: object, trial: bool) -> bool:
         """Fill the fix `answer` for `q` (see fix); with `trial`, kept only if the next review passes it (unfix)."""
         for draft in [d for d in self.drafted if d.question.name == q.name]:
             entry = self._bank.get(self.wording(q))
             if entry and entry.source != LISUL and not entry.reviewed:
                 self._bank.delete(self.wording(q))
             self.drafted.remove(draft)
-        self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
+        self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), as_text(answer)))
         if trial:
             self.trials[q.name] = self._answers.get(q.name)
         self.fixes[q.name] = answer
