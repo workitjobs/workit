@@ -437,6 +437,10 @@ def _as_home_address(question: Question) -> Question:
     """`question`, a part of the address under a bare "Address" heading asked as the home address's part, which the
     engine plans from that part's fact: "Home address: Country". Its name, and so its answer, stay its own."""
     found = ADDRESS_HEADED.match(question.label)
+    if found and found[1].strip().lower() == "county":
+        # The engine knows no home address's county: "Home address: County" got the whole address (Honeywell's, live
+        # 2026-11-27). Asked bare, it is planned from the county the profile holds.
+        return replace(question, label=found[1])
     return replace(question, label=f"Home address: {found[1]}") if found else question
 
 

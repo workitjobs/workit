@@ -1158,12 +1158,29 @@ def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
     out = []
     for q in questions:
         index = _combobox_for(q.label, names) if q.kind in ("select", "multi_select") else -1
+        if index >= 0 and _searched(boxes[index][0]):
+            out.append(Question(q.name, q.label, q.kind, q.required, (), q.description, q.max_length, q.section))
+            continue
         options = _options_of(page, boxes[index][0]) if index >= 0 else ()
         if not options and q.kind in ("select", "multi_select"):  # a group of boxes: Oracle's Ethnicity and races
             at = _combobox_for(q.label, [group["name"] for group in groups])
             options = tuple(groups[at]["options"]) if at >= 0 else ()
         out.append(Question(q.name, q.label, q.kind, q.required, options) if options else q)
     return out
+
+
+# A dropdown that lists its choices by search: Oracle's address City, State, County and Zip Code (its geography
+# fields, but Country, whose list is whole). Opened with nothing typed, County listed its first 500 ("Abbeville, SC"
+# on), which the plan read as its choices: the applicant's, not among them, was planned blank (Honeywell's, live
+# 2026-11-27), and so were City and Zip Code.
+SEARCHED = "el => !!el.closest('.geo-hierarchy-form-element') && el.name !== 'country'"
+
+
+def _searched(combobox) -> bool:
+    try:
+        return bool(combobox.evaluate(SEARCHED))
+    except Exception:
+        return False
 
 
 # The visible groups of checkboxes on the page (radios stay Claude's), each with its name (aria-labelledby, aria-label, legend) and its
@@ -1306,7 +1323,7 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
             continue
         combobox = boxes[index][0]
         if searched:
-            if _shows_choice(combobox, value) or _search_pick(page, combobox, value, context):
+            if _shows_choice(combobox, value) or _shows_place(combobox, value) or _search_pick(page, combobox, value, context):
                 picked[q.name] = value
             continue
         wanted = value if isinstance(value, list) else [value]
@@ -1346,7 +1363,7 @@ def _search_pick(page: Page, combobox, choice: str, context: set[str]) -> bool:
             return False
         combobox.click(timeout=3_000)
         combobox.fill("")
-        combobox.press_sequentially(choice, delay=20)
+        combobox.press_sequentially(choice.split(",")[0].strip(), delay=20)  # a whole option's name, by its place's
         fits, last = [], None
         deadline = time.monotonic() + SEARCH_MS / 1000
         while time.monotonic() < deadline:  # until the list settles: a search answers after the typing
@@ -1358,9 +1375,14 @@ def _search_pick(page: Page, combobox, choice: str, context: set[str]) -> bool:
             last = names
             time.sleep(0.2)
         if len(fits) == 1:
-            _press_option(listbox.get_by_role("option", name=fits[0], exact=True).first)
+            option = listbox.get_by_role("option", name=fits[0], exact=True).first
+            if option.get_attribute("aria-selected") == "true":  # picked already: a press would empty the box
+                page.keyboard.press("Escape")
+            else:
+                _press_option(option)
             shown = (combobox.evaluate("el => el.value || ''") or "").strip().casefold()
-            if shown == choice.casefold() or shown.startswith(choice.casefold() + ","):
+            place = choice.split(",")[0].strip().casefold()  # the box shows a place's name only: "Springfield"
+            if shown in (choice.casefold(), place) or shown.startswith(place + ","):
                 return True
         combobox.fill("")
         page.keyboard.press("Escape")
@@ -1372,9 +1394,22 @@ def _search_pick(page: Page, combobox, choice: str, context: set[str]) -> bool:
     return False
 
 
+def _shows_place(combobox, choice: str) -> bool:
+    """Whether a search dropdown shows the place a whole option names: Oracle's City box shows "Springfield" once
+    "Springfield, Sangamon, IL" is picked. Never pressed again: on Oracle's form a click on the picked option empties
+    the box."""
+    place, _, rest = choice.partition(",")
+    try:
+        return bool(rest.strip()) and (combobox.evaluate("el => el.value || ''") or "").strip().casefold() == place.strip().casefold()
+    except Exception:
+        return False
+
+
 def _fitting(names: tuple[str, ...], choice: str, context: set[str]) -> list[str]:
     """The options whose first comma part is the choice: the only one, else those whose every other part the plan
     gives too ("Springfield, Sangamon, IL" for a plan with Sangamon and IL, never Springfield, Clark, OH)."""
+    if whole := [n for n in dict.fromkeys(names) if n.casefold() == choice.strip().casefold()]:
+        return whole  # the answer names a whole option: "Springfield, Sangamon, IL", as an applicant may answer it
     named = [n for n in dict.fromkeys(names) if n.split(",")[0].strip().casefold() == choice.strip().casefold()]
     if len(named) <= 1:
         return named
