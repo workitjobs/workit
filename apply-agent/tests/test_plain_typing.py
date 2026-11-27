@@ -239,6 +239,18 @@ def test_a_field_filled_as_the_page_answers_its_windows_focus_keeps_it(amazon):
     assert taken(page) == {"school": "Acme"}
 
 
+def test_a_fill_whose_field_lost_the_focus_before_any_text_went_is_made_again(amazon):
+    # Fault: PortLocator.fill raises the first Unfocused error. The page moves the focus once, just after the field
+    # gets it, as a form that re-renders does; nothing was typed, so a second fill focuses the field again and types.
+    page, _ = amazon
+    page.locator("#other").fill("x")  # the debugger attached, its focus emulation on
+    page.evaluate("() => school.addEventListener('focus', () => setTimeout(() => other.focus()), {once: true})")
+    page.locator("#school").fill("Acme")
+
+    assert page.evaluate("() => [school.value, other.value]") == ["Acme", "x"]
+    assert taken(page) == {"other": "x", "school": "Acme"}
+
+
 def test_the_tiles_text_reaches_such_a_box_in_a_cross_origin_frame(amazon):
     # Another site's frame runs in its own process: the trusted text still reaches its focused box.
     page, _ = amazon

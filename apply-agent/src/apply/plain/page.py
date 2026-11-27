@@ -46,6 +46,7 @@ from apply.plain.script import keep_engine
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
+UNFOCUSED_TRIES = 3  # fills of a field whose page moved its focus before the trusted text went (KAN-716)
 FULL_PAGE_MAX = 20000  # CSS px of a page a full-page screenshot covers, from its top
 STRIP_S = 0.6  # s a full-page screenshot takes for each viewport of the page
 VIEWPORT = "() => ({width: innerWidth, height: innerHeight})"  # page.viewport_size (a fixed function)
@@ -402,7 +403,16 @@ class PortLocator(_Queries):
         self.click(**options)
 
     def fill(self, value: str, force: bool = False, timeout: float | None = None, **_) -> None:
-        self._do("fill", "fill", value, {"force": force}, timeout=timeout)
+        """Playwright's fill. Its trusted text (KAN-716) goes only while the field still has the focus it was given; a
+        page that moved it before any text was sent (`Unfocused`) gets the fill again, which focuses and selects the
+        field anew, up to UNFOCUSED_TRIES times. A page that keeps moving it still raises."""
+        for tries_left in range(UNFOCUSED_TRIES - 1, -1, -1):
+            try:
+                return self._do("fill", "fill", value, {"force": force}, timeout=timeout)
+            except PortError as error:
+                if error.kind != "Unfocused" or not tries_left:
+                    raise
+            time.sleep(POLL)
 
     def clear(self, force: bool = False, timeout: float | None = None, **_) -> None:
         self.fill("", force=force, timeout=timeout)
