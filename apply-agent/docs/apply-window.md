@@ -157,6 +157,13 @@ docstring first.
   `tests/test_app_window_page.py` (the shim in Chromium, with Playwright
   in pywebview's place: it puts `window.pywebview` in after the page
   loads, as pywebview does, since `set_content` runs no init script).
+  **Run `test_app_window_page.py` on a Mac after any change to the
+  student page or a new bridge method:** CI never runs it. Its fake
+  bridge answers any name it doesn't know with `{}`, so a new method that
+  must answer a list breaks the page's script. KAN-882's Find jobs did
+  that, and it moved the page's start from the queue: two tests failed
+  unseen from 2026-11-16 to 2026-11-26. Give each new method its answer
+  in the test, of the type the real `Bridge` returns.
 
 ## Rehearsal records
 
