@@ -269,6 +269,7 @@ jobs:
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
+            tests/test_code_box.py \
             tests/test_company_brief.py \
             tests/test_company_material.py \
             tests/test_cover_letter.py \

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from playwright.sync_api import Route, sync_playwright
 
-from apply import answering, fill_engine, gates, submit_guard
+from apply import answering, brief, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
 from apply.gmail import MailedCode, on_hosts, speaks_of_reset
 from apply.model import Question
@@ -573,6 +573,7 @@ class FakeClaude:
         self._team, self._team_brief = team, team_brief or []
         self._named = named or {}
         self.researched: list[str] = []  # the prompt of each Company brief research
+        self.budgeted: list[str] = []  # the prompt of each done within policy research_budget (brief.BUDGET_SYSTEM)
         self.teams_named: list[str] = []  # the prompt of each call naming a Posting's team
         self._essays = essays or {}
         self._drafts = drafts or {}
@@ -694,7 +695,7 @@ class FakeClaude:
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
                  max_tokens: int) -> Drive:
-        self.researched.append(prompt)
+        (self.budgeted if system == brief.BUDGET_SYSTEM else self.researched).append(prompt)
         facts = self._team_brief if "<team>" in prompt else self._brief
         output = dict(facts) if isinstance(facts, dict) else {"facts": [dict(f) for f in facts]}
         return Drive(output, 8, 200_000)

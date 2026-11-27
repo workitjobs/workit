@@ -9,7 +9,7 @@ import types
 import pytest
 from fake_workit import FakeWorkIt
 
-from apply import app_window, dashboard, workit
+from apply import app_window, build, dashboard, first_run, workit
 from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
 from apply.first_run import READY, SHOWN
@@ -241,8 +241,8 @@ def test_the_apps_page_loads_no_web_font(board):
 
 
 def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopped(board):
-    """Fault: a second run started over the first, the window left on a finished run, or a run that couldn't
-    start (no engine, W7) said nothing."""
+    """Fault: a second run started over the first, a pick from Find jobs during a run refused or dropped instead of
+    joining it, the window left on a finished run, or a run that couldn't start (no engine, W7) said nothing."""
     import threading
 
     from apply.adapters import SetupError
@@ -263,11 +263,14 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
     bridge._window = window
     assert "error" in bridge.start([])
     assert bridge.start(["https://jobs.lever.co/acme/1"]) == {"started": 1}
-    assert "error" in bridge.start(["https://jobs.lever.co/acme/2"])  # one run at a time
+    # One run at a time: a start during it joins it as a link sent in does; this run takes none, so it waits.
+    assert bridge.start(["https://jobs.lever.co/acme/2"]) == {"added": 1}
+    assert bridge._waiting == ["https://jobs.lever.co/acme/2"]
     for _ in range(100):
         if shown:
             break
         threading.Event().wait(0.02)
+    assert runs == [["https://jobs.lever.co/acme/1"]]
     assert window.loaded[-1] == app_window.student_page(shown[0])  # the run's own board
     go.set()
     for _ in range(100):
@@ -741,6 +744,30 @@ def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
     assert labels == ["3", ""]
 
 
+def test_a_checkouts_window_shows_workits_name_and_logo_and_the_built_app_keeps_its_bundles(monkeypatch, tmp_path):
+    # Fault: `apply app` from a checkout shows Python's name and a blank page in the Dock, or the Student build's
+    # bundle icon is replaced.
+    icons, info = [], {"CFBundleName": "Python"}
+    image = object()
+    app = types.SimpleNamespace(setApplicationIconImage_=icons.append)
+    appkit = types.SimpleNamespace(
+        NSApplication=types.SimpleNamespace(sharedApplication=lambda: app),
+        NSImage=types.SimpleNamespace(alloc=lambda: types.SimpleNamespace(
+            initWithContentsOfFile_=lambda path: image if path == str(app_window.ICON) else None)))
+    foundation = types.SimpleNamespace(NSBundle=types.SimpleNamespace(
+        mainBundle=lambda: types.SimpleNamespace(infoDictionary=lambda: info)))
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "Foundation", foundation)
+    assert app_window.ICON.is_file()
+    assert app_window.look_like_the_app() is True
+    assert icons == [image] and info["CFBundleName"] == app_window.TITLE
+    assert app_window.look_like_the_app(tmp_path / "app-icon.png") is False  # the built app: no logo beside its code
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert app_window.look_like_the_app() is False
+    assert icons == [image]
+
+
 def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(monkeypatch):
     from apply import claude_cli, student
 
@@ -754,6 +781,18 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
         assert bridge.set_best_model(False) == {"best": False}
         assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_settings_offers_automatic_workers_until_the_student_picks_a_count(tmp_path, monkeypatch):
+    """Fault: Settings showing a count the student never picked as their choice, or its Automatic not going back
+    to the count from the computer's memory."""
+    monkeypatch.setattr(first_run, "STATE", tmp_path / "app.json")
+    monkeypatch.setattr(first_run, "memory", lambda: 8 * first_run.GB)
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state() | {"notices": None} == {"workers": 0, "automatic": 2, "notices": None}
+        assert bridge.set_workers(3) == {"workers": 3} and bridge.settings_state()["workers"] == 3
+        assert bridge.set_workers(0) == {"workers": 2} and bridge.settings_state()["workers"] == 0
 
 
 def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
