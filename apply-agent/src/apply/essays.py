@@ -67,6 +67,10 @@ GIVEAWAY = re.compile(r"""\b(?:
   | don['’]t\ (?:yet\ )?say\ why | doesn['’]t\ (?:yet\ )?say\ why
   | as\ an\ AI
 )\b""", re.IGNORECASE | re.VERBOSE)
+# The tools that fill the application (Lisul, 2026-11-26): an answer naming one says it was automated, so it is
+# held at every Safety level, even when a Story bank line names one (a project of the applicant's own).
+TOOLS = re.compile(r"\b(?:WorkIt|auto[- ]?appl(?:y|ying|ied)|fill[- ]engine|Apply agent|autofill extension)\b",
+                   re.IGNORECASE)
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 CATCH_ALL = "anything-else"  # the type of a catch-all box ("Additional information"): always blank when optional
 REUSABLE = {"anything-else", "cover-letter"}  # types whose answer may lead with a story another answer leads with
@@ -639,6 +643,11 @@ def named_fact(name: object, company: str) -> str:
     name = one_line(str(name or "")).strip("*").casefold()
     return next((line[2:] for line in company.splitlines()
                  if name and line.startswith("- **") and line[4:].split("**")[0].casefold() == name), "")
+
+
+def names_tools(text: str) -> tuple[str, ...]:
+    """The tools that fill the application (TOOLS) that `text` names, as it says them."""
+    return tuple(dict.fromkeys(m.group() for m in TOOLS.finditer(text)))
 
 
 def giveaways(text: str) -> tuple[str, ...]:
