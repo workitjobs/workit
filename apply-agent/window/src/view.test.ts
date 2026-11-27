@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
+import { addsJobs, findsJobs, joinedWords, autoLeft, answerOf, appliedJobs, bar, changes, checks, asking, chosen, classify, clip, filledIn, flagged, toCheck, ONE_ANSWER, headline, HANDOFF, HOW_IT_WORKS, submittedLine, WAITING_FOR_SCREEN, stopActions, limit, notStarted, queueNote, shortcut, startWords, stopWords, usageLine, usedShare, view, wantedFields, ago, needsYou, runLine, working } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -376,8 +376,17 @@ test("+ Add jobs shows whenever no run is going and the window can start one, ne
   const idle = view({ tiles: [], items: [], run: {} });
   const run = view({ tiles: [job({})], items: [], run: { mode: "rehearsal", queued: 0 } });
   assert.equal(addsJobs(idle, true), true);
-  assert.equal(addsJobs(run, true), false); // app_window.Bridge.start refuses a second run
+  assert.equal(addsJobs(run, true), false); // the queue screen starts runs; Find jobs adds to one
   assert.equal(addsJobs(idle, false), false); // a Developer checkout's window has no queue or Start
+});
+
+test("Find jobs stays reachable during a run, whose picks join it", () => {
+  // Fault: a run started from `apply app <link>` hid Find jobs till its last form closed (live, 2026-11-26).
+  assert.equal(findsJobs(true, true), true);
+  assert.equal(findsJobs(false, true), false); // a window that can't start a run can't take a pick
+  assert.equal(findsJobs(true, false), false); // nor one that can't read matches
+  assert.equal(joinedWords(1), "Added 1 job to this run.");
+  assert.equal(joinedWords(3), "Added 3 jobs to this run.");
 });
 
 test("Applied lists this run's submitted jobs, then what WorkIt has from before, each once", () => {

@@ -40,7 +40,7 @@ export type App = Partial<{
   matches(filters: Filters): Promise<Match[]>;
   // Each form's screen newer than the number `seen` has for its tile, as a JPEG: what a Worker's Chrome shows.
   frames(seen: Record<number, number>): Promise<Frame[]>;
-  start(links: string[]): Promise<number>;
+  start(links: string[]): Promise<number>; // during a run, the links join it instead (Find jobs beside a run)
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;

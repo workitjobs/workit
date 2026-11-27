@@ -327,9 +327,17 @@ export function wantedFields(why: string | undefined): string[] {
 // hasn't counted them (it counts them when a fill pauses or ends) or checks the answers. Never a made-up share.
 export const bar = (job: Job): number | "unknown" => (job.progress === undefined ? "unknown" : job.progress);
 
-// + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run,
-// since app_window.Bridge.start refuses a second while one goes.
+// + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run:
+// the queue screen starts runs, and Find jobs is the way to add to one (findsJobs).
 export const addsJobs = (v: View, canStart: boolean) => canStart && !v.running;
+
+// Find jobs: in a window that can start a run and read the student's matches, during a run too. A pick then joins
+// the run going (app_window.Bridge.start), as `apply app <link>` does: a run started from links lasts till its last
+// form closes, often hours, and Find jobs was out of reach all that time.
+export const findsJobs = (canStart: boolean, canMatch: boolean) => canStart && canMatch;
+
+// What Find jobs says once its picks joined the run going.
+export const joinedWords = (n: number) => (n === 1 ? "Added 1 job to this run." : `Added ${n} jobs to this run.`);
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
