@@ -270,8 +270,8 @@ SWITCHES = ("live_runs", "phone_push", "worker_headless", "worker_mode", "ask_mo
 def switches_at_their_defaults(monkeypatch):
     load = profile.load_policies
 
-    def without_switches(path: Path = profile.POLICIES) -> dict:
-        rules = load(path)
+    def without_switches(path: Path = profile.POLICIES, beside: Path | None = None) -> dict:
+        rules = load(path, beside)
         if Path(path).resolve() == profile.POLICIES.resolve():
             for switch in SWITCHES:
                 rules.pop(switch, None)

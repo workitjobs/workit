@@ -24,12 +24,12 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from apply import build, chrome_finder
+from apply import build, chrome_finder, safety
 from apply.home import CODE, HOME
 from apply.keychain import SystemKeychain
 from apply.tracker import TRACKER, FileTracker
 
-STATE = HOME / "app.json"
+STATE = safety.STATE
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
 DISCLOSURE = 2  # 2: logos load from Brandfetch (KAN-871)
 EULA = CODE / "legal" / "EULA.txt"

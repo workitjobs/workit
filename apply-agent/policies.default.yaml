@@ -22,6 +22,36 @@ phone_push: false
 # itself. After that it is a Handoff. 0: no wait, a Handoff at once.
 captcha_wait_minutes: 15
 
+# Safety level: "How careful should Apply be?" (apply.safety). The first run
+# asks it once and Settings changes it; it sets the policies below that each
+# level names, and a key you set yourself in policies.yaml wins over its level.
+#   careful    every attestation, acknowledgment and signature is yours to
+#              tick; an opinion question no fact backs waits for you; every
+#              Ashby essay and the first 10 Applications are held; nothing
+#              auto-submits.
+#   balanced   careful, but arbitration, GDPR and privacy acknowledgments are
+#              ticked (tick_arbitration) and opinion, preference and
+#              personality questions are answered from your closest backed
+#              facts (answer_opinion_questions).
+#   full_auto  balanced, and a self-ID form's signature gets your name and
+#              today's date (sign_self_id), no essay is held only for review
+#              (hold_high_stakes_essays: false, high_stakes_job_systems: []),
+#              no Calibration run (calibration_run: 0), and a ready form
+#              auto-submits, essays and all (auto_submit, auto_submit_essays).
+# No level ever does a bot check or captcha, invents a fact or names the tools
+# that wrote an essay, does a take-home test, or lifts company_cap or
+# daily_cap. The Student build keeps the level in its app.json instead.
+safety_level: careful
+
+# Set by the Safety level (careful: all false). tick_arbitration ticks an
+# arbitration, GDPR or privacy acknowledgment that commits you to nothing
+# else; sign_self_id signs a voluntary self-ID form (Form CC-305) where it
+# must be signed; answer_opinion_questions answers "what's your favorite..."
+# from your closest backed facts instead of asking you, never inventing one.
+tick_arbitration: false
+sign_self_id: false
+answer_opinion_questions: false
+
 # "I certify / I agree / I acknowledge" boxes are ticked only when what they
 # certify is true of the Applicant profile. false: never tick one (each becomes
 # a Missing fact for the applicant).
@@ -153,6 +183,10 @@ target_role_wordings: [software engineer, software development, software]
 # held, in case the job system flags AI-written text.
 high_stakes_job_systems: [ashby]
 
+# A High-stakes essay holds its Application for your review (the Safety level:
+# false at full_auto, so it is filled and goes on like any other essay).
+hold_high_stakes_essays: true
+
 # Every Application to a Target company is held for the applicant's approval.
 # A company matches when its name starts with one of these words ("Amazon Web
 # Services", but not "Metabase"). None by default; e.g. [Google, Meta, Stripe].
@@ -163,6 +197,9 @@ target_companies: []
 # and that emails no code) is submitted 10 minutes after it is ready, unless
 # Cancel is pressed in the Apply window. Off by default; never in the Student build.
 auto_submit: false
+# With auto_submit, a form with an Essay may go too, once the essay passed
+# every check (the Safety level: true at full_auto).
+auto_submit_essays: false
 
 # The Calibration run: the first this many Applications are all held, so the
 # applicant can judge Claude's answers before anything is submitted unseen.
