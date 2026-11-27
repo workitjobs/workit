@@ -175,6 +175,9 @@ class PlainWorkers:
         self.running: dict[int, PlainWorker] = {}
         # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
         self._starting: dict[int, Chrome | subprocess.Popen] = {}
+        # A branded Worker that sent no hello, and the seed it was made from (seed_stamp): the next launches from
+        # that seed fail at once with its fix, not each after HELLO_WAIT (16 links took 8 minutes to fail, run7).
+        self._no_hello: tuple[tuple, int] | None = None
         _ALIVE.add(self)  # stopped when this process exits (stop_everyone)
 
     @property
@@ -192,6 +195,19 @@ class PlainWorkers:
 
     def profile(self, worker: int) -> Path:
         return self.profiles / f"plain-{worker + 1}"
+
+    def seed_stamp(self) -> tuple:
+        """The seed as it is now: its preferences' change times. A seed made again (`apply plain seed`) changes it."""
+        stamp = []
+        for name in ("Secure Preferences", "Preferences"):
+            with suppress(OSError):
+                stamp.append((name, (self.seed / "Default" / name).stat().st_mtime_ns))
+        return tuple(stamp)
+
+    def no_hello(self, worker: int) -> str:
+        """Why Worker `worker` sent no hello, with its fix."""
+        return (f"no hello from plain Worker {worker + 1} in {HELLO_WAIT:.0f} s: is the worker extension installed "
+                f"in {self.seed}? (`uv run apply plain seed`)")
 
     def binary(self) -> Path:
         if self.kind == "testing":
@@ -321,6 +337,8 @@ class PlainWorkers:
         """Start Worker `worker`'s Chrome and wait for its hello."""
         if worker in self.running:
             return self.running[worker]
+        if self._no_hello and self._no_hello[0] == self.seed_stamp():  # the same seed: it would wait in vain
+            raise TimeoutError(f"{self.no_hello(self._no_hello[1])}. Apply started no more Workers from that seed")
         profile = self.profile(worker)
         reclaim(profile)
         if chrome_pid(profile):
@@ -343,8 +361,10 @@ class PlainWorkers:
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
         self._starting[worker] = process
+        stamp, connection = self.seed_stamp(), None
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
+            self._no_hello = None  # a Worker said hello: a later one that doesn't waits its own HELLO_WAIT
             folder = self.loaded_folder(worker)
             if features(connection.hello) < SETS_FROM and not extension.guards_match(folder):
                 # Code from before vendor sets, in a folder whose guards are another Apply's: guarding a page
@@ -360,9 +380,9 @@ class PlainWorkers:
         except BaseException as error:
             _stop(process)
             KEEPER.forget(process.pid)
-            if isinstance(error, TimeoutError) and self.kind == "chrome":
-                raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
-                                   "(`uv run apply plain seed`)") from None
+            if isinstance(error, TimeoutError) and self.kind == "chrome" and connection is None:
+                self._no_hello = (stamp, worker)
+                raise TimeoutError(self.no_hello(worker)) from None
             raise
         finally:
             self._starting.pop(worker, None)
