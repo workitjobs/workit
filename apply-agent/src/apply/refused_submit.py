@@ -11,6 +11,7 @@ page's own words. A field message proves nothing was sent, which is why that one
 never touched, and a code step is asked for, not read here.
 """
 
+import re
 from dataclasses import dataclass
 
 from apply import captcha, upload_origin
@@ -93,3 +94,39 @@ def fixable(found: list[FieldError], questions: tuple[Question, ...] | list[Ques
     if not found or not all(about):
         return []
     return list({q.name: q for qs in about for q in qs}.values())
+
+
+# A job site's own word that it refused the whole send: a toast or banner, in any markup, on no field. Workable's
+# "Something went wrong. We are working on this, please try again later." after Apply's press (Digital Control,
+# Infleqtion, live 2026-11-27) came with no confirmation and no email, and went within seconds.
+SITE_ERROR = re.compile(r"something went wrong|(please )?try again later|an? (unexpected |unknown |internal )?error "
+                        r"(has )?occurred|(could ?n[o'’]t|unable to|failed to) (submit|send|process|save) (your |the |this )?"
+                        r"(application|form|submission)|submission failed", re.IGNORECASE)
+# Each line of the page's text, Apply's own notes (id apply-*) left out.
+LINES = r"""() => {
+  const own = new Set();
+  for (const e of document.querySelectorAll('[id^="apply-"]'))
+    for (const line of (e.innerText || '').split('\n')) own.add(line.trim());
+  return ((document.body && document.body.innerText) || '').split('\n').map((line) => line.trim())
+    .filter((line) => line && line.length <= 300 && !own.has(line));
+}"""
+
+
+def site_errors(page) -> set[str]:
+    """Each line the page shows now that says the site refused a send (SITE_ERROR), in the frames of the form's own
+    site; none for a page that can't be read. Never a captcha's frame."""
+    found: set[str] = set()
+    for n, frame in enumerate(page.frames):
+        if n and (captcha.in_frame(frame.url) or not upload_origin.frame_may_upload(frame)):
+            continue
+        try:
+            found |= {line for line in frame.evaluate(LINES) or [] if SITE_ERROR.search(line)}
+        except Exception:
+            continue  # a frame gone or going
+    return found
+
+
+def new_site_error(page, before: set[str]) -> str:
+    """The site's refusal that came after Apply's press, as the page words it (`before`: site_errors at the press, so
+    a question or text already on the form never counts); "" for none."""
+    return next(iter(sorted(site_errors(page) - before)), "")

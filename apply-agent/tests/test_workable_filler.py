@@ -8,7 +8,7 @@ from fake_workable import FakeWorkableServer
 
 from apply import workable
 from apply.fillers import FILLERS
-from apply.model import FillError, Posting, Question
+from apply.model import FillError, Handoff, Posting, Question
 from apply.request import resolve
 from apply.workable import WorkableFiller
 
@@ -198,6 +198,25 @@ def test_submits_a_filled_form(perry, one_pager):
     [sent] = perry.submissions
     assert sent.url == "https://apply.workable.com/api/v1/jobs/D309E69A5B/apply"
     assert "Test" in json.dumps(sent.application)
+
+
+def test_workables_something_went_wrong_toast_is_a_handoff_not_a_timeout(perry):
+    """Fault: Workable refused the send with a toast that went within seconds (Digital Control, live 2026-11-27), and
+    the submit waited out its confirmation, as if the form might have gone in."""
+    with perry.open(PERRY_URL) as page:
+        workable._ready(page)  # the cookie banner answered, as a fill leaves it
+        page.evaluate("""(submit) => window.addEventListener('click', (event) => {
+          if (!event.target.closest(submit)) return;
+          event.stopImmediatePropagation(); event.preventDefault();
+          const toast = document.createElement('div');
+          toast.textContent = 'Something went wrong. We are working on this, please try again later.';
+          document.body.append(toast);
+          setTimeout(() => toast.remove(), 3000);
+        }, true)""", workable.SUBMIT)
+        with pytest.raises(Handoff, match="Something went wrong. We are working on this"):
+            WorkableFiller().submit(page)
+
+    assert perry.submissions == []
 
 
 def test_a_workable_posting_is_filled_by_the_workable_filler():
