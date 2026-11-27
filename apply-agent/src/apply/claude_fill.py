@@ -472,7 +472,8 @@ class ClaudeFill:
         # back, so a required one left unticked on this step stops the form here, before its Next.
         found = fill_engine.attestations(questions)
         attests = {name for name in found if name not in answers}
-        # One the plan answered (attest_from_sources, KAN-761), or that Lisul ticked himself: its answer, as given.
+        # One the plan answered (attest_from_sources, KAN-761; full_auto's tick_attestations), or that Lisul ticked
+        # himself: its answer, as given.
         settled = {name for name in found if name in answers}
         required = {q.name for q in questions if q.required}
         self._asked = (labels, answers)

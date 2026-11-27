@@ -21,8 +21,9 @@ def test_no_level_is_careful_and_changes_nothing(mine):
     rules = profile.load_policies()
     assert rules["safety_level"] == "careful"
     assert (rules["calibration_run"], rules["high_stakes_job_systems"], rules["auto_submit"]) == (10, ["ashby"], False)
-    assert not any(rules[key] for key in ("tick_arbitration", "sign_self_id", "answer_opinion_questions",
-                                          "auto_submit_essays"))
+    assert not any(rules[key] for key in ("tick_arbitration", "tick_attestations", "sign_self_id",
+                                          "answer_opinion_questions", "auto_submit_essays"))
+    assert rules["willing_to_undergo_checks"] is None
 
 
 # Fault: full_auto left a review-only hold on, or a key the applicant set lost to the level.
@@ -33,6 +34,19 @@ def test_full_auto_lifts_the_holds_under_the_applicants_own_keys(mine):
     assert rules["auto_submit"] is rules["auto_submit_essays"] is rules["sign_self_id"] is True
     assert (rules["high_stakes_job_systems"], rules["hold_high_stakes_essays"]) == ([], False)
     assert rules["calibration_run"] == 3
+
+
+# Fault: full_auto holding a certification or consent box for the applicant, or balanced ticking one (Lisul, 2026-11-27).
+def test_only_full_auto_ticks_every_agreement(mine):
+    policies, _ = mine
+    for level, ticks in (("careful", False), ("balanced", False), ("full_auto", True)):
+        policies.write_text(f"safety_level: {level}\n")
+        rules = profile.load_policies()
+        assert rules["tick_attestations"] is ticks
+        assert rules["willing_to_undergo_checks"] is (True if ticks else None)
+    policies.write_text("safety_level: full_auto\ntick_attestations: false\nwilling_to_undergo_checks: false\n")
+    rules = profile.load_policies()
+    assert rules["tick_attestations"] is rules["willing_to_undergo_checks"] is False
 
 
 # Fault: the window's choice (app.json) ignored, or put over the level the applicant wrote in policies.yaml.

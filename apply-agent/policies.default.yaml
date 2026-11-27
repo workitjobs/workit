@@ -33,12 +33,17 @@ captcha_wait_minutes: 15
 #              ticked (tick_arbitration) and opinion, preference and
 #              personality questions are answered from your closest backed
 #              facts (answer_opinion_questions).
-#   full_auto  balanced, and a self-ID form's signature gets your name and
-#              today's date (sign_self_id), no essay is held only for review
+#   full_auto  balanced, and every certification, acknowledgment, release
+#              and consent box is ticked (tick_attestations), the background,
+#              drug and reference checks an offer depends on are agreed to
+#              (willing_to_undergo_checks: true), a self-ID form's signature
+#              gets your name and today's date (sign_self_id), no essay is
+#              held only for review
 #              (hold_high_stakes_essays: false, high_stakes_job_systems: []),
 #              no Calibration run (calibration_run: 0), and a ready form
 #              auto-submits, essays and all (auto_submit, auto_submit_essays).
-# No level ever does a bot check or captcha, invents a fact or names the tools
+# No level ever does a bot check or captcha, ticks a box aimed at bots or
+# hidden from people, invents a fact or names the tools
 # that wrote an essay, does a take-home test, or lifts company_cap or
 # daily_cap. The Student build keeps the level in its app.json instead.
 safety_level: careful
@@ -48,7 +53,12 @@ safety_level: careful
 # else; sign_self_id signs a voluntary self-ID form (Form CC-305) where it
 # must be signed; answer_opinion_questions answers "what's your favorite..."
 # from your closest backed facts instead of asking you, never inventing one.
+# tick_attestations ticks every other certification, acknowledgment, release
+# or consent box ("I certify this application is true", "I have personally
+# completed this application", background-check releases); one that states a
+# fact of yours ("I have a valid driver's license") still follows your profile.
 tick_arbitration: false
+tick_attestations: false
 sign_self_id: false
 answer_opinion_questions: false
 

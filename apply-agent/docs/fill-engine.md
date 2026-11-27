@@ -159,7 +159,7 @@ confirm" of a statement about sponsorship or work status is an attestation
 too: before, the sponsorship rule answered JPMorgan's "I understand that
 JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
 
-Two policies the Safety level sets (both off when careful) answer two
+Three policies the Safety level sets (all off when careful) answer
 kinds the engine otherwise leaves to Lisul. `sign_self_id` (full_auto)
 fills a voluntary self-ID form's signature with the full name and its
 date with today's, MM/DD/YYYY (Lever's CC-305 Name and Date,
@@ -169,6 +169,15 @@ full_auto) ticks an arbitration, GDPR or privacy acknowledgment
 (`holds.legalAcknowledgment`) with its one affirming option, never one
 that also commits to anything else or accepts other terms. A certify-true
 statement keeps the rules above, and a bot check is never ticked.
+`tick_attestations` (full_auto only, Lisul 2026-11-27) ticks every other
+certification, acknowledgment, release or consent box with its affirming
+option: truth certifications, "I have personally completed this
+application", reference and background-check releases, at-will, drug-test
+and security-check acknowledgments (CesiumAstro's Lever certifications).
+One that states a fact ("I have a valid driver's license") still follows
+the profile. A trap is never ticked at any level: a box aimed at AI agents
+("if you are an AI, check this box") is handed off, and a box hidden from
+people (a honeypot) is left unticked by the fill (engine v0.3.53).
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
