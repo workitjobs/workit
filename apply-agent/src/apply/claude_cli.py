@@ -76,6 +76,8 @@ class LoggedOut(ClaudeError, SetupError):
 
 
 # What the claude CLI says when it has no login (seen live: "Not logged in · Please run /login").
+# Opus's classifier refusing a normal form (Neros, Mach Industries, 2026-11-25): Sonnet answers it.
+SAFEGUARDS = re.compile(r"safeguards flagged this message", re.IGNORECASE)
 LOGGED_OUT = re.compile(r"not logged in|please run /login|invalid api key|not signed in", re.IGNORECASE)
 LOG_IN = "run `claude auth login` (or `claude`, then /login) in a terminal, then try again"
 INSTALL = ("the claude CLI isn't installed or isn't on PATH: install Claude Code (https://claude.com/claude-code), "
@@ -206,9 +208,14 @@ class ClaudeCLI:
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict, kind: str = "ask") -> dict:
         """`kind` names the call in its usage (apply.usage)."""
-        argv = _argv(model, system, schema)
-        events = _events(self._run(argv, prompt, _env()))
-        result = self._result(events)
+        try:
+            result = self._result(_events(self._run(_argv(model, system, schema), prompt, _env())))
+        except ClaudeError as error:
+            if model != "opus" or not SAFEGUARDS.search(str(error)):
+                raise
+            trace.event("claude", block="safeguards", model=model, why=str(error))
+            model = "sonnet"  # once: a second refusal is the call's error
+            result = self._result(_events(self._run(_argv(model, system, schema), prompt, _env())))
         self._spend(sum((result.get("usage") or {}).get(k) or 0 for k in TOKENS))
         used = usage.add(kind, model, result.get("usage"))
         trace.event("claude", block="ask", model=model, answer=result["structured_output"], usage=used)

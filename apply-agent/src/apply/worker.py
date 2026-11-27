@@ -34,6 +34,7 @@ from apply import (
     regenerate,
     sameness,
     stuck,
+    unsent,
     verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
@@ -291,6 +292,13 @@ def apply_to(
         result = Result(Status.FAILED, f"{NOT_A_POSTING}: {what}")
     except UsageLimitHit as hit:
         result = Result(Status.PAUSED, f"Usage limit reached until {hit.resets_at or 'it resets'}")
+    except BaseException:  # a Worker gone (WorkerGone), a crash: its next attempt takes what it wrote
+        unsent.keep(planned.posting, planned.written, planned._today)
+        raise
+    if result.status in (Status.FAILED, Status.PAUSED):
+        unsent.keep(planned.posting, planned.written, planned._today)
+    else:
+        unsent.forget(planned.posting)
     if result.status == Status.SUBMITTED:  # only what an employer was sent: never a fill, a Hold or a rehearsal
         ledger = sameness.Ledger()
         for e in planned.written:
@@ -756,12 +764,15 @@ class _Planned:
         self.kept_blank |= {q.name: CATCH_ALL_BLANK for q in planned.essays + planned.drafts if essays.catch_all(q)}
         done = {essay.question for essay in self.written}
         new = [q for q in planned.essays if q not in done and q not in self._yours and q.name not in self.kept_blank]
+        # What an earlier attempt wrote before it failed (a Worker gone mid-fill): taken, not written again.
+        taken = unsent.take(posting, new, self._today) if self._approved is None else []
+        new = [q for q in new if q not in {e.question for e in taken}]
         to_draft = [q for q in planned.drafts if q not in self._asked and q.name not in self.kept_blank]
         name = posting.company or "the company"
         try:
-            if new and self.material is None:
+            if (new or taken) and self.material is None:  # the review reads them, with the essays
                 stuck.doing(f"Reading {name}'s pages for an essay")
-                self.material = company.gather(posting, new, self._site)
+                self.material = company.gather(posting, new or [e.question for e in taken], self._site)
                 if posting_ai_trap(self.material) or posting_bans_ai(self.material):
                     return self.add([], where)  # planned again, the material read with the posting: its essays are Lisul's
                 stuck.doing(f"Researching {name} for an essay")
@@ -773,6 +784,7 @@ class _Planned:
                 stuck.doing(f"Writing answers for {where}")
             written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
                                              answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+            written = taken + written
         except stuck.Stopped:
             self._to_lisul(planned.answers, planned.missing, new + to_draft)
             raise

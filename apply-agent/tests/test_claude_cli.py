@@ -146,6 +146,22 @@ def test_any_other_failure_is_an_error():
         ask(ClaudeCLI(run=FakeRun("Error: claude not signed in\n")))
 
 
+FLAGGED = ('{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: Opus 5.5\'s safeguards flagged '
+           'this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations."}\n')
+
+
+def test_an_opus_call_its_safeguards_refuse_is_asked_once_more_on_sonnet():
+    run = FakeRun(FLAGGED, recorded("answer"))
+
+    answer = ClaudeCLI(run=run).ask(model="opus", system="Reply in JSON.", prompt="Plan the essay.", schema=SCHEMA)
+
+    assert answer == {"answer": "yes"} and [flag(argv, "--model") for argv, _, _ in run.calls] == ["opus", "sonnet"]
+    with pytest.raises(ClaudeError, match="safeguards"):  # only once, and only Opus
+        ClaudeCLI(run=FakeRun(FLAGGED, FLAGGED)).ask(model="opus", system="", prompt="", schema=SCHEMA)
+    with pytest.raises(ClaudeError, match="safeguards"):
+        ask(ClaudeCLI(run=FakeRun(FLAGGED)))
+
+
 def test_reading_before_any_call_makes_one_tiny_call_to_learn_usage():
     run = FakeRun(recorded("answer"))
     claude = ClaudeCLI(run=run, now=lambda: BEFORE_RESETS)
