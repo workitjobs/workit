@@ -2304,6 +2304,171 @@ def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pre
     assert board.captions[0]["submit_said"] == ""
 
 
+# Greenhouse's own check in the page, as Epic Games' form answered Apply's press (live, 2026-11-26): the field is
+# marked invalid under a red message, nothing is sent, and the message goes once the field takes an answer.
+REFUSES = r"""(name) => {
+  const field = document.getElementById(name), said = document.createElement('p');
+  said.id = name + '-error'; said.className = 'helper-text helper-text--error';
+  said.textContent = 'Please accept the terms to proceed.';
+  field.after(said);
+  field.setAttribute('aria-invalid', 'true'); field.setAttribute('aria-describedby', said.id);
+  field.value = '';
+  field.addEventListener('input', () => { said.remove(); field.removeAttribute('aria-invalid'); }, {once: true});
+}"""
+
+
+def refused_presses(monkeypatch, refusals: int, field: str = "first_name") -> list[str]:
+    """Approve and submit's press, refused in the page `refusals` times as Greenhouse refuses it (REFUSES on
+    `field`, emptied), then pressed for real. Each press's words, in order."""
+    real_press, presses = send_button.press, []
+
+    def press(page) -> str:
+        if len(presses) < refusals:
+            page.evaluate(REFUSES, field)
+            presses.append("refused")
+            return "Submit application"
+        presses.append(real_press(page))
+        return presses[-1]
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+    return presses
+
+
+def approved_once(captions: dict, asked: list) -> Callable[[int], bool]:
+    def submit_asked(worker: int) -> bool:
+        if captions.get(worker, {}).get("again") and not asked:
+            asked.append(worker)
+            return True
+        return False
+    return submit_asked
+
+
+def test_a_submit_the_form_refuses_is_fixed_from_the_plan_and_pressed_once_more(monkeypatch, tmp_path):
+    """Fault: a press Greenhouse refused in the page (a field emptied, "Please accept the terms to proceed.") waits
+    out CONFIRM_S and is handed over as maybe sent, though Apply could fill the field it named and send it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    presses, asked = refused_presses(monkeypatch, 1), []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused", "Submit application"]  # the field filled again, then one press more
+    assert len(submissions) == 1 and submissions[0].application.get("first_name") == "Test"
+    assert board.captions[0]["status"] == "submitted"
+
+
+def test_a_submit_the_form_still_refuses_after_one_fix_is_handed_over_with_its_words(monkeypatch, tmp_path):
+    """Fault: Apply presses a refused Submit again and again, or hands it over as maybe sent (marked sent, never to
+    be brought back) without the page's own message."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    presses, asked = refused_presses(monkeypatch, 5), []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused", "refused"]  # one press more, never a third
+    assert submissions == []
+    assert board.captions[0]["why"] == rehearsal.STILL_REFUSED.format(said="'Please accept the terms to proceed.'")
+
+
+def test_a_refusal_about_no_question_of_the_form_is_handed_over_unpressed(monkeypatch, tmp_path):
+    """Fault: a message Apply can't tie to a question it planned (a whole-form error, a field it never read) is
+    "fixed" by a guess and pressed again, or handed over without the page's words."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    presses, asked = [], []
+
+    def press(page) -> str:
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<div role="alert">Something went wrong. Please try again later.</div>')""")
+        presses.append("refused")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused"]
+    assert board.captions[0]["why"] == rehearsal.REFUSED.format(said="'Something went wrong. Please try again later.'")
+
+
+def test_a_code_step_after_an_approved_submit_is_asked_for_never_handed_over_as_unconfirmed(monkeypatch, tmp_path):
+    """Fault: Greenhouse's security code step after Apply's press waits out CONFIRM_S and becomes the "may have gone
+    in" Handoff, over the code the student is asked for."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    asked, since = [], {}
+
+    def press(page) -> str:  # Greenhouse's code step comes in place of the confirmation
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<label for="security_code">Security code</label><input id="security_code" name="security_code">')""")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:  # well past CONFIRM_S, the student lets it go
+            return bool(asked) and time.monotonic() - since.setdefault(0, time.monotonic()) > 4
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert asked == [0]
+    assert board.captions[0].get("why") != rehearsal.UNCONFIRMED and board.captions[0].get("status") != "handoff"
+
+
 def test_auto_submit_presses_a_clean_held_forms_submit_once_its_wait_is_over(monkeypatch, tmp_path):
     """ADR 0006. Fault: a form Auto-submit may send waits for an approval anyway, or goes before its countdown."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))

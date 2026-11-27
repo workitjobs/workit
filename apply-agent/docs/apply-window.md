@@ -440,8 +440,20 @@ for a student, not from `dashboard_page.py`.
   application), and after any Submit. A click that never answers, as a
   Submit that sends the whole page away can end it (`send_button.Unsure`),
   counts as pressed. The job system's confirmation is
-  read as for the student's own press; with none within two minutes
-  (`rehearsal.CONFIRM_S`), and no captcha or refusal to explain it, the
+  read as for the student's own press. With none after 15 s
+  (`rehearsal.HEAL_AFTER_S`), the form is read for the job system's own
+  refusal in the page (`apply.refused_submit`: a field marked invalid, a
+  red message, as Greenhouse's "Please accept the terms to proceed."
+  under an unticked consent): nothing was sent, so Apply fills each
+  field it names again from the Plan with the Fill engine, and when the
+  page then shows no error, presses Submit once more, once. A message
+  about no question Apply planned, a field the Plan leaves to the student
+  (a Missing fact, "Yours to tick"), a file, or a second refusal makes the
+  form a Handoff that quotes the page's words (`REFUSED`,
+  `STILL_REFUSED`), never marked sent. A code step after the press is
+  asked for on its card ("needs code"), never handed over. A captcha is
+  never touched. With no confirmation within two minutes
+  (`rehearsal.CONFIRM_S`) and nothing of these to explain it, the
   form becomes a Handoff that says it may have gone in, and Apply never
   presses its Submit again. A card with flags leads with Fix in the form
   and offers Submit as it is. Opening the form and pressing Submit by
