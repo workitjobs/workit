@@ -588,7 +588,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   bar; the "check the card" step does the same with the card's details page. At Load unpacked it
   puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
   `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
-  can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the
+  can drag it onto the page or paste it in the picker. The steps name each OS's file manager and keys
+  (`seed_setup.WORDS`): Finder and Cmd+Shift+G on the Mac, File Explorer and Ctrl+L on Windows. There is no
+  Allow User Scripts step since KAN-839: the
   extension asks for no user scripts.
 - **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
   writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal

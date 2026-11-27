@@ -3,13 +3,14 @@
 Branded Chrome takes the worker extension only by the user's own clicks: Developer mode and Load
 unpacked (the extension asks for no user scripts since KAN-839, so there is no Allow User Scripts
 switch to turn on). This wizard opens the page, puts the folder's path on the clipboard,
-shows the folder in Finder, and then watches the seed's preference files until each step is saved.
+shows the folder in Finder or File Explorer, and then watches the seed's preference files until each
+step is saved.
 It only reads those files, and it never clicks a chrome:// page.
 
 The Chrome Web Store install needs none of this (W6); this guide stays as the fallback. Its calls
 work on every OS (W4): the Chrome finder's Chrome, pyperclip for the clipboard and psutil for a
-process's arguments. Only showing a folder has an entry for each OS (`Desk.reveal`). Its words
-(Finder, Cmd+Shift+G) are still the Mac's: F4's.
+process's arguments. Only showing a folder has an entry for each OS (`Desk.reveal`), and the words for
+each OS's file manager and keys (`WORDS`, P8).
 
 Chrome writes a change to disk about 10 s after the click (measured on Chrome for Testing), and only
 a clean exit writes the rest: SIGTERM saves, SIGKILL loses it (measured on both Chromes). So Apply
@@ -51,6 +52,14 @@ POLL = 1.0  # s between two reads of the preference files
 NUDGE = 45.0  # s on one step before Apply says what may have gone wrong
 QUIT_WAIT = 15.0  # s from the ask to quit to telling the user that Chrome is still up
 OPEN_WAIT = 20.0  # s from opening Chrome to its holding the seed profile
+
+# Each OS's file manager and keys, as the steps name them (P8). Linux, no target yet, takes Windows' keys.
+WORDS = {
+    "darwin": {"files": "Finder", "go": "press Cmd+Shift+G, Cmd+V, Return, then click Select", "enter": "Return",
+               "quit": "quit that Chrome with Cmd+Q"},
+    "win32": {"files": "File Explorer", "go": "press Ctrl+L, Ctrl+V, Enter, then click Select Folder",
+              "enter": "Enter", "quit": "choose Exit in that Chrome's three-dot menu"},
+}
 
 # The steps, in the order the user does them. Each problem below belongs to one of them.
 DEVELOPER, EXTENSION = "Developer mode", "Load unpacked"
@@ -97,14 +106,19 @@ def first_problem(state: SeedState, folder: Path) -> Problem | None:
     return None
 
 
-def instruction(problem: Problem, folder: Path) -> str:
-    """What the user does now, for each problem."""
-    load = (f"Drag it from Finder onto the Extensions page. Or click Load unpacked, press Cmd+Shift+G, "
-            f"Cmd+V, Return, then click Select.\n  Folder (on your clipboard): {folder.resolve()}")
+def words(system: str = sys.platform) -> dict[str, str]:
+    return WORDS["darwin" if system == "darwin" else "win32"]
+
+
+def instruction(problem: Problem, folder: Path, system: str = sys.platform) -> str:
+    """What the user does now, for each problem, in `system`'s words."""
+    said = words(system)
+    load = (f"Drag it from {said['files']} onto the Extensions page. Or click Load unpacked, {said['go']}.\n"
+            f"  Folder (on your clipboard): {folder.resolve()}")
     return {
         "developer": (f"Open the Extensions page: in the Chrome window that opened, paste {EXTENSIONS_PAGE} (it is "
-                      "on your clipboard) into the address bar and press Return. Then turn on Developer mode: the "
-                      "switch at the top right of the Extensions page."),
+                      f"on your clipboard) into the address bar and press {said['enter']}. Then turn on Developer "
+                      "mode: the switch at the top right of the Extensions page."),
         "no_extension": f"No extension yet. Add the worker extension. {load}",
         "wrong_folder": f"Wrong folder. The Apply Worker card loads from {problem.path}. Click Remove on that card, "
                         f"then add it again from the right folder. {load}",
@@ -184,6 +198,7 @@ class Wizard:
     ask_again: Callable[[], bool] = _press_return  # False: the user stops
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
+    system: str = sys.platform  # whose words the steps say
 
     def __post_init__(self) -> None:
         self.desk = self.desk or Desk(self.seed)
@@ -228,9 +243,10 @@ class Wizard:
             self.out(f"Not done yet. {failed}")
             self.desk.open_chrome(DETAILS_PAGE)
             self.desk.copy(DETAILS_PAGE)
+            enter = words(self.system)["enter"]
             self.out("Check the Apply Worker card and its switch: in the Chrome that opened, paste the address on "
-                     "your clipboard into the address bar and press Return. "
-                     "Then press Return here to try again, or Ctrl-C to stop.")
+                     f"your clipboard into the address bar and press {enter}. "
+                     f"Then press {enter} here to try again, or Ctrl-C to stop.")
             if not self.ask_again():
                 self._quit(wait=False)
                 return False
@@ -274,7 +290,7 @@ class Wizard:
             self.out(f"{problem.step} did not stick. Do that step again.")
         elif last and problem.step != last.step:
             self.out(f"Done: {DONE[last.step]}")
-        self.out(f"Now: {instruction(problem, self.folder)}")
+        self.out(f"Now: {instruction(problem, self.folder, self.system)}")
         if problem.kind == "developer":
             self.desk.copy(EXTENSIONS_PAGE)
         if problem.kind in ("no_extension", "wrong_folder"):
@@ -292,7 +308,7 @@ class Wizard:
             if not told and self.clock() > deadline:
                 told = True
                 self.out(f"Chrome is not quit yet (PID {pid}). A dialog or the folder picker may be open. Close it, "
-                         "then quit that Chrome with Cmd+Q. Apply waits.")
+                         f"then {words(self.system)['quit']}. Apply waits.")
             self.sleep(POLL)
 
     def _worker_says(self) -> str | None:

@@ -151,12 +151,12 @@ class FakeWorkers:
 class Run:
     """A wizard on fake time: each sleep runs the user's next click and moves the clock."""
 
-    def __init__(self, tmp_path, clicks=(), desk=None, hellos=None, again=()):
+    def __init__(self, tmp_path, clicks=(), desk=None, hellos=None, again=(), system="darwin"):
         self.workers = FakeWorkers(tmp_path, hellos)
         self.desk = desk or FakeDesk()
         self.said, self.now, self.clicks, self.again = [], 0.0, list(clicks), list(again)
         self.wizard = Wizard(self.workers, self.desk, out=self.said.append, ask_again=lambda: self.again.pop(0),
-                             sleep=self.sleep, clock=lambda: self.now)
+                             sleep=self.sleep, clock=lambda: self.now, system=system)
 
     def sleep(self, seconds):
         self.now += seconds
@@ -270,6 +270,19 @@ def test_chrome_not_quit_says_so_and_waits_and_is_never_killed(tmp_path):
     assert "Chrome is not quit yet (PID 4242)" in run.text and "Cmd+Q" in run.text
     assert run.desk.terminated == [4242] and run.workers.launched == [0]
     assert run.text.index("not quit yet") < run.text.index("real Worker said hello")
+
+
+def test_windows_is_told_its_own_file_manager_and_keys(tmp_path):
+    """Fault: a Windows user was told Finder, Cmd+Shift+G, Cmd+V, Return and Cmd+Q, none of which Windows has (P8)."""
+    run = Run(tmp_path, desk=FakeDesk(stubborn=30), hellos=[TimeoutError("no hello in 30 s"), {"extension": "0.1.0"}], again=[True],
+              system="win32")  # Chrome slow to quit, and a first Worker with no hello: every line the wizard says
+    run.clicks = happy(run)
+    assert run.wizard.run() is True
+    said = [run.text, *(seed_setup.instruction(Problem("step", kind), FOLDER, "win32") for kind in
+                        ("developer", "no_extension", "wrong_folder"))]
+    assert not [text for text in said for mac in ("Finder", "Cmd", "Return") if mac in text]
+    assert "File Explorer" in said[2] and "Ctrl+L, Ctrl+V, Enter, then click Select Folder" in said[2]
+    assert "choose Exit in that Chrome's three-dot menu" in run.text and "press Enter here to try again" in run.text
 
 
 def test_chrome_closed_too_early_opens_again_on_the_same_step(tmp_path):

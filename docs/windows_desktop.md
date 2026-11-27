@@ -253,16 +253,19 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
 - **Done when.** On Windows, a setting changed in the seed's Chrome is on
   disk after that Chrome stops.
 
-### P8. The seed wizard on Windows
+### P8. The seed wizard on Windows: built from the Mac
 
 - **What it is.** `apply plain seed`, and the app's first-run Seed step,
   which runs the same wizard (`first_run.seed`).
-- **What breaks.** P5 and P7, and its words are the Mac's: "Finder",
-  "Cmd+Shift+G", "Cmd+V" and "Cmd+Q" (`seed_setup.instruction`, `_quit`).
+- **What broke.** P5 and P7, and its words were the Mac's: "Finder",
+  "Cmd+Shift+G", "Cmd+V", "Return" and "Cmd+Q".
 - **Who.** The user. A developer skips the seed (P9).
-- **Fix.** Give `instruction` and `_quit` a text for each OS, picked by a
-  `system` argument. On Windows: "File Explorer", and in the folder
-  picker, Ctrl+L, Ctrl+V, Enter, then Select Folder.
+- **Built.** `seed_setup.WORDS` has each OS's file manager and keys, which
+  `instruction` and the `Wizard` pick by `system`. On Windows: File
+  Explorer; in the folder picker Ctrl+L, Ctrl+V, Enter, then Select
+  Folder; and to quit, Exit in Chrome's three-dot menu.
+- **Still open (Windows):** the folder picker takes those keys, and a
+  folder dragged from File Explorer loads.
 - **Done when.** `uv run apply plain seed` ends with "Setup is done" on
   Windows.
 
@@ -315,7 +318,7 @@ Windows entry, since the Mac has none.
 | P1 to P5, P9 | Built (above) |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
 | P7 clean quit | Built: `taskkill` with no `/F` in `ask_to_quit`'s Windows entry |
-| P8 wizard words | A Windows text in the same function |
+| P8 wizard words | Built: a Windows text in the same function |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
 
@@ -333,7 +336,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
 | P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
 | P7 | Built: `tests/test_plain_seed_setup.py`, the seed's Chrome is asked with `taskkill` and no `/F`, never killed; `tests/test_each_os.py`, a Worker is asked first and killed only after `STOP_WAIT`, and a reused PID is never asked | A forced stop loses the student's clicks and the Workers' sign-ins |
-| P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard says the Windows words | A Windows user is told to press Cmd keys |
+| P8 | Built: `tests/test_plain_seed_setup.py`, every line the wizard says on Windows | A Windows user is told Finder and Cmd keys |
 | P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
