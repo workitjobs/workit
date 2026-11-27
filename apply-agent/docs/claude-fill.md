@@ -246,6 +246,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   its own element (`_press_option`, the engine's `press`): Oracle's required
   field's error paragraph lay over the open graduation month list and took every
   click on its options.
+- A dropdown that lists nothing until searched (Oracle's address City, County
+  and Zip Code, read with no choices) is searched by plain code
+  (`_search_pick`): it types the answer and picks the one option whose first
+  comma part is the answer, else the one whose other parts the plan also gives
+  ("Springfield, Sangamon, IL" for a plan with Sangamon and IL). Two that fit, or
+  none, and it clears the typed words and leaves the field to Claude. Skipped
+  before, Honeywell's three took Claude 21 turns and 5 million tokens
+  (2026-11-27).
 - A choice question asked as a group of checkboxes (Oracle's races) is ticked by
   plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
   `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
