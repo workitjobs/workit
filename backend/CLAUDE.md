@@ -822,7 +822,9 @@ Find files with a directory listing; these are the rules for where code goes.
   registered domain and favicon from a link on its own site; a hiring
   system's, job board's or other vendor's host gives none, or the card
   drew initials for every job Apply recorded; tests
-  `tests/test_added_logos.py`). `track_only` takes any web link, not only a form auto
+  `tests/test_added_logos.py`). A job read with neither source (one added
+  before) takes its own site's at read, in the applications list
+  (`auto_apply/queries._with_own_site_logo`). `track_only` takes any web link, not only a form auto
   apply fills; a closed job gets the application and stays closed, as it
   is (never reopened or retitled); and the application is saved unless one
   exists (`track`), where Write with Claude moves it to needs_you. New jobs

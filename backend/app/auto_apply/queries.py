@@ -56,8 +56,10 @@ from app.schemas.applications import (
     WrittenAnswer,
     WrittenQuestion,
 )
+from app.schemas.jobs import JobListing
 from app.schemas.sent_resume import SentResumeResponse
 from app.services import apply_answers
+from app.services.added_logos import own_site
 from app.services.postings import ADDED, typed_text
 
 
@@ -154,9 +156,19 @@ def _applications(applicant_id: uuid.UUID) -> Select:
     )
 
 
+def _with_own_site_logo(job: JobListing) -> JobListing:
+    """`job`, with the employer's own site as its logo sources when it has
+    none (services/added_logos.py): an added job from before add_job kept
+    them, whose card showed initials on the Tracker and in Apply's Applied."""
+    if job.company_domain or job.logo_url:
+        return job
+    found = own_site(job.apply_url)
+    return job.model_copy(update={"company_domain": found[0], "logo_url": found[1]}) if found else job
+
+
 def _to_application(row) -> Application:
     return Application(
-        job=to_listing(row),
+        job=_with_own_site_logo(to_listing(row)),
         stage=row.stage,
         added_at=row.added_at,
         applied_at=row.applied_at,

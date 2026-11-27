@@ -318,3 +318,25 @@ async def test_another_added_jobs_logo_is_never_copied(students, database):
 
     job = await _added_job(client, sam, {**_page(_form()), "company": "Guess Co"})
     assert job["company_domain"] is None
+
+
+async def test_an_added_job_kept_with_no_logo_reads_its_own_sites(students, database):
+    client, (sam, _) = students
+    url = f"https://careers.oldrobotics.com/jobs/1?gh_jid={uuid.uuid4().int % 10**9}"
+    async with database() as session:
+        job_id = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, added_by_student)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Old Robotics', :url, TRUE) RETURNING id"
+            ),
+            {"url": url},
+        )
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id, stage) VALUES (:a, :j, 'applied')"),
+            {"a": sam, "j": job_id},
+        )
+        await session.commit()
+
+    job = (await client.get(f"/applicants/{sam}/applications/{job_id}")).json()["job"]
+    assert job["company_domain"] == "oldrobotics.com"
+    assert "oldrobotics.com" in job["logo_url"]
