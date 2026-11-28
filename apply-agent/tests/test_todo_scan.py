@@ -49,9 +49,9 @@ def test_each_kind_of_mail_that_asks_something_makes_its_kind_of_todo():
                                         "We are pleased to extend an offer for the Software Engineer Intern role.")),
                            []).kind
     kinds["documents"] = rules(read(written("Acme <jobs@acme.com>", "Next steps",
-                                            "Please upload your unofficial transcript to the portal.")), []).kind
+                                            "Please upload your unofficial transcript to the candidate portal.")), []).kind
     kinds["questionnaire"] = rules(read(written("Acme <jobs@acme.com>", "One more step",
-                                                "Please answer a short questionnaire about your availability.")),
+                                                "Please answer a short questionnaire about your availability to interview.")),
                                    []).kind
 
     assert kinds == {"hackerrank-assessment": "assessment", "codesignal-assessment": "assessment",
@@ -225,6 +225,20 @@ def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_
     assert sorted((t.company, t.kind, t.link) for t in store.all()) == [
         ("Acme", "assessment", None), ("Ramp", "assessment", "https://app.codesignal.com/pre-screens"),
         ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]
+
+
+def test_mail_about_no_job_application_makes_no_todo_whoever_reads_it(tmp_path):
+    # Fault: the job rule off, so a student-aid office's "complete your aid form" is a Form, by the rules or the model.
+    assert rules(read(sample("student-aid-form")), []).kind is None
+    store = TodoStore(tmp_path / "todos.json")
+
+    def ask(**call):
+        return {"kind": "form", "company": "Student Aid Office", "role": "", "due": "",
+                "link": "https://aid.example.gov/form/start"}
+
+    done = scan(box(sample("student-aid-form"))[0], store, ask=ask, now=lambda: ARRIVED)
+
+    assert (done.added, store.all()) == (0, [])
 
 
 def test_an_invite_and_its_reminder_are_one_todo_that_a_rescan_keeps_as_one(tmp_path):
