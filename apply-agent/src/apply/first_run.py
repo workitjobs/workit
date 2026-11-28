@@ -28,6 +28,7 @@ from apply import build, chrome_finder
 from apply.home import CODE, HOME
 from apply.keychain import CHOSEN, SystemKeychain
 from apply.tracker import ACCOUNT_LIST, TRACKER, FileTracker, accounts_in
+from apply.workit import QUEUE, Stage, WaitingWrites, waiting_writes
 
 STATE = HOME / "app.json"
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
@@ -78,18 +79,46 @@ def set_best_model(on: bool, state: Path | None = None) -> bool:
     return best_model(state)
 
 
-def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None) -> str:
+# What Remove All My Data says of a submit that never reached WorkIt: the window stays open on it (apply.app_window).
+UNSENT = "These applications you submitted never reached your Applications Tracker"
+
+
+def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None, client=None) -> str:
     """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item), each job-site account's
     password Apply made and their list (the keychain's apply-ats items, W11), the password chosen for new accounts,
-    and its whole data folder, which holds the Worker profiles, the seed, and any open form's working files.
+    and its whole data folder, which holds the Worker profiles, the seed, any open form's working files and the
+    writes waiting for WorkIt. Those are sent first, while the student is signed in (`client`); a submit WorkIt still
+    can't take is named, since nothing else would remember it was sent.
     Only the Student build, whose data folder is its own (home.APP_FOLDER): a Developer checkout's is the developer's."""
     if not build.STUDENT:
         return f"Only WorkIt Auto Apply removes its data. This checkout's data folder is yours: {home}"
+    unsent = _send_waiting(home / QUEUE.name, client)
     forget()
     kept = _forget_passwords(home / TRACKER.name, keychain or SystemKeychain())
     shutil.rmtree(home, ignore_errors=True)
     stay = f" These job-site passwords stay in your Keychain, under apply-ats: {', '.join(kept)}." if kept else ""
+    if unsent:
+        return (f"Removed.{stay} {UNSENT}: {'; '.join(unsent)}. Mark each one applied on WorkIt, then quit WorkIt "
+                "Auto Apply. Your WorkIt account stays.")
     return f"Removed.{stay} WorkIt Auto Apply closes now; your WorkIt account stays."
+
+
+def _send_waiting(queue: Path, client=None) -> list[str]:
+    """The writes waiting for WorkIt, sent before the queue goes with the data folder: each submit WorkIt still
+    couldn't take, as "Company, Role"."""
+    try:
+        if not waiting_writes(queue):
+            return []
+    except Exception:
+        return ["any (the queue of writes for WorkIt would not read)"]
+    try:
+        WaitingWrites(client, queue).flush()
+    except Exception:  # WorkIt down, or signed out: what still waits is said below
+        pass
+    try:
+        return [f"{w.company}, {w.title}" for w in waiting_writes(queue) if w.stage == Stage.APPLIED]
+    except Exception:
+        return ["any (the queue of writes for WorkIt would not read)"]
 
 
 def _forget_passwords(older: Path, keychain) -> list[str]:

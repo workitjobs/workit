@@ -270,6 +270,14 @@ decisions beside D17 and D18.
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker
   forward. Check that Windows keeps Workers behind the student's apps
   (F4's "Test early").
+- **The account list** (found 2026-11-27, W11). The Student build keeps
+  the list of job-site accounts it made in one keychain item
+  (`tracker.ACCOUNT_LIST`), about 143 bytes an account. A Credential
+  Manager item holds at most 2,560 bytes, so the 18th account would not
+  save on Windows, and its sign-up would fail after the site made it. A
+  Mac's keychain has no such limit. Fix: split the list across numbered
+  items (`account list`, `account list 2`, ...), read until one is
+  missing, and forget each one in Remove All My Data.
 
 ## 5. Kind of fix
 
@@ -289,6 +297,7 @@ Windows entry, since the Mac has none.
 | P9 first run | The same code on every OS |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
 | P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
+| P11 account list | The same code on every OS: numbered items |
 
 ## 6. Tests
 
@@ -302,6 +311,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker |
 | P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
 | P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
+| P11 account list | `tests/test_local_data.py`: 30 accounts save and read back through a fake keychain that refuses an item over 2,560 bytes, and Remove All My Data forgets every item | The 18th account isn't saved on Windows |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
 - **A Windows CI job: later** (decided 2026-11-24). A `windows-latest`

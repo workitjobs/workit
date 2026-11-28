@@ -714,7 +714,8 @@ class Bridge:
                 pass  # its keychain item couldn't be removed: the data folder still goes
 
         said = self._remove(forget)
-        if said.startswith("Removed") and self._window is not None:
+        # A submit that never reached WorkIt is named: the window stays until the student has read it and quits.
+        if said.startswith("Removed") and first_run.UNSENT not in said and self._window is not None:
             threading.Timer(2.0, self._window.destroy).start()
         return {"said": said}
 
@@ -762,8 +763,8 @@ class Bridge:
         row for it), its tile with its newest Record."""
         from apply.student import RECORDS  # here: apply.student imports this module
 
-        try:
-            if row := FileTracker().get(application_id):
+        try:  # WorkIt Auto Apply keeps no Tracker file (W11): reading one would leave its lock file behind
+            if not build.STUDENT and (row := FileTracker().get(application_id)):
                 return row
         except Exception:  # a Tracker that won't read: the run's tile may still name it
             pass

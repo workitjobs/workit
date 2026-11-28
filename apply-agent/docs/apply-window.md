@@ -144,6 +144,12 @@ docstring first.
   button is red, and one press only opens a confirmation that lists what
   goes (the Worker windows and their sign-ins, the job-site passwords, the
   WorkIt sign-in, any open form) with Remove Everything and Cancel.
+  It sends the writes still waiting for WorkIt first, while the student is
+  signed in, since their queue goes with the folder. A submit WorkIt still
+  can't take is named in the result (`first_run.UNSENT`), to mark applied
+  on WorkIt by hand, and the window stays open on it instead of closing:
+  with the queue gone, nothing else remembers it was sent, and the next
+  Start could fill it again.
 - Report a problem (Settings, and an Application's card with its id) is
   two calls: `review_report` builds the report and keeps it, the page
   shows its `parts`, and `send_report` sends that kept report, never the
