@@ -72,7 +72,9 @@ UNBACKED = {"entries": [{"section": "experience", "title": "Pilot", "organizatio
                          "bullets": ["Flew cargo routes"]}], "skills": []}
 
 COLUMNS = {"id", "applicant_id", "created_at", "route", "read_by", "reason", "duration_ms", "entries", "skills",
-           "fields_dropped"}
+           "fields_dropped", "model", "input_tokens", "output_tokens"}
+# The names ScriptedLLM gives its endpoints, in chain order (workit_scout.testing)
+MODELS = ("model-0", "model-1")
 
 
 def _rate_limited() -> RateLimitError:
