@@ -631,13 +631,15 @@ def rehearse(
             so the next job opens even while this page is slow to let go (KAN-839)."""
             if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
                 return False
-            leave_room()
             batch.done(url)  # not applying: no restart brings it back
             if build.STUDENT:  # and nothing of it stays on the Mac (W11)
                 from apply import (
                     local_data,  # here: local_data imports the worker, which imports this module's peers
                 )
                 local_data.forget(done.posting.company, done.posting.id)
+            # Last, so nothing runs between it and the hold's unwinding: work after it let the next job open its form
+            # while this one's was still open, two forms under a cap of one (test_open_slots).
+            leave_room()
             return True
 
         def approved(why: str, handoff: bool) -> None:
