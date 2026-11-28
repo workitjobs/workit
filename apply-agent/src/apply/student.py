@@ -232,7 +232,7 @@ class Runs:
                               serve=False) as board:
                 made.board = board
                 show(board)
-                self._rehearse(links, made, self._profile, workers())
+                self._rehearse(links, made, self._profile, workers(), submitted_to=made.tracker)  # his Submit, kept on WorkIt
         finally:
             self.close()
             free(site)
