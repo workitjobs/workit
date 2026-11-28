@@ -244,7 +244,7 @@ def _recorded(roots: Sequence[Path]) -> list[tuple[str, str, str, str]]:
     for root in roots:
         for readme in sorted(root.glob("*/*/README.md"), reverse=True):
             try:
-                text = readme.read_text()
+                text = readme.read_text(encoding="utf-8")
             except OSError:
                 continue
             if (head := RECORD_HEAD.match(text)) and (url := RECORD_POSTING.search(text)) \

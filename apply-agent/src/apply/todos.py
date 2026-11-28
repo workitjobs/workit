@@ -195,13 +195,13 @@ class TodoStore:
             if write:
                 part = self.path.with_suffix(".part")
                 part.write_text(json.dumps({"todos": [dataclasses.asdict(t) for t in todos.values()]}, indent=1,
-                                           default=_plain))
+                                           default=_plain), encoding="utf-8")
                 part.chmod(0o600)
                 os.replace(part, self.path)
 
     def _load(self) -> dict[str, Todo]:
         try:
-            saved = json.loads(self.path.read_text())
+            saved = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
         joined: dict[str, Todo] = {}

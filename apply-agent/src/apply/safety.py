@@ -110,7 +110,7 @@ def _kept(state: Path) -> dict:
     import json
 
     try:
-        kept = json.loads(state.read_text())
+        kept = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return kept if isinstance(kept, dict) else {}
