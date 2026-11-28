@@ -8,6 +8,7 @@ import {
   type FillReportGroup,
   type FillReportSummary,
 } from "@/lib/fill-reports";
+import type { ReadingHealth } from "@/lib/resume-reading";
 import { getAccessToken } from "@/lib/session";
 
 /**
@@ -69,4 +70,9 @@ export function getFillHealth(query: string): Promise<Read<FillHealth>> {
 /** The scraper's health (KAN-879): GET /admin/scrape-health for the last `days` days. */
 export function getScrapeHealth(days: number): Promise<Read<ScrapeHealth>> {
   return read(`/admin/scrape-health?days=${days}`);
+}
+
+/** Who read each uploaded resume (KAN-953): GET /admin/resume-reading for the last `days` days. */
+export function getResumeReading(days: number): Promise<Read<ReadingHealth>> {
+  return read(`/admin/resume-reading?days=${days}`);
 }

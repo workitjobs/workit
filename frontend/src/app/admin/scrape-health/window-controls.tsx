@@ -1,113 +1,62 @@
-import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
-import type { ReactNode } from "react";
-
 import { SegmentedLinks } from "@/components/ui/segmented-control";
-import {
-  datesOf,
-  moved,
-  rangeOf,
-  resized,
-  SPANS,
-  type Window,
-  windowHref,
-} from "@/lib/scrape-status";
-
-import { WindowArrow } from "./window-arrow";
+import { SPANS, type Window, windowHref } from "@/lib/scrape-status";
 
 /**
- * An arrow that moves the window one period, named by the days it shows
- * ("Show Oct 26 to Nov 8"), so its name is true where the last step is a
- * short one. Where the window cannot move it is named as off and stays in
- * place (`./window-arrow.tsx`). No tooltip: a Previous or Next arrow is
- * read on sight (`ui/tip.tsx`), and the days between the two arrows say
- * what they move.
- */
-function Arrow({
-  to,
-  here,
-  href,
-  today,
-  off,
-  children,
-}: {
-  to: Window | null;
-  /** The window in view: where the arrow points when it cannot move. */
-  here: Window;
-  /** The page's address for a window. */
-  href: (window: Window) => string;
-  today: string;
-  /** The arrow's name where the window cannot move: "No Earlier Days". */
-  off: string;
-  children: ReactNode;
-}) {
-  return (
-    <WindowArrow
-      href={href(to ?? here)}
-      label={to ? `Show ${rangeOf(datesOf(to, today))}` : off}
-      off={!to}
-    >
-      {children}
-    </WindowArrow>
-  );
-}
-
-/**
- * The page's one time control (KAN-879): the period, which is how many days
- * the whole page shows, and two arrows that move those days one period
- * earlier or later, around the days in view ("Nov 9 to Nov 22"). All are
- * links, so the address holds the window: a reload, Back and a shared link
- * keep it. The tiles, the chart and the table all read the same window.
+ * An admin page's one time control (KAN-879): the period, which is how many
+ * days the whole page shows, ending today (UTC). Each period is a link, so
+ * the address holds it (`?days=`): a reload, Back and a shared link keep it,
+ * and every part of the page shows the same days.
  *
- * ONE VOCABULARY, DAYS. The arrows had a switch of their own between them,
- * Move By (Week or Month), beside the periods (7, 14, 30 and 90 Days): two
- * rows of lengths of time in two sets of words, and the user could not tell
- * what each did (2026-11-22). The period is now also the step, so 7 Days
- * moves week by week and 30 Days month by month, and the days in view sit
- * where that switch was. Before that the chart had its own zoom and arrows
- * beside the page's day pills, which a design review found was two time
- * controls on one page.
+ * ONE SETTING, ONE CONTROL (KAN-953, 2026-11-27). Two arrows stood beside
+ * the periods, around the days in view ("Nov 9 to Nov 22"), and moved those
+ * days one period earlier or later. They went, on every admin page:
  *
- * Fill Health uses it too, with its own `path` and the filters its address
- * keeps (`keep`), so every admin page moves through time the same way.
+ * - They reached no new day. The pages read 90 days and the longest period
+ *   is 90 days, so 90 Days already showed every day an arrow could reach;
+ *   the arrows only showed older days at a closer zoom. A day's own numbers
+ *   are in its column's tooltip.
+ * - The forward arrow was off on every first visit, and both were off at 90
+ *   Days: a control that is off in the default view is not needed there.
+ * - With them the control was a fixed 520px. It left the title row below a
+ *   1223px window and broke into two rows of unequal width on a phone,
+ *   where the page's header stood 164px tall.
+ * - The days in view were written twice, here and in the chart's header,
+ *   which keeps them.
+ *
+ * Before that the arrows had a switch of their own, Move By (Week or Month),
+ * beside the periods: two rows of lengths of time in two sets of words, and
+ * the user could not tell what each did (2026-11-22). Before that the chart
+ * had its own zoom and arrows beside the page's day pills, which a design
+ * review found was two time controls on one page.
+ *
+ * Below sm the switch takes the page's width, four equal parts, so it lines
+ * up with the cards under it. Its options are 44px tall to a touch at every
+ * width (`ui/segmented-control.tsx`).
+ *
+ * Every admin page uses it, with its own `path` and the filters its address
+ * keeps (`keep`), so they all move through time the same way.
  */
 export function WindowControls({
   window,
-  today,
   path,
   keep,
 }: {
   window: Window;
-  /** The newest day, YYYY-MM-DD (UTC): the day the API's answer was read. */
-  today: string;
   /** The admin page these links open; Scrape Health when left out. */
   path?: string;
   /** The page's other filters, kept in every link. */
   keep?: Record<string, string>;
 }) {
-  const href = (to: Window) => windowHref(to, path, keep);
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-1.5">
-        <Arrow to={moved(window, -1)} here={window} href={href} today={today} off="No Earlier Days">
-          <CaretLeftIcon size={16} aria-hidden />
-        </Arrow>
-        {/* A fixed room for the longest range, so the arrows hold still as the days change. */}
-        <p className="text-label text-ink min-w-36 text-center tabular-nums" aria-live="polite">
-          {rangeOf(datesOf(window, today))}
-        </p>
-        <Arrow to={moved(window, 1)} here={window} href={href} today={today} off="No Later Days">
-          <CaretRightIcon size={16} aria-hidden />
-        </Arrow>
-      </div>
-      <SegmentedLinks
-        label="Period"
-        value={String(window.days)}
-        options={SPANS.map((days) => ({
-          value: String(days),
-          label: `${days} Days`,
-          href: href(resized(window, days)),
-        }))}
-      />
-    </div>
+    <SegmentedLinks
+      label="Period"
+      value={String(window.days)}
+      className="max-sm:w-full"
+      options={SPANS.map((days) => ({
+        value: String(days),
+        label: `${days} Days`,
+        href: windowHref({ days }, path, keep),
+      }))}
+    />
   );
 }

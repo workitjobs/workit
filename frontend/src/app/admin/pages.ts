@@ -1,4 +1,9 @@
-import { BugBeetleIcon, HeartbeatIcon, PulseIcon } from "@phosphor-icons/react/ssr";
+import {
+  BugBeetleIcon,
+  FileMagnifyingGlassIcon,
+  HeartbeatIcon,
+  PulseIcon,
+} from "@phosphor-icons/react/ssr";
 
 /**
  * The admin pages and each page's sections (KAN-879), in one place: the
@@ -31,6 +36,15 @@ export const FILL_SECTIONS = {
   fills: { id: "fills", label: "Fills" },
 } as const satisfies Record<string, AdminSection>;
 
+export const READING_SECTIONS = {
+  status: { id: "status", label: "Status" },
+  perDay: { id: "readings-per-day", label: "Readings per Day" },
+  reasons: { id: "no-ai-reasons", label: "Why AI Did Not Read" },
+  accuracy: { id: "accuracy", label: "Accuracy" },
+  models: { id: "models", label: "Models" },
+  readings: { id: "recent-readings", label: "Recent Readings" },
+} as const satisfies Record<string, AdminSection>;
+
 export const REPORT_SECTIONS = {
   groups: { id: "groups", label: "Groups" },
   reports: { id: "reports", label: "Reports" },
@@ -49,6 +63,12 @@ export const ADMIN_PAGES = [
     label: "Fill Health",
     icon: HeartbeatIcon,
     sections: Object.values(FILL_SECTIONS),
+  },
+  {
+    href: "/admin/resume-reading",
+    label: "Resume Reading",
+    icon: FileMagnifyingGlassIcon,
+    sections: Object.values(READING_SECTIONS),
   },
   {
     href: "/admin/fill-reports",

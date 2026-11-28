@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: "Fill Health" };
  *
  * It moves through time as Scrape Health does (KAN-879): the page reads all
  * `HISTORY` days once and cuts them to the window in the address, so the
- * period and the arrows are links that ask the API nothing new. The engine
+ * periods are links that ask the API nothing new. The engine
  * version is the one filter the API applies, so the address holds it and
  * every window link keeps it.
  */
@@ -53,7 +53,6 @@ export default async function FillHealthPage({ searchParams }: PageProps<"/admin
         </div>
         <WindowControls
           window={window}
-          today={today}
           path="/admin/fill-health"
           keep={{ engine_version: version }}
         />

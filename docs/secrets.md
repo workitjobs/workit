@@ -144,6 +144,7 @@ workflow.
 | `SCOUT_ENDPOINTS` | the API's Scout, and `scrape.yml`'s keyword pass, as the fallback after the team computer's own Ollama | Required: without a chain, every Scout reply is "offline" | Production's chain, which can differ from a laptop's (`scout/CLAUDE.md`). Ask whoever set `CF_API_SECRETS_JSON` (2026-10-26) before you copy a laptop's. |
 | `SCOUT_ENDPOINTS_LARGE`, `SCOUT_ENDPOINTS_SMALL` | the API's Scout | Optional: unset, the default chain | Only if production sets them today. |
 | `WORKIT_ADMINS` | fix reports (`/admin` routes) | Optional: unset, nobody is an admin | The team writes it: WorkIt sign-in emails or account IDs, comma-separated. |
+| `MODEL_PRICES` | the admins' Resume Reading page (`/admin/resume-reading`, KAN-953) | Optional: unset, the page shows tokens and no cost | The team writes it, from each provider's price page: JSON, a model's name as the page shows it to its input and output price in US dollars a million tokens, as `{"gemini-3.5-flash-lite": [0.10, 0.40]}`. Not a secret; it is here because the API reads it. |
 | `MIN_EXTENSION_VERSION`, `CONNECTOR_CHAT_CAP`, `CONNECTOR_LOOPBACK_REDIRECTS`, `AI_DAILY_POOL`, the `AI_*_CAP` and `AI_*_SHARE` keys, `FILL_EVENT_DAILY_CAP`, `FILL_REPORT_DAILY_CAP`, `JOB_SYSTEM_REQUEST_DAILY_CAP` | the API | Optional: `backend/app/config.py` has the defaults | Settings, not secrets. Only those production sets today. |
 | `TURNSTILE_SECRET_KEY` | signup's CAPTCHA check | **Not set up** (2026-11-20) | See "Turnstile" below. |
 

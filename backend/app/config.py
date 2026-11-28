@@ -2,6 +2,7 @@
 Environment configuration, imported by other files and migration
 """
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -135,6 +136,22 @@ class Settings(BaseSettings):
         '''WORKIT_ADMINS parsed once for every reader (deps.is_admin, services/fill_report_alerts.py):
         each entry stripped and lower-cased, empty ones dropped, in order.'''
         return [entry for entry in (e.strip().lower() for e in self.workit_admins.split(",")) if entry]
+
+    # What a model's tokens cost on a paid plan (KAN-953), for the admins' Resume Reading page: JSON,
+    # a model's name as the reading log holds it to [input, output] US dollars a million tokens, as
+    # {"gemini-3.5-flash-lite": [0.10, 0.40]}. The page prints what the logged tokens would cost at
+    # these prices; WorkIt's free tiers charge nothing. Unset, or a model not named: no cost shows.
+    model_prices: str = ""
+
+    @property
+    def prices(self) -> dict[str, tuple[float, float]]:
+        '''MODEL_PRICES parsed for its one reader (queries/resume_readings.py). A value that is not
+        that JSON shape is no prices at all, never an error: the page is the admins' own.'''
+        try:
+            raw = json.loads(self.model_prices or "{}")
+            return {str(model): (float(pair[0]), float(pair[1])) for model, pair in raw.items()}
+        except (ValueError, TypeError, IndexError, KeyError, AttributeError):
+            return {}
 
     # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
