@@ -126,12 +126,20 @@ async function registered(id) {
   return (await chrome.scripting.getRegisteredContentScripts({ ids: [id] })).length > 0;
 }
 
-async function register(id, file, world) {
-  if (await registered(id)) await chrome.scripting.unregisterContentScripts({ ids: [id] });
-  await chrome.scripting.registerContentScripts([{
-    id, js: [file], matches: ["<all_urls>"], allFrames: true, matchOriginAsFallback: true, runAt: "document_start",
-    world, persistAcrossSessions: false,
-  }]);
+// One registration at a time: two at once for one id (two tiles' fills on one Worker) both found it missing, and the
+// second threw "Duplicate script ID 'apply-init-drive'" (Rockwell's Fill again, live, 2026-11-28).
+let registering = Promise.resolve();
+
+function register(id, file, world) {
+  const turn = registering.then(async () => {
+    if (await registered(id)) await chrome.scripting.unregisterContentScripts({ ids: [id] });
+    await chrome.scripting.registerContentScripts([{
+      id, js: [file], matches: ["<all_urls>"], allFrames: true, matchOriginAsFallback: true, runAt: "document_start",
+      world, persistAcrossSessions: false,
+    }]);
+  });
+  registering = turn.catch(() => {});
+  return turn;
 }
 
 // Runs `files` (then `func(...args)`) in every frame of a tab now; a frame that can't take it
