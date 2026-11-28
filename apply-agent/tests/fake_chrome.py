@@ -5,6 +5,7 @@
   starts a .bat host through cmd.exe. Both pass on their stdin and stdout, and end when `rest` ends.
 - FakeRegistry: the Windows registry, where Chrome there finds a host (chrome_host), as winreg. NoRegistry fails
   a test that touches a registry off Windows.
+- `taskkill(record)`: Windows' taskkill (launcher.TASKKILL), which writes what it was asked into `record`.
 - PYTHON: the interpreter for a stand-in found by its arguments, as one process."""
 
 import contextlib
@@ -21,6 +22,10 @@ CHROME = f"import subprocess, sys; sys.exit(subprocess.call([sys.executable, '-c
 
 def command(profile, *rest: str) -> list[str]:
     return [sys.executable, "-c", CHROME, f"--user-data-dir={profile}", *rest]
+
+
+def taskkill(record) -> tuple[str, ...]:
+    return sys.executable, "-c", f"import sys; open({str(record)!r}, 'w').write(' '.join(sys.argv[1:]))"
 
 
 class FakeRegistry:

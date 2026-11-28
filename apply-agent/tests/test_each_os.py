@@ -516,15 +516,10 @@ def test_a_hosts_chrome_is_the_browser_above_it_read_with_no_ps(monkeypatch, tmp
     assert window_capture.chrome_of(None) is None
 
 
-def taskkill(record: Path) -> tuple[str, ...]:
-    """A stand-in for Windows' taskkill (launcher.TASKKILL) that writes what it was asked into `record`."""
-    return sys.executable, "-c", f"import sys; open({str(record)!r}, 'w').write(' '.join(sys.argv[1:]))"
-
-
 def test_on_windows_a_worker_is_asked_to_close_and_killed_only_after_the_wait(tmp_path, monkeypatch):
     """Fault: on Windows a signal, Popen.terminate and psutil's terminate all kill at once, with no save (P7): a
     Worker stopped so loses its job sites' sign-ins, the session cookies that --restore-last-session keeps."""
-    monkeypatch.setattr(launcher, "TASKKILL", taskkill(tmp_path / "asked"))
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(tmp_path / "asked"))
     monkeypatch.setattr(launcher, "STOP_WAIT", 0.5)
     chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     try:
@@ -617,7 +612,7 @@ def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(tmp_path,
     chrome.kill()
     launcher._stop(chrome)
     assert sent == []
-    monkeypatch.setattr(launcher, "TASKKILL", taskkill(tmp_path / "asked"))
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(tmp_path / "asked"))
     launcher.ask_to_quit(chrome, "win32")  # taskkill would close that other program's windows
     assert not (tmp_path / "asked").exists()
 

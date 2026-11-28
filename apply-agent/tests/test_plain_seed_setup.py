@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import fake_chrome
 import pytest
 
 from apply import browsers
@@ -384,8 +385,7 @@ def test_the_desk_asks_the_seeds_chrome_to_quit_and_never_kills_it(tmp_path, mon
     """Fault: a kill loses the clicks that Chrome hasn't saved yet. On Windows os.kill's SIGTERM is a kill, so the
     seed's Chrome lost Developer mode and Load unpacked there (P7): taskkill with no /F asks its windows to close."""
     asked = tmp_path / "asked"
-    monkeypatch.setattr(launcher, "TASKKILL", (sys.executable, "-c",
-                                               f"import sys; open({str(asked)!r}, 'w').write(' '.join(sys.argv[1:]))"))
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(asked))
     chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     try:
         Desk(tmp_path).terminate(chrome.pid, "win32")
