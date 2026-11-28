@@ -225,3 +225,26 @@ def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_
     assert sorted((t.company, t.kind, t.link) for t in store.all()) == [
         ("Acme", "assessment", None), ("Ramp", "assessment", "https://app.codesignal.com/pre-screens"),
         ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]
+
+
+def test_an_invite_and_its_reminder_are_one_todo_that_a_rescan_keeps_as_one(tmp_path):
+    # Fault: no join by company, kind and assessment name, so a reminder in its own thread is a second card, or a
+    # re-scan adds it again, or the join loses the earliest due date, the latest link or the user's status.
+    store = TodoStore(tmp_path / "todos.json")
+    mailbox = box(sample("codesignal-invite"), sample("codesignal-reminder"))[0]
+    invite, reminder = read(sample("codesignal-invite")), read(sample("codesignal-reminder"))
+    invite = Mail(**{**invite.__dict__, "arrived": datetime(2026, 11, 26, 16, 0)})
+    reminder = Mail(**{**reminder.__dict__, "arrived": datetime(2026, 11, 27, 16, 0)})
+    mailbox.read_mail = lambda search: [reminder, invite]
+
+    first = scan(mailbox, store, now=lambda: ARRIVED)
+    [todo] = store.all()
+    store.mark(todo.thread, DONE)
+    again = scan(mailbox, store, now=lambda: ARRIVED)
+
+    assert (first.added, first.updated, again.added, again.updated) == (1, 1, 0, 0)
+    [todo] = store.all()
+    assert (todo.thread, todo.kind, todo.status, todo.due) == (thread_of(invite), "assessment", DONE,
+                                                               date(2026, 11, 29))
+    assert todo.link == "https://app.codesignal.com/invite/F4br1k4mTwo"
+    assert [m.subject for m in todo.mails] == [invite.subject, reminder.subject]

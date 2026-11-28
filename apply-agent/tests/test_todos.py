@@ -1,6 +1,8 @@
 """The application to-do store (apply.todos): one to-do per mail thread, the user's status kept, and the developer
 flag that keeps the tracker off for everyone else. No browser, no network."""
 
+import dataclasses
+import json
 from datetime import date, datetime
 
 import pytest
@@ -11,9 +13,9 @@ from apply.todos import DISMISSED, DONE, OPEN, Source, Todo, TodoStore
 ARRIVED = datetime(2026, 11, 20, 9, 0)
 
 
-def todo(thread: str = "t1", arrived: datetime = ARRIVED, **fields) -> Todo:
+def todo(thread: str = "t1", arrived: datetime = ARRIVED, subject: str = "Your assessment", **fields) -> Todo:
     made = {"kind": "assessment", "company": "Acme", "role": "Software Engineer Intern", "due": date(2026, 11, 27),
-            "link": "https://www.hackerrank.com/test/abc", "source": Source("Acme <jobs@acme.com>", "Your assessment",
+            "link": "https://www.hackerrank.com/test/abc", "source": Source("Acme <jobs@acme.com>", subject,
                                                                             arrived, "1800000000000000001")}
     return Todo(thread=thread, **(made | fields))
 
@@ -86,3 +88,25 @@ def test_shown_links_the_source_mail_in_gmail():
     assert shown["kind_label"] == "Online assessment"
     assert shown["source"]["url"] == f"https://mail.google.com/mail/u/0/#all/{1800000000000000001:x}"
     assert todo(source=Source("a", "b", ARRIVED)).shown()["source"]["url"] is None
+
+
+def test_two_threads_naming_one_assessment_are_one_todo_even_when_saved_apart(tmp_path):
+    # Fault: no join by Todo.key, or a join that drops the earliest due date, the latest link, a mail, or the status
+    # the user set; or two cards saved before keys stay two.
+    invite = todo("t1", subject="Fabrikam invited you to take Fabrikam 2025 Coding Assessment", due=date(2026, 11, 29),
+                  link="https://app.codesignal.com/invite/one")
+    reminder = todo("t2", arrived=datetime(2026, 11, 21, 9, 0), due=date(2026, 12, 2),
+                    subject="Reminder: Fabrikam is waiting for your Fabrikam 2025 Coding Assessment result",
+                    link="https://app.codesignal.com/invite/two")
+    other = todo("t3", subject="Fabrikam invited you to take Fabrikam Frontend Challenge")
+    path = tmp_path / "todos.json"
+    path.write_text(json.dumps({"todos": [dataclasses.asdict(t) for t in (reminder, invite, other)]}, default=str))
+    store = TodoStore(path)
+    store.mark("t2", DISMISSED)  # the reminder's id still finds the one to-do
+
+    joined = store.get("t1")
+    assert len(store.all()) == 2 and store.get("t2") == joined
+    assert (joined.thread, joined.status, joined.due, joined.link) == ("t1", DISMISSED, date(2026, 11, 29),
+                                                                       "https://app.codesignal.com/invite/two")
+    assert [m.thread for m in joined.mails] == ["t1", "t2"]
+    assert store.put(reminder) == "kept" and len(store.all()) == 2

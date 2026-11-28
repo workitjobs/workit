@@ -12,7 +12,8 @@ Apply reads emailed codes with, apply.gmail), oldest first, and reads each mail 
   rules, its employer matching against the Tracker).
 
 A mail that asks nothing (a confirmation, a rejection, an assessment already taken, a one-time code, a password
-reset) makes no to-do. Each to-do is kept by its mail's Gmail thread (TodoStore.put)."""
+reset) makes no to-do. Each to-do is kept by its mail's Gmail thread, and an invite and its reminder join as one
+(TodoStore.put)."""
 
 import dataclasses
 import hashlib
@@ -171,8 +172,7 @@ def scan(mailbox, store: TodoStore, rows: list | None = None, ask: Ask | None = 
     if ask is None:
         done.model = "no model: read by rules"
     for mail in mails:
-        known = store.get(thread_of(mail))
-        if known is not None and known.source.arrived >= mail.arrived:
+        if store.seen(thread_of(mail), mail.arrived):
             continue  # read by an earlier scan: no model call again for it
         reading = rules(mail, rows or [])
         if ask is not None:

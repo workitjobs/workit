@@ -31,6 +31,13 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
   Gmail thread (`X-GM-THRID`; with none, the subject without Re:/Fwd: and the sender's domain, hashed). A newer mail
   in a thread updates its kind, due date, link and source; the status the user set stays, so a dismissed to-do
   never comes back. The same or an older mail changes nothing, so a re-scan is safe.
+- **Join across threads** (`Todo.key`): an invite and its reminder come in two threads ("Ramp invited you to take
+  Ramp 2025 Coding Assessment", "Reminder: Ramp is waiting for your Ramp 2025 Coding Assessment result"). Mail with
+  the same company, kind and assessment or form name (`todos.TASK`, read from the subject) joins one to-do: it keeps
+  the first thread as its id, every mail in `sources` (the newest is `source`), the earliest due date, the latest
+  link, and a done or dismissed status set on either. Within one thread the latest due date stands. A subject that
+  names no assessment or form gives no key, so only its thread joins it. Cards saved apart before keys join when the
+  store is read, and `todo-done` takes either thread's id.
 - **Scan** (`src/apply/todo_scan.py`): the last 14 days of inbox mail that `todo_scan.SEARCH` finds, read-only
   (`GmailMailbox.read_mail`: `BODY.PEEK`, nothing marked read, moved or deleted), oldest first. Each mail is read
   by the developer's `ask_model` when it takes a prompt (`claude`, `groq`, `gemini`; model `haiku`), else by fixed
