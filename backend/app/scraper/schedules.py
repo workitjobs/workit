@@ -8,10 +8,13 @@ rest (KAN-722).
 from __future__ import annotations
 
 import csv
+import datetime
 import time
+import uuid
+from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 from workit_scraper.scheduling import (
@@ -27,20 +30,28 @@ from app.models.scraper import Scraper_Schedule
 
 _schedules = Scraper_Schedule.__table__
 
+CYCLE_LEASE_DURATION = timedelta(minutes=30)
+
 BOARDS_CSV = Path(__file__).resolve().parents[3] / "scraper" / "boards.csv"
 # Boards per catalog upsert: 8,000 bind parameters, well under asyncpg's 32,767.
 SYNC_BATCH = 1000
 
 
-def filter_quiet(schedules: list, *, full: bool = False) -> list:
+def filter_quiet(
+    schedules: list, *, full: bool = False, now: float | None = None
+) -> list:
     """Drop quiet boards not due this slot. Pure function on rows.
 
     A board is kept if any of: full mode, never read, has_kept (hot),
     last read > QUIET_LONGEST ago, or its CRC32 slot matches this run's slot.
+
+    When *now* (a Unix timestamp) is given, use it instead of time.time(),
+    so the caller can pass the database clock (H4: clock consistency).
     """
     if full:
         return list(schedules)
-    now = time.time()
+    if now is None:
+        now = time.time()
     slot = quiet_slot(now)
     return [
         row
@@ -58,6 +69,8 @@ def filter_quiet(schedules: list, *, full: bool = False) -> list:
 async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> int:
     """Upsert boards.csv into scraper_schedules. Returns count of new rows."""
     boards = _load_csv(boards_csv)
+    if not boards:
+        return 0
     new = 0
     # In batches, in the caller's one transaction: asyncpg takes 32,767 bind
     # parameters a statement and a board is 8, so one INSERT of the whole
@@ -67,24 +80,90 @@ async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> 
         stmt = stmt.on_conflict_do_update(
             index_elements=[_schedules.c.ats, _schedules.c.token],
             set_={"company": stmt.excluded.company},
+            where=_schedules.c.company.is_distinct_from(stmt.excluded.company),
         ).returning(text("xmax = 0"))
         new += sum(1 for row in await conn.execute(stmt) if row[0])
     return new
 
 
-async def select_due(conn: AsyncConnection, *, full: bool = False) -> list:
-    """Schedules due for a read: enabled, not health-resting, not fingerprint-resting."""
-    stmt = select(_schedules).where(
-        _schedules.c.enabled.is_(True),
-        _schedules.c.rest_until.is_(None) | (_schedules.c.rest_until <= text("now()")),
+async def sync_catalog_diff(
+    conn: AsyncConnection, boards_csv: Path | None = None
+) -> tuple[list, int, datetime.datetime]:
+    """Read all schedules with db_now, diff with boards.csv, write only changes.
+
+    Returns (all_rows, new_count, db_now). Usually 0 writes between deploys.
+    The db_now comes from the same SELECT as the rows, so Python-side due
+    checks use the database clock (H4).
+
+    *boards_csv* defaults to the module-level ``BOARDS_CSV`` at call time
+    (not definition time), so a monkeypatch on the module attribute works.
+    """
+    if boards_csv is None:
+        boards_csv = BOARDS_CSV
+    result = await conn.execute(
+        select(*_schedules.c, func.now().label("db_now"))
     )
-    if not full:
-        stmt = stmt.where(
-            _schedules.c.fingerprint_until.is_(None)
-            | (_schedules.c.fingerprint_until <= text("now()"))
-        )
-    rows = (await conn.execute(stmt)).all()
-    return filter_quiet(rows, full=full)
+    existing = result.all()
+
+    if existing:
+        db_now = existing[0].db_now
+    else:
+        db_now = (await conn.execute(text("SELECT now()"))).scalar()
+
+    csv_boards = _load_csv(boards_csv)
+    if not csv_boards:
+        return existing, 0, db_now
+
+    by_key = {(r.ats, r.token): r for r in existing}
+    to_insert = []
+    to_update = []
+    for board in csv_boards:
+        key = (board["ats"], board["token"])
+        row = by_key.get(key)
+        if row is None:
+            to_insert.append(board)
+        elif row.company != board["company"]:
+            to_update.append((row.id, board["company"]))
+
+    new_rows: list = []
+    if to_insert:
+        # Batch inserts to stay under asyncpg's 32 767 parameter limit.
+        # Each row binds ~8 params (3 from the dict + Python-side defaults).
+        batch_size = 32_767 // 10  # generous headroom
+        for i in range(0, len(to_insert), batch_size):
+            chunk = to_insert[i : i + batch_size]
+            stmt = insert(_schedules).values(chunk).returning(*_schedules.c)
+            new_rows.extend((await conn.execute(stmt)).all())
+
+    if to_update:
+        for schedule_id, company in to_update:
+            await conn.execute(
+                update(_schedules)
+                .where(_schedules.c.id == schedule_id)
+                .values(company=company)
+            )
+
+    all_rows = list(existing) + new_rows
+    return all_rows, len(new_rows), db_now
+
+
+def select_due_from_rows(
+    rows: list, db_now: datetime.datetime, *, full: bool = False
+) -> list:
+    """Due schedules computed in Python from the rows read by sync_catalog_diff.
+
+    Checks enabled, rest_until, fingerprint_until, then filter_quiet with
+    the database clock (H4).
+    """
+    now_ts = db_now.timestamp()
+    due = [
+        row
+        for row in rows
+        if row.enabled
+        and (row.rest_until is None or row.rest_until <= db_now)
+        and (full or row.fingerprint_until is None or row.fingerprint_until <= db_now)
+    ]
+    return filter_quiet(due, full=full, now=now_ts)
 
 
 async def advance_reads(
@@ -198,6 +277,68 @@ async def record_failure(conn: AsyncConnection, schedule_id) -> None:
             else None,
         ),
         {"rest_secs": rest.total_seconds()} if rest else {},
+    )
+
+
+async def take_lease(
+    conn: AsyncConnection,
+    holder: str,
+    duration: timedelta = CYCLE_LEASE_DURATION,
+) -> uuid.UUID | None:
+    """Try to take the cycle lease (D5). Returns the lease id, or None if held.
+
+    The seeded row's expires_at is epoch, so the first cycle takes it.
+    A second process whose take returns None exits without writing.
+    """
+    result = await conn.execute(
+        text(
+            "UPDATE scraper_cycle_leases"
+            " SET holder = :holder,"
+            "     expires_at = now() + :duration,"
+            "     started_at = now()"
+            " WHERE expires_at < now()"
+            " RETURNING id"
+        ),
+        {"holder": holder, "duration": duration},
+    )
+    row = result.first()
+    return row.id if row else None
+
+
+async def renew_lease(
+    conn: AsyncConnection,
+    lease_id: uuid.UUID,
+    holder: str,
+    duration: timedelta = CYCLE_LEASE_DURATION,
+) -> bool:
+    """Renew the cycle lease. Returns False if another holder took it (H2).
+
+    Called inside each batch transaction. The writer aborts if this returns
+    False, since another process has taken the lease.
+    """
+    result = await conn.execute(
+        text(
+            "UPDATE scraper_cycle_leases"
+            " SET expires_at = now() + :duration"
+            " WHERE id = :lid AND holder = :holder"
+        ),
+        {"lid": lease_id, "holder": holder, "duration": duration},
+    )
+    return result.rowcount > 0
+
+
+async def release_lease(
+    conn: AsyncConnection, lease_id: uuid.UUID, holder: str
+) -> None:
+    """Release the cycle lease so the next cycle can take it."""
+    await conn.execute(
+        text(
+            "UPDATE scraper_cycle_leases"
+            " SET holder = NULL,"
+            "     expires_at = '1970-01-01 00:00:00+00'"
+            " WHERE id = :lid AND holder = :holder"
+        ),
+        {"lid": lease_id, "holder": holder},
     )
 
 

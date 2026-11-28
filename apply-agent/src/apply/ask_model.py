@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from apply import trace
+from apply import trace, usage
 from apply.adapters import (
     NEEDS_WORKIT,
     ClaudeError,
@@ -494,7 +494,9 @@ class WorkItAsk:
             except WorkItError as e:
                 raise ClaudeError(f"WorkIt's Model route refused {kind}: {e}") from None
             self._spent.tokens = getattr(self._spent, "tokens", 0) + int(reply.get("tokens") or 0)
-            trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, answer=reply.get("answer"))
+            used = usage.add(kind, WORKIT, reply.get("usage") if isinstance(reply.get("usage"), dict) else None,
+                             tokens=int(reply.get("tokens") or 0))
+            trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, answer=reply.get("answer"), usage=used)
             return reply["answer"]
 
 def _said(reply: dict) -> str:

@@ -24,7 +24,8 @@
 // own and still holds (the field has the focus; the choice alone is under the point); every other
 // frame of the tab refuses trusted input until it is over (`fence`); and `landed` checks the
 // effect after it (the text arrived; the click reached the choice and changed it). A miss is an
-// error for Apply, never a second try. The submit guard and its network rules stand behind all of
+// error for Apply, never a second try; only text or a key `aim` dropped before it was sent is an
+// `Unfocused` error, which Apply's fill tries again. The submit guard and its network rules stand behind all of
 // it.
 //
 // The debugger attachment is debug.js's, shared with cdp.js: a tab detaches a few seconds after
@@ -74,6 +75,19 @@ async function attach(tab) {
   if (!entry.focus) {
     await send(tab, "Emulation.setFocusEmulationEnabled", { enabled: true });
     entry.focus = true;
+  }
+}
+
+// The attachment, with its focus emulation, before a dom call that focuses the field it then asks to
+// type into (ops/dom.js). A Worker's window has no focus, so emulation that comes on after the field
+// has it gives the page a window focus it can answer by moving the focus: Workday's sign-in did (live
+// on Cadence, 2026-11-27), and `aim` found the field had lost it. Without the debugger, nothing.
+export async function ready(tab) {
+  if (!available()) return;
+  try {
+    await attach(tab);
+  } catch (error) {
+    console.warn("Apply worker: no debugger here, untrusted as before", String(error?.message ?? error));
   }
 }
 
@@ -128,6 +142,9 @@ async function text(params, value, token, call) {
 
 const asks = (value) => value && typeof value === "object" && ("__applyType" in value || "__applyKey" in value || "__applyKeys" in value || "__applyClick" in value);
 const failed = (message) => ({ err: { name: "Error", message: `KAN-716 trusted input: ${message}` } });
+// `aim` dropped the text or key before anything was sent: an `Unfocused` error, which Apply's fill
+// may try again (apply.plain.page.PortLocator.fill), as nothing reached the page.
+const unsent = (message) => ({ err: { name: "Unfocused", message: `KAN-716 trusted input: ${message}` } });
 
 // A dom answer, with the trusted input it asks for made: page/dom.js answers {__applyType: text,
 // token, after?} (text to insert at its chosen field), {__applyKey: name, token} (Backspace or
@@ -167,7 +184,7 @@ export async function finish(params, answer, call) {
       if (!aimed?.ok?.aimed) {
         await fence(params, false);
         const why = aimed?.ok?.why ?? aimed?.err?.message ?? "no answer";
-        return "__applyClick" in value ? { retry: `waiting for the choice alone under the point (${why})` } : failed(why);
+        return "__applyClick" in value ? { retry: `waiting for the choice alone under the point (${why})` } : unsent(why);
       }
       tried = true;
       if ("__applyClick" in value) await click(params, value.__applyClick);

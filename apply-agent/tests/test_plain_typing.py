@@ -218,12 +218,37 @@ def test_trusted_text_goes_only_into_the_field_the_call_chose(amazon):
     page, _ = amazon
     page.evaluate("() => school.addEventListener('keydown', () => other.focus())")
     page.locator("#school").press_sequentially("ab")
-    page.evaluate("() => other.addEventListener('focus', () => go.focus())")
+    page.evaluate("() => { other.addEventListener('focus', () => setTimeout(() => go.focus())); why.focus(); }")
     with pytest.raises(PortError, match="the field lost the focus"):  # checked just before the text goes: nothing sent
         page.locator("#other").press("x")
 
     assert page.evaluate("() => [school.value, other.value]") == ["", ""]
     assert taken(page) == {}
+
+
+def test_a_field_filled_as_the_page_answers_its_windows_focus_keeps_it(amazon):
+    # Fault: ops/dom.js turns focus emulation on only in typing.js's finish, after the fill focused the field. A
+    # Worker's window has no focus, so the page then heard its window's focus and moved the focus to its first box,
+    # as Workday's sign-in did (Cadence, live 2026-11-27): "KAN-716 trusted input: the field lost the focus". The dom
+    # op is called itself, so Apply's own second fill (the next test) can't hide the fault.
+    page, _ = amazon
+    page.evaluate("() => addEventListener('focus', (e) => { if (e.target === window) why.focus(); })")
+    answer = page.worker.call("dom", tab=page.tab, frame=0, method="fill", args=["#school", "Acme", {"force": False}])
+
+    assert "err" not in answer, answer
+    assert taken(page) == {"school": "Acme"}
+
+
+def test_a_fill_whose_field_lost_the_focus_before_any_text_went_is_made_again(amazon):
+    # Fault: PortLocator.fill raises the first Unfocused error. The page moves the focus once, just after the field
+    # gets it, as a form that re-renders does; nothing was typed, so a second fill focuses the field again and types.
+    page, _ = amazon
+    page.locator("#other").fill("x")  # the debugger attached, its focus emulation on
+    page.evaluate("() => school.addEventListener('focus', () => setTimeout(() => other.focus()), {once: true})")
+    page.locator("#school").fill("Acme")
+
+    assert page.evaluate("() => [school.value, other.value]") == ["Acme", "x"]
+    assert taken(page) == {"other": "x", "school": "Acme"}
 
 
 def test_the_tiles_text_reaches_such_a_box_in_a_cross_origin_frame(amazon):

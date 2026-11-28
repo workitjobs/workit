@@ -10,6 +10,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- A step where Claude names no Next and no button that sends is a Handoff
+  (KAN-636), unless plain code finds the job system's own last-step Submit
+  (`claude_fill.LAST_STEP_SUBMIT`: Oracle Recruiting's pagination Submit,
+  whose words come from i18n). It must show, be enabled (plain code waits
+  up to `SUBMIT_SETTLES_S` while Oracle disables it to check the last
+  answers), and be the one button of its words. Then the form is held at its last step as when
+  Claude names it: nothing presses it until Approve and submit.
 - Claude's stop for a captcha holds the fill only when Apply's own check
   sees the challenge or its box showing to a person (`captcha.shows`,
   `captcha.unsolved`; KAN-760, `docs/captchas-and-bot-blocks.md`). Else
@@ -110,28 +117,40 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   own (`TOKENS` for the controls, `TOUCHES`, `TELL`), and the install mark each guard leaves on `window`
   (`MARKS`), which any page can read, names none of them: PR 477's second review found the mark carried the
   control's token, so a page could lift both guards.
-- The drive guard in a live run runs before each page's code (PR 477's second review): `on_open`, which a
+- The drive guard runs before each page's code (PR 477's second and third reviews): `on_open`, which a
   Worker calls on every page before its first load, puts its init script on the context there
-  (`DRIVE_AT_OPEN`). That copy starts lifted, as no guard, so a Filler's own submit in a live run goes on
-  as ever; `DriveGuard` arms it, with Lisul's opt-ins (`optSms`, `optMarketing`), by the control in the
-  open document and an init script for each one after (on a plain Worker the drive guard is one
-  registration, `drive`, which `DriveGuard`'s armed one replaces). Only Apply's control changes it. In a rehearsal, the rehearsal's guard holds the page from before its code
-  (`REHEARSAL_AT_OPEN`) and blocks every send itself, so the drive guard's copy in the open document is the
-  full one, as before. Any other page's open document gets a block-only copy (`LATE`): one evaluated after
-  the page's code, which may have wrapped `addEventListener` and heard its control event's name, takes no
-  lift and no allowance (account, profile, upload, start, Ask's tick, an opt-in), so a send there is left to
-  Lisul. A page that replaced a built-in the guard reads with before such a copy came defeats it; every
-  Worker page goes through `on_open`. Still open: in a rehearsal, a page that wrapped `addEventListener`
-  first can hear the drive guard's control event in its open document and lift it there; the rehearsal's
-  guard still blocks every send, but not the drive guard's own blocks (another site's sign-in, a payment). The guard takes every built-in it
-  reads with before any page code, and a guard listener that throws blocks what it judged.
+  (`DRIVE_AT_OPEN`), in a live run and in a rehearsal, and `guard()` puts it on before its reload. That
+  copy starts lifted, as no guard, so a Filler's own submit in a live run goes on as ever, and it takes no
+  lift until it is armed (a rehearsal's `rearm()` of a page no `DriveGuard` drove leaves it as it was).
+  `DriveGuard` arms it (`arm`), with Lisul's opt-ins (`optSms`, `optMarketing`), by the control in the open
+  document and in every other page of the context (a pop-up the page opened before), and by an init script
+  for each document after. A page that `lift()` or a `DriveGuard` set already keeps what it has, so Lisul's
+  held page stays his. Only Apply's control changes it. So a rehearsal's page never gets the drive guard's
+  full copy after its own code: PR 477's third review found a page that heard the control's name there kept
+  it in `sessionStorage` and lifted the drive guard in each later document. A page opened before either
+  (none that a Worker opens) gets a block-only copy (`LATE`): one evaluated after the page's code, which may
+  have wrapped `addEventListener` and heard its control event's name, takes no lift and no allowance
+  (account, profile, upload, start, Ask's tick, an opt-in), so a send there is left to Lisul. A page that
+  replaced a built-in the guard reads with before such a copy came defeats it. The guard takes every
+  built-in it reads with before any page code, and a guard listener that throws blocks what it judged.
+- On a plain Worker the drive guard is one registration, `drive`, for every tab of the Worker, which
+  `DriveGuard`'s armed one replaces. Once a `DriveGuard` has armed it, a later `on_open` (a second form sent
+  in with `--into`) keeps it: PR 477's third review found on_open's lifted copy took its place and lifted
+  the first form's guard in its next document. So a new tab on that Worker starts armed, and a plain
+  Filler's own submit there is blocked until `guard.reset` (fail closed). Still open on a plain Worker:
+  `asking` and `driving` reach only the open document (no init script carries them to the next one, as
+  `_init` does on CDP); `plain.tools` judges each of Ask's presses and refuses each action on a captcha
+  (KAN-617) all the same. The tokens are per process, not per run: no copy put in after a page's code
+  takes a lift, so a page that heard one can only block more.
 - Each form post is judged again as it leaves (KAN-710): at its `navigate` event, with the URL and entries
   it really carries. Entries its own fields don't make (a `formdata` handler's), a final URL, or a form that
   had a Submit, are cancelled there. URLs resolve against the document's base; an empty action or formaction
   is the page's own URL. A sign-in relay is only the top page's own post into itself, once the page loaded.
   fetch makes its request once and sends that one. XHR's and the beacon's bodies are read too: a string,
-  URLSearchParams or bytes (an ArrayBuffer or a view of one); a Blob, which can't be read at once, is
-  refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second review). A form
+  URLSearchParams, bytes (an ArrayBuffer or a view of one) or form data's entries (PR 477's third review:
+  Ashby's multipart `operations` by XHR or beacon went unread); a Blob or a document, which can't be read
+  at once, is refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second
+  review). A form
   in another site's frame (a sandboxed one runs no guard) that posts into the top page is beyond the
   guard: the browser fires no `navigate` event for a navigation another site's document starts. A profile pop-up may post to its own page there. A known final URL
   (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
@@ -222,10 +241,30 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   each one, leaving Honeywell's required Country empty (2026-11-25). A label read
   under its section's heading ("Address: Country") also fits the dropdown named
   by the part after it, and a box that shows its choice only as its value
-  (Oracle's) reads back as picked. An option a click can't reach is pressed on
+  (Oracle's) reads back as picked, as does one that shows only the code of a
+  "<code> (<name>)" choice (Oracle's phone "+1 (United States)" shows "+1"; read
+  as unpicked, BGC's went to Claude each round, 2026-11-27). An option a click can't reach is pressed on
   its own element (`_press_option`, the engine's `press`): Oracle's required
   field's error paragraph lay over the open graduation month list and took every
   click on its options.
+- A dropdown that lists nothing until searched (Oracle's address City, County
+  and Zip Code, read with no choices) is searched by plain code
+  (`_search_pick`): it types the answer and picks the one option whose first
+  comma part is the answer, else the one whose other parts the plan also gives
+  ("Springfield, Sangamon, IL" for a plan with Sangamon and IL). Two that fit, or
+  none, and it clears the typed words and leaves the field to Claude. Skipped
+  before, Honeywell's three took Claude 21 turns and 5 million tokens
+  (2026-11-27).
+  Such a box's first places, listed when it opens unsearched, are never read
+  as its choices (`_searched`: Oracle's geography fields but Country): read so,
+  County's first 500 held no applicant's county, and the plan left all three
+  blank. An answer that names a whole option ("Springfield, Sangamon, IL")
+  fits that option, and a box that already shows its place is never pressed
+  again (a press on the picked option empties it). "Address: County" is
+  planned as the bare "County", never as the home address's.
+- A box the job site locked (read-only) that already shows its answer
+  (Oracle's email once signed in) is read back by plain code and never given
+  to Claude: its fill failed, and every field of the same batch with it.
 - A choice question asked as a group of checkboxes (Oracle's races) is ticked by
   plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
   `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
@@ -266,6 +305,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Claude couldn't delete (`entries_kept`) holds the form: "Verify: Remove this entry, which your profile
   doesn't list: ..." (`ClaudeFill.extra_entries`, `worker.EXTRA_ENTRY`). Verifying holds a section read back
   with more entries than planned too (`docs/held-forms.md`).
+- A jobs or schools section with fewer entries than planned has its add button pressed by plain code, by the name
+  Claude gives it (`add_button`, `steps._the_add`, KAN-728): the first such section's on the page. A jobs section
+  Claude names by its own heading ("Experience (entries)", SmartRecruiters') is read as "Work Experience", the name
+  the Fill engine answers (`_entry_label`). An entry that opens in an editor of its own (SmartRecruiters') is kept
+  only once its own Save is pressed, which Claude does before it reads the section's count back. Where several visible buttons share that name
+  (SmartRecruiters' "Add" in Experience and in Education, live 2026-11-27), the one pressed is the one whose
+  part of the page (the widest around it with no other such button) has an aria-label or first heading with a
+  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff. The look crosses
+  shadow roots: SmartRecruiters' "Add" is an spl-button's own button, named by its host's aria-label ("Add experience
+  entry"), and a step's fields are read in shadow roots too (`steps.FIELDS_SHOWN`), where its spl-inputs hold them.
 
 ## Form pages
 

@@ -4,16 +4,32 @@ security code). Here, not in apply.email_code, which reads the code from Gmail: 
 
 The code field is one that shows after his press and was not on the form when Apply handed him the page (so a
 postal code box is never one), with each of its boxes empty (he did not type the code himself).
+
+When the student gives the code instead (the card's code box or `apply window code`), `put` enters it on the
+held page with locator actions only, so it works on a plain Worker's page too: one character per box, read
+back before the run presses Submit again.
+
+A code step after Submit with a button of its own (Oracle's "You're almost done": six boxes, VERIFY and Send New
+Code, live 2026-11-27) is sent by that button (`verify`), never by a Send New Code, which would void the code.
+When the site says the code expired, `resend` presses Send New Code and the student is asked for the new one.
+
+A code a sign-in asks for (Oracle's "Confirm your identity", held as "needs sign-in" because the Student build reads
+no mail) is given the same way: `sign_in` enters it and presses that step's own Verify or Continue, never a Submit,
+and the paused fill goes on once the page is past its sign-in.
 """
 
 import re
+import time
 from collections.abc import Callable
 
 from apply import account_pages, captcha, greenhouse, upload_origin
 from apply.page_functions import WORDS
 
-# Greenhouse's code boxes first, then any box a code goes in.
-FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {account_pages.CODE_BOX}"
+# Oracle's sign-in code step: a row of six numeric boxes, each named a digit or a pin-code (submit_guard's digitBox).
+ORACLE_BOXES = ("input[class*=pin-code i], input[inputmode=numeric][id*=digit i], "
+                "input[inputmode=numeric][class*=digit i], input[inputmode=numeric][aria-label*=digit i]")
+# Greenhouse's code boxes first, then Oracle's, then any box a code goes in.
+FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {ORACLE_BOXES}, {account_pages.CODE_BOX}"
 # A box whose words name another code, which is never an emailed one.
 NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discount|referr|invite|dial", re.IGNORECASE)
 
@@ -66,3 +82,191 @@ class TypeTheCode:
         elif self._pressed and new_boxes(page, self._form):
             self._pressed = False
             self._tell("needs code", self._why)
+
+
+# The code the student (or `apply window code`) gives for the field: case kept, as Greenhouse's codes are
+# case-sensitive letters and digits ("OxNbtPnI").
+CODE = re.compile(r"^[A-Za-z0-9]{4,12}$")
+# What a job site says when the code is wrong: Greenhouse's "Incorrect security code".
+_EMAILED = r"\b(?:security|verification|confirmation|access|one-time)\s+code\b"  # never a postal or promo code
+WRONG = re.compile(rf"\b(?:incorrect|invalid|wrong|expired)\b[^.\n]{{0,20}}{_EMAILED}|{_EMAILED}[^.\n]{{0,30}}"
+                   r"\b(?:incorrect|invalid|wrong|expired|doesn.t match|did not match)\b"
+                   r"|\b(?:incorrect|invalid|wrong)\s+code\b", re.IGNORECASE)  # Oracle's "Invalid code"
+
+# A sign-in code step's own button: Oracle's Verify. Never Submit or Send, which may be an application's.
+GO_ON = re.compile(r"^\s*(?:verify|confirm|continue|next|sign in|log in)\s*$", re.IGNORECASE)
+# Asks the job site for another code: never the press that sends a code (Oracle's "Send New Code").
+RESEND = re.compile(r"^\s*(?:send (?:a |me a )?new code|resend(?: (?:the )?code)?|send (?:the )?code again|"
+                    r"get a new code|request a new code)\s*$", re.IGNORECASE)
+# What a job site says when the code is too old ("The verification code has expired").
+EXPIRED = re.compile(rf"\bexpired\b[^.\n]{{0,20}}{_EMAILED}|{_EMAILED}[^.\n]{{0,30}}\bexpired\b"
+                     r"|\bcode\b[^.\n]{0,20}\b(?:has |is )?expired\b", re.IGNORECASE)
+SIGN_IN_WAIT_S = 20.0  # how long a sign-in's code step has to go on after its Verify
+
+NOT_A_CODE_GIVEN = "That isn't a code: give the letters and digits from the email, as they are (case counts)."
+NO_FIELD = "The form shows no code field now, so Apply entered nothing. Read the state, or open the form."
+NOT_SENT_YET = "Submit wasn't pressed on this form yet: the job site asks for its code only after Submit."
+DOESNT_FIT = "The code field has {boxes} boxes, and the code has {chars} characters, so Apply entered nothing."
+NOT_ENTERED = "The code field changed while Apply entered the code, so it pressed nothing. Open the form to check it."
+SHOWS_OTHER = ("Box {box} of the code field shows another character than the code given, so Apply pressed nothing. "
+               "Open the form and enter it yourself.")
+WRONG_CODE = "The job site says the code is wrong: check the newest email from it, and enter that code."
+NO_GO_ON = ("Apply entered the code, but the sign-in step shows no Verify or Continue button, so it pressed nothing. "
+            "Open the form and press it yourself.")
+STILL_SIGNING_IN = ("Apply entered the code and pressed {button}, but the sign-in step is still there. Open the form "
+                    "to see what it says.")
+EXPIRED_SENT = ("The code had expired, so Apply pressed Send New Code: give the newest code from the job site's email "
+                "(apply window code).")
+EXPIRED_NO_RESEND = ("The code had expired, and the page shows no Send New Code button, so Apply pressed nothing. Open "
+                     "the form to ask for a new code.")
+NO_ANSWER = ("Apply entered the code and pressed Submit, but the job site didn't show that it went in. Open the form "
+             "to see what it says.")
+
+
+def given(code: str) -> str:
+    """The code as given, without the spaces a paste brings; "" when it is no code."""
+    code = "".join(str(code or "").split())
+    return code if CODE.match(code) else ""
+
+
+def put(boxes: list, code: str) -> str:
+    """Enter `code` into a code field's `boxes`: one character a box where it has a box per character (Greenhouse's
+    eight), else the whole code in the one box. Each box is filled as the student's typing fills it: Playwright's
+    fill sets its value and sends the `input` event a React form listens for, and then `change`. A box that doesn't
+    take its character so (a form that heeds only keys) is typed into key by key. Every box is read back: "" when
+    each holds its character exactly, case and all; else why not, and the caller presses nothing."""
+    parts = list(code) if len(boxes) > 1 else [code]
+    if len(boxes) > 1 and len(boxes) != len(code):
+        return DOESNT_FIT.format(boxes=len(boxes), chars=len(code))
+    if len(boxes) == 1:
+        limit = boxes[0].get_attribute("maxlength")
+        if limit and limit.isdigit() and 0 < int(limit) < len(code):
+            return DOESNT_FIT.format(boxes=1, chars=len(code))
+    for box, part in zip(boxes, parts):
+        box.fill(part)
+        box.dispatch_event("change")
+    for box, part in zip(boxes, parts):
+        if box.input_value() != part:
+            box.fill("")
+            box.press_sequentially(part)
+            box.dispatch_event("change")
+    off = next((n for n, (box, part) in enumerate(zip(boxes, parts), 1) if box.input_value() != part), 0)
+    return SHOWS_OTHER.format(box=off) if off else ""  # which box, never what it shows: that is the code
+
+
+def code_field(page) -> list:
+    """The code field's boxes on the page now: Greenhouse's own first, else any box a code goes in (`boxes`)."""
+    for frame in page.frames:
+        try:
+            own = [box for box in frame.locator(greenhouse.SECURITY_BOXES).all() if box.is_visible()]
+        except Exception:
+            continue
+        if own:
+            return own
+    return [box for _, box in boxes(page)]
+
+
+def wrong(page) -> bool:
+    """Whether the page says the code entered is wrong ("Incorrect security code")."""
+    for frame in page.frames:  # an embedded form's words are in its own frame, as its boxes are (code_field)
+        try:
+            if frame.get_by_text(WRONG).first.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def go_on(page):
+    """The sign-in code step's own button (GO_ON), visible, in the first frame that has one; None for none."""
+    for frame in page.frames:
+        try:
+            for button in frame.get_by_role("button", name=GO_ON).all():
+                if button.is_visible():
+                    return button
+        except Exception:
+            continue  # a frame gone or going
+    return None
+
+
+def _shown(page, pattern: re.Pattern):
+    """The first visible button or link whose words match `pattern`, in any frame; None for none."""
+    for frame in page.frames:
+        try:
+            for role in ("button", "link"):
+                for found in frame.get_by_role(role, name=pattern).all():
+                    if found.is_visible():
+                        return found
+        except Exception:
+            continue  # a frame gone or going
+    return None
+
+
+def _press(page, button, let_press: Callable[[bool], None]) -> str:
+    """Click `button` through both guards (`let_press`, as sign_in does); its words."""
+    words = " ".join((button.inner_text() or "").split())
+    let_press(True)
+    try:
+        button.click(timeout=10_000)
+    except Exception:
+        pass  # the step went on as it was pressed: the caller reads the page
+    finally:
+        let_press(False)
+    return words
+
+
+def verify(page, let_press: Callable[[bool], None]) -> str:
+    """Press a code step's own button (GO_ON: Oracle's VERIFY) once the code is in; its words, "" when the step has
+    none (Greenhouse's code goes with the form's Submit). It finishes a Submit the student already approved."""
+    return _press(page, button, let_press) if (button := go_on(page)) is not None else ""
+
+
+def expired(page) -> bool:
+    """Whether the page says the code entered has expired."""
+    for frame in page.frames:
+        try:
+            if frame.get_by_text(EXPIRED).first.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def resend(page, let_press: Callable[[bool], None]) -> str:
+    """Ask the job site for a new code (RESEND: Send New Code): "" once pressed, else why not."""
+    if (button := _shown(page, RESEND)) is None:
+        return EXPIRED_NO_RESEND
+    _press(page, button, let_press)
+    return ""
+
+
+def sign_in(page, code: str, let_press: Callable[[bool], None], wait: float = SIGN_IN_WAIT_S) -> str:
+    """Enter `code` in a sign-in's code field (apply.oracle's "Confirm your identity") and press that step's own
+    Verify or Continue (GO_ON), never a Submit: the application is not sent, only the sign-in. `let_press(True)`
+    lets that one press through the guards (submit_guard.let_account_click), `let_press(False)` puts them back.
+    "" once the code field is gone (signed in: the paused fill goes on); else why not, in the window's words."""
+    if not (field := code_field(page)):
+        return NO_FIELD
+    stale = wrong(page)  # the last try's words, still shown: read as this code's only once they went and came back
+    if why := put(field, code):
+        return why
+    if (button := go_on(page)) is None:
+        return "" if not code_field(page) else NO_GO_ON  # a step that goes on once its last box is full
+    pressed = (button.inner_text() or "").strip() or "Verify"
+    let_press(True)
+    try:
+        button.click()
+    except Exception:
+        pass  # the step went on by itself as the button was pressed: read below
+    finally:
+        let_press(False)
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        if not code_field(page):
+            return ""
+        now = wrong(page)
+        if now and not stale:
+            return WRONG_CODE
+        stale = stale and now
+        page.wait_for_timeout(250)
+    return STILL_SIGNING_IN.format(button=pressed)

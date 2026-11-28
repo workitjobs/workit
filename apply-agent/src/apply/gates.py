@@ -8,7 +8,9 @@ Hold; an empty list passes. answer() runs the gates on one answer:
   (c) no other company named;
   (d) the swap test's code half, on company-facing types;
   (f) no 6-word run of the resume (the profile's resume PDF) in a not-on-resume answer;
-  (g) the opener: no date, no restated question.
+  (g) the opener: no date, no restated question;
+  (i) a graduation date only as the profile gives it;
+  (j) no WorkIt, nor a tool of it (Fill engine, Apply, Scout, auto-apply).
 form() runs those across one form's answers: (e) the same project with
 different numbers, and (h) two answers opening the same way.
 
@@ -288,16 +290,82 @@ def opener(text: str, q: Question) -> list[str]:
     return found
 
 
+# (i) The graduation date.
+
+GRADUATES = re.compile(r"\bgraduat\w*|\bclass\s+of\b|\bfinish(?:es|ing)?\s+(?:my|his|her|their)\s+degree\b",
+                       re.IGNORECASE)
+MONTH = {m: n for n, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov",
+                                     "dec"), 1)}
+SEASON = {"spring": {3, 4, 5}, "summer": {6, 7, 8}, "fall": {9, 10, 11}, "autumn": {9, 10, 11}, "winter": {12, 1, 2}}
+WHEN = re.compile(r"\b(?:(january|february|march|april|may|june|july|august|september|october|november|december"
+                  r"|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|spring|summer|fall|autumn|winter)\.?\s+(?:of\s+)?)?"
+                  r"((?:19|20)\d\d)\b", re.IGNORECASE)
+FLEXIBLE = re.compile(r"\(can move to any May or December term from ([^)]*)\)")
+PROFILE_DATE = re.compile(r"(january|february|march|april|may|june|july|august|september|october|november|december)"
+                          r"\s+((?:19|20)\d\d)", re.IGNORECASE)
+
+
+def graduation(text: str, graduates: str) -> list[str]:
+    """Each date an answer gives for graduating that isn't the profile's
+    (`graduates`: asking.graduation, "Expected graduation: December 2027"). Apex's
+    cover letter (2026-11-26) moved it to May 2028 to fit the posting's window."""
+    if not (m := PROFILE_DATE.search(graduates)):
+        return []
+    month, year = MONTH[m.group(1)[:3].casefold()], int(m.group(2))
+    # A flexible graduation ("... (can move to any May or December term from May 2027)") may give any of those terms.
+    terms = [(month, year)]
+    if (flex := FLEXIBLE.search(graduates)) and (start := PROFILE_DATE.search(flex.group(1))):
+        first = (int(start.group(2)), MONTH[start.group(1)[:3].casefold()])
+        terms += [(t, y) for y in range(first[0], first[0] + 7) for t in (5, 12) if (y, t) >= first]
+    found = []
+    for said_at in GRADUATES.finditer(text):
+        # The date it gives: in the same clause, within a few words ("graduating in May 2028", "class of 2028").
+        clause = re.split(r"[,;.!?()]|\s(?:and|but|while)\s", text[said_at.end():said_at.end() + 40])[0]
+        if when := WHEN.search(clause):
+            word, said = (when.group(1) or "").casefold(), int(when.group(2))
+            fits = any(_gives(word, said, month, year) for month, year in terms)
+            if not fits:
+                found.append(f'gives graduation as "{when.group().strip()}", but the profile says '
+                             f'{m.group(1)} {year}: state the profile\'s date')
+    return found
+
+
+def _gives(word: str, said: int, month: int, year: int) -> bool:
+    """Whether "<word> <said>" ("May 2028", "winter 2027", "2028") names graduating in `month` `year`."""
+    if word in SEASON:
+        return month in SEASON[word] and said in ({year, year - 1} if month in (1, 2) else {year})  # winter spans two
+    return said == year and (not word or MONTH[word[:3]] == month)
+
+
+# (j) The tools that fill the application.
+
+# Lisul, 2026-11-26: an answer that names WorkIt or one of its tools says the application was automated, even when a
+# Story bank line names one as his own project (Twitch's essays told of WorkIt's Fill engine). Scout is WorkIt's job
+# finder; an Eagle, Boy, Girl or Cub Scout is not it.
+TOOLS = re.compile(r"(?-i:\bWork\s?It\b)|\bauto[- ]?appl(?:y|ying|ied|ication)s?\b|\bfill(?:ing)?[- ]engine\b"
+                   r"|\bApply\s+(?:agent|app)\b|\bautofill(?:er)?\s+extension\b|\bbatch[- ]apply\b"
+                   r"|(?<!Eagle )(?<!Boy )(?<!Girl )(?<!Cub )(?-i:\bScout\b)", re.IGNORECASE)
+
+
+def tools(text: str) -> list[str]:
+    """Each name of WorkIt or a tool of it (TOOLS) the answer gives, once."""
+    found = dict.fromkeys(m.group() for m in TOOLS.finditer(text))
+    return [f'names "{name}", which says the application was automated: tell another project instead'
+            for name in found]
+
+
 def answer(text: str, q: Question, kind: str, sources: str, company: str, brief: str = "",
-           letter: bool = False, resume: Path | None = None) -> list[str]:
+           letter: bool = False, resume: Path | None = None, graduates: str = "") -> list[str]:
     """Every gate on one answer, in order: (a) length, (b) numbers and names,
-    (c) other companies, (d) swap, (f) resume, (g) opener. A cover letter's
-    salutation and sign-off (its first and last two lines, set by Apply) are
-    left out of the name and opener checks."""
+    (c) other companies, (d) swap, (f) resume, (g) opener, (i) graduation
+    date (`graduates`, the profile's), (j) WorkIt's tools. A cover letter's salutation and
+    sign-off (its first and last two lines, set by Apply) are left out of the
+    name and opener checks."""
     body = "\n".join(text.splitlines()[1:-2]) if letter else text
     return [*length(text, q, kind), *traced(body, f"{sources}\n{q.label}\n{q.description}", company),
             *other_companies(body, company), *swap(body, kind, company, brief),
-            *on_resume(body, kind, resume), *([] if letter else opener(body, q))]
+            *on_resume(body, kind, resume), *([] if letter else opener(body, q)), *graduation(body, graduates),
+            *tools(text)]
 
 
 # (e) and (h): across one form.

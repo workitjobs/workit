@@ -149,7 +149,7 @@ Extension → Apply:
 Error names: `TimeoutError`, `Navigated` (the frame or tab went away mid-op: Apply retries
 like `fill_engine.NAVIGATED`), `NoTab`, `NoFrame`, `NotFound`, `Strict` (strict-mode
 violation: more than one element), `NotActionable` (hidden, disabled, covered; Apply's
-auto-wait retries it), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
+auto-wait retries it), `Unfocused` (KAN-716: the page took the focus off the field before any trusted text or key went; nothing was typed, and `PortLocator.fill` tries again), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
 guard file), `NoEngine` (`engine.load` before Apply handed the engine over), `Refused`,
 `BadOp`, `Crash`. On the Python side every error raises `apply.plain.page.PortError`,
 a subclass of `playwright.sync_api.Error`, and `TimeoutError` raises
@@ -165,9 +165,9 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | Op | Params | Value |
 |---|---|---|
 | `ping` | | `{"pong": true, "webdriver": bool, "tabs": n}` |
-| `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window"}]` |
+| `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window", "opener"}]`: `opener` is the tab that opened it (Chrome's `openerTabId`), or `null` (KAN-796: the drive guard arms a page's pop-ups too) |
 | `tabs.create` | `url?`, `active?` | that tab's info |
-| `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
+| `tabs.get` | `tab` | `{"tab", "url", "title", "status", "opener"}` |
 | `tabs.close` | `tab` | `null` |
 | `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
 | `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}`; the tab's about:blank events (a tab `tabs.create` just made) don't count unless `url` is about:blank |
@@ -466,7 +466,7 @@ and Backspace/Delete in a text field go in trusted through the extension's `chro
 (`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
 the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
 with `aim` just before and `landed` after it; the op's answer to Apply stays `{"ok": null}`, or is an
-error (`KAN-716 trusted input: ...`) when the input missed. Text never goes in trusted with a line
+error (`KAN-716 trusted input: ...`) when the input missed. For `fill`, `type`, `press`, `keys` and `insert` the service worker attaches the debugger and turns on its focus emulation before the call focuses the field: a Worker's window has no focus, and emulation that came on after the field had it gave the page a window focus that Workday's sign-in answered by moving the focus (Cadence, 2026-11-27). Text never goes in trusted with a line
 break: a lone `"\n"` is the Enter key. A `click` or `check` of a radio, checkbox or option in the top
 frame, with the choice alone under the point, is a trusted left press and release the same way
 (`{__applyClick}`, `Input.dispatchMouseEvent`); every other click is synthetic. Without the debugger they are

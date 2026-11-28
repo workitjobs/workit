@@ -212,6 +212,12 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   WorkIt's daily cap (50): a 429 (`workit.CapReached`) keeps the Write
   with `not_before`, the response's Retry-After or else the next UTC
   midnight (WorkIt's caps count UTC days). No flush sends it before then.
+- The added job's title is the role Apply knows, never a page's chrome
+  (`model.job_title`): a sign-in wall's title ("Log in or create account
+  | Amazon.jobs") names no role. A Tracker row saved with one loses it
+  as it loads, and the window's Applied list shows such a WorkIt title as
+  the queued job's title, else the one its listing or job system names
+  (`Bridge.applied`).
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
   His confirmed Submit also saves the rehearsal's Record again as

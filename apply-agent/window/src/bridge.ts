@@ -3,7 +3,7 @@
 //   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
 // - app methods: app_window.Bridge's js_api methods (queue, applied, matches, start, status, usage, settings, review_report,
-//   send_report), used only when the window has them.
+//   send_report, and the developer to-do tracker's todos, scan_todos, mark_todo), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
@@ -33,6 +33,24 @@ export type Filters = Partial<Record<"q" | "location" | "work_style" | "role" | 
 export type Frame = { tile: number; number: number; jpeg: string }; // one screen of a form being filled
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
+// The application to-do tracker (developer only, apply.todos): one thing the student's mail asks them to do for an
+// application, by its mail thread (`id`), and what the last scan of their mail did.
+export type Todo = {
+  id: string;
+  kind: "assessment" | "form" | "questionnaire" | "interview" | "account" | "documents" | "offer";
+  kind_label: string;
+  company: string;
+  role: string;
+  due: string | null; // YYYY-MM-DD
+  link: string | null; // listed only: the page never opens it by itself
+  status: "open" | "done" | "dismissed";
+  by: "rules" | "model";
+  source: { sender: string; subject: string; arrived: string; url: string | null };
+};
+export type TodoScan = { read: number; added: number; updated: number; by_model: number; model: string; errors: string[]; at?: string };
+// todos(): {enabled: false} (thrown as its error) while the developer flag is off.
+export type Todos = { enabled: boolean; todos: Todo[]; scan: TodoScan | null; scanning: boolean };
+
 // app_window.Bridge's app methods. Each is there only when the window gives it.
 export type App = Partial<{
   queue(): Promise<Queued[]>;
@@ -40,7 +58,7 @@ export type App = Partial<{
   matches(filters: Filters): Promise<Match[]>;
   // Each form's screen newer than the number `seen` has for its tile, as a JPEG: what a Worker's Chrome shows.
   frames(seen: Record<number, number>): Promise<Frame[]>;
-  start(links: string[]): Promise<number>;
+  start(links: string[]): Promise<number>; // during a run, the links join it instead (Find jobs beside a run)
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;
@@ -50,6 +68,10 @@ export type App = Partial<{
   // same report, named by the same id.
   review_report(category: string, note: string, contact_ok: boolean, application_id: string, include: boolean): Promise<{ parts: string[] }>;
   send_report(application_id: string): Promise<{ said: string }>;
+  // The application to-do tracker: refused (thrown) while its developer flag is off.
+  todos(): Promise<Todos>;
+  scan_todos(): Promise<{ scanning: boolean }>;
+  mark_todo(id: string, status: Todo["status"]): Promise<{ todo: Todo }>;
 }>;
 
 export type Bridge = {
@@ -59,7 +81,10 @@ export type Bridge = {
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
   letGo(id: string): Promise<void>; // Not applying to this one: its held form closes, unsubmitted
-  submit(id: string): Promise<void>; // Approve and submit: Apply presses the held form's Submit, once
+  // Approve and submit: Apply presses the held form's Submit, once. `override`: Send anyway, past the Pre-submit
+  // review's holds, for this reason (kept in the Record).
+  submit(id: string, override?: string): Promise<void>;
+  code(id: string, code: string): Promise<void>; // the code the job site emailed: Apply enters it and presses Submit
   cancelAuto(id: string): Promise<void>; // Cancel an Auto-submit countdown: the form waits for the student
   // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again. `newOnly`: no job
   // waiting starts, and every filled form stays open for the student.
@@ -90,7 +115,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report", "todos", "scan_todos", "mark_todo"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {
@@ -140,7 +165,8 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     open: (worker) => post(`/show/${worker}`, {}),
     fillAgain: (id) => post("/fill-again", { id }),
     letGo: (id) => post("/let-go", { id }),
-    submit: (id) => post("/submit", { id }),
+    submit: (id, override) => post("/submit", override ? { id, override } : { id }),
+    code: (id, code) => post("/code", { id, code }),
     cancelAuto: (id) => post("/auto-cancel", { id }),
     stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),

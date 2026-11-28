@@ -61,6 +61,7 @@ from apply import (
     description,
     fill_engine,
     on_page,
+    oracle,
     provider_sign_in,
     steps,
     upload_origin,
@@ -70,7 +71,13 @@ from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
 from apply.accounts import Accounts
 from apply.adapters import Claude, JobSite
-from apply.attach import RESUME, attach_resume, clear_pop_up, pass_jobvite_gate
+from apply.attach import (
+    RESUME,
+    attach_resume,
+    clear_pop_up,
+    drop_carried_documents,
+    pass_jobvite_gate,
+)
 from apply.confirmation import wait_for_confirmation
 from apply.model import (
     Answers,
@@ -100,6 +107,9 @@ MODEL = "haiku"
 # The cap on one Application, across its sessions. policies.yaml can change it.
 MAX_TURNS = 40
 MAX_TOKENS = 400_000
+# The cap on one session, whatever is left of the Application's: a session that rereads a big form each turn bails out
+# here, not at the whole cap (Honeywell's spent 5.3 million tokens in 21 turns of one session, live 2026-11-27).
+MAX_SESSION_TOKENS = 1_500_000
 PAGE_SETTLES_MS = 5_000  # how long the posting page may load before its text is read
 KINDS = ["text", "textarea", "file", "select", "multi_select"]
 PAGES = ["application form", "closed posting", "not a job posting"]
@@ -108,13 +118,16 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 MAX_STEPS = 20  # a guard against a loop: Bank of America's TAL.net form has more than 8 (KAN-649)
 # A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
 APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
-ENTRIES_COUNT = re.compile(r"^work experience \(entries\)$", re.IGNORECASE)
+ENTRIES_COUNT = re.compile(r"^(work experience|education) \(entries\)$", re.IGNORECASE)
+# A jobs section Claude names by its own heading, though told not to: SmartRecruiters' "Experience (entries)" and
+# "Experience 1 / Title" (Wellmark's, live 2026-11-27), which the Fill engine knows only as "Work Experience".
+BARE_EXPERIENCE = re.compile(r"^experience(?= \(entries\)$| \d+ / )", re.IGNORECASE)
 # A jobs or schools section's count of entries (KAN-762): the profile's history goes in an <entries> block beside it.
 SECTION_COUNT = re.compile(r"^(work experience|education) \(entries\)$", re.IGNORECASE)
-MAX_ADDS = 10  # a guard against a loop: no work section takes more entries
+MAX_ADDS = 10  # a guard against a loop: no form's sections take more entries
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
-    r"\bthanks? (you )?for (applying|your (application|submission)|submitting)\b"
+    r"\bthanks? (you )?for (applying|your (job )?(application|submission)|submitting)\b"
     r"|\b(application|submission) (has been |was |is )?(received|submitted|sent|complete)\b"
     r"|\b(we('ve| have)|we) received your application\b|\bsuccessfully (submitted|applied|sent)\b",
     re.IGNORECASE,
@@ -172,9 +185,11 @@ If a pop-up or overlay keeps taking your clicks after one try to close it, stop 
 {ACCOUNT_PROMPT}"""
 # A work-history section whose entries the person adds one at a time (TAL.net's Employment, KAN-728): named as the
 # engine reads Workday's, so every job on file gets an entry, up to the most the section takes.
-ENTRIES = ("A section for jobs or work experience whose entries the person adds one at a time (an \"Add another\" button under it): "
-           "name each field of its entries \"Work Experience <n> / <label>\", n counting the entries from 1, whatever the "
-           "section's heading (\"Work Experience 1 / Employer\"), and list one more question, \"Work Experience (entries)\": "
+ENTRIES = ("A section for jobs or work experience, or for schools or education, whose entries the person adds one at a time (an "
+           "\"Add\" or \"Add another\" button by it): name each field of its entries \"Work Experience <n> / <label>\" for jobs "
+           "or \"Education <n> / <label>\" for schools, n counting the entries from 1, whatever the section's heading "
+           "(\"Work Experience 1 / Employer\", \"Education 1 / School\"), and list one more question for the section, "
+           "\"Work Experience (entries)\" or \"Education (entries)\": "
            "kind select, not required, options the counts of entries it may hold (\"1\", \"2\"), up to the most the page "
            "states, or no options when it states no limit. A section of jobs or of schools that shows entries as cards (an "
            "earlier profile on the site left them, with Edit and Delete) is listed the same way, \"Work Experience (entries)\" "
@@ -234,7 +249,8 @@ Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
-{ENTRIES} "Work Experience (entries)" in <fields> is how many entries that section should hold: read it back as the count it holds now. Never press the section's add button yourself: if it holds fewer, fill the entries it shows, then name that button exactly in `add_button`, and Apply presses it. Otherwise leave `add_button` empty.
+{ENTRIES} "Work Experience (entries)" or "Education (entries)" in <fields> is how many entries that section should hold: read it back as the count it holds now. Never press the section's add button yourself: if a section holds fewer, fill the entries it shows, then name the add button of the first such section on the page exactly in `add_button`, and Apply presses it. Otherwise leave `add_button` empty.
+An entry that opens in an editor of its own, with a Save or Done button for that one entry (SmartRecruiters'), counts only once saved: when its fields are filled, press that button, then read the section's count back. Never press a button that saves, goes on with or sends the whole form.
 {CARRIED}
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
@@ -256,7 +272,7 @@ FILL_SCHEMA = {
         "submit_button": {"type": "string", "description": "the button that sends the application, on the last step only"},
         "next_button": {"type": "string", "description": "the button that goes to the next step; empty on the last step"},
         "unlisted": {"type": "array", "items": QUESTION, "description": "questions on the page that <fields> doesn't hold"},
-        "add_button": {"type": "string", "description": "the work section's button that adds an entry, while it holds fewer than asked"},
+        "add_button": {"type": "string", "description": "the button that adds an entry to the first section holding fewer than asked"},
         "entries_kept": {"type": "array", "items": {"type": "string"},
                          "description": "entries a jobs or schools section still holds that <entries> doesn't name"},
     },
@@ -303,7 +319,7 @@ class ClaudeFill:
     """A Filler for one Application on a job system with no Filler of its own."""
 
     def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS, max_steps: int = MAX_STEPS,
-                 sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
+                 max_session_tokens: int = MAX_SESSION_TOKENS, sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
                  page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None,
@@ -338,6 +354,7 @@ class ClaudeFill:
         self._max_turns = max_turns
         self._max_steps = max_steps
         self._max_tokens = max_tokens
+        self._max_session_tokens = max_session_tokens
         self._turns = 0
         self._tokens = 0
         self._sessions = 0
@@ -347,6 +364,7 @@ class ClaudeFill:
         self._named = 0
         self._steps = 0  # the steps gone past
         self._attached: dict[str, str] = {}  # the résumé, attached by plain code
+        self._carried_checked = False  # an earlier attempt's documents looked for (drop_carried_documents)
         self._picked: Readback = {}  # the dropdown choices and group boxes plain code picked
         self._readback: Readback = {}  # every field filled so far, on every step
         self._put: dict = {}  # the answer each field was filled with
@@ -359,7 +377,7 @@ class ClaudeFill:
         self._gated = ""  # the step held for Lisul's check, till his Resume
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self._tick_asked: set[str] = set()  # the attestations the form stopped on for Lisul, till his Resume (KAN-676)
-        self._adds = 0  # the entries plain code added to work sections (_add_entry)
+        self._adds = 0  # the entries plain code added to jobs and schools sections (_add_entry)
         # The labels named as another section's on each step (its count of steps and of entries added), KAN-788.
         self._sectioned: dict[tuple[int, int], set[str]] = {}
         self._history = history or {}
@@ -379,9 +397,16 @@ class ClaudeFill:
             pass  # some pages never go quiet
         try:
             self.posting_text = self.posting_text or description.from_page(page)
-            if not all(self.names):
-                company, title = description.names_on_page(page)
-                self.names = (self.names[0] or company, self.names[1] or title)
+        except Exception:
+            pass
+        if not all(self.names):
+            self._read_names(page)
+
+    def _read_names(self, page: Page) -> None:
+        """The company and role the open page names, where the link named neither; none read leaves them as they are."""
+        try:
+            company, title = description.names_on_page(page)
+            self.names = (self.names[0] or company, self.names[1] or title)
         except Exception:
             pass
 
@@ -389,11 +414,34 @@ class ClaudeFill:
         self._url = url
         with site.open(url) as page:
             if self._sign_in:
-                self._sign_in(page)
+                try:
+                    self._sign_in(page)
+                except Handoff:  # its Record still names the company the page does (Emerson's, live)
+                    self._read_names(page)
+                    raise
             pass_jobvite_gate(page)
             self._clear_pop_up(page)
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
-            found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
+            # An earlier attempt's résumé and letter: this fill's go in their place. Looked for until a read gets to
+            # the form: a read stopped at a sign-in's code page (Emerson's, live 2026-11-27) was before the form, and
+            # the read after Lisul's code is the one that finds them.
+            if not self._carried_checked and (dropped := drop_carried_documents(page)):
+                print(f"Removed what an earlier attempt attached: {', '.join(dropped)}", file=sys.stderr)
+            if oracle.unconfirmed(page):
+                raise Handoff(oracle.CONFIRM_ASK)
+            try:
+                found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
+            except Handoff as stopped:
+                # Oracle's unconfirmed application, drawn once the read began: CONFIRM or REMOVE is Lisul's, and
+                # the ask says which Apply presses on his Approve (Emerson's, live 2026-11-27).
+                if not isinstance(stopped, Captcha) and oracle.unconfirmed(page, oracle.UNCONFIRMED_WAIT):
+                    raise Handoff(oracle.CONFIRM_ASK) from stopped
+                raise
+            # Before any closed or not-a-posting reading: Claude read the page, headed "You already applied for this
+            # job", as closed and it was skipped (Emerson's, live 2026-11-27, run38). It is Lisul's to confirm.
+            if oracle.unconfirmed(page, oracle.UNCONFIRMED_WAIT):
+                raise Handoff(oracle.CONFIRM_ASK)
+            self._carried_checked = True
             self._read_posting_text(page)  # else what the form's own page says about the job
             questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))
         why = str(found.get("why") or "").strip()
@@ -451,7 +499,7 @@ class ClaudeFill:
             if id(q) in captchas:
                 continue
             self._named += 1
-            questions.append(Question(f"q{self._named}", str(q["label"]).strip(), q["kind"] if q["kind"] in KINDS else "text",
+            questions.append(Question(f"q{self._named}", _entry_label(str(q["label"])), q["kind"] if q["kind"] in KINDS else "text",
                                       bool(q["required"]), tuple(dict.fromkeys(str(o) for o in q.get("options") or ()))))
         return questions
 
@@ -466,7 +514,8 @@ class ClaudeFill:
         # back, so a required one left unticked on this step stops the form here, before its Next.
         found = fill_engine.attestations(questions)
         attests = {name for name in found if name not in answers}
-        # One the plan answered (attest_from_sources, KAN-761), or that Lisul ticked himself: its answer, as given.
+        # One the plan answered (attest_from_sources, KAN-761; full_auto's tick_attestations), or that Lisul ticked
+        # himself: its answer, as given.
         settled = {name for name in found if name in answers}
         required = {q.name for q in questions if q.required}
         self._asked = (labels, answers)
@@ -476,8 +525,7 @@ class ClaudeFill:
         pass_jobvite_gate(page)
         self._clear_pop_up(page)
         if self._submit_button:  # filled to the last step once: fill again what didn't read back as meant
-            self._put = {name: value for name, value in self._put.items()
-                         if self._readback.get(name) == (value.name if isinstance(value, Path) else value)}
+            self._put = _read_back_as_put(self._put, self._readback)
         if not self._attached:
             self._attached = self._attach_resume(page, labels, answers)
         self._readback.update(self._attached)
@@ -487,6 +535,10 @@ class ClaudeFill:
             picked = _pick_in_comboboxes(page, unpicked, answers)
             # Then groups of boxes (Oracle's races), never an attestation: Lisul's own, or the plan's for Claude to tick.
             picked |= _tick_in_groups(page, [q for q in unpicked if q.name not in picked and q.name not in attests | settled], answers)
+            # A box the job site locked that shows its answer already (Oracle's email once signed in): Claude's fill of
+            # it failed, and with it each other field of the same batch (Honeywell's, live 2026-11-27).
+            picked |= {name: value for name, value in answers.items() if name not in picked and name not in self._picked
+                       and name in labels and isinstance(value, str) and value and _locked_showing(page, labels[name], value)}
             self._picked.update(picked)
             self._readback.update(picked)
             todo = {name: value for name, value in answers.items()
@@ -572,12 +624,16 @@ class ClaudeFill:
                 if kept and kept not in self.extra_entries:
                     self.extra_entries.append(kept)
             counts = [name for name, label in labels.items() if ENTRIES_COUNT.match(label.strip())]
-            if (add := str(done.get("add_button") or "").strip()) and any(_fewer(self._readback.get(n), answers.get(n)) for n in counts):
-                self._add_entry(page, add, counts)
+            short = [n for n in counts if _fewer(self._readback.get(n), answers.get(n))]
+            if (add := str(done.get("add_button") or "").strip()) and short:
+                # The short section's name ("Work Experience"), to tell its add button from another section's.
+                self._add_entry(page, add, counts, re.sub(r"\s*\(entries\)\s*$", "", labels[short[0]].strip()))
                 continue
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
                 submit_button = str(done.get("submit_button") or next_button).strip()
+                if not SENDS.search(submit_button):  # a job system's own last-step Submit, which Claude may not name
+                    submit_button = _last_step_submit(page) or submit_button
                 if SENDS.search(submit_button) and (button := _profile_step(page, submit_button)) is not None:
                     # A profile pop-up before the application (Microsoft's "Create your profile", its
                     # button "Submit"): never the form's last page. Plain code sends it and goes on (KAN-647).
@@ -596,15 +652,16 @@ class ClaudeFill:
                 return dict(self._readback)
             self._next_step(page, next_button)
 
-    def _add_entry(self, page: Page, name: str, counts: list[str]) -> None:
-        """Press a work section's add button by plain code (TAL.net's "Add another" posts the page, which the guard
+    def _add_entry(self, page: Page, name: str, counts: list[str], section: str = "") -> None:
+        """Press a jobs or schools section's add button by plain code (TAL.net's "Add another" posts the page, which the guard
         blocks from Claude's session, KAN-728), then fill again: the new entry's fields come back as unlisted, and
-        the section's count is read back once more."""
+        the section's count is read back once more. `section` ("Work Experience") tells its button from another
+        section's of the same name."""
         self._adds += 1
         if self._adds > MAX_ADDS:
-            raise Handoff(f"Apply pressed {name!r} {MAX_ADDS} times and the work section still asks for more entries. "
+            raise Handoff(f"Apply pressed {name!r} {MAX_ADDS} times and the form still asks for more entries. "
                           "Add the rest yourself.")
-        press_step(page, self._guard, name, add=True)
+        press_step(page, self._guard, name, add=True, section=section)
         for count in counts:
             self._put.pop(count, None)
 
@@ -781,10 +838,11 @@ class ClaudeFill:
         if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url) and _opens_only(self._url):
             self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
+        left = self._max_tokens - self._tokens
         try:
             drive = self._claude.drive(
                 page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
-                max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
+                max_turns=self._max_turns - self._turns, max_tokens=min(left, self._max_session_tokens),
             )
         finally:
             self._guard.rest()  # a captcha's frame takes Lisul's clicks again
@@ -807,10 +865,9 @@ class ClaudeFill:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
         if drive.capped or drive.output is None:
-            raise Handoff(
-                f"Claude fill stopped at its cap ({self._max_turns} turns, {self._max_tokens:,} tokens) "
-                "before the form was filled. Fill it in yourself."
-            )
+            cap = (f"one session's cap ({self._max_session_tokens:,} tokens)" if self._max_session_tokens < left
+                   else f"its cap ({self._max_turns} turns, {self._max_tokens:,} tokens)")
+            raise Handoff(f"Claude fill stopped at {cap} before the form was filled. Fill it in yourself.")
         if drive.output.get("blocked") is True:
             why = str(drive.output.get("why")).strip()
             if captcha.SAYS_BLOCKED.search(why):  # no challenge to solve: Lisul applies in his own Chrome
@@ -851,6 +908,41 @@ def _only_its_submit(blocked: list[str], said: dict) -> bool:
     return all(c and c[1].strip() and button.startswith(c[1].strip()) and SENDS.search(c[1]) for c in clicks)
 
 
+# A job system's own button that sends the application, which it shows on the form's last step alone. Oracle
+# Recruiting's ("click: submit", shown only on its last section) is named by i18n, and Haiku named no button that sends
+# beside it (BGC's form, live 2026-11-27: 33 of 33 fields filled, then a Handoff).
+LAST_STEP_SUBMIT = ".apply-flow-pagination__submit-button"
+
+
+# How long Oracle's Submit may stay disabled once the fill stops: it disables it while it checks a field just filled
+# (the phone number), and a disabled one read as none handed Honeywell's filled form off (live 2026-11-27).
+SUBMIT_SETTLES_S = 8
+
+
+def _last_step_submit(page: Page) -> str:
+    """The words of the job system's own last-step Submit (LAST_STEP_SUBMIT), when the page shows exactly one, enabled,
+    whose words send and name exactly one button (as submit() finds it); else "". Plain code reads it, and nothing
+    presses it here: the form is held at its last step, as when Claude names it."""
+    try:
+        deadline = time.monotonic() + SUBMIT_SETTLES_S
+        while True:
+            buttons = [b for b in page.locator(LAST_STEP_SUBMIT).all() if b.is_visible()]
+            if len(buttons) != 1:
+                return ""
+            if buttons[0].is_enabled():
+                break
+            if time.monotonic() > deadline:
+                return ""
+            time.sleep(0.25)  # Oracle disables it while it checks the fields just filled
+        # Its words as written, not as shown: Honeywell's CSS shows "SUBMIT", which names no button (live 2026-11-27).
+        words = " ".join((buttons[0].text_content() or "").split())
+        if not SENDS.search(words) or page.get_by_role("button", name=words, exact=True).count() != 1:
+            return ""
+    except Exception:
+        return ""
+    return words
+
+
 def _profile_step(page: Page, name: str) -> Locator | None:
     """The button named `name` in an open pop-up that is a profile step before the application
     ("Create your profile", "Complete your profile"; see submit_guard.PROFILE_DIALOG), or None:
@@ -879,6 +971,19 @@ def entry_history(profile) -> dict:
     schools = [{"school": school, "degree": profile.get("education.degree"), "majors": profile.get("education.majors") or [],
                 "start": profile.get("education.start_date"), "graduation": profile.get("education.expected_graduation")}] if school else []
     return {"jobs": jobs, "schools": schools}
+
+
+def _entry_label(label: str) -> str:
+    """A question's label as the Fill engine knows its section's entries: a bare "Experience" is "Work Experience"."""
+    return BARE_EXPERIENCE.sub("Work Experience", label.strip())
+
+
+def _read_back_as_put(put: dict, readback: dict) -> dict:
+    """The answers of `put` the page reads back as filled, in its own format too (fill_engine.shows): Oracle shows
+    5550100199 as "(555) 010-0199", which read as unfilled had Claude type the phone again each round (Honeywell's,
+    live 2026-11-27)."""
+    return {name: value for name, value in put.items()
+            if name in readback and fill_engine.shows(readback[name], value)}
 
 
 def _fewer(shown: object, wanted: object) -> bool:
@@ -919,7 +1024,8 @@ def _new_questions(page: Page, questions: QuestionSet, found: list[dict], sectio
             known[k] = known.get(k, 0) + 1
     new = []
     for q in found:
-        label = str(q.get("label", ""))
+        label = _entry_label(str(q.get("label", "")))
+        q = {**q, "label": label}
         keys = {_key(label), _key(_bare(label))}
         if not keys & known.keys():
             new.append(q)
@@ -1084,6 +1190,19 @@ FIELD_OF = r"""(els) => {
 }"""
 
 
+LOCKED = "el => !!(el.readOnly || el.disabled || el.getAttribute('aria-readonly') === 'true') ? String(el.value || '') : null"
+
+
+def _locked_showing(page: Page, label: str, answer: str) -> bool:
+    """Whether the one text box the page labels `label` is read-only and shows `answer`: nothing to fill."""
+    try:
+        fields = _labelled_fields(page, _bare(label))
+        shown = fields[0].evaluate(LOCKED) if len(fields) == 1 else None
+    except Exception:
+        return False
+    return shown is not None and shown.strip().casefold() == answer.strip().casefold()
+
+
 def _labelled_fields(page: Page, label: str) -> list:
     """The visible fields the page labels `label`, a radio or checkbox group counted once, by its first visible
     option (KAN-788): Oracle labels each option of Ethnicity, Gender and Veteran Status with the question."""
@@ -1114,12 +1233,29 @@ def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
     out = []
     for q in questions:
         index = _combobox_for(q.label, names) if q.kind in ("select", "multi_select") else -1
+        if index >= 0 and _searched(boxes[index][0]):
+            out.append(Question(q.name, q.label, q.kind, q.required, (), q.description, q.max_length, q.section))
+            continue
         options = _options_of(page, boxes[index][0]) if index >= 0 else ()
         if not options and q.kind in ("select", "multi_select"):  # a group of boxes: Oracle's Ethnicity and races
             at = _combobox_for(q.label, [group["name"] for group in groups])
             options = tuple(groups[at]["options"]) if at >= 0 else ()
         out.append(Question(q.name, q.label, q.kind, q.required, options) if options else q)
     return out
+
+
+# A dropdown that lists its choices by search: Oracle's address City, State, County and Zip Code (its geography
+# fields, but Country, whose list is whole). Opened with nothing typed, County listed its first 500 ("Abbeville, SC"
+# on), which the plan read as its choices: the applicant's, not among them, was planned blank (Honeywell's, live
+# 2026-11-27), and so were City and Zip Code.
+SEARCHED = "el => !!el.closest('.geo-hierarchy-form-element') && el.name !== 'country'"
+
+
+def _searched(combobox) -> bool:
+    try:
+        return bool(combobox.evaluate(SEARCHED))
+    except Exception:
+        return False
 
 
 # The visible groups of checkboxes on the page (radios stay Claude's), each with its name (aria-labelledby, aria-label, legend) and its
@@ -1246,9 +1382,12 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
     three turns a dropdown, and ran out of its cap on Netflix's 20 (live).
     One whose choice didn't show is left to Claude."""
     picked: Readback = {}
+    # What else the plan gives, to tell apart a search list's same-named places by the parts each adds after its name.
+    context = {v.strip().casefold() for v in answers.values() if isinstance(v, str) and v.strip()}
     for q in questions:
         value = answers.get(q.name)
-        if q.kind not in ("select", "multi_select") or not q.options or not value or isinstance(value, Path):
+        searched = q.kind == "select" and not q.options and isinstance(value, str)
+        if q.kind not in ("select", "multi_select") or not (q.options or searched) or not value or isinstance(value, Path):
             continue
         try:
             boxes = _comboboxes(page)  # again each time: a choice may show more questions (Netflix's role)
@@ -1258,6 +1397,10 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
         if index < 0:
             continue
         combobox = boxes[index][0]
+        if searched:
+            if _shows_choice(combobox, value) or _shows_place(combobox, value) or _search_pick(page, combobox, value, context):
+                picked[q.name] = value
+            continue
         wanted = value if isinstance(value, list) else [value]
         try:
             for choice in wanted:
@@ -1280,6 +1423,74 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
     return picked
 
 
+SEARCH_MS = 4_000  # how long a search list may take to list what fits the typed words
+
+
+def _search_pick(page: Page, combobox, choice: str, context: set[str]) -> bool:
+    """Type the choice into a dropdown that lists its choices only by search, and pick the one option it names:
+    Oracle's address City lists "<city>, <county>, <state>" by what is typed, and County and Zip Code then list
+    only the city's ("<county>, <state>", "<zip>, <city>"). An option whose first part is the choice, the only one,
+    else the only one whose other parts the plan also gives (the city's county and state). Read with no choices,
+    plain code skipped all three, and Claude took 21 turns and 5 million tokens on them (Honeywell's form, live
+    2026-11-27). None that fits, or two: the typed words cleared and the field left to Claude."""
+    try:
+        if not combobox.evaluate("el => el.tagName === 'INPUT' && !el.readOnly && !el.disabled"):
+            return False
+        combobox.click(timeout=3_000)
+        combobox.fill("")
+        combobox.press_sequentially(choice.split(",")[0].strip(), delay=20)  # a whole option's name, by its place's
+        fits, last = [], None
+        deadline = time.monotonic() + SEARCH_MS / 1000
+        while time.monotonic() < deadline:  # until the list settles: a search answers after the typing
+            listbox = _owned_listbox(page, combobox)
+            names = tuple(n.strip() for n in listbox.get_by_role("option").all_inner_texts()) if listbox else ()
+            fits = _fitting(names, choice, context)
+            if names and names == last and len(fits) == 1:
+                break
+            last = names
+            time.sleep(0.2)
+        if len(fits) == 1:
+            option = listbox.get_by_role("option", name=fits[0], exact=True).first
+            if option.get_attribute("aria-selected") == "true":  # picked already: a press would empty the box
+                page.keyboard.press("Escape")
+            else:
+                _press_option(option)
+            shown = (combobox.evaluate("el => el.value || ''") or "").strip().casefold()
+            place = choice.split(",")[0].strip().casefold()  # the box shows a place's name only: "Springfield"
+            if shown in (choice.casefold(), place) or shown.startswith(place + ","):
+                return True
+        combobox.fill("")
+        page.keyboard.press("Escape")
+    except Exception:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+    return False
+
+
+def _shows_place(combobox, choice: str) -> bool:
+    """Whether a search dropdown shows the place a whole option names: Oracle's City box shows "Springfield" once
+    "Springfield, Sangamon, IL" is picked. Never pressed again: on Oracle's form a click on the picked option empties
+    the box."""
+    place, _, rest = choice.partition(",")
+    try:
+        return bool(rest.strip()) and (combobox.evaluate("el => el.value || ''") or "").strip().casefold() == place.strip().casefold()
+    except Exception:
+        return False
+
+
+def _fitting(names: tuple[str, ...], choice: str, context: set[str]) -> list[str]:
+    """The options whose first comma part is the choice: the only one, else those whose every other part the plan
+    gives too ("Springfield, Sangamon, IL" for a plan with Sangamon and IL, never Springfield, Clark, OH)."""
+    if whole := [n for n in dict.fromkeys(names) if n.casefold() == choice.strip().casefold()]:
+        return whole  # the answer names a whole option: "Springfield, Sangamon, IL", as an applicant may answer it
+    named = [n for n in dict.fromkeys(names) if n.split(",")[0].strip().casefold() == choice.strip().casefold()]
+    if len(named) <= 1:
+        return named
+    return [n for n in named if all(part.strip().casefold() in context for part in n.split(",")[1:])]
+
+
 # A press on the element itself, as the Fill engine's `press` gives one: the pointer and mouse events, then the click.
 PRESS = """el => {
   el.scrollIntoView({block: 'center'});
@@ -1299,14 +1510,22 @@ def _press_option(option: Locator) -> None:
         option.evaluate(PRESS, timeout=OPENS_MS)
 
 
+# A choice that names its code and then what the code is for: Oracle's phone "+1 (United States)", whose box then
+# shows only "+1" (its optionDisplayLabel).
+CODE_AND_NAME = re.compile(r"^(\S+)\s+\([^()]+\)$")
+
+
 def _shows_choice(combobox, choice: str) -> bool:
     """Whether the dropdown, or the field it sits in, shows the choice: a box's own value too (Oracle's cx-select
-    shows the choice in its input, which no innerText holds)."""
+    shows the choice in its input, which no innerText holds), or that value as the code of a choice "<code>
+    (<name>)" (BGC's phone country code, live 2026-11-27: read as unpicked, it went to Claude each round)."""
     try:
-        shown = combobox.evaluate(FIELD_TEXT) + "\n" + (combobox.evaluate("el => el.value || ''") or "")
+        value = (combobox.evaluate("el => el.value || ''") or "").strip()
+        shown = combobox.evaluate(FIELD_TEXT) + "\n" + value
     except Exception:
         return False
-    return any(line.strip() == choice for line in shown.splitlines())
+    coded = CODE_AND_NAME.match(choice.strip())
+    return any(line.strip() == choice for line in shown.splitlines()) or bool(coded and value and coded[1] == value)
 
 
 def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:

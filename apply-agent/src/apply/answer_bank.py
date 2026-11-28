@@ -8,31 +8,39 @@ comments and order stay. Workers add Claude's drafts from their own threads,
 and runs from several processes may at once, so every add takes the bank's
 lock file beside it (apply.locks), reads the bank again and adds only what
 it still lacks: an answer in the
-bank is never replaced by a new draft. Each answer counts how many later
+bank is never replaced by a new draft, unless it is a stale draft of
+Claude's: one drawn on a Story bank line the bank no longer holds, which
+the bank no longer gives (`stale`). Each answer counts how many later
 Applications it answered, so a draft used again unreviewed shows.
 
 With `on_change` (the WorkIt sync, answer_sync.py, KAN-746), each write that
 adds, changes or deletes an answer stamps the entry's `edited_at` (UTC) and
 hands the changed entries to `on_change` after the file is saved. A write
-that only counts a use changes no answer and sends nothing."""
+that only counts a use changes no answer and sends nothing.
+
+A question filed twice (a hand-appended entry that repeats one, run10's
+Notion) is read as its last entry, with one warning, and the next write saves
+it once, under its one key."""
 
 import io
 import json
 import re
 import sys
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.constructor import DuplicateKeyError
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
-from apply import locks
+from apply import home, locks
 from apply.model import Question, one_line
 
 if TYPE_CHECKING:
@@ -44,6 +52,32 @@ FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
 SYNCED = ("question", "answer", "options", "source", "reviewed", "first_seen", "none")
 # on_change(changed, deleted): the changed entries (as filed, with their key) and the keys taken out.
 OnChange = Callable[[dict[str, dict], list[str]], None]
+
+
+PROFILE_KEY = re.compile(r"[a-z_][a-z0-9_]*(?:\.[a-z0-9_]+)*")  # a fact that names a profile key, not a Story bank line
+
+
+def stale(found: dict) -> bool:
+    """A draft of Claude's that drew on a Story bank line the bank no longer holds, word for word: Lisul
+    took that fact out, so the draft is as good as gone, and Claude drafts the question again (ENFOS,
+    2026-11-26: the WorkIt facts moved out of the bank while a run went on). His own answers never are."""
+    facts = [str(f) for f in found.get("facts") or () if not PROFILE_KEY.fullmatch(str(f))]
+    return found.get("source") != LISUL and bool(facts) and not all(f in _story(*_stamp_of(home.STORY_BANK))
+                                                                    for f in facts)
+
+
+def _stamp_of(path: Path) -> tuple[Path, int, int]:
+    try:
+        found = path.stat()
+    except OSError:
+        return path, 0, -1
+    return path, found.st_mtime_ns, found.st_size
+
+
+@lru_cache(maxsize=2)
+def _story(path: Path, mtime_ns: int, size: int) -> str:
+    """The Story bank's text, read again whenever its file changes (by its mtime and size)."""
+    return path.read_text(encoding="utf-8") if size >= 0 else ""
 
 
 def key(question: str) -> str:
@@ -79,11 +113,19 @@ class AnswerBank:
 
     def get(self, question: str) -> Entry | None:
         found = _find(self._entries, question)
-        if not isinstance(found, dict):
+        if not isinstance(found, dict) or stale(found):
             return None
         # An empty answer is none, unless it says "none of these" (none: true) for a multi-select.
         none = found.get("none") is True and found.get("answer") == []
         return _entry(found) if none or found.get("answer") not in (None, "", []) else None
+
+    def reviewed(self, question: str, company: str = "") -> Entry | None:
+        """Lisul's own reviewed answer to `question`: the one filed for `company` alone ("<question> (<company>
+        only)") first, else the one under its wording. It wins over any draft or essay (Strava, 2026-11-26)."""
+        for wording in ([f"{question} ({company.strip()} only)"] if company.strip() else []) + [question]:
+            if (entry := self.get(wording)) and entry.source == LISUL and entry.reviewed:
+                return entry
+        return None
 
     def answers(self) -> dict[str, Entry]:
         """Every answer, by the question's wording as filed."""
@@ -97,11 +139,13 @@ class AnswerBank:
         """Add Claude's draft answer to `question`, first asked at `company` on `day`,
         drawn from `facts` (profile keys and Story bank lines), if Claude named any,
         filed under `wording` (a bare date's section and label, fill_engine.Plan.filed),
-        else under the question's label. False if the bank already has an answer to it, which stays."""
+        else under the question's label. False if the bank already has an answer to it, which stays; a stale
+        draft (one whose Story bank facts are gone) is replaced."""
         filed = wording or question.label
         with self._writing() as entries:
-            if _find(entries, filed) is not None:
+            if (found := _find(entries, filed)) is not None and not (isinstance(found, dict) and stale(found)):
                 return False
+            entries.pop(next((k for k in entries if key(str(k)) == key(filed)), key(filed)), None)
             entries[key(filed)] = {
                 "question": one_line(filed),
                 "answer": [_text(a) for a in answer] if isinstance(answer, list) else _text(answer),
@@ -165,16 +209,19 @@ class AnswerBank:
                     was = found.get("uses") if isinstance(found.get("uses"), dict) else {}
                     found["uses"] = {"count": int(was.get("count") or 0) + 1, "last": day}
 
-    def answer(self, question: str, answer: str | list[str], day: date) -> None:
+    def answer(self, question: str, answer: str | list[str], day: date, options: Sequence[str] = ()) -> None:
         """Lisul's own answer to `question`, from the Apply window: it replaces
         any draft (source lisul, reviewed). A question new to the bank joins
-        it as first seen on `day`."""
+        it as first seen on `day`. `options`, when given, are the list he picked
+        it from, which the plan then gives it for alone."""
         with self._writing() as entries:
             found = _find(entries, question)
             if not isinstance(found, dict):
                 found = entries[key(question)] = {"question": one_line(question), "answer": "", "options": [],
                                                   "first_seen": {"date": day, "company": ""}}
             found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
+            if options:
+                found["options"] = [_text(o) for o in options]
             found["source"], found["reviewed"] = LISUL, True
             if answer == []:  # none of a multi-select's options holds
                 found["none"] = True
@@ -227,6 +274,7 @@ class AnswerBank:
                     self._path.touch()
                 text = self._path.read_text(encoding="utf-8")
                 self._entries = self._read()
+                had = bool(self._entries)
                 before = _dump(self._entries)
                 synced = {str(k): _synced(v) for k, v in self._entries.items()} if self._on_change else {}
                 yield self._entries
@@ -236,7 +284,7 @@ class AnswerBank:
                 if after == before:  # nothing changed: the file stays as it was
                     return
                 # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
-                notes = "" if _yaml().load(text) else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
+                notes = "" if had else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
                 self._path.write_text(notes + after, encoding="utf-8")
         if changed or deleted:
             try:  # the bank is saved: a sync that fails never fails the write
@@ -245,7 +293,33 @@ class AnswerBank:
                 print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
 
     def _read(self) -> dict:
-        return _yaml().load(self._path.read_text(encoding="utf-8")) or CommentedMap()
+        text = self._path.read_text(encoding="utf-8")
+        try:
+            return _yaml().load(text) or CommentedMap()
+        except DuplicateKeyError:
+            last, twice = _last_entries(text)
+            if self._path not in _WARNED:
+                _WARNED.add(self._path)
+                print(f"The Answer bank files {', '.join(repr(k) for k in twice)} more than once: Apply reads the last "
+                      "of each, and its next save keeps only that.", file=sys.stderr)
+            return _yaml().load(last) or CommentedMap()
+
+
+_WARNED: set[Path] = set()  # the banks a duplicate was warned of, once each per process
+
+
+def _last_entries(text: str) -> tuple[str, list[str]]:
+    """The bank's `text` with each earlier entry of a question filed twice taken out, so its last one stands,
+    and the questions filed twice."""
+    top = _yaml().compose(text)
+    pairs = top.value if top is not None and top.id == "mapping" else []
+    lines = text.splitlines(keepends=True)
+    starts = [k.start_mark.line for k, _ in pairs] + [len(lines)]
+    last = {str(k.value): i for i, (k, _) in enumerate(pairs)}
+    dropped = {i for i, (k, _) in enumerate(pairs) if last[str(k.value)] != i}
+    gone = {line for i in dropped for line in range(starts[i], starts[i + 1])}
+    twice = list(dict.fromkeys(str(pairs[i][0].value) for i in sorted(dropped)))
+    return "".join(line for n, line in enumerate(lines) if n not in gone), twice
 
 
 def _synced(entry: Any) -> tuple:

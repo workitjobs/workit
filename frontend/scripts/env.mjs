@@ -94,7 +94,7 @@ function pull(folder) {
   if (run.status !== 0) {
     fail(
       `Infisical refused workit-dev ${folder}, so nothing was written:\n${run.stderr.trim()}\n` +
-        "Not signed in? Run infisical login. No access? Ask an Admin to add you to workit-dev (docs/secrets.md).",
+        "Not signed in? Run infisical login. No access? Join the dev project: All Projects, Join as Admin (docs/secrets.md, Access).",
     );
   }
   const pulled = entries(run.stdout);

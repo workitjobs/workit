@@ -24,6 +24,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from apply import submit_guard
 from apply.accounts import Accounts
 from apply.model import Handoff
+from apply.send_button import NotPressed
 
 # Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
 # workflow.mail.us2.cloud.oracle.com) or the employer's own address with Oracle's
@@ -40,9 +41,28 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 # The application form's own pages, once signed in (.../job/<id>/apply/section/1).
 FORM_SECTION = re.compile(r"/apply/section/\d+")
+# The application form's blocks, which a draft an earlier attempt held shows at .../apply/email too (Emerson's,
+# live 2026-11-27: "Job application form", with no email step), where the email step has none.
+FORM_BLOCK = ".apply-flow-block"
+# The email step in phone mode, as Oracle shows it to a candidate it last reached by phone (Emerson's, live
+# 2026-11-27): a phone box, no email box, and this switch to the email.
+EMAIL_INSTEAD = "#applyFlowVerifyEmail, .quick-apply-flow-verify-method__button:has-text('email')"
 # The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
 COOKIES = ".cookie-consent-modal"
 DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
+
+
+# OneTrust's banner, whose dark filter covers the whole page (Emerson's, live 2026-11-27: the Apply Now click timed out
+# under it). Its banner may have no Reject All: then its settings keep only the necessary cookies, as they start.
+ONETRUST = "#onetrust-banner-sdk"
+ONETRUST_REJECT = "#onetrust-reject-all-handler"
+ONETRUST_SETTINGS = "#onetrust-pc-btn-handler"
+ONETRUST_SAVE = "#onetrust-pc-sdk .save-preference-btn-handler"
+ONETRUST_COVER = ".onetrust-pc-dark-filter"
+NO_EMAIL_STEP = ("After Apply, Oracle showed no email step ({url}, \"{shows}\"): this browser may still hold an earlier "
+                 "sign-in or draft of this application. Open the application form yourself (or sign in), then Resume.")
+COVERED = ("Something on Oracle's page covers its Apply button (a cookie banner or pop-up Apply couldn't close): "
+           "close it and press Apply yourself, then Resume.")
 
 
 def _decline_cookies(page: Page) -> None:
@@ -53,6 +73,18 @@ def _decline_cookies(page: Page) -> None:
         if decline.count():
             decline.first.click()
             banner.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+    onetrust = page.locator(ONETRUST)
+    if onetrust.count() and onetrust.first.is_visible():
+        reject = page.locator(ONETRUST_REJECT)
+        if reject.count() and reject.first.is_visible():
+            reject.first.click()
+        else:
+            page.locator(ONETRUST_SETTINGS).first.click()
+            page.locator(ONETRUST_SAVE).first.click()
+        onetrust.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+        cover = page.locator(ONETRUST_COVER)
+        if cover.count():
+            cover.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
 
 
 def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool) -> None:
@@ -61,12 +93,23 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     email = page.locator("input[type=email]").first
     if FORM_SECTION.search(page.url):  # a form section has no email box or Apply button to wait for (KAN-680)
         return
-    _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
+    _until(page, lambda: _by_email(page, email) or _apply_button(page).is_visible() or _signed_in(page, email))
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
     if not email.is_visible():
-        _apply_button(page).click()
-    email.wait_for(timeout=TIMEOUT * 1000)
+        try:
+            _decline_cookies(page)
+            _apply_button(page).click()
+        except PlaywrightTimeout:  # still covered: a banner or pop-up Apply doesn't know
+            raise Handoff(COVERED) from None
+        # A browser still signed in from an earlier attempt goes on to the form, or to a page of its own, with no email
+        # step (Emerson's refill, live 2026-11-27: the email box was waited for, and the fill failed with a timeout).
+        try:
+            _until(page, lambda: _by_email(page, email) or _signed_in(page, email))
+        except TimeoutError:
+            raise Handoff(NO_EMAIL_STEP.format(url=page.url, shows=_shows(page))) from None
+        if _signed_in(page, email):
+            return
     email.fill(accounts.login)
     disclaimer = page.locator("#legal-disclaimer-checkbox")
     if disclaimer.count() and not disclaimer.is_checked():
@@ -134,19 +177,89 @@ def _agree(page: Page, box) -> None:
     raise Handoff("Oracle's legal disclaimer wouldn't stay ticked: finish the application yourself.")
 
 
+# Oracle's page for an application sent whose emailed code was never given (Emerson's, live 2026-11-27): "You already
+# applied for this job. ... Do you want to confirm your job application?", with REMOVE and CONFIRM. CONFIRM goes on to
+# the code step ("You're almost done"); REMOVE withdraws the application, and Apply never presses it.
+UNCONFIRMED = re.compile(r"you already applied for this job\b.{0,400}?\bconfirm your (?:job )?application",
+                         re.IGNORECASE | re.DOTALL)
+CONFIRM = re.compile(r"^\s*confirm\s*$", re.IGNORECASE)
+CONFIRM_ASK = ("An earlier application to this job is waiting for its email code: confirm it? Approve it (apply window "
+               "submit <tile> --yes) and Apply presses CONFIRM, never REMOVE; then give the code Oracle emails "
+               "(apply window code).")
+NO_CONFIRM = "Oracle's page shows no one CONFIRM button, so Apply pressed nothing: press it on the page yourself."
+
+
+ALREADY_APPLIED = re.compile(r"you already applied for this job", re.IGNORECASE)
+UNCONFIRMED_WAIT = 10.0  # how long a page headed ALREADY_APPLIED has to draw its question and CONFIRM (run38's hadn't)
+
+
+def unconfirmed(page: Page, wait: float = 0.0) -> bool:
+    """Whether the page is Oracle's unconfirmed application's (UNCONFIRMED), with its CONFIRM button showing. With
+    `wait`, a page headed "You already applied for this job" is read again for that long, as Oracle draws its
+    question and buttons after the heading (Emerson's, live 2026-11-27, run38: read as closed); any other page at once."""
+    end = time.monotonic() + wait
+    while True:
+        try:
+            said = page.locator("body").inner_text(timeout=2_000)
+            if UNCONFIRMED.search(said) and _confirm(page) is not None:
+                return True
+        except Exception:
+            said = ""
+        if not ALREADY_APPLIED.search(said) or time.monotonic() >= end:
+            return False
+        page.wait_for_timeout(250)
+
+
+def _confirm(page: Page):
+    """The one visible CONFIRM button on the page, else None."""
+    shown = [b for b in page.get_by_role("button", name=CONFIRM).all() if b.is_visible()]
+    return shown[0] if len(shown) == 1 else None
+
+
+def confirm(page: Page) -> str:
+    """Press CONFIRM on the unconfirmed application's page (never REMOVE): Lisul approved it. Its words; raises
+    send_button.NotPressed when the page shows no one CONFIRM button."""
+    if (button := _confirm(page)) is None:
+        raise NotPressed(NO_CONFIRM)
+    words = " ".join((button.inner_text() or "").split()) or "CONFIRM"
+    button.click(timeout=10_000)
+    return words
+
+
 def signed_in(page: Page) -> bool:
     """Whether the application form is open, past the email and its code: sign_in's own check."""
     return _signed_in(page, page.locator("input[type=email]").first)
 
 
 def _signed_in(page: Page, email) -> bool:
-    """The application form is open already: a section of it, or its own email field, which can't be edited."""
+    """The application form is open already: a section of it, its blocks, or its own email field, which can't be
+    edited."""
     if FORM_SECTION.search(page.url):
         return True
     try:
-        return email.is_visible() and not email.is_editable()
+        return page.locator(FORM_BLOCK).first.is_visible() or (email.is_visible() and not email.is_editable())
     except Exception:
         return False
+
+
+def _by_email(page: Page, email) -> bool:
+    """Whether the email step shows its email box; in phone mode, it is switched to the email first."""
+    if email.is_visible():
+        return True
+    switch = page.locator(EMAIL_INSTEAD)
+    if switch.count() and switch.first.is_visible():
+        switch.first.click()
+    return False
+
+
+def _shows(page: Page) -> str:
+    """What the page says it is, for a Handoff: its first heading, else its title."""
+    try:
+        headings = page.locator("h1:visible, h2:visible, [role=heading]:visible")
+        said = headings.first.inner_text(timeout=1000) if headings.count() else page.title()
+    except Exception:
+        return ""
+    return " ".join(said.split())[:120]
 
 
 def _apply_button(page: Page):

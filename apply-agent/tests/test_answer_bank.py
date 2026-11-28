@@ -5,7 +5,7 @@ from datetime import date
 
 import yaml
 
-from apply import fill_engine
+from apply import fill_engine, home
 from apply.answer_bank import AnswerBank
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
@@ -259,6 +259,23 @@ def test_a_draft_keeps_the_facts_it_drew_on_and_one_with_none_names_none(tmp_pat
     assert AnswerBank(path).get(HEARD.label).facts == ()
 
 
+def test_a_draft_whose_story_bank_fact_was_taken_out_is_no_answer_and_is_drafted_again(tmp_path):
+    # Fault: a draft drawn on a Story bank line Lisul removed still answers forms (ENFOS, 2026-11-26).
+    fact = "- Fill engine (his alone): one TypeScript engine that reads a job's application form."
+    home.STORY_BANK.write_text(f"## Projects\n{fact}\n")
+    path = tmp_path / "answer-bank.yaml"
+    bank = AnswerBank(path)
+    bank.add(HEARD, "Through my own form-filling engine.", "Zipline", DAY, facts=[fact, "links.github_url"])
+    bank.answer(SAMPLES.label, "Yes", DAY)
+    assert bank.get(HEARD.label).answer == "Through my own form-filling engine."
+
+    home.STORY_BANK.write_text("## Projects\n- Micromouse firmware.\n")
+
+    assert bank.get(HEARD.label) is None and [e.question for e in bank.entries()] == [SAMPLES.label]  # Lisul's own stays
+    assert bank.add(HEARD, "From the Simplify list.", "Zipline", DAY)
+    assert AnswerBank(path).get(HEARD.label).answer == "From the Simplify list."
+
+
 def test_none_of_a_multi_selects_options_is_an_answer(tmp_path):
     # Roblox's partner organizations (2026-11-02): Lisul is in none, and an empty answer read as no answer.
     path = tmp_path / "answer-bank.yaml"
@@ -286,3 +303,24 @@ def test_a_bare_date_is_filed_under_its_section_never_its_label_alone(tmp_path):
     assert bank.get("From (MM/DD/YYYY)") is None
     assert bank.get("work experience / From (MM/DD/YYYY)").answer == "06/01/2026"
     assert "work experience / from (mm/dd/yyyy):" in (tmp_path / "answer-bank.yaml").read_text()
+
+
+def test_a_question_filed_twice_reads_as_its_last_entry_and_saves_once(tmp_path, capsys):
+    path = tmp_path / "answer-bank.yaml"
+    AnswerBank(path).answer("Why Notion?", "First answer", DAY)
+    AnswerBank(path).answer("Are you open to a hybrid schedule?", "Yes", DAY)
+    first = path.read_text().split("are you open")[0]
+    path.write_text(path.read_text() + first.replace("First answer", "Hand-appended answer"))  # run10's Notion
+
+    bank = AnswerBank(path)
+    bank.read_again()
+
+    assert bank.get("Why Notion?").answer == "Hand-appended answer"  # the last wins
+    assert bank.get("Are you open to a hybrid schedule?").answer == "Yes"
+    assert capsys.readouterr().err.count("more than once") == 1  # warned once
+
+    bank.answer("Why Notion?", "Merged answer", DAY)
+
+    assert path.read_text().count("why notion?:") == 1
+    assert AnswerBank(path).get("Why Notion?").answer == "Merged answer"
+    assert AnswerBank(path).get("Are you open to a hybrid schedule?").answer == "Yes"

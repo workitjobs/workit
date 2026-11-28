@@ -17,7 +17,7 @@ from pathlib import Path
 
 from apply import locks
 from apply.home import HOME
-from apply.model import Outcome, Posting, Status
+from apply.model import Outcome, Posting, Status, job_title
 from apply.workit import Stage, Write
 
 
@@ -264,8 +264,11 @@ def _plain(value):
 
 
 def _row(saved: dict) -> Row:
+    """A saved row. A role that is a page's chrome (model.job_title: "Log in or create account | Amazon.jobs",
+    saved before Apply checked it) is read as none, and leaves the file at its next save."""
     day = lambda value: date.fromisoformat(value) if value else None
-    return Row(**{**saved, "status": Status(saved["status"]), "date_applied": day(saved["date_applied"]),
+    return Row(**{**saved, "role": job_title(saved.get("role") or ""), "status": Status(saved["status"]),
+                  "date_applied": day(saved["date_applied"]),
                   "outcome": Outcome(saved["outcome"]) if saved["outcome"] else None,
                   "suggested_outcome": Outcome(saved["suggested_outcome"]) if saved["suggested_outcome"] else None,
                   "confirmation_received": day(saved["confirmation_received"])})

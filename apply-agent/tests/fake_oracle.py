@@ -14,7 +14,8 @@ an email Oracle would write to:
 - A returning candidate first confirms their last name.
 - A one-time code is mailed (into the FakeMailbox, under MAIL_SEARCH), or sent
   by text message where the site uses SMS; "Send New Code" sends another.
-- Then the application form: a one-page form Claude fill fills.
+- Then the application form: a one-page form Claude fill fills, with Oracle's
+  own Submit (its pagination's, its words from i18n) below it.
 """
 
 import base64
@@ -83,9 +84,16 @@ FORM = """
   <label for="first-name">First Name</label><input id="first-name">
   <label for="last-name-field">Last Name</label><input id="last-name-field">
   <label for="phone">Phone Number</label><input id="phone">
+  <label for="email">Email Address</label><input id="email" readonly value="test.person@example.com">
   <label for="resume">Resume</label><input id="resume" type="file">
 </form>
-<button id="submit-application" type="button">Submit</button>
+<div class="apply-flow-pagination"><div class="apply-flow-pagination__buttons">
+  <button id="submit-application" type="button"
+          class="button apply-flow-pagination__button apply-flow-pagination__submit-button theme-color-1"
+          data-bind="click: submit, enable: isSubmitEnabled()">
+    <span class="button__label" data-bind="i18n: 'general.submit-button'">Submit</span>
+  </button>
+</div></div>
 """
 
 

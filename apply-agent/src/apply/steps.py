@@ -43,20 +43,31 @@ FIELD_TEXT = """el => {
   return text;
 }"""
 OPENS_MS = 1_500  # how long an opened dropdown may take to list its choices
-# The form fields a step shows, in a frame: a step went on once they change.
-FIELDS_SHOWN = """() => [...document.querySelectorAll('input, select, textarea')]
-  .filter(el => el.type !== 'hidden' && el.checkVisibility && el.checkVisibility())
-  .map(el => el.name || el.id || el.type).join('|')"""
+# The form fields a step shows, in a frame, and in each open shadow root in it (SmartRecruiters' spl-input holds its
+# input there, live 2026-11-27): a step went on once they change.
+FIELDS_SHOWN = """() => {
+  const out = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.matches('input, select, textarea') && el.type !== 'hidden' && el.checkVisibility && el.checkVisibility())
+        out.push(el.name || el.id || el.type);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  return out.join('|');
+}"""
 
 
-def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False, add: bool = False) -> None:
+def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False, add: bool = False,
+               section: str = "") -> None:
     """Plain code's own click on a step's Next (or `back`: its Back; or `listed`: a step in the form's list of
-    steps, TAL.net's Progress Tracker), which goes through the guards where it posts natively: a button that
-    sends, a form that has one and the final application URLs stay blocked (KAN-639). Waits for the step it
-    leads to; a Handoff says why it didn't."""
+    steps, TAL.net's Progress Tracker; or `add`: the add button of the form's `section`), which goes through the
+    guards where it posts natively: a button that sends, a form that has one and the final application URLs stay
+    blocked (KAN-639). Waits for the step it leads to; a Handoff says why it didn't."""
     before = _fields_shown(page)
-    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_add(page, name) if add \
-        else _the_next(page, name)
+    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_add(page, name, section) \
+        if add else _the_next(page, name)
     # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
@@ -82,14 +93,60 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
             guard.rest()
 
 
-def _the_add(page: Page, name: str):
+# The heading of the part of the page an add button holds alone: the widest one around it with no other button of
+# its name (its section, fieldset or group), named by the aria-labels on the way up to it and its first heading before
+# the button. The way up crosses shadow roots, and so does the look for another button: SmartRecruiters' "Add" is an
+# spl-button's own button, the host named "Add experience entry" (live 2026-11-27). Run on each button by itself: a
+# plain Worker passes no element handles to a page script.
+ADD_SECTION = """(el, name) => {
+  const key = words => (words || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+  const BUTTONS = 'button, [role=button], input[type=button], input[type=submit]';
+  const host = node => { const root = node.getRootNode(); return root instanceof ShadowRoot ? root.host : null; };
+  // A shadow root's button is named by its slotted words, which its own innerText may not show: its host's too.
+  const same = b => b !== el && [b.getAttribute('aria-label'), b.innerText, b.value, host(b) && host(b).innerText]
+    .some(w => key(w) === key(name));
+  const buttons = root => {
+    const found = [...root.querySelectorAll(BUTTONS)];
+    for (const node of [root, ...root.querySelectorAll('*')]) if (node.shadowRoot) found.push(...buttons(node.shadowRoot));
+    return found;
+  };
+  const labels = [];
+  let region = el;
+  for (let node = el.parentElement || host(el); node; node = node.parentElement || host(node)) {
+    if (buttons(node).some(same)) break;
+    region = node;
+    if (node.getAttribute('aria-label')) labels.push(node.getAttribute('aria-label'));
+  }
+  // Placed in the region's own tree by its host there: an order across shadow roots means nothing.
+  let at = el;
+  while (at.getRootNode() !== region.getRootNode() && host(at)) at = host(at);
+  const head = [...region.querySelectorAll('h1, h2, h3, h4, h5, h6, legend, [role=heading]')]
+    .find(h => h.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING);
+  return [...labels, head ? head.innerText : ''].join(' | ');
+}"""
+
+
+def _add_section(button, name: str) -> str:
+    """The heading of the part of the page that holds this add button alone (ADD_SECTION); "" where Apply can't read it."""
+    try:
+        return str(button.evaluate(ADD_SECTION, name))
+    except Exception:
+        return ""
+
+
+def _the_add(page: Page, name: str, section: str = ""):
     """The one button of exactly the name Claude gave a section's add button ("Add another"), whose words add an entry
-    and say nothing that sends. None, or two, is a Handoff."""
+    and say nothing that sends. Where several share the name (SmartRecruiters' "Add" in Experience and in Education),
+    the one whose part of the page is headed by a word of `section` ("Work Experience"). None, or two, is a Handoff."""
     if SENDS.search(name) or not ADDS.match(name):
         raise Handoff(f"Claude named {name!r} as a section's add button, which may send the form. Fill it in yourself.")
-    found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+    shown = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+    found = shown
+    if len(shown) > 1 and (words := re.findall(r"\w+", section)):
+        heads = re.compile(rf"\b({'|'.join(map(re.escape, words))})\b", re.IGNORECASE)
+        found = [b for b in shown if heads.search(_add_section(b, name))]
     if len(found) != 1:
-        raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't add an entry. Add it yourself.")
+        raise Handoff(f"The form shows {len(shown)} buttons named {name!r}, so Apply didn't add an entry. Add it yourself.")
     return found[0]
 
 

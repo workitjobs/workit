@@ -55,6 +55,18 @@ def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_pat
     assert fill_engine.readback_problems([shell], planned.answers, {"q1": "bash"}, planned.accepted)
 
 
+def test_his_own_bank_answer_beats_the_profiles_reading_of_a_yes_no(tmp_path):
+    # Etched's Ashby (rehearsal, 2026-11-26): the graduation rule typed a date into this Yes/No, and his own No was ignored.
+    label = ("Are you open to starting full-time immediately after your internship? "
+             "(either graduated or willing to take time off from school)")
+    asked = Question("q1", label, "textarea", True)
+    path = tmp_path / "answer-bank.yaml"
+    path.write_text(json.dumps({label.lower(): {"question": label, "answer": "Yes", "source": "lisul", "reviewed": True}}))
+
+    assert fill_engine.plan([asked], POSTING, PROFILE).answers["q1"] in ("Yes", "No")  # never a date
+    assert fill_engine.plan([asked], POSTING, PROFILE, AnswerBank(path)).answers["q1"] == "Yes"
+
+
 def test_an_engine_error_comes_back_as_apply_own():
     try:
         fill_engine.call_without_page("parseQuestions", "bamboohr", "")
@@ -69,6 +81,16 @@ def test_an_essay_on_a_job_system_the_policies_name_holds_its_application():
     essay = Question("q1", "Tell us about a project you are proud of.", "textarea", True)
     ashby = Posting("p", "Acme", "Intern", "https://jobs.ashbyhq.com/acme/00000000-0000-0000-0000-000000000000")
     assert fill_engine.plan([essay], ashby, PROFILE).high_stakes == [essay]
+
+
+def test_a_link_to_a_video_to_make_is_missing_not_held_as_a_high_stakes_essay():
+    # Ashby holds an essay for Lisul to edit; a link he must record a video for is asked, never held as one.
+    video = Question("q1", "Please include a shareable YouTube link to your Creative Project video.", "textarea", True)
+    ashby = Posting("p", "Acme", "Intern", "https://jobs.ashbyhq.com/acme/00000000-0000-0000-0000-000000000000")
+
+    planned = fill_engine.plan([video], ashby, PROFILE)
+
+    assert planned.missing == [video] and planned.high_stakes == [] and planned.essays == []
 
 
 class Site:
@@ -132,6 +154,40 @@ def test_the_options_lisul_picked_for_a_missing_multi_select_are_each_ticked():
     assert fill_engine.plan([question], POSTING, profile).answers["q1"] == ["Austin", "Denver"]
 
 
+def test_a_pick_from_a_list_the_gpa_doesnt_fit_is_kept_for_that_list_never_as_the_gpa(tmp_path):
+    # Freeform (2026-11-26): a GPA list in steps of 0.05 has no 3.86, so Lisul picked 3.85; saved by its wording in the
+    # profile, it would have answered a later GPA text box of that wording 3.85.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("education.gpa_cumulative", 3.86)
+    steps = ("3.75", "3.80", "3.85", "3.90", "3.95")
+    picks = Question("q1", "GPA (Undergraduate)", "select", True, steps)
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+
+    fill_engine.remember(profile, POSTING, picks, "3.85", bank, date(2026, 11, 26))
+
+    assert "GPA (Undergraduate)" not in (profile.get("answered_questions") or {})
+    entry = AnswerBank(tmp_path / "answer-bank.yaml").get("GPA (Undergraduate)")
+    assert (entry.answer, entry.source, entry.options) == ("3.85", "lisul", steps)
+    assert fill_engine.plan([picks], POSTING, profile, bank).answers["q1"] == "3.85"
+    typed = Question("q1", "GPA (Undergraduate)", "text", True)
+    assert fill_engine.plan([typed], POSTING, profile, bank).answers["q1"] == "3.86"
+
+
+def test_a_needs_you_answer_naming_the_postings_offices_is_kept_for_that_company_only():
+    # ENFOS (2026-11-26): this answer was kept by the bare wording, so it answered every company's location question.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("logistics.willing_to_relocate_for_summer", None)
+    relocate = "Willing to relocate to Durham or Chicago for the summer"
+    question = Question("q1", "Where are you currently located?", "select", True,
+                        ("In or near Durham, NC", "In or near Chicago, IL", relocate))
+    enfos = Posting("p", "ENFOS", "Software Engineer Intern", "https://job-boards.greenhouse.io/enfos/jobs/1")
+    fill_engine.remember(profile, enfos, question, relocate)
+
+    assert profile.answered("Where are you currently located?") is None
+    assert profile.answered("Where are you currently located? (ENFOS only)") == relocate
+    assert fill_engine.plan([question], enfos, profile).answers["q1"] == relocate
+
+
 def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
     # the essay call needs them: Figma asks for "3-4 sentences" only in a description
     found = {"name": "q1", "label": "Why Figma?", "kind": "textarea", "required": True, "options": [],
@@ -140,6 +196,7 @@ def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
     assert (question.description, question.max_length) == ("Please answer in 3-4 sentences.", 1500)
     [bare] = fill_engine.question_set([{k: v for k, v in found.items() if k not in ("description", "maxLength")}])
     assert (bare.description, bare.max_length) == ("", None)
+    assert not bare.url and fill_engine.question_set([found | {"url": True}])[0].url  # Ashby's Url field
 
 
 def engine_bundle(**env):
@@ -315,3 +372,12 @@ def test_jpmorgans_documents_get_the_resume_only_in_its_slot_and_a_link_in_link_
 
     assert isinstance(plan.answers["r"], fill_engine.Path)
     assert "c" not in plan.answers and plan.answers["l"] == "https://test-person.example.com"
+
+
+def test_one_choice_read_back_as_its_one_ticked_box_is_shown():
+    # Honeywell (Oracle, live 2026-11-27): a Yes/No pair read as a group of boxes, planned "No", read back ["No"].
+    pair = Question("q51", "Application Questions: Eligible within 12 months?", "multi_select", True, ("Yes", "No"))
+
+    assert fill_engine.readback_problems([pair], {"q51": "No"}, {"q51": ["No"]}) == []
+    assert fill_engine.shows(["No"], "No") and not fill_engine.shows(["Yes"], "No")
+    assert fill_engine.readback_problems([pair], {"q51": "No"}, {"q51": ["Yes"]})

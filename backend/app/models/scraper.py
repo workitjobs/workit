@@ -108,6 +108,30 @@ class Scraper_Task(Base):
     )
 
 
+class Scraper_Cycle_Lease(Base):
+    """One-row table for cycle-level mutual exclusion (D5).
+
+    Only one worker process can run a cycle at a time. take_lease does
+    UPDATE ... WHERE expires_at < now() RETURNING; a second process that
+    cannot take it exits. Seeded with one row whose expires_at is epoch.
+    """
+
+    __tablename__ = "scraper_cycle_leases"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    holder: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+
 class Job_Source(Base):
     """Which boards list which jobs. One row per (schedule, apply_url).
 

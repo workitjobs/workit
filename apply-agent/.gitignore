@@ -32,6 +32,7 @@
 /workit-queue.*
 /workit-answers-queue.*
 /open-forms.*
+/todos.*
 
 # The privacy gate's identifier list. It stays outside the repo; this line
 # stops a copy in this folder from being committed.

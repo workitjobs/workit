@@ -13,6 +13,10 @@ The answer comes from what Apply holds:
   Apply's Tracker: a submitted row is "applied", a row still on its way
   (queued, filling, held, waiting on a Missing fact, paused) is "applying",
   and a Request on the same job board is "applying";
+- the Records of the same company's other jobs (a rehearsal's or a run's
+  README: "# <company>: <title>", "- Posting:", "- Status:"), read the same
+  way, a Handoff too: Strava, 2026-11-26, had three Records and a reused
+  draft said "the only Strava internship";
 - the company's open postings on its job board (Greenhouse, Lever, Ashby,
   one public read), which name a Request's role and give each role's text.
 
@@ -34,6 +38,7 @@ from pathlib import Path
 
 from apply import fill_engine
 from apply.adapters import JobSite
+from apply.already_applied import RECORDS
 from apply.model import Posting, Question, Status, is_company, one_line, plain_text
 from apply.profile import ApplicantProfile
 from apply.tracker import TRACKER
@@ -63,6 +68,8 @@ INTERN = re.compile(r"\bintern(?:ship)?s?\b|\bco-?op\b", re.IGNORECASE)
 # Tracker statuses: sent, and still on its way to being sent.
 APPLIED = frozenset({Status.SUBMITTED})
 APPLYING = frozenset({Status.QUEUED, Status.FILLING, Status.HELD, Status.MISSING_FACT, Status.PAUSED})
+# A Record's statuses on its way: a Handoff is one Lisul finishes himself.
+RECORDED = APPLYING | {Status.HANDOFF}
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 NAMED = 2  # roles at most that each get a why sentence
 SKILLS = 3  # skills at most that one why sentence lists
@@ -120,15 +127,17 @@ def openings(posting: Posting, site: JobSite) -> list[Opening]:
     return []
 
 
-def others(posting: Posting, board: Sequence[Opening], path: Path | None = None) -> list[Other]:
-    """The student's other applications to `posting`'s company, from the Tracker (saved at `path`), and each
-    Request on the same board (`board`). Read without the lock, as tracker.past_applications reads it."""
+def others(posting: Posting, board: Sequence[Opening], path: Path | None = None,
+           records: Sequence[Path] = RECORDS) -> list[Other]:
+    """The student's other applications to `posting`'s company, from the Tracker (saved at `path`), its
+    Records (under `records`), and each Request on the same board (`board`). Read without the lock, as
+    tracker.past_applications reads it."""
     if not posting.company.strip():
         return []
     try:
         saved = json.loads((path or TRACKER).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return []
+        saved = {}  # no Tracker: the Records still say
     own, found, seen = _job(posting.url), [], set()
     for row in saved.get("applications", []):
         company, url = str(row.get("company") or ""), str(row.get("posting_url") or "")
@@ -139,6 +148,11 @@ def others(posting: Posting, board: Sequence[Opening], path: Path | None = None)
         if row.get("status") in APPLIED or row.get("status") in APPLYING:
             seen.add(key)
             found.append(Other(one_line(str(row.get("role") or "")) or _titled(url, board), row.get("status") in APPLIED, url))
+    for company, title, url, status in _recorded(records):
+        if (is_company(company, posting.company) or is_company(posting.company, company)) and url \
+                and (key := _job(url)) != own and key not in seen and status in APPLIED | RECORDED:
+            seen.add(key)
+            found.append(Other(title or _titled(url, board), status in APPLIED, url))
     on_board = {_job(o.url): o for o in board if o.url}
     for url in saved.get("requests", []):
         if isinstance(url, str) and (key := _job(url)) != own and key not in seen and key in on_board:
@@ -216,6 +230,27 @@ def _job(url: str) -> str:
     """The job `url` is for, as one key: the job's UUID where its link holds one (Lever's and Ashby's, so a
     posting and its form are one job), else WorkIt's link rule (a Greenhouse job by its ID)."""
     return found[0].lower() if (found := UUID.findall(url)) else job_key(url)
+
+
+RECORD_HEAD = re.compile(r"\A# (?P<company>[^\n:]+): (?P<title>[^\n]*?)\s*\n")
+RECORD_POSTING = re.compile(r"^- Posting: (\S+)", re.MULTILINE)
+RECORD_STATUS = re.compile(r"^- Status: ([a-z ]+?)(?: \(|$)", re.MULTILINE)
+
+
+def _recorded(roots: Sequence[Path]) -> list[tuple[str, str, str, str]]:
+    """(company, title, posting link, status) of each Record under `roots`, newest day first, so a job's
+    latest Record says; one that doesn't read is skipped."""
+    found = []
+    for root in roots:
+        for readme in sorted(root.glob("*/*/README.md"), reverse=True):
+            try:
+                text = readme.read_text()
+            except OSError:
+                continue
+            if (head := RECORD_HEAD.match(text)) and (url := RECORD_POSTING.search(text)) \
+                    and (status := RECORD_STATUS.search(text)):
+                found.append((head["company"].strip(), one_line(head["title"]), url[1], status[1].strip()))
+    return found
 
 
 def _titled(url: str, board: Sequence[Opening]) -> str:

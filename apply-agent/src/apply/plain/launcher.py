@@ -27,6 +27,7 @@ Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It star
 background by each OS's own way (`start_in_background`).
 """
 
+import atexit
 import json
 import os
 import shutil
@@ -34,6 +35,7 @@ import signal
 import subprocess
 import sys
 import time
+import weakref
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -177,6 +179,10 @@ class PlainWorkers:
         self.running: dict[int, PlainWorker] = {}
         # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
         self._starting: dict[int, Chrome | subprocess.Popen] = {}
+        # A branded Worker that sent no hello, and the seed it was made from (seed_stamp): the next launches from
+        # that seed fail at once with its fix, not each after HELLO_WAIT (16 links took 8 minutes to fail, run7).
+        self._no_hello: tuple[tuple, int] | None = None
+        _ALIVE.add(self)  # stopped when this process exits (stop_everyone)
 
     @property
     def seed(self) -> Path:
@@ -193,6 +199,19 @@ class PlainWorkers:
 
     def profile(self, worker: int) -> Path:
         return self.profiles / f"plain-{worker + 1}"
+
+    def seed_stamp(self) -> tuple:
+        """The seed as it is now: its preferences' change times. A seed made again (`apply plain seed`) changes it."""
+        stamp = []
+        for name in ("Secure Preferences", "Preferences"):
+            with suppress(OSError):
+                stamp.append((name, (self.seed / "Default" / name).stat().st_mtime_ns))
+        return tuple(stamp)
+
+    def no_hello(self, worker: int) -> str:
+        """Why Worker `worker` sent no hello, with its fix."""
+        return (f"no hello from plain Worker {worker + 1} in {HELLO_WAIT:.0f} s: is the worker extension installed "
+                f"in {self.seed}? (`uv run apply plain seed`)")
 
     def binary(self) -> Path:
         if self.kind == "testing":
@@ -314,6 +333,8 @@ class PlainWorkers:
         """Start Worker `worker`'s Chrome and wait for its hello."""
         if worker in self.running:
             return self.running[worker]
+        if self._no_hello and self._no_hello[0] == self.seed_stamp():  # the same seed: it would wait in vain
+            raise TimeoutError(f"{self.no_hello(self._no_hello[1])}. Apply started no more Workers from that seed")
         profile = self.profile(worker)
         reclaim(profile)
         if chrome_pid(profile):
@@ -336,8 +357,10 @@ class PlainWorkers:
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
         self._starting[worker] = process
+        stamp, connection = self.seed_stamp(), None
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
+            self._no_hello = None  # a Worker said hello: a later one that doesn't waits its own HELLO_WAIT
             folder = self.loaded_folder(worker)
             if features(connection.hello) < SETS_FROM and not extension.guards_match(folder):
                 # Code from before vendor sets, in a folder whose guards are another Apply's: guarding a page
@@ -353,9 +376,9 @@ class PlainWorkers:
         except BaseException as error:
             _stop(process)
             KEEPER.forget(process.pid)
-            if isinstance(error, TimeoutError) and self.kind == "chrome":
-                raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
-                                   "(`uv run apply plain seed`)") from None
+            if isinstance(error, TimeoutError) and self.kind == "chrome" and connection is None:
+                self._no_hello = (stamp, worker)
+                raise TimeoutError(self.no_hello(worker)) from None
             raise
         finally:
             self._starting.pop(worker, None)
@@ -372,13 +395,20 @@ class PlainWorkers:
             _stop(running.process)
 
     def stop_all(self) -> None:
-        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch)."""
+        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch). Each
+        is asked to quit first (ask_to_quit), then each is waited for: a quit with many Chromes up waits STOP_WAIT
+        once, not each."""
+        processes = []
         for worker in list(self.running):
-            self.stop(worker)
+            if running := self.running.pop(worker, None):
+                KEEPER.forget(running.pid)
+                running.connection.close()
+                processes.append(running.process)
         for worker, process in list(self._starting.items()):
             self._starting.pop(worker, None)
             KEEPER.forget(process.pid)
-            _stop(process)
+            processes.append(process)
+        _stop_many(processes)
         self.bridge.stop()
 
     def show(self, worker: int) -> bool:
@@ -544,11 +574,42 @@ def ask_to_quit(process: "Chrome | subprocess.Popen", system: str = sys.platform
 
 
 def _stop(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:
-    if process.poll() is not None:
-        return
-    ask_to_quit(process, system)
-    try:
-        process.wait(STOP_WAIT)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(5)
+    _stop_many([process], system)
+
+
+def _stop_many(processes: list, system: str = sys.platform) -> None:
+    """Ask each that still runs to quit (ask_to_quit), then kill each still running STOP_WAIT later."""
+    running = [p for p in processes if p.poll() is None]
+    for process in running:
+        ask_to_quit(process, system)
+    deadline = time.monotonic() + STOP_WAIT
+    for process in running:
+        try:
+            process.wait(max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            with suppress(subprocess.TimeoutExpired):
+                process.wait(5)
+
+
+# Every PlainWorkers of this process: their Chromes run on their own (start_in_background), so an Apply that exits
+# without its own stop (an exception, a signal the app turns into a quit, a crash in a run's thread) left them up.
+_ALIVE: "weakref.WeakSet[PlainWorkers]" = weakref.WeakSet()
+
+
+@atexit.register
+def stop_everyone() -> None:
+    """At this process's exit, stop every plain Worker's Chrome it started and still runs. A SIGKILL skips this: the
+    next start reclaims those Chromes (reclaim_all)."""
+    for workers in list(_ALIVE):
+        try:
+            workers.stop_all()
+        except Exception as error:  # the next one still stops
+            print(f"Couldn't stop the plain Workers in {workers.profiles}: {type(error).__name__}: {error}",
+                  file=sys.stderr)
+
+
+def reclaim_all(profiles: Path) -> list[Path]:
+    """Stop each orphan Chrome on a plain Worker profile in `profiles` (reclaim): those a gone Apply left up. The
+    profiles of a live Apply's are never touched. Returns the profiles whose Chrome it stopped."""
+    return [p for p in sorted(profiles.glob("plain-[0-9]*")) if p.is_dir() and reclaim(p)]

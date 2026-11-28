@@ -30,7 +30,7 @@ from app.apply_prompts.kind import (
     Line,
     Sources,
 )
-from app.apply_prompts.writing import WRITE
+from app.apply_prompts.writing import TOOLS, WRITE
 
 Text = Annotated[str, Field(max_length=MAX_SOURCES)]
 MAX_OPTIONS = 300  # a country list is about 250
@@ -54,6 +54,11 @@ class Question(BaseModel):
     description: Text = ""
     max_length: int | None = Field(default=None, ge=1)
     section: Text = ""
+    # The field takes only a web address (Ashby's Url field, an input of type="url"): its answer is one bare URL.
+    url: bool = False
+    # An opinion, preference or personality question Apply's answer_opinion_questions policy answers from the closest
+    # backed facts, never asking the student (Apply's Safety level).
+    closest_facts: bool = False
 
 
 def _known(kind: str) -> str:
@@ -143,8 +148,8 @@ class WriteData(Data):
 
 
 SYSTEM = """You write a student's answers to the essay questions on one internship application, in their own voice.
-Every fact about them comes from <story_bank>, <stock_answers> and <core_answers>, their links from <links>, and where they live from <home>: a question asking their city, state, zip code or where they would move from gets <home> as written, never a placeholder. When they graduate comes from <graduation>, which holds over any other graduation date in the sources. Never add a fact about @NAME@ someone could check that they don't state: a number, name, employer, project, course, award, date, or anything @NAME@ did, read or used. Tell what @NAME@ did at the level of detail they give: never invent how @NAME@ did it (steps @NAME@ took, what @NAME@ tried first, what @NAME@ saw) to make a story vivid. Their feelings are theirs to voice: what they enjoy, cares about, is curious about or wants, as long as it follows from what they did.
-<posting> is the job itself: the company, the role, its pay if stated, and the posting's own description. <company> is what else is known of the employer: pages its questions link to, its own site, and a brief of what it builds and has shipped lately, each fact with its page. Facts about the company and the role come only from those two.
+Every fact about them comes from <story_bank>, <stock_answers> and <core_answers>, their links from <links>, and where they live from <home>: a question asking their city, state, zip code or where they would move from gets <home> as written, never a placeholder. When they graduate comes from <graduation>, which holds over any other graduation date in the sources and is never moved to fit a graduation window <posting> names. Never add a fact about @NAME@ someone could check that they don't state: a number, name, employer, project, course, award, date, or anything @NAME@ did, read or used. Tell what @NAME@ did at the level of detail they give: never invent how @NAME@ did it (steps @NAME@ took, what @NAME@ tried first, what @NAME@ saw) to make a story vivid. Their feelings are theirs to voice: what they enjoy, cares about, is curious about or wants, as long as it follows from what they did.
+<posting> is the job itself: the company, the role, its pay if stated, and the posting's own description. <company> is what else is known of the employer: pages its questions link to, its own site, and a brief of what it builds and has shipped lately, each fact with its page. Facts about the company and the role come only from those two. An <asked_in_description> block in <posting> holds the section of the posting that lists the prompts one question says to answer ("the questions listed in the job description"): that answer covers each prompt it lists, in its order.
 <plan> gives each answer's plan under its question's key: its type, the parts the question asks in order, the story it leads with, the company fact it ties (by its name in the brief, or "" for none), its angle, and its slots: each part of a great answer of its type, with the lines from the sources that back it. Each answer follows its entry: it answers every part in order, leads with that story, ties that company fact and no other, and makes that point. Write each answer from its slots only, in the order its type's guidance gives: every fact about them in it is one a slot's lines state, said in their words, and a slot the plan leaves out stays out of the answer, however much the guidance asks for it. A line of the guidance that states no fact (a closing line that they are glad to work wherever the team needs them) needs no slot. When an entry gives no story, lead with the true story of theirs that shows the most for the question and that no other answer leads with. Use a second story only when the question asks for two; a story another answer leads with gets at most a clause. A matching entry in <stock_answers> is their own view on that topic: use it for that question (internship goals only when asked what they want from the internship).
 A <core_answer> in <core_answers> is their own approved answer for that Question type: reuse its facts and reasoning, never its sentences, and write the answer fresh to fit this question's exact parts and length.
 Answer the question as asked, in its terms: when it asks for the hardest, proudest or strongest thing, or a ranking, say plainly that this is it, since choosing is their judgment. When it says to pick an option or complete a sentence, start with that sentence, word for word, with the option they picked.
@@ -174,7 +179,7 @@ REDO = """@NAME@ read your earlier answer to each question in <redo> on the form
 REDRAFT = """Your earlier answers to the questions in <redraft> gave away how they were written: each names the words it used. Write each again in @NAME@'s own voice with none of those words and nothing like them: no talk of @NAME@'s materials or what they lack, and no citing of the posting. Answer the question from true facts about them, tied to what the company does."""
 
 PLAN = """You plan a student's answers to the essay questions on one internship application, before they are written. Another writer drafts each answer from your plan, so the plan decides what each answer says.
-Every fact about them comes from <story_bank>, <stock_answers> and <core_answers>, their links (profile, Story bank, resume) from <links>, and when they graduate from <graduation>, which holds over any other graduation date (quote it, never ask which date to give); facts about the company only from <posting> and <company>. Each question in <questions> ends, in braces, with the Question type it was matched to, its company link and any default length.
+Every fact about them comes from <story_bank>, <stock_answers> and <core_answers>, their links (profile, Story bank, resume) from <links>, and when they graduate from <graduation>, which holds over any other graduation date (quote it, never ask which date to give); facts about the company only from <posting> and <company>. Each question in <questions> ends, in braces, with the Question type it was matched to, its company link and any default length. An <asked_in_description> block in <posting> holds the section of the posting that lists the prompts one question says to answer: that question's parts are those prompts, in their order.
 For each question key, give:
 - type: its Question type, one of the types listed below. Keep the type <questions> gives unless the question plainly asks for another kind of answer.
 - parts: the separate things the question asks, in the order it asks them, each in a few words. A one-part question has one.
@@ -196,11 +201,19 @@ Question types, each with its company link and its slots (required, asked, or op
 
 REDO_PLAN = """<redo>, when given, holds under a question's key @NAME@'s earlier answer to it and the context they typed when they asked for a better one (added_context). Plan the new answer by that context: a fact about @NAME@ in it is in <story_bank> under "Added while reviewing answers", so quote it from there; follow its directions (a story to lead with, what to stress or cut). Do not plan the earlier answer again unless the context asks to keep it."""
 
+TYPES_HEAD = "Question types, each with its company link and its slots"
+CLOSEST = """A question marked "closest facts" is answered from the closest true facts the sources hold: never ask @NAME@ for it and never set needs_lisul for it. One that asks their opinion, preference or personality (a favorite tool, design or project, how they like to work) gets their pick among the things they did, built, designed or used, and why it fits. Any other is written from its plan's slots, about the story they tell: where the question asks for a detail no slot holds (a bug, a choice, a lesson, an age), give the nearest thing the sources state about that story in its place, and leave the rest out. Never state a fact, preference, habit or experience no source backs, and say when something happened only as the sources do ("in high school"), never with an age or a year they don't give."""
+
+CLOSEST_PLAN = """For a question marked "closest facts", never give a slot an ask: quote the closest lines the sources hold for each slot, and leave out a slot no line comes near."""
+
 LEAN_PLAN = """Only the types these questions were matched to are listed: keep each question's type."""
 
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
+# A field that takes only a web address: the browser drops any other text (Circleback's "What can we look at?",
+# 2026-11-26, got "URL : prose", even though its description asked what part was theirs).
+URL_ONLY = "web address field: the answer is one bare URL from <links> or the sources, with no other words"
 
 DESCRIBED = 400  # characters of a question's description Claude is shown
 
@@ -265,7 +278,7 @@ def _ask(q: Question) -> str:
     label = one_line(q.label)
     asked = f"{label} (write the cover letter)" if is_cover_letter(q) else label
     about = [_described(q), "required" if q.required else "optional", q.kind in FIELDS and f"{FIELDS[q.kind]} field",
-             q.max_length and f"at most {q.max_length} characters"]
+             q.max_length and f"at most {q.max_length} characters", q.url and URL_ONLY]
     return f"{asked} [{'; '.join(filter(None, about))}]"
 
 def _described(q: Question) -> str:
@@ -286,7 +299,7 @@ def _tagged(q: Question, kind: str) -> str:
     its company link and, when the form states no length, its default length."""
     length = _default_length(q, kind)
     tags = [f"type: {kind}", f"company link: {load()[kind].company_link}",
-            length and f"default length: {length}"]
+            length and f"default length: {length}", q.closest_facts and "closest facts"]
     return f"{_ask(q)} {{{'; '.join(filter(None, tags))}}}"
 
 def _answer_schema(q: Question, asked: str) -> dict:
@@ -310,10 +323,14 @@ def _short(q: Question, about: str | None = None) -> dict:
     if q.description:
         shown["description"] = _described(q)
     shown["required"] = q.required
+    if q.closest_facts:
+        shown["closest_facts"] = True
     if q.kind in FIELDS:
         shown["field"] = FIELDS[q.kind]
     if q.max_length:
         shown["max_length"] = q.max_length
+    if q.url:
+        shown["field"] = URL_ONLY
     if q.options and not _unread(q):
         shown["options"] = list(q.options)
         if q.kind == "multi_select":
@@ -374,7 +391,9 @@ def plan(data: PlanData) -> Built:
         _redo_block(data.redo, keys),
     ]))
     listed = [types[t] for t in dict.fromkeys(q.type for q in keys.values())]
-    system = PLAN + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}" + (f"\n\n{REDO_PLAN}" if data.redo else "")
+    closest = any(q.closest_facts for q in keys.values())
+    system = (PLAN.replace(TYPES_HEAD, f"{TOOLS}\n\n{TYPES_HEAD}") + "\n".join(_listed(g) for g in listed) + f"\n\n{LEAN_PLAN}"
+              + (f"\n\n{REDO_PLAN}" if data.redo else "") + (f"\n\n{CLOSEST}\n{CLOSEST_PLAN}" if closest else ""))
     return Built(system, prompt, schema)
 
 
@@ -405,7 +424,8 @@ def write(data: WriteData) -> Built:
     letters = any(is_cover_letter(q) for q in keys.values())
     system = "\n\n".join(filter(None, [keys and SYSTEM, keys and WRITE, keys and rules(True),
                                        keys and guide_text(types.values(), True), letters and LETTER_RULES,
-                                       short and DRAFTS, data.redraft and REDRAFT, data.redo and REDO]))
+                                       short and DRAFTS, data.redraft and REDRAFT, data.redo and REDO,
+                                       any(q.closest_facts for q in (*keys.values(), *short.values())) and CLOSEST]))
     return Built(system, prompt, schema)
 
 

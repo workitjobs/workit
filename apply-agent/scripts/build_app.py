@@ -30,11 +30,15 @@ and Nuitka compiles with no ccache, a program it would download from nuitka.net 
 file. Every build writes its commit into Info.plist (COMMIT_KEY), with "+changes" for a test build of a working tree
 that has some, so a report names the code it came from.
 
-W8 step 1 only: the app has only the compiler's ad-hoc signature, no notarization and no Sparkle, so it
-opens only on the Mac that built it. Signing and notarizing are step 2, Sparkle step 3.
+The app updates itself with Sparkle (W8 step 3): the build puts its framework, the feed's address and the update
+key's public half in the app. ../.github/workflows/publish-app.yml builds a release on a GitHub Mac and publishes it,
+with scripts/publish_app.py to sign it (step 4).
+The app has only the compiler's ad-hoc signature and no notarization yet (step 2), so it opens only on the Mac that
+built it.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
@@ -62,10 +66,26 @@ ICON = Path("assets", "app-icon.png")
 # checkout builds it with swiftc on first use; a student's Mac has no swiftc, so the app ships it, built here.
 CAPTURE_SOURCE = Path("src", "apply", "plain", "window_capture.swift")
 COMMIT_KEY = "WorkItCommit"  # Info.plist: the commit the app was built from
+RELEASE_KEY = "WorkItRelease"  # Info.plist: True for a --release build
 # Where uv puts the build's Python. The app carries this path (Python's build settings, sysconfig, and libpython's
 # own name), so it names no one: in uv's default place, ~/.local/share/uv, every copy of the app held the user
 # name of whoever built it. It is also the same path on every Mac that builds.
 PYTHON_HOME = Path("/Users/Shared/workit-auto-apply-build/python")
+
+# Sparkle, the app's updater (W8 step 3, KAN-941): one release, checked against its sha256 before any use.
+# legal/licenses/Sparkle-LICENSE.txt is this release's.
+SPARKLE_VERSION = "2.10.1"
+SPARKLE_SHA256 = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27"
+SPARKLE = BUILD / f"sparkle-{SPARKLE_VERSION}"  # the release, unpacked once: its framework, and its tools in bin/
+# Where every app looks for updates. Each app keeps it in its Info.plist for good: never change it. R2 serves it (D17).
+FEED = "https://downloads.workitjobs.ai/appcast.xml"
+# The update key's public half (Sparkle's generate_keys, 2026-11-26). Its private half signs each update, and only
+# publish-app.yml holds it, from Infisical (docs/secrets.md). Every app refuses an update another key signs: never
+# change it.
+SPARKLE_PUBLIC_KEY = "qHsvDUdl7uTOnK60Vy1+qyUt7vVSKrkGUFWAUCdjHFg="
+# Sparkle's parts the app never runs: the XPC services are for sandboxed apps, and the headers and module maps are
+# for compiling against it.
+SPARKLE_LEAVE_OUT = ("XPCServices", "Headers", "PrivateHeaders", "Modules")
 
 NAME = "WorkIt Auto Apply"  # D19
 BUNDLE_ID = "ai.workitjobs.autoapply"
@@ -211,6 +231,25 @@ def stage_inputs(source: Path, strict: bool) -> None:
          *(["--strict"] if strict else [])], cwd=source, env={**os.environ, "UV_PYTHON": str(PYTHON)})
 
 
+def fetch_sparkle() -> Path:
+    """Sparkle's release, unpacked in SPARKLE: downloaded once, and used only when it matches SPARKLE_SHA256."""
+    if (SPARKLE / "Sparkle.framework").is_dir():
+        return SPARKLE
+    archive = BUILD / f"Sparkle-{SPARKLE_VERSION}.tar.xz"
+    run(["/usr/bin/curl", "-fsSL", "-o", archive,
+         f"https://github.com/sparkle-project/Sparkle/releases/download/{SPARKLE_VERSION}/{archive.name}"])
+    if hashlib.sha256(archive.read_bytes()).hexdigest() != SPARKLE_SHA256:
+        archive.unlink()
+        sys.exit(f"Sparkle {SPARKLE_VERSION}'s download doesn't match its sha256, so it isn't used.")
+    unpacking = BUILD / f"sparkle-{SPARKLE_VERSION}.partial"
+    shutil.rmtree(unpacking, ignore_errors=True)
+    unpacking.mkdir(parents=True)
+    run(["/usr/bin/tar", "-xJf", archive, "-C", unpacking])
+    unpacking.rename(SPARKLE)
+    archive.unlink()
+    return SPARKLE
+
+
 def make_icon(source: Path) -> Path:
     """ICON as an .icns file, at every size macOS asks for, made with macOS's own sips and iconutil."""
     iconset = BUILD / "AppIcon.iconset"
@@ -269,9 +308,20 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
     plist["CFBundleURLTypes"] = [{"CFBundleURLName": f"{BUNDLE_ID}.sign-in", "CFBundleURLSchemes": [scheme]}]
     plist["NSAppleEventsUsageDescription"] = APPLE_EVENTS_REASON
     plist[COMMIT_KEY] = commit
+    plist[RELEASE_KEY] = release  # scripts/publish_app.py publishes only a release
+    # The updater (apply.updates): it checks the feed at launch and each day, downloads a newer build in the
+    # background and installs it when the student quits, asking nothing; it checks an update's EdDSA signature
+    # before it unpacks it.
+    plist |= {"SUFeedURL": FEED, "SUPublicEDKey": SPARKLE_PUBLIC_KEY, "SUEnableAutomaticChecks": True,
+              "SUAutomaticallyUpdate": True, "SUVerifyUpdateBeforeExtraction": True}
     info.write_bytes(plistlib.dumps(plist))
     run(["/usr/bin/xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}",
          "-o", APP / "Contents" / "MacOS" / capture, source / CAPTURE_SOURCE], env=env)
+    framework = APP / "Contents" / "Frameworks" / "Sparkle.framework"
+    run(["/usr/bin/ditto", fetch_sparkle() / "Sparkle.framework", framework])
+    for part in SPARKLE_LEAVE_OUT:
+        shutil.rmtree(framework / "Versions" / "Current" / part, ignore_errors=True)
+        (framework / part).unlink(missing_ok=True)  # the framework's top-level link to it
     # The edits broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
     # Step 2 replaces this with the Developer ID signature, file by file.
     run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])

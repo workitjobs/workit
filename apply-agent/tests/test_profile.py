@@ -2,6 +2,7 @@
 
 import sys
 import threading
+import time
 
 import pytest
 from conftest import APPLY, FIXTURES
@@ -67,6 +68,10 @@ def test_workers_remembering_answers_while_the_profile_is_saved_lose_nothing(tmp
         except Exception as error:
             errors.append(error)
             break
+        # A breath between saves: back to back, the saves held the lock nearly all the time, so the workers
+        # wrote a few answers between two saves and the test ran as many saves as the scheduler allowed (140 s on
+        # a busy CI runner, past apply-fast's 5 minutes once). The saves still interleave with the writes.
+        time.sleep(0.001)
     for worker in workers:
         worker.join()
     profile.save()

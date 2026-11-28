@@ -286,7 +286,7 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
                             "changed": said.get("changed") or []})
     finally:
         guard.asking(False)
-        guard.lift()  # the page is Lisul's again: his own Submit goes through
+        guard.lift(pop_ups=True)  # the page is Lisul's again: his own Submit goes through
     blocked = drive_blocks(guard.blocked()[was_blocked:])
     after = settled(page)
     changed = changes(before, after)

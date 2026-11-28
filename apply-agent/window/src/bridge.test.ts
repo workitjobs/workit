@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { routes } from "./bridge.ts";
+import { SENT_ANYWAY } from "./view.ts";
 
 // What the routes bridge posts, caught where it leaves the page.
 function posts() {
@@ -40,6 +41,16 @@ test("Stop applying, Stop new ones only, Not applying, Approve and submit, Cance
     { path: "/auto-cancel", token: "tok", body: { id: "tile-2" } },
     { path: "/stop", token: "tok", body: { new_only: true } },
     { path: "/stop", token: "tok", body: {} },
+  ]);
+});
+
+test("an emailed code reaches /code with its case kept, and Send anyway /submit with its reason", async () => {
+  const { sent, bridge } = posts();
+  await bridge.code("tile-3", "OxNbtPnI");
+  await bridge.submit("tile-3", SENT_ANYWAY);
+  assert.deepEqual(sent, [
+    { path: "/code", token: "tok", body: { id: "tile-3", code: "OxNbtPnI" } },
+    { path: "/submit", token: "tok", body: { id: "tile-3", override: SENT_ANYWAY } },
   ]);
 });
 

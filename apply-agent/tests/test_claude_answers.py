@@ -20,6 +20,8 @@ from fakes import (
     RecordingBoard,
     ScriptedUsage,
 )
+from test_recording import HELD as AI_GUIDE
+from test_recording import Briefing
 
 from apply import (
     answering,
@@ -164,6 +166,36 @@ def test_a_required_essay_is_written_by_claude_and_sent_with_the_form(monkeypatc
     assert essay == MICROMOUSE
 
 
+class GoneOnce(ResearchForm):
+    """A form whose Worker goes away during its first fill (WorkerGone), after its essays were written."""
+
+    def __init__(self, company: str):
+        super().__init__(company)
+        self.gone = 1
+
+    def fill(self, page, questions, answers):
+        if self.gone:
+            self.gone -= 1
+            raise ConnectionError("plain Worker 1 closed during fill")
+        return super().fill(page, questions, answers)
+
+
+def test_an_application_that_failed_after_its_essays_takes_them_on_its_next_attempt(monkeypatch):
+    form = GoneOnce("Northwood Space")
+    first = FakeClaude(essays={PROJECT: MICROMOUSE})
+    [failed] = run_all(monkeypatch, form, first, ["Example Co"])
+    assert failed.status == "failed" and any(k["kind"] == "essays.write" for k in first.kinds)
+
+    again = FakeClaude(essays={PROJECT: "written again"})
+    [row] = run_all(monkeypatch, form, again, ["Example Co"])  # tried again: a new Tracker row
+
+    assert row.status == "submitted", row.reason
+    assert not [k for k in again.kinds if k["kind"] in ("essays.plan", "essays.write", "writing.check", "writing.edit")]
+    [essay] = [answer for label, answer in form.submitted[0].items() if label.startswith(PROJECT)]
+    assert essay == MICROMOUSE
+    assert not list((home.HOME / "unsent-essays").glob("*.md"))  # sent: forgotten
+
+
 def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_never_sent(monkeypatch):
     # The truth check (apply.truth, KAN-748): the Story bank never says 47 clubs, nor that any adopted it.
     form = ResearchForm("Northwood Space")
@@ -174,6 +206,30 @@ def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_
     assert row.status == "held"
     assert "states 47, which no source backs" in row.reason
     assert 'claims what no source backs: "adopted" (an outcome)' in row.reason
+    assert form.submitted == []
+
+
+def test_an_essay_naming_workit_is_held_even_from_a_story_bank_line(monkeypatch):
+    # A hard guard (Lisul, 2026-11-26): naming the tools that fill the form says it was automated, at every level.
+    form = ResearchForm("Northwood Space")
+    told = "I built WorkIt, a job platform, and wrote its fill engine."
+
+    row = run(monkeypatch, form, FakeClaude(essays={PROJECT: told}))
+
+    assert row.status == "held"
+    assert "names WorkIt, fill engine, which says the application was automated" in row.reason
+    assert form.submitted == []
+
+
+def test_a_short_draft_naming_the_tools_is_held_too(monkeypatch):
+    # The hard guard covers one-off answers, which an opinion question answered from the closest facts may be.
+    form = AsksAnOptionalFax()
+    claude = FakeClaude(drafts={FAX: "My favorite project is my auto-apply agent."})
+
+    row = run(monkeypatch, form, claude, company="MetOx International")
+
+    assert row.status == "held"
+    assert f"'{FAX}' names auto-apply, which says the application was automated" in row.reason
     assert form.submitted == []
 
 
@@ -1035,6 +1091,101 @@ def test_a_quiz_to_take_at_a_link_is_a_missing_fact_with_its_link_never_a_profil
     assert asking.known(RAMP_QUIZ, ApplicantProfile.load(PROFILE, POLICIES)) == ()
 
 
+OPENSESAME_LINK = ("Please include a shareable YouTube link to your Creative Project submission (required). Your project "
+                   "should answer the Creative Project questions listed in the job description.")  # OpenSesame's, 2026-11-26
+
+
+@pytest.mark.parametrize("planned", ["essay", "draft"])
+def test_a_link_to_a_video_to_make_is_a_missing_fact_never_written_text(monkeypatch, planned):
+    # The essay writer typed a prose essay about a project into OpenSesame's YouTube link box.
+    form = ResearchForm("GCM Grosvenor")
+    kind = "textarea" if planned == "essay" else "text"
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind=kind) if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    claude = FakeClaude(essays={OPENSESAME_LINK: "I built a tool that fills forms."},
+                        drafts={OPENSESAME_LINK: "https://github.com/test-person"})
+
+    row = run(monkeypatch, form, claude)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Record the video yourself, then paste its YouTube link" in row.reason
+    assert "Creative Project submission" not in json.dumps(claude.asked)  # never planned, drafted or written
+    assert form.submitted == []
+
+
+def test_a_video_link_ask_carries_a_recording_brief_of_the_postings_prompts(monkeypatch):
+    # OpenSesame's video answers the Creative Project prompts in its posting: the ask and the Record list them.
+    form = ResearchForm("GCM Grosvenor")
+    form.questions = [replace(q, label=OPENSESAME_LINK, kind="textarea") if q.label.startswith(RELATIONSHIPS) else q
+                      for q in form.questions]
+    text = (FIXTURES / "opensesame-description.txt").read_text()
+    site = Browser({POSTING_PAGE: "".join(f"<p>{line}</p>" for line in text.splitlines() if line.strip())})
+    board, claude = RecordingBoard(), Briefing({"p1": [{"say": "Check an agent's code", "quote": AI_GUIDE}]})
+
+    [row] = run_all(monkeypatch, form, claude, ["GCM Grosvenor"], site=site, board=board)
+
+    assert (row.status, row.missing_fact) == ("missing fact", OPENSESAME_LINK)
+    assert "Recording brief" not in row.reason  # the Tracker's reason keeps the ask's first line only
+    [shown] = [c["where"][OPENSESAME_LINK] for c in board.captions.values() if OPENSESAME_LINK in (c.get("where") or {})]
+    first, *brief = shown.splitlines()
+    assert first.startswith("Record the video yourself, then paste its YouTube link")
+    assert brief[0].startswith("Recording brief: cover each prompt")
+    assert "  - Check an agent's code" in brief and "- Show us something you've built with AI." in "\n".join(brief)
+
+
+def test_a_video_link_is_known_only_from_a_link_to_one_video_that_names_it():
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    bank = home.STORY_BANK.read_text() if home.STORY_BANK.is_file() else ""
+
+    assert asking.known(OPENSESAME_LINK, profile) == ()  # a GitHub profile or a repo is no video
+    home.STORY_BANK.write_text(bank + "\n- Robot arm demo video: https://youtu.be/abc123\n"
+                               "- Creative Project video: https://www.youtube.com/watch?v=xyz789\n")
+    assert asking.known(OPENSESAME_LINK, profile) == ("Creative Project video: https://www.youtube.com/watch?v=xyz789",)
+
+
+@pytest.mark.parametrize(("label", "kind"), [
+    (OPENSESAME_LINK, "video"), ("Loom link to a 2-minute intro", "video"), ("Link to your take-home submission", "submission"),
+    ("Portfolio URL", "portfolio"), ("Link to a demo of your project", "demo"),
+    ("Portfolio, Video, or Website Link", "portfolio"),  # any of them: a portfolio link fits
+    ("LinkedIn Profile", ""), ("GitHub URL", ""), ("Tell us about a video game you love.", ""),
+    ("Share a link to a short video introducing yourself to Bloomberg", "video"),
+    # A link word that is for something else: the question is an essay.
+    ("Tell us about a project in your portfolio (links welcome).", ""),
+    ("Describe a video game you've built; include a link to the repo.", ""), ("Why YouTube? Share any links.", ""),
+])
+def test_what_a_link_question_asks_the_applicant_to_make(label, kind):
+    assert asking.to_make(Question("q", label, "text")) == kind
+    assert asking.to_make(Question("q", label, "file")) == ""  # an upload is no link
+
+
+def test_only_a_link_to_one_video_fits_a_video_link_field():
+    video = Question("q", OPENSESAME_LINK, "textarea")
+
+    assert asking.fits_made(video, "https://youtu.be/abc123")
+    assert not asking.fits_made(video, "https://github.com/test-person")
+    assert not asking.fits_made(video, "https://www.youtube.com/@testperson")  # a channel
+    assert not asking.fits_made(video, "I built a tool that fills forms.")
+    assert asking.fits_made(Question("p", "Portfolio URL", "text"), "https://test-person.dev")
+    # Only Lisul has a submission: the engine's GitHub rule gave its profile link to OpenSesame's.
+    assert not asking.fits_made(Question("s", "Link to your take-home submission", "text"), "https://github.com/test-person")
+
+
+def test_a_video_asks_context_line_names_its_host_only_as_a_word():
+    assert asking.made(Question("q", "Share a link to a short video introducing yourself to Bloomberg", "text")) \
+        == "Record the video yourself, then paste its video link"
+    assert asking.made(Question("q", OPENSESAME_LINK, "textarea")).endswith("paste its YouTube link")
+
+
+def test_prose_an_earlier_run_banked_for_a_video_link_never_answers_it():
+    profile, bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "I built a tool that fills forms.", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ()
+
+    bank = AnswerBank()
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "https://youtu.be/abc123", "OpenSesame", NOW.date())
+    assert asking.known(OPENSESAME_LINK, profile, bank) == ("https://youtu.be/abc123",)
+
+
 def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
     form = ResearchForm("GCM Grosvenor")
 
@@ -1048,23 +1199,25 @@ DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tr
 PICKED = "Buses park at angles in the depot, so rotated boxes kept two side-by-side buses apart."
 
 
-def proud_plan(decision: list[str], ask: str = "") -> dict:
-    """A best-project plan for PROJECT, its decision slot backed by `decision` (or asking `ask`)."""
+def proud_plan(decision: list[str], ask: str = "", others: bool = True) -> dict:
+    """A best-project plan for PROJECT, its decision slot backed by `decision` (or asking `ask`), and its other
+    required slots backed by a Story bank line (or, without `others`, by none)."""
     bank = home.STORY_BANK.read_text()
     line = next(line for line in bank.splitlines() if "YOLOv8-OBB detector" in line)[2:80]
-    slots = [{"slot": s.name, "quotes": [line], "ask": ""} for s in answering.load()["best-project"].slots
+    slots = [{"slot": s.name, "quotes": [line] if others else [], "ask": ""} for s in answering.load()["best-project"].slots
              if s.required is True and s.name != "decision"]
     return {PROJECT: {"type": "best-project", "slots": [*slots, {"slot": "decision", "quotes": decision, "ask": ask}]}}
 
 
 def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the_story_bank(monkeypatch):
     form, tracker = ResearchForm("Northwood Space"), InMemoryTracker()
-    waiting = proud_plan([], DECISION)
+    waiting = proud_plan([], DECISION, others=False)  # no line backs any of it: nothing to write it from
     first = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[waiting, waiting])
+    project = f"{answering.load()['best-project'].slots[0].holds}?"  # its first slot's question, asked first
 
     [row] = run_all(monkeypatch, form, first, ["Example Co"], tracker=tracker)
 
-    assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {DECISION}")
+    assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {project}")
     assert form.submitted == []
     assert not any(PROJECT in json.dumps(c["data"]["questions"]) for c in asks(first))  # not written
     tracker.answer(row.application_id, PICKED)
@@ -1072,10 +1225,25 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the
 
     [row] = run_all(monkeypatch, form, second, ["Example Co"], tracker=tracker)
 
-    assert f"- {DECISION} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
+    assert f"- {project} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
     assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from the Story bank
     assert row.status == "submitted", row.reason
     assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+
+
+def test_an_essay_the_story_bank_tells_in_part_is_written_from_it_never_held(monkeypatch):
+    # Veeva (2026-11-27): "jobs or projects you had as a younger person" waited on FIRST swerve facts the bank
+    # roughly covers. A story some line backs is written from the closest facts, never asked for the rest.
+    form = ResearchForm("Northwood Space")
+    partial = proud_plan([], DECISION)  # every slot but the decision backed
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[partial, partial])
+
+    [row] = run_all(monkeypatch, form, claude, ["Example Co"])
+
+    assert row.status == "submitted", row.reason
+    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+    [sent] = [q for c in asks(claude) for q in c["data"]["questions"].values() if q["label"].startswith(PROJECT)]
+    assert sent["closest_facts"] is True  # told to give the nearest facts in place of the missing ones
 
 
 def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with_it():
@@ -1255,6 +1423,33 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     editor = claude.kinds[-1]
     assert editor["data"]["drafts"] == {"q1": drafted.replace("Test Person", "@FIRST_NAME@ @LAST_NAME@")}  # D8
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
+
+
+def test_claim_check_false_edits_an_essay_with_no_claim_check_call(tmp_path):
+    claude = FakeClaude()
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    question = Question("q1", "Why Figma?", "textarea", True)
+
+    essays.write(claude, posting, [question], ApplicantProfile.load(with_policies(tmp_path, "claim_check: false\n")))
+
+    kinds = [k["kind"] for k in claude.kinds]
+    assert "writing.check" not in kinds
+    assert claude.kinds[kinds.index("writing.edit")]["data"]["flagged"] == {}
+
+
+def test_an_essay_that_points_at_the_postings_listed_questions_is_planned_and_written_with_them():
+    # OpenSesame's prompts sat past the <posting> cut, and its essay never saw them (2026-11-26).
+    claude = FakeClaude()
+    posting = Posting("os", "OpenSesame", "Software Engineering Internship", "https://jobs.example.com/1")
+    creative = Question("a", "Describe your Creative Project. It should answer the questions listed in the job description.",
+                        "textarea", True)
+    text = "Interns ship code to production.\n" * 300 + (FIXTURES / "opensesame-description.txt").read_text()
+
+    essays.write(claude, posting, [creative], ApplicantProfile.load(PROFILE, POLICIES), posting_text=text)
+
+    sent = {k["kind"]: k["data"]["posting"] for k in claude.kinds if k["kind"] in ("essays.plan", "essays.write")}
+    assert set(sent) == {"essays.plan", "essays.write"}
+    assert all("<asked_in_description>" in block and "fitting into your career journey" in block for block in sent.values())
 
 
 def test_every_essay_of_a_form_is_edited_in_one_call():
@@ -1482,7 +1677,7 @@ def test_a_plan_is_checked_for_its_story_company_fact_parts_and_reuse():
 SHORT_WHY = Question("a", "Why Figma? (2-3 sentences)", "textarea", True)
 GENERIC = "I like Figma a lot. It is a great company."
 SPECIFIC = "Dev Mode hands designs to engineers, the handoff I did by hand on WorkIt. I built that front end from frames."
-OWN = "I built the WorkIt front end from frames myself. Dev Mode would have saved me that handoff."
+OWN = "I built a job search front end from frames myself. Dev Mode would have saved me that handoff."
 
 
 KIND_NAMES = {"probe.typical": "typical", "essays.plan": "plan", "essays.write": "essays", "writing.check": "unsupported",
@@ -1508,6 +1703,31 @@ def test_each_essay_is_drafted_once_from_its_plans_slots_with_no_pick_or_critic(
     slots = _block(drafted["prompt"], "plan")["q1"]["slots"]
     assert set(slots) == {s.name for s in answering.load()["why-company"].slots if s.required is True}
     assert [b.slot for b in essay.plan.slots] == list(slots)
+
+
+WORKIT = "- Built the WorkIt front end from Figma frames and the FastAPI endpoints behind its job search.\n"
+
+
+class EditsTheBank(FakeClaude):
+    """Lisul moves a fact out of the Story bank while the editor's pass runs, as he did during ENFOS's."""
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if kind == "writing.edit" and WORKIT in (bank := home.STORY_BANK.read_text()):
+            home.STORY_BANK.write_text(bank.replace(WORKIT, ""))
+        return super().ask_kind(kind, data)
+
+
+def test_a_story_bank_edit_while_an_essay_is_written_has_it_planned_and_written_again():
+    # Fault: answer() returns the essay its plan and editor wrote from the bank as it was before the edit.
+    claude = EditsTheBank(essays={"Why Figma?": OWN})
+
+    write_figma(claude, [SHORT_WHY])
+
+    assert kinds(claude) == ["typical", "plan", "essays", "unsupported", "edited",
+                             "plan", "essays", "unsupported", "edited"]  # the typical answer is cached
+    first, again = plans(claude)
+    assert WORKIT.strip() in first["prompt"] and WORKIT.strip() not in again["prompt"]
+    assert WORKIT.strip() not in asks(claude)[-1]["prompt"]
 
 
 def test_a_slot_quote_must_be_in_the_sources_and_a_required_slot_needs_one():
@@ -1548,15 +1768,16 @@ def test_a_slot_failing_its_check_is_planned_again_and_a_bad_optional_quote_is_l
 def test_an_essay_whose_required_slot_no_line_backs_waits_for_lisul_and_is_not_written():
     ask = "What do you do differently since the Hitachi feed deadline slipped?"
     failure = Question("c", "Tell us about a time you failed.", "textarea", True)
-    slots = [{"slot": s.name, "quotes": [FIX], "ask": ""} for s in answering.load()["failure"].slots if s.required is True]
-    slots = [s if s["slot"] != "habit" else {"slot": "habit", "quotes": [], "ask": ask} for s in slots]
+    # No line backs any of it (a partly backed story is written from what backs it): nothing to write it from.
+    slots = [{"slot": s.name, "quotes": [], "ask": ask if s.name == "habit" else ""}
+             for s in answering.load()["failure"].slots if s.required is True]
     claude = FakeClaude(essays={"Tell us about a time": "A failure.", "Why Figma?": OWN},
                         plans=[{"Tell us about a time": {"type": "failure", "slots": slots}}])
 
     why, failed = write_figma(claude, [SHORT_WHY, failure])
 
     assert len(plans(claude)) == 2  # asked again once, then it waits
-    assert failed.text == "" and failed.plan.asks == (f"Essay fact: {ask}",)
+    assert failed.text == "" and f"Essay fact: {ask}" in failed.plan.asks
     assert why.text == OWN and why.plan.asks == ()
     [drafted] = asks(claude)
     assert list(drafted["data"]["questions"]) == ["q1"]  # the failure essay isn't written
@@ -2019,3 +2240,134 @@ def test_with_a_hosted_model_the_one_off_questions_go_in_an_essays_write_call_of
 
     assert [(bool(c["data"]["questions"]), bool(c["data"]["short_questions"])) for c in asks(claude)] == [
         (True, False), (False, True)]
+
+
+def test_a_web_address_field_gets_only_a_bare_url(monkeypatch):
+    # Circleback (Ashby, 2026-11-26): "What can we look at?" is type="url", and the writer gave it "URL : prose",
+    # which the browser dropped on readback, twice.
+    claude = FakeClaude()
+    posting = Posting("p", "Circleback", "Software Engineer Intern", "https://jobs.example.com/1")
+    site = Question("site", "What can we look at?", "text", True, description="A link, and what part was yours.",
+                    url=True)
+    asked = "https://github.com/test/solver : the maze solver, which I wrote myself."
+
+    def ask_kind(kind, data):
+        claude.kinds.append({"kind": kind, "data": data})
+        return {"drafts": {"d1": {"answer": asked, "needs_lisul": False, "facts": []}}}
+    claude.ask_kind = ask_kind
+
+    _, [draft] = essays.answer(claude, posting, [], [site], ApplicantProfile.load(PROFILE, POLICIES))
+
+    assert draft.answer == "https://github.com/test/solver" and not draft.needs_lisul
+    assert claude.kinds[-1]["data"]["short_questions"]["d1"]["url"] is True
+    assert essays.bare_url("See https://a.example/x and https://b.example/y.") == ""  # which one is meant: unsure
+    assert essays.bare_url("The solver, which I wrote.") == ""
+    assert essays._sent(replace(site, url=False)).get("url") is None  # the server's older data takes no url key
+
+
+
+RELOCATE = "Are you based in the SF / Bay Area, or willing to relocate there?"
+RELOCATE_OPTIONS = ("Yes, I'm based in the SF / Bay Area", "Yes, I'd relocate within 1-2 months", "No")
+SAYS_PROFILE = f"{RELOCATE}: the profile says he lives in New York and will relocate"
+
+
+def _relocating(monkeypatch, reason: str, *more: list[str]) -> tuple[ResearchForm, FakeClaude, str, str]:
+    """The form with RELOCATE added, what the plan alone answers it with, and a review that fixes it to the other
+    Yes for `reason`, then gives `more` reviews."""
+    form = ResearchForm("Northwood Space")
+    form.questions = form.questions + [Question("qr", RELOCATE, "select", True, RELOCATE_OPTIONS)]
+    alone = ResearchForm("Northwood Space")
+    alone.questions = form.questions
+    run_all(monkeypatch, alone, FakeClaude(essays={PROJECT: MICROMOUSE}), ["Pylon"])
+    planned = alone.filled[-1][RELOCATE]
+    fix = RELOCATE_OPTIONS[1] if planned != RELOCATE_OPTIONS[1] else RELOCATE_OPTIONS[0]
+    review = {"problems": [reason], "fixes": [{"question": RELOCATE, "answer": fix}]}
+    return form, FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[review, *more]), planned, fix
+
+
+def test_the_reviews_fix_over_a_profile_choice_its_profile_reason_backs_is_kept_once_reviewed_again(monkeypatch):
+    # Pylon (2026-11-26): the plan picked "based in the Bay Area" for a home in New York, and the review's fix, the
+    # relocate option, was refused as over a profile answer. A fix over a profile-derived choice is filled when the
+    # review's reason rests on the profile, and kept once the second review passes it.
+    form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE)
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert planned in RELOCATE_OPTIONS and fix != planned
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
+def test_the_reviews_fix_is_filled_on_a_question_and_its_repeat_when_its_reason_quotes_them(monkeypatch):
+    # Honeywell (Oracle, live 2026-11-27): the review wrote its problem as "'<question>' (and its 'Application
+    # Questions:' repeat) is answered Yes...", with no "<question>:" lead, and fixed both. Neither fix was taken as
+    # backed by the profile, so the form was held for what Apply could fix itself.
+    repeat = f"Application Questions: {RELOCATE}"
+    reason = f"'{RELOCATE}' (and its 'Application Questions:' repeat) is answered wrong. His profile says New York."
+    form, _, _, fix = _relocating(monkeypatch, reason)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [reason], "fixes": [{"question": q, "answer": fix} for q in (RELOCATE, repeat)]}])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix and sent_answer(form, repeat) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
+@pytest.mark.parametrize("reason", [
+    SAYS_PROFILE,
+    # Honeywell's (live 2026-11-27): no word of the profile, but the form's own graduation date, which is the profile's.
+    f"{RELOCATE}: answered wrong, which contradicts 'Where do you live?' (New York).",
+])
+def test_the_reviews_fix_to_a_question_is_filled_on_its_repeat_in_another_section(monkeypatch, reason):
+    # Honeywell (Oracle, live 2026-11-27): the review fixed the question but not its "Application Questions:" repeat,
+    # then held the form as the two said different things.
+    repeat = f"Application Questions: {RELOCATE}"
+    form, _, _, fix = _relocating(monkeypatch, reason)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [reason], "fixes": [{"question": RELOCATE, "answer": fix}]}])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELOCATE) == fix and sent_answer(form, repeat) == fix
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 2
+
+
+def test_a_repeat_is_undone_with_its_questions_trial_fix(monkeypatch):
+    repeat = f"Application Questions: {RELOCATE}"
+    still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
+    form, _, planned, fix = _relocating(monkeypatch, SAYS_PROFILE)
+    form.questions = form.questions + [Question("qr2", repeat, "select", True, RELOCATE_OPTIONS)]
+    claude = FakeClaude(essays={PROJECT: MICROMOUSE}, reviews=[
+        {"problems": [SAYS_PROFILE], "fixes": [{"question": RELOCATE, "answer": fix}]}, [still], [still]])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held"
+    assert [(filled[RELOCATE], filled[repeat]) for filled in form.filled][-1] == (planned, planned)
+
+
+def test_a_fix_over_a_profile_choice_the_second_review_still_flags_is_undone_and_held(monkeypatch):
+    still = f"{RELOCATE}: still wrong, the profile says he lives in New York"
+    form, claude, planned, fix = _relocating(monkeypatch, SAYS_PROFILE, [still], [still])
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held" and f"Pre-submit review: {still}" in row.reason
+    assert [filled[RELOCATE] for filled in form.filled] == [planned, fix, planned]  # the plan's again, reviewed again
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 3
+
+
+def test_a_fix_over_a_profile_choice_whose_reason_isnt_the_profile_is_never_taken(monkeypatch):
+    # General Motors' degree (live): a reason of the review's own reading, not the profile, never changes his answer.
+    form, claude, planned, _ = _relocating(monkeypatch, f"{RELOCATE}: Bay Area roles usually want locals")
+
+    [row] = run_all(monkeypatch, form, claude, ["Pylon"])
+
+    assert row.status == "held" and [filled[RELOCATE] for filled in form.filled] == [planned]
+    assert sum(k["kind"] == "presubmit.review" for k in claude.kinds) == 1

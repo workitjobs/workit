@@ -182,6 +182,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     app.add_argument("--max-plan", action="store_true",
                      help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
                           "route and its Usage cap. Only for a window this opens")
+    app.add_argument("--todos", action="store_true",
+                     help="developer checkout: turn on the application to-do tracker (APPLY_DEV_TODOS), which "
+                          "scans your Gmail for assessments, forms, interviews to schedule and other steps, and "
+                          "lists them in the window's To-dos. Only for a window this opens")
     claude_token = commands.add_parser(
         "claude-token", help="developer checkout: keep the token `claude setup-token` prints in Keychain, so every "
                              "claude -p call signs in with it before your claude login. Paste it when asked")
@@ -282,11 +286,24 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     for name, does in (("submit", "Approve and submit: the run presses the held form's own Submit"),
                        ("cancel", "Cancel a held form's Auto-submit countdown"),
                        ("skip", "Not applying to this one: the held form is let go, unsubmitted"),
-                       ("fill-again", "Try again: fill the held form anew")):
+                       ("fill-again", "Try again: fill the held form anew"),
+                       ("resume", "Resume a paused form, once you've finished its step (a sign-in) on its page: the "
+                                  "fill goes on from the page as you left it, and never presses Submit")):
         acted = window_commands.add_parser(name, help=does)
         acted.add_argument("tile", help="the job's `tile` from `apply window state`, such as tile-0")
         if name in ("submit", "skip"):
             acted.add_argument("--yes", action="store_true", help="you mean it: it can't be undone")
+        if name == "submit":
+            acted.add_argument("--override", metavar="REASON", default="",
+                               help="send it past the Pre-submit review's holds (Send anyway), for this reason, kept "
+                                    "in its Record; every other check still stands")
+    coded = window_commands.add_parser("code", help="enter the code the job site emailed (Greenhouse's security code) "
+                                                    "in the held form's code field and press its Submit, once; or, "
+                                                    "held at a sign-in (Oracle's one-time code), sign in with it and "
+                                                    "go on filling, with no Submit pressed")
+    coded.add_argument("tile", help="the job's `tile` (or its `id`) from `apply window state`, such as tile-0")
+    coded.add_argument("code", help="the code from the email, exactly as it is: case counts")
+    coded.add_argument("--yes", action="store_true", help="you mean it: Submit is pressed, and it can't be undone")
     answered = window_commands.add_parser("answer", help="answer a Needs-you question, as its card does")
     answered.add_argument("id", help="the job's `id` from `apply window state`")
     answered.add_argument("question", help="the question, word for word, from its `missing`")
@@ -294,6 +311,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     answered.add_argument("--file", type=Path, help="a file the question asks for, in place of an answer")
     removed = window_commands.add_parser("remove", help="Remove a job waiting to start from the run")
     removed.add_argument("link", help="its `link` from the state's `waiting`")
+    window_commands.add_parser("todos", help="the application to-dos the window lists (developer flag: `apply app "
+                                             "--todos`), open first, with the last scan")
+    window_commands.add_parser("todo-scan", help="scan mail for application to-dos now, and list them")
+    for name, does in (("todo-done", "mark an application to-do done"), ("todo-dismiss", "dismiss an application "
+                       "to-do: it isn't one"), ("todo-open", "open a done or dismissed to-do again")):
+        window_commands.add_parser(name, help=does).add_argument("id", help="the to-do's `id` from `apply window todos`")
     added = window_commands.add_parser("add", help="add job links: a run of them, or into the run going")
     added.add_argument("links", nargs="+")
     stopped = window_commands.add_parser("stop", help="Stop applying: every held form closes, unsubmitted")
@@ -435,6 +458,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
 
         if args.max_plan:  # the Student build ignores it (student.asking)
             os.environ[student.MAX_PLAN] = "1"
+        if args.todos:  # the Student build ignores it (todos.enabled)
+            os.environ["APPLY_DEV_TODOS"] = "1"
         args.links, not_links = app_window.links_given(args.links)
         if not_links:
             sys.exit(f"Not a job link: {', '.join(not_links)}. Pass each posting's full https:// link.")
@@ -544,7 +569,7 @@ def _window(args) -> int:
         return said({"status": 503, "error": "WorkIt Auto Apply isn't open. Open it with `uv run apply app` "
                                               "(with links, to start them)."})
     command = args.window_command
-    if command in ("submit", "skip") and not args.yes:
+    if command in ("submit", "skip", "code") and not args.yes:
         return said({"status": 400, "error": f"{command} can't be undone: pass --yes, as the window asks once more."})
     if command == "stop" and not (args.yes or args.new_only):
         return said({"status": 400, "error": "Stop closes every held form unless --new-only: pass --yes."})
@@ -555,9 +580,21 @@ def _window(args) -> int:
         app_window.send_links(links)
         return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
                                                "signed in and set up. `apply window state` shows them."})
+    if command in ("todos", "todo-scan"):
+        return said(app_control.ask(command, timeout=app_control.TODO_SCAN_WAIT if command == "todo-scan"
+                                    else app_control.ASK_WAIT))
+    if command.startswith("todo-"):
+        status = {"todo-done": "done", "todo-dismiss": "dismissed", "todo-open": "open"}[command]
+        return said(app_control.ask("todo-mark", {"id": args.id, "status": status}))
     body: dict = {}
-    if command in ("submit", "cancel", "skip", "fill-again"):
+    if command in ("submit", "cancel", "skip", "fill-again", "resume"):
         body = {"id": args.tile}
+        if command == "submit" and args.override:
+            if not args.override.strip():
+                return said({"status": 400, "error": "--override needs a reason: it is kept in the Record."})
+            body["override"] = args.override
+    elif command == "code":
+        return _window_code(args.tile, args.code, said)
     elif command == "answer":
         body = {"id": args.id, "question": args.question, "answer": args.answer}
         if args.file and not args.file.is_file():
@@ -569,6 +606,47 @@ def _window(args) -> int:
     elif command == "stop":
         body = {"new_only": True} if args.new_only else {}
     return said(app_control.ask(command, body))
+
+
+CODE_WAIT = 150.0  # how long `apply window code` waits for the job site's answer: the run's CONFIRM_S, and more
+
+
+def _window_code(named: str, code: str, said: Callable[[dict], int], wait: float = CODE_WAIT,
+                 every: float = 2.0) -> int:
+    """`apply window code`: the emailed code, for the job `named` (its tile, or its id), entered and sent by the run
+    as the card's box does; then the window's state is read till the job site confirms it (Sent) or the run says
+    why not (a wrong code, a field it doesn't fit)."""
+    from apply import app_control
+
+    def jobs() -> list[dict]:
+        got = app_control.ask("state")
+        state = got.get("state") or {}
+        return [j for part in ("needs_you", "working", "applied", "stopped") for j in state.get(part) or []]
+
+    tile = named if named.startswith("tile-") else next((j["tile"] for j in jobs() if j.get("id") == named and j.get("tile")), "")
+    if not tile:
+        return said({"status": 404, "error": f"No held form named {named}: use its `tile` from `apply window state`."})
+    reply = app_control.ask("code", {"id": tile, "code": code})
+    if int(reply.get("status") or 0) >= 400:
+        return said(reply)
+    deadline, signing_in = time.monotonic() + wait, False
+    while time.monotonic() < deadline:
+        time.sleep(every)
+        job = next((j for j in jobs() if j.get("tile") == tile), None)
+        if job is None:
+            return said({"status": 200, "message": "The code went in; the form is no longer in the window."})
+        # Held at a sign-in (Oracle's emailed code): the code signs in, and the fill goes on; no Submit is pressed.
+        signing_in = signing_in or job.get("ask") == "sign-in"
+        if job.get("status") == "submitted":
+            return said({"status": 200, "message": "Sent: the job site confirmed the application.", "tile": tile})
+        if job.get("code_said"):
+            return said({"status": 409, "error": job["code_said"], "tile": tile})
+        if not job.get("coding"):
+            return said({"status": 200, "tile": tile, "message": "The code went in and signed you in: Apply goes on "
+                         "filling the form, and presses no Submit." if signing_in else
+                         "The code went in and Submit was pressed."})
+    return said({"status": 504, "error": "The job site hasn't answered yet: read `apply window state` for how it went.",
+                 "tile": tile})
 
 
 def _plain(args) -> None:

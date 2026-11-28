@@ -1,14 +1,16 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, ListChecksIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
+import { topOnSwitch } from "./scroll.ts";
+import { Todos } from "./todos.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, findsJobs, joinedWords, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -16,7 +18,8 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied" | "add" | "find">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add" | "find" | "todos">("home");
+  const [todosOn, setTodosOn] = useState(false); // the developer to-do tracker's flag is on (apply.todos)
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
   useEffect(
@@ -28,6 +31,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     [bridge],
   );
   useEffect(() => void bridge.app.then(setApp), [bridge]);
+  // Its methods are always there; a window with the flag off refuses them, and shows no To-dos.
+  useEffect(() => void app.todos?.().then((t) => setTodosOn(t.enabled), () => setTodosOn(false)), [app]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 5000);
@@ -37,16 +42,23 @@ export function App({ bridge }: { bridge: Bridge }) {
   useEffect(() => {
     if (v) document.title = v.todo.length ? `WorkIt Auto Apply (${v.todo.length})` : "WorkIt Auto Apply";
   }, [v]);
-  // A run started from Find jobs or the queue: its board is home now.
+  // A run started from Find jobs or the queue: its board is home now. Only as it starts: Find jobs stays open beside
+  // a run going.
+  const wasRunning = useRef(false);
   useEffect(() => {
-    if (v?.running && (page === "add" || page === "find")) setPage("home");
+    if (v?.running && !wasRunning.current && (page === "add" || page === "find")) setPage("home");
+    if (v) wasRunning.current = v.running;
   }, [v?.running, page]);
+  // Each page opens at its top, never at the last page's scroll (scroll.ts). Before paint, so it never flashes.
+  const [toTop] = useState(() => topOnSwitch(window));
+  useLayoutEffect(() => toTop(page), [toTop, page]);
   if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
   // Add jobs brings it back once there is something else to show.
   const first =
     !!app.queue &&
     page !== "applied" &&
+    page !== "todos" &&
     (page === "add" || page === "find" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
   // Find jobs (find.tsx) is where a student picks jobs, when the window can read their matches; the queue and a
@@ -61,7 +73,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         </button>
         <nav className="ml-auto flex items-center gap-1 text-note">
           {v.running && !first && <Stop v={v} bridge={bridge} fail={setToast} />}
-          {addsJobs(v, !!app.start) && !!app.matches && (
+          {findsJobs(!!app.start, !!app.matches) && (
             <Button tone="quiet" className={cx("h-8 px-3", first && finds && "bg-hover text-ink")} onClick={() => setPage("find")}>
               <MagnifyingGlassIcon className="size-4" /> Find jobs
             </Button>
@@ -74,6 +86,11 @@ export function App({ bridge }: { bridge: Bridge }) {
           {(!first || app.applied) && (
             <Button tone="quiet" className={cx("h-8 px-3", page === "applied" && "bg-hover text-ink")} onClick={() => setPage(page === "applied" ? "home" : "applied")}>
               Applied
+            </Button>
+          )}
+          {todosOn && (
+            <Button tone="quiet" className={cx("h-8 px-3", page === "todos" && "bg-hover text-ink")} onClick={() => setPage(page === "todos" ? "home" : "todos")}>
+              <ListChecksIcon className="size-4" /> To-dos
             </Button>
           )}
           {app.settings && (
@@ -90,10 +107,12 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {page === "applied" ? (
+        {page === "todos" && todosOn ? (
+          <Todos app={app} fail={setToast} />
+        ) : page === "applied" ? (
           <Applied jobs={v.applied} app={app} />
         ) : first && finds ? (
-          <Find app={app} queue={add} />
+          <Find app={app} queue={v.running ? undefined : add} joined={v.running ? (n) => (setPage("home"), setToast(joinedWords(n))) : undefined} />
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (

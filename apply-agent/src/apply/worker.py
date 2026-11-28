@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
@@ -30,9 +30,11 @@ from apply import (
     gates,
     other_roles,
     private,
+    recording,
     regenerate,
     sameness,
     stuck,
+    unsent,
     verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
@@ -69,13 +71,18 @@ from apply.model import (
     Status,
     host_company,
     is_company,
+    job_title,
     one_line,
 )
-from apply.presubmit import replan, review
+from apply.presubmit import Found, backed_by_policies, replan, review
+from apply.presubmit import fix as ask_fix
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled
 
 SENT = HOME / "sent"
+# How many times the Pre-submit review's problems are fixed, the form filled again and reviewed again, before what
+# is still wrong reaches the student: Apply fixes what it can itself (Lisul, 2026-11-26).
+SELF_FIXES = 2
 
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
@@ -184,6 +191,7 @@ class Result:
     problems: tuple[str, ...] = ()  # answers the Pre-submit check found wrong, or a rehearsal couldn't fill
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank, in form order
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one, in form order
+    briefs: tuple[tuple[str, str], ...] = ()  # (question, Recording brief) of each video link Lisul makes (apply.recording)
     named: tuple[str, str] = ("", "")  # the company and role the form's own page named (Claude fill)
     # (question, answer, uses) of each unreviewed draft the Answer bank answered this form with, in form order
     reused: tuple[tuple[str, str, int], ...] = ()
@@ -289,6 +297,13 @@ def apply_to(
         result = Result(Status.FAILED, f"{NOT_A_POSTING}: {what}")
     except UsageLimitHit as hit:
         result = Result(Status.PAUSED, f"Usage limit reached until {hit.resets_at or 'it resets'}")
+    except BaseException:  # a Worker gone (WorkerGone), a crash: its next attempt takes what it wrote
+        unsent.keep(planned.posting, planned.written, planned._today)
+        raise
+    if result.status in (Status.FAILED, Status.PAUSED):
+        unsent.keep(planned.posting, planned.written, planned._today)
+    else:
+        unsent.forget(planned.posting)
     if result.status == Status.SUBMITTED:  # only what an employer was sent: never a fill, a Hold or a rehearsal
         ledger = sameness.Ledger()
         for e in planned.written:
@@ -301,6 +316,7 @@ def apply_to(
     if result.filled is not None:
         result.listed, result.fixed = tuple(planned.listed()), tuple(planned.fixed)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
+    result.briefs = tuple((question, shown) for question, shown in planned.briefs.items() if shown)
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
     return result
@@ -379,23 +395,26 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     continue  # he did the captcha: the questions are read again, from the page he left
                 if handoff is not stopped:  # a bot block: at once, to his own Chrome, never paused for a Resume that retries
                     raise handoff from stopped
-                if isinstance(handoff, Blocked) or not (rehearse and on_pause(_handed_off(handoff), blocked)):
+                if isinstance(handoff, Blocked) or not (rehearse and on_pause(_handed_off(handoff, named=_names(filler)), blocked)):
                     raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
         planned.text = read or getattr(filler, "posting_text", "") or fetched
         # A Request on a job system with no Filler: its link named no company, but its open page did
         # (Claude fill). Planned with that name, "why <company>?" is the High-stakes essay it is.
         # Else its link's host, when it is a job site known to be one company's (amazon.jobs: Amazon).
-        company, title = getattr(filler, "names", None) or ("", "")
+        company, title = _names(filler)
         planned.posting = posting = replace(posting, company=posting.company or company or host_company(posting.url),
-                                            title=posting.title or title)
+                                            title=posting.title or job_title(title))
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
         form_url = getattr(filler, "form_url", lambda url: url)(posting.url)  # where its form is, if not the posting
-        replanned = fixed = False  # each is tried once: a fill again after a readback mismatch, and after the review's fixes
-        for attempt in range(3):
+        replanned, self_fixed = False, 0  # a fill again after a readback mismatch, once; after the review's fixes, twice
+        attempts = 2 + SELF_FIXES  # the first fill, the replan's and each self-fix's
+        for attempt in range(attempts):
             with site.open(form_url) as page:
+                # A form that won't show fails here, in seconds, not after Claude planned it (Rippling's crashed form).
+                getattr(filler, "form_shown", lambda page: None)(page)
                 if rehearse and attempt == 0 and (stop := _plan(planned, questions, filler, page, go_on)):
                     return stop
                 before_fill()
@@ -426,7 +445,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # What it planned and what the page showed so far, for its Record: a step Workday won't
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
-                        stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
+                        stopped = _handed_off(handoff, named=_names(filler), missing=planned.missing, choices=planned.choices,
                                               left_behind=_left_behind(filler),
                                               required=planned.required, where=planned.where,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
@@ -448,7 +467,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 for name, wordings in getattr(filler, "picked", lambda answers, readback: {})(answers, readback).items():
                     planned.accepted[name] = tuple(dict.fromkeys((*planned.accepted.get(name, ()), *wordings)))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
-                if problems and not replanned and attempt < 2:
+                if problems and not replanned and attempt < attempts - 1:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
                     # those answers again, and the form is filled once more in a fresh page.
                     replanned = True
@@ -479,14 +498,24 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     sources = essays.sources(profile, planned.known(), facts=True,
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
-                    found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
-                    if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
+                    reviewer = as_applicant(claude, profile)  # its reasons say the applicant's own pronouns
+                    found = review(reviewer, posting, questions, readback, sources, planned.text,
+                                   planned.own(), private.self_id(profile))
+                    found = backed_by_policies(found, questions, readback, profile, planned.text)
+                    if self_fixed and attempt < attempts - 1 and planned.unfix(found):
+                        continue  # a fix over a profile answer the next review still flags: the plan's answer again
+                    if found and self_fixed < SELF_FIXES and attempt < attempts - 1:
                         # The review named the right answer for a wrong one (an internship start in a school's
-                        # From): it is filled in its place, and the form filled and reviewed again, before
-                        # Lisul sees it as ready.
-                        fixed = True
-                        continue
+                        # From), or the fix call gave one for a problem it named none for (Abridge's state, given
+                        # as city, state and country): it is filled in its place, and the form filled and
+                        # reviewed again, before Lisul sees it as ready. Only what Apply can't fix reaches him.
+                        stuck.doing("Fixing the answers the Pre-submit review found wrong")
+                        fixes = _self_fixes(found, lambda unfixed: ask_fix(
+                            reviewer, posting, questions, readback, unfixed, sources, planned.text, planned.own(),
+                            private.self_id(profile)).fixes)
+                        if planned.fix(fixes, readback, found, trial=self_fixed < 1):
+                            self_fixed += 1
+                            continue
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))
@@ -518,6 +547,49 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
                               bot_signals=tuple(met or ()), problems=rescued, verification=verification)
+
+
+def _self_fixes(found: Found, ask: Callable[[list[str]], dict[str, str]]) -> dict[str, str]:
+    """The answer to enter for each problem the review found, by the question as it named it: its own fixes, then
+    the fix call's (`ask`) for each problem that names none of their questions."""
+    fixes = dict(found.fixes)
+    unfixed = [problem for problem in found if not any(question in problem for question in fixes)]
+    if unfixed:
+        fixes |= {question: answer for question, answer in ask(unfixed).items() if question not in fixes}
+    return fixes
+
+
+def _repeats(questions: Sequence[Question]) -> dict[str, set[str]]:
+    """Each question's repeats in another section, by name: Oracle asks "<question>" and again "Application
+    Questions: <question>", one label after a section's name and ": " the other's whole."""
+    by_label: dict[str, set[str]] = {}
+    labels = {one_line(q.label).casefold() for q in questions}
+    for q in questions:
+        label = one_line(q.label).casefold()
+        _, _, rest = label.partition(": ")
+        by_label.setdefault(rest if rest in labels else label, set()).add(q.name)
+    return {name: same - {name} for same in by_label.values() if len(same) > 1 for name in same}
+
+
+def _ticks(answer: str, options: Sequence[str]) -> list[str]:
+    """The boxes of a group (`options`) a fix names, as the review writes them on one line ("Robotics Club",
+    "Robotics Club, Hackathons"; Shield AI's on Ashby, live 2026-11-27, which no fix could change): each option
+    named whole, in the group's order, when the fix names nothing else; else none."""
+    rest, named = one_line(answer).casefold(), set()
+    for option in sorted(options, key=len, reverse=True):  # "Other student groups" before "Other"
+        if (said := one_line(option).casefold()) and re.search(rf"(?<!\w){re.escape(said)}(?!\w)", rest):
+            rest = re.sub(rf"(?<!\w){re.escape(said)}(?!\w)", " ", rest)
+            named.add(option)
+    return [o for o in options if o in named] if not re.sub(r"[\s,;/&'\"“”.]|\band\b", "", rest) else []
+
+
+def _narrows(answer: object, shown: object) -> bool:
+    """Whether `answer` says only part of what the field shows, in its words ("New York" of "Riverton, New York,
+    United States"): the same facts, fewer of them, so no fact the profile doesn't hold."""
+    if not isinstance(answer, str):
+        return False
+    words = re.findall(r"\w+", answer.casefold())
+    return bool(words) and isinstance(shown, str) and set(words) <= set(re.findall(r"\w+", shown.casefold()))
 
 
 def _where(filler) -> str:
@@ -554,7 +626,12 @@ def choices(question: Question) -> dict | None:
 
 def _company(posting: Posting, filler) -> str:
     """The company the link names, else the one its open page names (Claude fill), else its known host's."""
-    return posting.company or (getattr(filler, "names", None) or ("", ""))[0] or host_company(posting.url)
+    return posting.company or _names(filler)[0] or host_company(posting.url)
+
+
+def _names(filler) -> tuple[str, str]:
+    """The company and role the open page named (Claude fill), else none."""
+    return getattr(filler, "names", None) or ("", "")
 
 
 # Why a left-behind answer is not on the form (KAN-687).
@@ -581,6 +658,33 @@ def _unasked(filler, page, questions: list[Question]) -> list[str]:
     return [f"Required on the form but not in the Question set, so left empty: {', '.join(missed)}"] if missed else []
 
 
+# A Pre-submit review's reason that rests on the applicant's profile ("the profile says Woodbury, NY and willing to
+# relocate"), not on its own reading of the form.
+# A reason that the answer contradicts another of the form's (its graduation date) rests on the profile too: the
+# form's dates and education come from it (Honeywell's "Yes" to full time within 12 months, live 2026-11-27).
+PROFILE_REASON = re.compile(r"\bprofile\b|\bcontradict", re.IGNORECASE)
+
+
+def _flagged(q: Question, problems: Sequence[str]) -> list[str]:
+    """The reasons `problems` ("<question>: why") give against `q`. A problem may instead open on the question in
+    quotes, with no colon, and name its repeat under a section (Honeywell, live 2026-11-27: "'If you are currently
+    enrolled...?' (and its 'Application Questions:' repeat) is answered Yes..."): then the whole problem is the
+    reason, for the question and for its repeat ("Application Questions: If you are currently enrolled...?")."""
+    label = one_line(q.label).casefold()
+    section, _, base = label.partition(": ")
+    reasons = []
+    for p in problems:
+        said = one_line(str(p))
+        low = said.casefold()
+        lead = next((lead for lead in (label, f"'{label}'", f'"{label}"') if low.startswith(f"{lead}:")), None)
+        if lead is not None:
+            reasons.append(said[len(lead) + 1:].strip())
+        elif low.startswith((f"'{label}'", f'"{label}"')) or (
+                base and low.startswith((f"'{base}'", f'"{base}"')) and f"{section}:" in low):
+            reasons.append(said)
+    return reasons
+
+
 class _Planned:
     """One Application's answers, planned as its form shows its questions:
     all at once, or a step at a time."""
@@ -598,7 +702,8 @@ class _Planned:
         self.missing: tuple[str, ...] = ()  # left blank, in a rehearsal
         self.choices: dict[str, dict] = {}  # the options of each of those that offers some, by question
         self.required: dict[str, bool] = {}  # whether its form requires each of those, by question
-        self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking)
+        self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking), and its brief's lines
+        self.briefs: dict[str, str] = {}  # the Recording brief of each link to a video he makes, by question ("" for none)
         self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self.failed: list[tuple[str, object]] = []  # each of those fields, by its label, with its planned answer
@@ -617,6 +722,7 @@ class _Planned:
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
         self.fixed: list[tuple[str, str, str]] = []  # (question, answer before, answer) of each, for Verifying to list
+        self.trials: dict[str, object] = {}  # fixes over a profile answer, by name: the plan's answer, till reviewed again
         self.kept_blank: dict[str, str] = {}  # optional catch-all boxes Apply leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
@@ -713,7 +819,7 @@ class _Planned:
         for q in questions:
             # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
             if q.label.strip() in self._answered and not context_free(q.label):
-                remember(profile, posting, q, self._answered[q.label.strip()])
+                remember(profile, posting, q, self._answered[q.label.strip()], self._bank, self._today)
         for asked, answer in self._answered.items():  # what an essay asked him: its answer joins the Story bank
             if asked.startswith(essays.ASK):
                 essays.remember_fact(asked, answer, posting.company, self._today)
@@ -735,6 +841,7 @@ class _Planned:
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
         self._other_roles(planned)
+        self._reviewed(planned)
         if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -751,16 +858,20 @@ class _Planned:
         self.kept_blank |= {q.name: CATCH_ALL_BLANK for q in planned.essays + planned.drafts if essays.catch_all(q)}
         done = {essay.question for essay in self.written}
         new = [q for q in planned.essays if q not in done and q not in self._yours and q.name not in self.kept_blank]
+        # What an earlier attempt wrote before it failed (a Worker gone mid-fill): taken, not written again.
+        taken = unsent.take(posting, new, self._today) if self._approved is None else []
+        new = [q for q in new if q not in {e.question for e in taken}]
         to_draft = [q for q in planned.drafts if q not in self._asked and q.name not in self.kept_blank]
         name = posting.company or "the company"
         try:
-            if new and self.material is None:
+            if (new or taken) and self.material is None:  # the review reads them, with the essays
                 stuck.doing(f"Reading {name}'s pages for an essay")
-                self.material = company.gather(posting, new, self._site)
+                self.material = company.gather(posting, new or [e.question for e in taken], self._site)
                 if posting_ai_trap(self.material) or posting_bans_ai(self.material):
                     return self.add([], where)  # planned again, the material read with the posting: its essays are Lisul's
                 stuck.doing(f"Researching {name} for an essay")
-                self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions)
+                self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions,
+                                         self.profile.policy("research_budget") is True)
             ask = new if self._approved is None else []
             given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
             answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
@@ -768,6 +879,7 @@ class _Planned:
                 stuck.doing(f"Writing answers for {where}")
             written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
                                              answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+            written = taken + written
         except stuck.Stopped:
             self._to_lisul(planned.answers, planned.missing, new + to_draft)
             raise
@@ -802,6 +914,10 @@ class _Planned:
             return stop
         for essay in written:
             self.holds += self._holds(essay, essay.question in planned.high_stakes)
+        for draft in self.drafted + self.unbanked:  # the hard guard on short answers too, at every level
+            if isinstance(draft.answer, str) and (tools := essays.names_tools(draft.answer)):
+                self.holds.append(f"'{one_line(draft.question.label)}' names {', '.join(tools)}, which says the "
+                                  "application was automated")
         answers = dict(planned.answers) | {d.question.name: d.answer for d in self.drafted + self.unbanked
                                            if not left_blank(d.question, d.answer) and d.question not in moot}
         answers |= {q.name: answer for q, answer in moot.items() if answer is not None}
@@ -842,6 +958,28 @@ class _Planned:
             setattr(planned, part, [q for q in getattr(planned, part) if q.name not in self.roles])
         planned.waiting = {name: on for name, on in planned.waiting.items() if name not in self.roles}
 
+    def _reviewed(self, planned) -> None:
+        """Fill each question Lisul's reviewed Answer bank entry answers (apply.answer_bank.AnswerBank.reviewed, its
+        "(<company> only)" form first) with that answer, over any rule, draft, essay or other-roles answer: Strava's
+        "(strava only)" entry was ignored on refill and the textarea drafted again (2026-11-26). Never an
+        attestation, a file, a secret, nor a choice none of whose options is the answer."""
+        for q in self.questions:
+            wording = None if q.name in self.filed and self.filed[q.name] is None else self.wording(q)  # a bare date no section places
+            if (not wording or q.kind == "file" or q.name in planned.attestations or SECRET.search(q.label)
+                    or not (entry := self._bank.reviewed(wording, self.posting.company)) or entry.none):
+                continue
+            answer = entry.answer
+            picked = answer if isinstance(answer, list) else [answer]
+            if (q.options and not all(a in q.options for a in picked)) or isinstance(answer, list) != (q.kind == "multi_select"):
+                continue
+            planned.answers[q.name] = answer
+            self.roles.pop(q.name, None)
+            if q not in planned.banked:
+                planned.banked.append(q)
+            for part in ("essays", "drafts", "missing", "optional", "high_stakes"):
+                setattr(planned, part, [m for m in getattr(planned, part) if m.name != q.name])
+            planned.waiting.pop(q.name, None)
+
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
         Lisul's, as he fills them on the page, and listed as Missing facts till
@@ -879,44 +1017,89 @@ class _Planned:
 
     def own(self) -> set[str]:
         """The questions the form took Lisul's own Answer bank answer for."""
-        return {q.name for q in self.banked if (entry := self._bank.get(self.wording(q))) and entry.source == LISUL}
+        return {q.name for q in self.banked if self._bank.reviewed(self.wording(q), self.posting.company)
+                or ((entry := self._bank.get(self.wording(q))) and entry.source == LISUL)}
 
     def wording(self, q: Question) -> str:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
         return self.filed.get(q.name) or q.label
 
-    def fix(self, fixes: dict[str, str], readback: dict) -> bool:
+    def fix(self, fixes: dict[str, str], readback: dict, problems: Sequence[str] = (), trial: bool = False) -> bool:
         """Fill the Pre-submit review's `fixes` (its right answer, by the question's label on one line) in
         place of Claude's guesses: its drafts, and its earlier drafts the Answer bank answered with. Never over
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
         fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A fix that only narrows a profile answer (worker._narrows: Abridge's "New York" for the city, state and
+        country its state question was given) states no new fact, so it is filled over the profile's too.
         A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
         exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
-        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again.
+        With `trial` (a fill and a review still to come), so is a fix over another choice the plan took from the
+        profile, when the review's reason for it (in `problems`, "<question>: why") rests on the profile: Pylon's
+        "SF / Bay Area" for a home in New York the profile will move from, CesiumAstro's GPA 3.8 for 3.86. It is
+        kept only if the second review passes it (`unfix`)."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
         legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
-        changed = False
-        for q in self.questions:
-            answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
+        backed = {q.name for q in self.questions if trial and q.options and q.name not in own | guessed | legal
+                  and any(PROFILE_REASON.search(why) for why in _flagged(q, problems))}
+        repeats = _repeats(self.questions)
+
+        def kept(q: Question, answer: object) -> bool:  # an answer no fix may change, or a fix not to take
+            return (answer is None or q.kind == "file" or q.name in self.lisuls or q.name in own
                     or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
-                    or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
+                    or (q.options and isinstance(answer, str) and answer not in q.options)
+                    or shows(readback.get(q.name, ""), answer))
+
+        changed = False
+        for q in self.questions:
+            answer: object = fixes.get(one_line(q.label))
+            if q.kind == "multi_select" and isinstance(answer, str):  # a group of boxes: the ones the fix names
+                answer = _ticks(answer, q.options) or None
+            if kept(q, answer) or (q.name not in guessed | legal | backed and not _narrows(answer, readback.get(q.name))):
                 continue
-            for draft in [d for d in self.drafted if d.question.name == q.name]:
-                entry = self._bank.get(self.wording(q))
-                if entry and entry.source != LISUL and not entry.reviewed:
-                    self._bank.delete(self.wording(q))
-                self.drafted.remove(draft)
-            self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), answer))
-            self.fixes[q.name] = answer
-            changed = True
+            changed |= self._take(q, answer, trial=q.name in backed - legal)
+        for q in self.questions:
+            # Its repeat in another section (Oracle's "Application Questions: <question>") takes the same fix, so the
+            # form never says both (Honeywell, live 2026-11-27: the review fixed one, then held the form for the other).
+            taken = [(self.fixes[o], o in self.trials) for o in repeats.get(q.name, ()) if o in self.fixes]
+            if taken and q.name not in self.fixes and not kept(q, taken[0][0]):
+                changed |= self._take(q, taken[0][0], trial=taken[0][1])
         if changed:
             self.answers = self._answers
         return changed
+
+    def _take(self, q: Question, answer: object, trial: bool) -> bool:
+        """Fill the fix `answer` for `q` (see fix); with `trial`, kept only if the next review passes it (unfix)."""
+        for draft in [d for d in self.drafted if d.question.name == q.name]:
+            entry = self._bank.get(self.wording(q))
+            if entry and entry.source != LISUL and not entry.reviewed:
+                self._bank.delete(self.wording(q))
+            self.drafted.remove(draft)
+        self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), as_text(answer)))
+        if trial:
+            self.trials[q.name] = self._answers.get(q.name)
+        self.fixes[q.name] = answer
+        return True
+
+    def unfix(self, problems: Sequence[str]) -> bool:
+        """Undo each trial fix over a profile answer (`fix`) the second review still flags in `problems`: the
+        plan's answer is filled again, and the review's problem stays for Lisul. True if any was undone."""
+        flagged = {q.name for q in self.questions if q.name in self.trials and _flagged(q, problems)}
+        repeats = _repeats(self.questions)
+        undone = [q for q in self.questions if q.name in self.trials
+                  and (q.name in flagged or flagged & repeats.get(q.name, set()))]  # a repeat with its question
+        for q in undone:
+            self.fixes.pop(q.name)
+            self.fixed = [f for f in self.fixed if f[0] != one_line(q.label)]
+            self._answers[q.name] = self.trials.pop(q.name)
+        self.trials.clear()  # the rest passed the second review: kept
+        if undone:
+            self.answers = self._answers
+        return bool(undone)
 
     def listed(self) -> list[dict]:
         """Each answer the form is filled with, in form order, as the student page's "What we filled" lists it:
@@ -974,12 +1157,19 @@ class _Planned:
         """A Missing fact Result for the first required one of `missing`, in
         form order, then of `asks` (what an essay asks Lisul for,
         apply.essays.ASK); a rehearsal lists them all instead and goes on. An
-        optional one never stops the form: it is listed, with its Skip. A question Apply already
+        optional one is never asked: no fact of his is behind it, so it is left blank (Lisul, 2026-11-26),
+        unless a Resume stopped Claude from answering it on the page. A question Apply already
         holds the answer to (apply.asking.known) never reaches him: a text
         field gets that answer, and an ask is dropped. Each one asked has its
         context line (apply.asking): its step, the question it follows and its
         pair, or the essay it is for."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
+        # An optional one he hasn't been told about (an "If you chose ..." follow-up, a draft Claude can't write from his
+        # facts) never interrupts him: it is left blank, as a planned one is.
+        unasked = {q.name for q in missing if not q.required and q not in self._yours}
+        if unasked:
+            self.left |= unasked
+            missing = [q for q in missing if q.name not in unasked]
         found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
                  and (facts := asking.known(q.label, self.profile, self._bank, self.posting.company))}
         if found:
@@ -996,17 +1186,31 @@ class _Planned:
             | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
+        for q in missing:  # a video he records for prompts the Posting lists: what to say, under its line
+            if shown := self._brief(q):
+                self.where[q.label.strip()] = "\n".join(filter(None, [self.where.get(q.label.strip(), ""), shown]))
         if self._rehearse and self.missing != was:
             self._on_missing(self.missing, self.choices, self.required, self.where)
-        # An optional one never stops a run: the form is filled without it, and verifying notes it (KAN-759).
+        # Only a required one stops a run; what an optional essay asks him is listed, and the form goes on.
         if (stops := [asked for asked in self.missing if self.required.get(asked, True)]) and not self._rehearse:
             question = stops[0]
             where = self.where.get(question, "")
-            return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{where}" if where else ""),
+            line = asking.first_line(where)  # a Recording brief's lines stay out of the Tracker reason
+            return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{line}" if line else ""),
                           missing_fact=question,
                           choices={question: self.choices[question]} if question in self.choices else {},
                           required={question: self.required[question]}, where={question: where} if where else {})
         return None
+
+    def _brief(self, q: Question) -> str:
+        """The Recording brief's lines for a link to a video or submission Lisul makes (apply.recording), written
+        once per question; "" for any other question, or one whose Posting lists no prompts for it."""
+        label = q.label.strip()
+        if label not in self.briefs:
+            made = asking.to_make(q) in ("video", "submission")
+            found = made and recording.brief(self.claude, self.posting, q, self.profile, self.text or self.posting_text())
+            self.briefs[label] = found.shown() if found else ""
+        return self.briefs[label]
 
     def skip(self, error: FillError) -> bool:
         """Drop the answer a Filler couldn't fill, named first in its error
@@ -1030,7 +1234,8 @@ class _Planned:
             writer = "Claude wrote" if self._approved is None else "The approved Essay column has"
             return [f"{writer} nothing for '{one_line(q.label)}'"]
         holds = []
-        if high_stakes and self._approved is None:
+        # Lifted with hold_high_stakes_essays: false (the Safety level's full_auto); the truth checks below still hold it.
+        if high_stakes and self._approved is None and self.profile.policy("hold_high_stakes_essays") is not False:
             holds.append(f"High-stakes essay: '{one_line(q.label)}'")
         if essay.needs_lisul:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
@@ -1040,6 +1245,8 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
         if essay.sensitive:  # for Lisul to look at: an essay may mean to say it, so it is never cut here
             holds.append(f"'{one_line(q.label)}' may share something private: {'; '.join(essay.sensitive)}")
+        if tools := essays.names_tools(essay.text):  # a hard guard: no Safety level lifts it
+            holds.append(f"'{one_line(q.label)}' names {', '.join(tools)}, which says the application was automated")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")

@@ -33,7 +33,11 @@ REPLY_KEPT = 300.0  # a reply no command read (it gave up) is removed after this
 
 # Each action and the route its button posts to. The body is the page's own (window/src/bridge.ts).
 ROUTES = {"submit": "/submit", "cancel": "/auto-cancel", "skip": "/let-go", "fill-again": "/fill-again",
-          "answer": "/answer", "remove": "/remove", "stop": "/stop"}
+          "resume": "/resume", "answer": "/answer", "remove": "/remove", "stop": "/stop", "code": "/code"}
+
+# The application to-do tracker's actions (developer only, apply.todos): its list, a scan now, and a to-do marked.
+TODO_ACTIONS = ("todos", "todo-scan", "todo-mark")
+TODO_SCAN_WAIT = 300.0  # a scan reads up to two weeks of mail, and may ask a model of each
 
 # What a to-do asks of the student, by its verdict's kind, and the order the window lists them in (view.ts's ASKS,
 # ORDER): a sign-in blocks every job on its site, so it comes first; a form to submit is done, so it comes last.
@@ -141,8 +145,13 @@ def handle(bridge, action: str, body: dict) -> dict:
     if action == "applied":
         got = bridge.applied()
         return {"status": 502, **got} if isinstance(got, dict) else {"status": 200, "applied": got}
+    if action in TODO_ACTIONS:  # the application to-do tracker (apply.todos): 403 while its developer flag is off
+        got = (bridge.todos() if action == "todos" else bridge.scan_todos(wait=True) if action == "todo-scan"
+               else bridge.mark_todo(str(body.get("id") or ""), str(body.get("status") or "")))
+        return {"status": 403 if got.get("enabled") is False else 400 if "error" in got else 200, **got}
     if action not in ROUTES:
-        return {"status": 404, "error": f"No such action: {action}. Use one of: state, applied, {', '.join(ROUTES)}."}
+        return {"status": 404, "error": f"No such action: {action}. Use one of: state, applied, "
+                                        f"{', '.join([*TODO_ACTIONS, *ROUTES])}."}
     board = bridge._dashboard
     got = bridge.request("POST", ROUTES[action], {"X-Apply-Token": board.token, "Content-Type": "application/json"},
                          json.dumps(body))
@@ -271,6 +280,8 @@ def _job(shown: dict, status: str, asked: str, k: int | None, tile: dict | None,
         job["retry"] = job["tile"] if tile and (tile.get("again") or tile.get("askable") or tile.get("refill")) else None
     if shown.get("submitting") or shown.get("submit_said"):
         job["submitting"], job["submit_said"] = bool(shown.get("submitting")), shown.get("submit_said") or ""
+    if shown.get("coding") or shown.get("code_said"):
+        job["coding"], job["code_said"] = bool(shown.get("coding")), shown.get("code_said") or ""
     if shown.get("auto_at") or shown.get("auto_said"):
         job["auto_submit_at"], job["why_not"] = shown.get("auto_at"), shown.get("auto_said") or ""
     job |= {

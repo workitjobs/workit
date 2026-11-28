@@ -2,7 +2,8 @@
 (pywebview: WKWebView on a Mac) and no port.
 
 The app's window shows the student page (KAN-867: window/, built into STUDENT_PAGE); a window that can start no run
-(a Developer checkout's) shows the Apply window's own page (apply.dashboard's). Either is served by no server:
+shows the Apply window's own page (apply.dashboard's). `apply app` gives its window a start in a Developer checkout too
+(apply.student.app), so `apply app --max-plan` shows the student page. Either is served by no server:
 Dashboard(serve=False) listens on nothing, and SHIM, put in the page before its scripts, sends the page's requests to `Bridge`, pywebview's
 JavaScript bridge (js_api), which answers each one in this process through the same routes, checks and token as
 the server (Dashboard.respond). The tiles' frames come from Bridge.frames as the server's /frames stream would; a
@@ -17,7 +18,7 @@ Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
 A run (W5 step 4): with no run going, the student page shows Find jobs, the student's best matches to pick from
-(Bridge.matches, KAN-882), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
+(Bridge.matches, KAN-882; during a run its picks join the run, as links sent in do), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
 one posting's link and Start (Bridge.start), and says when today's model use nears the
 Usage cap (Bridge.usage). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers
 and shows the run's own board, till every form it held is closed; then the window shows the idle board again. The
@@ -41,6 +42,7 @@ form only once the student approves it (ADR 0006).
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
+import atexit
 import base64
 import html
 import json
@@ -57,19 +59,30 @@ from urllib.parse import urlencode, urlsplit
 
 import psutil
 
-from apply import build, first_run, queued_names, report, sign_in_link, workit
+from apply import (
+    build,
+    first_run,
+    queued_names,
+    report,
+    safety,
+    sign_in_link,
+    updates,
+    workit,
+)
 from apply.adapters import SetupError
 from apply.answers_tab import Refused
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
 from apply.home import HOME
-from apply.model import Status
+from apply.model import Status, job_title
 from apply.tracker import FileTracker, Row
 
 TITLE = "WorkIt Auto Apply"
 # The student page, built from window/ by Vite (`npm run build`) into one file: CI checks it matches its source.
 STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
+# WorkIt's logo, the built app's icon (scripts/build_app.py's ICON): a checkout's window shows it in the Dock too.
+ICON = Path(__file__).parents[2] / "assets" / "app-icon.png"
 # The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
 PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
@@ -216,6 +229,11 @@ WorkIt Auto Apply goes on by itself once Chrome is installed.</p>
 <div class="row"><button class="primary" data-do="accept_disclosure">OK</button>
 <button data-do="show_license">Read the License</button></div>
 </section>
+<section id="safety" hidden>
+<h1>How Careful Should Apply Be?</h1>
+{levels}
+<p>{always} You can change it any time in Settings.</p>
+</section>
 <section id="screen" hidden>
 <h1>Allow Screen Recording</h1>
 <p>WorkIt Auto Apply shows each form live in its window, so you can fix it there. With Screen Recording on, that
@@ -249,13 +267,16 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('button[data-do]');
   if (!button) return;
   await ready;
-  show(await window.pywebview.api[button.dataset.do]());
+  show(await window.pywebview.api[button.dataset.do](...(button.dataset.level ? [button.dataset.level] : [])));
 });
 ready.then(async () => {
   show(await window.pywebview.api.first_run());
   setInterval(async () => show(await window.pywebview.api.first_run()), 1500);  // Chrome installed, the seed's steps
 });
-</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
+</script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
+    "{levels}", "".join(f'<div class="row"><button data-do="choose_safety" data-level="{level}">{html.escape(name)}'
+                        f'</button></div><p>{html.escape(words)}</p>' for level, (name, words) in safety.SAID.items())
+).replace("{always}", html.escape(safety.ALWAYS))
 
 SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
 <meta name="color-scheme" content="light"><style>{style}
@@ -265,8 +286,13 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 </style>
 <main class="settings">
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
-<label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
-<p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
+<label>Workers at once <select id="workers"><option value="0" id="workers-auto">Automatic</option>
+<option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+<p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. Automatic picks the count from this Mac's memory.
+The next Start uses the new count.</p>
+<label>How careful should Apply be? <select id="safety">{levels}</select></label>
+<p id="safety-said">{careful}</p>
+<p>{always} A policy you set yourself in policies.yaml wins over the level. The next Start uses the new level.</p>
 <div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
@@ -304,6 +330,10 @@ document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
 document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
+const careful = document.getElementById('safety'), levels = {said};
+const sayLevel = () => { document.getElementById('safety-said').textContent = levels[careful.value]; };
+careful.addEventListener('change', async () => {
+  sayLevel(); await ready; await window.pywebview.api.set_safety_level(careful.value); });
 const best = document.getElementById('best');
 best.addEventListener('change', async () => { await ready; await window.pywebview.api.set_best_model(best.checked); });
 document.addEventListener('click', async event => {
@@ -334,7 +364,9 @@ document.getElementById('report-send').addEventListener('click', async () => {
 });
 ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
-  count.value = String(state.workers);
+  document.getElementById('workers-auto').textContent = `Automatic (${state.automatic} for this Mac)`;
+  count.value = String(state.workers || 0);
+  careful.value = state.safety; sayLevel();
   document.getElementById('notices').hidden = !state.notices;
   if (state.claude) {
     document.getElementById('claude').hidden = false;
@@ -344,7 +376,10 @@ ready.then(async () => {
   }
 });
 </script>""".replace("{style}", APP_STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
-    "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
+    "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items())
+).replace("{levels}", "".join(f'<option value="{level}">{html.escape(name)}</option>' for level, (name, _) in safety.SAID.items())
+          ).replace("{careful}", html.escape(safety.SAID[safety.DEFAULT][1])).replace("{always}", html.escape(safety.ALWAYS)
+          ).replace("{said}", json.dumps({level: words for level, (_, words) in safety.SAID.items()}))
 
 
 # The page's charset meta, as the developer page (`<meta charset="utf-8">`) and Vite (`<meta charset="utf-8" />`)
@@ -396,10 +431,13 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
+        self._renamed: dict[str, dict] = {}  # what `name` gave each applied job whose title is a page's chrome
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
         self._waiting: list[str] = []  # links sent in (send_links) that wait for the next run
+        self._todo_scanning = threading.Lock()  # held while a to-do scan reads mail: one at a time
+        self._todo_scan: dict | None = None  # what the last to-do scan did (todo_scan.Scan.shown), and when
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
         """One of the page's requests, answered as the Apply window's server answers it."""
@@ -495,6 +533,11 @@ class Bridge:
         self._open_link(EULA.as_uri())
         return self._first.state()
 
+    def choose_safety(self, level: str) -> dict:
+        if level in safety.LEVELS:
+            self._first.choose_safety(level)
+        return self._first.state()
+
     def allow_screen(self) -> dict:
         self._first.allow_screen()
         return self._first.state()
@@ -539,7 +582,18 @@ class Bridge:
             rows = self._applications("applied")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read what you applied to ({error})."}
-        return [_job(row["job"]) | {"applied_at": row.get("applied_at")} for row in rows]
+        return [self._named_again(_job(row["job"])) | {"applied_at": row.get("applied_at")} for row in rows]
+
+    def _named_again(self, job: dict) -> dict:
+        """A job whose WorkIt title is a page's chrome (model.job_title), as Apply wrote it before it checked:
+        "Log in or create account | Amazon.jobs" for an Amazon posting behind a sign-in wall. It takes the title it
+        was queued with, else the one its listing or job system names (`name`, read once a link), else none."""
+        if job["title"] and not job_title(job["title"]):
+            url = job["url"]
+            if url not in self._queued and url not in self._renamed:
+                self._renamed[url] = self._name(url)
+            job["title"] = job_title((self._queued.get(url) or self._renamed.get(url) or {}).get("title") or "")
+        return job
 
     def matches(self, filters: dict | None = None) -> list[dict] | dict:
         """Find jobs: the student's best matches that Auto Apply fills and they haven't queued or applied to, best
@@ -574,14 +628,16 @@ class Bridge:
         return {"running": self._running.is_set(), "said": self._said}
 
     def start(self, links: list | None = None) -> dict:
-        """Start a run of `links` (Start), one at a time: {started} or {error}."""
+        """Start a run of `links` (Start), one at a time: {started} or {error}. While a run goes (Find jobs beside it,
+        as a run of `apply app <link>` keeps going for hours), they join it as links sent in do (_join): {added}."""
         links = [str(link).strip() for link in links or [] if str(link).strip()]
         if self._start is None:
             return {"error": "This window can't start a run."}
         if not links:
             return {"error": "Tick a job in your queue, or paste a job posting's link."}
         if self._running.is_set():
-            return {"error": "A run is going: its forms are in the window."}
+            self._join(links)
+            return {"added": len(links)}
         self._running.set()
         self._said = ""
         threading.Thread(target=self._run, args=(links,), daemon=True).start()
@@ -597,15 +653,20 @@ class Bridge:
         waiting = {workit.job_key(link) for link in self._waiting}
         links = [link for link in take_links(inbox) if workit.job_key(link) not in waiting]
         if self._running.is_set():
-            for link in links:
-                try:
-                    self._dashboard.into(link)
-                except Refused:  # this run takes no new links (a CDP Worker), or it is ending
-                    self._waiting.append(link)
+            self._join(links)
             return
         links, self._waiting = self._waiting + links, []
         if links and "error" in self.start(links):
             self._waiting = links
+
+    def _join(self, links: list[str]) -> None:
+        """`links` into the run going, each into its Workers beside its forms (Dashboard.into); one the run won't
+        take waits for the next run."""
+        for link in links:
+            try:
+                self._dashboard.into(link)
+            except Refused:  # this run takes no new links (a CDP Worker), or it is ending
+                self._waiting.append(link)
 
     def show_board(self, board: Dashboard) -> None:
         """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo,
@@ -637,7 +698,8 @@ class Bridge:
     def settings_state(self) -> dict:
         """With `apply app --max-plan` in a Developer checkout, `claude` too: the Best model's switch, which login
         `claude -p` uses, and why the Best model last paused."""
-        state = {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+        state = {"workers": first_run.chosen_workers() or 0, "automatic": first_run.automatic_workers(),
+                 "notices": NOTICES.is_file(), "safety": first_run.safety_level() or safety.DEFAULT}
         from apply import student
 
         if not build.STUDENT and os.environ.get(student.MAX_PLAN):
@@ -650,7 +712,14 @@ class Bridge:
         return {"best": first_run.set_best_model(on)}
 
     def set_workers(self, count: int) -> dict:
-        return {"workers": first_run.set_workers(count)}
+        """0 is Settings' Automatic: the count from the computer's memory."""
+        return {"workers": first_run.set_workers(int(count) or None)}
+
+    def set_safety_level(self, level: str) -> dict:
+        try:
+            return {"safety": first_run.set_safety_level(level)}
+        except ValueError as error:
+            return {"error": str(error)}
 
     def show_notices(self) -> dict:
         if not NOTICES.is_file():
@@ -673,6 +742,64 @@ class Bridge:
         if self._window is not None:
             self._window.load_html(SIGN_IN)
         return {}
+
+    # Application to-dos (developer only, apply.todos): off, each refuses and the page shows no To-dos.
+
+    def todos(self) -> dict:
+        """Every to-do, open first, with the last scan and whether one is going; {enabled: false} when off."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        return {"enabled": True, "todos": [t.shown() for t in TodoStore().all()], "scan": self._todo_scan,
+                "scanning": self._todo_scanning.locked()}
+
+    def scan_todos(self, wait: bool = False) -> dict:
+        """Scan mail for to-dos now, in a thread of its own unless `wait`. A scan already going is not started again:
+        `wait` waits for it and gives its result."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        if not self._todo_scanning.acquire(blocking=False):
+            if not wait:
+                return {"scanning": True}
+            with self._todo_scanning:  # a scan already going: wait for it, then show its result
+                pass
+            return self.todos()
+        if wait:
+            self._scan_todos(held=True)
+            return self.todos()
+        threading.Thread(target=self._scan_todos, kwargs={"held": True}, daemon=True, name="todo-scan").start()
+        return {"scanning": True}
+
+    def mark_todo(self, todo_id: str, status: str) -> dict:
+        """A to-do marked done, dismissed, or open again."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        try:
+            return {"todo": TodoStore().mark(str(todo_id), str(status)).shown()}
+        except KeyError:
+            return {"error": f"No such to-do: {todo_id}."}
+        except ValueError as error:
+            return {"error": str(error)}
+
+    def _scan_todos(self, held: bool = False) -> None:
+        """One scan, its result kept for the page; a failure is kept as its error, never raised."""
+        if not held and not self._todo_scanning.acquire(blocking=False):
+            return
+        try:
+            from apply import todo_scan
+
+            try:
+                done = todo_scan.live().shown()
+            except Exception as error:
+                done = {"errors": [f"{type(error).__name__}: {error}"]}
+            self._todo_scan = {**done, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            print(f"To-do scan: read {done.get('read', 0)} mails, {done.get('added', 0)} new to-dos"
+                  + (f"; {'; '.join(done['errors'])}" if done.get("errors") else ""), file=sys.stderr)
+        finally:
+            self._todo_scanning.release()
 
     def remove_data(self) -> dict:
         """Remove All My Data (D25), then close the app: what it showed is gone."""
@@ -806,6 +933,28 @@ def badge(count: int) -> None:
     AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().dockTile().setBadgeLabel_(label))
 
 
+def look_like_the_app(icon: Path = ICON) -> bool:
+    """A Developer checkout's window as WorkIt Auto Apply in the Dock and the menu bar: its process is Python, so
+    macOS showed Python's name and a blank page for its icon. The built app's bundle names it and gives its icon
+    (scripts/build_app.py), and has no `icon` file beside its code, so this changes nothing there. On a Mac only, and
+    before webview.start, so the menu bar reads the name as it starts. True when the icon was set."""
+    if sys.platform != "darwin" or build.STUDENT or not icon.is_file():
+        return False
+    try:
+        import AppKit  # pyobjc, which pywebview brings on a Mac
+        import Foundation
+    except ImportError:
+        return False
+    info = Foundation.NSBundle.mainBundle().infoDictionary()
+    if info is not None:  # Python's own Info.plist, read once: the menu bar names the app from it
+        info["CFBundleName"] = TITLE
+    image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(icon))
+    if image is None:
+        return False
+    AppKit.NSApplication.sharedApplication().setApplicationIconImage_(image)
+    return True
+
+
 def bring_forward() -> bool:
     """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
     window (KAN-855). On a Mac only, for now."""
@@ -873,11 +1022,39 @@ def _watch_inbox(bridge: Bridge) -> None:
         time.sleep(INBOX_EVERY)
 
 
+def todos_on() -> bool:
+    """Whether the application to-do tracker is on (apply.todos.enabled), never importing it in the Student build."""
+    if build.STUDENT:
+        return False
+    from apply import todos
+
+    return todos.enabled()
+
+
+def todos_off() -> str:
+    """Why the to-do tracker refuses: the flag's off, or this is the Student build, which has none."""
+    if build.STUDENT:
+        return "The application to-do tracker isn't in this build."
+    from apply import todos
+
+    return todos.OFF
+
+
+def _scan_todos_often(bridge: Bridge, sleep: Callable[[float], None] = time.sleep) -> None:
+    """The to-do scan's schedule: now, then every todo_scan.EVERY seconds, till the window closes."""
+    from apply import todo_scan
+
+    while True:
+        bridge._scan_todos()
+        sleep(todo_scan.EVERY)
+
+
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
         start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 
+    steady_windows()
     bridge = Bridge(dashboard, client, start=start)
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
@@ -890,14 +1067,49 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
     PID_NOTE.write_text(str(os.getpid()), encoding="utf-8")
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if todos_on():  # the application to-do tracker scans mail on open and every todo_scan.EVERY seconds
+        threading.Thread(target=_scan_todos_often, args=(bridge,), daemon=True, name="todo-schedule").start()
     if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
         from apply import app_control
 
         threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
+    updates.start()  # the built app's Sparkle updater (W8 step 3)
+    look_like_the_app()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either
     finally:
         PID_NOTE.unlink(missing_ok=True)
+
+
+class SteadyWindows(dict):
+    """pywebview's windows by uid, whose views are snapshots: a window that closes while one is read leaves it whole.
+    On a Mac, a quit (Cmd-Q, the Dock's Quit) reads every window's close question in turn, and with held forms that
+    question is a dialog whose run loop runs our `closing` thread's `window.destroy`: the window's close took it out
+    of the dict mid-read, and the app died with `<class 'RuntimeError'>: dictionary changed size during iteration`
+    (run7, 2026-11-26)."""
+
+    def __iter__(self):
+        return iter(list(super().keys()))
+
+    def keys(self):
+        return list(super().keys())
+
+    def values(self):
+        return list(super().values())
+
+    def items(self):
+        return list(super().items())
+
+
+def steady_windows(system: str = sys.platform, view=None) -> None:
+    """On a Mac, make pywebview's Cocoa window list (BrowserView.instances) a SteadyWindows. Its other backends
+    read no window list while a window closes. `view` is the class that holds the list (tests)."""
+    if view is None:
+        if system != "darwin":
+            return
+        from webview.platforms.cocoa import BrowserView as view
+    if not isinstance(view.instances, SteadyWindows):
+        view.instances = SteadyWindows(view.instances)
 
 
 def line_by_line(*streams) -> None:
@@ -963,21 +1175,33 @@ def _guard_closes(window, bridge: Bridge) -> None:
         time.sleep(CLOSE_GUARD_EVERY)
 
 
+# The signals that quit the app as its window's close does. Ctrl-C in its terminal (SIGINT) aborted it inside Cocoa as
+# SIGTERM did, and a closed terminal (SIGHUP) ended it at once: neither ran a `finally`, so its Workers' Chromes stayed.
+QUITS = tuple(getattr(signal, name) for name in ("SIGTERM", "SIGINT", "SIGHUP") if hasattr(signal, name))
+
+
 def closing(window) -> None:
-    """`kill <pid>` closes the window, so webview.start returns and each `finally` stops what it started. The CLI's own
+    """`kill <pid>`, Ctrl-C or a closed terminal (QUITS) closes the window, so webview.start returns and each `finally` stops what it started. The CLI's own
     SIGTERM raises KeyboardInterrupt, which lands inside a Cocoa callback here: PyObjC turns it into an Objective-C
     exception and macOS aborts the app ("python quit unexpectedly"). A Python handler only runs once the main thread
-    runs Python, and Cocoa's run loop may not for a long while, so the signal wakes a thread of its own instead."""
+    runs Python, and Cocoa's run loop may not for a long while, so the signal wakes a thread of its own instead. A
+    second QUITS while it closes ends the app at once."""
     if threading.current_thread() is not threading.main_thread():
         return
     read, write = os.pipe()
     os.set_blocking(write, False)
-    signal.signal(signal.SIGTERM, lambda signum, frame: None)  # no KeyboardInterrupt: the thread below closes
+    for number in QUITS:  # no KeyboardInterrupt: the thread below closes
+        signal.signal(number, lambda signum, frame: None)
     signal.set_wakeup_fd(write)
 
     def close() -> None:
-        while os.read(read, 1) != bytes([signal.SIGTERM]):
+        while os.read(read, 1)[0] not in QUITS:
             pass
         window.destroy()
+        # A second one while it closes (a stuck window, a slow stop): end now, the Chromes stopped first (atexit).
+        while (number := os.read(read, 1)[0]) not in QUITS:
+            pass
+        atexit._run_exitfuncs()
+        os._exit(128 + number)
 
     threading.Thread(target=close, daemon=True, name="close-on-kill").start()

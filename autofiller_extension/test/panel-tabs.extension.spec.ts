@@ -3,7 +3,7 @@
 // Autofill tab listed with its mark (red, amber ?, green check).
 // Anduril's saved Greenhouse form, filled as a batch tab: one guess (how
 // Anduril heard of the student), two questions WorkIt has no answer to, and
-// the rest filled.
+// the rest filled, its optional Preferred First Name among them.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
@@ -41,7 +41,7 @@ test("the checklist marks the guess to check and the two empty questions red; th
   await expect(marked(form, "check")).toHaveCount(1);
   await expect(marked(form, "check")).toHaveAttribute("data-key", HEARD);
   await expect(marked(form, "needs-you")).toHaveCount(2);
-  await expect(marked(form, "filled")).toHaveCount(19);
+  await expect(marked(form, "filled")).toHaveCount(20);
   // Filled rows fold into one line; opened, each still goes to its field.
   await host.locator('.group[data-group="filled"] .group-head').click();
   await host.locator('[data-key="first_name"] .label').click();
@@ -57,8 +57,8 @@ test("the marks follow the rows: a guess that looks right turns green, its Undo 
   await heard.getByRole("button", { name: "Looks right" }).click();
 
   await expect(heard).toHaveAttribute("data-mark", "filled");
-  await expect(marked(form, "filled")).toHaveCount(20);
+  await expect(marked(form, "filled")).toHaveCount(21);
   await heard.getByRole("button", { name: "Undo" }).click();
   await expect(heard).toHaveAttribute("data-mark", "check");
-  await expect(marked(form, "filled")).toHaveCount(19);
+  await expect(marked(form, "filled")).toHaveCount(20);
 });

@@ -1,10 +1,14 @@
-"""WorkIt Auto Apply's first run (KAN-858, W5 step 3): Chrome, the disclosure and license, Screen Recording, then
-the seed, one step at a time, with fakes for each check. No window and no browser: in CI."""
+"""WorkIt Auto Apply's first run (KAN-858, W5 step 3): Chrome, the disclosure and license, the Safety level,
+Screen Recording, then the seed, one step at a time, with fakes for each check. No window and no browser: in CI."""
 
+import json
 import threading
 from pathlib import Path
 
-from apply.first_run import CHROME, READY, SCREEN, SEED, SHOWN, FirstRun
+import pytest
+
+from apply import build, first_run, profile
+from apply.first_run import CHROME, READY, SAFETY, SCREEN, SEED, SHOWN, FirstRun
 
 CHROME_BINARY = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
@@ -31,6 +35,8 @@ def test_each_step_comes_in_order_and_what_is_done_stays_done(tmp_path):
     mac.chrome = CHROME_BINARY
     assert run.step() == SHOWN
     run.accept()
+    assert run.step() == SAFETY
+    run.choose_safety("careful")
     assert run.step() == SCREEN
     run.skip_screen()
     assert run.step() == SEED and mac.asked == 0
@@ -48,6 +54,7 @@ def test_allow_asks_macos_once_and_a_granted_or_other_os_skips_the_step(tmp_path
     run = mac.first_run(tmp_path / "app.json")
     mac.chrome = CHROME_BINARY
     run.accept()
+    run.choose_safety("balanced")
     run.allow_screen()
     assert mac.asked == 1 and run.step() == SEED
     for screen in (True, None):  # granted already, or not a Mac: nothing to ask
@@ -55,6 +62,34 @@ def test_allow_asks_macos_once_and_a_granted_or_other_os_skips_the_step(tmp_path
         other = mac.first_run(tmp_path / f"{screen}.json")
         other.accept()
         assert other.step() == SEED
+
+
+# Fault: the Safety level asked at every launch, asked though policies.yaml names one, or kept where it isn't read.
+def test_the_safety_level_is_asked_once_and_kept_where_it_is_read(tmp_path, monkeypatch):
+    mac, state = Mac(), tmp_path / "app.json"
+    mac.chrome = CHROME_BINARY
+    run = mac.first_run(state)
+    run.accept()
+    profile.OVERRIDE.write_text("# mine\nlive_runs: true\n")
+    run.choose_safety("full_auto")
+    assert run.step() == SCREEN and mac.first_run(state).step() == SCREEN
+    assert json.loads(state.read_text())["safety_level"] == "full_auto"
+    assert profile.OVERRIDE.read_text() == "# mine\nlive_runs: true\nsafety_level: full_auto\n"  # comments kept
+    assert profile.load_policies()["sign_self_id"] is True
+    with pytest.raises(ValueError):
+        first_run.set_safety_level("reckless", state)
+    mine = profile.OVERRIDE.read_text()
+    profile.OVERRIDE.write_text("- not a mapping\n")  # never overwritten, nor app.json moved off its level
+    with pytest.raises(ValueError):
+        first_run.set_safety_level("careful", state)
+    assert json.loads(state.read_text())["safety_level"] == "full_auto"
+    profile.OVERRIDE.write_text(mine)
+    other = tmp_path / "other.json"  # a policies.yaml naming one: never asked
+    assert first_run.safety_level(other) == "full_auto"
+    monkeypatch.setattr(build, "STUDENT", True)  # the Student build reads no policies.yaml: asked, kept in app.json
+    assert first_run.safety_level(other) is None
+    first_run.set_safety_level("balanced", other)
+    assert first_run.safety_level(other) == "balanced" and "balanced" not in profile.OVERRIDE.read_text()
 
 
 def test_the_seed_runs_in_its_own_thread_and_try_again_answers_it(tmp_path):
@@ -71,6 +106,7 @@ def test_the_seed_runs_in_its_own_thread_and_try_again_answers_it(tmp_path):
 
     run = mac.first_run(tmp_path / "app.json", seeding)
     run.accept()
+    run.choose_safety("careful")
     run.start_seed()
     assert asked.wait(5)
     for _ in range(50):
@@ -97,17 +133,43 @@ def test_workers_on_chrome_for_testing_skip_the_seed_step(tmp_path, monkeypatch)
     assert seed_problem() is None
     run = FirstRun(tmp_path / "app.json", chrome=lambda: CHROME_BINARY, screen=lambda: True)
     run.accept()
+    run.choose_safety("careful")
     assert run.step() == READY
 
 
-def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path):
-    """Fault: a count past D24's one to three reaching the run, or Settings' choice lost at the next launch."""
-    from apply.first_run import MOST_WORKERS, WORKERS, set_workers, workers
+def test_the_worker_count_stays_within_one_to_four_and_is_kept(tmp_path, monkeypatch):
+    """Fault: a count past D24's one to four reaching the run, or Settings' choice lost at the next launch."""
+    from apply import first_run
+    from apply.first_run import MOST_WORKERS, chosen_workers, set_workers, workers
 
+    monkeypatch.setattr(first_run, "memory", lambda: 32 * first_run.GB)
     state = tmp_path / "app.json"
-    assert workers(state) == WORKERS
-    assert set_workers(9, state) == MOST_WORKERS and set_workers(0, state) == 1
-    assert workers(state) == 1
+    assert chosen_workers(state) is None and workers(state) == 3  # Automatic until the student picks a count
+    assert MOST_WORKERS == 4 and set_workers(9, state) == 4 and set_workers(4, state) == 4
+    assert set_workers(0, state) == 1
+    assert workers(state) == 1 and chosen_workers(state) == 1  # the student's choice wins over 32 GB's three
+    assert set_workers(None, state) == 3 and chosen_workers(state) is None  # back to Automatic
+
+
+def test_the_automatic_worker_count_follows_the_memory():
+    """Fault: a Mac with little memory given more Chromes than it can hold (D24), or a boundary on the wrong side."""
+    from apply.first_run import GB, WORKERS, automatic_workers
+
+    assert [automatic_workers(size * GB) for size in (4, 7, 8, 12, 16, 17, 32)] == [1, 1, 2, 2, 2, 3, 3]
+    assert automatic_workers(64 * GB) == 3  # four only by the student's choice
+    assert automatic_workers(int(7.8 * GB)) == 2  # an 8 GB laptop that reports a little less
+    assert automatic_workers(0) == WORKERS == 2  # memory reported as nothing
+
+
+def test_the_automatic_worker_count_is_two_when_the_memory_cannot_be_read(monkeypatch):
+    """Fault: a computer whose memory can't be read failing the run instead of taking the default."""
+    from apply import first_run
+
+    def broken():
+        raise OSError("no memory figure")
+
+    monkeypatch.setattr(first_run.psutil, "virtual_memory", broken)
+    assert first_run.memory() is None and first_run.automatic_workers() == first_run.WORKERS == 2
 
 
 def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_could_not(tmp_path, monkeypatch):

@@ -33,6 +33,9 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   refused `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page
   loads; a tab a guarded page opens joins them on `tabs.onCreated` or
   `webNavigation.onCreatedNavigationTarget`.
+  PlainDriveGuard arms the drive guard in each tab its page opened too, found by
+  `tabs.get`'s `opener` (Chrome's `openerTabId`), and raises a Handoff for one that
+  won't hear it (KAN-796: a pop-up open before the arm kept on_open's lifted copy).
 - **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
   puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
   before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
@@ -43,6 +46,11 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 - **The guards' state** (KAN-710) is set only by token-named control events the extension sends
   from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
   or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
+- **One drive guard for every tab.** The drive guard is one registration, `drive`: on_open's
+  lifted copy, until a `DriveGuard` replaces it with its armed one. From then a later `on_open`
+  keeps the armed one (`guards.drive_armed`, cleared by `guards.reset`), so a second form sent in
+  with `--into` never lifts the first form's guard, and its own tab starts armed (PR 477's third
+  review, `docs/claude-fill.md`).
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
   the token-named touch the extension sends before each press (a page can't send one): Apply's own (`page/dom.js`) and
   Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
@@ -450,6 +458,15 @@ What changes on a plain Worker:
   Each reuse calls `guards.reset(worker)` and closes the last form's tabs. After each form, one blank
   tab stays, so the window stays. The run or rehearsal stops each Chrome by its PID as it ends
   (`cli._close_workers`, before the rehearsal's `os._exit`).
+- **A rehearsal keeps no Chrome that no form holds.** Each link's end (sent, let go, its tab closed,
+  skipped, already applied, or the rehearsal moving on) closes its page and calls `site.release(worker)`
+  (`rehearsal.rehearse`'s `let_chrome_go`). `PlainSite.release` stops that Worker's Chrome once no other
+  form is open in it, and every other Worker's Chrome that no form holds now. So the Chromes up are never
+  more than the forms filling or held for the student. Without it, each ended form left its Chrome on
+  `about:blank` till the run ended: 17 Chromes in one run (2026-11-26). A Worker's next form (Fill again,
+  a link sent in) starts its Chrome again, its sign-ins kept (`--restore-last-session`), so `into` takes
+  a link for a plain Worker of the run whose Chrome stopped. Tests: `tests/test_plain_window_close.py`
+  (in CI).
 - **The tile** uses `PortFrames`, which reads the field error for the stuck detector over the port
   (`stuck.field_error(page)`) on the window's own thread.
 - **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
@@ -494,8 +511,21 @@ and failed the job (`ProfileInUse`, "Didn't go through").
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
   no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
   now another process, such as the student's own Chrome.
+- **No hello fails the rest at once.** A branded Worker that sends no hello in `HELLO_WAIT` (a seed
+  without the worker extension) fails with the fix: run `uv run apply plain seed`. Its `PlainWorkers`
+  then fails each next launch from the same seed at once, with that message, and starts no Chrome:
+  16 links once failed one by one, 30 s each (run7, 2026-11-26). A seed made again (its preferences
+  change, `seed_stamp`) is tried anew, and any Worker's hello clears it. Chrome for Testing loads its
+  extension by flag and always waits. Tests: `tests/test_plain_no_hello.py` (in CI).
 - **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
   started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
+  It sends SIGTERM to every Chrome first, then waits, so a quit waits `STOP_WAIT` once, not once each.
+- **Any exit.** `launcher.stop_everyone` runs at this process's exit (`atexit`) and stops every Chrome
+  each `PlainWorkers` of the process still runs: an exception or a quit by signal leaves none. The app
+  turns SIGTERM, SIGINT (Ctrl-C) and SIGHUP (a closed terminal) into its window's close
+  (`app_window.QUITS`), so its `finally` runs too. Only SIGKILL or a hard crash skips both: then the app,
+  as it starts, reclaims every plain profile's orphan Chrome (`student.reclaim_left`,
+  `launcher.reclaim_all`), not only once a run reaches each profile.
 - Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)
