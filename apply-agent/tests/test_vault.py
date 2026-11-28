@@ -109,3 +109,45 @@ def test_any_other_page_gets_nothing(url):
     store = MemoryStore(Login("amazon.jobs", "me@example.com", SECRET))
     assert vault.for_page(store, url) is None
 
+
+def _cli(*args, inputs=("me@example.com",), secrets=(SECRET, SECRET), terminal=True, store=None):
+    from apply import cli
+
+    store = store if store is not None else MemoryStore()
+    given, hidden = iter(inputs), iter(secrets)
+    cli._vault(*args, store=store, ask=lambda prompt: next(given), secret=lambda prompt: next(hidden),
+               terminal=lambda: terminal)
+    return store
+
+
+def test_vault_add_asks_for_the_password_and_never_prints_it(capsys):
+    store = _cli("add", "amazon.jobs", None)
+    assert store.get("amazon.jobs") == Login("amazon.jobs", "me@example.com", SECRET)
+    out = capsys.readouterr()
+    assert SECRET not in out.out + out.err
+
+
+def test_vault_add_refuses_piped_input_and_a_url():
+    with pytest.raises(SystemExit, match="terminal"):
+        _cli("add", "amazon.jobs", "me@example.com", terminal=False)
+    with pytest.raises(SystemExit, match="not a host name"):
+        _cli("add", "https://amazon.jobs/login", "me@example.com")
+    with pytest.raises(SystemExit, match="not the same"):
+        _cli("add", "amazon.jobs", "me@example.com", secrets=(SECRET, "other"))
+
+
+def test_vault_takes_no_password_argument():
+    from apply import cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["vault", "add", "amazon.jobs", "--password", SECRET])
+
+
+def test_vault_list_and_remove(capsys):
+    store = MemoryStore(Login("amazon.jobs", "me@example.com", SECRET))
+    _cli("list", "", None, store=store)
+    assert capsys.readouterr().out.strip() == "amazon.jobs\tme@example.com"
+    _cli("remove", "amazon.jobs", None, store=store)
+    assert store.hosts() == []
+    out = capsys.readouterr().out
+    assert SECRET not in out
