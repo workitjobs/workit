@@ -105,8 +105,8 @@ has neither.
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else.
   Every text read or write names `encoding="utf-8"`: Windows' default is its
-  code page (cp1252). `tests/test_each_os.py` reads the source for the last
-  four. `doctor`'s
+  code page (cp1252). `tests/test_each_os.py` reads the source for
+  `fcntl`, `os.kill(pid, 0)`, a Unix socket and a missing encoding. `doctor`'s
   checks read Chrome for `Machine.system`, so `tests/test_doctor.py` (in CI,
   on Ubuntu) runs their Mac case on any OS. Porting to
   Windows: `../docs/windows_desktop.md` (KAN-929).
