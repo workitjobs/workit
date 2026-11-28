@@ -2242,6 +2242,12 @@ go then. A change needs to work on Cloudflare only.
   and reached `main` before the code did (the KAN-888 group's migrations).
   The bank job runs none of the reading code and never reads the table,
   so it needs no pull or restart for it.
+- **Apply `4c07869c8bf9` (`resume_readings.model`, `input_tokens`,
+  `output_tokens`, KAN-955) before the deploy that writes them.** The row
+  each reading adds names the three columns, so deployed first, every
+  upload, parse preview, Import Updated Resume and Import Again answers
+  500. All three are nullable and old code never names them, so applying
+  it early is safe. The bank job needs no pull or restart for it either.
 - **Apply `e6a2c8f4b015` (`bank_skills.position`, KAN-816) before the
   deploy that maps it.** The model selects the column with every skill and
   `load_bank` orders by it, so deployed first, `GET /bank`, uploads,
