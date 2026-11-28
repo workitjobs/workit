@@ -78,3 +78,15 @@ async def test_the_51st_job_system_request_in_a_day_is_refused_and_another_accou
         assert (await api.post("/job-system-requests", json={"host": "careers.example-ats.com"})).status_code == 201
     async with database() as session:
         assert await session.scalar(text("SELECT count(*) FROM job_system_requests")) == 51
+
+
+async def test_an_admin_is_never_capped(accounts, monkeypatch):
+    """WorkIt's developers (WORKIT_ADMINS) run Apply far past a student's day: their writes are not capped."""
+    from app.config import get_settings
+
+    sam, _ = accounts
+    monkeypatch.setattr(get_settings(), "workit_admins", str(sam))
+    async with _api() as api:
+        _as(sam)
+        for n in range(31):
+            assert (await api.post("/fill-reports", json=REPORT)).status_code == 201, n

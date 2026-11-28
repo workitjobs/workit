@@ -9,13 +9,16 @@ writes, in the same session: the count is one atomic upsert that goes up
 only while under the cap, so two requests at once can't both slip past it.
 It flushes, never commits: the route's own commit keeps the count and the
 row together. At the cap it raises `OverDailyCap`, which app/main.py answers
-as a 429 for every route.
+as a 429 for every route. WorkIt's admins (WORKIT_ADMINS, by account id or
+sign-in email) are never capped: they are its developers, whose own runs
+write far more than a student's.
 """
 
 import datetime
 import uuid
 from enum import StrEnum
 
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,7 +67,10 @@ class OverDailyCap(Exception):
 
 
 async def take_daily(db: AsyncSession, account_id: uuid.UUID, kind: Capped) -> None:
-    """Counts one `kind` write for the account today; OverDailyCap (nothing counted) once it is at the cap."""
+    """Counts one `kind` write for the account today; OverDailyCap (nothing counted) once it is at the cap.
+    An admin's write is neither counted nor capped."""
+    if await _is_admin(db, account_id):
+        return
     cap = getattr(get_settings(), f"{kind}_daily_cap")
     table = Daily_Count.__table__
     counted = await db.scalar(
@@ -80,3 +86,14 @@ async def take_daily(db: AsyncSession, account_id: uuid.UUID, kind: Capped) -> N
     if counted is None or cap < 1:
         raise OverDailyCap(kind)
     await db.flush()
+
+
+async def _is_admin(db: AsyncSession, account_id: uuid.UUID) -> bool:
+    """Whether the account is on WORKIT_ADMINS, by its id or its sign-in email (as deps.is_admin)."""
+    admins = set(get_settings().admins)
+    if not admins:
+        return False
+    if str(account_id).lower() in admins:
+        return True
+    email = await db.scalar(text("SELECT email FROM auth.users WHERE id = :id"), {"id": account_id})
+    return bool(email) and str(email).lower() in admins
