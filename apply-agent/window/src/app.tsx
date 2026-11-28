@@ -1,5 +1,5 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, ListChecksIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
@@ -7,6 +7,7 @@ import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bri
 import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
+import { Todos } from "./todos.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, addsJobs, findsJobs, joinedWords, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
 import { said } from "./words.ts";
@@ -16,7 +17,8 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied" | "add" | "find">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add" | "find" | "todos">("home");
+  const [todosOn, setTodosOn] = useState(false); // the developer to-do tracker's flag is on (apply.todos)
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
   useEffect(
@@ -28,6 +30,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     [bridge],
   );
   useEffect(() => void bridge.app.then(setApp), [bridge]);
+  // Its methods are always there; a window with the flag off refuses them, and shows no To-dos.
+  useEffect(() => void app.todos?.().then((t) => setTodosOn(t.enabled), () => setTodosOn(false)), [app]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 5000);
@@ -50,6 +54,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const first =
     !!app.queue &&
     page !== "applied" &&
+    page !== "todos" &&
     (page === "add" || page === "find" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
   // Find jobs (find.tsx) is where a student picks jobs, when the window can read their matches; the queue and a
@@ -79,6 +84,11 @@ export function App({ bridge }: { bridge: Bridge }) {
               Applied
             </Button>
           )}
+          {todosOn && (
+            <Button tone="quiet" className={cx("h-8 px-3", page === "todos" && "bg-hover text-ink")} onClick={() => setPage(page === "todos" ? "home" : "todos")}>
+              <ListChecksIcon className="size-4" /> To-dos
+            </Button>
+          )}
           {app.settings && (
             <Button tone="quiet" className="h-8 px-3" onClick={() => app.settings!().catch((e: Error) => setToast(e.message))}>
               <GearSixIcon className="size-4" /> Settings
@@ -93,7 +103,9 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {page === "applied" ? (
+        {page === "todos" && todosOn ? (
+          <Todos app={app} fail={setToast} />
+        ) : page === "applied" ? (
           <Applied jobs={v.applied} app={app} />
         ) : first && finds ? (
           <Find app={app} queue={v.running ? undefined : add} joined={v.running ? (n) => (setPage("home"), setToast(joinedWords(n))) : undefined} />

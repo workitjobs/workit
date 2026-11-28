@@ -2,11 +2,11 @@
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|auto|quiet|stopped|done,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
 // ?queue=empty|unread|refused (refused: Start gives app_window.Bridge's error), Find jobs' matches with ?matches=empty|unread, and how Apply answers with ?connect=slow|down
-// (slow: the first state after 2 s; down: no answer at all). Answers,
+// (slow: the first state after 2 s; down: no answer at all), and the developer to-do tracker with ?todos=1. Answers,
 // approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through. Report a problem
 // shows on the jobs with an application_id (Figma, Notion, Plaid) and sends nothing.
 import type { ApplyState, Shown, Waiting } from "./apply.ts";
-import type { Bridge, Match, Queued, Usage } from "./bridge.ts";
+import type { Bridge, Match, Queued, Todo, Usage } from "./bridge.ts";
 
 const ramp: Shown = {
   id: "live-1",
@@ -337,6 +337,24 @@ export function mock(
         parts: [`Your words${contact ? ", and WorkIt may email you about them" : ""}`, `Which application: ${id}`, ...(include ? ["answers.json (4 KB)", "form.png (310 KB)", "The step-by-step log (12 KB), your personal details hidden"] : [])],
       }),
       send_report: async () => ({ said: "Sent. WorkIt keeps your report until its problem is fixed, then deletes it." }),
+      async todos() {
+        if (!new URLSearchParams(location.search).get("todos")) throw new Error("The application to-do tracker is a developer feature and is off.");
+        return { enabled: true, todos: TODOS, scan: { read: 23, added: 3, updated: 0, by_model: 0, model: "no model: read by rules", errors: [], at: new Date().toISOString() }, scanning: false };
+      },
+      scan_todos: async () => ({ scanning: false }),
+      async mark_todo(id: string, status: Todo["status"]) {
+        const todo = TODOS.find((t) => t.id === id)!;
+        todo.status = status;
+        return { todo };
+      },
     }),
   };
 }
+
+// The developer to-do tracker's list (?todos=1): one of each kind of due date.
+const soon = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+const TODOS: Todo[] = [
+  { id: "t1", kind: "assessment", kind_label: "Online assessment", company: "Glean", role: "Software Engineer Intern", due: soon(1), link: "https://www.hackerrank.com/test/example", status: "open", by: "rules", source: { sender: "Glean <support@hackerrankforwork.com>", subject: "Glean has invited you to take the Software Engineer Intern assessment", arrived: new Date().toISOString(), url: null } },
+  { id: "t2", kind: "interview", kind_label: "Schedule interview", company: "Skydio", role: "Autonomy Engineer Intern", due: null, link: "https://calendly.com/example", status: "open", by: "rules", source: { sender: "Jordan Lee <jordan.lee@skydio.com>", subject: "Skydio - Interview invitation", arrived: new Date().toISOString(), url: null } },
+  { id: "t3", kind: "documents", kind_label: "Documents requested", company: "Ramp", role: "", due: soon(9), link: null, status: "done", by: "rules", source: { sender: "Ramp <talent@ramp.com>", subject: "Next steps", arrived: new Date().toISOString(), url: null } },
+];
