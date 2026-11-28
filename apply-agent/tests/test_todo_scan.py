@@ -10,7 +10,7 @@ from test_gmail import FakeImap
 
 from apply.gmail import GmailMailbox, Mail
 from apply.model import Status
-from apply.todo_scan import SEARCH, best_link, checked, rules, scan, thread_of
+from apply.todo_scan import SEARCH, best_link, checked, company, rules, scan, thread_of
 from apply.todos import DONE, TodoStore
 from apply.tracker import Row
 
@@ -165,3 +165,32 @@ def test_a_model_answer_out_of_its_schema_or_far_off_dates_are_not_taken():
     assert checked({"kind": "none", "company": "", "role": "", "due": "", "link": ""}, mail).kind is None
     assert checked({"kind": "offer", "company": "", "role": "", "due": "2031-01-01", "link": ""}, mail).due is None
     assert checked({"kind": "offer", "company": "", "role": "", "due": "soon", "link": ""}, mail).due is None
+
+
+def test_the_company_is_the_employer_a_mail_names_never_the_hiring_system_that_sends_it():
+    # Fault: the sender's name or domain taken as the company when a hiring system or assessment site sends the mail
+    # ("CodeSignal", "us.greenhouse-mail.io"), or a domain shown run together ("Honeywellaerospace").
+    invite = written("CodeSignal <no-reply@codesignal.com>",
+                     "Ramp invited you to take Ramp 2025 Coding Assessment on CodeSignal",
+                     "You've been invited by someone from Ramp. To begin, click GET STARTED. Sent from Ramp through "
+                     "CodeSignal.")
+    applied = written("no-reply@us.greenhouse-mail.io", "Thank you for applying to Oscar Health!",
+                      "Thank you for your interest in Oscar Health. Please complete the attached form.")
+    draft = written("Human Resources <noreply@honeywellaerospace.com>",
+                    "Honeywell Aerospace Careers - Continue to apply for the job Embedded Engineering Intern",
+                    "We saved a draft of your application.")
+    reminder = written("CodeSignal <no-reply@codesignal.com>", "Reminder: Ramp is waiting for your assessment result",
+                       "Hey Test, the assessment expires soon.")
+
+    assert [company(read(raw)) for raw in (invite, applied, draft, reminder)] == [
+        "Ramp", "Oscar Health", "Honeywell Aerospace", "Ramp"]
+
+
+def test_a_model_that_names_the_hiring_system_gets_the_employer_instead(tmp_path):
+    # Fault: the model's "CodeSignal" kept as the company.
+    store = TodoStore(tmp_path / "todos.json")
+    scan(box(sample("codesignal-assessment"))[0], store, now=lambda: ARRIVED,
+         ask=lambda **call: {"kind": "assessment", "company": "CodeSignal", "role": "", "due": "", "link": ""})
+
+    assert [t.company for t in store.all()] == ["Skydio"]
+

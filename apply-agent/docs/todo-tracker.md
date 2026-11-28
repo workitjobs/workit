@@ -39,8 +39,15 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
 - **Patterns** build on `employer_mail`'s: its deadline cues, its rule that a conditional sentence ("if selected,
   we will schedule an interview") says nothing, its assessment and interview words, and its Tracker match for the
   company and role. A confirmation, a rejection, an assessment already taken, a one-time code and a password reset
-  make no to-do. Without a Tracker row, the company is the sender's name when the sender's own domain agrees with
-  it, else that domain ("Jordan Lee" at skydio.com is Skydio).
+  make no to-do.
+- **Company:** without a Tracker row (`todo_scan.company`), the sender's name when the sender's own domain agrees
+  with it; on the employer's own domain, the words of the mail that spell it ("Honeywell Aerospace" for
+  honeywellaerospace.com), else the domain ("Jordan Lee" at skydio.com is Skydio); the sender's name when a shared
+  domain sends it ("Ramp Talent Team" through Ashby); else a phrase that names the employer ("Ramp invited you",
+  "applying to Oscar Health", "Sent from Ramp through"). A hiring system or assessment site
+  (`todo_scan.SENDERS`: CodeSignal, HackerRank, Greenhouse, Workday, Oracle...) or an address is never the company,
+  from the patterns or the model: CodeSignal's mail for Ramp once showed "CodeSignal", and Greenhouse's
+  "us.greenhouse-mail.io".
 - **Schedule:** the window scans when it opens and every `todo_scan.EVERY` (30 minutes), one scan at a time
   (`Bridge._todo_scanning`). Scan now and `apply window todo-scan` scan at once.
 
