@@ -1067,7 +1067,7 @@ built 2026-11-14 except where a row below says what waits.
 | `browsers.py`, `plain/launcher.py`, `cover_letter.py`, `workit.py` | `/Applications/Google Chrome.app` | Built (KAN-850): one Chrome finder, `chrome_finder.py`, with each OS's places. macOS: `/Applications/Google Chrome.app`, then `~/Applications`. Windows: `%PROGRAMFILES%\Google\Chrome\Application\chrome.exe`, the 32-bit Program Files, then the per-user `%LOCALAPPDATA%`. Linux: `google-chrome` or `google-chrome-stable` on the `PATH`. It also reads Chrome's version on each OS and gives a Worker's user agent its OS's platform. `browsers.py`, `plain/launcher.py`, `plain/seed_setup.py`, `captcha.py`, `cover_letter.py` (after PR #577, W1) and `doctor.py` use it. `cover_letter.py`'s date has no `%-d` either, which Windows lacks. `workit.py` starts no Chrome any more: W5's sign-in uses the default browser |
 | `plain/launcher.py` | `open -g -n -a` | Built (KAN-850): stays on the Mac: `-g` keeps a new Chrome from taking the front as it starts, and starting the binary itself brings it forward. On Windows and Linux, `start_in_background` starts the binary as a plain background process, in a session (a process group on Windows) of its own, and its Popen is the Worker's process |
 | `plain/window_capture.*` | Swift and ScreenCaptureKit | Dropped: tiles come from the debugger's screencast (W6) or the extension's frames |
-| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | Built (KAN-850): the store install needs none of them (W6); the fallback guide uses `pyperclip` for `pbcopy` and `psutil` for `ps`. Showing a folder has no library, so `Desk.reveal` has an entry per OS: `open -R`, `explorer /select,"<path>"` as one string (a path with a space stays whole), `xdg-open` on its parent. Its words (Finder, Cmd+Shift+G) are still the Mac's (F4) |
+| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | Built (KAN-850): the store install needs none of them (W6); the fallback guide uses `pyperclip` for `pbcopy` and `psutil` for `ps`. Showing a folder has no library, so `Desk.reveal` has an entry per OS: `open -R`, `explorer /select,"<path>"` as one string (a path with a space stays whole), `xdg-open` on its parent. Its words are each OS's (`seed_setup.WORDS`, KAN-929's P8) |
 | `plain/extension.py` | `ps -axo` (found 2026-11-14) | Built (KAN-850): `psutil` reads each process's arguments as a list, so a path with spaces stays whole |
 | `native_host.py`, `plain/launcher.py`, `doctor.py` | `~/Library/...` paths | Built (KAN-850): each OS's places. The everyday Chrome's native host folder: `native_host.chrome_hosts` (`~/.config/google-chrome/NativeMessagingHosts`, or under `$XDG_CONFIG_HOME`, on Linux; none on Windows, where Chrome reads a registry key under `HKCU`: F4 writes it). Playwright's browsers folder: `chrome_finder.playwright_browsers`, the OS's cache folder from `platformdirs`, as Playwright picks it, with Chrome for Testing's layout for each OS. The data folder: `home.APP_FOLDER` from `platformdirs` (D25); W5 makes it the Student build's data folder |
 
@@ -1116,10 +1116,10 @@ on Windows each one stops Apply:
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
   A Worker started off the Mac is a Popen, which stops it on each OS.
-- The hosts' wrappers are shell scripts (`native_host.install`,
-  `PlainWorkers.install_host`), and Chrome on Windows reads a Worker
-  profile's host from the registry, not from its `NativeMessagingHosts`
-  folder (F4's table).
+- The hosts' wrappers were shell scripts, and Chrome on Windows reads a
+  host from the registry, not from a `NativeMessagingHosts` folder (F4's
+  table). Both hosts now have their key and a `.bat` there
+  (`windows_desktop.md`, P5).
 - The seed guide's words name Finder and the Mac's keys.
 
 ### W5. The app shell
@@ -2067,7 +2067,8 @@ student sees one Chrome in the Dock and no Worker in Mission Control.
      need another way to reach their profile's pages.
    - The native host's manifest is one per user data folder, so each
      plain Worker's extension must say which Worker it is (today the
-     wrapper in its own profile says so).
+     host reads it from its Chrome's profile folder, which would then be
+     one for all).
    - Apply stops a Worker by its Chrome's PID; with one process it closes
      the profile's windows instead, and one crash or quit ends every
      Worker. The in-use check (`SingletonLock`, one per folder), restart

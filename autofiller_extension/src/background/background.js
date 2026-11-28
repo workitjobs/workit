@@ -183,7 +183,7 @@ async function handleMessage(message, sender) {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       await rememberWorkdayTab(sender.tab.id);
-      // A tenant Apply made an account at (KAN-592) comes first: its password is in Keychain, not here, so
+      // A tenant Apply made an account at (KAN-592) comes first: its password is in Apply's keychain, not here, so
       // the student's sign-up password is never typed there, and Create Account is never pressed.
       const apply = await applyAccount(job.tenant, "known");
       if (apply.login) return { apply: true, company: apply.company, email: apply.login, password: null };

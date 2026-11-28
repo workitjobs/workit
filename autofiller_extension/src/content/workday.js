@@ -317,7 +317,7 @@ window.WIA = window.WIA || {};
 
     /**
      * The student pressed Sign In with Your Apply Account: the tenant's login from Apply's host
-     * (Keychain, through the worker), typed into the form and handed to Chrome's own password
+     * (the system's keychain, through the worker), typed into the form and handed to Chrome's own password
      * manager, which asks the student to save it (navigator.credentials.store, from this page's
      * origin). Nothing keeps it, and Sign In is the student's to press: Chrome's Save first.
      */
@@ -337,8 +337,8 @@ window.WIA = window.WIA || {};
         // No Credential Management API here (a frame): Chrome may still offer to save it once Sign In is pressed.
       }
       onView(offeredToChrome
-        ? `WorkIt filled the password Apply made for ${answer.company}, from your Mac's Keychain. Press Save when Chrome asks to save it, so Chrome fills it next time, then press Sign In. ${SIGNED_IN}`
-        : `WorkIt filled the password Apply made for ${answer.company}, from your Mac's Keychain. Press Sign In, and Save if Chrome asks. ${SIGNED_IN}`);
+        ? `WorkIt filled the password Apply made for ${answer.company}, which Apply keeps on this computer. Press Save when Chrome asks to save it, so Chrome fills it next time, then press Sign In. ${SIGNED_IN}`
+        : `WorkIt filled the password Apply made for ${answer.company}, which Apply keeps on this computer. Press Sign In, and Save if Chrome asks. ${SIGNED_IN}`);
     }
 
     async function fillSignIn() {
@@ -382,7 +382,7 @@ window.WIA = window.WIA || {};
             }
             if (noted !== "apply") {
               noted = "apply";
-              onView(`Apply made your account at ${login.company}. Press Sign In with Your Apply Account in this panel: WorkIt fills its password from your Mac's Keychain, and Chrome offers to save it. ${SIGNED_IN}`);
+              onView(`Apply made your account at ${login.company}. Press Sign In with Your Apply Account in this panel: WorkIt fills the password Apply keeps on this computer, and Chrome offers to save it. ${SIGNED_IN}`);
             }
             continue;
           }

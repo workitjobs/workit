@@ -231,13 +231,13 @@ def dismiss(application_id: str, field: str, why: str) -> None:
         if [field, why] not in mine:
             mine.append([field, why])
         part = DISMISSED.with_suffix(".part")
-        part.write_text(json.dumps(every, indent=2, ensure_ascii=False) + "\n")
+        part.write_text(json.dumps(every, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(part, DISMISSED)
 
 
 def _read_dismissed() -> dict[str, list[list[str]]]:
     try:
-        return json.loads(DISMISSED.read_text())
+        return json.loads(DISMISSED.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 

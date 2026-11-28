@@ -50,7 +50,7 @@ CHROME, SHOWN, SAFETY, SCREEN, SEED, READY = "chrome", "disclosure", "safety", "
 
 def _kept(state: Path) -> dict:
     try:
-        kept = json.loads(state.read_text())
+        kept = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return kept if isinstance(kept, dict) else {}
@@ -58,7 +58,7 @@ def _kept(state: Path) -> dict:
 
 def _keep(state: Path, **values: object) -> None:
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n")
+    state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n", encoding="utf-8")
 
 
 def memory() -> int | None:
@@ -101,7 +101,7 @@ def set_workers(count: int | None, state: Path | None = None) -> int:
         kept = _kept(path)
         kept.pop("workers", None)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(kept, indent=1) + "\n")
+        path.write_text(json.dumps(kept, indent=1) + "\n", encoding="utf-8")
     else:
         _keep(path, workers=min(max(int(count), 1), MOST_WORKERS))
     return workers(state)
@@ -135,7 +135,7 @@ def set_safety_level(level: str, state: Path | None = None) -> str:
 
         y = profile._yaml()
         try:
-            kept = (y.load(profile.OVERRIDE.read_text()) if profile.OVERRIDE.is_file() else None) or {}
+            kept = (y.load(profile.OVERRIDE.read_text(encoding="utf-8")) if profile.OVERRIDE.is_file() else None) or {}
         except Exception as e:  # ruamel's errors share no base class
             raise ValueError(f"{profile.OVERRIDE} isn't YAML Apply can read: {e}") from e
         if not isinstance(kept, dict):
@@ -145,7 +145,7 @@ def set_safety_level(level: str, state: Path | None = None) -> str:
         y.dump(kept, out)
         profile.OVERRIDE.parent.mkdir(parents=True, exist_ok=True)
         written = profile.OVERRIDE.with_name(profile.OVERRIDE.name + ".new")
-        written.write_text(out.getvalue())
+        written.write_text(out.getvalue(), encoding="utf-8")
         written.replace(profile.OVERRIDE)  # whole or not at all: a Worker never reads half a file
     _keep(state or STATE, **{safety.KEY: level})
     return level
@@ -157,7 +157,7 @@ def _own_policies() -> dict:
     from apply import profile
 
     try:
-        return (yaml.safe_load(profile.OVERRIDE.read_text()) or {}) if profile.OVERRIDE.is_file() else {}
+        return (yaml.safe_load(profile.OVERRIDE.read_text(encoding="utf-8")) or {}) if profile.OVERRIDE.is_file() else {}
     except (OSError, yaml.YAMLError):
         return {}
 

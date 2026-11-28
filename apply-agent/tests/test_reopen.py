@@ -32,7 +32,6 @@ from apply import batch, cli, rehearsal
 from apply.browsers import chrome_pid
 from apply.fillers import FILLERS
 from apply.greenhouse import GreenhouseFiller
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers
 from apply.plain.site import PlainSite
 from apply.profile import ApplicantProfile
@@ -109,7 +108,7 @@ def test_each_form_comes_back_in_its_worker_with_its_record_and_guards_after_app
             # 3. apply reopen, on the same profiles folder.
             monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
             flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
-            site = PlainSite(PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags))
+            site = PlainSite(PlainWorkers(folder, kind="testing", test_flags=flags))
             site.fetch = fake.fetch
             board, seen = Held(2), {}
             real_hold = rehearsal._Kept.hold

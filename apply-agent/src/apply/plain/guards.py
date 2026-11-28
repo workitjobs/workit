@@ -95,8 +95,8 @@ def write(vendor: Path) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     for name, text in FILES.items():
         path = folder / name
-        if not path.exists() or path.read_text() != text:
-            path.write_text(text)
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
 
 
 def file_params(name: str) -> dict:

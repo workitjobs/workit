@@ -141,7 +141,7 @@ class AnswerSync:
 
     def _read(self) -> dict[str, tuple[str, dict]]:
         try:
-            return {k: (v[0], v[1]) for k, v in json.loads(self.path.read_text()).items()}
+            return {k: (v[0], v[1]) for k, v in json.loads(self.path.read_text(encoding="utf-8")).items()}
         except (FileNotFoundError, ValueError):
             return {}
 
@@ -150,7 +150,7 @@ class AnswerSync:
             self.path.unlink(missing_ok=True)
             return
         part = self.path.with_suffix(".part")
-        part.write_text(json.dumps(waiting, indent=1))
+        part.write_text(json.dumps(waiting, indent=1), encoding="utf-8")
         part.replace(self.path)
 
     @contextmanager

@@ -40,7 +40,6 @@ from pathlib import Path
 
 from apply.browsers import WorkerBrowsers, chrome_pid
 from apply.chrome_finder import FOR_TESTING_LINUX, chrome_for_testing
-from apply.plain.bridge import Bridge
 from apply.plain.demo import _filled, _saved, replay
 from apply.plain.launcher import PlainWorkers
 from apply.plain.page import PortPage
@@ -94,7 +93,7 @@ def plain_case(end: str, settle: float, restore: bool) -> None:
     """Two filled saved forms in two tabs of one plain Worker, its Chrome ended, then launched again as Apply does
     (`restore`: with Chrome's session restore)."""
     folder = Path(tempfile.mkdtemp(prefix="hfc-", dir="/tmp"))  # short: a socket path is capped at 104 bytes
-    workers = Workers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=LINUX)
+    workers = Workers(folder, kind="testing", test_flags=LINUX)
     worker = "plain, restore" if restore else "plain"
     with ExitStack() as stack:
         served = [(target, *stack.enter_context(replay(_saved(target)))) for target in FORMS]

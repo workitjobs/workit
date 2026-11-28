@@ -67,7 +67,7 @@ def bundle_for(profiles: Path, checkout: Path = Path(__file__).resolve().parents
     """Where the bundle for `profiles` goes: APP for the repository's main
     checkout, else beside the profiles of the worktree that opened it."""
     def git(*args: str) -> str:
-        found = subprocess.run(["git", "-C", str(checkout), "rev-parse", *args], capture_output=True, text=True)
+        found = subprocess.run(["git", "-C", str(checkout), "rev-parse", *args], capture_output=True, text=True, encoding="utf-8")
         return found.stdout.strip()
 
     git_dir, common = git("--absolute-git-dir"), git("--path-format=absolute", "--git-common-dir")
@@ -116,7 +116,7 @@ def keep(pid: int, profile: Path, every: float = KEEP_EVERY) -> None:
     ours = None  # the DevTools port of `pid`'s own Chrome, once checked
     while psutil.pid_exists(pid):
         try:
-            port, browser = (profile / "DevToolsActivePort").read_text().split()[:2]
+            port, browser = (profile / "DevToolsActivePort").read_text(encoding="utf-8").split()[:2]
             # The port file outlives its Chrome: answer only the Chrome that wrote it, not one that took the port since.
             if ours != (port, browser) and _devtools(port, "version")["webSocketDebuggerUrl"].endswith(browser):
                 ours = (port, browser)

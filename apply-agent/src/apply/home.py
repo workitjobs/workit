@@ -45,9 +45,12 @@ TEMP_OK = "APPLY_TEST_TEMP_OK"
 
 
 def in_temp(path: Path) -> bool:
-    """Whether a folder is under a temp path, by its name and by where its links lead (/tmp is /private/tmp)."""
+    """Whether a folder is under a temp path, by its name and by where its links lead (/tmp is /private/tmp). By
+    path parts, not text: Windows' paths use backslashes, and its temp folder (tempfile.gettempdir) may come in its
+    short 8.3 form, which resolve() writes long."""
     path = Path(path).expanduser()
-    return any(p == t or p.startswith(t + "/") for p in (str(path), str(path.resolve())) for t in (*TEMP_FOLDERS, tempfile.gettempdir()))
+    temps = [*map(Path, TEMP_FOLDERS), Path(tempfile.gettempdir()), Path(tempfile.gettempdir()).resolve()]
+    return any(p.is_relative_to(t) for p in (path, path.resolve()) for t in temps)
 
 
 def temp_state(profiles: Path) -> str | None:

@@ -89,7 +89,7 @@ def by_hand(listed: set[str], licenses: Path = LICENSES) -> tuple[list[Part], li
         if hand.package and hand.package.lower() in listed:
             continue
         path = licenses / hand.file
-        text = path.read_text() if path.is_file() else ""
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
         if not text:
             missing.append(f"legal/licenses/{hand.file}")
         parts.append(Part(hand.name, hand.license, hand.url, text=text or f"LICENSE TEXT MISSING: add "
@@ -111,10 +111,10 @@ def driver(folder: Path) -> list[Part]:
     texts = [core / "LICENSE", core / "NOTICE", core / "ThirdPartyNotices.txt", *sorted((core / "lib").rglob("*.LICENSE"))]
     return [
         Part("Node.js (in Playwright's driver)", "MIT, with the licenses of the code Node.js includes",
-             "https://nodejs.org/", text=(folder / "LICENSE").read_text()),
+             "https://nodejs.org/", text=(folder / "LICENSE").read_text(encoding="utf-8")),
         Part("playwright-core (in Playwright's driver)", "Apache-2.0, with the licenses of the code its bundles include",
              "https://github.com/microsoft/playwright",
-             text="\n\n".join(f"{THIN}\n{p.relative_to(folder)}\n{THIN}\n{p.read_text()}" for p in texts if p.is_file())),
+             text="\n\n".join(f"{THIN}\n{p.relative_to(folder)}\n{THIN}\n{p.read_text(encoding="utf-8")}" for p in texts if p.is_file())),
     ]
 
 
@@ -147,7 +147,7 @@ print(json.dumps([str(pathlib.Path(playwright.__file__).parent / "driver"),
 
 
 def _run(*command: str, cwd: Path = ROOT) -> str:
-    return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8").stdout
 
 
 def build() -> tuple[str, list[str]]:
@@ -166,7 +166,7 @@ def build() -> tuple[str, list[str]]:
         hand, missing = by_hand(listed)
         parts = [*packages(rows), *driver(driver_folder),
                  Part("Python", "PSF-2.0, with the licenses of the code Python includes", "https://www.python.org/",
-                      python_version, python_license.read_text() if python_license.is_file() else ""),
+                      python_version, python_license.read_text(encoding="utf-8") if python_license.is_file() else ""),
                  *hand]
         return render(parts, datetime.now(UTC).date()), missing
 
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     text, missing = build()
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(text)
+    args.out.write_text(text, encoding="utf-8")
     print(f"wrote {args.out}")
     for path in missing:
         print(f"missing license text: {path}", file=sys.stderr)

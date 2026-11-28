@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 
-from apply.plain.bridge import FEATURES, Bridge
+from apply.plain.bridge import FEATURES
 from apply.plain.extension import EXTENSION_DIR
 from apply.plain.launcher import PlainWorkers, chrome_for_testing, developer_mode
 from apply.plain.page import PortPage
@@ -75,7 +75,7 @@ def setup():
     folder = Path(tempfile.mkdtemp(prefix="apw-reload-", dir="/tmp"))
     extension = folder / "extension"
     shutil.copytree(EXTENSION_DIR, extension, ignore=shutil.ignore_patterns("vendor"))
-    workers = PlainWorkers(folder / "profiles", kind="testing", bridge=Bridge(folder / "t.sock"), extension_dir=extension)
+    workers = PlainWorkers(folder / "profiles", kind="testing", extension_dir=extension)
     turn_on_developer_mode(workers.profile(0))
     assert developer_mode(workers.profile(0))
     try:

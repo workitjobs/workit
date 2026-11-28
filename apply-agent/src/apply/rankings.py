@@ -58,7 +58,7 @@ class RankedCompany:
 
 def read_results(path: Path) -> list[RankedCompany]:
     """A research results file's companies, in rank order."""
-    return sorted((RankedCompany.parse(data) for data in json.loads(Path(path).read_text())), key=lambda c: c.rank)
+    return sorted((RankedCompany.parse(data) for data in json.loads(Path(path).read_text(encoding="utf-8"))), key=lambda c: c.rank)
 
 
 def write_rankings(spreadsheet, results: Path, lock: Path = DEFAULT_LOCK) -> None:

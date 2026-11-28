@@ -22,7 +22,6 @@ from apply import captcha
 from apply.fillers import FILLERS
 from apply.greenhouse import GreenhouseFiller
 from apply.plain import site as routing
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers
 from apply.plain.site import PlainSite, RoutedSite
 from apply.plain.tile import EitherFrames
@@ -149,7 +148,7 @@ def fake_site(monkeypatch):
     folder = Path(tempfile.mkdtemp(prefix="apw-s8-", dir="/tmp"))  # short: a socket path is capped at 104 bytes
     with FakeJobServer(ARC_FORM) as fake, https_fake(_uploading(fake)) as port:
         flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
-        workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags)
+        workers = PlainWorkers(folder, kind="testing", test_flags=flags)
         site = PlainSite(workers)
         site.fetch = fake.fetch
         try:

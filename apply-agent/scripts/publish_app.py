@@ -68,7 +68,7 @@ def main() -> None:
     # The key goes in on stdin ("-"), never in a file or the command line. -p prints the signature alone.
     try:
         signature = subprocess.run([SIGN_UPDATE, "--ed-key-file", "-", "-p", dmg], input=key, check=True,
-                                   capture_output=True, text=True).stdout.strip()
+                                   capture_output=True, text=True, encoding="utf-8").stdout.strip()
     except subprocess.CalledProcessError:
         # Never print what sign_update said: its error repeats the key it was given, into the run's log.
         sys.exit("sign_update couldn't read SPARKLE_PRIVATE_KEY: it must be the one line of base64 that "
@@ -82,7 +82,7 @@ def main() -> None:
     feed = PUBLISH / "appcast.xml"
     feed.write_text(APPCAST.format(name=build.NAME, shown=shown, number=number, date=formatdate(usegmt=True),
                                    signature=signature, length=length, minimum=plist["LSMinimumSystemVersion"],
-                                   url=url))
+                                   url=url), encoding="utf-8")
     # Read back as Sparkle reads it: with a feed it can't read (a "&" in new text), every app's check fails with no
     # message, while the run passes.
     try:

@@ -39,6 +39,8 @@ from typing import Self
 
 SIZE = 32  # bytes of the secret, of each challenge and of each answer (HMAC-SHA256)
 GREET_WAIT = 5.0  # s each side waits for the other's part of the check
+SOCKET = "workers.sock"
+SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 
 
 class Busy(Exception):
@@ -47,6 +49,20 @@ class Busy(Exception):
 
 class NotApply(ConnectionError):
     """The listener didn't prove that it knows the channel's secret."""
+
+
+def socket_path(profiles: Path, system: str = sys.platform) -> Path:
+    """The Workers' channel for the profiles folder `profiles`: the Bridge listens there, and each Worker's host
+    finds it from its Chrome's profile (host.py). `profiles`/workers.sock, or, when that path is too long for a
+    socket, one under /tmp/apply-<uid>/ (0700) named by a hash of `profiles`: always /tmp, never $TMPDIR, since
+    the host runs in its Chrome's environment (on the Mac, launchd's: Chrome starts through `open`). On Windows
+    the path only names the channel's pipe and holds its secret beside it (pipe_name), so it has no length to
+    keep under, and Windows has no os.getuid."""
+    path = profiles / SOCKET
+    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
+        return path
+    name = hashlib.sha256(str(profiles.resolve()).encode()).hexdigest()[:16]
+    return Path("/tmp") / f"apply-{os.getuid()}" / f"{name}.sock"
 
 
 def secret_path(path: Path) -> Path:
@@ -205,7 +221,7 @@ def prove(stream, path: Path):
             raise NotApply(f"the channel at {path} sent no challenge")
         # Only now: a listener writes its new secret just after it takes the address, and challenges only after
         # that. Read sooner, a host that connected in between had the Apply before's secret.
-        secret = bytes.fromhex(secret_path(path).read_text().strip())
+        secret = bytes.fromhex(secret_path(path).read_text(encoding="utf-8").strip())
         mine = secrets.token_bytes(SIZE)
         stream.sendall(_mac(secret, b"client", challenge) + mine)
         proof = _exact(stream, SIZE)
@@ -297,7 +313,7 @@ def _new_secret(where: Path) -> bytes:
     secret = secrets.token_bytes(SIZE)
     part = where.with_name(where.name + ".part")
     part.unlink(missing_ok=True)
-    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
+    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as file:
         file.write(secret.hex())
     os.replace(part, where)
     return secret

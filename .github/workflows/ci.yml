@@ -275,6 +275,7 @@ jobs:
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_doctor.py \
             tests/test_each_os.py \
             tests/test_eightfold_filler.py \
             tests/test_engine_download.py \
@@ -300,6 +301,7 @@ jobs:
             tests/test_mail_command.py \
             tests/test_masked.py \
             tests/test_matches.py \
+            tests/test_native_host.py \
             tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_opinion_questions.py \

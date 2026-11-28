@@ -52,7 +52,7 @@ def default_identifiers():
 
 def read_identifiers(path):
     rules = []
-    for n, line in enumerate(path.read_text().splitlines(), 1):
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         label, sep, pattern = line.partition("\t")
@@ -68,7 +68,7 @@ def read_identifiers(path):
 def read_allow(path):
     allow = set()
     if path:
-        for line in Path(path).read_text().splitlines():
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
             if line.strip() and not line.lstrip().startswith("#"):
                 where, _, label = line.partition("\t")
                 allow.add((where.strip(), label.strip() or "*"))

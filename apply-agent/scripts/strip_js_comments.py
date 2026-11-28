@@ -78,7 +78,7 @@ def pieces(value: str) -> list[tuple[int, int]]:
 
 
 def parse_modes(node: str, texts: list[str]) -> list[str | None]:
-    done = subprocess.run([node, "-e", PARSE], input=json.dumps(texts), capture_output=True, text=True, check=True)
+    done = subprocess.run([node, "-e", PARSE], input=json.dumps(texts), capture_output=True, text=True, check=True, encoding="utf-8")
     return json.loads(done.stdout)
 
 
@@ -99,7 +99,7 @@ def literals(source: str) -> list[tuple[int, int, str]]:
 
 def strip_module(path: Path, node: str) -> int:
     """Strip one module in place; returns how many comments it removed."""
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     edits, total = [], 0
     for start, end, value in literals(source):
         spans = pieces(value)
@@ -122,7 +122,7 @@ def strip_module(path: Path, node: str) -> int:
     for start, end, text in reversed(edits):
         source = source[:start] + text + source[end:]
     if edits:
-        path.write_text(source)
+        path.write_text(source, encoding="utf-8")
     return total
 
 

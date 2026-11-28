@@ -399,8 +399,8 @@ class PortFrames:
                 self._retry[worker] = (now + wait, min(wait * 2, RETRY_MOST))
 
     def _foreign_to(self, worker: int, connection: Connection) -> bool:
-        """Whether `connection` may not be Worker `worker`'s: its Chrome (the host's parent) isn't the one with the
-        Worker's profile open, or either PID can't be told. Fails closed (KAN-717)."""
+        """Whether `connection` may not be Worker `worker`'s: its Chrome (the browser above the host) isn't the one
+        with the Worker's profile open, or either PID can't be told. Fails closed (KAN-717)."""
         if not self._strict:
             return False
         expected = self._chrome(worker)

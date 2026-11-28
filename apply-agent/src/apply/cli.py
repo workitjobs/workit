@@ -69,7 +69,7 @@ from apply.gmail import live_mailbox
 from apply.home import HOME
 from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
-from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
+from apply.notify import SET_UP, TEST_PUSH, RecordingNotifier, desktop, live_phone
 from apply.plain.site import live_site
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
@@ -91,11 +91,22 @@ REHEARSALS = HOME / "rehearsals"
 RECORDS = HOME / "records"
 
 
+def utf8_streams(system: str = sys.platform, streams: tuple | None = None) -> None:
+    """On Windows a pipe or a file takes the code page (cp1252), which has no "→" or "✓", so Apply's output stopped
+    a command at its first such line there (`apply rehearse ... > run.log`). The console is UTF-8 already (KAN-929)."""
+    if system != "win32":
+        return
+    for stream in streams or (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):  # None in a window with no console
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> None:
-    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664). A test's fake
-    adapters print only what it made."""
+    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664), and as UTF-8. A
+    test's fake adapters print only what it made."""
     if adapters is not None:
         return _main(argv, adapters)
+    utf8_streams()
     with masked.output():
         return _main(argv, adapters)
 
@@ -452,7 +463,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         profiles = WorkerBrowsers().profiles
         url = profiles / DASHBOARD_URL
         if url.exists():  # the window of the run going: both tabs
-            dashboard.open_window(url.read_text().strip() + ("/#answers" if args.command == "answers" else ""),
+            dashboard.open_window(url.read_text(encoding="utf-8").strip() + ("/#answers" if args.command == "answers" else ""),
                                   profiles / "dashboard")
         else:
             _answers_window(args.profile, profiles / "answers")
@@ -705,7 +716,7 @@ def _plain(args) -> None:
 
         archive = extension.package(Path(args.out))
         print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
-        recorded, stamp = json.loads(extension.STORE.read_text()), extension.store_stamp()
+        recorded, stamp = json.loads(extension.STORE.read_text(encoding="utf-8")), extension.store_stamp()
         if any(recorded.get(key) != value for key, value in stamp.items()):
             print(f"store.json doesn't record what this package holds ({stamp}): bump its version and record these "
                   "before uploading (tests/test_worker_extension_store.py says how).")
@@ -798,7 +809,7 @@ def _story_map(args, claude) -> None:
         return
     answering.refresh(workit.WorkIt())  # the map tags stories by WorkIt's Question types
     built = story_map.build(claude or as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE)))
-    old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
+    old = yaml.safe_load(story_map.MAP.read_text(encoding="utf-8")) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
         print("Dropped by the checks:\n" + "\n".join(f"  {why}" for why in built["dropped"]))
@@ -884,7 +895,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
-        url.write_text(board.url)
+        url.write_text(board.url, encoding="utf-8")
         noted = ask.register(site.profiles / ask.WINDOWS, board.url, board.token, os.getpid())  # for `apply ask`
         dashboard.open_window(board.url, site.profiles / "dashboard", front=False)  # never pulls Lisul from his work
         print(f"Dashboard: {board.url} (open it from Apply in the Dock, or with: apply watch)")
@@ -1012,7 +1023,7 @@ def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subpro
     backfill."""
     if sys.platform != "darwin":
         return []
-    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True)
+    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True, encoding="utf-8")
     found, item = [], {}
     for line in dumped.stdout.splitlines() + ["keychain: end"]:
         if line.startswith("keychain:"):
@@ -1218,11 +1229,11 @@ def live_repairer(branch: str | None = None, push: bool = True) -> Repairer:
     """The Repairer over the live Repair requests, merging into `branch`,
     else policies.yaml's repair.branch, else the branch Apply runs from."""
     policy = load_policies().get("repair") or {}
-    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True).stdout.strip()
+    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
     claude = ClaudeCLI()
     return Repairer(
         repo=Path(git("rev-parse", "--show-toplevel")), requests=RepairRequests(REPAIRS), claude=claude, usage=claude,
-        notifier=MacNotifier(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
+        notifier=desktop(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
         policy=policy, push=push,
     )
 
@@ -1261,7 +1272,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,
-        notifier=MacNotifier() if notifier is None else notifier,
+        notifier=desktop() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
         keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),

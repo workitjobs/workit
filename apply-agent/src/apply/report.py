@@ -59,7 +59,7 @@ def build(category: str, note: str, profile: Path, row: Row | None = None, inclu
         return report
     # A Record in a folder (the Student build's); a pushed one's link is a web page, which gives no files.
     record = Path(row.record) if row.record and not row.record.startswith(("http://", "https://")) else None
-    files = {name: path.read_text(errors="replace")[:TEXT_MAX] for name in TEXT_FILES if (path := _file(record, name))}
+    files = {name: path.read_text(errors="replace", encoding="utf-8")[:TEXT_MAX] for name in TEXT_FILES if (path := _file(record, name))}
     screenshots = {name: base64.b64encode(png).decode() for name in SCREENSHOTS
                    if (path := _file(record, name)) and 0 < len(png := path.read_bytes()) <= PNG_MAX}
     return report | {"files": files, "screenshots": screenshots,
@@ -107,7 +107,7 @@ def _masked_trace(application_id: str, profile: Path, traces: Path | None) -> st
         raise ValueError(f"no Applicant profile to mask the log with: {profile.name} is not a file")
     known = masked.Known()
     known.learn(profile)
-    lines = [known.scrub(line) for line in path.read_text(errors="replace").splitlines()]
+    lines = [known.scrub(line) for line in path.read_text(errors="replace", encoding="utf-8").splitlines()]
     text = "".join(f"{line}\n" for line in lines)
     if len(text) <= TRACE_MAX:
         return text

@@ -73,7 +73,7 @@ def _match(anchor: str, lines: list[tuple[str, str]]) -> tuple[str, str] | None:
 def build(claude, bank: Path | None = None) -> dict:
     """Tag every episode with one Opus call and check the tags: `episodes` is
     the map to write, `dropped` says what the checks removed and why."""
-    text = (bank or home.STORY_BANK).read_text()
+    text = (bank or home.STORY_BANK).read_text(encoding="utf-8")
     # WorkIt's story_map.tag kind (D5, KAN-723): its prompt and schema are on the server.
     given = claude.ask_kind("story_map.tag", {"story_bank": text})["episodes"]
     return _checked(given, episodes(text))
@@ -126,7 +126,7 @@ class _InLine:
 
 
 def _read(path: Path) -> list[dict]:
-    return (yaml.safe_load(path.read_text()) or {}).get("episodes") or [] if path.exists() else []
+    return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("episodes") or [] if path.exists() else []
 
 
 def _stale(raw: dict, lines: list[tuple[str, str]]) -> str | None:
@@ -139,7 +139,7 @@ def _stale(raw: dict, lines: list[tuple[str, str]]) -> str | None:
 
 def load(path: Path | None = None, bank: Path | None = None) -> list[Entry]:
     """The map's fresh entries; a stale one is left out without a word."""
-    lines = episodes((bank or home.STORY_BANK).read_text())
+    lines = episodes((bank or home.STORY_BANK).read_text(encoding="utf-8"))
     return [Entry(**{k: raw[k] if k in ("id", "anchor", "area", "hash") else tuple(raw.get(k) or ())
                      for k in Entry.__dataclass_fields__})
             for raw in _read(path or MAP) if _stale(raw, lines) is None]
@@ -147,7 +147,7 @@ def load(path: Path | None = None, bank: Path | None = None) -> list[Entry]:
 
 def check(path: Path | None = None, bank: Path | None = None) -> list[str]:
     """One line per stale entry. No model call."""
-    lines = episodes((bank or home.STORY_BANK).read_text())
+    lines = episodes((bank or home.STORY_BANK).read_text(encoding="utf-8"))
     return [f"{raw.get('id')}: {why}" for raw in _read(path or MAP) if (why := _stale(raw, lines))]
 
 
@@ -193,4 +193,4 @@ def diff(old: list[dict], new: list[dict]) -> list[str]:
 
 def write(map: dict, path: Path | None = None) -> None:
     (path or MAP).write_text(yaml.safe_dump({"episodes": map["episodes"]}, sort_keys=False, allow_unicode=True,
-                                            width=120))
+                                            width=120), encoding="utf-8")

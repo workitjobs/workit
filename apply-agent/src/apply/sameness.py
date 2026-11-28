@@ -190,13 +190,13 @@ class Ledger:
         entry = {"company": company, "question": question, "type": type, "text": text,
                  "date": date or datetime.date.today().isoformat(), "story": story}
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a") as f:
+        with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
 
     def entries(self) -> list[dict]:
         if not self.path.is_file():
             return []
-        return [json.loads(line) for line in self.path.read_text().splitlines() if line.strip()]
+        return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
     def led(self, company: str, last: int = RECENT_STORIES) -> dict[str, list[str]]:
         """The stories his last `last` answers at other companies led with, by

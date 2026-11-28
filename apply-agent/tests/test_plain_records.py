@@ -23,7 +23,6 @@ from test_run_answers import profile_with
 from apply import code_box, on_page, rehearsal, stuck
 from apply.fillers import FILLERS
 from apply.model import Handoff, Question
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.profile import ApplicantProfile
@@ -140,7 +139,7 @@ def site():
 @pytest.fixture(scope="module")
 def workers():
     folder = Path(tempfile.mkdtemp(prefix="apw-s5-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))  # its own socket
+    workers = PlainWorkers(folder, kind="testing")
     yield workers
     workers.stop_all()
 

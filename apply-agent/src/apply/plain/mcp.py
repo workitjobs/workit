@@ -16,7 +16,7 @@ from pathlib import Path
 
 from apply.plain import channel
 
-TOOLS = json.loads((Path(__file__).with_name("mcp_tools.json")).read_text())["tools"]
+TOOLS = json.loads((Path(__file__).with_name("mcp_tools.json")).read_text(encoding="utf-8"))["tools"]
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER = {"name": "Playwright", "version": "apply-plain-1"}
 

@@ -77,7 +77,7 @@ def _stamp_of(path: Path) -> tuple[Path, int, int]:
 @lru_cache(maxsize=2)
 def _story(path: Path, mtime_ns: int, size: int) -> str:
     """The Story bank's text, read again whenever its file changes (by its mtime and size)."""
-    return path.read_text() if size >= 0 else ""
+    return path.read_text(encoding="utf-8") if size >= 0 else ""
 
 
 def key(question: str) -> str:
@@ -272,7 +272,7 @@ class AnswerBank:
             with locks.held(self._path.with_suffix(".lock")):  # its own lock file, never the bank itself
                 if not self._path.exists():  # a new bank: an empty file to read
                     self._path.touch()
-                text = self._path.read_text()
+                text = self._path.read_text(encoding="utf-8")
                 self._entries = self._read()
                 had = bool(self._entries)
                 before = _dump(self._entries)
@@ -285,7 +285,7 @@ class AnswerBank:
                     return
                 # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
                 notes = "" if had else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
-                self._path.write_text(notes + after)
+                self._path.write_text(notes + after, encoding="utf-8")
         if changed or deleted:
             try:  # the bank is saved: a sync that fails never fails the write
                 self._on_change(changed, deleted)
@@ -293,7 +293,7 @@ class AnswerBank:
                 print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
 
     def _read(self) -> dict:
-        text = self._path.read_text()
+        text = self._path.read_text(encoding="utf-8")
         try:
             return _yaml().load(text) or CommentedMap()
         except DuplicateKeyError:

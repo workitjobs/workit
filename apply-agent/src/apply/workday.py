@@ -707,7 +707,7 @@ class WorkdayFiller:
 
 def _saved_trees() -> dict:
     try:
-        return json.loads(TREES.read_text())
+        return json.loads(TREES.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -718,7 +718,7 @@ def _save_tree(key: str, tree: dict) -> None:
     trees = _saved_trees() | {key: tree}
     TREES.parent.mkdir(parents=True, exist_ok=True)
     temp = TREES.with_suffix(f".{time.monotonic_ns()}.tmp")
-    temp.write_text(json.dumps(trees, indent=2, ensure_ascii=False) + "\n")
+    temp.write_text(json.dumps(trees, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     temp.replace(TREES)
 
 

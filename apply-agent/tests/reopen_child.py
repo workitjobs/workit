@@ -14,7 +14,6 @@ from test_rehearse import NeverSubmits, adapters
 from apply import answering, batch, cover_letter, home, rehearsal
 from apply.fillers import FILLERS
 from apply.greenhouse import GreenhouseFiller
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers
 from apply.plain.site import PlainSite
 from apply.profile import ApplicantProfile
@@ -30,7 +29,7 @@ shutil.copy(FIXTURES / "question-types.json", answering.CACHE)  # WorkIt's Quest
 cover_letter.pdf = lambda text, posting, profile, path, today=None: path.write_text(text)
 FILLERS["greenhouse"] = NeverSubmits(GreenhouseFiller())
 flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
-site = PlainSite(PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags))
+site = PlainSite(PlainWorkers(folder, kind="testing", test_flags=flags))
 with FakeJobServer(ARC_FORM, PURE_STORAGE_FORM) as fetcher:  # the postings' text only: the pages come from the test's fake
     site.fetch = fetcher.fetch
     loaded = ApplicantProfile.load(Path(profile))

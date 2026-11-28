@@ -312,14 +312,12 @@ def test_the_compiled_apps_workers_start_its_own_program_as_the_relay():
     doesn't exist. Either way Chrome never reaches Apply and no plain Worker says hello (W8). Its own program, as the
     OS names it, is the relay when host.APP_FLAG comes first (scripts/app_entry.py); a checkout keeps its isolated
     Python on host.py."""
-    import shlex
-
     import psutil
 
     from apply.plain import host, launcher
 
-    assert shlex.split(launcher.host_command(compiled=True)) == [psutil.Process().exe(), host.APP_FLAG]
-    assert shlex.split(launcher.host_command(compiled=False)) == [sys.executable, "-I", host.__file__]
+    assert launcher.host_command(compiled=True) == [psutil.Process().exe(), host.APP_FLAG]
+    assert launcher.host_command(compiled=False) == [sys.executable, "-I", host.__file__]
 
 
 def test_the_compiled_apps_relay_finds_its_channel_with_no_py_file(tmp_path, monkeypatch):

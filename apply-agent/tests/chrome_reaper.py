@@ -28,6 +28,9 @@ import psutil
 _LIST: Path | None = None  # the profiles of this process's Chromes, one a line
 _ALIVE: int | None = None  # the pipe's write end: open for as long as this process lives, never passed to a child
 _LOCK = threading.Lock()
+# Kept when this file loads: a test that fakes subprocess.run to catch a Chrome's start (test_each_os's seed test)
+# caught the reaper's own start when it was the first Chrome in its process, and failed, and no reaper ran.
+_RUN = subprocess.run
 
 
 def watch(profile: Path | str) -> None:
@@ -40,9 +43,9 @@ def watch(profile: Path | str) -> None:
             fd, name = tempfile.mkstemp(prefix="apply-test-chromes-", suffix=".txt")
             os.close(fd)
             hear, _ALIVE = os.pipe()  # neither end is inheritable: only the reaper is given its end
-            subprocess.run([sys.executable, "-I", str(Path(__file__).resolve()), "detach", str(hear), name],
-                           pass_fds=(hear,), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, start_new_session=True, check=False)
+            _RUN([sys.executable, "-I", str(Path(__file__).resolve()), "detach", str(hear), name],
+                 pass_fds=(hear,), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                 stderr=subprocess.DEVNULL, start_new_session=True, check=False)
             os.close(hear)
             _LIST = Path(name)
         with _LIST.open("a") as listed:

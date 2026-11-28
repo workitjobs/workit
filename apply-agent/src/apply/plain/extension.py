@@ -92,7 +92,7 @@ process.stdout.write(String(vm.runInContext("FillEngine.version", context)));"""
 
 def extension_id(manifest: Path = EXTENSION_DIR / "manifest.json") -> str:
     """The ID Chrome gives the extension: the first 128 bits of the sha256 of its public key, as a-p."""
-    key = base64.b64decode(json.loads(manifest.read_text())["key"])
+    key = base64.b64decode(json.loads(manifest.read_text(encoding="utf-8"))["key"])
     return "".join(chr(ord("a") + int(c, 16)) for c in hashlib.sha256(key).hexdigest()[:32])
 
 
@@ -127,7 +127,7 @@ def _driver_bundle() -> Path:
 
 def _injected() -> str:
     """vendor/injected.js: Playwright's injected script, from the installed package's driver."""
-    source = subprocess.run([_node(), "-e", EXTRACT, str(_driver_bundle())], capture_output=True, text=True, check=True).stdout
+    source = subprocess.run([_node(), "-e", EXTRACT, str(_driver_bundle())], capture_output=True, text=True, check=True, encoding="utf-8").stdout
     return ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
             "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
             f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
@@ -225,7 +225,7 @@ def registration(profile: Path) -> dict | None:
     neither file has one. Its `path` may name a folder that is gone."""
     for prefs in ("Secure Preferences", "Preferences"):
         try:
-            settings = json.loads((profile / "Default" / prefs).read_text())["extensions"]["settings"]
+            settings = json.loads((profile / "Default" / prefs).read_text(encoding="utf-8"))["extensions"]["settings"]
         except (OSError, ValueError, KeyError, TypeError):
             continue
         if isinstance(settings, dict) and isinstance(entry := settings.get(EXTENSION_ID), dict):
@@ -238,7 +238,7 @@ def loaded_folder(profile: Path) -> Path | None:
     (or --load-extension) registered in its preferences. None when the profile has no such record."""
     for prefs in ("Secure Preferences", "Preferences"):
         try:
-            settings = json.loads((profile / "Default" / prefs).read_text())["extensions"]["settings"]
+            settings = json.loads((profile / "Default" / prefs).read_text(encoding="utf-8"))["extensions"]["settings"]
             path = Path(settings[EXTENSION_ID]["path"])
         except (OSError, ValueError, KeyError, TypeError):
             continue
@@ -264,7 +264,7 @@ def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = E
     holds `source`'s code after."""
     code = code_hash(source)
     stamp = dest / STAMP
-    held = stamp.read_text().strip() if stamp.is_file() else ""
+    held = stamp.read_text(encoding="utf-8").strip() if stamp.is_file() else ""
     if held != code and (replace or not dest.exists()):
         dest.parent.mkdir(parents=True, exist_ok=True)
         building = Path(tempfile.mkdtemp(prefix=f".{dest.name}-", dir=dest.parent))
@@ -280,7 +280,7 @@ def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = E
             shutil.copytree(dest / "vendor" / SETS, building / "vendor" / SETS)
             for old_engine in (building / "vendor" / SETS).glob("*/engine.js"):  # an older Apply's: no engine on disk
                 old_engine.unlink()
-        (building / STAMP).write_text(code + "\n")
+        (building / STAMP).write_text(code + "\n", encoding="utf-8")
         old = dest.with_name(f".{dest.name}-old-{os.getpid()}")
         if dest.exists():
             dest.rename(old)
@@ -298,7 +298,7 @@ def guards_match(folder: Path) -> bool:
     from apply.plain import guards
 
     try:
-        return all((folder / "vendor" / guards.FOLDER / name).read_text() == text for name, text in guards.FILES.items())
+        return all((folder / "vendor" / guards.FOLDER / name).read_text(encoding="utf-8") == text for name, text in guards.FILES.items())
     except OSError:
         return False
 
@@ -341,8 +341,8 @@ def package(out: Path, store: bool = True) -> Path:
     which the store refuses (it gives its own ID); a test's package keeps it, so Chrome for Testing gives it
     EXTENSION_ID and the native host lets it connect. Returns the zip; its unpacked folder is beside it."""
     files = packaged_files()
-    meta = json.loads(STORE.read_text())
-    manifest = json.loads((EXTENSION_DIR / "manifest.json").read_text())
+    meta = json.loads(STORE.read_text(encoding="utf-8"))
+    manifest = json.loads((EXTENSION_DIR / "manifest.json").read_text(encoding="utf-8"))
     manifest |= {"name": meta["name"], "description": meta["description"], "version": meta["version"]}
     if store:
         manifest.pop("key", None)
@@ -355,11 +355,11 @@ def package(out: Path, store: bool = True) -> Path:
         elif (EXTENSION_DIR / part).is_file():
             folder.mkdir(parents=True, exist_ok=True)
             shutil.copy2(EXTENSION_DIR / part, folder / part)
-    (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     for name, data in files.items():
         (folder / "vendor" / name).parent.mkdir(parents=True, exist_ok=True)
         (folder / "vendor" / name).write_bytes(data)
-    (folder / "vendor" / SET_FILE).write_text(json.dumps({"id": set_id(files)}) + "\n")
+    (folder / "vendor" / SET_FILE).write_text(json.dumps({"id": set_id(files)}) + "\n", encoding="utf-8")
     for name in LICENSES:
         shutil.copy2(EXTENSION_DIR / name, folder / name)
     shutil.copy2(_driver_bundle().parents[1] / "LICENSE", folder / "LICENSE-playwright")  # Apache-2.0, for injected.js

@@ -225,7 +225,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
   `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`
   (the built app ships it built, `window-capture`: `../../CLAUDE.md`, "Building the app"),
-  finds the window of the Worker Chrome's PID (the native host's parent) nearest
+  finds the window of the Worker Chrome's PID (the browser above the native host) nearest
   the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
   and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x
   1626 for a 1280 x 813 viewport). By window ID: nothing is focused, raised or
@@ -276,7 +276,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
-  window only. A Connection whose Chrome (the host's parent) isn't the one that
+  window only. A Connection whose Chrome (the browser above the host) isn't the one that
   has Worker k's profile open (`chrome_pid`), or whose Chrome PID can't be told,
   shows nothing on tile k and takes none of its input; it is looked at again each
   turn. The helper films a window of that PID only while macOS lists exactly one
@@ -505,7 +505,7 @@ and failed the job (`ProfileInUse`, "Didn't go through").
   the Apply process's PID and its start time (psutil), so a PID the OS later gives to another process never
   counts as that Apply.
 - **Reclaim.** `PlainWorkers.launch` and `PlainSite.refuse_in_use` call `launcher.reclaim` on each profile
-  first. It stops the Chrome that holds the profile (SIGTERM, then SIGKILL, as Apply's own stop) only when
+  first. It stops the Chrome that holds the profile (`ask_to_quit`, then a kill, as Apply's own stop) only when
   all of these hold: the profile names an owner, that owner no longer runs, and the process the
   SingletonLock names is a browser (no `--type=`) whose `--user-data-dir` is this very profile.
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
@@ -618,7 +618,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   bar; the "check the card" step does the same with the card's details page. At Load unpacked it
   puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
   `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
-  can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the
+  can drag it onto the page or paste it in the picker. The steps name each OS's file manager and keys
+  (`seed_setup.WORDS`): Finder and Cmd+Shift+G on the Mac, File Explorer and Ctrl+L on Windows. There is no
+  Allow User Scripts step since KAN-839: the
   extension asks for no user scripts.
 - **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
   writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal
@@ -630,9 +632,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   extension, wrong folder (names both folders: Remove that card), card turned off.
   A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
   nudge, and the path goes on the clipboard again.
-- **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
-  the seed's SingletonLock (checked with psutil: its arguments name the seed). A SIGTERM saves pending
-  changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
+- **Quit.** When all steps show, Apply asks the seed's Chrome to quit (`launcher.ask_to_quit`: SIGTERM, or on
+  Windows `taskkill` with no /F), sent to the PID of the browser that holds the seed (`chrome_pid`). A SIGTERM
+  saves pending changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
   after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
   After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
 - **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an

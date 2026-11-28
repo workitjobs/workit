@@ -782,7 +782,7 @@ def _init_script(worker: Connection, script: str | None, path) -> None:
     by guard.control instead of an init script."""
     from apply.plain import guards
 
-    script = Path(path).read_text() if path is not None else script
+    script = Path(path).read_text(encoding="utf-8") if path is not None else script
     if not script:
         raise ValueError("add_init_script needs a script or a path")
     worker.call("guard.script", **guards.init_script(script))

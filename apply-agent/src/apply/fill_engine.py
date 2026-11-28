@@ -151,7 +151,7 @@ def source() -> str:
     again at once, with no new download, until Apply restarts; any other is tried again at the next use."""
     if not from_workit():
         _built()
-        return ENGINE.read_text()
+        return ENGINE.read_text(encoding="utf-8")
     with _download_lock:
         if "text" not in _download:
             if "refused" in _download:

@@ -86,22 +86,29 @@ has neither.
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
   Chrome finder), which Chrome has a profile open (`browsers.chrome_pid`),
-  the plain Workers' channel (`plain/channel.py`), the native host's folder
-  (`native_host.chrome_hosts`), a Chrome's start
+  the plain Workers' channel (`plain/channel.py`), a native host's files and
+  where Chrome finds them (`chrome_host`: a NativeMessagingHosts folder, or on
+  Windows a registry key and a `.bat`), a Chrome's start
   (`plain/launcher.start_in_background`: a Worker's in the
   background, the seed's in front; on the Mac through `open`, never as
   Apply's child, or macOS blames the built app for what Chrome's updater
   does: "prevented from modifying apps"), a link in
   the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
-  Mac, so Chrome never runs as Apply's child), showing a folder
-  (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
+  Mac, so Chrome never runs as Apply's child), a developer's Apply window
+  (`dashboard.open_window`: the Dock app on the Mac, Chrome itself with
+  `--app` elsewhere, found by its profile), showing a folder
+  (`plain/seed_setup.reveal`), a tile's capture (`window_capture.mode`),
   and keeping the computer awake during a run
-  (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
+  (`awake.awake`: `caffeinate` on the Mac, `SetThreadExecutionState` on Windows). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
-  `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
-  (`tests/test_each_os.py` reads the source for the last three). Porting to
+  `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else.
+  Every text read or write names `encoding="utf-8"`: Windows' default is its
+  code page (cp1252). `tests/test_each_os.py` reads the source for
+  `fcntl`, `os.kill(pid, 0)`, a Unix socket and a missing encoding. `doctor`'s
+  checks read Chrome for `Machine.system`, so `tests/test_doctor.py` (in CI,
+  on Ubuntu) runs their Mac case on any OS. Porting to
   Windows: `../docs/windows_desktop.md` (KAN-929).
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the

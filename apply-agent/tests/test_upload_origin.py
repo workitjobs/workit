@@ -454,11 +454,10 @@ needs_chrome = pytest.mark.skipif(not _have_chrome(), reason="needs Chrome for T
 
 @pytest.fixture(scope="module")
 def worker():
-    from apply.plain.bridge import Bridge
     from apply.plain.launcher import PlainWorkers
 
     folder = Path(tempfile.mkdtemp(prefix="apw-upload-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))  # its own socket
+    workers = PlainWorkers(folder, kind="testing")
     yield workers.launch(0)
     workers.stop_all()
 

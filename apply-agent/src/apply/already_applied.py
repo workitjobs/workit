@@ -144,7 +144,7 @@ def _says_submitted(readme: Path) -> bool:
     (Astranis, run10) was saved as submitted with no after-submit.png, its confirmation's screenshot having failed,
     so the next run filled it again as new."""
     try:
-        return any(line.startswith(SUBMITTED) for line in readme.read_text().splitlines()[:12])
+        return any(line.startswith(SUBMITTED) for line in readme.read_text(encoding="utf-8").splitlines()[:12])
     except OSError:
         return False
 
