@@ -127,6 +127,24 @@ class TodoStore:
                 due=todo.due or known.due, link=todo.link or known.link)
             return "updated"
 
+    def lend_links(self) -> int:
+        """Give each to-do with no link the link of the newest to-do of the same company and kind that has one: a
+        confirmation that says the assessment comes in another mail ("Confirmation on your Application +
+        CodeSignal") opens that mail's assessment. Returns how many it gave one."""
+        with self._held(write=True) as todos:
+            linked = sorted((t for t in todos.values() if t.link and t.company),
+                            key=lambda t: t.source.arrived, reverse=True)
+            lent = 0
+            for thread, todo in todos.items():
+                if todo.link or not todo.company:
+                    continue
+                donor = next((t for t in linked if t.kind == todo.kind
+                              and t.company.casefold() == todo.company.casefold()), None)
+                if donor is not None:
+                    todos[thread] = dataclasses.replace(todo, link=donor.link)
+                    lent += 1
+            return lent
+
     def mark(self, thread: str, status: str) -> Todo:
         """Set a to-do's status: done, dismissed, or open again. Raises KeyError for no such to-do, ValueError for
         no such status."""

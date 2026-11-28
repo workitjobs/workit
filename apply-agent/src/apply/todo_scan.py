@@ -195,6 +195,7 @@ def scan(mailbox, store: TodoStore, rows: list | None = None, ask: Ask | None = 
                               found=now(), by=reading.by))
         done.added += said == "added"
         done.updated += said == "updated"
+    store.lend_links()
     return done
 
 

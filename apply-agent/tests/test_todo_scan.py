@@ -208,3 +208,20 @@ def test_a_bare_link_is_read_by_its_sentence_and_footer_tracking_and_undo_links_
     assert best_link(text, "form") == "https://jobs.example.com/apply/s/Ab12Cd34"
     assert best_link(links, "account") == "https://go.acme.example/c/Rr5"
 
+
+def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_kind_of_todo(tmp_path):
+    # Fault: a confirmation that says the assessment comes in another mail left with no Open link.
+    store = TodoStore(tmp_path / "todos.json")
+    confirmation = written("Ramp Talent Team <no-reply@ashbyhq.com>", "Ramp | Confirmation on your Application",
+                           "Your application will be reviewed as soon as you complete the CodeSignal assessment that "
+                           "will be sent over in the next hour.")
+    invite = written("CodeSignal <no-reply@codesignal.com>", "Ramp invited you to take Ramp Coding Assessment",
+                     '<a href="https://app.codesignal.com/pre-screens">GET STARTED</a>')
+    other = written("Acme Recruiting <jobs@acme.com>", "Acme | Next steps",
+                    "Please complete the CodeSignal assessment we sent.")
+
+    scan(box(confirmation, invite, other)[0], store, now=lambda: ARRIVED)
+
+    assert sorted((t.company, t.kind, t.link) for t in store.all()) == [
+        ("Acme", "assessment", None), ("Ramp", "assessment", "https://app.codesignal.com/pre-screens"),
+        ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]
