@@ -24,11 +24,12 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 (pywebview, WKWebView on a Mac) with no port (D11). Read the module's
 docstring first.
 
-- A run keeps the Mac awake (KAN-885): `student.Runs.run` runs inside
-  `awake.awake()`, which starts `caffeinate -dims -w <Apply's PID>` and
-  stops it when the run ends. `-w` ends it with Apply too, even on a crash
-  or SIGKILL. Windows and Linux do nothing yet (F4); `awake.py` is the one
-  place for that OS call (`tests/test_each_os.py`).
+- A run keeps the computer awake (KAN-885): `student.Runs.run` runs inside
+  `awake.awake()`. On the Mac it starts `caffeinate -dims -w <Apply's PID>`
+  and stops it when the run ends; `-w` ends it with Apply too, even on a
+  crash or SIGKILL. On Windows it calls `SetThreadExecutionState`, which
+  Windows clears when the calling thread ends (KAN-929). Linux does nothing
+  yet. `awake.py` is the one place for that OS call (`tests/test_each_os.py`).
 - Links sent in (`uv run apply app <link>...`): an agent or a script hands
   the window links with no port and no clicks. `send_links` writes them as
   one file in `APPLY_HOME/app-inbox/`; the window takes them every 2 s
@@ -198,6 +199,9 @@ docstring first.
 - A link to a new window (`target="_blank"`: a posting, History's
   Applications Tracker on WorkIt) opens in the default browser: pywebview
   does that itself. The app's windows pass `tracker_url` (`student.tracker_url`).
+- The application to-do tracker (developer only, `docs/todo-tracker.md`): with `apply app --todos`, `run` starts
+  its scan schedule and the bridge's `todos`, `scan_todos` and `mark_todo` answer; without it they refuse and the
+  page shows no To-dos.
 - `pywebview` is imported only in `app_window.run`, so the bridge and its
   tests need no window. `tests/test_app_window.py` (no browser, CI) and
   `tests/test_app_window_page.py` (the shim in Chromium, with Playwright

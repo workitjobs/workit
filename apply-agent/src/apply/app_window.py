@@ -75,7 +75,7 @@ from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
 from apply.home import HOME
-from apply.model import Status
+from apply.model import Status, job_title
 from apply.tracker import FileTracker, Row
 
 TITLE = "WorkIt Auto Apply"
@@ -431,10 +431,13 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
+        self._renamed: dict[str, dict] = {}  # what `name` gave each applied job whose title is a page's chrome
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
         self._waiting: list[str] = []  # links sent in (send_links) that wait for the next run
+        self._todo_scanning = threading.Lock()  # held while a to-do scan reads mail: one at a time
+        self._todo_scan: dict | None = None  # what the last to-do scan did (todo_scan.Scan.shown), and when
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
         """One of the page's requests, answered as the Apply window's server answers it."""
@@ -579,7 +582,18 @@ class Bridge:
             rows = self._applications("applied")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read what you applied to ({error})."}
-        return [_job(row["job"]) | {"applied_at": row.get("applied_at")} for row in rows]
+        return [self._named_again(_job(row["job"])) | {"applied_at": row.get("applied_at")} for row in rows]
+
+    def _named_again(self, job: dict) -> dict:
+        """A job whose WorkIt title is a page's chrome (model.job_title), as Apply wrote it before it checked:
+        "Log in or create account | Amazon.jobs" for an Amazon posting behind a sign-in wall. It takes the title it
+        was queued with, else the one its listing or job system names (`name`, read once a link), else none."""
+        if job["title"] and not job_title(job["title"]):
+            url = job["url"]
+            if url not in self._queued and url not in self._renamed:
+                self._renamed[url] = self._name(url)
+            job["title"] = job_title((self._queued.get(url) or self._renamed.get(url) or {}).get("title") or "")
+        return job
 
     def matches(self, filters: dict | None = None) -> list[dict] | dict:
         """Find jobs: the student's best matches that Auto Apply fills and they haven't queued or applied to, best
@@ -728,6 +742,64 @@ class Bridge:
         if self._window is not None:
             self._window.load_html(SIGN_IN)
         return {}
+
+    # Application to-dos (developer only, apply.todos): off, each refuses and the page shows no To-dos.
+
+    def todos(self) -> dict:
+        """Every to-do, open first, with the last scan and whether one is going; {enabled: false} when off."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        return {"enabled": True, "todos": [t.shown() for t in TodoStore().all()], "scan": self._todo_scan,
+                "scanning": self._todo_scanning.locked()}
+
+    def scan_todos(self, wait: bool = False) -> dict:
+        """Scan mail for to-dos now, in a thread of its own unless `wait`. A scan already going is not started again:
+        `wait` waits for it and gives its result."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        if not self._todo_scanning.acquire(blocking=False):
+            if not wait:
+                return {"scanning": True}
+            with self._todo_scanning:  # a scan already going: wait for it, then show its result
+                pass
+            return self.todos()
+        if wait:
+            self._scan_todos(held=True)
+            return self.todos()
+        threading.Thread(target=self._scan_todos, kwargs={"held": True}, daemon=True, name="todo-scan").start()
+        return {"scanning": True}
+
+    def mark_todo(self, todo_id: str, status: str) -> dict:
+        """A to-do marked done, dismissed, or open again."""
+        if not todos_on():
+            return {"enabled": False, "error": todos_off()}
+        from apply.todos import TodoStore
+
+        try:
+            return {"todo": TodoStore().mark(str(todo_id), str(status)).shown()}
+        except KeyError:
+            return {"error": f"No such to-do: {todo_id}."}
+        except ValueError as error:
+            return {"error": str(error)}
+
+    def _scan_todos(self, held: bool = False) -> None:
+        """One scan, its result kept for the page; a failure is kept as its error, never raised."""
+        if not held and not self._todo_scanning.acquire(blocking=False):
+            return
+        try:
+            from apply import todo_scan
+
+            try:
+                done = todo_scan.live().shown()
+            except Exception as error:
+                done = {"errors": [f"{type(error).__name__}: {error}"]}
+            self._todo_scan = {**done, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            print(f"To-do scan: read {done.get('read', 0)} mails, {done.get('added', 0)} new to-dos"
+                  + (f"; {'; '.join(done['errors'])}" if done.get("errors") else ""), file=sys.stderr)
+        finally:
+            self._todo_scanning.release()
 
     def remove_data(self) -> dict:
         """Remove All My Data (D25), then close the app: what it showed is gone."""
@@ -909,7 +981,7 @@ def send_links(links: list[str], inbox: Path = INBOX) -> Path:
     inbox.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = inbox / f"{time.time_ns()}-{os.getpid()}.json"
     part = path.with_suffix(".part")
-    part.write_text(json.dumps({"links": list(links)}))
+    part.write_text(json.dumps({"links": list(links)}), encoding="utf-8")
     part.chmod(0o600)
     part.rename(path)
     return path
@@ -921,7 +993,7 @@ def take_links(inbox: Path = INBOX) -> list[str]:
     links: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
-            links += [str(link).strip() for link in json.loads(path.read_text())["links"]]
+            links += [str(link).strip() for link in json.loads(path.read_text(encoding="utf-8"))["links"]]
         except (OSError, ValueError, KeyError, TypeError):
             pass
         path.unlink(missing_ok=True)
@@ -935,7 +1007,7 @@ def take_links(inbox: Path = INBOX) -> list[str]:
 def running(note: Path = PID_NOTE) -> int | None:
     """The PID of the WorkIt Auto Apply window running now (run() notes it), or None."""
     try:
-        pid = int(note.read_text())
+        pid = int(note.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return pid if psutil.pid_exists(pid) else None
@@ -948,6 +1020,33 @@ def _watch_inbox(bridge: Bridge) -> None:
         except Exception as error:  # a bad take never ends the watch
             print(f"Couldn't take the links sent in: {type(error).__name__}: {error}", file=sys.stderr)
         time.sleep(INBOX_EVERY)
+
+
+def todos_on() -> bool:
+    """Whether the application to-do tracker is on (apply.todos.enabled), never importing it in the Student build."""
+    if build.STUDENT:
+        return False
+    from apply import todos
+
+    return todos.enabled()
+
+
+def todos_off() -> str:
+    """Why the to-do tracker refuses: the flag's off, or this is the Student build, which has none."""
+    if build.STUDENT:
+        return "The application to-do tracker isn't in this build."
+    from apply import todos
+
+    return todos.OFF
+
+
+def _scan_todos_often(bridge: Bridge, sleep: Callable[[float], None] = time.sleep) -> None:
+    """The to-do scan's schedule: now, then every todo_scan.EVERY seconds, till the window closes."""
+    from apply import todo_scan
+
+    while True:
+        bridge._scan_todos()
+        sleep(todo_scan.EVERY)
 
 
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
@@ -966,8 +1065,10 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     threading.Thread(target=_guard_closes, args=(window, bridge), daemon=True, name="close-guard").start()
     sign_in_link.listen()  # the built app takes WorkIt's sign-in link from macOS itself (W8)
     PID_NOTE.parent.mkdir(parents=True, exist_ok=True)
-    PID_NOTE.write_text(str(os.getpid()))
+    PID_NOTE.write_text(str(os.getpid()), encoding="utf-8")
     threading.Thread(target=_watch_inbox, args=(bridge,), daemon=True, name="inbox").start()
+    if todos_on():  # the application to-do tracker scans mail on open and every todo_scan.EVERY seconds
+        threading.Thread(target=_scan_todos_often, args=(bridge,), daemon=True, name="todo-schedule").start()
     if not build.STUDENT:  # a terminal's agent reads and drives a Developer checkout's window (`apply window`)
         from apply import app_control
 

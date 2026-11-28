@@ -9,12 +9,12 @@ import os
 import plistlib
 import shutil
 import subprocess
-import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 import pytest
+from fake_chrome import FakeRegistry, NoRegistry
 from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
@@ -120,7 +120,7 @@ def bundle_and_chromium(tmp_path):
 
 def hosts(folder):
     """Chrome's NativeMessagingHosts folder with the Apply accounts host installed."""
-    native_host.install(folder / "NativeMessagingHosts", "/venv/bin/python", folder / "apply")
+    native_host.install(folder / "NativeMessagingHosts", "/venv/bin/python", folder / "apply", "darwin", NoRegistry())
     return folder / "NativeMessagingHosts"
 
 
@@ -130,7 +130,8 @@ def machine(tmp_path, **overrides) -> doctor.Machine:
                                    profiles=signed_in(tmp_path, "every-check-passes"),
                                    mailbox=lambda address: FakeMailbox(), tracker=InMemoryTracker,
                                    records=records(tmp_path / "every-check-passes"),
-                                   native_hosts=hosts(tmp_path / "every-check-passes"),
+                                   native_hosts=hosts(tmp_path / "every-check-passes"), system="darwin",
+                                   registry=NoRegistry(),
                                    **bundle_and_chromium(tmp_path / "every-check-passes")),
                    **overrides)
 
@@ -147,7 +148,7 @@ def test_no_chrome_fails_with_how_to_install_it(tmp_path):
     found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
-    assert "/Applications/Google Chrome.app" in found.detail or sys.platform != "darwin"  # where it looked
+    assert "Google Chrome.app" in found.detail  # where it looked on the Mac, in any OS's path form
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
@@ -651,6 +652,16 @@ def test_an_apply_accounts_host_whose_wrapper_is_gone_warns(tmp_path):
     wrapper.unlink()
 
     assert check(m, "Apply accounts host").level == doctor.WARN
+
+
+def test_on_windows_the_accounts_host_is_the_one_its_registry_key_names(tmp_path):
+    registry = FakeRegistry()
+    native_host.install(tmp_path / "native-hosts", r"C:\venv\python.exe", tmp_path / "apply", "win32", registry)
+    on_windows = machine(tmp_path, system="win32", registry=registry, native_hosts=tmp_path / "not-read-on-windows")
+    no_key = check(replace(on_windows, registry=FakeRegistry()), "Apply accounts host")
+
+    assert check(on_windows, "Apply accounts host").level == doctor.OK  # its .bat has no run bit: cmd.exe runs it
+    assert no_key.level == doctor.WARN and "no registry key" in no_key.detail
 
 
 def plain_seed(profiles: Path, installed=True, developer=True, current=True) -> Path:

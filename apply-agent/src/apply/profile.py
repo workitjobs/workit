@@ -42,7 +42,7 @@ class ApplicantProfile:
     @classmethod
     def load(cls, path: Path, policies: Path = POLICIES) -> "ApplicantProfile":
         """A policies.yaml beside the profile overrides `policies` key by key; none does in the Student build."""
-        facts = _yaml().load(path.read_text()) or {}
+        facts = _yaml().load(path.read_text(encoding="utf-8")) or {}
         _refuse_secrets(facts)
         beside = path.parent / "policies.yaml"
         rules = load_policies(policies, beside if beside.exists() and beside.resolve() != policies.resolve() else None)
@@ -53,11 +53,11 @@ class ApplicantProfile:
         the copy loaded at its start would undo what changed on disk since
         (seen live: a rehearsal's dashboard answer dropped a fact added meanwhile)."""
         with self._lock:
-            facts = (_yaml().load(self._path.read_text()) or {}) if self._path.exists() else {}
+            facts = (_yaml().load(self._path.read_text(encoding="utf-8")) or {}) if self._path.exists() else {}
             for change in self._changes:
                 _apply(facts, *change)
             _refuse_secrets(facts)
-            with self._path.open("w") as f:
+            with self._path.open("w", encoding="utf-8") as f:
                 _yaml().dump(facts, f)
             self._facts, self._changes = facts, []
 
@@ -151,14 +151,14 @@ def load_policies(path: Path = POLICIES, beside: Path | None = None) -> dict:
     keeps in app.json, and its own fixed policies (apply.build.STUDENT_POLICIES) go over the rest."""
     from apply import safety
 
-    rules = yaml.safe_load(path.read_text()) or {}
+    rules = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if build.STUDENT:
         return safety.resolve(rules, {}, safety.STATE) | build.STUDENT_POLICIES
     user: dict = {}
     if Path(path).resolve() == POLICIES.resolve() and OVERRIDE.is_file():
-        user |= yaml.safe_load(OVERRIDE.read_text()) or {}
+        user |= yaml.safe_load(OVERRIDE.read_text(encoding="utf-8")) or {}
     if beside is not None:
-        user |= yaml.safe_load(beside.read_text()) or {}
+        user |= yaml.safe_load(beside.read_text(encoding="utf-8")) or {}
     return safety.resolve(rules, user, safety.STATE)
 
 

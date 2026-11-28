@@ -17,7 +17,7 @@ from pathlib import Path
 
 from apply import locks
 from apply.home import HOME
-from apply.model import Outcome, Posting, Status
+from apply.model import Outcome, Posting, Status, job_title
 from apply.workit import Stage, Write
 
 
@@ -221,7 +221,7 @@ class FileTracker(InMemoryTracker):
 
     def _load(self) -> None:
         try:
-            saved = json.loads(self.path.read_text())
+            saved = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             saved = {}
         self._rows = {row["application_id"]: _row(row) for row in saved.get("applications", [])}
@@ -238,7 +238,7 @@ class FileTracker(InMemoryTracker):
                  "employer_accounts": [dataclasses.asdict(a) for a in self._accounts],
                  "answers": [dataclasses.asdict(a) for a in self._answers]}
         part = self.path.with_suffix(".part")
-        part.write_text(json.dumps(saved, indent=1, default=_plain))
+        part.write_text(json.dumps(saved, indent=1, default=_plain), encoding="utf-8")
         os.replace(part, self.path)
 
 
@@ -247,7 +247,7 @@ def past_applications(posting_url: str = "", path: Path | None = None) -> tuple[
     is an interview or an offer, but for `posting_url`'s own row (the Application being filled). Read
     without the lock: the file is saved whole (os.replace), and a plan may run while a write holds it."""
     try:
-        saved = json.loads((path or TRACKER).read_text())
+        saved = json.loads((path or TRACKER).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return [], []
     rows = [row for row in saved.get("applications", []) if row.get("company") and row.get("posting_url") != posting_url
@@ -264,8 +264,11 @@ def _plain(value):
 
 
 def _row(saved: dict) -> Row:
+    """A saved row. A role that is a page's chrome (model.job_title: "Log in or create account | Amazon.jobs",
+    saved before Apply checked it) is read as none, and leaves the file at its next save."""
     day = lambda value: date.fromisoformat(value) if value else None
-    return Row(**{**saved, "status": Status(saved["status"]), "date_applied": day(saved["date_applied"]),
+    return Row(**{**saved, "role": job_title(saved.get("role") or ""), "status": Status(saved["status"]),
+                  "date_applied": day(saved["date_applied"]),
                   "outcome": Outcome(saved["outcome"]) if saved["outcome"] else None,
                   "suggested_outcome": Outcome(saved["suggested_outcome"]) if saved["suggested_outcome"] else None,
                   "confirmation_received": day(saved["confirmation_received"])})

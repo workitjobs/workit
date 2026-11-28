@@ -206,14 +206,14 @@ def _plain(text: str) -> str:
 def companies() -> tuple[str, ...]:
     """Every company a brief in company-briefs/ is about, by its brief's first heading."""
     return tuple(line[2:].strip() for path in sorted(BRIEFS.glob("*.md"))
-                 if (line := path.read_text().partition("\n")[0]).startswith("# "))
+                 if (line := path.read_text(encoding="utf-8").partition("\n")[0]).startswith("# "))
 
 
 def other_companies(text: str, company: str, bank: str | None = None) -> list[str]:
     """Known companies `text` names that aren't `company`: a name left over
     from another Application. A name his own facts in the Story bank use
     (`bank`, outside his past answers to other companies) is his, and passes."""
-    own = _own_facts(home.STORY_BANK.read_text() if bank is None else bank)
+    own = _own_facts(home.STORY_BANK.read_text(encoding="utf-8") if bank is None else bank)
     return [f"names another company: {name}" for name in companies()
             if re.search(rf"\b{re.escape(name)}\b", text) and not is_company(company, name)
             and not is_company(name, company) and not re.search(rf"\b{re.escape(name)}\b", own)]

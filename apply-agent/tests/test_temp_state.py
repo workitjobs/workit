@@ -1,5 +1,6 @@
 """KAN-665: a live run or rehearsal refuses to keep its state in a folder a reboot wipes."""
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,12 @@ def test_a_link_into_temp_is_seen(tmp_path):
         assert home.in_temp(link)
     finally:
         link.unlink()
+
+
+def test_the_oss_own_temp_folder_is_seen():
+    """Fault: the check compared text with "/", so on Windows, whose paths use backslashes, no folder in its temp
+    folder was seen, and a run kept its held forms and sign-ins where a cleanup wipes them."""
+    assert home.in_temp(Path(tempfile.gettempdir()) / "apply" / "profiles")
 
 
 @pytest.mark.parametrize("path", ["/Users/me/.config/apply", "/tmpfiles/x", "/var/foldersish/x", "~/workit-work/x"])

@@ -160,7 +160,7 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
     wanted = [COMPANY] + ([f"Team: {team}"] if team else [])
     with _lock(_bare(name)):  # its file is found inside: another Worker may be writing it
         path = brief_path(name)
-        sections = parse(path.read_text() if path and path.exists() else "")
+        sections = parse(path.read_text(encoding="utf-8") if path and path.exists() else "")
         changed = False
         for heading in wanted:
             kept = _find(sections, heading)
@@ -180,7 +180,7 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
                 changed = True
         if changed and path:  # never written over another company's brief
             BRIEFS.mkdir(exist_ok=True)
-            path.write_text(as_markdown(posting.company, sections))
+            path.write_text(as_markdown(posting.company, sections), encoding="utf-8")
     shown, known = [], set()
     for heading in wanted:
         body = sections.get(_find(sections, heading) or heading, "")
@@ -210,7 +210,7 @@ def brief_path(company: str) -> Path | None:
 def about(path: Path, company: str) -> bool:
     """Whether the brief at `path` is `company`'s, by its "# <company>" heading ("Advanced Micro Devices, Inc"
     is "Advanced Micro Devices"); a brief with no company in its heading is no one's."""
-    heading = path.read_text().partition("\n")[0]
+    heading = path.read_text(encoding="utf-8").partition("\n")[0]
     name = heading[2:].strip() if heading.startswith("# ") else ""
     return bool(name) and _bare(name) == _bare(company)
 

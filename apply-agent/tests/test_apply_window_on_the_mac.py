@@ -1,7 +1,10 @@
 """The Apply window on the Mac: opened as the Apply app in the Dock, one
 Chrome per window profile, and gone from the Dock once its window closes.
-The Mac here is a fake: Chrome processes are entries in a table."""
+The Mac here is a fake: Chrome processes are entries in a table. Off the Mac the window takes its own path
+(dashboard._open_elsewhere, tests/test_each_os.py), and these fakes don't cover it: there they would start the real
+Chrome."""
 
+import sys
 import threading
 import time
 import urllib.error
@@ -13,6 +16,8 @@ from playwright.sync_api import sync_playwright
 
 from apply import dashboard, dock_app
 from apply.dashboard import Dashboard, NoFrames
+
+pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="the Mac's window: the Dock app, open and pgrep")
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 

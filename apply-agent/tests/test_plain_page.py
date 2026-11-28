@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 
 from apply import fill_engine
 from apply.plain import demo
-from apply.plain.bridge import Bridge, PortTimeoutError
+from apply.plain.bridge import PortTimeoutError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 
@@ -94,7 +94,7 @@ def site():
 @pytest.fixture(scope="module")
 def worker():
     folder = Path(tempfile.mkdtemp(prefix="apw-profiles-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))  # its own socket: the demo test has one too
+    workers = PlainWorkers(folder, kind="testing")
     yield workers.launch(0)
     workers.stop_all()
 

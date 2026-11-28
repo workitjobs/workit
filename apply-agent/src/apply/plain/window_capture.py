@@ -32,9 +32,8 @@ from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
-import psutil
-
 from apply.home import CODE
+from apply.plain import host
 
 SOURCE = Path(__file__).with_name("window_capture.swift")
 BUNDLED_NAME = "window-capture"  # the built app's helper, beside its program (scripts/build_app.py)
@@ -71,7 +70,7 @@ def helper() -> Path | None:
     # Each process builds into its own file: test processes (pytest -n) build at once, and one's rename took the
     # shared .partial from under another's (nightly, 2026-11-14, KAN-841). The last rename wins; each is whole.
     partial = built.with_suffix(f".{os.getpid()}.partial")
-    made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True)
+    made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True, encoding="utf-8")
     if made.returncode != 0:
         partial.unlink(missing_ok=True)
         return None
@@ -89,7 +88,7 @@ def running_app() -> str:
     """The app at the top of Apply's process chain, the one macOS asks permission for: "Terminal"."""
     pid, app = os.getpid(), ""
     for _ in range(30):
-        found = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+        found = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8").stdout.strip()
         if not found:
             break
         parent, command = found.split(None, 1)
@@ -108,16 +107,11 @@ def permission_note() -> str:
 
 
 def chrome_of(host_pid: int | None) -> int | None:
-    """The Chrome that started a Worker's native messaging host (its parent): the Worker's PID. psutil reads the
-    parent on every OS: `ps` is not on Windows, where the tile's check that a connection is its Worker's own failed
-    on each watch turn."""
-    if not host_pid:
-        return None
-    try:
-        parent = psutil.Process(host_pid).ppid()
-    except psutil.Error:  # gone, or another user's
-        return None
-    return parent if parent > 1 else None
+    """The Chrome that started a Worker's native messaging host: the Worker's PID. The nearest browser above the host
+    (host.browser_of), not its parent: Chrome on Windows starts the host's .bat through cmd.exe, and the tile's
+    check that a connection is its Worker's own took cmd.exe for its Chrome on every Worker."""
+    found = host.browser_of(host_pid) if host_pid else None
+    return found[0] if found else None
 
 
 # What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,

@@ -3,7 +3,7 @@
 //   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
 // - app methods: app_window.Bridge's js_api methods (queue, applied, matches, start, status, usage, settings, review_report,
-//   send_report), used only when the window has them.
+//   send_report, and the developer to-do tracker's todos, scan_todos, mark_todo), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
@@ -33,6 +33,24 @@ export type Filters = Partial<Record<"q" | "location" | "work_style" | "role" | 
 export type Frame = { tile: number; number: number; jpeg: string }; // one screen of a form being filled
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
+// The application to-do tracker (developer only, apply.todos): one thing the student's mail asks them to do for an
+// application, by its mail thread (`id`), and what the last scan of their mail did.
+export type Todo = {
+  id: string;
+  kind: "assessment" | "form" | "questionnaire" | "interview" | "account" | "documents" | "offer";
+  kind_label: string;
+  company: string;
+  role: string;
+  due: string | null; // YYYY-MM-DD
+  link: string | null; // listed only: the page never opens it by itself
+  status: "open" | "done" | "dismissed";
+  by: "rules" | "model";
+  source: { sender: string; subject: string; arrived: string; url: string | null };
+};
+export type TodoScan = { read: number; added: number; updated: number; by_model: number; model: string; errors: string[]; at?: string };
+// todos(): {enabled: false} (thrown as its error) while the developer flag is off.
+export type Todos = { enabled: boolean; todos: Todo[]; scan: TodoScan | null; scanning: boolean };
+
 // app_window.Bridge's app methods. Each is there only when the window gives it.
 export type App = Partial<{
   queue(): Promise<Queued[]>;
@@ -50,6 +68,10 @@ export type App = Partial<{
   // same report, named by the same id.
   review_report(category: string, note: string, contact_ok: boolean, application_id: string, include: boolean): Promise<{ parts: string[] }>;
   send_report(application_id: string): Promise<{ said: string }>;
+  // The application to-do tracker: refused (thrown) while its developer flag is off.
+  todos(): Promise<Todos>;
+  scan_todos(): Promise<{ scanning: boolean }>;
+  mark_todo(id: string, status: Todo["status"]): Promise<{ todo: Todo }>;
 }>;
 
 export type Bridge = {
@@ -93,7 +115,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "open_posting", "review_report", "send_report", "todos", "scan_todos", "mark_todo"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {

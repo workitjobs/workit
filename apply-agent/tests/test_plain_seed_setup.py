@@ -8,14 +8,16 @@ import json
 import os
 import signal
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import fake_chrome
 import pytest
 
 from apply import browsers
 from apply.browsers import ProfileInUse
-from apply.plain import extension, seed_setup
+from apply.plain import extension, launcher, seed_setup
 from apply.plain.bridge import Refused
 from apply.plain.seed_setup import (
     DETAILS_PAGE,
@@ -150,12 +152,12 @@ class FakeWorkers:
 class Run:
     """A wizard on fake time: each sleep runs the user's next click and moves the clock."""
 
-    def __init__(self, tmp_path, clicks=(), desk=None, hellos=None, again=()):
+    def __init__(self, tmp_path, clicks=(), desk=None, hellos=None, again=(), system="darwin"):
         self.workers = FakeWorkers(tmp_path, hellos)
         self.desk = desk or FakeDesk()
         self.said, self.now, self.clicks, self.again = [], 0.0, list(clicks), list(again)
         self.wizard = Wizard(self.workers, self.desk, out=self.said.append, ask_again=lambda: self.again.pop(0),
-                             sleep=self.sleep, clock=lambda: self.now)
+                             sleep=self.sleep, clock=lambda: self.now, system=system)
 
     def sleep(self, seconds):
         self.now += seconds
@@ -271,6 +273,19 @@ def test_chrome_not_quit_says_so_and_waits_and_is_never_killed(tmp_path):
     assert run.text.index("not quit yet") < run.text.index("real Worker said hello")
 
 
+def test_windows_is_told_its_own_file_manager_and_keys(tmp_path):
+    """Fault: a Windows user was told Finder, Cmd+Shift+G, Cmd+V, Return and Cmd+Q, none of which Windows has (P8)."""
+    run = Run(tmp_path, desk=FakeDesk(stubborn=30), hellos=[TimeoutError("no hello in 30 s"), {"extension": "0.1.0"}], again=[True],
+              system="win32")  # Chrome slow to quit, and a first Worker with no hello: every line the wizard says
+    run.clicks = happy(run)
+    assert run.wizard.run() is True
+    said = [run.text, *(seed_setup.instruction(Problem("step", kind), FOLDER, "win32") for kind in
+                        ("developer", "no_extension", "wrong_folder"))]
+    assert not [text for text in said for mac in ("Finder", "Cmd", "Return") if mac in text]
+    assert "File Explorer" in said[2] and "Ctrl+L, Ctrl+V, Enter, then click Select Folder" in said[2]
+    assert "choose Exit in that Chrome's three-dot menu" in run.text and "press Enter here to try again" in run.text
+
+
 def test_chrome_closed_too_early_opens_again_on_the_same_step(tmp_path):
     run = Run(tmp_path)
 
@@ -366,11 +381,21 @@ def test_a_chrome_too_slow_to_take_the_seed_is_a_setup_error(tmp_path, monkeypat
         Desk(tmp_path / "plain-seed", Path("/Chrome")).open_chrome(EXTENSIONS_PAGE)
 
 
-def test_the_desk_quits_by_sigterm_only(tmp_path, monkeypatch):
-    sent = []
-    monkeypatch.setattr(os, "kill", lambda pid, number: sent.append((pid, number)))
-    Desk(tmp_path).terminate(77)
-    assert sent == [(77, signal.SIGTERM)]
+def test_the_desk_asks_the_seeds_chrome_to_quit_and_never_kills_it(tmp_path, monkeypatch):
+    """Fault: a kill loses the clicks that Chrome hasn't saved yet. On Windows os.kill's SIGTERM is a kill, so the
+    seed's Chrome lost Developer mode and Load unpacked there (P7): taskkill with no /F asks its windows to close."""
+    asked = tmp_path / "asked"
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(asked))
+    chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        Desk(tmp_path).terminate(chrome.pid, "win32")
+        assert asked.read_text() == f"/PID {chrome.pid}" and chrome.poll() is None  # asked, with no /F, not killed
+        Desk(tmp_path).terminate(chrome.pid, "darwin")
+        if os.name == "posix":  # on Windows every signal kills: the code says no more there
+            assert chrome.wait(5) == -signal.SIGTERM
+    finally:
+        chrome.kill()
+        chrome.wait()
 
 
 def test_the_desk_does_not_trust_a_lock_whose_pid_is_another_program(tmp_path):

@@ -25,7 +25,6 @@ from apply.ashby import AshbyFiller
 from apply.fillers import FILLERS
 from apply.greenhouse import GreenhouseFiller
 from apply.plain import fixed
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers
 from apply.plain.site import PlainSite
 from apply.profile import ApplicantProfile
@@ -70,7 +69,7 @@ def plain_site(monkeypatch):
     folder = Path(tempfile.mkdtemp(prefix="apw-s9-", dir="/tmp"))  # short: a socket path is capped at 104 bytes
     with FakeJobServer(ARC_FORM, HARVEY_FORM) as fake, https_fake(_uploading(fake)) as port:
         flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
-        site = PlainSite(PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags))
+        site = PlainSite(PlainWorkers(folder, kind="testing", test_flags=flags))
         site.fetch = fake.fetch
         try:
             yield site, fake

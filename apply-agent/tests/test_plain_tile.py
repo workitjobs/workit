@@ -15,7 +15,7 @@ from playwright.sync_api import sync_playwright
 
 from apply.dashboard import Dashboard, jpeg_size
 from apply.plain import demo, window_capture
-from apply.plain.bridge import Bridge, PortTimeoutError
+from apply.plain.bridge import PortTimeoutError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.plain.tile import PortFrames
@@ -84,7 +84,7 @@ def site():
 def workers():
     """One plain Worker for every test here, started in the background (never in front), stopped after."""
     folder = Path(tempfile.mkdtemp(prefix="apw-tile-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "t.sock"))  # its own socket
+    workers = PlainWorkers(folder, kind="testing")
     workers.launch(0)
     yield workers
     workers.stop_all()

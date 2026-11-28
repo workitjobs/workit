@@ -142,7 +142,7 @@ def _from_dotenv(provider: Provider, path: Path) -> str | None:
         return None
     host = urlsplit(provider.url).hostname
     values = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         name, sep, value = line.partition("=")
         if sep and not name.lstrip().startswith("#"):
             values[name.strip()] = value.strip().strip("'\"")

@@ -24,7 +24,6 @@ from apply import claude_fill, rescue
 from apply.claude_cli import BROWSER_TOOLS, ClaudeCLI
 from apply.model import FillError
 from apply.plain import channel
-from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortContext, PortPage
 from apply.plain.tools import ToolServer
@@ -146,7 +145,7 @@ def site():
 @pytest.fixture(scope="module")
 def worker():
     folder = Path(tempfile.mkdtemp(prefix="apw-claude-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))  # its own socket
+    workers = PlainWorkers(folder, kind="testing")
     yield workers.launch(0)
     workers.stop_all()
 

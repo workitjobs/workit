@@ -69,7 +69,7 @@ from apply.gmail import live_mailbox
 from apply.home import HOME
 from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
-from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
+from apply.notify import SET_UP, TEST_PUSH, RecordingNotifier, desktop, live_phone
 from apply.plain.site import live_site
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
@@ -91,13 +91,58 @@ REHEARSALS = HOME / "rehearsals"
 RECORDS = HOME / "records"
 
 
+def utf8_streams(system: str = sys.platform, streams: tuple | None = None) -> None:
+    """On Windows a pipe or a file takes the code page (cp1252), which has no "→" or "✓", so Apply's output stopped
+    a command at its first such line there (`apply rehearse ... > run.log`). The console is UTF-8 already (KAN-929)."""
+    if system != "win32":
+        return
+    for stream in streams or (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):  # None in a window with no console
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> None:
-    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664). A test's fake
-    adapters print only what it made."""
+    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664), and as UTF-8. A
+    test's fake adapters print only what it made."""
     if adapters is not None:
         return _main(argv, adapters)
+    utf8_streams()
     with masked.output():
         return _main(argv, adapters)
+
+
+def _vault(action: str, host: str, email: str | None, store=None,
+           ask: Callable[[str], str] = input, secret: Callable[[str], str] | None = None,
+           terminal: Callable[[], bool] = lambda: sys.stdin.isatty()) -> None:
+    """`apply vault add|list|remove`. The password is asked for with getpass in Lisul's own terminal: never an
+    argument, an environment variable or piped input, so no agent or script hands one in or reads it back."""
+    import getpass
+
+    from apply import vault
+
+    store = store if store is not None else vault.store()
+    secret = secret or getpass.getpass
+    try:
+        if action == "list":
+            found = store.hosts()
+            print("\n".join(f"{name}\t{login}" for name, login in found) if found else "The vault is empty.")
+            return
+        name = vault.host(host)
+        if action == "remove":
+            print(f"Removed {name} from the vault." if store.remove(name) else f"The vault has no login for {name}.")
+            return
+        if not terminal():
+            raise SystemExit("apply vault add asks for the password in a terminal: run it in your own terminal.")
+        email = (email or ask(f"Email for {name}: ")).strip()
+        if "@" not in email:
+            raise SystemExit("Give the account's email.")
+        password = secret(f"Password for {email} at {name} (not shown): ")
+        if not password or password != secret("Again: "):
+            raise SystemExit("The passwords were empty or not the same: nothing saved.")
+        store.put(vault.Login(name, email, password))
+        print(f"Saved {email} for {name} in the vault. Apply signs in there by itself, on https://{name} only.")
+    except (ValueError, RuntimeError) as error:
+        raise SystemExit(str(error)) from None
 
 
 def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
@@ -171,6 +216,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     app.add_argument("--max-plan", action="store_true",
                      help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
                           "route and its Usage cap. Only for a window this opens")
+    app.add_argument("--todos", action="store_true",
+                     help="developer checkout: turn on the application to-do tracker (APPLY_DEV_TODOS), which "
+                          "scans your Gmail for assessments, forms, interviews to schedule and other steps, and "
+                          "lists them in the window's To-dos. Only for a window this opens")
     claude_token = commands.add_parser(
         "claude-token", help="developer checkout: keep the token `claude setup-token` prints in Keychain, so every "
                              "claude -p call signs in with it before your claude login. Paste it when asked")
@@ -198,6 +247,17 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                  "Apply made, from Keychain, so Chrome offers to save its password: installs the "
                                  "Apply accounts host and lists Keychain's accounts in the Tracker")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
+    vaulted = commands.add_parser(
+        "vault", help="the sign-in vault: job portal logins in Keychain that Apply types into a sign-in page by itself "
+                      "(docs/sign-in.md, \"Sign-in vault\")",
+    ).add_subparsers(dest="action", required=True)
+    vault_add = vaulted.add_parser("add", help="save the login for a portal host; asks for the password in this "
+                                               "terminal, never as an argument")
+    vault_add.add_argument("host", help="the sign-in page's host alone, like amazon.jobs")
+    vault_add.add_argument("--email", help="the account's email (asked for when not given)")
+    vaulted.add_parser("list", help="each saved host and its email, never a password")
+    vault_remove = vaulted.add_parser("remove", help="remove a host's login from Keychain")
+    vault_remove.add_argument("host")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
                          "and the Requests check (`apply run --requests-only` every 5 minutes)",
@@ -296,6 +356,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     answered.add_argument("--file", type=Path, help="a file the question asks for, in place of an answer")
     removed = window_commands.add_parser("remove", help="Remove a job waiting to start from the run")
     removed.add_argument("link", help="its `link` from the state's `waiting`")
+    window_commands.add_parser("todos", help="the application to-dos the window lists (developer flag: `apply app "
+                                             "--todos`), open first, with the last scan")
+    window_commands.add_parser("todo-scan", help="scan mail for application to-dos now, and list them")
+    for name, does in (("todo-done", "mark an application to-do done"), ("todo-dismiss", "dismiss an application "
+                       "to-do: it isn't one"), ("todo-open", "open a done or dismissed to-do again")):
+        window_commands.add_parser(name, help=does).add_argument("id", help="the to-do's `id` from `apply window todos`")
     added = window_commands.add_parser("add", help="add job links: a run of them, or into the run going")
     added.add_argument("links", nargs="+")
     stopped = window_commands.add_parser("stop", help="Stop applying: every held form closes, unsubmitted")
@@ -397,7 +463,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         profiles = WorkerBrowsers().profiles
         url = profiles / DASHBOARD_URL
         if url.exists():  # the window of the run going: both tabs
-            dashboard.open_window(url.read_text().strip() + ("/#answers" if args.command == "answers" else ""),
+            dashboard.open_window(url.read_text(encoding="utf-8").strip() + ("/#answers" if args.command == "answers" else ""),
                                   profiles / "dashboard")
         else:
             _answers_window(args.profile, profiles / "answers")
@@ -437,6 +503,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
 
         if args.max_plan:  # the Student build ignores it (student.asking)
             os.environ[student.MAX_PLAN] = "1"
+        if args.todos:  # the Student build ignores it (todos.enabled)
+            os.environ["APPLY_DEV_TODOS"] = "1"
         args.links, not_links = app_window.links_given(args.links)
         if not_links:
             sys.exit(f"Not a job link: {', '.join(not_links)}. Pass each posting's full https:// link.")
@@ -499,6 +567,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         _sign_in(args.url, adapters.site if adapters else WorkerBrowsers(headless=False))
     elif args.command == "chrome-passwords":
         _chrome_passwords(ApplicantProfile.load(args.profile).get("identity.email"))
+    elif args.command == "vault":
+        _vault(args.action, getattr(args, "host", ""), getattr(args, "email", None))
     elif args.command == "push-test":
         _push_test(adapters.phone if adapters else live_phone())
     elif args.command == "schedule":
@@ -557,6 +627,12 @@ def _window(args) -> int:
         app_window.send_links(links)
         return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
                                                "signed in and set up. `apply window state` shows them."})
+    if command in ("todos", "todo-scan"):
+        return said(app_control.ask(command, timeout=app_control.TODO_SCAN_WAIT if command == "todo-scan"
+                                    else app_control.ASK_WAIT))
+    if command.startswith("todo-"):
+        status = {"todo-done": "done", "todo-dismiss": "dismissed", "todo-open": "open"}[command]
+        return said(app_control.ask("todo-mark", {"id": args.id, "status": status}))
     body: dict = {}
     if command in ("submit", "cancel", "skip", "fill-again", "resume"):
         body = {"id": args.tile}
@@ -640,7 +716,7 @@ def _plain(args) -> None:
 
         archive = extension.package(Path(args.out))
         print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
-        recorded, stamp = json.loads(extension.STORE.read_text()), extension.store_stamp()
+        recorded, stamp = json.loads(extension.STORE.read_text(encoding="utf-8")), extension.store_stamp()
         if any(recorded.get(key) != value for key, value in stamp.items()):
             print(f"store.json doesn't record what this package holds ({stamp}): bump its version and record these "
                   "before uploading (tests/test_worker_extension_store.py says how).")
@@ -733,7 +809,7 @@ def _story_map(args, claude) -> None:
         return
     answering.refresh(workit.WorkIt())  # the map tags stories by WorkIt's Question types
     built = story_map.build(claude or as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE)))
-    old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
+    old = yaml.safe_load(story_map.MAP.read_text(encoding="utf-8")) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
         print("Dropped by the checks:\n" + "\n".join(f"  {why}" for why in built["dropped"]))
@@ -819,7 +895,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
-        url.write_text(board.url)
+        url.write_text(board.url, encoding="utf-8")
         noted = ask.register(site.profiles / ask.WINDOWS, board.url, board.token, os.getpid())  # for `apply ask`
         dashboard.open_window(board.url, site.profiles / "dashboard", front=False)  # never pulls Lisul from his work
         print(f"Dashboard: {board.url} (open it from Apply in the Dock, or with: apply watch)")
@@ -947,7 +1023,7 @@ def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subpro
     backfill."""
     if sys.platform != "darwin":
         return []
-    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True)
+    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True, encoding="utf-8")
     found, item = [], {}
     for line in dumped.stdout.splitlines() + ["keychain: end"]:
         if line.startswith("keychain:"):
@@ -1153,11 +1229,11 @@ def live_repairer(branch: str | None = None, push: bool = True) -> Repairer:
     """The Repairer over the live Repair requests, merging into `branch`,
     else policies.yaml's repair.branch, else the branch Apply runs from."""
     policy = load_policies().get("repair") or {}
-    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True).stdout.strip()
+    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
     claude = ClaudeCLI()
     return Repairer(
         repo=Path(git("rev-parse", "--show-toplevel")), requests=RepairRequests(REPAIRS), claude=claude, usage=claude,
-        notifier=MacNotifier(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
+        notifier=desktop(), tracker=live_tracker, branch=branch or policy.get("branch") or git("branch", "--show-current"),
         policy=policy, push=push,
     )
 
@@ -1196,7 +1272,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,
-        notifier=MacNotifier() if notifier is None else notifier,
+        notifier=desktop() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
         keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),

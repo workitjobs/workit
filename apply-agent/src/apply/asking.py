@@ -129,7 +129,7 @@ def links(profile: ApplicantProfile) -> tuple[str, ...]:
     is listed once, from the Story bank or the resume, whose words say what it is."""
     own = [f"{LINK_NAMES.get(name, name.removesuffix('_url').replace('_', ' ').title())}: {url}"
            for name, url in (profile.get("links") or {}).items() if isinstance(url, str) and url.strip()]
-    bank = data_folder.STORY_BANK.read_text() if data_folder.STORY_BANK.is_file() else ""
+    bank = data_folder.STORY_BANK.read_text(encoding="utf-8") if data_folder.STORY_BANK.is_file() else ""
     stories = [one_line(line).lstrip("-* ") for line in bank.splitlines() if URL.search(line)]
     pdf = profile.get("files.resume_pdf")
     on_resume = [f"{words} (on the resume): {url}" for words, url in

@@ -268,5 +268,5 @@ class GitRecords:
         return subprocess.run(
             ["git", "-C", str(self._clone),
              "-c", "user.name=Apply", "-c", "user.email=apply@localhost", "-c", "commit.gpgsign=false", *args],
-            check=True, capture_output=True, text=True,
+            check=True, capture_output=True, text=True, encoding="utf-8"
         ).stdout

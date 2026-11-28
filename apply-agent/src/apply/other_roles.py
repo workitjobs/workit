@@ -135,7 +135,7 @@ def others(posting: Posting, board: Sequence[Opening], path: Path | None = None,
     if not posting.company.strip():
         return []
     try:
-        saved = json.loads((path or TRACKER).read_text())
+        saved = json.loads((path or TRACKER).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = {}  # no Tracker: the Records still say
     own, found, seen = _job(posting.url), [], set()
@@ -244,7 +244,7 @@ def _recorded(roots: Sequence[Path]) -> list[tuple[str, str, str, str]]:
     for root in roots:
         for readme in sorted(root.glob("*/*/README.md"), reverse=True):
             try:
-                text = readme.read_text()
+                text = readme.read_text(encoding="utf-8")
             except OSError:
                 continue
             if (head := RECORD_HEAD.match(text)) and (url := RECORD_POSTING.search(text)) \

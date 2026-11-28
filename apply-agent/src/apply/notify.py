@@ -3,6 +3,7 @@ phone listing the Applications that wait on him."""
 
 import json
 import subprocess
+import sys
 import urllib.request
 from collections import Counter
 from collections.abc import Callable
@@ -119,6 +120,19 @@ def live_phone(keychain=None, post: Callable[[str, bytes, dict], None] = https_p
     (service apply-ntfy, account ntfy.sh); None while there is none."""
     topic = (keychain or SystemKeychain(PHONE_PUSH)).password(PHONE_PUSH_HOST)
     return NtfyNotifier(topic, post) if topic else None
+
+
+class TerminalNotifier:
+    """A notice on stderr, the terminal Apply runs in: the computer's own notices off the Mac, till Windows gets
+    one (KAN-929). Notification Center's osascript isn't there, and every notice stopped the run."""
+
+    def notify(self, title: str, message: str) -> None:
+        print(f"{title}: {message}", file=sys.stderr)
+
+
+def desktop(system: str = sys.platform) -> "MacNotifier | TerminalNotifier":
+    """The computer's own notices: Notification Center on the Mac, the terminal elsewhere."""
+    return MacNotifier() if system == "darwin" else TerminalNotifier()
 
 
 class RecordingNotifier:

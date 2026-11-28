@@ -773,8 +773,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   that reach a Workday sign-in save `WORKDAY_SIGNUP` first
   (`saveWorkdaySignup`, test/loaded-extension.ts).
 - **Apply's Employer accounts (KAN-592).** Apply (`apply-agent/`) makes a
-  Workday account per company with a generated password kept only in macOS
-  Keychain. With Use My Apply Accounts on (options page: the optional
+  Workday account per company with a generated password kept only in the
+  system's keychain (Keychain on a Mac, Credential Manager on Windows). With
+  Use My Apply Accounts on (options page: the optional
   `nativeMessaging` permission, so students never see a new install
   warning), the worker asks Apply's accounts host (`com.workit.apply_accounts`,
   installed by `uv run apply chrome-passwords`; `background/apply-accounts.js`)
@@ -3115,9 +3116,13 @@ KAN-447's publish workflow uploads this zip; the Store version is
 Chrome derives the ID from it (`store/extension-id.mjs`), the tests take it
 from there (`test/loaded-extension.ts`), and the website's
 `EXTENSION_ID` (`frontend/src/lib/autofill-extension.ts`) is written from it
-(`test/extension-id.spec.ts` fails while they differ). Today it is the dev key
-(`cpklhdkoafegnndlafmiceehfloodjgi`). To give dev builds and the website the
-Store item's ID (a person's step, with the Developer Dashboard):
+(`test/extension-id.spec.ts` fails while they differ). Since KAN-447
+(2026-11-03) it is the Store item's key (`nejadaaigpkenldhafhhogbmhlfhabda`);
+the dev key's ID was `cpklhdkoafegnndlafmiceehfloodjgi`. Apply's accounts
+host names the ID too (`apply-agent/src/apply/native_host.py`, `EXTENSION_ID`):
+it kept the dev key's till 2026-11-26, so Chrome refused Use My Apply
+Accounts, and `test_native_host.py`, now in CI, fails while they differ. To
+set a key again (a person's step, with the Developer Dashboard):
 
 1. Dashboard → the WorkIt item → **Package** → **View public key**. Copy the
    key between the BEGIN/END lines, joined into one line.

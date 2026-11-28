@@ -48,7 +48,7 @@ def main() -> None:
     if "--check" in sys.argv:
         check()
         return
-    text = Path(certifi.where()).read_text()
+    text = Path(certifi.where()).read_text(encoding="utf-8")
     found = {}
     for block in re.findall(r"(# Issuer: .*?-----END CERTIFICATE-----\n)", text, re.DOTALL):
         subject = re.search(r"^# Subject: CN=(.*?)(?: O=| OU=|$)", block, re.MULTILINE)  # some roots have no CN
@@ -59,7 +59,7 @@ def main() -> None:
         '"""The certificate authorities Apply trusts for api.workitjobs.ai, and no others (D28, W7): Cloudflare\'s\n'
         f"CAs. Written by scripts/workit_roots.py from certifi {certifi.__version__}; never edit by hand.\n"
         f'Not in it: {", ".join(n for n in ROOTS if n not in found) or "none"}."""\n\n'
-        f'ROOTS = """{pem}"""\n'
+        f'ROOTS = """{pem}"""\n', encoding="utf-8"
     )
     print(f"{len(found)} roots to {OUT}")
 

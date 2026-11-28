@@ -181,13 +181,13 @@ def keep_context(q: Question, questions: list[Question], context: str, company_n
     where = asking.where(q, questions)
     line = (f'- For "{one_line(q.label)}"' + (f" ({where})" if where else "") + f" at {company_name or 'one company'}: "
             f"{one_line(context)}")
-    story = data_folder.STORY_BANK.read_text() if data_folder.STORY_BANK.is_file() else ""
+    story = data_folder.STORY_BANK.read_text(encoding="utf-8") if data_folder.STORY_BANK.is_file() else ""
     if line in story:
         return line
     if ADDED not in story:
         story = (f"{story.rstrip()}\n\n{ADDED}\nWhat the applicant added, in their own words, when they asked Claude to "
                  "write one answer again.\n")
-    data_folder.STORY_BANK.write_text(f"{story.rstrip()}\n{line} ({today.isoformat()})\n")
+    data_folder.STORY_BANK.write_text(f"{story.rstrip()}\n{line} ({today.isoformat()})\n", encoding="utf-8")
     return line
 
 

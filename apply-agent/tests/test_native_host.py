@@ -11,6 +11,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import fake_chrome
 import pytest
 
 from apply import cli, native_host
@@ -22,7 +23,7 @@ CACI = "caci.wd1.myworkdayjobs.com"
 XCEL = "xcel.wd1.myworkdayjobs.com"
 EMAIL = "test.person@example.com"
 PASSWORD = "Generated-Test-Pw-1!x"
-EXTENSION = "chrome-extension://cpklhdkoafegnndlafmiceehfloodjgi/"
+EXTENSION = native_host.EXTENSION_ORIGIN  # the ID manifest.json's key gives: the test below checks it
 
 
 def listed(*sites: str) -> InMemoryTracker:
@@ -100,9 +101,11 @@ def test_the_host_answers_the_id_that_the_extensions_manifest_key_gives():
 
 
 def test_install_writes_a_host_manifest_that_names_only_the_workit_extension_and_a_wrapper_that_runs_the_host(tmp_path):
+    """Faults: the manifest lets another extension call the host, or the wrapper can't run, runs another Python, or
+    doesn't set APPLY_HOME (the host then answers from another data folder). Windows: test_each_os.py."""
     hosts, home = tmp_path / "NativeMessagingHosts", tmp_path / "apply"
 
-    manifest = native_host.install(hosts, "/venv/bin/python", home)
+    manifest = native_host.install(hosts, "/venv/bin/python", home, "darwin", fake_chrome.NoRegistry())
 
     written = json.loads(manifest.read_text())
     assert manifest == hosts / "com.workit.apply_accounts.json"
@@ -110,7 +113,7 @@ def test_install_writes_a_host_manifest_that_names_only_the_workit_extension_and
     assert written["allowed_origins"] == [EXTENSION]
     wrapper = written["path"]
     assert wrapper.startswith(str(home)) and oct(Path(wrapper).stat().st_mode & 0o777) == "0o700"
-    assert "/venv/bin/python -m apply.native_host" in Path(wrapper).read_text()
+    assert Path(wrapper).read_text() == f'#!/bin/sh\nAPPLY_HOME={home} exec /venv/bin/python -m apply.native_host "$@"\n'
 
 
 def test_adopting_lists_each_keychain_tenant_the_tracker_lacks_once_with_its_company_from_a_row(tmp_path):

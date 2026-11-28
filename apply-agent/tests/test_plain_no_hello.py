@@ -37,7 +37,8 @@ def workers(tmp_path, monkeypatch):
     started = []
     monkeypatch.setattr(launcher, "start_in_background",
                         lambda *a, **k: started.append(a) or SimpleNamespace(pid=os.getpid(), poll=lambda: 0))
-    workers = PlainWorkers(tmp_path, kind="chrome", bridge=_Bridge(tmp_path / "socket"), extension_dir=tmp_path)
+    workers = PlainWorkers(tmp_path, kind="chrome", extension_dir=tmp_path)
+    workers.bridge = _Bridge(tmp_path / "socket")  # its own, for its profiles folder (KAN-929's P5): played here
     workers.prepare = lambda worker=None: {}
     (workers.seed / "Default").mkdir(parents=True)
     (workers.seed / "Default" / "Preferences").write_text("{}")

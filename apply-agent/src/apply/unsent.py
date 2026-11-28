@@ -30,7 +30,7 @@ def keep(posting: Posting, written: list["essays.Essay"], today: date) -> None:
         forget(posting)
         return
     UNSENT.mkdir(exist_ok=True)
-    _path(posting).write_text(f"{KEPT}{today.isoformat()}\n\n{essays.as_cell(passed)}")
+    _path(posting).write_text(f"{KEPT}{today.isoformat()}\n\n{essays.as_cell(passed)}", encoding="utf-8")
 
 
 def take(posting: Posting, questions: list[Question], today: date) -> list["essays.Essay"]:
@@ -38,7 +38,7 @@ def take(posting: Posting, questions: list[Question], today: date) -> list["essa
     path = _path(posting)
     if not questions or not path.exists():
         return []
-    stamp, _, cell = path.read_text().partition("\n\n")
+    stamp, _, cell = path.read_text(encoding="utf-8").partition("\n\n")
     try:
         kept = date.fromisoformat(stamp.removeprefix(KEPT))
     except ValueError:
