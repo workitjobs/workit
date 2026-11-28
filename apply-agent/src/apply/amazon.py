@@ -152,6 +152,10 @@ class AmazonFiller:
             # What Amazon kept, read off the step's closed card: the read-back after Continue.
             if answered:
                 self._readback |= fill_engine.call(page, "readback", "amazon", [], answered, self._state)
+        # At Review & submit every card is closed and drawn: an answer the read-back after Continue missed (Amazon
+        # drew Contact information's saved lines too late, live 2026-11-27) is read there once more.
+        if missed := [name for name in answers if name in known and self._readback.get(name) in (None, "", [])]:
+            self._readback |= fill_engine.call(page, "readback", "amazon", [], missed, self._state)
         return dict(self._readback)
 
     def _shown(self, page: Page) -> dict:
