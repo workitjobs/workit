@@ -75,7 +75,7 @@ from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
 from apply.home import HOME
-from apply.model import Status
+from apply.model import Status, job_title
 from apply.tracker import FileTracker, Row
 
 TITLE = "WorkIt Auto Apply"
@@ -431,6 +431,7 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
+        self._renamed: dict[str, dict] = {}  # what `name` gave each applied job whose title is a page's chrome
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
@@ -581,7 +582,18 @@ class Bridge:
             rows = self._applications("applied")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read what you applied to ({error})."}
-        return [_job(row["job"]) | {"applied_at": row.get("applied_at")} for row in rows]
+        return [self._named_again(_job(row["job"])) | {"applied_at": row.get("applied_at")} for row in rows]
+
+    def _named_again(self, job: dict) -> dict:
+        """A job whose WorkIt title is a page's chrome (model.job_title), as Apply wrote it before it checked:
+        "Log in or create account | Amazon.jobs" for an Amazon posting behind a sign-in wall. It takes the title it
+        was queued with, else the one its listing or job system names (`name`, read once a link), else none."""
+        if job["title"] and not job_title(job["title"]):
+            url = job["url"]
+            if url not in self._queued and url not in self._renamed:
+                self._renamed[url] = self._name(url)
+            job["title"] = job_title((self._queued.get(url) or self._renamed.get(url) or {}).get("title") or "")
+        return job
 
     def matches(self, filters: dict | None = None) -> list[dict] | dict:
         """Find jobs: the student's best matches that Auto Apply fills and they haven't queued or applied to, best

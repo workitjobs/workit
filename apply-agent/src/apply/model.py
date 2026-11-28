@@ -213,3 +213,28 @@ class MoreQuestions(Exception):
     def __init__(self, questions: QuestionSet):
         super().__init__(", ".join(q.label for q in questions))
         self.questions = questions
+
+
+# A title that names a page's own chrome, never a job: a sign-in wall's ("Log in or create account | Amazon.jobs", live
+# 2026-11-27: it became the role on the Applied page), an error page's, a bare careers site's. A job's title never
+# starts as a sign-in does, so SIGN_IN_TITLE checks the start of each part; CHROME_TITLE checks the whole title or
+# its first part only, so "Software Engineer | Jobs" stays a job's.
+SIGN_IN_TITLE = re.compile(r"^(?:log ?in|log ?on|sign ?in|sign ?on|sign ?up|create (?:an? |your )?(?:new )?account|"
+                           r"forgot (?:your )?password|reset (?:your )?password|verify (?:your )?(?:email|identity))\b",
+                           re.IGNORECASE)
+CHROME_TITLE = re.compile(r"^(?:register|my account|account|careers?|jobs?|job details|job search|search (?:for )?jobs|"
+                          r"home|apply|application|apply now|access denied|forbidden|page not found|not found|404|error|"
+                          r"oops.*|something went wrong|just a moment\.*|attention required!?|redirecting\.*|"
+                          r"loading\.*|untitled|session (?:expired|timed out))$", re.IGNORECASE)
+TITLE_PARTS = re.compile(r"\s+[|\u2013\u2014:-]\s+|\s*\|\s*")
+
+
+def job_title(title: str) -> str:
+    """`title` as a job's title: "" when it names a page's own chrome (SIGN_IN_TITLE, CHROME_TITLE), so a caller
+    keeps the role it has (the listing's, the queued job's) or names none."""
+    title = one_line(title or "")
+    parts = [part for part in TITLE_PARTS.split(title) if part]
+    if not parts or any(SIGN_IN_TITLE.match(part) for part in parts) or CHROME_TITLE.match(title) \
+            or CHROME_TITLE.match(parts[0]):
+        return ""
+    return title

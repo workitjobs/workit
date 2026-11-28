@@ -397,6 +397,32 @@ def test_applied_is_what_the_student_applied_to_on_workit_newest_first(board, tm
         assert "error" in Bridge(board, client).applied()
 
 
+def test_an_applied_jobs_chrome_title_takes_the_title_it_was_queued_with(board, tmp_path):
+    """Fault: a title Apply wrote to WorkIt from a sign-in wall's page (model.job_title) shows on the Applied page,
+    or a job no queue names keeps it where its listing names the role."""
+    from fake_workit import Reply
+
+    amazon = {"apply_url": "https://www.amazon.jobs/en/jobs/10593521/", "company": "Amazon"}
+    rows = {"queued": [{"job": amazon | {"title": "Software Dev Engineer Intern"}, "open": True}],
+            "applied": [{"job": amazon | {"title": "Log in or create account | Amazon.jobs"}, "applied_at": None},
+                        {"job": {"apply_url": "https://jobs.lever.co/a/1", "company": "A", "title": "Sign in"},
+                         "applied_at": None},
+                        {"job": {"apply_url": "https://jobs.lever.co/b/2", "company": "B", "title": "Log in"},
+                         "applied_at": None}]}
+    named = {"https://jobs.lever.co/a/1": {"title": "Data Intern"}}
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications",
+                   lambda seen, fake: Reply(200, rows[seen.path.rsplit("=", 1)[-1]]))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        asked = []
+        bridge = Bridge(board, client, name=lambda link: asked.append(link) or named.get(link, {}))
+        bridge.queue()
+        assert [job["title"] for job in bridge.applied()] == ["Software Dev Engineer Intern", "Data Intern", ""]
+        bridge.applied()
+        assert asked == ["https://jobs.lever.co/a/1", "https://jobs.lever.co/b/2"]  # each link read once
+
+
 def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board, tmp_path):
     """Fault: a job ticked in the queue lost its logo once its run started (KAN-871)."""
     from fake_workit import Reply

@@ -81,7 +81,7 @@ from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
 from apply.essays import ASK
-from apply.model import Posting, Question, Site, Status, one_line
+from apply.model import Posting, Question, Site, Status, job_title, one_line
 from apply.orchestrator import (
     CALIBRATION,
     FIX_HERE,
@@ -241,7 +241,7 @@ class Rehearsed:
     posting: Posting
     outcome: str
     why: str = ""
-    title: str = ""  # the page's title where it stopped, when the link named no role
+    title: str = ""  # the page's title where it stopped, when the link named no role; "" for page chrome
     filled: int = 0  # questions with an answer on the page
     asked: int = 0  # questions the form asked
     missing: tuple[str, ...] = ()
@@ -1689,7 +1689,7 @@ def _summary(posting: Posting, result: Result, site: "_Kept", tokens: int, secon
     filled = result.filled
     answered = [q for q in filled.questions if filled.readback.get(q.name) not in (None, "", [])] if filled else []
     return Rehearsed(
-        posting, outcome, why, site.title(),
+        posting, outcome, why, job_title(site.title()),  # a sign-in wall's title names no role
         len(answered), len(filled.questions) if filled else 0,
         result.missing + tuple(label for label, _ in result.left_behind if label not in result.missing), tokens, seconds,
         problems=tuple(map(str, result.problems)), questions=tuple(filled.questions) if filled else (),
