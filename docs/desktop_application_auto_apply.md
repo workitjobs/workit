@@ -530,7 +530,7 @@ on a developer's Mac.
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`); the first publish passed on 2026-11-17. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4), and so are signing and notarizing (KAN-950, step 2), which wait on the Apple enrollment and its keys. Left: those keys, the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4), and so are signing and notarizing (KAN-950, step 2), which wait on the Apple enrollment and its keys. Left: those keys, the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac on from KAN-950's merge (`DOWNLOAD_URL`) |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
@@ -1606,7 +1606,7 @@ itself (D17, D18, D20).
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
   (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
-  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+  (`frontend/docs/screens.md`). `DOWNLOAD_URL` in its `page.tsx` links the newest DMG (KAN-950).
 - **Build a release in one workflow** (D32):
   `.github/workflows/publish-app.yml`, by hand from `main`, on a
   GitHub-hosted Apple Silicon Mac: `scripts/build_app.py --release`, from
@@ -1649,13 +1649,15 @@ itself (D17, D18, D20).
    Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
    The key is made and its public half is in every build (2026-11-26).
    Left: a beta channel.
-4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7; the link
+   went in with step 2 (KAN-950), before W0 and W6, the user's call on
+   2026-11-27. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
    app, a link to Applications, and the license and notices beside them.
    Publishing is built (KAN-941, 2026-11-26): the workflow above, into
    the R2 bucket `auto-apply-desktop` behind `downloads.workitjobs.ai`.
    A publish refuses a DMG Apple hasn't notarized (step 2). Left: the
-   first publish, once step 2's keys are in, and `DOWNLOAD_URL`.
+   first notarized publish, right after KAN-950's merge turns the link on.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the

@@ -21,13 +21,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * Where `WorkIt Auto Apply.dmg` downloads from, or null while there is no
- * build to download. W8 of docs/desktop_application_auto_apply.md makes the
- * signed, notarized DMG and puts it on Cloudflare R2; set its address here
- * then. While it is null, Download for Mac is drawn but cannot be pressed,
- * and the line under it says the download is coming.
+ * Where `WorkIt Auto Apply.dmg` downloads from: the newest build on
+ * Cloudflare R2, which each run of .github/workflows/publish-app.yml
+ * replaces with a signed, notarized DMG (W8 of
+ * docs/desktop_application_auto_apply.md). R2 sends it as an attachment
+ * with that name, so the button downloads it although a browser ignores
+ * `download` on another site's link. Null turns the button off: it is drawn
+ * but cannot be pressed, and the line under it says the download is coming.
  */
-const DOWNLOAD_URL: string | null = null;
+const DOWNLOAD_URL: string | null = "https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg";
 
 /** What the app needs (D17, D21 and W8 of the design doc), and its price
  *  (D6: a free beta with a daily Usage cap). */

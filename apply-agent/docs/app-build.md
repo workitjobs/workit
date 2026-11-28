@@ -167,12 +167,14 @@ it out of git, and delete the test build afterwards: it allows plain HTTP.
   app, from the website's link, for W8's "Done when".
 - Step 3: a beta channel for testers is not built. Sparkle and the update
   key are in every build (2026-11-26).
-- Step 4: publishing (above) is built, and nothing is published yet: a
-  run now refuses a DMG with no notarization ticket, so the first publish
-  waits on step 2's secrets. The website's `DOWNLOAD_URL`
-  (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`) stays null
-  until then, and until W0 and W6 (the design doc's W8 step 4); then it is
-  `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
+- Step 4: publishing (above) is built. One build is live, `202611270032`
+  (2026-11-27, before step 2), which macOS blocks: it isn't notarized. The
+  website's Download for Mac links `WorkIt-Auto-Apply.dmg` from KAN-950's
+  merge (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`), before
+  W0 and W6, the user's call on 2026-11-27. **Run `publish-app.yml` right
+  after that merge:** until its run passes, the link serves that blocked
+  build. It needs the Apple keys first (`../../docs/secrets.md`, Load the
+  Apple keys).
 - `worker-extension/` leaves `INPUTS` with W6.
 - W11: `student.app` still copies the Test Person sample, which the app no
   longer ships, into a data folder with no Applicant profile, so such a
