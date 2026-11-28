@@ -49,9 +49,9 @@ def test_each_kind_of_mail_that_asks_something_makes_its_kind_of_todo():
                                         "We are pleased to extend an offer for the Software Engineer Intern role.")),
                            []).kind
     kinds["documents"] = rules(read(written("Acme <jobs@acme.com>", "Next steps",
-                                            "Please upload your unofficial transcript to the portal.")), []).kind
+                                            "Please upload your unofficial transcript to the candidate portal.")), []).kind
     kinds["questionnaire"] = rules(read(written("Acme <jobs@acme.com>", "One more step",
-                                                "Please answer a short questionnaire about your availability.")),
+                                                "Please answer a short questionnaire about your availability to interview.")),
                                    []).kind
 
     assert kinds == {"hackerrank-assessment": "assessment", "codesignal-assessment": "assessment",
@@ -225,3 +225,50 @@ def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_
     assert sorted((t.company, t.kind, t.link) for t in store.all()) == [
         ("Acme", "assessment", None), ("Ramp", "assessment", "https://app.codesignal.com/pre-screens"),
         ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]
+
+
+def test_a_thank_you_for_applying_is_a_todo_only_when_it_asks_for_a_step_with_a_link():
+    # Fault: the confirmation rule off, so a thank-you that says "taking the time to complete your application" is a
+    # Form, and one that says the next step "is a HackerRank assessment" is an Online assessment.
+    assert rules(read(sample("greenhouse-thanks-only")), []).kind is None
+    assert rules(read(sample("greenhouse-thanks-mentions-assessment")), []).kind is None
+    asks = rules(read(sample("greenhouse-thanks-asks-assessment")), [])
+    assert (asks.kind, asks.due) == ("assessment", date(2026, 11, 30))
+    assert asks.link == "https://www.hackerrank.com/test/c0nt0s0/start"
+
+
+def test_mail_about_no_job_application_makes_no_todo_whoever_reads_it(tmp_path):
+    # Fault: the job rule off, so a student-aid office's "complete your aid form" is a Form, by the rules or the model.
+    assert rules(read(sample("student-aid-form")), []).kind is None
+    store = TodoStore(tmp_path / "todos.json")
+
+    def ask(**call):
+        return {"kind": "form", "company": "Student Aid Office", "role": "", "due": "",
+                "link": "https://aid.example.gov/form/start"}
+
+    done = scan(box(sample("student-aid-form"))[0], store, ask=ask, now=lambda: ARRIVED)
+
+    assert (done.added, store.all()) == (0, [])
+
+
+def test_an_invite_and_its_reminder_are_one_todo_that_a_rescan_keeps_as_one(tmp_path):
+    # Fault: no join by company, kind and assessment name, so a reminder in its own thread is a second card, or a
+    # re-scan adds it again, or the join loses the earliest due date, the latest link or the user's status.
+    store = TodoStore(tmp_path / "todos.json")
+    mailbox = box(sample("codesignal-invite"), sample("codesignal-reminder"))[0]
+    invite, reminder = read(sample("codesignal-invite")), read(sample("codesignal-reminder"))
+    invite = Mail(**{**invite.__dict__, "arrived": datetime(2026, 11, 26, 16, 0)})
+    reminder = Mail(**{**reminder.__dict__, "arrived": datetime(2026, 11, 27, 16, 0)})
+    mailbox.read_mail = lambda search: [reminder, invite]
+
+    first = scan(mailbox, store, now=lambda: ARRIVED)
+    [todo] = store.all()
+    store.mark(todo.thread, DONE)
+    again = scan(mailbox, store, now=lambda: ARRIVED)
+
+    assert (first.added, first.updated, again.added, again.updated) == (1, 1, 0, 0)
+    [todo] = store.all()
+    assert (todo.thread, todo.kind, todo.status, todo.due) == (thread_of(invite), "assessment", DONE,
+                                                               date(2026, 11, 29))
+    assert todo.link == "https://app.codesignal.com/invite/F4br1k4mTwo"
+    assert [m.subject for m in todo.mails] == [invite.subject, reminder.subject]

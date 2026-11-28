@@ -31,6 +31,13 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
   Gmail thread (`X-GM-THRID`; with none, the subject without Re:/Fwd: and the sender's domain, hashed). A newer mail
   in a thread updates its kind, due date, link and source; the status the user set stays, so a dismissed to-do
   never comes back. The same or an older mail changes nothing, so a re-scan is safe.
+- **Join across threads** (`Todo.key`): an invite and its reminder come in two threads ("Ramp invited you to take
+  Ramp 2025 Coding Assessment", "Reminder: Ramp is waiting for your Ramp 2025 Coding Assessment result"). Mail with
+  the same company, kind and assessment or form name (`todos.TASK`, read from the subject) joins one to-do: it keeps
+  the first thread as its id, every mail in `sources` (the newest is `source`), the earliest due date, the latest
+  link, and a done or dismissed status set on either. Within one thread the latest due date stands. A subject that
+  names no assessment or form gives no key, so only its thread joins it. Cards saved apart before keys join when the
+  store is read, and `todo-done` takes either thread's id.
 - **Scan** (`src/apply/todo_scan.py`): the last 14 days of inbox mail that `todo_scan.SEARCH` finds, read-only
   (`GmailMailbox.read_mail`: `BODY.PEEK`, nothing marked read, moved or deleted), oldest first. Each mail is read
   by the developer's `ask_model` when it takes a prompt (`claude`, `groq`, `gemini`; model `haiku`), else by fixed
@@ -57,6 +64,14 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
 - **A mail with no link** (`TodoStore.lend_links`, after each scan): its to-do takes the link of the newest to-do of
   the same company and kind that has one. Ramp's "Confirmation on your Application + CodeSignal" says the
   assessment comes in a later mail and holds no link; it opens that mail's CodeSignal link.
+- **Two gates on either reader's answer** (`todo_scan.kept`). Mail must be about a job application: a Tracker row
+  matches it, its sender is a job system or assessment platform (`RECRUITING`), or it or its sender has a job word
+  (`JOB`: job, role, intern, candidate, recruiter, interview...) and no school or student-aid words (`SCHOOL`).
+  "Application" is no job word: the FAFSA is the Free Application for Federal Student Aid. And a thank-you or
+  receipt (`employer_mail.CONFIRMATION`) is a to-do only when a sentence that says no "if" asks for a step now
+  (`ASKS`: "Please complete the assessment", "click the link to schedule") and a link to it is found. So "we
+  appreciate you taking the time to complete your application" and "the first step is a HackerRank assessment"
+  make none. A mail that says the application isn't sent yet (`UNFINISHED`) is no confirmation.
 - **Schedule:** the window scans when it opens and every `todo_scan.EVERY` (30 minutes), one scan at a time
   (`Bridge._todo_scanning`). Scan now and `apply window todo-scan` scan at once.
 

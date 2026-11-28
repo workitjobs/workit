@@ -12,7 +12,9 @@ Apply reads emailed codes with, apply.gmail), oldest first, and reads each mail 
   rules, its employer matching against the Tracker).
 
 A mail that asks nothing (a confirmation, a rejection, an assessment already taken, a one-time code, a password
-reset) makes no to-do. Each to-do is kept by its mail's Gmail thread (TodoStore.put)."""
+reset) makes no to-do, and nor does mail about no job application (the FAFSA's "complete your FAFSA form"): either
+reader's answer goes through `kept`. Each to-do is kept by its mail's Gmail thread, and an invite and its reminder
+join as one (TodoStore.put)."""
 
 import dataclasses
 import hashlib
@@ -27,6 +29,7 @@ from apply import employer_mail
 from apply.employer_mail import (
     COMPLETED,
     CONDITIONAL,
+    CONFIRMATION,
     INCOMPLETE,
     INTERVIEW,
     INTERVIEW_SUBJECT,
@@ -63,6 +66,26 @@ FORM = re.compile(r"\b(complete|fill (out|in)|submit|sign) (the|this|a|an|your|o
 ACCOUNT = re.compile(r"verify your (e-?mail( address)?|account|identity)|confirm your (e-?mail( address)?|account)|"
                      r"activate your (candidate )?account|complete your (candidate )?profile|create (an|your) "
                      r"(candidate )?account|finish setting up your account", re.IGNORECASE)
+# Words only mail about a job has. "Application" and "applying" are not: the FAFSA is the Free Application for
+# Federal Student Aid, a school writes "applying for financial aid", and "career" is in "career school".
+JOB = re.compile(r"\b(jobs?|positions?|roles?|intern(ship)?s?|candida(te|tes|cy)|recruit(er|ers|ing|ment)?|hiring|"
+                 r"employers?|employment|interviews?)\b", re.IGNORECASE)
+# Words of a school's or the student-aid office's mail, which job words in it ("work-study employment") don't outweigh.
+SCHOOL = re.compile(r"\b(fafsa|financial aid|student aid|scholarships?|tuition|admissions?|enrollment deposit)\b",
+                    re.IGNORECASE)
+# Senders that send only recruiting mail: the job systems and assessment platforms of SHARED_DOMAINS, not the plain
+# mail services.
+RECRUITING = employer_mail.SHARED_DOMAINS - {"sendgrid.net", "amazonses.com", "mailgun.org", "gmail.com", "outlook.com"}
+# A sentence that asks for a step now: the step's verb begins it or follows "please", "you must", "click ... to".
+# "We appreciate you taking the time to complete your application" thanks for a step already taken.
+ASKS = re.compile(r"(^|\bplease\s+|\bkindly\s+|\bto (begin|start|get started),?\s+|\byou (must|need to|are (required|asked|"
+                  r"invited) to|have been invited to)\s+|\bwe (ask|invite) you to\s+|\b(click|use|follow|visit) [^.!?]{0,40}?"
+                  r"\bto\s+)(complete|take|start|begin|fill (out|in)|finish|submit|sign|schedule|book|select|choose|pick|"
+                  r"upload|send|provide|answer|verify|activate|confirm|accept|review)\b", re.IGNORECASE)
+# An application not yet sent: a thank-you for it is no confirmation. INCOMPLETE without its "complete your
+# application", which a confirmation says too ("thank you for taking the time to complete your application").
+UNFINISHED = re.compile(r"finish your application|(application|profile) (is )?(still )?incomplete|not yet (been )?"
+                        r"submitted|started an application|yet to submit", re.IGNORECASE)
 # Words a to-do's own link has, in its label or address, by kind.
 LINK_WORDS = {
     "assessment": r"assessment|hackerrank|codesignal|codility|hirevue|karat|test|challenge|begin|start",
@@ -171,8 +194,7 @@ def scan(mailbox, store: TodoStore, rows: list | None = None, ask: Ask | None = 
     if ask is None:
         done.model = "no model: read by rules"
     for mail in mails:
-        known = store.get(thread_of(mail))
-        if known is not None and known.source.arrived >= mail.arrived:
+        if store.seen(thread_of(mail), mail.arrived):
             continue  # read by an earlier scan: no model call again for it
         reading = rules(mail, rows or [])
         if ask is not None:
@@ -185,6 +207,7 @@ def scan(mailbox, store: TodoStore, rows: list | None = None, ask: Ask | None = 
                 if answer is not None:
                     reading = _merged(answer, reading)
                     done.by_model += 1
+        reading = kept(mail, reading, rows or [])
         if reading.kind is None:
             continue
         if not reading.company or is_sender(reading.company):
@@ -211,9 +234,7 @@ def thread_of(mail: Mail) -> str:
 def rules(mail: Mail, rows: list) -> Read:
     """What `mail` asks, by fixed patterns: first fitting kind first. A sentence that only says what may happen
     ("if selected, we will schedule an interview") counts for nothing."""
-    words = employer_mail._plain(mail.text)
-    full = f"{mail.subject}\n{words}"
-    definite = " ".join(s for s in re.split(r"(?<=[.!?\n])\s+", full) if not CONDITIONAL.search(s))
+    words, full, definite = _texts(mail)
     if REJECTION.search(definite) or (CODE_ONLY.search(full) and not ACCOUNT.search(full)):
         return Read(None)
     if OFFER.search(definite):
@@ -233,7 +254,33 @@ def rules(mail: Mail, rows: list) -> Read:
     else:
         return Read(None)
     company, role = named(mail, rows)
-    return Read(kind, company, role, employer_mail._deadline(words, mail.arrived), best_link(mail.text, kind))
+    reading = Read(kind, company, role, employer_mail._deadline(words, mail.arrived), best_link(mail.text, kind))
+    return kept(mail, reading, rows)
+
+
+def kept(mail: Mail, reading: Read, rows: list) -> Read:
+    """`reading`, or no to-do when the mail is about no job application (no Tracker row, no recruiting sender, and no
+    job word in it or its sender, "Acme Recruiting <jobs@acme.com>", or a school's words), or is a confirmation or
+    receipt that doesn't ask for a step now with a link to it."""
+    if reading.kind is None:
+        return reading
+    _, full, definite = _texts(mail)
+    domain = _address(mail.sender).rpartition("@")[2]
+    if not (".".join(domain.split(".")[-2:]) in RECRUITING or employer_mail.match(mail, rows)
+            or (JOB.search(f"{mail.sender}\n{full}") and not SCHOOL.search(full))):
+        return Read(None, by=reading.by)
+    sentences = re.split(r"(?<=[.!?\n])\s+", definite)
+    asks = reading.link and any(ASKS.search(s.strip()) for s in sentences)
+    if CONFIRMATION.search(full) and not UNFINISHED.search(definite) and not asks:
+        return Read(None, by=reading.by)
+    return reading
+
+
+def _texts(mail: Mail) -> tuple[str, str, str]:
+    """The mail's words, its subject with them, and those of its sentences that say no "if" or "may"."""
+    words = employer_mail._plain(mail.text)
+    full = f"{mail.subject}\n{words}"
+    return words, full, "\n".join(s for s in re.split(r"(?<=[.!?\n])\s+", full) if not CONDITIONAL.search(s))
 
 
 def named(mail: Mail, rows: list) -> tuple[str, str]:
