@@ -181,7 +181,9 @@ export default function PrivacyPage() {
           with their passwords, are kept in the macOS Keychain; WorkIt never receives your job-site
           passwords. While a form is open, the app also keeps its record (the answers and a
           screenshot), its step-by-step log and the files it gives the form; they are deleted once
-          WorkIt has what you sent, or once you let the form go.
+          WorkIt has what you sent, or once you let the form go. If WorkIt can&apos;t be reached
+          when you submit, the app keeps that application&apos;s questions and answers until it
+          sends them.
         </li>
         <li>
           <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
@@ -191,14 +193,15 @@ export default function PrivacyPage() {
           (you see, change or remove them in the app&apos;s Answers tab and in Application Info),
           except an answer for one application&apos;s essay, which goes only into the AI calls that
           write that application&apos;s essays and is not kept; each application you submit, with
-          its questions and the answers the form sent (never a password or an SSN), which WorkIt
-          shows on that application&apos;s page; and your Auto Apply queue, as the Chrome extension
-          does; and, only when you send a report from the app&apos;s &ldquo;Report a problem&rdquo;
-          form, what you write there and, if you choose to include them, one application&apos;s
-          record and its step-by-step log, with your personal details hidden in the log. If you
-          allow it, we may email you about your report. We use a report only to fix the problem it
-          shows, and we delete it once that problem is fixed. The app sends no analytics and no
-          automatic crash reports.
+          its questions and the answers the form sent (never a password or an SSN, but any
+          self-identification answers it asked, such as gender or disability, are among them), which
+          WorkIt shows on that application&apos;s page; and your Auto Apply queue, as the Chrome
+          extension does; and, only when you send a report from the app&apos;s &ldquo;Report a
+          problem&rdquo; form, what you write there and, if you choose to include them, one
+          application&apos;s record and its step-by-step log, with your personal details hidden in
+          the log. If you allow it, we may email you about your report. We use a report only to fix
+          the problem it shows, and we delete it once that problem is fixed. The app sends no
+          analytics and no automatic crash reports.
         </li>
         <li>
           <strong>Your Answer bank.</strong> Your answers to short questions that forms ask once,

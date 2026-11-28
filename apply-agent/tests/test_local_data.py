@@ -196,11 +196,11 @@ def test_what_the_form_showed_at_the_press_wins_and_an_edited_ai_answer_is_no_lo
 
 
 class Calls(WorkIt):
-    """WorkIt's own record_applied over calls kept in `seen`: the job already at `before`, and the PUT of what the
-    form sent answered with `status`."""
+    """WorkIt's own record_applied over calls kept in `seen`: the job already at `before`, the PUT of what the form
+    sent answered with `status`, and the naming of its Sent resume with `resume`."""
 
-    def __init__(self, before, status=204):
-        self._before, self._status, self.seen = before, status, []
+    def __init__(self, before, status=204, resume=201):
+        self._before, self._status, self._resume, self.seen = before, status, resume, []
 
     def add_by_link(self, url, company, title):
         return "job-8", self._before
@@ -210,8 +210,13 @@ class Calls(WorkIt):
 
     def call(self, method, path, body=None, timeout=0):
         self.seen.append((method, path))
-        if self._status != 204:
+        if path.endswith("/sent-resumes"):
+            if self._resume != 201:
+                raise WorkItError("refused", self._resume)
+            return {"id": "sent-1"}
+        if path.endswith("/sent") and self._status != 204:
             raise WorkItError("refused", self._status)
+        return None
 
 
 def test_a_retried_applied_write_still_keeps_what_the_form_sent():
@@ -225,6 +230,33 @@ def test_a_retried_applied_write_still_keeps_what_the_form_sent():
     assert Calls(Stage.APPLIED, 409).record_applied(POSTING.url, "Acme", "Intern", answers=answers) == Stage.APPLIED
     with pytest.raises(WorkItError):
         Calls(Stage.APPLIED, 422).record_applied(POSTING.url, "Acme", "Intern", answers=answers)
+
+
+def test_a_resume_deleted_while_the_form_was_held_never_loses_the_submit():
+    """Fault: WorkIt no longer had the Sent resume (deleted on the website while the form was held), its 404 refused
+    the write for good, and the Submit never reached the Applications Tracker with its answers."""
+    gone = Calls(None, resume=404)
+
+    assert gone.record_applied(POSTING.url, "Acme", "Intern", resume_ref={"built_resume_id": "deleted"},
+                               answers=[{"question": "Why Acme?", "answer": "Trains.", "ai": False}]) is None
+    assert [path.rsplit("/", 1)[-1] for _, path in gone.seen] == ["sent-resumes", "stage", "sent"]
+    with pytest.raises(WorkItError):
+        Calls(None, resume=422).record_applied(POSTING.url, "Acme", "Intern", resume_ref={"built_resume_id": "b1"})
+
+
+def test_a_fill_with_no_tailored_resume_drops_the_id_an_earlier_fill_left():
+    """Fault: a form let go kept its tailored resume's id, and a later fill of the job (its tailored resume deleted
+    since, or another student's after a Sign Out) named that resume as its Sent resume."""
+    class NoTailored:
+        def logged_in(self):
+            return True
+
+        def tailored_resume(self, url):
+            return None
+
+    tailored.GIVEN["app-7"] = {"built_resume_id": "old"}
+
+    assert tailored.from_workit(NoTailored())(POSTING) is None and "app-7" not in tailored.GIVEN
 
 
 def test_a_cleanup_that_fails_never_makes_a_delivered_write_look_lost(tmp_path):
@@ -264,7 +296,8 @@ def test_a_submit_still_on_its_way_to_workit_counts_as_applied(tmp_path):
 
 def test_the_apps_past_applications_come_from_its_applications_tracker_on_workit(tmp_path, monkeypatch):
     """Fault: with no Tracker file (W11), "Have you applied to Acme before?" lost the Yes WorkIt's Applications Tracker
-    holds, and the student's other role at Acme went unseen."""
+    holds, the student's other role at Acme went unseen, or after a Sign Out a failed read left the last student's
+    applications for the next one's forms."""
     monkeypatch.setattr(build, "STUDENT", True)
     monkeypatch.setattr(tracker, "ON_WORKIT", [])
 
@@ -281,6 +314,8 @@ def test_the_apps_past_applications_come_from_its_applications_tracker_on_workit
     assert tracker.past_applications(POSTING.url, tmp_path / "tracker.json") == (["Acme"], ["Acme"])
     assert [(o.title, o.applied) for o in other_roles.others(POSTING, [], tmp_path / "tracker.json")] == \
         [("Data Intern", True)]
+    already_applied.Check(Down(), tmp_path / "tracker.json", (), tmp_path / "queue.json").problem()  # the next sign-in's
+    assert tracker.ON_WORKIT == []  # a read that failed: none of the last student's applications stay
 
 
 def test_the_sent_resume_is_named_only_when_the_form_took_the_resume(monkeypatch):

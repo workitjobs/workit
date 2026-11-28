@@ -205,7 +205,10 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   stage of, its answers lost on the way, is sent again and finds it
   applied, and WorkIt's 409 for answers it has already counts as kept.
   The Sent resume is named only when the form took the resume
-  (`student.resume_ref`). Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
+  (`student.resume_ref`); a resume WorkIt no longer has (404: deleted on
+  the website while the form was held) names none, and the Submit still
+  goes on the Tracker with its answers. Each fetch of a tailored resume
+  first drops the id an earlier fill of the job left (`tailored.GIVEN`). Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
   application's files from the Mac (`apply.local_data`); a write that
   waits keeps its answers in `workit-queue.json` until it is sent. Its
   Tracker is `tracker.KeychainTracker`: no `tracker.json`, its rows in
@@ -446,7 +449,9 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
 - In the Student build the applications it reads also become the
   Tracker's rows for the run (`tracker.ON_WORKIT`, read through
   `tracker.saved`), so `past_applications` and `other_roles.others` see
-  what Lisul applied to with no Tracker file.
+  what Lisul applied to with no Tracker file. The list is emptied before
+  each read: Sign Out doesn't quit the app, and a failed read must leave
+  none of the last student's applications.
 - A rehearsal of such a link ends as "already applied". Its terminal line
   and its tile say "Already applied on <date> (<source>)". No browser
   opens. A run makes it a Handoff and opens no form.

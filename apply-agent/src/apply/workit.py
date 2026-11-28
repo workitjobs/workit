@@ -292,13 +292,23 @@ class WorkIt:
             self._keep_sent(job, answers)
             return before
         me = self.applicant_id()
-        sent = self.send_resume(me, job, resume) if resume else self.name_resume(me, job, resume_ref) \
-            if resume_ref else None
+        sent = self.send_resume(me, job, resume) if resume else self._named(me, job, resume_ref) if resume_ref else None
         self.set_stage(me, job, stage, applied_on)
         if sent:
             self.link_resume(job, sent)
         self._keep_sent(job, answers)
         return None
+
+    def _named(self, applicant_id: str, job_id: str, ref: dict) -> str | None:
+        """`name_resume`, or None when WorkIt no longer has that resume (404: deleted on the website while the form
+        was held): the Submit goes on the Tracker all the same, with no Sent resume."""
+        try:
+            return self.name_resume(applicant_id, job_id, ref)
+        except WorkItError as error:
+            if error.status != 404:
+                raise
+            print(f"No Sent resume named: WorkIt no longer has the resume the form was given ({error})", file=sys.stderr)
+            return None
 
     def _keep_sent(self, job_id: str, answers: list[dict] | None) -> None:
         """What an applied application's form sent, on WorkIt (W11). WorkIt keeps one per application, so its 409

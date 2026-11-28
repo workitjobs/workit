@@ -112,6 +112,8 @@ class Check:
         with self._lock:
             if self._applied is None:
                 self._applied = {}
+                if build.STUDENT:  # never the last student's past applications: Sign Out doesn't quit the app
+                    tracker.ON_WORKIT.clear()
                 try:
                     client = self._client or WorkIt()
                     rows = []

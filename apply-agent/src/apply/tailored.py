@@ -45,6 +45,9 @@ def from_workit(client: workit.WorkIt | None = None) -> Tailored:
     client = client or workit.WorkIt()
 
     def tailored(posting: Posting) -> bytes | None:
+        # This fill's own: an id an earlier fill of the job left (a form let go, a resume deleted since, another
+        # student before a Sign Out) is never this one's Sent resume.
+        GIVEN.pop(posting.id, None)
         if not client.logged_in():
             return None
         try:
