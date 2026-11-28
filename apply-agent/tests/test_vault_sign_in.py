@@ -269,3 +269,27 @@ def test_a_held_page_is_none_once_lifted_or_closed():
     assert kept.held_page() is kept._page
     kept._lifted = True
     assert kept.held_page() is None
+
+
+def test_a_page_whose_chrome_has_a_devtools_port_gets_nothing():
+    """A CDP Worker's page (a Playwright page: it has a context) listens on a TCP DevTools port."""
+    page = Page("https://amazon.jobs/en/login")
+    page.context = object()
+    done = go(page)
+    assert done.how == LEFT and done.said and "DevTools port" in done.why
+    assert page.sent == [] and all(box.value == "" for box in page.boxes)
+
+
+def test_a_plain_workers_page_has_no_devtools_port():
+    from apply.plain.page import PortPage
+
+    assert vault_sign_in.debug_port(PortPage.__new__(PortPage)) is False
+
+
+def test_the_open_port_is_said_in_the_pause(monkeypatch):
+    monkeypatch.setattr(vault_sign_in.vault, "STORE", store())
+    page = Page("https://amazon.jobs/en/login")
+    page.context = object()
+    stopped = summary()
+    assert rehearsal._from_vault(stopped, Site(page), set()) is False
+    assert "DevTools port" in stopped.why
