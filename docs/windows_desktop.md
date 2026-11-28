@@ -1,7 +1,7 @@
 # WorkIt Auto Apply on Windows
 
-**Status (KAN-929):** being built. P1 to P5, P7 to P9 and P11 to P13 are
-built and tested on the Mac. Nothing has run on Windows yet: section 7's
+**Status (KAN-929):** being built. P1 to P5, P7 to P9, P12, P13 and
+P11's keep awake, notices and temp folder are built and tested on the Mac. Nothing has run on Windows yet: section 7's
 check list is next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
