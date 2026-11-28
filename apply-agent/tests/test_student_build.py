@@ -288,13 +288,41 @@ def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch)
                            tracker=SimpleNamespace(rows=list, employer_accounts=list))
     monkeypatch.setattr(student, "FREE_POLL", 0.0)
     monkeypatch.setattr(student, "workers", lambda: 1)
-    runs = student.Runs({}, AnswerBank(), make=lambda profile, bank: made, rehearse=lambda *args: None)
+    runs = student.Runs({}, AnswerBank(), make=lambda profile, bank: made, rehearse=lambda *args, **kwargs: None)
 
     runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
 
     assert site.busy == 0
 
 
+def test_a_form_submitted_from_the_window_is_kept_in_its_tracker(monkeypatch):
+    """Fault: the window's run gave rehearse no Tracker to keep a Submit in, so 85 applications sent from it never
+    reached the Applications Tracker on WorkIt (live, 2026-11-27)."""
+    class Site:
+        def endpoint(self, worker):
+            return None
+
+        def close(self):
+            pass
+
+        def refuse_in_use(self):
+            pass
+
+    tracker = SimpleNamespace(rows=list, employer_accounts=list)
+    made = SimpleNamespace(site=Site(), answer_bank=None, keychain=None, everyday=None, tracker=tracker)
+    monkeypatch.setattr(student, "FREE_POLL", 0.0)
+    monkeypatch.setattr(student, "workers", lambda: 1)
+    given = {}
+    runs = student.Runs({}, AnswerBank(), make=lambda profile, bank: made, rehearse=lambda *args, **kwargs: given.update(kwargs))
+
+    runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
+
+    assert given["submitted_to"] is tracker
+
+
+def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
+    """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
+    removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""
 def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build, monkeypatch):
     """Fault: the Student build's Employer accounts (and the passwords Remove All My Data removes) were lost at each
     launch, it kept a Tracker file (W11: only the keychain holds them), or the student's own Submit never reached
