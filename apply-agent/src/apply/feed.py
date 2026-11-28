@@ -129,6 +129,17 @@ def names(url: str, listings: bytes) -> tuple[str, str] | None:
     return next(((r["company_name"], r["title"]) for r in json.loads(listings) if repost_keys(r["id"], r["url"]) & keys), None)
 
 
+def abroad(url: str, listings: bytes) -> list[str]:
+    """The places the Feed lists for the role at `url` when none is in the
+    US (Apple's Cambridge, UK internship pasted as a Request), else []: a
+    role the Feed doesn't list rules no one out."""
+    keys = repost_keys("", url) - {("id", "")}
+    for r in json.loads(listings):
+        if repost_keys(r["id"], r["url"]) & keys and r["locations"]:
+            return [] if any(_is_us(place) for place in r["locations"]) else list(r["locations"])
+    return []
+
+
 def repost_keys(application_id: str, url: str) -> set[tuple[str, ...]]:
     """What makes two Postings the same role: the Feed id, the normalized URL,
     or the Workday tenant and req id (one req is often on two career sites)."""
