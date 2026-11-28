@@ -97,7 +97,9 @@ has neither.
   (`plain/seed_setup.Desk.reveal`), a tile's capture (`window_capture.mode`),
   and keeping the computer awake during a run
   (`awake.command`: `caffeinate` on the Mac). FocusKeeper (`focus.py`) is the
-  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
+  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. So is ejecting the
+  installer's disk image (`updates.eject_installer`, `hdiutil`): elsewhere
+  it does nothing. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else
@@ -730,11 +732,38 @@ notices strict (above).
   docstring would turn into a check that always passes. Nuitka's report
   (`build/out/report.xml`) lists every module it compiled and why.
 - **The build ends with the DMG**, `build/out/WorkIt Auto Apply.dmg`: the
-  app (copied with `ditto`, which keeps its signatures), a link to
-  Applications, and `License.txt` and `Third-Party Notices.txt` beside them
-  (W10). The build mounts it read-only and refuses one whose app fails
-  `codesign --verify` or has no Applications link. A failed or refused build
-  leaves no DMG: the build deletes the last one when it starts.
+  app and a link to Applications, with WorkIt's arrow between them, as
+  other Mac apps' downloads look (KAN-950). `dmgbuild` (the `build` group,
+  so it never ships or joins the notices) copies the app with `ditto`,
+  which keeps its signatures, and writes Finder's layout file itself: no
+  Finder runs, which a GitHub Mac can't script. The arrow picture,
+  `assets/dmg-background.png` with its `@2x`, is drawn for `DMG_LAYOUT`'s
+  places by `scripts/dmg_background.py`: run it after a change to the
+  layout, and commit both pictures. The disk takes the app's icon through
+  Apple's `SetFile`, one of Xcode's tools; no GitHub Mac's list names it,
+  so a Mac without it builds the DMG with the plain disk icon and says so.
+  Never set dmgbuild's `hide_extensions`: it writes Finder's data onto the
+  app's folder, and codesign then refuses the app
+  ("Disallowed xattr com.apple.FinderInfo", found 2026-11-27); Finder
+  hides `.app` by itself unless the Mac shows every extension. The
+  license and the notices are not beside the app (they were until
+  2026-11-27): the app holds both, the first run shows the license and
+  Settings links both (W10). The build mounts the DMG read-only and
+  refuses one whose app fails `codesign --verify` or has no Applications
+  link. A failed or refused build leaves no DMG: the build deletes the
+  last one when it starts.
+- **The app ejects the DMG it was installed from** (`updates.eject_installer`,
+  KAN-950) when it runs from anywhere else, at each launch, so the disk
+  leaves Finder's sidebar once the student opens the app from
+  Applications. It finds its disk by the bundle ID and build number of
+  the app on it, and never ejects a disk it runs from, directly or
+  through macOS's moved-aside copy of a downloaded app (App
+  Translocation). Only the disk
+  of this very build goes: a newer download the student hasn't dragged in
+  yet stays, since they may open the old app first.
+  `tests/test_updates.py` (in CI) holds each of those faults. The `.dmg`
+  file stays in Downloads: deleting it there needs the student's leave
+  for that folder, one more prompt (the user's call, 2026-11-27).
 - **The app's icon is `assets/app-icon.png`**: WorkIt's logo at 1024 px on
   Apple's macOS icon grid, an 824 px shape with a transparent margin, so it
   shows at the size of other apps' icons (the logo filled the whole canvas
