@@ -112,7 +112,9 @@ every installed app installs it, with no question.
 
 1. Test `main`: pull it, `python3 scripts/build_app.py`, launch the app and
    run it (above). The workflow builds the same commit, with the same
-   hardened runtime: only the signer differs.
+   hardened runtime. Two things differ: the signer, and library
+   validation, which a test build turns off (`../CLAUDE.md`, "Every
+   program in the app runs with the hardened runtime").
 2. `gh workflow run publish-app.yml --ref main`. Its rules, and what to do
    when a run fails: `../../.github/CLAUDE.md`, Publish WorkIt Auto Apply.
 

@@ -836,10 +836,11 @@ give each step's mechanism; these are its rules.
   token that writes only this bucket.
   Whoever can change a workflow on `main` can read them, so a workflow
   change gets the same review as code.
-- **Time and cost.** `macos-15` has 3 M1 cores and 7 GB; a release took
-  3.5 minutes on a 10-core M2 Pro, so expect 10 to 20 here, and Apple's
-  notarization a few minutes more (not measured yet; the job's timeout is
-  90 minutes, the notarize step's 45). The run takes one of the
+- **Time and cost.** `macos-15` has 3 M1 cores and 7 GB. The first run
+  (2026-11-27, before step 2) took 10 minutes 16 seconds: 9 minutes 58
+  seconds to build, then seconds to sign for Sparkle and to upload.
+  Apple's notarization adds a few minutes, not measured yet. The job's
+  timeout is 90 minutes, the notarize step's 45. The run takes one of the
   organization's 5 macOS jobs (CI, the Apply jobs) and can queue behind
   them. Free while the repo is public; once W0 makes Apply's repo private,
   a Mac minute counts as about 10 of the plan's free minutes.

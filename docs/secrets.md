@@ -406,9 +406,12 @@ them on a Mac; at the end, nothing of them stays on it.
 1. **Enroll** at https://developer.apple.com/programs/enroll as an
    individual (D20 of `desktop_application_auto_apply.md`), $99 a year.
    Apple checks the identity first, which can take a day or two.
-2. **Make the certificate request.** Keychain Access, the Keychain Access
-   menu, Certificate Assistant, Request a Certificate From a Certificate
-   Authority: your email, Common Name "WorkIt Auto Apply", Saved to disk.
+2. **Make the certificate request.** Open Keychain Access with Spotlight
+   or `open -a "Keychain Access"`: on recent macOS it isn't in Utilities
+   (it is in `/System/Library/CoreServices/Applications` on macOS 26).
+   Then the Keychain Access menu, Certificate Assistant, Request a
+   Certificate From a Certificate Authority: your email, Common Name
+   "WorkIt Auto Apply", Saved to disk.
    This also puts the certificate's private key in your login keychain.
 3. **Make the certificate.** developer.apple.com, Account, Certificates,
    +, Developer ID Application, G2 Sub-CA, upload the request, then
