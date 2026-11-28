@@ -31,6 +31,7 @@ from apply.dashboard import (
     to_page,
     verdict,
 )
+from apply.plain import seed_setup
 
 JPEG = b"\xff\xd8\xff\xe0 a frame"
 
@@ -708,7 +709,7 @@ def test_raise_window_brings_the_dashboard_chrome_to_the_front(monkeypatch, tmp_
         return _Done("4242\n") if cmd[0] == "pgrep" else _Done("true\n")
 
     monkeypatch.setattr(dashboard.subprocess, "run", run)
-    assert raise_window(tmp_path / "dashboard")
+    assert raise_window(tmp_path / "dashboard", system="darwin")
     assert calls[0][-1].startswith("MacOS/Google Chrome --app=") and str(tmp_path / "dashboard") in calls[0][-1]
     assert calls[1][0] == "osascript" and "unix id is 4242" in calls[1][-1]
 
@@ -718,23 +719,23 @@ def test_raise_window_waits_for_the_window_to_be_drawn(monkeypatch, tmp_path):
     monkeypatch.setattr(dashboard.subprocess, "run",
                         lambda cmd, **kwargs: _Done("4242\n") if cmd[0] == "pgrep" else _Done(next(answers)))
     monkeypatch.setattr(dashboard.time, "sleep", lambda s: None)
-    assert raise_window(tmp_path / "dashboard")
+    assert raise_window(tmp_path / "dashboard", system="darwin")
 
 
 def test_raise_window_gives_up_when_the_window_never_appears(monkeypatch, tmp_path):
     monkeypatch.setattr(dashboard.subprocess, "run", lambda cmd, **kwargs: _Done())
     monkeypatch.setattr(dashboard.time, "sleep", lambda s: None)
-    assert not raise_window(tmp_path / "dashboard", timeout=0)
+    assert not raise_window(tmp_path / "dashboard", timeout=0, system="darwin")
 
 
 def test_window_open_says_whether_the_windows_own_chrome_still_runs(monkeypatch, tmp_path):
     seen = []
     monkeypatch.setattr(dashboard.subprocess, "run", lambda cmd, **kwargs: seen.append(cmd) or _Done("4242\n"))
-    assert dashboard.window_open(tmp_path / "answers")
+    assert dashboard.window_open(tmp_path / "answers", "darwin")
     assert seen[0][0] == "pgrep" and f"--user-data-dir={tmp_path / 'answers'}" in seen[0][-1]
 
     monkeypatch.setattr(dashboard.subprocess, "run", lambda cmd, **kwargs: _Done(""))
-    assert not dashboard.window_open(tmp_path / "answers")
+    assert not dashboard.window_open(tmp_path / "answers", "darwin")
 
 
 def test_the_page_cannot_be_selected_into_a_blue_wash():
@@ -801,14 +802,14 @@ def test_show_in_finder_reveals_a_listed_file_only_for_the_window_itself(tmp_pat
     letter = tmp_path / "Test_Person_Resume.pdf"
     letter.write_bytes(b"%PDF")
     opened = []
-    monkeypatch.setattr(dashboard.subprocess, "run", lambda args, **kw: opened.append(args))
+    monkeypatch.setattr(seed_setup, "reveal", opened.append)  # each OS's file manager: test_each_os.py
     with Dashboard(1, FakeFrames({})) as board:
         board.update(0, files=[{"label": "Resume", "name": letter.name, "path": str(letter)}])
         reveal = lambda token: _status(board.url + "/reveal/0/0", data=b"", headers={"X-Apply-Token": token})
         codes = (reveal("wrong"), reveal(board.token))
 
     assert codes == (403, 204)
-    assert opened == [["open", "-R", str(letter)]]
+    assert opened == [letter]
 
 
 def test_the_window_lists_each_file_sent_with_view_and_show_in_finder(tmp_path, window):
