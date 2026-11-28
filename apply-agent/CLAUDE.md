@@ -188,6 +188,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/generic-filler.md`: the generic Filler (`generic_fill.py`) and its reader (`form_tree.py`), the Student
   build's Filler for a job system with no Filler of its own.
+- `docs/todo-tracker.md`: the developer-only application to-do tracker (`todos.py`, `todo_scan.py`, `apply app --todos`, `APPLY_DEV_TODOS`, the window's To-dos, `apply window todos`).
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
