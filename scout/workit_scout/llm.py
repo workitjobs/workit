@@ -65,6 +65,19 @@ def _spent(usage) -> Spent:
     return Spent(read, max((usage.total_tokens or 0) - read, usage.completion_tokens or 0))
 
 
+@dataclass
+class Answered:
+    """Who answered a `complete_json` call, for a caller that logs it: the
+    model that gave the reply and the tokens that reply cost. The caller
+    passes an empty one in and reads it after the call, or after the
+    `InvalidReply` of a reply that failed the schema. It stays empty when no
+    endpoint gave a reply. Tokens an endpoint spent before it failed or
+    stalled are not known, so they are not counted."""
+
+    model: str | None = None
+    spent: Spent = Spent()
+
+
 class ScoutUnavailable(Exception):
     """No configured model could answer. The message is written for the user.
     `spent` is what the endpoints tried cost first (`complete_schema`)."""
@@ -265,6 +278,7 @@ class LLM:
         identity: Identity,
         max_tokens: int | None = None,
         wait: float | None = None,
+        answered: Answered | None = None,
     ) -> T:
         """
         One whole reply, not streamed, as JSON checked against `schema`. Nothing
@@ -275,6 +289,8 @@ class LLM:
         `wait` is how many seconds each endpoint gets: one that has not
         answered by then is given up and the next is asked, as at a 503.
         Unset, an endpoint is waited for as long as the client allows.
+        `answered`, when given, is filled with the model that replied and the
+        reply's tokens, before the reply is checked.
         """
         messages = _deidentified(messages, identity)
         failure = OFFLINE
@@ -282,7 +298,7 @@ class LLM:
             try:
                 # `wait` covers the tries after a 5xx too: it is the
                 # endpoint's whole time.
-                text = await asyncio.wait_for(
+                text, spent = await asyncio.wait_for(
                     self._again(
                         endpoint, self._complete_json, client, endpoint, messages, schema, max_tokens
                     ),
@@ -299,6 +315,8 @@ class LLM:
                     raise ScoutUnavailable(OFFLINE) from exc
                 failure = _user_message(exc)
                 continue
+            if answered is not None:
+                answered.model, answered.spent = endpoint.model, spent
             try:
                 return schema.model_validate_json(text)
             except ValidationError as exc:
@@ -381,11 +399,10 @@ class LLM:
         messages: Sequence[Message],
         schema: type[BaseModel],
         max_tokens: int | None = None,
-    ) -> str:
-        text, _ = await self._complete_schema(
+    ) -> tuple[str, Spent]:
+        return await self._complete_schema(
             client, endpoint, messages, schema.__name__, schema.model_json_schema(), max_tokens
         )
-        return text
 
     async def _complete_schema(
         self,

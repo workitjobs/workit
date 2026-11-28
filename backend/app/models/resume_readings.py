@@ -14,6 +14,8 @@ ROUTES = ("upload", "preview", "update", "import_again")
 # the request too large), the model ran past MODEL_WAIT_SECONDS, its reply
 # failed the schema, or the text backed none of its entries.
 PARSER_REASONS = ("no_text", "no_uses_left", "model_unavailable", "timeout", "wrong_shape", "nothing_backed")
+# The `model` column's length; the writer clips a longer name to it.
+MODEL_NAME_LENGTH = 100
 
 
 class Resume_Reading(Base):
@@ -57,3 +59,12 @@ class Resume_Reading(Base):
     # `_backed`): text fields, bullets, courses, tools, an entry's dates, a
     # GPA, and skills. Null when no reply came back to check.
     fields_dropped: Mapped[int | None] = mapped_column(Integer)
+    # The model that replied, as the chain names it ("gemini-3.5-flash-lite"),
+    # and the tokens its reply cost: read (the prompt) and written (the
+    # reply, reasoning included). KAN-955. Null when no model replied: the
+    # parser read alone, or every endpoint failed or stalled. Set for a
+    # reply that failed the schema or backed nothing, since it was paid for.
+    # Tokens an endpoint spent before it failed are not known or counted.
+    model: Mapped[str | None] = mapped_column(String(MODEL_NAME_LENGTH))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)

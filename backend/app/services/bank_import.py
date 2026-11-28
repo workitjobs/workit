@@ -24,7 +24,7 @@ from typing import Literal
 
 from pydantic import ValidationError
 from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
-from workit_scout.llm import LLM, InvalidReply
+from workit_scout.llm import LLM, Answered, InvalidReply
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import SECTION_FIELDS, YEAR_DATES, DraftEntry, ModelReading
@@ -362,15 +362,20 @@ def _withheld(value: object) -> bool:
     return isinstance(value, str) and bool(placeholders_in(value))
 
 
-async def read_with_model(raw_text: str, llm: LLM, *, identity: Identity) -> ModelReading:
+async def read_with_model(
+    raw_text: str, llm: LLM, *, identity: Identity, answered: Answered | None = None
+) -> ModelReading:
     """The model's reading of the resume text. The seam removes identity data
     from every message first. Raises `ScoutUnavailable` (or its
-    `InvalidReply`) when no model answers or the answer fails the schema."""
+    `InvalidReply`) when no model answers or the answer fails the schema.
+    `answered` takes the model that replied and its tokens (KAN-955)."""
     prompt = [
         {"role": "system", "content": MODEL_PROMPT},
         {"role": "user", "content": raw_text[:MAX_RESUME_CHARS]},
     ]
-    return await llm.complete_json(prompt, ModelReading, identity=identity, wait=MODEL_TRY_SECONDS)
+    return await llm.complete_json(
+        prompt, ModelReading, identity=identity, wait=MODEL_TRY_SECONDS, answered=answered
+    )
 
 
 def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEntry]:
@@ -514,7 +519,10 @@ class Reading:
     """One reading of an upload: what goes into the bank, who read it, and
     for the reading log (KAN-898, models/resume_readings.py) why the
     parser's was saved and how many of the model's fields the check
-    against the text dropped (None when no reply came back to check)."""
+    against the text dropped (None when no reply came back to check), and
+    the model that replied with the tokens its reply cost (KAN-955; None
+    when no model replied, so for a reply that failed the schema or backed
+    nothing they are set)."""
 
     entries: list[DraftEntry]
     skills: list[tuple[str, str | None]]
@@ -522,6 +530,20 @@ class Reading:
     # One of models/resume_readings.py's PARSER_REASONS; None for the model's.
     reason: str | None = None
     fields_dropped: int | None = None
+    model: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+def _replied(answered: Answered) -> dict:
+    """The reading's model and tokens, once a model has replied."""
+    if answered.model is None:
+        return {}
+    return {
+        "model": answered.model,
+        "input_tokens": answered.spent.input_tokens,
+        "output_tokens": answered.spent.output_tokens,
+    }
 
 
 def _failure(exc: Exception) -> str:
@@ -556,18 +578,21 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     # "Chick-ﬁl-A": the PDF's ligatures and other compatibility characters,
     # which the parser's clean-up fixes, would be copied by the model as is.
     text = unicodedata.normalize("NFKC", fix_symbols(raw_text))
+    answered = Answered()
     try:
         async with asyncio.timeout(MODEL_WAIT_SECONDS):
-            reading = await read_with_model(_from_first_heading(text), llm, identity=identity)
+            reading = await read_with_model(
+                _from_first_heading(text), llm, identity=identity, answered=answered
+            )
     except Exception as exc:
         # ScoutUnavailable (down, out of quota, the wrong shape), the wait
         # running out, or anything else: the parser's reading still stands.
         logger.warning("The model could not read a resume, so the parser's reading is saved: %r", exc)
-        return Reading(entries, skills, reason=_failure(exc))
+        return Reading(entries, skills, reason=_failure(exc), **_replied(answered))
     drafts, dropped = checked_drafts(with_own_wording(reading, entries), text)
     dropped += unbacked_skills(reading, text)
     if not drafts:
-        return Reading(entries, skills, reason="nothing_backed", fields_dropped=dropped)
+        return Reading(entries, skills, reason="nothing_backed", fields_dropped=dropped, **_replied(answered))
     drafts, tools = with_tools_split(drafts)
     drafts = with_parsers_reading(with_links(with_award_givers(drafts), entries), entries)
     # The model's skills first, so its groups win; then each project's
@@ -575,7 +600,9 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     # a skill the model left out is kept.
     beside = tools + [tool for draft in drafts for tool in draft.tools] + role_tools(reading, text)
     found = model_skills(reading, text) + [(tool, None) for tool in beside] + skills
-    return Reading(tidy_drafts(drafts), skill_pairs(found), "model", fields_dropped=dropped)
+    return Reading(
+        tidy_drafts(drafts), skill_pairs(found), "model", fields_dropped=dropped, **_replied(answered)
+    )
 
 
 def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:

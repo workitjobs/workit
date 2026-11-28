@@ -19,7 +19,7 @@ from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM
 
-from app.models.resume_readings import Resume_Reading
+from app.models.resume_readings import MODEL_NAME_LENGTH, Resume_Reading
 from app.schemas.auth import AuthenticatedAccount
 from app.services.bank_import import Reading, read_resume
 from app.services.identity import load_identity
@@ -52,6 +52,9 @@ async def read_upload(
         applicant_id=applicant_id, route=route, read_by=reading.read_by, reason=reading.reason,
         duration_ms=duration_ms, entries=len(reading.entries), skills=len(reading.skills),
         fields_dropped=reading.fields_dropped,
+        # Clipped to the column: a longer name must never fail the upload
+        model=reading.model[:MODEL_NAME_LENGTH] if reading.model else None,
+        input_tokens=reading.input_tokens, output_tokens=reading.output_tokens,
     ))
     await session.flush()
     return reading, left
