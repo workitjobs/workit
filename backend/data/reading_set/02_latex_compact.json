@@ -1,0 +1,146 @@
+{
+ "file": "02_latex_compact.pdf",
+ "layout": "latex_compact",
+ "person": {
+  "name": "Marcus Bell",
+  "email": "mbell@example.com",
+  "phone": "(555) 0105-0524",
+  "links": [
+   "github.com/mbell"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Riverside State University",
+   "location": "Riverside, CA",
+   "degree": "Bachelor of Arts",
+   "field_of_study": "Cognitive Science",
+   "start": "2023-09",
+   "end": "2027-05",
+   "expected": true,
+   "coursework": [
+    "Human-Computer Interaction",
+    "Thermodynamics",
+    "Computer Networks",
+    "Computer Architecture",
+    "Probability and Statistics",
+    "Linear Algebra"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Machine Learning Intern",
+   "organization": "Northwind Analytics",
+   "start": "2026-06",
+   "end": "2026-08",
+   "bullets": [
+    "Built a demand forecasting model in scikit-learn that beat the old baseline by 9% MAPE",
+    "Set up Airflow jobs to retrain the model weekly on fresh sales data"
+   ],
+   "location": "Seattle, WA"
+  },
+  {
+   "section": "experience",
+   "title": "iOS Developer Intern",
+   "organization": "Pocketwise",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Shipped a budgeting widget in Swift and SwiftUI used by 20,000 people in its first month",
+    "Fixed memory leaks that caused crashes on older iPhones"
+   ],
+   "location": "Los Angeles, CA"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Portfolio Optimizer",
+   "tools": [
+    "Python",
+    "NumPy"
+   ],
+   "bullets": [
+    "Built a mean-variance optimizer that rebalances a 20-stock portfolio monthly",
+    "Back-tested the strategy over ten years of daily prices"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Habit Garden",
+   "tools": [
+    "Swift"
+   ],
+   "bullets": [
+    "Designed and built an iOS habit tracker that grows a garden as streaks continue",
+    "Wrote 40 unit tests and published it to TestFlight for 60 testers"
+   ]
+  },
+  {
+   "section": "leadership",
+   "title": "Mentor",
+   "organization": "First-Gen Scholars Program",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Met weekly with three first-year students to plan courses and internships"
+   ]
+  },
+  {
+   "section": "leadership",
+   "title": "Captain",
+   "organization": "Club Soccer",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Led practices for 25 players and organized travel to six away games"
+   ]
+  },
+  {
+   "section": "certifications",
+   "title": "Google Data Analytics Certificate",
+   "issuer": "Google"
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Distance running, jazz piano and cooking"
+   ]
+  }
+ ],
+ "skills": [
+  "Swift",
+  "JavaScript",
+  "Python",
+  "Kotlin",
+  "TypeScript",
+  "Node.js",
+  "Spring Boot",
+  "React",
+  "Linux",
+  "Tableau",
+  "Figma",
+  "scikit-learn",
+  "Airflow",
+  "pandas",
+  "MongoDB",
+  "NumPy"
+ ]
+}

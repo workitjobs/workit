@@ -1,0 +1,145 @@
+{
+ "file": "19_html_dates_left.pdf",
+ "layout": "html_dates_left",
+ "person": {
+  "name": "Leila Ahmadi",
+  "email": "lahmadi@example.com",
+  "phone": "(555) 0107-0720",
+  "links": [
+   "github.com/lahmadi"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "University of Cedar Falls",
+   "location": "Cedar Falls, IA",
+   "degree": "Bachelor of Science",
+   "field_of_study": "Computer Engineering",
+   "start": "2023-08",
+   "end": "2027-05",
+   "expected": true,
+   "coursework": [
+    "Probability and Statistics",
+    "Machine Learning",
+    "Thermodynamics"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Cloud Infrastructure Intern",
+   "organization": "Stratus Bank",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Wrote Terraform modules for 30 internal services on Azure",
+    "Cut monthly cloud spend by $11,000 by right-sizing idle virtual machines"
+   ],
+   "location": "Charlotte, NC"
+  },
+  {
+   "section": "experience",
+   "title": "Software Engineering Intern",
+   "organization": "Acme Robotics",
+   "start": "2023-05",
+   "end": "2023-08",
+   "bullets": [
+    "Built a Python service that schedules charging for 40 warehouse robots, cutting idle time by 18%",
+    "Wrote integration tests in pytest for the fleet API, raising coverage from 52% to 81%"
+   ],
+   "location": "Boston, MA"
+  },
+  {
+   "section": "projects",
+   "title": "Election Data Explorer",
+   "tools": [
+    "R",
+    "SQL"
+   ],
+   "bullets": [
+    "Joined 30 years of county election results with census data in SQL",
+    "Built interactive maps in R Shiny for a political science class"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Line Following Robot",
+   "tools": [
+    "C++",
+    "Arduino"
+   ],
+   "bullets": [
+    "Programmed a PID controller that finished a 10 meter track in 14 seconds",
+    "Placed second of 22 teams at the spring robotics showcase"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Budget Buddy",
+   "tools": [
+    "React",
+    "Firebase"
+   ],
+   "bullets": [
+    "Built a shared budgeting app for roommates with real-time expense splitting",
+    "Reached 300 users across three campuses in its first semester"
+   ],
+   "end": "2023",
+   "link": "github.com/lahmadi/budget-buddy"
+  },
+  {
+   "section": "leadership",
+   "title": "Volunteer Coordinator",
+   "organization": "Harbor Food Pantry",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Scheduled 60 volunteers a month and set up a sign-up sheet that cut no-shows in half"
+   ],
+   "location": "Baltimore, MD"
+  },
+  {
+   "section": "awards",
+   "title": "National Merit Finalist",
+   "date": "2025"
+  },
+  {
+   "section": "awards",
+   "title": "Merit Scholarship",
+   "organization": "University of Cedar Falls",
+   "date": "2025-05"
+  }
+ ],
+ "skills": [
+  "Python",
+  "R",
+  "SQL",
+  "C++",
+  "TypeScript",
+  "Java",
+  "React",
+  "Flask",
+  "Docker",
+  "AWS",
+  "Figma",
+  "Jira",
+  "Kubernetes",
+  "Terraform",
+  "Azure",
+  "Arduino",
+  "Firebase"
+ ]
+}

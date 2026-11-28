@@ -1,0 +1,113 @@
+{
+ "file": "10_docx_tabs.docx",
+ "layout": "docx_tabs",
+ "person": {
+  "name": "Owen Patel",
+  "email": "owenpatel@example.com",
+  "phone": "(555) 0109-0975",
+  "links": [
+   "github.com/owenpatel"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Pinecrest State University",
+   "location": "Flagstaff, AZ",
+   "degree": "B.A.",
+   "field_of_study": "Mathematics",
+   "start": "2023-09",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.71
+  },
+  {
+   "section": "experience",
+   "title": "Cloud Infrastructure Intern",
+   "organization": "Stratus Bank",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Wrote Terraform modules for 30 internal services on Azure",
+    "Cut monthly cloud spend by $11,000 by right-sizing idle virtual machines"
+   ],
+   "location": "Charlotte, NC"
+  },
+  {
+   "section": "experience",
+   "title": "Full Stack Developer Intern",
+   "organization": "Orchard Learning",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Built a Django and PostgreSQL feature that lets teachers share lesson plans",
+    "Wrote Jest tests for the React gradebook and fixed 23 bugs before launch"
+   ],
+   "location": "Atlanta, GA"
+  },
+  {
+   "section": "experience",
+   "title": "Data Engineering Intern",
+   "organization": "Bluefin Logistics",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Built Spark jobs that load 40 GB of shipment events into Snowflake each night",
+    "Wrote data quality checks that caught a broken vendor feed within an hour"
+   ],
+   "location": "Miami, FL"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "awards",
+   "title": "Best Design Award",
+   "organization": "Product Design Society",
+   "date": "2025-05"
+  },
+  {
+   "section": "awards",
+   "title": "Undergraduate Research Award",
+   "organization": "College of Engineering",
+   "date": "2024-12"
+  },
+  {
+   "section": "certifications",
+   "title": "Tableau Desktop Specialist",
+   "issuer": "Tableau"
+  }
+ ],
+ "skills": [
+  "Python",
+  "JavaScript",
+  "C++",
+  "Go",
+  "Django",
+  "React",
+  "Node.js",
+  "PyTorch",
+  "PostgreSQL",
+  "Linux",
+  "Excel",
+  "AWS",
+  "Terraform",
+  "Azure",
+  "Jest",
+  "Spark",
+  "Snowflake",
+  "MongoDB"
+ ]
+}

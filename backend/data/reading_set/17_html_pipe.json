@@ -1,0 +1,113 @@
+{
+ "file": "17_html_pipe.pdf",
+ "layout": "html_pipe",
+ "person": {
+  "name": "Mei Tanaka",
+  "email": "meitanaka@example.com",
+  "phone": "(555) 0109-0939",
+  "links": [
+   "github.com/meitanaka"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Lakeshore Institute of Technology",
+   "location": "Chicago, IL",
+   "degree": "B.S.",
+   "field_of_study": "Computer Engineering",
+   "end": "2026-05",
+   "gpa": 3.86,
+   "coursework": [
+    "Human-Computer Interaction",
+    "Computer Networks",
+    "Econometrics",
+    "Algorithms",
+    "Operating Systems"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Cloud Infrastructure Intern",
+   "organization": "Stratus Bank",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Wrote Terraform modules for 30 internal services on Azure",
+    "Cut monthly cloud spend by $11,000 by right-sizing idle virtual machines"
+   ],
+   "location": "Charlotte, NC"
+  },
+  {
+   "section": "experience",
+   "title": "Mechanical Engineering Co-op",
+   "organization": "Torrent Pumps",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Redesigned a pump housing in SolidWorks, cutting its weight by 14%",
+    "Ran tolerance stack-ups and wrote test plans for two new impellers",
+    "Worked with the machine shop to reduce scrap on one part from 6% to 2%"
+   ],
+   "location": "Milwaukee, WI"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "end": "2023"
+  },
+  {
+   "section": "projects",
+   "title": "Line Following Robot",
+   "tools": [
+    "C++",
+    "Arduino"
+   ],
+   "bullets": [
+    "Programmed a PID controller that finished a 10 meter track in 14 seconds",
+    "Placed second of 22 teams at the spring robotics showcase"
+   ],
+   "end": "2024"
+  },
+  {
+   "section": "leadership",
+   "title": "Captain",
+   "organization": "Club Soccer",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Led practices for 25 players and organized travel to six away games"
+   ]
+  },
+  {
+   "section": "custom",
+   "title": "Interests",
+   "bullets": [
+    "Distance running, jazz piano and cooking"
+   ]
+  }
+ ],
+ "skills": [
+  "MATLAB",
+  "JavaScript",
+  "C++",
+  "Kotlin",
+  "Node.js",
+  "TensorFlow",
+  "Git",
+  "Terraform",
+  "Azure",
+  "SolidWorks",
+  "MongoDB",
+  "Arduino"
+ ]
+}

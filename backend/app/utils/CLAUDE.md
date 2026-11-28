@@ -661,3 +661,92 @@ fixture is the extracted text of a real resume layout. The heuristics
 interact -- a fix for one layout has broken another more than once. When a new
 resume parses wrong, add it as a fixture with expected output before touching
 the parser.
+
+The tests check that a fixed layout stays fixed; their expected output was
+written to match this parser, so they pass by design and measure no
+accuracy. The score below does.
+
+## The reading score (KAN-900)
+
+`uv run python -m app.scripts.reading_score` reads every resume in
+`data/reading_set/` as an upload reads it and scores three readings against
+each resume's answer key, field by field: this parser alone, the AI reading
+alone (after the check against the text, before this parser fills it), and
+the combined reading an upload saves. By hand, never in CI: it asks the
+model. Run it before and after a change to this parser, the merge or the
+prompt, and before a model joins the chain.
+
+- **One field is one unit**: a title, organization, location, start, end,
+  degree, major, GPA, link, issuer or award date, and each bullet, course
+  and tool. A missing entry loses all its units. A field the key leaves out
+  must be empty. Text is compared after folding case, spaces, dashes,
+  quotes and a bullet's last period, and nothing more ("B.S" is not
+  "B.S."). Entries pair by the words of their title and organization, in
+  any section. Skills count only when the skills catalog knows them, since
+  only those are saved, and a project's tools are skills.
+- **The model's replies are saved** in `backend/.reading_cache/`
+  (git-ignored), keyed by the prompt and the model, with each call's time
+  and tokens. A rerun asks the model only for what changed, so a parser
+  change scores for free. `--fresh` asks again; `--offline` asks nothing.
+  A failed call (a 503, a 429) is tried twice more, 5 seconds apart, and
+  the report counts every failure: an upload does not retry, so each one
+  is an upload that saved this parser's reading.
+- **`--chain gemini`, `gpt-oss-20b` or `gpt-oss-120b`** (comma-separated
+  for a chain) scores another model with the root `.env`'s keys
+  (`SCOUT_API_KEY` for Gemini, `GROQ_API_KEY`); unset, it is the `SCOUT_*`
+  chain, as the API's. Groq's free tier answers 429 to readings back to
+  back (one is about 2,700 tokens): pass `--pause 30`.
+- **`--show <name>`** prints one resume through each step: the extracted
+  text, what the model was sent (from the first heading, identity removed),
+  and each reading's entries. `--misses` lists every miss; `--json` writes
+  the whole result for a diff between branches.
+- **The answer key** is `<name>.json` beside the resume: `file`, `layout`,
+  `person` (`name`, `email`, `phone`, `links`, which the seam removes),
+  `entries` and `skills`. An entry has `section` and `title`, and as its
+  section takes them `organization` (an award's giver too), `location`,
+  `start` and `end` (`YYYY-MM`, `YYYY` for a year alone, `end: "present"`,
+  `expected: true` for a graduation still to come), `degree`,
+  `field_of_study`, `gpa`, `coursework`, `issuer`, `date` (an award's),
+  `link`, `tools` and `bullets`. A custom section is `section: "custom"`
+  with its heading as `title` and its lines as `bullets`.
+- **The committed set is made up**: `app.scripts.make_reading_set` draws
+  20 people from its pools with a fixed seed and prints each in one of 11
+  layouts through LaTeX (Tectonic), Chrome's Save as PDF and Word
+  (python-docx). The key is what the layout prints, so it is right by
+  construction. It needs Tectonic and a Chrome; its output is committed.
+  **Real resumes go in `backend/reading_set_private/`** (git-ignored) with
+  keys written by hand, scored with `--set reading_set_private`. Never
+  commit one; the made-up set's layouts are ours, and real ones are harder.
+
+**First scores** (2026-11-17, `main` at `8dc611af`, the 19 resumes every
+model read; fields right):
+
+| Reading | Gemini 3.5 Flash-Lite | Groq gpt-oss-20b | Groq gpt-oss-120b |
+| --- | --- | --- | --- |
+| This parser alone | 71.5% | 71.5% | 71.5% |
+| The AI reading alone | 93.0% | 90.2% | 90.6% |
+| Combined (saved) | 96.8% | 95.7% | 94.4% |
+
+Per reading, Gemini took 4.3 s (median; slowest 8.3 s) and about 2,600
+tokens; gpt-oss-20b 1.6 s (slowest 4.2 s) and about 2,700; gpt-oss-120b
+5.0 s (slowest 9.7 s) and about 4,000, most of it reasoning. Extraction and
+this parser take under 0.2 s. gpt-oss-120b copied a Word list's "•" into
+21 bullets, and twice sent a reply that failed the schema. Its combined
+reading also took more of this parser's junk (18 extra entries and 43
+lines, against Gemini's 14 and 27).
+
+**The KAN-888 group, scored before it merged** (2026-11-17, the 15
+resumes every model read on both; combined reading, `main` then the
+group): Gemini 96.2% to 96.7%, gpt-oss-120b 94.4% to 94.7%, gpt-oss-20b
+95.5% to 93.1%. This parser alone went from 74.9% to 76.4%, and the junk
+entries the merge adds fell by a third (Gemini 9 to 6, gpt-oss-120b 12 to
+6). gpt-oss-20b fell because KAN-893's `organization_note` took the place:
+it filed "Milwaukee, WI" as the note and left the location empty, 26
+times over 20 resumes (location 96% to 68%); gpt-oss-120b did it less
+(88% to 75%), and Gemini never. Gemini read all 20 that run, with no 503. That day Gemini's free tier answered 503
+("high demand") to about half the calls, and Groq's 429 to readings back to
+back: an upload saves this parser's reading on each. What the combined
+reading still gets wrong: the merge adds this parser's junk (14 extra
+entries over 20 resumes, such as "awards: May" from a two-column page, and
+27 bullets glued into one line from browser-printed lists); a year alone
+saved as January to December; words the PDF's gaps split ("Peer T utor").

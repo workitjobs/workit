@@ -1,0 +1,127 @@
+{
+ "file": "08_html_dates_left.pdf",
+ "layout": "html_dates_left",
+ "person": {
+  "name": "Lucas Ferreira",
+  "email": "lferreira@example.com",
+  "phone": "(555) 0109-0956",
+  "links": [
+   "github.com/lferreira"
+  ]
+ },
+ "entries": [
+  {
+   "section": "education",
+   "title": "Westbrook University",
+   "location": "Austin, TX",
+   "degree": "B.S.",
+   "field_of_study": "Computer Science",
+   "start": "2024-09",
+   "end": "2028-05",
+   "expected": true
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2025-08",
+   "end": "present",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Mechanical Engineering Co-op",
+   "organization": "Torrent Pumps",
+   "start": "2024-06",
+   "end": "2024-08",
+   "bullets": [
+    "Redesigned a pump housing in SolidWorks, cutting its weight by 14%",
+    "Ran tolerance stack-ups and wrote test plans for two new impellers"
+   ],
+   "location": "Milwaukee, WI"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "start": "2025-01",
+   "end": "2025-04"
+  },
+  {
+   "section": "projects",
+   "title": "Habit Garden",
+   "tools": [
+    "Swift"
+   ],
+   "bullets": [
+    "Designed and built an iOS habit tracker that grows a garden as streaks continue",
+    "Wrote 40 unit tests and published it to TestFlight for 60 testers"
+   ]
+  },
+  {
+   "section": "projects",
+   "title": "Wind Turbine Blade Study",
+   "tools": [
+    "MATLAB",
+    "SolidWorks"
+   ],
+   "bullets": [
+    "Modeled three blade shapes and tested scale versions in the school wind tunnel",
+    "Found a shape that raised power output by 6% at low wind speeds"
+   ]
+  },
+  {
+   "section": "leadership",
+   "title": "Volunteer Coordinator",
+   "organization": "Harbor Food Pantry",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Scheduled 60 volunteers a month and set up a sign-up sheet that cut no-shows in half"
+   ],
+   "location": "Baltimore, MD"
+  },
+  {
+   "section": "awards",
+   "title": "Dean's List",
+   "organization": "Westbrook University",
+   "date": "2025"
+  },
+  {
+   "section": "awards",
+   "title": "Merit Scholarship",
+   "organization": "Westbrook University",
+   "date": "2025"
+  },
+  {
+   "section": "certifications",
+   "title": "AWS Certified Cloud Practitioner",
+   "issuer": "Amazon Web Services"
+  }
+ ],
+ "skills": [
+  "MATLAB",
+  "JavaScript",
+  "Swift",
+  "R",
+  "Node.js",
+  "Next.js",
+  "TensorFlow",
+  "React",
+  "Figma",
+  "Git",
+  "SolidWorks",
+  "MongoDB"
+ ]
+}

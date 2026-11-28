@@ -1,0 +1,106 @@
+{
+ "file": "06_html_pipe.pdf",
+ "layout": "html_pipe",
+ "person": {
+  "name": "Ethan Novak",
+  "email": "enovak@example.com",
+  "phone": "(555) 0106-0644",
+  "links": [
+   "github.com/enovak"
+  ]
+ },
+ "entries": [
+  {
+   "section": "custom",
+   "title": "Summary",
+   "bullets": [
+    "Data-minded student with internship experience in analytics and a strong base in statistics."
+   ]
+  },
+  {
+   "section": "education",
+   "title": "Riverside State University",
+   "location": "Riverside, CA",
+   "degree": "B.S.",
+   "field_of_study": "Data Science",
+   "start": "2023-09",
+   "end": "2027-05",
+   "expected": true,
+   "gpa": 3.8
+  },
+  {
+   "section": "experience",
+   "title": "Data Analyst Intern",
+   "organization": "Lakeside Labs",
+   "start": "2026-05",
+   "end": "2026-08",
+   "bullets": [
+    "Cleaned and joined 2.3 million loan records in SQL to find causes of late payments",
+    "Built a Tableau dashboard that the credit team now reviews every Monday",
+    "Presented churn findings to the VP of Product, leading to a new reminder email"
+   ],
+   "location": "Chicago, IL"
+  },
+  {
+   "section": "experience",
+   "title": "Peer Tutor",
+   "organization": "Academic Success Center",
+   "start": "2025-05",
+   "end": "2025-08",
+   "bullets": [
+    "Tutored 15 students a week in calculus, statistics and introductory economics",
+    "Created practice sets that the center now gives every new tutor"
+   ]
+  },
+  {
+   "section": "experience",
+   "title": "Data Engineering Intern",
+   "organization": "Bluefin Logistics",
+   "start": "2024-05",
+   "end": "2024-08",
+   "bullets": [
+    "Built Spark jobs that load 40 GB of shipment events into Snowflake each night",
+    "Wrote data quality checks that caught a broken vendor feed within an hour"
+   ],
+   "location": "Miami, FL"
+  },
+  {
+   "section": "projects",
+   "title": "Campus Transit Map",
+   "tools": [
+    "JavaScript",
+    "Node.js",
+    "MongoDB"
+   ],
+   "bullets": [
+    "Mapped live shuttle positions from the transit API for 6,000 daily riders",
+    "Added arrival alerts that cut average wait time reported in a survey by 4 minutes"
+   ],
+   "end": "2024"
+  },
+  {
+   "section": "leadership",
+   "title": "Captain",
+   "organization": "Club Soccer",
+   "start": "2024-09",
+   "end": "present",
+   "bullets": [
+    "Led practices for 25 players and organized travel to six away games"
+   ]
+  }
+ ],
+ "skills": [
+  "SQL",
+  "Python",
+  "JavaScript",
+  "Swift",
+  "Node.js",
+  "PyTorch",
+  "Tableau",
+  "Excel",
+  "Kubernetes",
+  "Spark",
+  "Snowflake",
+  "MongoDB"
+ ]
+}
