@@ -236,6 +236,21 @@ address bar shows (for a Workday tenant, `acme.wd5.myworkdayjobs.com`).
   (`www.amazon.jobs`) or an http page gets nothing. The host is checked
   again just before the password goes in, so an email step that moves the
   page to another host gets no password.
+- **Only in a Chrome with no DevTools port.** A CDP Worker's Chrome starts
+  with `--remote-debugging-port=0` (`browsers.launch_options`), and any
+  program on the Mac can attach to that TCP port and read a filled password
+  box. So the vault signs in only on a plain Worker's page, which has no
+  port (`plain.launcher.NEVER`); on a CDP Worker's page the pause says why
+  and the sign-in is the student's (`vault_sign_in.debug_port`). The port
+  can't move to `--remote-debugging-pipe` yet: a pipe has one client, and
+  three others attach to the port from outside the Worker's Playwright
+  connection. Claude fill's Playwright MCP (`browsers.cdp_endpoint`,
+  `claude_cli.py`) runs in the `claude` process. The tile's screencast
+  (`dashboard.py`, `connect_over_cdp`) runs on the window's thread, and
+  Playwright's sync objects belong to the thread that made them. Show
+  (`browsers.activate`) uses `/json/activate`. The window's own Chrome
+  (`dashboard.open_window`) keeps its port for `dock_app.keep`, and it never
+  holds a job site's password.
 - **What it fills.** One email box and one password box (or an email step,
   then its password step), pressed with Enter as a sign-in step's press
   through the guards (`submit_guard.let_account_click`). Two password

@@ -1864,7 +1864,7 @@ def _from_vault(summary: "Rehearsed", site, tried: set[str]) -> str | bool:
         return VAULT
     if done.how == vault_sign_in.FAILED:
         summary.why = done.why
-    elif done.why.startswith(vault_sign_in.NO_KEYCHAIN[:20]):
+    elif done.said:
         print(done.why, file=sys.stderr)
         summary.why = f"{summary.why.rstrip()} {done.why}".strip()
     return False

@@ -11,6 +11,8 @@ box. Docs: docs/sign-in.md, "Sign-in vault".
   there, or back at the next sign-in pause of the same fill on that host, is a refused password: "Sign-in failed"
   once, and no tile types that password again in this run (a few failures lock an account). A password saved
   anew with `apply vault add` is tried again.
+- Never on a page whose Chrome listens on a DevTools TCP port (a CDP Worker's, `debug_port`): any program on the
+  Mac could attach there and read the password box. Only a plain Worker's page, which has no port, is signed in.
 - The password boxes are emptied after the press, so no screenshot, Record or later model call reads one.
 """
 
@@ -37,6 +39,8 @@ FAILED_WHY = ("Sign-in failed at {host}: the page still asks for the password af
               "`uv run apply vault add {host}`.")
 SIGNED_IN_NOTE = "Signed in from the vault as {email}"
 NO_KEYCHAIN = "The vault couldn't read Keychain ({why}): sign in yourself."
+OPEN_PORT = ("The vault has a login for {host}, but this Worker's Chrome listens on a DevTools port, where any "
+             "program on this Mac could read a typed password: sign in yourself. A plain Worker has no port.")
 
 _NOT = ":not([type=password]):not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=submit])"
 _EMAIL = ", ".join(f"input{match}{_NOT}" for match in (
@@ -59,6 +63,7 @@ _lock = threading.Lock()
 class Outcome:
     how: str
     why: str = ""
+    said: bool = False  # `why` goes in the pause: the student must know the vault didn't sign in
 
 
 def forget_run() -> None:
@@ -79,9 +84,11 @@ def sign_in(page, tried: set[str], store: Store | None = None, let_press=None, s
     try:
         login = vault.for_page(store if store is not None else vault.store(), page.url)
     except RuntimeError as error:  # the keychain locked or refused: the pause is the student's, and says why
-        return Outcome(LEFT, NO_KEYCHAIN.format(why=error))
+        return Outcome(LEFT, NO_KEYCHAIN.format(why=error), said=True)
     if login is None:
         return Outcome(LEFT)
+    if debug_port(page):  # before any box is touched: a program on the port could read the password from it
+        return Outcome(LEFT, OPEN_PORT.format(host=login.host), said=True)
     with _lock:
         failed = _mark(login) in _failed
     if failed:
@@ -99,6 +106,18 @@ def sign_in(page, tried: set[str], store: Store | None = None, let_press=None, s
     finally:
         if typed[0]:
             _empty(page)
+
+
+def debug_port(page) -> bool:
+    """Whether `page`'s Chrome listens on a DevTools TCP port. A CDP Worker's does (`--remote-debugging-port=0`,
+    browsers.launch_options: Claude fill's Playwright MCP, the tile's screencast and Show attach there), and any
+    local program may attach to it. A plain Worker's Chrome has none (plain.launcher.NEVER). A page that is no
+    Playwright page (a test's stand-in) has no browser at all."""
+    from apply.plain.page import PortPage
+
+    if isinstance(page, PortPage):
+        return False
+    return hasattr(page, "context")  # a Playwright page: a CDP Worker's, or one this code can't tell from it
 
 
 def _refused(login: Login) -> Outcome:
