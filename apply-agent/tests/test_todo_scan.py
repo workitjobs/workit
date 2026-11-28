@@ -10,7 +10,7 @@ from test_gmail import FakeImap
 
 from apply.gmail import GmailMailbox, Mail
 from apply.model import Status
-from apply.todo_scan import SEARCH, best_link, checked, rules, scan, thread_of
+from apply.todo_scan import SEARCH, best_link, checked, company, rules, scan, thread_of
 from apply.todos import DONE, TodoStore
 from apply.tracker import Row
 
@@ -165,3 +165,63 @@ def test_a_model_answer_out_of_its_schema_or_far_off_dates_are_not_taken():
     assert checked({"kind": "none", "company": "", "role": "", "due": "", "link": ""}, mail).kind is None
     assert checked({"kind": "offer", "company": "", "role": "", "due": "2031-01-01", "link": ""}, mail).due is None
     assert checked({"kind": "offer", "company": "", "role": "", "due": "soon", "link": ""}, mail).due is None
+
+
+def test_the_company_is_the_employer_a_mail_names_never_the_hiring_system_that_sends_it():
+    # Fault: the sender's name or domain taken as the company when a hiring system or assessment site sends the mail
+    # ("CodeSignal", "us.greenhouse-mail.io"), or a domain shown run together ("Honeywellaerospace").
+    invite = written("CodeSignal <no-reply@codesignal.com>",
+                     "Ramp invited you to take Ramp 2025 Coding Assessment on CodeSignal",
+                     "You've been invited by someone from Ramp. To begin, click GET STARTED. Sent from Ramp through "
+                     "CodeSignal.")
+    applied = written("no-reply@us.greenhouse-mail.io", "Thank you for applying to Oscar Health!",
+                      "Thank you for your interest in Oscar Health. Please complete the attached form.")
+    draft = written("Human Resources <noreply@honeywellaerospace.com>",
+                    "Honeywell Aerospace Careers - Continue to apply for the job Embedded Engineering Intern",
+                    "We saved a draft of your application.")
+    reminder = written("CodeSignal <no-reply@codesignal.com>", "Reminder: Ramp is waiting for your assessment result",
+                       "Hey Test, the assessment expires soon.")
+
+    assert [company(read(raw)) for raw in (invite, applied, draft, reminder)] == [
+        "Ramp", "Oscar Health", "Honeywell Aerospace", "Ramp"]
+
+
+def test_a_model_that_names_the_hiring_system_gets_the_employer_instead(tmp_path):
+    # Fault: the model's "CodeSignal" kept as the company.
+    store = TodoStore(tmp_path / "todos.json")
+    scan(box(sample("codesignal-assessment"))[0], store, now=lambda: ARRIVED,
+         ask=lambda **call: {"kind": "assessment", "company": "CodeSignal", "role": "", "due": "", "link": ""})
+
+    assert [t.company for t in store.all()] == ["Skydio"]
+
+
+def test_a_bare_link_is_read_by_its_sentence_and_footer_tracking_and_undo_links_are_skipped():
+    # Fault: a bare link in a sentence ("complete your application by clicking https://...") given no label, so the
+    # to-do has no link; or the delete-your-draft link, a tracking pixel or the footer's home page taken instead.
+    text = ("We invite you to complete and submit your job application by clicking "
+            "https://jobs.example.com/apply/s/Ab12Cd34. If you no longer wish to apply, delete the data you entered "
+            "by clicking here https://jobs.example.com/apply/s/Zz99Yy88 .\n"
+            '<img src="https://mail.example.com/open/Qq7?x=1"> <a href="https://www.example.com">www.example.com</a>')
+    links = ('<a href="https://www.acme.example/">Acme</a> <a href="https://acme.example/help/faq">Get help</a> '
+             '<a href="https://go.acme.example/c/Rr5">Click here</a> to finish your profile.')
+
+    assert best_link(text, "form") == "https://jobs.example.com/apply/s/Ab12Cd34"
+    assert best_link(links, "account") == "https://go.acme.example/c/Rr5"
+
+
+def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_kind_of_todo(tmp_path):
+    # Fault: a confirmation that says the assessment comes in another mail left with no Open link.
+    store = TodoStore(tmp_path / "todos.json")
+    confirmation = written("Ramp Talent Team <no-reply@ashbyhq.com>", "Ramp | Confirmation on your Application",
+                           "Your application will be reviewed as soon as you complete the CodeSignal assessment that "
+                           "will be sent over in the next hour.")
+    invite = written("CodeSignal <no-reply@codesignal.com>", "Ramp invited you to take Ramp Coding Assessment",
+                     '<a href="https://app.codesignal.com/pre-screens">GET STARTED</a>')
+    other = written("Acme Recruiting <jobs@acme.com>", "Acme | Next steps",
+                    "Please complete the CodeSignal assessment we sent.")
+
+    scan(box(confirmation, invite, other)[0], store, now=lambda: ARRIVED)
+
+    assert sorted((t.company, t.kind, t.link) for t in store.all()) == [
+        ("Acme", "assessment", None), ("Ramp", "assessment", "https://app.codesignal.com/pre-screens"),
+        ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]

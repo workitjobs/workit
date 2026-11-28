@@ -14,6 +14,7 @@ Apply reads emailed codes with, apply.gmail), oldest first, and reads each mail 
 A mail that asks nothing (a confirmation, a rejection, an assessment already taken, a one-time code, a password
 reset) makes no to-do. Each to-do is kept by its mail's Gmail thread (TodoStore.put)."""
 
+import dataclasses
 import hashlib
 import html
 import re
@@ -73,6 +74,41 @@ LINK_WORDS = {
     "offer": r"offer|accept|review|portal|docusign",
 }
 ROLE_WORD = r"(?:intern(?:ship)?|engineer(?:ing)?|developer|analyst|scientist|associate|co-?op|fellow(?:ship)?|designer)"
+# A link a to-do never takes: one that undoes or leaves the step ("delete the data you entered by clicking here"),
+# or a footer's help or support page. Read in the link's label, or for a bare link the words of its sentence before it.
+NOT_ACTION = re.compile(r"\b(delete|withdraw|no longer|decline|remove|opt.?out|unsubscribe|support|help|faq|"
+                        r"privacy|terms|learn more|mobile app|download (our|the))\b", re.IGNORECASE)
+# A tracking pixel, an image or a stylesheet: never a link to open.
+TRACKING = re.compile(r"/(pixel|beacon)\b|/(wf|track|e)/open\b|/open\.(gif|png|aspx)\b|list-manage\.com/track|"
+                      r"\.(png|jpe?g|gif|svg|css|ico)([?#]|$)", re.IGNORECASE)
+# A generic action label: a link that says so starts the step when no kind's own words fit.
+ACTION = re.compile(r"\b(click here|get started|continue|apply|view|open|go to|respond|reply|next step|here)\b",
+                    re.IGNORECASE)
+# Hiring systems and assessment sites that send mail for employers: never the company a to-do names (CLAUDE.md, Job
+# terms). Matched against a name with only its letters and digits, lowercased: the whole name, or its start.
+SENDERS = ("codesignal", "hackerrank", "codility", "hirevue", "karat", "greenhouse", "lever", "workday", "myworkday",
+           "icims", "ashby", "smartrecruiters", "oracle", "successfactors", "taleo", "jobvite", "avature", "eightfold",
+           "phenom", "handshake", "bamboohr", "workable", "rippling", "paylocity", "ultipro", "adp", "gem", "beamery",
+           "paradox", "modernhire", "brassring", "jazzhr", "breezyhr", "recruitee", "teamtailor", "linkedin", "indeed",
+           "ziprecruiter", "glassdoor", "sendgrid", "mailgun", "amazonses", "noreply", "donotreply")
+SHORT_SENDERS = {"adp", "gem", "karat", "lever"}  # only the whole name: "Clever" and "Gemini" are employers
+# A company name as mail writes it: up to five capitalized words ("Oscar Health", "Honeywell Aerospace"), a dot only
+# inside a word, so a sentence's full stop ends it.
+NAME = r"([A-Z0-9](?:[\w&'’-]|\.(?=\w))*(?:[ \t]+(?:&[ \t]+|of[ \t]+)?[A-Z0-9](?:[\w&'’-]|\.(?=\w))*){0,4})"
+# Phrases that name the employer, in a subject or a body, first fitting first.
+CUES = [re.compile(cue) for cue in (
+    rf"{NAME}[ \t]+(?:has[ \t]+)?(?i:invited you)\b",
+    rf"(?i:invited by)[ \t]+(?:(?i:someone from|the team at)[ \t]+)?{NAME}",
+    rf"{NAME}[ \t]+(?i:is waiting for)\b",
+    rf"\b(?i:sent from)[ \t]+{NAME}[ \t]+(?i:through|via)\b",
+    rf"(?i:applying|applied|application|apply)[ \t]+(?i:to|at|with)[ \t]+{NAME}",
+    rf"(?i:opening|position|role|internship|job|career)s?[ \t]+(?i:at|with)[ \t]+{NAME}",
+    rf"(?i:interest in)[ \t]+(?:(?i:joining|working at|working for)[ \t]+)?{NAME}",
+    rf"(?i:talent acquisition|recruiting|recruitment|careers|hiring) (?i:team )?(?i:at)[ \t]+{NAME}",
+    rf"{NAME}[ \t]+(?i:talent acquisition|recruiting|recruitment|careers|hiring team)\b",
+)]
+NOT_NAME = re.compile(rf"^(our|the|we|you|your|this|us|hi|hello|dear|team|thank|thanks|reminder|i|it|my)$|"
+                      rf"\b{ROLE_WORD}\b", re.IGNORECASE)
 # A role a subject names: up to five capitalized words, then a role word, then up to three more ("Summer 2027").
 ROLE = re.compile(rf"((?:[A-Z][\w&/+.-]*\s+){{0,5}}(?i:{ROLE_WORD})\b(?:,?\s+[A-Z0-9(][\w()&/+.-]*){{0,3}})")
 
@@ -151,12 +187,15 @@ def scan(mailbox, store: TodoStore, rows: list | None = None, ask: Ask | None = 
                     done.by_model += 1
         if reading.kind is None:
             continue
+        if not reading.company or is_sender(reading.company):
+            reading = dataclasses.replace(reading, company=named(mail, rows or [])[0])
         said = store.put(Todo(thread=thread_of(mail), kind=reading.kind, company=reading.company, role=reading.role,
                               due=reading.due, link=reading.link,
                               source=Source(mail.sender, mail.subject, mail.arrived, mail.message_id),
                               found=now(), by=reading.by))
         done.added += said == "added"
         done.updated += said == "updated"
+    store.lend_links()
     return done
 
 
@@ -198,32 +237,82 @@ def rules(mail: Mail, rows: list) -> Read:
 
 
 def named(mail: Mail, rows: list) -> tuple[str, str]:
-    """The company and role a mail is about: its Tracker row's when one surely fits (employer_mail.match), else the
-    sender's name (when the sender's own domain agrees with it) or own domain, and a role its subject names."""
+    """The company and role a mail is about: its Tracker row's when one surely fits (employer_mail.match), else
+    `company` and a role its subject names."""
     if row := employer_mail.match(mail, rows):
         return row.company, row.role
+    found = ROLE.search(mail.subject)
+    return company(mail)[:80], (found[1].strip(" ,-") if found else "")[:80]
+
+
+def company(mail: Mail) -> str:
+    """The employer `mail` is about, by its sender and words alone, first found first: the sender's name when the
+    sender's own domain agrees with it; the words of the mail that spell that own domain ("Honeywell Aerospace" for
+    honeywellaerospace.com), else the domain itself; the sender's name when a shared domain sends it ("Ramp Talent
+    Team" through Ashby); a phrase that names the employer ("Ramp invited you", "applying to Oscar Health"). A hiring
+    system or assessment site (SENDERS) is never the company, nor is an address."""
     name = re.sub(r"<[^>]*>", "", mail.sender).replace('"', "").strip()
     name = re.sub(r"\b(recruiting|recruitment|careers?|talent( acquisition)?|hiring( team)?|university|campus|team|"
                   r"hr|jobs|no-?reply|notifications?)\b", "", name, flags=re.IGNORECASE)
     name = re.sub(r"\s+", " ", re.sub(r"\s*[-|@,]\s*$|^\s*[-|@,]\s*", "", name)).strip(" -|@,")
+    if "@" in name or re.fullmatch(r"[\w-]+(\.[\w-]+)+", name) or is_sender(name):
+        name = ""  # an address ("no-reply@us.greenhouse-mail.io") or a hiring system's own name ("CodeSignal")
     domain = _address(mail.sender).rpartition("@")[2]
     base = ".".join(domain.split(".")[-2:])
-    own = base.split(".")[0] if base and base not in employer_mail.SHARED_DOMAINS else ""
-    if "@" in name or (own and own not in re.sub(r"[^a-z0-9]", "", name.lower())):
-        name = own.capitalize()  # a person's name ("Jordan Lee" at skydio.com) names no employer: its domain does
-    found = ROLE.search(mail.subject)
-    return name[:80], (found[1].strip(" ,-") if found else "")[:80]
+    own = base.split(".")[0] if base and base not in employer_mail.SHARED_DOMAINS and not is_sender(base) else ""
+    if name and own and _compact(own) in _compact(name):
+        return name
+    words = re.sub(r"\s+", " ", employer_mail._plain(re.sub(r"<(style|script)\b.*?</\1>", " ", mail.text,
+                                                            flags=re.IGNORECASE | re.DOTALL)))
+    if own:  # the employer's own domain names it; a person's name ("Jordan Lee" at skydio.com) doesn't
+        runs = (m[1].split() for m in re.finditer(NAME, f"{mail.subject}\n{words}"))
+        spelled = (" ".join(run[i:j]) for run in runs for i in range(len(run)) for j in range(i + 1, len(run) + 1))
+        return next((s for s in spelled if _compact(s) == _compact(own)), own.capitalize())
+    if name:
+        return name
+    for text in (mail.subject, words):
+        for cue in CUES:
+            for m in cue.finditer(text):
+                if _a_name(m[1]):
+                    return m[1]
+    return ""
+
+
+def is_sender(name: str) -> bool:
+    """Whether `name` is a hiring system's or an assessment site's (SENDERS), never an employer's."""
+    compact = _compact(name.split(".")[0] if "." in name and " " not in name else name)
+    return bool(compact) and (compact in SHORT_SENDERS or
+                              any(compact.startswith(s) for s in SENDERS if s not in SHORT_SENDERS))
+
+
+def _a_name(name: str) -> bool:
+    return not NOT_NAME.search(name) and not is_sender(name) and len(name) <= 80
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
 def best_link(text: str, kind: str) -> str | None:
-    """The https link that best fits `kind` by its label and address, never an unsubscribe, legal or social link."""
+    """The https link that best starts the to-do: its label (for a bare link, the words of its sentence before it)
+    with `kind`'s words first, then its address with them, then a generic action label. Never an unsubscribe, legal,
+    social, help or undo link, a tracking pixel or image, or a footer's bare home page."""
     fits = re.compile(LINK_WORDS[kind], re.IGNORECASE)
     best, score = None, 0
     for m in LINK.finditer(text):
-        url, label = html.unescape(m[1] or m[3]), employer_mail._plain(m[2] or "")
-        if LINK_NOISE.search(url) or not url.startswith("https://"):
+        if m[3]:
+            if text[m.start() - 1:m.start()] in ("\"", "'", "=", "("):
+                continue  # an attribute's address: an image's src, a style's url(...)
+            url = html.unescape(m[3]).rstrip(".,;:!?)]")
+            before = re.sub(r"\s+", " ", employer_mail._plain(text[max(0, m.start() - 300):m.start()]))
+            label = re.split(r"(?<=[.!?])\s+|\n", before)[-1][-120:]
+        else:
+            url, label = html.unescape(m[1]), employer_mail._plain(m[2] or "")
+        parts = urlsplit(url)
+        if (not url.startswith("https://") or LINK_NOISE.search(url) or LINK_NOISE.search(label)
+                or NOT_ACTION.search(label) or TRACKING.search(url) or (parts.path in ("", "/") and not parts.query)):
             continue
-        fit = 2 * bool(fits.search(label)) + bool(fits.search(url))
+        fit = 4 * bool(fits.search(label)) + 2 * bool(fits.search(url)) + bool(ACTION.search(label))
         if fit > score:
             best, score = url, fit
     return best
