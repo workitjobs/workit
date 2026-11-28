@@ -157,8 +157,8 @@ has neither.
   `add` sends links as `apply app <link>` does. Submit only when Lisul says to, and never turn on `live_runs`. Use
   screen automation only when the command can't do the job, and say why
   (`docs/apply-window.md`, "The window from a terminal").
-- **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It never
-  types into a sign-in: Lisul signs in on each "needs sign-in" tile.
+- **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It types
+  into a sign-in only from the sign-in vault (`docs/sign-in.md`); Lisul signs in on each other "needs sign-in" tile.
 - **A next posting on a job site a running Worker is signed in to:** send it
   into that Worker with `uv run apply rehearse --into`, never into a new
   rehearsal (`docs/plain-workers/guide.md`).
@@ -190,7 +190,7 @@ this folder's `CLAUDE.md` for its area.
   build's Filler for a job system with no Filler of its own.
 - `docs/todo-tracker.md`: the developer-only application to-do tracker (`todos.py`, `todo_scan.py`, `apply app --todos`, `APPLY_DEV_TODOS`, the window's To-dos, `apply window todos`).
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
-- `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
+- `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the sign-in vault (`vault.py`, `vault_sign_in.py`, `apply vault`), the Accounts tab, or `apply preflight`.
 - `docs/app-build.md`: building WorkIt Auto Apply (`scripts/build_app.py`), changing what goes into the app, or launching and testing the built app.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), the window read and driven from a terminal (`apply window`, `app_control.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.

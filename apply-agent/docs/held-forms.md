@@ -179,7 +179,9 @@ goes on from the step that the page shows.
   Oracle's `oracle.signed_in` (Claude fill's `signed_in`), and a provider sign-in's
   `provider_sign_in.signed_in` (below). `worker.ResumeCheck` carries it with
   `resume_blocked`, and reads it at the pause, since Claude fill's depends on where it stopped. It goes on only when the page showed a sign-in first and `resume_blocked` is "".
-  It never types into a sign-in page. A Filler with no `signed_in` waits for Resume, as before.
+  This check types into no sign-in page. Before the pause waits, the sign-in vault may sign in on the
+  page's exact https host (`docs/sign-in.md`, "Sign-in vault"); then the fill goes on at once. A Filler
+  with no `signed_in` waits for Resume, as before.
   A captcha on the page (`captcha.pending`) stops it for the rest of the pause: the tile says
   `rehearsal.CAPTCHA_SHOWED`, and Resume is his. The history says "Went on by itself".
 - **A provider sign-in carries on by itself too (KAN-763).** Microsoft Careers' Apply now opens a

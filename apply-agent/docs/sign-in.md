@@ -196,6 +196,73 @@ Windows.
   under the service `apply-ats-test`, and removes each item. keyring's
   macOS backend ignores a keychain file, so that is the login keychain.
 
+## Sign-in vault
+
+The sign-in vault keeps one login (email and password) per job portal host,
+so Apply signs in to amazon.jobs, lifeattiktok.com, a Workday tenant, iCIMS or
+SuccessFactors by itself. No model sees the password: plain code reads it
+from Keychain and types it into the page's password box
+(`vault.py`, `vault_sign_in.py`).
+
+Add a login in your own terminal, from `apply-agent/`:
+
+```
+uv run apply vault add amazon.jobs
+uv run apply vault list
+uv run apply vault remove amazon.jobs
+```
+
+`add` asks for the email (or takes `--email`) and asks for the password
+twice with getpass. It never takes the password as an argument, an
+environment variable or piped input: with no terminal it refuses. `list`
+shows hosts and emails only. Give the host that the sign-in page's own
+address bar shows (for a Workday tenant, `acme.wd5.myworkdayjobs.com`).
+
+- **Storage.** One Keychain generic-password item per host, through
+  `keyring`: service `workit-apply:<host>`, account the email. `keyring`
+  can't list items, so the hosts and their emails (never a password) are
+  one more item, service `workit-apply`, account `hosts`. `keyring` calls
+  the Security framework in Apply's own process: no `security` command,
+  so nothing is in argv or the environment, and no item is made with
+  `-A` or a trust list. The item's access list is macOS's default: only
+  the program that made it (Apply's Python) reads it without a prompt.
+  The store is behind `vault.Store`, so another backend can replace it.
+- **When it fills.** Only at a tile's sign-in pause ("needs sign-in",
+  `rehearsal._from_vault`), while Apply still holds the page, before the
+  tile shows the pause. The host
+  comes from the page's own URL at fill time, never from the tile's data:
+  only https, the default port, no user name in the URL, and exactly the
+  stored host. A lookalike (`amazon.jobs.evil.com`), a subdomain
+  (`www.amazon.jobs`) or an http page gets nothing. The host is checked
+  again just before the password goes in, so an email step that moves the
+  page to another host gets no password.
+- **What it fills.** One email box and one password box (or an email step,
+  then its password step), pressed with Enter as a sign-in step's press
+  through the guards (`submit_guard.let_account_click`). Two password
+  boxes (a password change), a new account's box (`new-password`, a
+  name, a confirm box), a captcha, or no sign-in boxes: the pause stays
+  the student's. It never makes an account and never touches a captcha.
+- **After the press.** Every password box is emptied, hidden ones too. A CDP Worker's
+  screenshots mask password boxes too, so no Record holds one.
+  Signed in means no password box for 2 s (`SETTLED_S`) and no captcha;
+  then the fill goes on by itself ("Went on by itself: Apply signed in
+  from the vault"). A code step (2FA, OTP) or a new account is the next sign-in
+  pause, which stays the student's: each host is tried once per fill.
+- **A refused password.** The page still asks for the password after the
+  press, or asks again at the fill's next sign-in pause on that host: the
+  tile says "Sign-in failed at <host>" once, and no tile types that
+  password again in this run. A password saved anew with `apply vault add`
+  is tried. A Keychain that won't give the login is said in the pause.
+- **What it never does.** No password in a log, a Trace, a Record, the
+  window's state (`apply window state`) or a printed line. `Login`'s repr
+  hides the password.
+- **Cookies come first.** Each Worker's profile keeps its sign-ins, so the
+  vault is needed only when a session has ended.
+- **Tests.** `tests/test_vault.py` (the store over a fake keyring backend,
+  host matching, the command) and `tests/test_vault_sign_in.py` (a stand-in
+  page: lookalike and http pages, a refused password, no password in the
+  state or the output). No test reaches the system's keychain.
+
 ## Employer account passwords in Chrome (KAN-592)
 
 Lisul's Employer account passwords reach Chrome's password manager only
