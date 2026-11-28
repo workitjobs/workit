@@ -149,6 +149,7 @@ uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off 
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.trace_rules_leak <table.json>  the account a leaked Rules table was served to and its fetch history, KAN-756/KAN-772 (reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules table fetches look like scraping, as a table, KAN-772 (reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.reading_report [--days 14]  uploads read per day by reader and, for the parser, why, from the reading log, KAN-898 (reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
@@ -1237,8 +1238,8 @@ Find files with a directory listing; these are the rules for where code goes.
   "Add under a resume pick".
 - **Onboarding reads a resume before saving it** (KAN-372, ADR 0006).
   `POST .../resumes/preview` runs upload's read (`_extract`, then
-  `read_upload`) and writes nothing but the AI use: no Storage file, no
-  row, no bank row. The student confirms with the normal upload plus
+  `read_upload`) and writes nothing but the AI use and its row in the
+  reading log: no Storage file, no resume row, no bank row. The student confirms with the normal upload plus
   `?replace=matching`, which also deletes the other uploads' entries and
   skills the reading matches (`bank.upload_matches`: section, title and
   organization, or a skill's name, ignoring case; never an entry with no
@@ -1297,7 +1298,15 @@ Find files with a directory listing; these are the rules for where code goes.
   fails the schema, or the text backs none of its entries. Only a model
   reading counts a use, committed with the bank writes (the preview
   commits it alone). No 429 and no 503: the limit and a failure both mean
-  the parser. **Every test gets an unreachable model** (`tests/conftest.py`'s
+  the parser. **Every reading adds a row to the reading log** (KAN-898,
+  `resume_readings`, `app/models/CLAUDE.md`): `read_upload` writes the
+  route, the reader, the reason `read_resume` gives for saving the
+  parser's reading (`Reading.reason`), the time, the counts and the model's
+  fields the check dropped (`checked_drafts`, `unbacked_skills`), never the
+  text, with the use, so a failed save keeps neither; the reason changes
+  nothing the reading saves. `app.scripts.reading_report` counts them by
+  day, reader and reason (KAN-806 needs those numbers). Tests:
+  `tests/test_resume_readings.py`. **Every test gets an unreachable model** (`tests/conftest.py`'s
   `_model_down`) unless it installs its own: without it, a test's upload
   asked the real model the root `.env` names. The prompt and checks are in
   `services/bank_import.py`; the rules are in `app/utils/CLAUDE.md`, "The
@@ -2341,6 +2350,13 @@ go then. A change needs to work on Cloudflare only.
   them: an upload never wrote one, and Tailor, the resume view, Generate,
   Scout, the recommender and the embedding all ignored them. A skill is
   one list per student.
+- **Apply `74b507514e4a` (`resume_readings`, KAN-898) before the deploy
+  that writes it.** Every upload, parse preview, Import Updated Resume and
+  Import Again adds a row, so deployed first, each answers 500. It only
+  adds a table, so applying it early is safe. It sits on `f45841235b98`
+  and reached `main` before the code did (the KAN-888 group's migrations).
+  The bank job runs none of the reading code and never reads the table,
+  so it needs no pull or restart for it.
 - **Apply `e6a2c8f4b015` (`bank_skills.position`, KAN-816) before the
   deploy that maps it.** The model selects the column with every skill and
   `load_bank` orders by it, so deployed first, `GET /bank`, uploads,

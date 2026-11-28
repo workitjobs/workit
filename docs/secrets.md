@@ -8,7 +8,7 @@ workflow writes. A copy can be lost; the value in Infisical cannot.
 and `publish-engine.yml` read its `API_*` secrets, as do the scrape, the
 purge and the job alerts. The `/github` sync is on and holds 3 of its 8
 keys** (Syncs). Developers pull their `.env` files with `npm run env`. The
-`/web` sync is still open, and so is the end of the move to the
+`/web` sync is still open, and so are the Apple keys of the
 `auto-apply-desktop` environment (end of this file).
 A key that no folder holds yet is still set with `gh secret set`.
 
@@ -194,9 +194,16 @@ computer's Ollama; the repo copies were deleted on 2026-11-20),
 | `R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID` | `publish-app.yml` | Required to publish the app | Cloudflare dashboard, R2, Manage API tokens: a token with Object Read & Write on the `auto-apply-desktop` bucket only (2026-11-26). |
 | `R2_AUTO_APPLY_DESKTOP_SECRET_ACCESS_KEY` | `publish-app.yml` | Required to publish the app | The same token's secret, which Cloudflare shows once. |
 | `R2_AUTO_APPLY_DESKTOP_ENDPOINT` | `publish-app.yml` | Required to publish the app | `https://<account id>.r2.cloudflarestorage.com`, the S3 address on the same page. Not a secret. |
+| `APPLE_DEVELOPER_ID_CERTIFICATE` | `publish-app.yml` | Required to publish the app | WorkIt's Developer ID Application certificate with its private key: exported from Keychain Access as a `.p12`, then `base64 -i <file>.p12`, one line. Then delete the certificate, its key and the file from the Mac (Load the Apple keys). |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | `publish-app.yml` | Required to publish the app | The password typed when that `.p12` was exported. |
+| `APPLE_NOTARY_KEY` | `publish-app.yml` (`apply-agent/scripts/notarize_app.py`) | Required to publish the app | App Store Connect, Users and Access, Integrations, App Store Connect API: a key with the Developer role. The `.p8` file's whole text, its `BEGIN` and `END` lines included. Apple lets you download it once. |
+| `APPLE_NOTARY_KEY_ID` | `publish-app.yml` | Required to publish the app | That key's ID, on the same page. Not a secret. |
+| `APPLE_NOTARY_ISSUER_ID` | `publish-app.yml` | Required for a Team key; leave it out for an Individual key | The Issuer ID at the top of the Team Keys page. Not a secret. |
 
-The Developer ID certificate and the notarization login join this folder
-with W8 step 2.
+To check a PEM file against the key the apps hold, run this from `backend/`:
+`uv run python -c "import sys; from pathlib import Path; from app.scripts.publish_engine import load_key, public_key; print(public_key(load_key(Path(sys.argv[1]))))" <PEM file>`.
+It prints only the public half, which must be `PUBLIC_KEY` in
+`apply-agent/src/apply/engine_download.py`.
 
 ### `workit-prod/team-computer` (`C:\workit-bank-job\.env`)
 
@@ -388,6 +395,63 @@ Workers & Pages, the Worker (`workit-api` or `workit-web`), Settings,
 Variables and Secrets. It lists every secret's name, never its value. For
 GitHub, `gh secret list` does the same.
 
+## Load the Apple keys (W8 step 2, KAN-950)
+
+`publish-app.yml` signs the Mac app with WorkIt's Developer ID and has
+Apple notarize it with five keys in `workit-prod/auto-apply-desktop`,
+which the sync copies to the `auto-apply-desktop` environment. Only the
+Account Holder of WorkIt's Apple Developer account can make them. Make
+them on a Mac; at the end, nothing of them stays on it.
+
+1. **Enroll** at https://developer.apple.com/programs/enroll as an
+   individual (D20 of `desktop_application_auto_apply.md`), $99 a year.
+   Apple checks the identity first, which can take a day or two.
+2. **Make the certificate request.** Open Keychain Access with Spotlight
+   or `open -a "Keychain Access"`: on recent macOS it isn't in Utilities
+   (it is in `/System/Library/CoreServices/Applications` on macOS 26).
+   Then the Keychain Access menu, Certificate Assistant, Request a
+   Certificate From a Certificate Authority: your email, Common Name
+   "WorkIt Auto Apply", Saved to disk.
+   This also puts the certificate's private key in your login keychain.
+3. **Make the certificate.** developer.apple.com, Account, Certificates,
+   +, Developer ID Application, G2 Sub-CA, upload the request, then
+   Download. Open the `.cer`: Keychain Access puts it with its key under
+   My Certificates, as "Developer ID Application: <your name> (<team
+   ID>)".
+4. **Export it with its key.** In My Certificates, select that
+   certificate, then File, Export Items, format Personal Information
+   Exchange (`.p12`), with a new strong password.
+5. **Put both in Infisical.** `base64 -i <file>.p12 | pbcopy`, and paste
+   it as `APPLE_DEVELOPER_ID_CERTIFICATE`. The password goes in
+   `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD`.
+6. **Make the notarization key.** https://appstoreconnect.apple.com,
+   Users and Access, Integrations, App Store Connect API. The first time,
+   request access. Team Keys, +, the name "publish-app" and the Developer
+   access, Generate, then Download API Key: Apple allows one download.
+   The `.p8` file's whole text goes in `APPLE_NOTARY_KEY`, the Key ID in
+   `APPLE_NOTARY_KEY_ID`, and the Issuer ID above the list in
+   `APPLE_NOTARY_ISSUER_ID`. If the account offers only Individual Keys,
+   make one there and leave `APPLE_NOTARY_ISSUER_ID` out.
+7. **Delete them from the Mac.** In Keychain Access, delete the
+   certificate and its private key. Delete the `.p12`, the `.cer`, the
+   request and the `.p8` files. The signing keys live on no person's
+   computer (Layout, `/auto-apply-desktop`).
+8. **Check.** `gh api
+   repos/workitjobs/workit/environments/auto-apply-desktop/secrets --jq
+   '.secrets[].name'` lists the five new keys, ten in all. Then run
+   `publish-app.yml`: each failure names the key to fix and how
+   (`../.github/CLAUDE.md`, Publish WorkIt Auto Apply).
+
+**The certificate lasts five years.** Make the next one the same way
+before it expires, and replace the two certificate keys. A new
+certificate from the same team keeps every installed app updating and
+keeps its permissions (Screen Recording): macOS and Sparkle tie both to
+the team, not to one certificate. A revoked certificate or key is made
+again the same way.
+
+**Apple asks the Account Holder to accept each new agreement** at
+developer.apple.com, Account. Until then, notarizing fails with HTTP 403.
+
 ## Syncs
 
 The repo connects through Infisical's GitHub App, installed on the
@@ -462,25 +526,7 @@ again.
 2. **Revoke the old Cloudflare token.** "Deploy to Cloudflare" passed with
    the new one on 2026-11-21.
 3. **The `/web` sync,** when `GOOGLE_CLIENT_SECRET` is issued again.
-4. **Finish the move to the `auto-apply-desktop` environment** (KAN-941).
-   The environment holds its secrets (Syncs). `main`'s
-   `publish-engine.yml` still reads its key from the old `apply-engine`
-   environment, set by hand on 2026-11-17, until KAN-941 merges. In this
-   order:
-   1. Merge KAN-941. Keep `apply-engine` until then: a publish on `main`
-      would make it again, with no branch rule and no key, and fail.
-   2. Run "Publish the Fill engine" from `main` (`gh workflow run
-      publish-engine.yml --ref main`). Its key now comes from the folder,
-      and a publish refuses a key whose public half the apps don't hold,
-      so a pass shows the folder's copy is right. A run with nothing new
-      changes nothing. On a failure, paste the PEM file into the folder
-      again.
-   3. Delete the old environment: `gh api -X DELETE
-      repos/workitjobs/workit/environments/apply-engine`.
-
-   To check a PEM file against the key the apps hold, run this from
-   `backend/`:
-   `uv run python -c "import sys; from pathlib import Path; from app.scripts.publish_engine import load_key, public_key; print(public_key(load_key(Path(sys.argv[1]))))" <PEM file>`.
-   It prints only the public half, which must be `PUBLIC_KEY` in
-   `apply-agent/src/apply/engine_download.py`.
+4. **Load the five `APPLE_*` keys** (W8 step 2, KAN-950), once the Apple
+   enrollment is done (Load the Apple keys). Until then, every run of
+   `publish-app.yml` stops at its first signing step.
 5. **Rotate** every value that was sent over Slack.

@@ -10,7 +10,8 @@ reading is not kept anywhere else. `GET .../{resume_id}` returns one
 resume as the list does.
 **The parse preview** (KAN-372, ADR 0006): `POST .../preview` takes a file
 as upload does and answers what the reading finds in it (`ResumePreview`,
-with `read_by`), saving nothing but the AI use: each entry and skill lists
+with `read_by`), saving nothing but the AI use and its row in the reading
+log (KAN-898, `services/resume_reading.py`): each entry and skill lists
 the other uploads' rows a confirm would replace, and `duplicate_of` names
 an upload with the same text. The student confirms by uploading the same
 file with `?replace=matching`, which also deletes those rows in the
@@ -166,16 +167,17 @@ async def preview_resume(
     session: AsyncSession = Depends(get_session),
 ):
     """The parse preview (KAN-372, ADR 0006): the file read as an upload
-    reads it, with nothing saved but the AI use: no Storage file, no row, no
-    bank write. The student confirms by uploading the same file with
-    `?replace=matching` and this reading as `reading`."""
+    reads it, with nothing saved but the AI use and the reading log's row
+    (KAN-898): no Storage file, no resume row, no bank write. The student
+    confirms by uploading the same file with `?replace=matching` and this
+    reading as `reading`."""
     assert_applicant_owns(account, applicant_id)
     try:
         contents, ext, _ = await _read_upload(file)
     except UploadRejected as exc:
         raise HTTPException(exc.status, str(exc)) from exc
     raw_text = await _extract(contents, ext)
-    reading, _ = await read_upload(session, applicant_id, account, raw_text, llm)
+    reading, _ = await read_upload(session, applicant_id, account, raw_text, llm, route="preview")
     entries, skills = reading.entries, reading.skills
     # A skill the student removed is no longer offered (KAN-369).
     removed = await bank.removed_skills(session, applicant_id)
@@ -190,13 +192,14 @@ async def preview_resume(
             resume_id=same.id, name=same.original_filename or "Uploaded resume"),
         read_by=reading.read_by,
     )
-    if reading.read_by == "model":
-        # The AI reading is spent whether or not the student confirms.
-        try:
-            await session.commit()
-        except SQLAlchemyError:
-            await session.rollback()
-            logger.exception("Failed to count a preview's AI reading")
+    # The AI reading, if any, is spent whether or not the student confirms,
+    # and the reading log keeps every preview's row (KAN-898): the confirm
+    # reads nothing, so it adds none.
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Failed to keep a preview's reading and its AI use")
     return preview
 
 
@@ -254,7 +257,7 @@ async def upload_resume(
     if confirmed is not None:
         read, left = confirmed, await uses_left(session, applicant_id, Feature.PARSING)
     else:
-        read, left = await read_upload(session, applicant_id, account, raw_text, llm)
+        read, left = await read_upload(session, applicant_id, account, raw_text, llm, route="upload")
     entries, skills = read.entries, read.skills
 
     resume_id = uuid.uuid4()
@@ -347,7 +350,7 @@ async def replace_resume(
     if (same := await _duplicate_of(session, applicant_id, digest, besides=resume.id)) is not None:
         raise _duplicate(same)
     # Read before anything is written or stored, as upload does.
-    read, left = await read_upload(session, applicant_id, account, raw_text, llm)
+    read, left = await read_upload(session, applicant_id, account, raw_text, llm, route="update")
     entries, skills = read.entries, read.skills
     # The old file's sent resumes become a snapshot of its text (KAN-267),
     # read while the row still holds that text; it commits with the

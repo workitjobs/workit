@@ -19,8 +19,9 @@ build/out/WorkIt Auto Apply.app. In order:
    swiftc builds the plain Workers' window capture helper into the app beside the program.
 5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
    path left in the app, and a capture helper that runs.
-6. build/out/WorkIt Auto Apply.dmg, the download: the app, a link to Applications, and the license and notices
-   beside them. It checks that the DMG mounts and the app in it passes codesign's check.
+6. build/out/WorkIt Auto Apply.dmg, the download: the app and a link to Applications, with an arrow between them.
+   The app holds the license and the notices, and shows both. It checks that the DMG mounts and the app in it passes
+   codesign's check.
 
 `--release` is a build for students. It builds from the current commit's own files (`git archive` into
 build/source), never the working tree: Apply installs from its folder with every untracked file in it, Nuitka ships
@@ -33,8 +34,10 @@ that has some, so a report names the code it came from.
 The app updates itself with Sparkle (W8 step 3): the build puts its framework, the feed's address and the update
 key's public half in the app. ../.github/workflows/publish-app.yml builds a release on a GitHub Mac and publishes it,
 with scripts/publish_app.py to sign it (step 4).
-The app has only the compiler's ad-hoc signature and no notarization yet (step 2), so it opens only on the Mac that
-built it.
+
+Every build signs every program in the app with the hardened runtime, then the app and the DMG (`sign_app`, W8 step
+2), with the Developer ID in the Mac's keychains (`signer`): only publish-app.yml's keychain holds WorkIt's, and
+scripts/notarize_app.py then notarizes the DMG. A Mac with none signs ad hoc, and its app opens only on that Mac.
 """
 
 import argparse
@@ -45,6 +48,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +96,19 @@ BUNDLE_ID = "ai.workitjobs.autoapply"
 MIN_MACOS = "13.0"  # D18
 APP = OUT / f"{NAME}.app"
 DMG = OUT / f"{NAME}.dmg"
+# The download's window, as Finder opens it: the app on the left, an arrow to Applications on the right. dmgbuild
+# writes Finder's layout file itself, with no Finder running, which a GitHub Mac can't script. The picture, with its
+# @2x copy beside it, is drawn for these places (the window's size, the icons' centres) by scripts/dmg_background.py:
+# run it after a change here.
+# Never dmgbuild's hide_extensions: it writes Finder's data onto the app's folder, and codesign then refuses the app
+# ("Disallowed xattr com.apple.FinderInfo", 2026-11-27). Finder hides ".app" by itself.
+DMG_BACKGROUND = Path("assets", "dmg-background.png")
+DMG_LAYOUT = {"window_rect": ((200, 160), (640, 400)), "icon_size": 128,
+              "icon_locations": {APP.name: (160, 180), "Applications": (480, 180)}}
+DMGBUILD = r"""
+import json, sys, dmgbuild
+dmgbuild.build_dmg(sys.argv[1], sys.argv[2], settings=json.loads(sys.argv[3]))
+"""
 STUDENT_LINE = ("STUDENT = False\n", "STUDENT = True\n")
 
 # The checkout's inputs home.CODE names, staged as the app reads them. The Worker extension's vendor/ is what
@@ -117,6 +134,25 @@ LEAVE_OUT = ("apply/plain/window_capture.swift", "apply/plain/mcp_tools.json", "
 # app back in front of a Worker's window. With no reason in Info.plist, macOS refuses the event and never asks.
 APPLE_EVENTS_REASON = ("WorkIt Auto Apply brings the app you were using back to the front when a Worker's Chrome "
                        "window opens on top of it.")
+# What each program may do that the hardened runtime otherwise refuses, by its path in the app, and no more (W8 step 2):
+# notarization needs the hardened runtime on every program. The app's own program sends Apple events (FocusKeeper,
+# above): with the hardened runtime, macOS refuses them without this. Node compiles JavaScript to machine code as it
+# runs, which the hardened runtime refuses without allow-jit: Node crashed at start without it, and with it alone ran
+# Playwright's driver, WebAssembly and a worker thread (2026-11-27). Node's own release asks for five more,
+# get-task-allow among them, which notarization refuses.
+ENTITLEMENTS = {
+    ".": {"com.apple.security.automation.apple-events": True},
+    "Contents/MacOS/playwright/driver/node": {"com.apple.security.cs.allow-jit": True},
+}
+MACH_O = (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf")  # a program or library: arm64, or universal
+# codesign's failures that have a known fix, by words in its message. A Developer ID signature asks Apple's timestamp
+# server once per file, and that server can miss an answer: such a file is tried again (`codesign`).
+TIMESTAMP_DOWN = "timestamp service is not available"
+CODESIGN_FIXES = {
+    TIMESTAMP_DOWN: "Apple's timestamp server didn't answer three times: start a new run.",
+    "errSecInternalComponent": "codesign may not use the Developer ID's key: its keychain is locked, or the key isn't "
+                               "open to codesign. publish-app.yml's certificate step does both; check that it ran.",
+}
 # Text the checks look for in the program, read from the build's copy before the compile (`probes`), so a reworded
 # docstring or comment can't make a check pass by finding nothing: a string constant that must be there
 # (student.NO_MODEL), a docstring's first line that must be gone (student.NoClaude's) and a page code comment that must
@@ -138,6 +174,24 @@ print(json.dumps({"constant": value("student", "NO_MODEL"), "docstring": doc.spl
 def run(command: list[str], **kwargs) -> None:
     print("+", " ".join(str(part) for part in command), flush=True)
     subprocess.run(command, check=True, **kwargs)
+
+
+def codesign(*args: object) -> None:
+    """codesign --force with `args`, tried again when Apple's timestamp server misses an answer; a failure stops the
+    build with codesign's own words and the fix, when CODESIGN_FIXES knows it."""
+    command = ["/usr/bin/codesign", "--force", *map(str, args)]
+    print("+", " ".join(command), flush=True)
+    for attempt in (1, 2, 3):
+        done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
+        if done.returncode == 0:
+            return
+        error = (done.stderr or done.stdout).strip()
+        if TIMESTAMP_DOWN not in error or attempt == 3:
+            break
+        print(f"Apple's timestamp server didn't answer (try {attempt} of 3): trying again in 15 s.", flush=True)
+        time.sleep(15)
+    fix = next((fix for words, fix in CODESIGN_FIXES.items() if words in error), "")
+    sys.exit(f"codesign failed: {error}" + (f"\n{fix}" if fix else ""))
 
 
 def venv_python(code: str, *args: object) -> str:
@@ -322,9 +376,51 @@ def compile_app(source: Path, developer: list[str], version: str, scheme: str, c
     for part in SPARKLE_LEAVE_OUT:
         shutil.rmtree(framework / "Versions" / "Current" / part, ignore_errors=True)
         (framework / part).unlink(missing_ok=True)  # the framework's top-level link to it
-    # The edits broke Nuitka's ad-hoc signature, and Apple Silicon runs no unsigned code: sign it ad hoc again.
-    # Step 2 replaces this with the Developer ID signature, file by file.
-    run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", APP])
+
+
+def sign_app(app: Path, identity: str) -> None:
+    """Sign every program and library in `app`, then the app: each with the hardened runtime and its ENTITLEMENTS,
+    and with a secure timestamp from Apple when `identity` is a Developer ID ("-" signs ad hoc, for this Mac only).
+
+    The build's edits broke Nuitka's signature, and Apple Silicon runs no unsigned code. One by one, never --deep:
+    --deep gives every program the app's entitlements, Node's allow-jit to all of them or Node none."""
+    def sign(path: Path) -> None:
+        command = ["--sign", identity, "--options", "runtime", "--timestamp=none" if identity == "-" else "--timestamp"]
+        entitlements = ENTITLEMENTS.get(str(path.relative_to(app)))  # "." for the app itself
+        if path == app and identity == "-":
+            # The hardened runtime loads a library only when one team signed it and the program: every ad-hoc file is
+            # a team of its own, and the program stopped at its first library (2026-11-27). A Developer ID signs all
+            # with one team, so only a test build turns that check off, and keeps the rest of the runtime's.
+            entitlements = {**(entitlements or {}), "com.apple.security.cs.disable-library-validation": True}
+        if entitlements:
+            plist = BUILD / "entitlements" / f"{path.name}.plist"
+            plist.parent.mkdir(parents=True, exist_ok=True)
+            plist.write_bytes(plistlib.dumps(entitlements))
+            command += ["--entitlements", plist]
+        codesign(*command, path)
+
+    def mach_o(path: Path) -> bool:
+        if not path.is_file() or path.is_symlink():
+            return False
+        with path.open("rb") as file:
+            return file.read(4) in MACH_O
+
+    # A moved program (a new Playwright's Node) would lose its exception with no error, and fail only on students' Macs.
+    if missing := [path for path in ENTITLEMENTS if not (app / path).exists()]:
+        sys.exit(f"ENTITLEMENTS names what the app doesn't hold: {', '.join(missing)}. Fix the path in "
+                 "scripts/build_app.py.")
+    framework = app / "Contents" / "Frameworks" / "Sparkle.framework"
+    program = app / "Contents" / "MacOS" / NAME  # signed with the app, as its main program
+    for path in sorted(app.rglob("*")):
+        if framework not in path.parents and path != program and mach_o(path):
+            sign(path)
+    # Sparkle's own order (sparkle-project.org/documentation/sandboxing, "Code Signing"): its installer, its updater
+    # app, then the framework.
+    version = framework / "Versions" / "Current"
+    sign(version / "Autoupdate")
+    sign(version / "Updater.app")
+    sign(framework)
+    sign(app)
 
 
 def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
@@ -361,19 +457,31 @@ def check(developer: list[str], capture: str, probes: dict[str, str]) -> None:
           f"no home folder ({len(compiled)} modules).")
 
 
-def make_dmg() -> None:
-    """The download: the app, a link to Applications to drag it onto, and the license and notices beside them (W10)."""
-    stage = OUT / "dmg"
-    shutil.rmtree(stage, ignore_errors=True)
-    stage.mkdir()
-    run(["/usr/bin/ditto", APP, stage / APP.name])  # ditto keeps the app's signatures, links and attributes
-    (stage / "Applications").symlink_to("/Applications")
-    shutil.copy2(DATA / "legal" / "EULA.txt", stage / "License.txt")
-    shutil.copy2(DATA / NOTICES, stage / "Third-Party Notices.txt")
+def signer() -> str:
+    """The Developer ID Application identity in this Mac's keychains, by its SHA-1, or "-" to sign ad hoc where there
+    is none. publish-app.yml puts WorkIt's in a keychain of its run; no person's Mac holds it (docs/secrets.md)."""
+    found = subprocess.run(["/usr/bin/security", "find-identity", "-v", "-p", "codesigning"], capture_output=True,
+                           text=True, encoding="utf-8", check=False).stdout
+    return next((line.split()[1] for line in found.splitlines() if '"Developer ID Application: ' in line), "-")
+
+
+def make_dmg(source: Path, identity: str) -> None:
+    """The download: the app and a link to Applications to drag it onto, laid out as DMG_LAYOUT, with the app's icon
+    on the disk. The license and the notices are in the app, which shows both (W10): the first run shows the license,
+    and Settings links both. A Developer ID signs the DMG too: Apple notarizes a DMG only with one."""
+    settings = {"format": "UDZO", "filesystem": "HFS+", "files": [str(APP)], "symlinks": {"Applications": "/Applications"},
+                "background": str(source / DMG_BACKGROUND), **DMG_LAYOUT}
+    # dmgbuild gives the disk the app's icon with Apple's SetFile, one of Xcode's tools, which no GitHub Mac's list
+    # names (2026-11-27). The icon is only a look: without SetFile, the DMG keeps the plain disk icon, and says so.
+    if subprocess.run(["/usr/bin/xcrun", "--find", "SetFile"], capture_output=True, check=False).returncode == 0:
+        settings["icon"] = str(BUILD / "AppIcon.icns")
+    else:
+        print("No SetFile on this Mac: the DMG keeps the plain disk icon.", flush=True)
     try:
-        run(["/usr/bin/hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-fs", "HFS+", "-format", "UDZO",
-             "-ov", DMG])
-        shutil.rmtree(stage)
+        # dmgbuild copies the app with ditto, which keeps its signatures and links.
+        run([PYTHON, "-I", "-c", DMGBUILD, DMG, NAME, json.dumps(settings)])
+        if identity != "-":
+            codesign("--sign", identity, "--timestamp", DMG)
         mount = OUT / "dmg-check"  # mounted read-only, as a student's Mac opens it, and its app checked as it is there
         run(["/usr/bin/hdiutil", "attach", DMG, "-readonly", "-nobrowse", "-mountpoint", mount])
         try:
@@ -395,6 +503,7 @@ def main() -> None:
                         help="a build for students: complete notices (third_party_notices --strict), no ccache")
     args = parser.parse_args()
     preflight()
+    identity = signer()
     commit = git("rev-parse", "HEAD")
     changed = bool(git("status", "--porcelain", "--untracked-files=all", "--", "."))
     if args.release:
@@ -418,10 +527,13 @@ def main() -> None:
     capture = venv_python("from apply.plain.window_capture import BUNDLED_NAME; print(BUNDLED_NAME)")
     stage_inputs(source, strict=args.release)
     compile_app(source, developer, version, scheme, capture, release=args.release, commit=commit)
+    sign_app(APP, identity)
     check(developer, capture, probes)
-    make_dmg()
+    make_dmg(source, identity)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
-    print(f"Built {APP} ({size:.0f} MB) and {DMG.name} ({DMG.stat().st_size / 1e6:.0f} MB). Open it with: open '{APP}'")
+    signed = "ad hoc, so it opens on this Mac only" if identity == "-" else "with the Developer ID"
+    print(f"Built {APP} ({size:.0f} MB) and {DMG.name} ({DMG.stat().st_size / 1e6:.0f} MB), signed {signed}. "
+          f"Open it with: open '{APP}'")
 
 
 if __name__ == "__main__":

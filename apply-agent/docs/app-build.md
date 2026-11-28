@@ -14,8 +14,13 @@ and uv:
 | `python3 scripts/build_app.py` | A test build from the working tree, uncommitted changes too | About 1.5 minutes with a warm compile cache, 6 to 7 from cold |
 | `python3 scripts/build_app.py --release` | A build for students, from the current commit's files only, with complete notices and no ccache. It refuses to start while `scripts/build_app.py` has uncommitted changes | 6 to 7 minutes, as a cold test build (it compiles every C file) |
 
+Each build signs every program in the app with the hardened runtime, with
+no flag: with the Developer ID when the Mac's keychains hold one (only
+`publish-app.yml`'s run does), else ad hoc, and then the app opens on that
+Mac only.
+
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
-`build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
+`build/out/WorkIt Auto Apply.dmg` (about 73 MB), and replace the last ones.
 `build/` is git-ignored. Each app names its commit in `Info.plist`
 (`WorkItCommit`; `+changes` on a test build of a changed working tree) and
 whether it is a release (`WorkItRelease`):
@@ -92,10 +97,13 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   stop it with `kill -TERM <pid>`, never `-KILL`, which loses its profile's
   last changes. Kill only processes you started.
 - **The DMG:** `open "build/out/WorkIt Auto Apply.dmg"` shows the app, an
-  Applications link, `License.txt` and `Third-Party Notices.txt`. Until
-  step 2 signs it with a Developer ID, another Mac blocks the downloaded
-  app: there, `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto
-  Apply.app"` lets it open for a test.
+  arrow and the Applications link. A Mac set to show every file extension,
+  the path bar or the status bar shows those in this window too; a Mac
+  with Apple's defaults shows "WorkIt Auto Apply" and no bars. Once the app
+  runs from anywhere else, it ejects the DMG. Until step 2 signs it with a
+  Developer ID, another Mac blocks the downloaded app: there,
+  `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto Apply.app"`
+  lets it open for a test.
 
 ## Publish a release
 
@@ -103,13 +111,25 @@ A GitHub-hosted Mac builds, signs and publishes every release (D32), and
 every installed app installs it, with no question.
 
 1. Test `main`: pull it, `python3 scripts/build_app.py`, launch the app and
-   run it (above). The workflow builds the same commit.
+   run it (above). The workflow builds the same commit, with the same
+   hardened runtime. Two things differ: the signer, and library
+   validation, which a test build turns off (`../CLAUDE.md`, "Every
+   program in the app runs with the hardened runtime").
 2. `gh workflow run publish-app.yml --ref main`. Its rules, and what to do
    when a run fails: `../../.github/CLAUDE.md`, Publish WorkIt Auto Apply.
 
-A test build signs nothing, so a developer needs no key. The update key
-lives in Infisical and the `auto-apply-desktop` environment only
-(`../../docs/secrets.md`).
+A test build signs ad hoc, so a developer needs no key. The Developer ID
+certificate, the notarization key and the update key live in Infisical and
+the `auto-apply-desktop` environment only (`../../docs/secrets.md`).
+
+**When Apple refuses a build**, the notarize step prints each refused file
+and Apple's reason. `sign_app` signs every program and library it finds,
+but it signs Sparkle's framework part by part, so a new part of a new
+Sparkle needs its own line there; and an exception notarization forbids
+(`get-task-allow`) must stay out of `ENTITLEMENTS` (`../CLAUDE.md`, "Every
+program in the app runs with the hardened runtime"). On your own Mac,
+`codesign -dv <file>` shows `runtime` in its `flags` once a file has the
+hardened runtime.
 
 ## Test an update
 
@@ -144,18 +164,22 @@ it out of git, and delete the test build afterwards: it allows plain HTTP.
 
 ## Still open
 
-- Step 2: Developer ID signing with the hardened runtime and the
-  entitlements for Node (JIT) and Apple events, then notarizing the app
-  and the DMG, in `publish-app.yml`, with their secrets in the
-  `auto-apply-desktop` environment.
+- Step 2 is built (KAN-950) and has never run: the hardened runtime is in
+  every build, and `publish-app.yml` signs with the Developer ID and
+  notarizes. It waits on the Apple enrollment and the five `APPLE_*`
+  secrets (`../../docs/secrets.md`, Load the Apple keys).
+  The first notarized build must be opened on a Mac that never built the
+  app, from the website's link, for W8's "Done when".
 - Step 3: a beta channel for testers is not built. Sparkle and the update
   key are in every build (2026-11-26).
-- Step 4: publishing (above) is built, and nothing is published yet: the
-  workflow's first run on a GitHub Mac waits on KAN-941's merge. The
-  website's `DOWNLOAD_URL`
-  (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`) stays null
-  until step 2, since until then the DMG opens on no other Mac; then it is
-  `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
+- Step 4: publishing (above) is built. One build is live, `202611270032`
+  (2026-11-27, before step 2), which macOS blocks: it isn't notarized. The
+  website's Download for Mac links `WorkIt-Auto-Apply.dmg` from KAN-950's
+  merge (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`), before
+  W0 and W6, the user's call on 2026-11-27. **Run `publish-app.yml` right
+  after that merge:** until its run passes, the link serves that blocked
+  build. It needs the Apple keys first (`../../docs/secrets.md`, Load the
+  Apple keys).
 - `worker-extension/` leaves `INPUTS` with W6.
 - CDP Workers' Chrome is started by Playwright inside the app, so macOS may
   blame the app for Chrome's updater ("prevented from modifying apps")

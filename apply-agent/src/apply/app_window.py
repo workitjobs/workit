@@ -1108,6 +1108,7 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
 
         threading.Thread(target=app_control.watch, args=(bridge,), daemon=True, name="control").start()
     updates.start()  # the built app's Sparkle updater (W8 step 3)
+    updates.eject_installer()  # the disk image the student installed from, once the app runs from Applications
     look_like_the_app()
     try:
         webview.start()  # no http_server: the page is a string, so pywebview opens no port either

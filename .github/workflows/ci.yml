@@ -350,6 +350,7 @@ jobs:
             tests/test_tracker_record.py \
             tests/test_truth.py \
             tests/test_student_build.py \
+            tests/test_updates.py \
             tests/test_worker_date.py \
             tests/test_worker_extension_store.py \
             tests/test_workit_login.py

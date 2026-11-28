@@ -12,8 +12,9 @@ window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
 W10's legal text (#579, #582); W5, the app's window with no port:
 sign-in (#609), first run, a run, and Report a problem in Settings and
-on each Application's card (KAN-858); and W2's step 2, the generic Filler (KAN-861). The rest of what
-a student downloads and runs (W7, W8) is not built.
+on each Application's card (KAN-858); W2's step 2, the generic Filler (KAN-861); W7, the engine
+download (KAN-836); and W8's build, signing, notarizing, updates and publishing (KAN-833, KAN-941,
+KAN-950), which have published nothing yet.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -530,9 +531,9 @@ on a developer's Mac.
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837), and the built app's sign-in link (KAN-833) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`); the first publish passed on 2026-11-17. Open: the WorkIt extension's public copy of the engine |
-| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4). Left: sign and notarize (step 2), the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac off until `DOWNLOAD_URL` names the DMG |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Step 1 built (KAN-833): `scripts/build_app.py` compiles an app that opens on the Mac that built it, and its DMG. Sparkle and publishing are built (KAN-941, steps 3 and 4), and so are signing and notarizing (KAN-950, step 2), which wait on the Apple enrollment and its keys. Left: those keys, the first publish, a beta channel. The download page is built (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab (a rail row at `/auto-apply-desktop` until 2026-11-23), with Download for Mac on from KAN-950's merge (`DOWNLOAD_URL`) |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
-| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app and its DMG: every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
+| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). The license and complete notices are in W8's app, which shows both (the first run, Settings): every hand entry's text is in `legal/licenses/` (KAN-833), so `build_app.py --release` passes. Left: a `/privacy` that is true of the app |
 | W11 | The student's data | None | Yes | The Answer bank on WorkIt (2026-11-18, redesigned 2026-11-20): steps 1 to 3 built (the backend: `answer_banks`, the whole-bank read with its version, PATCH with `job_id` and its `{version, kept_out}` reply, the one rule at each save with follow-ups and the content checks, `bank_version` on the usage reply), its migration not yet applied; `essays.write` version 2 (`needs_applicant`) built. Apply's step 4 built (2026-11-21): the bank read into memory, the sender and every write, the version checks, the old YAML file's upload in Developer commands, the Tracker's Answers tab removed, ADR 0007 (`apply-agent/docs/adr/`). Step 5 built (2026-11-24): `PATCH .../fill-answers` gone, `fill_answers` dropped (`c3f9a1d27b6e`). Also built 2026-11-24: the Answer Bank on the website and in the app's window, one design; the app's profile from WorkIt (`GET` and `PATCH /apply-app/profile`), so the app has no profile file and no Test Person. Built 2026-11-26: the Story bank and voice from WorkIt (an Essay fact's answer never saved), and a Developer checkout's `apply upload` (`POST /apply-app/profile/upload`, only what WorkIt lacks). The extension is unchanged. Left: the old route, once no Store extension calls it; company briefs are W9's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started. Step 2's token count is parked, not merged, on branch `KAN-837-tokens-by-kind` (section W13) |
@@ -1607,7 +1608,7 @@ itself (D17, D18, D20).
 - **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
   that says "Apple Silicon Macs (M1 and later), macOS 13 or later". Built
   (KAN-835): `/auto-apply/desktop`, Auto Apply's Desktop App tab
-  (`frontend/docs/screens.md`). Publishing the DMG sets `DOWNLOAD_URL` in its `page.tsx`.
+  (`frontend/docs/screens.md`). `DOWNLOAD_URL` in its `page.tsx` links the newest DMG (KAN-950).
 - **Build a release in one workflow** (D32):
   `.github/workflows/publish-app.yml`, by hand from `main`, on a
   GitHub-hosted Apple Silicon Mac: `scripts/build_app.py --release`, from
@@ -1633,7 +1634,16 @@ itself (D17, D18, D20).
    the sign-in link itself (W5's last step), and ships the plain
    Workers' window capture helper, built by `swiftc` in the build, since a
    student's Mac has no `swiftc`. Step 1 is done.
-2. Sign with Developer ID and notarize, after the Apple enrollment.
+2. Sign with Developer ID and notarize. Built (KAN-950, 2026-11-27), never
+   run: every build signs each program with the hardened runtime and
+   only its own entitlements (Node's JIT, the app's Apple events), a test
+   build ad hoc; `publish-app.yml` signs with the Developer ID from a
+   keychain it makes, `scripts/notarize_app.py` notarizes the DMG and
+   staples its ticket, and a publish refuses a DMG with none
+   (`apply-agent/CLAUDE.md`, "Building the app"). An ad-hoc build under
+   the hardened runtime ran its window, Sparkle, the relay and Node.
+   Left: the Apple enrollment, its five keys in Infisical, and the first
+   notarized build opened on a Mac that never built the app.
 3. Sparkle: the framework in the bundle, the key, the feed on R2. Sparkle
    is in the build (KAN-941, 2026-11-24): the pinned 2.10.1, the feed at
    `https://downloads.workitjobs.ai/appcast.xml`, checks and installs with
@@ -1641,13 +1651,16 @@ itself (D17, D18, D20).
    Mac with a throwaway key and a local feed (`apply-agent/docs/app-build.md`).
    The key is made and its public half is in every build (2026-11-26).
    Left: a beta channel.
-4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7. The DMG
+4. The DMG, its upload, and `DOWNLOAD_URL`, after W0, W6 and W7; the link
+   went in with step 2 (KAN-950), before W0 and W6, the user's call on
+   2026-11-27. The DMG
    is built (KAN-833, 2026-11-24): `build/out/WorkIt Auto Apply.dmg`, with the
-   app, a link to Applications, and the license and notices beside them.
+   app and a link to Applications, with an arrow between them (KAN-950: the license and notices left it for
+   the app, which shows both), and the app ejects it once it runs from Applications.
    Publishing is built (KAN-941, 2026-11-26): the workflow above, into
    the R2 bucket `auto-apply-desktop` behind `downloads.workitjobs.ai`.
-   Left: the first publish, step 2, and `DOWNLOAD_URL`, which waits on
-   step 2.
+   A publish refuses a DMG Apple hasn't notarized (step 2). Left: the
+   first notarized publish, right after KAN-950's merge turns the link on.
 
 **Done when.** A clean Apple Silicon Mac on macOS 13 opens the
 downloaded app with no warning beyond macOS's "downloaded from the
