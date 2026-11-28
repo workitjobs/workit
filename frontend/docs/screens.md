@@ -2068,10 +2068,13 @@ numbered cards that drew the app's first run (`setup-graphics.tsx`, in
 git's history). The app walks the student through those steps itself, so
 the page does not repeat them.
 
-**Download for Mac is off until there is a build.** `DOWNLOAD_URL` in
-`page.tsx` is null until W8 puts the signed DMG on Cloudflare R2; until
-then the button cannot be pressed and the line under it says the download
-is coming. Set it there when the DMG is published.
+**Download for Mac links the newest build** (KAN-950): `DOWNLOAD_URL` in
+`page.tsx` is `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`, which
+each run of `publish-app.yml` replaces with a signed, notarized DMG. R2 sends
+it as an attachment named "WorkIt Auto Apply.dmg", since a browser ignores
+`download` on another site's link. To turn the button off, set it to null:
+the button is drawn but cannot be pressed, and the line under it says the
+download is coming.
 
 ## Calendar
 

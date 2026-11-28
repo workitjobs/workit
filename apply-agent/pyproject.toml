@@ -23,6 +23,7 @@ apply = "apply.cli:main"
 
 [dependency-groups]
 build = [
+    "dmgbuild==2.0.0",
     "nuitka==4.3.5",
 ]
 dev = [

@@ -100,7 +100,9 @@ has neither.
   (`plain/seed_setup.reveal`), a tile's capture (`window_capture.mode`),
   and keeping the computer awake during a run
   (`awake.awake`: `caffeinate` on the Mac, `SetThreadExecutionState` on Windows). FocusKeeper (`focus.py`) is the
-  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
+  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. So is ejecting the
+  installer's disk image (`updates.eject_installer`, `hdiutil`): elsewhere
+  it does nothing. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript`, `ps`, `fcntl`, `os.kill(pid, 0)` or a Unix socket anywhere else.
@@ -638,11 +640,12 @@ Any teammate's Mac builds the same app: it needs only Xcode's Command Line
 Tools, uv and the network, and any `python3` runs the script, macOS's own
 3.9 too (standard library only; checked 2026-11-21 in an empty environment
 with only the system folders and uv on the `PATH`).
-The app has only the compiler's ad-hoc signature, so it opens on the Mac
-that built it and nowhere else until step 2 (Developer ID and
-notarizing). Sparkle (step 3) is in every build. A developer's Mac makes
-test builds; releases come from `../.github/workflows/publish-app.yml` on a
-GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
+A developer's Mac makes test builds, signed ad hoc, so each opens on the
+Mac that built it and nowhere else. Releases come only from
+`../.github/workflows/publish-app.yml` on a GitHub Mac (steps 2 and 4,
+D32), signed with WorkIt's Developer ID and notarized: no developer holds
+the certificate. Sparkle (step 3) is in every build. `--release` makes the
+notices strict (above).
 
 - **What ships is decided in three places only**: `INPUTS` and `LEAVE_OUT`
   in `scripts/build_app.py`, and `build.DEVELOPER`; beyond those, the
@@ -737,11 +740,38 @@ GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
   docstring would turn into a check that always passes. Nuitka's report
   (`build/out/report.xml`) lists every module it compiled and why.
 - **The build ends with the DMG**, `build/out/WorkIt Auto Apply.dmg`: the
-  app (copied with `ditto`, which keeps its signatures), a link to
-  Applications, and `License.txt` and `Third-Party Notices.txt` beside them
-  (W10). The build mounts it read-only and refuses one whose app fails
-  `codesign --verify` or has no Applications link. A failed or refused build
-  leaves no DMG: the build deletes the last one when it starts.
+  app and a link to Applications, with WorkIt's arrow between them, as
+  other Mac apps' downloads look (KAN-950). `dmgbuild` (the `build` group,
+  so it never ships or joins the notices) copies the app with `ditto`,
+  which keeps its signatures, and writes Finder's layout file itself: no
+  Finder runs, which a GitHub Mac can't script. The arrow picture,
+  `assets/dmg-background.png` with its `@2x`, is drawn for `DMG_LAYOUT`'s
+  places by `scripts/dmg_background.py`: run it after a change to the
+  layout, and commit both pictures. The disk takes the app's icon through
+  Apple's `SetFile`, one of Xcode's tools; no GitHub Mac's list names it,
+  so a Mac without it builds the DMG with the plain disk icon and says so.
+  Never set dmgbuild's `hide_extensions`: it writes Finder's data onto the
+  app's folder, and codesign then refuses the app
+  ("Disallowed xattr com.apple.FinderInfo", found 2026-11-27); Finder
+  hides `.app` by itself unless the Mac shows every extension. The
+  license and the notices are not beside the app (they were until
+  2026-11-27): the app holds both, the first run shows the license and
+  Settings links both (W10). The build mounts the DMG read-only and
+  refuses one whose app fails `codesign --verify` or has no Applications
+  link. A failed or refused build leaves no DMG: the build deletes the
+  last one when it starts.
+- **The app ejects the DMG it was installed from** (`updates.eject_installer`,
+  KAN-950) when it runs from anywhere else, at each launch, so the disk
+  leaves Finder's sidebar once the student opens the app from
+  Applications. It finds its disk by the bundle ID and build number of
+  the app on it, and never ejects a disk it runs from, directly or
+  through macOS's moved-aside copy of a downloaded app (App
+  Translocation). Only the disk
+  of this very build goes: a newer download the student hasn't dragged in
+  yet stays, since they may open the old app first.
+  `tests/test_updates.py` (in CI) holds each of those faults. The `.dmg`
+  file stays in Downloads: deleting it there needs the student's leave
+  for that folder, one more prompt (the user's call, 2026-11-27).
 - **The app's icon is `assets/app-icon.png`**: WorkIt's logo at 1024 px on
   Apple's macOS icon grid, an 824 px shape with a transparent margin, so it
   shows at the size of other apps' icons (the logo filled the whole canvas
@@ -765,17 +795,32 @@ GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
   Tested end to end on 2026-11-24 (`docs/app-build.md`, "Test an update"):
   an older build installed a newer one on quit, and refused one that
   another key signed.
+- **`scripts/notarize_app.py` has Apple notarize a release** (W8 step 2,
+  KAN-950), run by `publish-app.yml` after the build signs the app and
+  the DMG with the Developer ID. It submits the DMG with an App Store
+  Connect API key, waits, prints Apple's reason for each refused file,
+  and staples the ticket to the DMG. That ticket covers the app in it:
+  Apple notarizes a DMG only when every program in it passes. A key
+  Apple declines stops it at once with the fix (`DECLINED`, in Apple's
+  words, checked on 2026-11-27 with a random key); a dropped connection
+  and a ticket not there yet are tried again, as is a timestamp Apple's
+  server misses in the build (`codesign`). It runs before
+  `publish_app.py`, since stapling changes the DMG and Sparkle's
+  signature covers every byte. Both check the ticket with `stapler
+  validate`, never `spctl`: on a Mac with Gatekeeper off, as a CI runner
+  can be, `spctl` answers "override=security disabled" and judges nothing.
 - **`scripts/publish_app.py` signs a release for Sparkle** (W8 step 4,
   KAN-941), run by `publish-app.yml` with the update key in
   `SPARKLE_PRIVATE_KEY` (`../.github/CLAUDE.md`, Publish WorkIt Auto
   Apply). It writes the DMG under its build's own name and the feed (one
-  item, the newest build), and it refuses three things every app would
-  silently fail on: a test build (`WorkItRelease` false: it can hold
-  untracked files and incomplete notices), a key whose signature the
-  app's `SUPublicEDKey` rejects (checked with `cryptography`, as an app
-  checks it), and a feed that ElementTree can't read or that offers
-  another file. **It keeps `sign_update`'s output out of the log:** on a
-  failure it prints its own message, because `sign_update`'s error repeats
+  item, the newest build), and it refuses four things that would fail on
+  every Mac: a test build (`WorkItRelease` false: it can hold untracked
+  files and incomplete notices), a DMG with no notarization ticket (macOS
+  blocks it), a key whose signature the app's `SUPublicEDKey` rejects
+  (checked with `cryptography`, as an app checks it), and a feed that
+  ElementTree can't read or that offers another file. **It keeps
+  `sign_update`'s output out of the log:** on a failure it prints its own
+  message, because `sign_update`'s error repeats
   the key it was given. The key reaches `sign_update` on stdin only, and
   the script removes it from its own environment first.
 - **`CFBundleVersion` is the build's UTC time** (`YYYYMMDDHHMM`), so it only
@@ -790,9 +835,28 @@ GitHub Mac (step 4, D32). `--release` makes the notices strict (above).
   `workit-auto-apply://`, WorkIt's sign-in link, `sign_in_link.SCHEME`) and
   `NSAppleEventsUsageDescription` (FocusKeeper's `osascript` sends System
   Events an Apple event as the app, and with no reason macOS refuses it
-  and never asks), and
-  signs it ad hoc again, since the edit breaks Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB of
-  it.
+  and never asks), and signs it again (below), since the edits break
+  Nuitka's signature. The app is about 227 MB, Playwright's driver 128 MB
+  of it.
+- **Every program in the app runs with the hardened runtime** (W8 step 2,
+  KAN-950, `sign_app`), in every build, so a test build fails where a
+  release would. Notarization needs it on every program. There is no
+  flag: the build signs with the Developer ID in the Mac's keychains
+  (`signer`), which only `publish-app.yml`'s run holds, and ad hoc on any
+  other Mac. It signs each program and library on its own, Sparkle's
+  parts in Sparkle's order, and the app last; never with `--deep`, which
+  gives every program the app's entitlements. Each program gets only its own exceptions
+  (`ENTITLEMENTS`): Node `allow-jit` (it crashed at start without it), and
+  the app Apple events (FocusKeeper). Node's own release asks for five
+  more, `get-task-allow` among them, which notarization refuses. A program
+  that needs another exception joins `ENTITLEMENTS` with the failure it
+  fixed. **A test build turns library validation off on the app alone:**
+  the hardened runtime loads a library only when one team signed it and
+  the program, every ad-hoc file is a team of its own, and the program
+  stopped at `libpython`. A Developer ID signs every file with one team,
+  so a release keeps the check. Tested on 2026-11-27 with an
+  ad-hoc build: the window (PyObjC, WebKit), Sparkle, the relay, the
+  capture helper and Node with Playwright's driver all ran.
 - **The app ships the window capture helper**, `window-capture` beside the
   program (`window_capture.BUNDLED`), which the build compiles with `swiftc`
   for macOS 13 and checks with `--check`. A Developer checkout builds it on

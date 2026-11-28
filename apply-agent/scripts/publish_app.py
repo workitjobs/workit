@@ -6,8 +6,9 @@
 ../.github/workflows/publish-app.yml runs it on a GitHub Mac, after build_app.py --release, with the key from the
 auto-apply-desktop environment: no person's computer holds the key. It writes build/out/publish/: the DMG under its
 build's own name, signed with the update key (Sparkle's sign_update), and appcast.xml, the feed every installed app
-reads, with one item: this build. The workflow uploads both. It refuses a test build, and a key whose signature the
-app's public half rejects: every app would download that update and refuse it.
+reads, with one item: this build. The workflow uploads both. It refuses a test build, a DMG Apple hasn't notarized
+(scripts/notarize_app.py), which macOS would block on every student's Mac, and a key whose signature the app's public
+half rejects: every app would download that update and refuse it.
 """
 
 import os
@@ -19,6 +20,7 @@ import xml.etree.ElementTree as ET
 from email.utils import formatdate
 
 import build_app as build  # the app's paths and settings, kept in one place
+import notarize_app as notarize
 
 PUBLISH = build.OUT / "publish"
 SIGN_UPDATE = build.SPARKLE / "bin" / "sign_update"
@@ -61,6 +63,9 @@ def main() -> None:
     number, shown = plist["CFBundleVersion"], plist["CFBundleShortVersionString"]
     if not plist.get(build.RELEASE_KEY):
         sys.exit("That's a test build: publish only a release (python3 scripts/build_app.py --release).")
+    if not notarize.stapled(build.DMG):
+        sys.exit("The DMG carries no notarization ticket, so macOS would block it on every student's Mac: "
+                 "notarize it first (scripts/notarize_app.py).")
     shutil.rmtree(PUBLISH, ignore_errors=True)
     PUBLISH.mkdir()
     dmg = PUBLISH / f"WorkIt-Auto-Apply-{number}.dmg"  # one name per build: an app may be downloading the last one
